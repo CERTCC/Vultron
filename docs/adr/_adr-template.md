@@ -3,6 +3,10 @@
 # See the decision tree in notes/specs-vs-adrs.md ("Choosing the ADR status value").
 # Values: proposed | accepted | accepted-provisional | deprecated | rejected
 #         | superseded by (link to new ADR)
+# Record what stays invariant: never state a decision already known to become
+# obsolete. Write the stable principle with room for a foreseeable change, and
+# keep the current, changeable policy in the specs and notes that cite this ADR
+# (notes/specs-vs-adrs.md "An ADR records what stays invariant").
 # Cardinal rule (lint-enforced, MS-14): status and prose MUST agree. If the body
 # says the design is provisional / "formed in sand" / expected to converge, use
 # accepted-provisional, never accepted.
@@ -12,22 +16,28 @@ date: {YYYY-MM-DD the ADR was first written; never changed}
 # material edit (editorial edits and annotations leave it alone). revision is an
 # integer bumped by each material edit. A new ADR has created = updated = date
 # and revision = 1.
-# Epochs, measured from updated: under 72 hours `proposed` (edit in place freely);
-# 72 hours to day 10 `accepted-provisional` (ask the human: edit or supersede);
-# day 10 on `accepted` (supersede; one detail changed with the option intact is a
-# dated Amendment quoting the replaced text). Editorial edits and append-only
-# annotations are allowed in any epoch without bumping updated.
+# Epochs: `proposed` (edit in place freely) until the first test-verified
+# dependent (a spec citing the ADR in adr: whose verification names an existing
+# test) or day 14 after updated; then `accepted-provisional` (ask the human: edit
+# or supersede) to day 28; then `accepted` (supersede; one detail changed with
+# the option intact is a dated Amendment quoting the replaced text). The PR that
+# creates the first dependent flips the status. Status only moves forward.
+# Editorial edits and append-only annotations are allowed in any epoch without
+# bumping updated.
 created: {YYYY-MM-DD}
 updated: {YYYY-MM-DD}
 revision: 1
 # status_override: {the reason a human set a status that disagrees with the epoch}
-# All three lifecycle fields are required. spec-lint fails a status that
-# disagrees with the epoch unless status_override (a reason) is present; the
-# adr-lifecycle-check pre-commit hook refuses an epoch-3 Decision Outcome or
-# Considered Options edit without a dated Amendment heading, and a bump of
-# updated past epoch 1 without status_override. adr-added-reference-check
-# refuses a backticked path or code symbol an edit adds that resolves nowhere;
-# opt out with lint_suppress: [phantom_symbol_ref] or [phantom_path_ref].
+# All three lifecycle fields are required. The adr-lifecycle-check hook and its
+# pull-request twin refuse: a material edit leaving status off its epoch, a
+# status moved back, a status moved ahead of its epoch without a status_override
+# the change adds or changes, a first test-verified dependent of a proposed ADR without the
+# flip, a bump of updated past epoch 1 without status_override, and an epoch-3
+# Decision Outcome or Considered Options edit without a dated Amendment heading.
+# A status behind its epoch is reported hourly, never failed.
+# adr-added-reference-check refuses a backticked path or code symbol an edit
+# adds that resolves nowhere; opt out with
+# lint_suppress: [phantom_symbol_ref] or [phantom_path_ref].
 deciders: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
 informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}

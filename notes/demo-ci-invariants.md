@@ -1,6 +1,14 @@
 ---
 title: Demo CI Invariant Harness Design
 status: active
+kind: guidance
+description: >
+  Rules for the demo CI case-ledger invariant harness: separate demo and
+  harness jobs, an artifact that exists even when the demo fails, the narrative
+  causal-edge schema, harness file conventions, the per-scenario expected
+  event types table (ratcheted), keeping DEMOMA-16 and the harness constants in
+  one PR, reading a red harness job, post-merge runs on `main`, and
+  cancellation-safe failure notification.
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
@@ -12,361 +20,175 @@ related_notes:
   - notes/demo-scenario-authoring.md
   - notes/demo-scenario-registry.md
   - notes/demo-ci-scenario-coverage.md
+  - notes/demo-ci-diagnostics.md
+  - notes/testing-pitfalls.md
+relevant_packages:
+  - test/ci/invariants
+  - vultron/demo/helpers
 ---
 
 # Demo CI Invariant Harness Design
-
-Design notes for the case-ledger invariant harness in the demo CI workflow.
 
 ---
 
 ## Separate CI Job Pattern (DEMOCI-04)
 
-**Problem**: When the demo run and the invariant harness share the same CI
-job, a primary demo failure draws reviewer attention away from invariant
-failures. In PR #1590, a missing notes-exchange phase failed silently across
-multiple fix cycles because the invariant failure was masked by the demo
-failure in the same job output.
+Each scenario's invariant harness runs as its **own CI job**, after the demo job
+(`needs: demo`), downloading the demo's case-log artifact. Do not fold the
+harness back into the demo job: in one job, a demo failure masks an invariant
+failure that may have a different root cause (CONCERN-1649). When both fail,
+read the harness job separately.
 
-**Solution**: The invariant harness for each scenario runs as a **separate
-parallel CI job** that depends on the demo job via `needs:` and always runs
-(`if: always()`). The invariant job downloads the case-log JSONL artifact
-uploaded by the demo job and runs pytest against it.
-
-This gives each scenario two independent pass/fail status entries on the PR:
-one for the demo run, one for the invariant harness. Reviewers can see both
-signals even when the demo itself fails.
-
-**Job relationship per scenario matrix entry:**
-
-```text
-demo (matrix: fv) → uploads devlogs artifact
-    ↓ (needs: demo, if: always())
-invariant-harness (matrix: fv) → downloads artifact → runs pytest
-```
+The harness is skipped when the demo job was *cancelled*
+(`needs.demo.result != 'cancelled'`, DEMOCI-04-007): a cancelled demo uploads no
+artifact, so a harness under a bare `if: always()` fails at download and turns
+the cancellation into a `failure`. Apply the same skip to any job that consumes
+another job's artifact.
 
 ---
 
 ## Artifact Availability on Failure (DEMOCI-10)
 
-**Problem**: The separate-job pattern above only pays off if the artifact
-*exists* when the demo fails. It did not. Each `run_<name>_demo()` called
-`_phase_dump_case_ledgers()` as its last statement, so an assertion escaping a
-`demo_check`/`demo_gate` block skipped the dump; `main()`'s
-`finally: assert_demo_success()` still raised, so CI reported the demo failure
-but `devlogs/` was empty. The `invariant-harness` job then died on **artifact
-download** — the run that most needed forensics produced none, and the harness
-reported a plumbing error instead of an invariant result (issue #2239).
-
-**Design**: five pieces in two layers, spec'd as DEMOCI-10-001 through
-DEMOCI-10-006.
+The separate job only helps if the artifact exists when the demo fails. Every
+failure path must still leave `devlogs/<demo>/dump-manifest.json` (#2239).
 
 ### Layer 1 — In-harness failures (DEMOCI-10-001 through DEMOCI-10-005)
 
-These cover any failure that happens *inside* `scenario_harness()`.
+- **`scenario_harness(demo_name)` owns the ordering**
+  (`vultron/demo/helpers/harness.py`, DEMOMA-23). It resets the failure
+  accumulator, always dumps the ledgers on the way out (return or any
+  `BaseException`), then calls `assert_demo_success()` last. A dump error is
+  recorded in the manifest's `reason` and the original exception re-raised with
+  the `demo_check` failures attached (DEMOCI-10-004).
+- **The dump always writes a manifest** (`dump_case_ledgers()` in
+  `vultron/demo/helpers/ledger_dump.py`, from a `finally`), recording the case,
+  captured-versus-target counts, and each missing actor with its reason. A
+  timed-out dump records the actor's exception; a pre-run sentinel records no
+  actors.
+- **`load_devlogs()` fails rather than skips once a dump happened**
+  (`test/ci/invariants/common.py`):
 
-1. **A shared harness owns the ordering.**
-   `vultron/demo/helpers/harness.py` provides `scenario_harness(demo_name)`.
-   Every `run_<name>_demo()` body runs inside it: it resets the failure
-   accumulator, always dumps the case ledgers on the way out (normal return or
-   any `BaseException`), then calls `assert_demo_success()` last. Scenarios
-   register their dump with `harness.dump_with(...)` as soon as a case exists,
-   so every later phase can fail without costing the ledgers. `main()` no longer
-   wraps the run in `try/finally: assert_demo_success()` — a second owner of the
-   accumulator would assert before the dump had run. See DEMOMA-23.
+  | Downloaded artifact | Outcome |
+  |---|---|
+  | no `devlogs/`, or no `devlogs/<demo>/` | skip — the demo did not run |
+  | `devlogs/<demo>/` with neither ledgers nor manifest | **fail** — the dump never ran |
+  | no ledgers but a manifest | **fail**, quoting the manifest's account of why |
+  | manifest unparseable | **fail** |
+  | an entry with no `logIndex`, or a negative one | **fail**, naming every such entry |
+  | ledgers present | load and check |
 
-2. **The dump always leaves a manifest.**
-   `vultron/demo/helpers/ledger_dump.py::dump_case_ledgers()` writes
-   `devlogs/<demo>/dump-manifest.json` from a `finally`, recording `demoName`,
-   `caseId`, `ledgerFileCount`, `targetCount`, an optional top-level `reason`,
-   and a per-actor list naming each missing actor with the reason it was
-   missing. So the artifact is non-empty even when there were no ledgers at all
-   to capture — including the "died before any case existed" case, where the
-   manifest records `ledgerFileCount: 0` and the reason why. The per-actor
-   `reason` field also distinguishes a network-timeout dump failure from a
-   scenario that never started: a timed-out dump records the actor's exception
-   in `reason` alongside `captured: false`, while a pre-run sentinel records no
-   actors at all (see Layer 2).
-
-3. **`load_devlogs()` fails instead of skipping when a dump happened.**
-   Previously a missing/empty `devlogs/` meant "no test data" → `pytest.skip`,
-   which reads green. Now `load_devlogs()` distinguishes the two cases:
-
-   | State of the downloaded artifact | Outcome |
-   |---|---|
-   | no `devlogs/`, or no `devlogs/<demo>/` | `skip` — the demo genuinely did not run |
-   | `devlogs/<demo>/` exists, no ledger files, no manifest | **`fail`** — directory created but dump never ran (ISSUE-2411) |
-   | no ledger files **and** no `dump-manifest.json`, no `demo_name` | `skip` — unscoped load with no data |
-   | no ledger files **but** a manifest exists | **`fail`** — real invariant failure |
-   | manifest present but unparseable | **`fail`** |
-   | an entry (after the `caseId` filter) has no `logIndex`, or a negative one | **`fail`**, naming every such entry across all actors (ISSUE-2764) |
-   | ledger files present | load and check normally |
-
-   The failure message reproduces the manifest's own account — case ID, captured
-   *X* of *Y* targets, and one line per missing actor with its route key and
-   reason — so the harness output explains *why* there are no ledgers rather
-   than leaving a reviewer to guess.
-
-   A dump failure must not mask the scenario failure. Errors raised inside the
-   dump are recorded in the manifest's `reason` field and swallowed; the harness
-   re-raises the original exception with the accumulated `demo_check` failures
-   attached as exception notes (DEMOCI-10-004).
-
-   There is no `-1` sentinel for an unknown position: `log_index()` raises
-   rather than let an unplaced entry sort first and satisfy ordering checks
-   such as `check_causal_edges`.
-
-4. **The harness exits non-zero on an all-skip session.**
-   When `devlogs/` is absent or empty, `load_devlogs()` calls `pytest.skip()` at
-   fixture level and every test skips. pytest exits 0 by default for skip-only
-   sessions, which let CI report green even though no invariant was checked.
-   An `_AllSkipGuard` pytest plugin registered in
-   `test/ci/invariants/conftest.py` forces `session.exitstatus = 1` whenever at
-   least one test was reported and all reported outcomes were `"skipped"`
-   (DEMOCI-10-005). This converts a vacuous pass into a visible red.
+  There is no `-1` sentinel: `log_index()` raises, so an unplaced entry cannot
+  sort first and satisfy an ordering check such as `check_causal_edges`.
+- **An all-skip session exits non-zero.** pytest exits 0 when everything skips,
+  which reads green with nothing checked. `_AllSkipGuard` in
+  `test/ci/invariants/conftest.py` sets the exit status to 1 (DEMOCI-10-005).
 
 ### Layer 2 — Pre-harness failures (DEMOCI-10-006)
 
-`scenario_harness()` only runs when the demo-runner container starts and the
-scenario module imports successfully. Three failure modes exit before that
-point — none of which the in-harness pieces above can catch:
-
-- **Health-check gate**: `main()` calls `sys.exit(1)` when a container is
-  unreachable.
-- **Import error**: the scenario module fails to import before `main()` runs.
-- **Docker startup failure**: the demo-runner container never starts at all.
-
-In all three cases `devlogs/<demo>/` is never created. The `upload-artifact`
-step publishes nothing, the `download-artifact` step fails with "Artifact not
-found", and the invariant-harness job dies on a plumbing error instead of
-reporting a protocol result.
-
-1. **A CI sentinel step writes the manifest before the demo-runner starts.**
-   The demo job writes `devlogs/<demo>/dump-manifest.json` (conforming to the
-   DEMOCI-10-002 schema, `ledgerFileCount: 0`, `targetCount: 0`) immediately
-   before `docker compose up`. If the demo-runner then runs normally, the
-   harness overwrites the sentinel. If the runner exits early, the sentinel
-   survives, the artifact is non-empty, the download succeeds, and
-   `load_devlogs()` reports a real failure via the manifest-without-ledgers path
-   (DEMOCI-10-003). Implementation: `write_prerun_sentinel(demo_name)` in
-   `vultron/demo/helpers/ledger_dump.py` provides a testable Python entry point
-   (exercised by `TestWritePrerunSentinel`). The CI step independently writes
-   the same JSON inline via `python3 -c` with no vultron import, so no uv setup
-   is needed in the demo job.
-
-### Regression coverage
-
-- `test/demo/test_issue_2239_ledger_dump_in_finally.py` (every scenario)
-- `test/demo/test_scenario_harness.py`
-- `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
-- `test/ci/invariants/test_common.py::TestAllSkipGuard`
-- `test/ci/invariants/test_common.py::TestForEachReplica` and the four
-  `TestCheckPerActorReplica*` classes — `NoRmStateOscillation`,
-  `RmClosedTermination`, `ParticipantStatusSchemaCompleteness`,
-  `CsStateTransitionsObserved` (ISSUE-2411 Gap 1, split per ISSUE-3385)
-- `test/demo/test_ledger_dump.py::TestWritePrerunSentinel` (AC4 for #2281)
+A failed health check, an import error, or a container that never starts all
+exit before `scenario_harness()` runs. The demo job therefore writes a sentinel
+`dump-manifest.json` (`ledgerFileCount: 0`) before `docker compose up`; a normal
+run overwrites it, and an early exit leaves it for `load_devlogs()` to report.
+The CI step writes the JSON inline with no vultron import, so the demo job needs
+no uv setup; `write_prerun_sentinel()` in `ledger_dump.py` is the tested Python
+equivalent.
 
 ---
 
 ## Narrative Causal Edges — Schema and Update-Together Rule (DEMOMA-22)
 
-Each scenario narrative under `docs/topics/scenarios/` carries a `causal_edges:`
-list in its YAML front matter (DEMOMA-22-004). Every entry declares one protocol
-causal relationship that must be observable in the case ledger. This section is
-the contributor-facing description of that list; it moved here from the
-narratives index in #3622, because the index is a reader-facing routing page and
-the schema, the invariant, and the update-together rule are working record.
+Each narrative under `docs/topics/scenarios/` carries a `causal_edges:` list in
+its front matter (DEMOMA-22-004). Each entry is one causal relationship the case
+ledger must show:
 
 ```yaml
 causal_edges:
-  - antecedent: <event_type>     # string — eventType in the case ledger
-    consequent: <event_type>     # string — eventType in the case ledger
-    consequent_actor: <name>     # actorName of the recorded actor (dump manifest)
-    note: <text>                 # optional human-readable explanation
-    observable: true             # optional; false marks unobservable edges
+  - antecedent: <event_type>     # eventType of the earlier ledger entry
+    consequent: <event_type>     # eventType of the later ledger entry
+    consequent_actor: <name>     # actorName of the recorded emitter
+    note: <text>                 # optional
+    observable: true             # optional; false = not a ledger event
 ```
 
-- `antecedent` — the `eventType` string of the causally-earlier ledger entry.
-- `consequent` — the `eventType` string of the causally-later ledger entry.
-- `consequent_actor` — the `actor` recorded on the consequent's ledger entry, i.e.
-  the literal emitter (DEMOMA-22-004). For an activity the Case Actor emits on a
-  participant's behalf that is `case-actor`, and the participant who asked for it
-  is recoverable from the entry's `attributedTo` (CM-24-001/002, PCR-08-007); every
-  `invite_actor_to_case` edge is therefore labelled `case-actor`, while an
-  invitation response carries the invitee. The tag vocabulary is the `actorName`
-  in the scenario's `dump-manifest.json`, which is also the replica directory
-  name; it is not always the role name a narrative uses (in the handoff and
-  extension scenarios C1 is `vendor`, C2 is `coordinator`, and the Vendor is
-  `vendor2`). Invariant 16 checks the tag against the ledger: an entry's
-  `payloadSnapshot.actor`, stripped of its id prefix, matches a `routeKey` in the
-  manifest (`actors` or `unreplicatedActors`), whose `actorName` must equal the
-  tag. The consequent candidates are only the entries that resolve to the tag, so
-  a tag that matches none, or a recorded actor the manifest does not list, fails
-  the edge. A scenario with no manifest fails every tagged edge. The structural
-  rule in `test/ci/invariants/test_narrative_edges.py` (a response is never
-  attributed to the inviter) still runs in the unit suite.
-- `note` — optional prose explanation of the causal relationship.
-- `observable` — defaults to `true`. Set to `false` for edges whose antecedent
-  or consequent is not directly captured as a case-ledger entry (for example,
-  the reporter submitting a report to the receiver's API is not itself a ledger
-  event). Unobservable edges are documented for completeness but are excluded
-  from the automated ordering check.
+- **`consequent_actor` is the literal emitter** recorded on the entry. An
+  activity the Case Actor emits for a participant is `case-actor` (the
+  requester is in `attributedTo`, CM-24-001), so every `invite_actor_to_case`
+  edge is `case-actor`, while a response carries the invitee. The tag is the
+  `actorName` in the scenario's `dump-manifest.json`, which is not always the
+  narrative's role name (in the handoff and extension scenarios C1 is `vendor`,
+  C2 is `coordinator`, the Vendor is `vendor2`). Invariant 16 resolves an
+  entry's `payloadSnapshot.actor` through the manifest's `routeKey`s; a tag that
+  matches nothing fails the edge.
+- **`observable: false`** marks an edge whose end is not a ledger entry (a report
+  submitted to the receiver's API). Such edges are documented but not checked.
+- **Invariant 16** (DEMOMA-22-005) asserts, on the case-actor's replica (the
+  canonical order, ADR-0079), that each observable edge `(A, B)` has entries with
+  `A` before `B`.
+- **Unit-suite structural checks** in `test/ci/invariants/test_narrative_edges.py`
+  run on the committed lists with synthetic ledgers: every `*-handoff` narrative
+  orders `accept_case_ownership_transfer` before the new owner's
+  `invite_actor_to_case`, and each `invite_actor_to_case` edge is followed by
+  exactly one accept-or-reject edge from a different actor.
+- **Update together (DEMOMA-22-006).** A change to a scenario's causal flow
+  updates both the narrative's `causal_edges:` and, if it adds an event type that
+  must always appear, the harness's `_XXX_EXPECTED_EVENT_TYPES`. Neither check
+  substitutes for the other.
 
-**Invariant check (DEMOMA-22-005).** Invariant 16 reads each narrative's
-`causal_edges:` list and asserts that for every observable edge `(A, B)` there
-exist ledger entries `a` with `eventType == A` and `b` with `eventType == B`
-such that `a.log_index < b.log_index`. The check uses the case-actor's
-authoritative replica, which is the canonical causal order (ADR-0079).
-Diagnostic output on failure names the unsatisfied edge and the log indices
-that were observed. Unobservable edges are skipped and never cause a failure.
-
-**Pre-devlogs structural checks.** `test/ci/invariants/test_narrative_edges.py`
-runs in the unit suite against the committed `causal_edges:` lists with synthetic
-ledgers, so an authoring slip fails on the PR instead of waiting for a demo run.
-Every `*-handoff` narrative must declare an edge that orders
-`accept_case_ownership_transfer` before the new owner's `invite_actor_to_case`
-(#2754), and the invite/response edges must alternate: each
-`invite_actor_to_case` edge is followed by exactly one accept or reject edge, whose
-actor differs from the inviter's (#2753). The alternation is enforced, not
-assumed, so a response edge moved away from its invite fails as misplaced rather
-than being compared against the wrong inviter.
-
-**Update-together rule (DEMOMA-22-006).** The causal edges declared in a
-narrative page and the scenario's invariant test file
-(`test/ci/invariants/test_<name>_invariants.py`) are a matched pair. A change to
-a scenario's causal flow — adding a protocol step, reordering steps, or removing
-a participant — requires updating both the narrative's `causal_edges:` list and,
-where the change adds a new `eventType` that should always be present, the
-scenario's `_XXX_EXPECTED_EVENT_TYPES` list in its invariant file. Changing one
-without the other leaves the conformance oracle out of date. Invariant 16 will
-catch a stale edge list once devlogs exist; the `_XXX_EXPECTED_EVENT_TYPES` list
-will catch a missing event type immediately. Neither check substitutes for the
-other.
-
-An edge may name an event type the expected-types list does not require. The
-handoff narratives declare `offer_case_ownership_transfer →
-accept_case_ownership_transfer` because the Case Actor commits the offer before
-forwarding it (ADR-0053, verified against a run in #3622), while DEMOMA-16-005
-and DEMOMA-16-006 require only the acceptance. Adding the offer to those lists
-would need the spec amendment and the harness edit to land together (see
-"Keeping Spec and Code in Sync" below).
+An edge may name an event type the expected list does not require: the handoff
+narratives declare `offer_case_ownership_transfer →
+accept_case_ownership_transfer` (ADR-0053), while DEMOMA-16-005/006 require only
+the acceptance. Requiring the offer would need the spec and harness edits to land
+together (see "Keeping Spec and Code in Sync").
 
 ---
 
 ## Harness File Conventions
 
-Each scenario gets **one self-contained harness file**,
-`test/ci/invariants/test_<scenario>_invariants.py`. There is no shared
-per-scenario base class and no registry module. A new harness follows the
-existing nine:
+Each scenario has one self-contained harness,
+`test/ci/invariants/test_<scenario>_invariants.py`, with no shared base class.
+Copy an existing one:
 
-1. Declare `_DEMO_NAME = "<scenario>"` at module scope.
-2. Load replicas with `load_devlogs(demo_name=_DEMO_NAME)`, imported from
-   `test/ci/invariants/common.py`. It skips when the demo did not run and
-   **fails** when the demo ran, dumped, and still produced no ledgers — see
-   "Artifact Availability on Failure" above.
-3. Declare `_CHAIN_ACTORS` (scenario-role names, not docker service names) and
-   `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
-4. Define the module-scoped fixture (e.g. `fv_replicas`) that calls
+1. Declare `_DEMO_NAME`, `_CHAIN_ACTORS` (scenario-role names, not docker service
+   names) and `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
+2. Define a module-scoped replicas fixture calling
    `load_devlogs(demo_name=_DEMO_NAME)`.
-5. Inject the universal invariant tests by calling:
+3. Inject the universal invariants with
+   `globals().update(make_universal_invariant_tests(...))` from
+   `test/ci/invariants/universal_harness.py`, always passing `narrative_path` —
+   omitting it silently drops Invariant 16, so
+   `test_diagnostic_map_sync.py::test_every_harness_passes_a_narrative_path`
+   requires it.
+4. Add only scenario-specific assertions below: count checks, late-joiner
+   checks, and path constraints unique to the scenario.
 
-   ```python
-   from test.ci.invariants.universal_harness import make_universal_invariant_tests
+The universal set and its xfail state live in
+`notes/demo-ci-diagnostics.md` § "Per-Invariant Diagnostic Map", which is
+ratcheted against the factory; do not restate it.
 
-   globals().update(
-       make_universal_invariant_tests(
-           replicas_fixture="<scenario>_replicas",
-           chain_actors=_CHAIN_ACTORS,
-           expected_event_types=_<SCENARIO>_EXPECTED_EVENT_TYPES,
-           narrative_path="docs/topics/scenarios/<scenario>.md",
-       )
-   )
-   ```
+The scenario→harness mapping is derived from the `@scenario(...)` name
+([demo-scenario-registry](demo-scenario-registry.md), ADR-0098), and
+`.github/demo-scenarios.json` is its generated projection: change the decorator
+and run `uv run demo-scenarios --write`, never hand-edit the JSON.
 
-   Pass `check_fix_ready=False` for scenarios where no Vendor ever becomes a
-   case participant (currently only `fcv-reject`), mirroring the canonical
-   `test_invariant_15_cs_state_transitions_observed` rule (ISSUE-2411 Gap 1).
-
-   `narrative_path` is not optional in practice. Omitting it silently drops
-   invariant 16 (the causal-edge ordering check, DEMOMA-22-005) from that
-   scenario — the harness still collects and passes, so the gap would otherwise
-   be invisible. `test_diagnostic_map_sync.py::test_every_harness_passes_a_narrative_path`
-   parses every harness named in `.github/demo-scenarios.json` and fails if the
-   argument is missing.
-
-6. Add only the **scenario-specific** assertions below the injection call —
-   count checks, late-joiner checks, and any protocol-path constraints unique
-   to this scenario.
-
-`test/ci/invariants/universal_harness.py` defines `make_universal_invariant_tests()`.
-It generates the standard test functions as closures that retrieve the
-scenario's replicas fixture at runtime via
-`request.getfixturevalue(replicas_fixture)`. Each function has its `__module__`
-set to the calling harness so pytest's fixture lookup resolves to the harness
-module's own fixtures (ISSUE-2007, AC-1).
-
-For the current inventory — which invariants exist, which carry an `xfail` and
-who owns it — read `notes/demo-ci-diagnostics.md` § "Per-Invariant Diagnostic
-Map" rather than a count restated here. That table is ratcheted against the
-factory by `test/ci/invariants/test_diagnostic_map_sync.py`; a count in prose
-is not (ISSUE-3337).
-
-**The scenario→harness mapping is derived, not written.** Each scenario declares
-itself with `@scenario(...)` on its `main()`
-([demo-scenario-registry](demo-scenario-registry.md), ADR-0098), and its harness
-path is derived from the scenario name by convention rather than stored. The
-`demo:` / `test_file:` pairs in `.github/demo-scenarios.json` — read by the
-workflow via `fromJson` in both the `demo` and `invariant-harness` jobs — are a
-**generated projection** of that registry (DEMOCI-11-004). Do not hand-edit the
-JSON: change the decorator and run `uv run demo-scenarios --write`. The
-`demo-scenarios-sync` pre-commit hook fails on a stale or hand-edited copy.
-
-> **Do not add a `conftest.py` scenario registry.** DEMOMA-19-008 originally
-> required registering the FCVCV harness in `test/ci/invariants/conftest.py`
-> "under the `fcvcv` scenario key". No such registry has ever existed, and the
-> clause was written spec-first with no implementation to check against
-> (CONCERN-2004). It has been amended to describe the pattern above.
->
-> A `test/ci/invariants/conftest.py` *does* exist as of issue #1976, but it
-> holds synthetic in-memory JSONL fixtures for unit-testing the check functions
-> in `common.py` — it carries no scenario mapping. Do not bolt scenario routing
-> onto it.
+Do not add a scenario registry to `test/ci/invariants/conftest.py`; it holds only
+synthetic fixtures for unit-testing `common.py` (CONCERN-2004).
 
 ---
 
 ## Per-Scenario Expected Event Types (DEMOMA-16)
 
-**Problem**: All per-scenario `_XXX_EXPECTED_EVENT_TYPES` lists historically
-contained only the four types then treated as universal (`validate_report`,
-`add_participant_status_to_participant`, `close_case`, `add_note_to_case` —
-`engage_case` became the fifth in ISSUE-2266),
-regardless of the scenario's actual protocol coverage. This allowed
-scenario-specific phases to regress silently (e.g. `invite_actor_to_case`
-missing from a scenario that requires it).
-
-**Design**: Each scenario defines its own required event-type list that
-extends the universal types (DEMOMA-16-001) with scenario-specific required phases.
-The DEMOMA-16 spec requirements in `specs/multi-actor-demo.yaml` are the
-normative source; the test constants implement them.
+Each scenario's `_XXX_EXPECTED_EVENT_TYPES` extends the universal types
+(DEMOMA-16-001) with the phases that scenario must exercise, so a scenario-specific
+phase cannot regress silently. The DEMOMA-16 requirements are normative; the
+constants implement them.
 
 ### Scenario required event types
 
-This table MUST match the DEMOMA-16 requirements one-for-one — one row per
-scenario, no scenario omitted. It drifted from the spec on four counts before
-CONCERN-2243 (three rows understated their required types; the FCCV-extension
-and FCV-reject rows were absent entirely), which is exactly the drift
-DEMOMA-16-008 exists to prevent.
-
-Every derived column is checked (DEMOCI-11-007): `Scenario` is the registry's
-`label`, in the registry's name order; `Spec` is resolved from the **spec
-corpus** — each per-scenario DEMOMA-16 statement names its own scenario, and
-`ScenarioSpec` carries no spec IDs; and `Additional required` is resolved from
-each scenario's `_XXX_EXPECTED_EVENT_TYPES` harness constant, minus the universal
-block (MS-16-002, ISSUE-3505). Multiplicity annotations such as `(≥3)` are prose
-about *how many times*, owned by the scenario-specific count tests below, and are
-not checked here. `Universal 5` stays hand-written — it says "same" rather than
-restating the block.
+One row per scenario. `Scenario` is the registry's `label` in name order, `Spec`
+is resolved from the spec corpus, and `Additional required` is checked against
+each harness constant minus the universal block (DEMOCI-11-007). Multiplicity
+annotations such as `(≥3)` belong to the count tests and are not checked.
+`Universal 5` stays hand-written.
 
 | Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
@@ -384,349 +206,148 @@ restating the block.
 
 ### Relationship to scenario-specific test functions
 
-The expected-event-types list (Invariant 5) checks **presence** of an event
-at least once. Scenarios that require an event to appear **N or more times**
-(e.g. `invite_actor_to_case` at least twice in FVCV-*, FCCV-*) use
-separate `test_XXX_<event>_at_least_N` functions built on
-`check_event_type_count`. These two mechanisms complement each other.
+Invariant 5 checks that each expected type is **present**. A scenario that needs
+an event **N or more times** adds a `test_XXX_<event>_at_least_N` test built on
+`check_event_type_count`.
 
-`check_event_type_count` also takes a keyword-only `max_count`. FCV pins
-`invite_actor_to_case` to exactly one (`min_count=1, max_count=1`): the
-Coordinator invites only the Vendor, because the Finder is the reporter and
-the CASE_MANAGER seats it at case creation (CM-22-002, CM-14-005;
-DEMOMA-12-003). A floor alone cannot tell a scenario's own sends from a
-duplicate. Until #4096, every scenario committed the owner's Invite twice
-under one activity id, and that duplicate met FCV's old "at least twice"
-floor, which assumed a Finder invite the scenario never sends (#4120). The
-universal `test_invariant_clp07_unique_payload_snapshot_ids` (CLP-07-002) now
-catches a duplicate commit in every scenario, so the other scenarios keep
-floors; add a `max_count` where a count above the scenario's own sends would
-itself be a defect that CLP-07-002 cannot see, such as a second Invite with
-its own activity id.
+`check_event_type_count` also takes a keyword-only `max_count`. Add one where a
+count above the scenario's own sends would itself be a defect that the universal
+duplicate-commit check (`test_invariant_clp07_unique_payload_snapshot_ids`,
+CLP-07-002) cannot see, such as a second Invite with its own activity id. FCV
+pins `invite_actor_to_case` to exactly one: the Coordinator invites only the
+Vendor, because the CASE_MANAGER seats the reporting Finder at case creation
+(CM-22-002).
+
+### Audit an invariant against the scenario before copying it
+
+An invariant holds only on its scenario's protocol path. Before copying a check
+to a new harness, check it against that scenario's participants and phases. A
+check asserting "event X was observed" is a false failure where X is impossible
+by design: in `fcv-reject` no Vendor joins, so the VFD `VFd` state is
+unreachable, and its harness passes `check_fix_ready=False` (DEMOCI-06-001). Use
+the check's parameter; do not skip the invariant.
 
 ---
 
 ## Keeping Spec and Code in Sync
 
-When a scenario phase is added or removed, update both:
+When a scenario phase is added or removed, change the DEMOMA-16 requirement in
+`specs/multi-actor-demo.yaml` and the harness's `_XXX_EXPECTED_EVENT_TYPES` in
+the **same PR** (DEMOMA-16-008). They cannot be split across a docs PR and a
+later implementation PR.
 
-1. The DEMOMA-16-XXX spec requirement in `specs/multi-actor-demo.yaml`.
-2. The corresponding `_XXX_EXPECTED_EVENT_TYPES` constant in
-   `test/ci/invariants/test_XXX_invariants.py`.
-
-Both MUST change in the same PR per DEMOMA-16-008. Failure to update the spec
-is a latent silent-failure risk; failure to update the test means the new spec
-requirement is untested.
-
-One direction is now ratcheted. In `test/metadata/test_demo_scenario_artifacts.py`,
-`test_per_scenario_demoma_16_names_every_harness_event_type` fails when a
-harness expects a non-universal type that its DEMOMA-16 requirement does not
-name. `test_democi_06_002_names_exactly_the_pr_set_event_types` holds the
-DEMOCI-06-002 coverage list equal to the PR-set harnesses' types. Both were
-added when the embargo harnesses gained `activate_embargo_on_case` and the
-specs did not (#4402). The reverse direction is not checked: some statements
-name a type in order to exclude it (DEMOMA-16-002, DEMOMA-16-011), so an extra
-name in the spec is not drift.
-
-Corollary for planning work: an amendment to a DEMOMA-16 requirement and the
-corresponding edits to `_XXX_EXPECTED_EVENT_TYPES` cannot be split across a
-docs PR and a later implementation PR. Either both land now, or both are
-deferred to the implementation PR together.
+`test/metadata/test_demo_scenario_artifacts.py` ratchets one direction:
+`test_per_scenario_demoma_16_names_every_harness_event_type` fails when a harness
+expects a non-universal type its requirement does not name, and
+`test_democi_06_002_names_exactly_the_pr_set_event_types` holds DEMOCI-06-002
+equal to the PR-set harnesses' types. The reverse is not checked, because some
+statements name a type to exclude it (DEMOMA-16-002, DEMOMA-16-011).
 
 ---
 
-## Reading a Red Invariant Harness Job (CONCERN-2243)
+## Reading a Red Invariant Harness Job
 
-**A red `<scenario> Invariant Harness` job is not evidence that any invariant
-was violated — or even evaluated.** The job has three distinct red modes, and
-they are easy to confuse:
+**A red `<scenario> Invariant Harness` job is not evidence that an invariant was
+violated, or even evaluated.** Open the log and find the failing step first
+(CONCERN-2243):
 
-| Job outcome | What actually happened | What it tells you about invariants |
+| Job outcome | What happened | What it says about invariants |
 |---|---|---|
-| Red at `Download case log JSONL files` | The demo job never uploaded an artifact, so `actions/download-artifact` errored (`Artifact not found for name: <scenario>-case-logs`). **pytest never ran.** | Nothing at all |
-| Red at `Run case-ledger invariant harness` | pytest ran and an assertion failed | A real invariant result |
-| Red at `Run case-ledger invariant harness` with every test skipped | `load_devlogs` called `pytest.skip` because `devlogs/<scenario>/` held no `*-case-ledger.jsonl`; the `_AllSkipGuard` (DEMOCI-10-005) forces `exitstatus=1` | Nothing — vacuous red; no invariant was checked |
-
-CONCERN-2243 was filed because a permanently-red `fvcv-handoff Invariant
-Harness` was read as proof that its `engage_case` assertion could never pass.
-The job was in fact dying in the first mode: it failed at artifact download on
-every run, so the assertion had never once executed. The assertion itself is
-correct — `engage_case` is emitted by every scenario (see below) — and the
-absence of the entries it looks for was a real protocol defect elsewhere.
-
-Before drawing any conclusion from this job, open the log and confirm which
-step failed.
+| Red at `Download case log JSONL files` | No artifact was uploaded; **pytest never ran** | Nothing |
+| Red at `Run case-ledger invariant harness` | An assertion failed | A real invariant result |
+| Red at `Run case-ledger invariant harness`, every test skipped | No ledgers under `devlogs/<scenario>/`; `_AllSkipGuard` forced exit 1 | Nothing — vacuous red |
 
 ### `engage_case` is universal, not scenario-specific
 
-Every scenario drives an engage-case trigger, so `engage_case` is a universal
-required event type on the same footing as `validate_report` — it is the fifth
-type in DEMOMA-16-001 and appears in every `_XXX_EXPECTED_EVENT_TYPES`
-list (ISSUE-2266). The three emission paths are:
+`engage_case` is the fifth universal type (DEMOMA-16-001) and appears in every
+expected list. It is emitted from the shared helpers, so grepping one scenario
+file finds nothing:
 
 - `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow.py`) calls
-  `receiver_engages_case()` for the report's direct receiver — used by every
-  multi-actor scenario.
-- `run_invite_path_rm_triage()` calls it again for the invited participant —
-  used by every scenario whose invite is *accepted* (CM-11-002). `fcv-reject`
-  has an invite path and does **not** call it: its Vendor rejects, so no
-  participant is added and there is nobody to engage.
-- `fv_demo.py` calls `receiver_engages_case()` directly via
-  `vendor_engages_case()`.
+  `receiver_engages_case()` for the direct receiver in every multi-actor
+  scenario;
+- `run_invite_path_rm_triage()` calls it for an invitee whose invite is accepted
+  (CM-11-002) — not in `fcv-reject`, whose Vendor rejects;
+- `fv_demo.py` calls it through `vendor_engages_case()`.
 
-Emission is therefore located in the **shared helper layer**, not at scenario
-call sites; grepping a single scenario file for `engage` finds nothing and
-invites the false conclusion that no code emits it.
-
-Before ISSUE-2266, only `test_fvcv_handoff_invariants.py` listed
-`engage_case` — added by PR #2018 as a scenario-specific type without amending
-the spec (a DEMOMA-16-008 violation), which left an engage-case regression
-silent in every other scenario. The `fvcv-handoff`
-`check_event_type_count(..., "engage_case", min_count=2)` assertion remains
-scenario-specific: it asserts the *count* Vendor2's post-join triage cycle
-implies (CM-11-002), which is a stronger claim than the universal presence
-check.
+The `fvcv-handoff` `check_event_type_count(..., "engage_case", min_count=2)`
+stays scenario-specific: it asserts the count Vendor2's post-join triage implies.
 
 ---
 
 ## Post-Merge Validation on `main` (DEMOCI-05)
 
-**Problem**: `demo-integration.yml` originally triggered only on
-`pull_request`, so the demo + invariant harness validated only the *ephemeral
-merge commit* (PR head merged onto `main` at test time) — never the actual
-merged `main` HEAD. Two PRs each green in isolation can interact to break
-`main`, and nothing re-ran the demos/invariants against the real merged result.
-Because the trigger is path-filtered, a broken `main` could persist untested
-until a *later* PR happened to touch a filtered path. The default branch had no
-demo/invariant baseline at all — the classic "green PRs, red main" failure mode
-(CONCERN-1859).
+`demo-integration.yml` also runs on `push` to `main`, with the same path filter
+as `pull_request` (DEMOCI-05-001). A PR run validates only the ephemeral merge
+commit, so two PRs each green alone can break `main` with nothing re-running
+against the merged head (CONCERN-1859).
 
-**Design**: `demo-integration.yml` also triggers on `push` to `main` with the
-**same path filter** as the `pull_request` trigger (DEMOCI-02-003,
-DEMOCI-05-001). The on-main run executes the full demo + invariant-harness
-matrix against the merged `main` HEAD, producing a per-commit pass/fail signal.
-
-### Why `push` (with concurrency) rather than a cron schedule
-
-`push` gives an immediate per-commit signal with no blind window and preserves
-single-commit failure attribution for bisection. A `schedule:` cron was
-considered but rejected for this concern: it introduces up to a multi-hour
-blind window, runs even when nothing merged, and attributes failures to a
-commit *range* rather than a single commit. GitHub Actions has no native
-"run at most once every N hours" throttle for `push`; the cost is bounded
-instead by (a) the path filter — docs/spec-only merges cost nothing — and
-(b) the concurrency group.
-
-### Concurrency (DEMOCI-02-011, DEMOCI-05-002)
-
-`cancel-in-progress: true` on all triggers — PRs and main alike. A 60-second
-debounce step (`.github/actions/debounce-main-push`) at the start of the
-`scenarios` job handles throttling on main: rapid successive pushes each cancel
-their sleeping predecessor, so only the last commit in a burst pays the full
-suite cost. PR and `workflow_dispatch` runs are unaffected (the sleep is guarded
-to `push` + `refs/heads/main`).
-
-```yaml
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-```
-
-Per-commit granularity on main is not required — a time-range bisect across a
-typical 4–6 PR batch is sufficient to identify regressions (DEMOCI-05-002).
-
-Note: DEMOCI-02-011 was authored as a SHOULD but never implemented — neither
-workflow carried a `concurrency` block before CONCERN-1859. It is now a MUST
-and is wired on both triggers.
-
-### Cache configuration (DEMOCI-02-007)
-
-`demo-image-cache-warm.yml` was removed when `demo-integration.yml` gained an
-on-main trigger (DEMOCI-05-001): a single build could then both validate the
-demo and export the GHA cache, making a separate cache-warming run redundant.
-
-Subsequently, the GHA cache export was found to be completely inoperable: the
-required tokens (`ACTIONS_RUNTIME_TOKEN`, `ACTIONS_CACHE_URL`) are only
-injected into `uses:` action steps, not into `run:` shell steps — so the
-`docker buildx bake --set "*.cache-to=type=gha"` args in the composite
-action's `run:` step could never reach the cache backend (#2248). The cache
-configuration has been removed; every job builds from scratch.
-DEMOCI-02-007 is retained as a SHOULD, documenting the intent when a
-working caching mechanism becomes available.
-
-### Out of scope: merge queue
-
-The concurrent-merge *interaction* gap (two green PRs that break `main` when
-combined) is only fully closed by a GitHub **merge queue**, which re-runs
-required checks against the actual merged result before landing. That is a
-larger branch-protection / required-checks decision tracked separately as a
-follow-up Idea; DEMOCI-05 only adds the post-merge baseline signal.
+- **`push`, not cron.** A cron leaves a blind window, runs when nothing merged,
+  and blames a commit range instead of one commit. Cost is bounded by the path
+  filter and the concurrency group.
+- **Concurrency (DEMOCI-02-011, DEMOCI-05-002).** `cancel-in-progress: true` on
+  every trigger, grouped by `${{ github.workflow }}-${{ github.ref }}`. The
+  `.github/actions/debounce-main-push` step at the start of the `scenarios` job
+  sleeps on `push` to `main` only, so in a burst of merges only the last pays for
+  the full suite. A time-range bisect across a batch is enough to find a
+  regression.
+- **No build cache (DEMOCI-02-007).** The GHA cache tokens are injected only into
+  `uses:` steps, not `run:` steps, so `docker buildx bake --set
+  "*.cache-to=type=gha"` in a composite action's `run:` step cannot reach the
+  backend (#2248). Every job builds from scratch.
+- **Merge queue is out of scope.** Only a merge queue closes the two-green-PRs
+  interaction gap; that is #1863.
 
 ---
 
 ## CI Failure Notification — `notify-failure` Composite Action (CISEC-05)
 
-Design decisions and implementation guidance for `.github/actions/notify-failure`,
-the shared composite action wired into every qualifying workflow (push to `main`
-or `schedule` trigger). See ADR-0055 and `specs/ci-security.yaml` CISEC-05.
+Every push-to-`main` or scheduled workflow wires `.github/actions/notify-failure`
+twice, once with `mode: notify` under `if: failure()` and once with `mode: close`
+under `if: success()` (ADR-0055); `test/ci/test_workflow_failure_notification.py`
+enforces the wiring. The wiring rule is in
+[ci-workflow-authoring](ci-workflow-authoring.md).
 
-### Composite Action Interface
-
-The action accepts three inputs:
-
-- `mode`: `notify` (file/update issue on failure) or `close` (close open issue on
-  recovery).
-- `workflow-label`: the workflow-specific label, e.g. `ci:workflow-demo-integration`.
-  Combined with the shared `ci:main-failure` label, the pair uniquely identifies the
-  open failure issue for this workflow — enabling update-not-duplicate semantics.
-- `run-url`: `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`.
-  Included in the issue body so the failing run is one click away.
-
-Each qualifying workflow wires **two** steps using `if:` conditions so no
-workflow-status-detection logic lives inside the action:
-
-```yaml
-- name: Notify CI failure
-  if: failure()
-  uses: ./.github/actions/notify-failure
-  with:
-    mode: notify
-    workflow-label: ci:workflow-<name>
-    run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-- name: Close CI failure issue
-  if: success()
-  uses: ./.github/actions/notify-failure
-  with:
-    mode: close
-    workflow-label: ci:workflow-<name>
-    run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-```
-
-Every qualifying workflow MUST declare `issues: write` permission (CISEC-02-002,
-CISEC-05-001, CISEC-05-002). Workflows with a root-level `permissions: contents: read` block MUST
-expand it to a map that explicitly includes `issues: write`.
+- **Deduplication.** The action finds an open issue carrying both
+  `ci:main-failure` and the workflow-specific label: `notify` comments on it or
+  opens one, `close` closes it.
+- **The `ci:main-failure` label is bot-managed** (CISEC-05-005). A separate
+  `issues: labeled` workflow strips it when a human applies it, so nobody can
+  spoof or suppress a failure notification.
 
 ### Cancellation Safety (CISEC-05-006)
 
-A push-to-`main` run cancelled by the concurrency group (superseded by a newer
-merge) is **not** a CI failure — a newer run is authoritative — so the `notify`
-step MUST NOT file a `ci:main-failure` issue on cancellation *alone*. A genuine
-failure observed in the same run before the cancellation arrived is still filed
-(#3293, #3294).
+A run cancelled by the concurrency group is not a failure on that ground alone,
+but a genuine failure observed before the cancellation still files (#3294).
 
-- A step keyed on the GitHub Actions **`failure()` status function** is already
-  safe: `failure()` is false on cancellation. The idealized two-step interface
-  above uses this and needs no extra guard.
-- A step keyed on the **`needs.*.result` aggregate** keys on
-  `contains(needs.*.result, 'failure')` alone. Never file on cancellation
-  directly (`|| contains(needs.*.result, 'cancelled')`), and never require the
-  absence of `cancelled` (`&& !contains(needs.*.result, 'cancelled')`).
-
-The aggregate is exposed to a *cancelled upstream job* laundering a cancellation
-into a `failure` result downstream: when the `demo` job is cancelled mid-run it
-uploads no case-log artifact, so an `invariant-harness` job running under a bare
-`if: always()` hard-fails at `download-artifact`, and that `failure` lands in
-`needs.*.result`. The fix is to close that path at its source: skip the harness
-on a cancelled demo job (`needs.demo.result != 'cancelled'`, DEMOCI-04-007), and
-apply the same skip to any future job that consumes another job's artifact.
-See #3249 and CISEC-05-006.
-
-The `!contains(needs.*.result, 'cancelled')` exclusion that #3249 added to the
-`notify` step as defense-in-depth was removed in #3880 (issues #3293 and #3294).
-It cannot tell a laundered failure from a genuine one, so it suppressed the
-notification whenever a newer push cancelled a sibling job *after* a real failure
-had already been observed: lint jobs cancelled alongside failing tests
-(`python-app.yml`), or the harness cancelled after a demo leg failed
-(`demo-integration.yml`). A genuine failure in a superseded run is still a
-genuine failure; the superseding run's
-close step retires the issue if the newer commit is green. Only the *close* step
-keeps its cancellation exclusion, because a superseded run must not declare
-recovery either (CISEC-05-002, ratcheted by
-`test_close_step_does_not_close_on_cancellation`).
-
-### Qualifying Workflows and Their Labels
-
-| Workflow file                 | Trigger            | Workflow-specific label              |
-|-------------------------------|--------------------|-----------------------------------------|
-| `demo-integration.yml`        | push to main       | `ci:workflow-demo-integration`          |
-| `python-app.yml`              | push to main       | `ci:workflow-python-app`                |
-| `lint_md_all.yml`             | push to main       | `ci:workflow-lint-markdown`             |
-| `spec-check.yml`              | push to main       | `ci:workflow-spec-check`                |
-| `actions-lint.yml`            | push to main       | `ci:workflow-actions-lint`              |
-| `quarterly_tag.yml`           | schedule           | `ci:workflow-quarterly-tag`             |
-| `stale_claim_sweeper.yml`     | schedule           | `ci:workflow-stale-claim-sweeper`       |
-| `verification-debt-owners.yml` | schedule, push to main | `ci:workflow-verification-debt-owners` |
-
-### Deduplication Model
-
-The composite action searches for any open issue with **both** `ci:main-failure`
-and the workflow-specific label using `gh issue list --label`. If one exists,
-`notify` appends a comment (avoids alert flooding across repeated failures without
-a fix). If none exists, `notify` creates a new issue. `close` searches the same
-label combination and closes any open match.
-
-The `ci:main-failure` label is bot-managed; CISEC-05-005 enforces this via a
-separate `issues: labeled` workflow that strips the label if `github.actor !=
-github-actions[bot]`. This prevents label spoofing that could suppress a
-legitimate failure notification.
+- A step keyed on **`failure()`** is already safe: it is false on cancellation.
+- A step keyed on **`needs.*.result`** uses `contains(needs.*.result,
+  'failure')` alone. Never add `|| contains(needs.*.result, 'cancelled')`, and
+  never add `&& !contains(needs.*.result, 'cancelled')`: the exclusion cannot
+  tell a laundered failure from a real one, so it suppresses a real failure
+  whenever a newer push cancels a sibling job afterwards.
+- Close the laundering path at its source instead: skip artifact-consuming jobs
+  when their producer was cancelled (see "Separate CI Job Pattern").
+- **Only the `close` step keeps a cancellation exclusion**, because a superseded
+  run must not declare recovery either (CISEC-05-002,
+  `test_close_step_does_not_close_on_cancellation`).
 
 ---
 
-## Invariant Scoping: Per-Scenario Participant Set Audit
-
-Invariants in the harness are only invariant *within their scenario's protocol
-path*. Before copying an invariant check to a new scenario, audit it against
-that scenario's participant set and phase list.
-
-**Example**: `check_cs_state_transitions_observed()` with `check_fix_ready=True`
-(the default) requires a VFD `VFd` (fix ready) transition. This invariant holds
-for all vendor-inclusive scenarios where VFD advances, but is inapplicable for
-rejection flows where the Vendor rejects the invitation and VFd is structurally
-unreachable. Pass `check_fix_ready=False` for those scenarios (DEMOCI-06-001
-documents this class of copy-paste defect). *Source: ISSUE-2121*
-
-**Related**: DEMOCI-06-001 already tracks this class of error. The general
-pattern: any harness check that asserts "event X was observed" can become a
-false failure if scenario Y never produces event X by design. The harness parameter
-that enables/disables the check is the correct mechanism, not skipping the
-invariant entirely.
-
-## Invariant Harness Failures Are Independent of Demo Failures (DEMOCI-04)
-
-The case-ledger invariant harness (`test/ci/invariants/`) runs as a **separate CI
-job** from the demo run. When adding or modifying a scenario test file:
-
-- Do NOT add the invariant harness step back into the demo job — the two must stay
-  in separate jobs so each gets its own PR status check.
-- When a demo run and its invariants both fail, **always check the invariant job
-  separately** — invariant failures can point to a different root cause than the
-  demo failure.
-
-**Per-scenario expected-event-types**: each `_XXX_EXPECTED_EVENT_TYPES` list must
-be comprehensive for its scenario (see DEMOMA-16-001 through DEMOMA-16-011). When
-adding a new scenario phase that produces a new `event_type`, update both the spec
-requirement and the test constant in the same PR.
-
-Sources: CONCERN-1649, PR-1590
-
 ## Keeping the Per-Scenario Dump Phase Thin (DEMOMA-23-002)
 
-`_phase_dump_case_ledgers` in a scenario module builds `LedgerDumpTarget`s and
-delegates to `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT
-contain per-scenario fetch/write loops — that is how one scenario's dump fix
-fails to reach the other eight (DEMOMA-23-002, DEMOMA-17-001).
+A scenario's `_phase_dump_case_ledgers` builds `LedgerDumpTarget`s and delegates
+to `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT carry its
+own fetch/write loop, or one scenario's dump fix fails to reach the others
+(DEMOMA-17-001).
 
-Two placement rules follow from the ordering the harness owns:
+- **Register the dump the moment a case exists**: right after the phase that
+  creates it, call `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`, so
+  every later phase can fail without losing the ledgers (DEMOMA-23-003).
+- **Do not add `try/finally: assert_demo_success()` to `main()`.** The harness
+  owns the accumulator; a second owner asserts before the dump runs
+  (DEMOMA-23-001).
 
-- **Register the dump the moment a case exists.** Immediately after the phase
-  that creates the case, call
-  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`. Every phase below
-  that line can then fail without costing the ledgers (DEMOMA-23-003).
-- **Do not re-add `try/finally: assert_demo_success()` in `main()`.** The harness
-  owns the accumulator; a second owner reintroduces #2239 by asserting before the
-  dump has run (DEMOMA-23-001).
-
-**Testing this**: patch a mid-scenario phase to raise, point `DEVLOGS_DIR` at a
-`tmp_path`, and assert the manifest exists. See
-`test/demo/test_issue_2239_ledger_dump_in_finally.py`.
+To test it, make a mid-scenario phase raise with `DEVLOGS_DIR` at a `tmp_path`
+and assert the manifest exists, as
+`test/demo/test_issue_2239_ledger_dump_in_finally.py` does.

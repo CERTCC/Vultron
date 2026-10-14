@@ -50,7 +50,8 @@ References
 - IDEA-1253: planning rationale for this design
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-18-004
-- Notes: ``notes/bt-fuzzer-rm-closure.md`` § "Design Rationale"
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-closure.md``
+  § "Closure model"
 """
 
 import logging
@@ -83,8 +84,7 @@ def create_close_report_tree(
     Case Owner-triggered via :func:`create_close_case_trigger_tree`.
 
     The ``pre_close_action_factory`` bundle field is not wired here;
-    ``PreCloseAction`` is wired in :func:`create_close_case_trigger_tree`
-    (completed in #1854 — see ``notes/bt-fuzzer-rm-closure.md``).
+    ``PreCloseAction`` is wired in :func:`create_close_case_trigger_tree`.
 
     Args:
         case_id: ID of VulnerabilityCase being processed.

@@ -1,14 +1,17 @@
-"""Authoritative MSM shorthand → ``MessageSemantics`` mapping table.
+"""MSM mapping facts derived from the occasions on ``SEMANTIC_REGISTRY``.
 
-Derived from ``specs/message-semantics-mapping.yaml`` (MSM-01 through MSM-04)
-and ``notes/message-type-reference.md``.  Each :class:`RowSpec` records one
-``SEMANTIC_REGISTRY`` entry's primary page assignment, formal shorthand(s), and
-mapping status.
+Each ``SemanticEntry`` declares its occasions and its message page (ADR-0128).
+This module derives what the occasions already say, so nothing here is typed
+by hand:
 
-This module is the machine-readable complement to the MSM spec YAML, which
-encodes the same information in normative prose.  Keeping it in Python lets the
-renderer and ratchet join against ``SEMANTIC_REGISTRY`` without fragile text
-parsing.
+- the mapping status of an entry (MSM-06-003, MSM-08-006);
+- the "Distinguished by" value of an occasion, the field value or state
+  context that tells it apart from its entry's other occasions;
+- the "Sent by" value of an occasion, from the sender entitlement its received
+  use case declares (MSM-08-005).
+
+:class:`RowSpec` is the derived view of one entry that the MSM-06-002 ratchet
+reads.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -26,10 +29,44 @@ parsing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import re
+from collections import Counter
+from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
+from typing import Annotated, Final, Literal
 
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderExemption,
+)
 from vultron.core.models.events.base import MessageSemantics
+from vultron.metadata.base import repo_root
+from vultron.metadata.file_loading import (
+    display_path,
+    loads_yaml,
+    read_utf8,
+    validate,
+    yaml_node_positions,
+)
+from vultron.primitives import NonEmptyString
+from vultron.semantic_registry import SEMANTIC_REGISTRY
+from vultron.semantic_registry._entry import (
+    DISPATCHER_FALLBACKS,
+    SemanticEntry,
+)
+from vultron.semantic_registry._occasion import (
+    ANCHOR_PATTERN,
+    FieldValue,
+    MessagePage,
+    Occasion,
+    ProtocolShorthand,
+    StateContext,
+)
+from vultron.wire.as2.extractor._pattern import ActivityPattern
 
 
 class MappingStatus(StrEnum):
@@ -38,406 +75,426 @@ class MappingStatus(StrEnum):
     DIRECT = "direct"
     """One shorthand maps to exactly one semantics value."""
     COLLAPSE = "collapse"
-    """Multiple shorthands share one wire form; discriminated by a payload field."""
+    """Several shorthands share one wire form, told apart by a distinguisher."""
     EXPANSION = "expansion"
-    """One shorthand expands across multiple wire forms."""
+    """One shorthand expands across several wire forms."""
     EVOLVED = "evolved"
     """The shorthand's purpose is served by a mechanism on a different axis."""
     NONE = "none"
-    """No formal protocol shorthand; wire activity with no direct formal counterpart."""
+    """No formal protocol shorthand; wire activity with no formal counterpart."""
+
+
+#: Dispatcher fallbacks: no page, no occasion (MSM-06-002).
+EXEMPTED_SEMANTICS: frozenset[MessageSemantics] = DISPATCHER_FALLBACKS
+
+#: All known page slugs, in canonical display order.
+PAGE_SLUGS: tuple[str, ...] = tuple(page.value for page in MessagePage)
+
+
+# ---------------------------------------------------------------------------
+# Mapping status (MSM-08-006).
+# ---------------------------------------------------------------------------
+
+
+def entry_shorthands(entry: SemanticEntry) -> tuple[ProtocolShorthand, ...]:
+    """Return the distinct shorthands *entry*'s occasions carry, in order."""
+    return tuple(
+        dict.fromkeys(
+            o.shorthand for o in entry.occasions if o.shorthand is not None
+        )
+    )
+
+
+def mapping_status(
+    entry: SemanticEntry, registry: Sequence[SemanticEntry]
+) -> MappingStatus:
+    """Derive *entry*'s mapping status from the occasions in *registry*.
+
+    - ``evolved`` when an occasion declares an evolved mechanism (MSM-05),
+      which has no shorthand to count;
+    - ``none`` when no occasion carries a shorthand;
+    - ``collapse`` when the occasions carry several distinct shorthands;
+    - ``expansion`` when its one shorthand is also carried by another entry;
+    - ``direct`` otherwise, including several occasions sharing one shorthand.
+
+    Args:
+        entry: The entry to classify.
+        registry: Every entry, so a shorthand spread across entries is seen.
+
+    Returns:
+        The derived :class:`MappingStatus`.
+    """
+    if any(o.evolved for o in entry.occasions):
+        return MappingStatus.EVOLVED
+    shorthands = entry_shorthands(entry)
+    if not shorthands:
+        return MappingStatus.NONE
+    if len(shorthands) > 1:
+        return MappingStatus.COLLAPSE
+    shorthand = next(iter(shorthands))
+    if shorthand_is_shared(shorthand, registry):
+        return MappingStatus.EXPANSION
+    return MappingStatus.DIRECT
+
+
+# ---------------------------------------------------------------------------
+# "Sent by" (MSM-08-005).
+# ---------------------------------------------------------------------------
+
+#: The "Sent by" wording per entitlement kind (MSM-08-005, decided in #4418).
+#: Moving it onto the kind itself is planned (MSM-08-010,
+#: ``notes/message-occasion-table.md``).
+#: ``NAMED_ACTOR`` is worded from the answered request; see :func:`sent_by`.
+SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
+    SenderEntitlementKind.CASE_MANAGER: "the case manager",
+    SenderEntitlementKind.CASE_OWNER: "the case owner",
+    SenderEntitlementKind.ACTIVE_PARTICIPANT: "an active participant",
+    SenderEntitlementKind.INVITEE: "the invitee",
+    SenderEntitlementKind.ANY_ACTOR: "any actor",
+}
+
+#: The "Sent by" wording for a use case whose sender is not yet checked.
+NOT_YET_CHECKED = "not yet checked"
+
+
+def _words(type_name: str) -> str:
+    """``"CaseProposal"`` → ``"case proposal"``."""
+    return " ".join(re.findall(r"[A-Z][a-z0-9]*", type_name)).lower()
+
+
+def answered_request(entry: SemanticEntry) -> str:
+    """Name the request *entry*'s activity answers, from its object type.
+
+    ``Accept(CaseProposal)`` answers a case proposal; for a nested pattern
+    such as ``Accept(Offer(VulnerabilityCase))`` the request is the inner
+    object, a vulnerability case.
+
+    Raises:
+        ValueError: When the entry's pattern names no object type.
+    """
+    pattern = entry.pattern
+    obj = None if pattern is None else pattern.object_
+    if isinstance(obj, ActivityPattern):
+        obj = obj.object_
+    if obj is None or isinstance(obj, ActivityPattern):
+        raise ValueError(
+            f"{entry.semantics.name}: the pattern names no object type to"
+            " word an addressee from (MSM-08-005)"
+        )
+    return _words(str(obj))
+
+
+def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
+    """Derive the "Sent by" value of *occasion* on *entry* (MSM-08-005).
+
+    The value is the wording of the sender entitlement that the entry's
+    received use case declares, or :data:`NOT_YET_CHECKED` for an exemption.
+    The occasion's usual sender roles, when it has any, follow in
+    parentheses: "an active participant (usually: vendor)".
+
+    Raises:
+        ValueError: When the use case declares no sender entitlement.
+    """
+    declared = getattr(entry.use_case_class, "sender_entitlement", None)
+    if isinstance(declared, SenderExemption):
+        wording = NOT_YET_CHECKED
+    elif declared is SenderEntitlementKind.NAMED_ACTOR:
+        wording = f"the addressee of the {answered_request(entry)}"
+    elif isinstance(declared, SenderEntitlementKind):
+        wording = SENT_BY_WORDING[declared]
+    else:
+        raise ValueError(
+            f"{entry.use_case_class.__name__} declares no sender_entitlement"
+            " (HP-01-007)"
+        )
+    if not occasion.usual_senders:
+        return wording
+    usual = ", ".join(
+        role.value.replace("_", " ") for role in occasion.usual_senders
+    )
+    return f"{wording} (usually: {usual})"
+
+
+# ---------------------------------------------------------------------------
+# Section heading and details link text (MSM-08-008).
+# ---------------------------------------------------------------------------
+
+
+def shorthand_is_shared(
+    shorthand: ProtocolShorthand, registry: Sequence[SemanticEntry]
+) -> bool:
+    """Return whether more than one entry in *registry* carries *shorthand*.
+
+    A shared shorthand is an expansion (``GI``, and ``RV``, ``RI`` and ``RC``,
+    which the Full-Case Invite replies carry too), so it names no one
+    occasion.
+    """
+    carriers = sum(
+        1 for entry in registry if shorthand in entry_shorthands(entry)
+    )
+    return carriers > 1
+
+
+def section_heading(
+    occasion: Occasion, registry: Sequence[SemanticEntry]
+) -> str:
+    """Return the heading of *occasion*'s section, which its link text reuses.
+
+    An occasion whose shorthand no other entry carries is headed by the formal
+    message and its shorthand, "Fix Readiness (CF)".  Any other occasion is
+    headed by its declared plain-English heading (MSM-08-008, DF-09-010).
+
+    Raises:
+        ValueError: When an occasion that needs a declared heading has none,
+            or one headed by its formal name declares one anyway, which would
+            be prose that renders nowhere.
+    """
+    shorthand = occasion.shorthand
+    if shorthand is None or shorthand_is_shared(shorthand, registry):
+        if occasion.heading is None:
+            raise ValueError(
+                f"occasion {occasion.anchor!r} has no shorthand of its own,"
+                " so it needs a plain-English heading (MSM-08-008)"
+            )
+        return occasion.heading
+    if occasion.heading is not None:
+        raise ValueError(
+            f"occasion {occasion.anchor!r} is headed by its formal name"
+            f" {shorthand.formal_name!r}, so its declared heading"
+            f" {occasion.heading!r} would render nowhere (MSM-08-008)"
+        )
+    return f"{shorthand.formal_name} ({shorthand.value})"
+
+
+def distinguished_by(occasion: Occasion) -> str | None:
+    """Render what tells *occasion* apart, as markdown, or ``None``.
+
+    A field value reads "`vf_state` = `VF`"; a state context reads
+    "EM state `NONE` or `PROPOSED`".  Enum members are named, not valued,
+    because a composite state such as ``CS_pxa.Pxa`` has no scalar value.
+    """
+    d = occasion.distinguisher
+    if isinstance(d, FieldValue):
+        return f"`{d.field}` = `{d.value.name}`"
+    if isinstance(d, StateContext):
+        states = " or ".join(f"`{state.name}`" for state in d.states)
+        return f"{d.machine.__name__} state {states}"
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Derived rows.
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class RowSpec:
-    """One ``SEMANTIC_REGISTRY`` entry with its page and mapping metadata.
+    """The mapping-table row of one ``SEMANTIC_REGISTRY`` entry, all derived.
 
     Attributes:
         semantics: The ``MessageSemantics`` enum value.
-        page: Primary page slug under ``docs/reference/messages/`` (no ``.md``).
-        shorthands: Formal protocol shorthand(s), e.g. ``("RS",)`` or
-            ``("CV", "CF")`` for a collapse.  Empty tuple when
-            :attr:`status` is ``NONE`` or ``EVOLVED``.
-        status: How the shorthand(s) relate to this wire form.
-        discriminator: For ``COLLAPSE`` entries: the payload field whose value
-            distinguishes the shorthands (e.g. ``"vf_state"``).  ``None``
-            otherwise.
+        page: Primary page slug under ``docs/reference/messages/``.
+        shorthands: The distinct shorthands the entry's occasions carry.
+        status: How the shorthands relate to this wire form.
     """
 
     semantics: MessageSemantics
     page: str
-    shorthands: tuple[str, ...] = field(default_factory=tuple)
-    status: MappingStatus = MappingStatus.NONE
-    discriminator: str | None = None
+    shorthands: tuple[str, ...]
+    status: MappingStatus
 
 
-# ---------------------------------------------------------------------------
-# Exempted semantics — dispatcher fallbacks, not protocol messages.
-# Ratchet test allows these to have no primary page (MSM-06-002).
-# ---------------------------------------------------------------------------
+def row_for(
+    entry: SemanticEntry, registry: Sequence[SemanticEntry]
+) -> RowSpec:
+    """Derive the :class:`RowSpec` of *entry* (a non-fallback entry).
 
-EXEMPTED_SEMANTICS: frozenset[MessageSemantics] = frozenset(
-    {
-        MessageSemantics.UNKNOWN,
-        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
-    }
-)
+    Raises:
+        ValueError: When *entry* is a dispatcher fallback, which owns no page.
+    """
+    if entry.page is None:
+        raise ValueError(
+            f"{entry.semantics.name} is a dispatcher fallback and has no row"
+        )
+    return RowSpec(
+        semantics=entry.semantics,
+        page=entry.page.value,
+        shorthands=tuple(s.value for s in entry_shorthands(entry)),
+        status=mapping_status(entry, registry),
+    )
 
-# ---------------------------------------------------------------------------
-# Mapping table.  One RowSpec per non-exempted SEMANTIC_REGISTRY entry.
-# Source: specs/message-semantics-mapping.yaml MSM-01 through MSM-04,
-# notes/message-type-reference.md.
-# ---------------------------------------------------------------------------
-#
-# Design note (MSM-06-002, notes/message-type-reference.md):
-#   A few entries legitimately appear on a second page (collapse/expansion
-#   semantics give them a secondary home).  The primary page is what this
-#   table records; secondary appearances are a renderer concern, not a
-#   ratchet concern.  See notes for the three entries with a second home:
-#     ADD_PARTICIPANT_STATUS_TO_PARTICIPANT  (cs primary, rm secondary)
-#     CLOSE_REPORT                           (rm primary, faults secondary)
-#     REJECT_CASE_LEDGER_ENTRY               (ledger primary, faults secondary)
 
-ROW_SPECS: tuple[RowSpec, ...] = (
-    # ------------------------------------------------------------------
-    # rm.md — Report Management (RM) shorthands
-    # Source: MSM-01, plus the Create(VulnerabilityReport) wire activity
-    # that has no formal shorthand but belongs in the RM family.
-    # ------------------------------------------------------------------
-    RowSpec(
-        semantics=MessageSemantics.CREATE_REPORT,
-        page="rm",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.SUBMIT_REPORT,
-        page="rm",
-        shorthands=("RS",),
-        status=MappingStatus.DIRECT,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACK_REPORT,
-        page="rm",
-        shorthands=("RK",),
-        status=MappingStatus.DIRECT,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.VALIDATE_REPORT,
-        page="rm",
-        shorthands=("RV",),
-        status=MappingStatus.DIRECT,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.INVALIDATE_REPORT,
-        page="rm",
-        shorthands=("RI",),
-        status=MappingStatus.DIRECT,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.CLOSE_REPORT,
-        page="rm",
-        shorthands=("RC",),
-        status=MappingStatus.DIRECT,
-    ),
-    # RA and RD use case-level verbs (Join / Ignore) because the act is a
-    # case-participation decision, not a report-validity judgment (MSM-01-004,
-    # MSM-01-005).  Primary page is rm.md; they appear in case.py.
-    RowSpec(
-        semantics=MessageSemantics.ENGAGE_CASE,
-        page="rm",
-        shorthands=("RA",),
-        status=MappingStatus.DIRECT,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.DEFER_CASE,
-        page="rm",
-        shorthands=("RD",),
-        status=MappingStatus.DIRECT,
-    ),
-    # ------------------------------------------------------------------
-    # em.md — Embargo Management (EM) shorthands
-    # Source: MSM-02.
-    # EP is Invite(Event) alone (MSM-02-001); EV/EJ/EC collapse with
-    # EP/ER/EA respectively, distinguished by EM context not payload.
-    # Create(Event) mints embargo terms and Announce(Event) states the terms
-    # in force; neither proposes anything, so neither carries a shorthand.
-    # ------------------------------------------------------------------
-    RowSpec(
-        semantics=MessageSemantics.CREATE_EMBARGO_EVENT,
-        page="em",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
-        page="em",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-        page="em",
-        # EV (revision proposal) shares the same wire form as EP (initial
-        # proposal); discriminated by EM state context, not a payload field.
-        shorthands=("EP", "EV"),
-        status=MappingStatus.COLLAPSE,
-        discriminator="EM state context",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
-        page="em",
-        shorthands=("EA", "EC"),
-        status=MappingStatus.COLLAPSE,
-        discriminator="EM state context",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
-        page="em",
-        shorthands=("ER", "EJ"),
-        status=MappingStatus.COLLAPSE,
-        discriminator="EM state context",
-    ),
-    # The case owner's decision for the case (ADR-0122).  The protocol's
-    # per-participant EA/EC/ER/EJ answers stay with Accept/Reject of the
-    # Invite (MSM-02); these carry no shorthand of their own.
-    RowSpec(
-        semantics=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
-        page="em",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
-        page="em",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
-        page="em",
-        shorthands=("ET",),
-        status=MappingStatus.DIRECT,
-    ),
-    # ------------------------------------------------------------------
-    # cs.md — Case State (CS) shorthands
-    # Source: MSM-03.
-    # CV/CF collapse onto vf_state; CD collapses onto d_state; both share
-    # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.  CP/CX/CA collapse onto pxa_state.
-    # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT also carries RM state via rm_state —
-    # its secondary home is rm.md (see notes/message-type-reference.md).
-    # ------------------------------------------------------------------
-    RowSpec(
-        semantics=MessageSemantics.CREATE_CASE_STATUS,
-        page="cs",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ADD_CASE_STATUS_TO_CASE,
-        page="cs",
-        shorthands=("CP", "CX", "CA"),
-        status=MappingStatus.COLLAPSE,
-        discriminator="pxa_state",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.CREATE_PARTICIPANT_STATUS,
-        page="cs",
-    ),
-    # CV and CF use vf_state; CD uses d_state.  All share this one semantics
-    # value.  The renderer notes the two discriminators; the ratchet sees one
-    # primary page (cs.md).
-    RowSpec(
-        semantics=MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
-        page="cs",
-        shorthands=("CV", "CF", "CD"),
-        status=MappingStatus.COLLAPSE,
-        # vf_state carries CV/CF; d_state carries CD; rm_state carries the RM
-        # ladder.  Show all three so no dimension is hidden.
-        discriminator="vf_state / d_state / rm_state",
-    ),
-    # ------------------------------------------------------------------
-    # general.md — General (GI) shorthands
-    # Source: MSM-04.
-    # GI expands: note lifecycle + actor-suggestion exchange.
-    # GK/GE are evolved (no dedicated semantics; see MSM-05).
-    # ------------------------------------------------------------------
-    RowSpec(
-        semantics=MessageSemantics.CREATE_NOTE,
-        page="general",
-        shorthands=("GI",),
-        status=MappingStatus.EXPANSION,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ADD_NOTE_TO_CASE,
-        page="general",
-        shorthands=("GI",),
-        status=MappingStatus.EXPANSION,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REMOVE_NOTE_FROM_CASE,
-        page="general",
-        shorthands=("GI",),
-        status=MappingStatus.EXPANSION,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.OFFER_ACTOR_TO_CASE,
-        page="general",
-        shorthands=("GI",),
-        status=MappingStatus.EXPANSION,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.OFFER_CASE_PARTICIPANT,
-        page="general",
-        shorthands=("GI",),
-        status=MappingStatus.EXPANSION,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
-        page="general",
-        shorthands=("GI",),
-        status=MappingStatus.EXPANSION,
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
-        page="general",
-        shorthands=("GI",),
-        status=MappingStatus.EXPANSION,
-    ),
-    # ------------------------------------------------------------------
-    # faults_and_acknowledgements.md — fault / ack mechanisms
-    # Source: MSM-05.
-    # RE/EE/CE/GE and EK/CK/GK have no dedicated dispatch values; their
-    # purposes are served by the mechanisms partitioned on a different axis.
-    # CREATE_PROCESSING_FAULT is the primary "not understood" fault mechanism.
-    # CLOSE_REPORT and REJECT_CASE_LEDGER_ENTRY also appear here as secondary
-    # homes; their primary pages are rm.md and ledger_replication.md.
-    # ------------------------------------------------------------------
-    RowSpec(
-        semantics=MessageSemantics.CREATE_PROCESSING_FAULT,
-        page="faults_and_acknowledgements",
-    ),
-    # ------------------------------------------------------------------
-    # case_management.md — case lifecycle and roster wire activities
-    # No formal shorthand; not modelled by the 28-shorthand protocol set.
-    # ------------------------------------------------------------------
-    RowSpec(semantics=MessageSemantics.CREATE_CASE, page="case_management"),
-    RowSpec(semantics=MessageSemantics.UPDATE_CASE, page="case_management"),
-    RowSpec(
-        semantics=MessageSemantics.ADD_REPORT_TO_CASE, page="case_management"
-    ),
-    RowSpec(semantics=MessageSemantics.CLOSE_CASE, page="case_management"),
-    RowSpec(
-        semantics=MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.INVITE_ACTOR_TO_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_INVITE_ACTOR_TO_FULL_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.CREATE_CASE_PARTICIPANT,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-        page="case_management",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-        page="case_management",
-    ),
-    # ------------------------------------------------------------------
-    # case_proposal.md — pre-case bootstrap (ADR-0023)
-    # No formal shorthand; not a case-management message (no case exists yet).
-    # ------------------------------------------------------------------
-    RowSpec(
-        semantics=MessageSemantics.CREATE_CASE_PROPOSAL,
-        page="case_proposal",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.ACCEPT_CASE_PROPOSAL,
-        page="case_proposal",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_CASE_PROPOSAL,
-        page="case_proposal",
-    ),
-    # ------------------------------------------------------------------
-    # ledger_replication.md — SYNC substrate (ADR-0077)
-    # REJECT_CASE_LEDGER_ENTRY also appears in faults_and_acknowledgements.md
-    # as a secondary home (ledger NAK = acknowledgement story).
-    # ------------------------------------------------------------------
-    RowSpec(
-        semantics=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
-        page="ledger_replication",
-    ),
-    RowSpec(
-        semantics=MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
-        page="ledger_replication",
-    ),
-)
-
-# ---------------------------------------------------------------------------
-# Derived fast-lookup indices.
-# ---------------------------------------------------------------------------
-
-#: Mapping from page slug → tuple of RowSpecs assigned to that page.
-_page_rows_builder: dict[str, list[RowSpec]] = {}
-for _row in ROW_SPECS:
-    _page_rows_builder.setdefault(_row.page, []).append(_row)
-PAGE_ROWS: dict[str, tuple[RowSpec, ...]] = {
-    k: tuple(v) for k, v in _page_rows_builder.items()
-}
-
-#: All known page slugs, in canonical display order.
-PAGE_SLUGS: tuple[str, ...] = (
-    "rm",
-    "em",
-    "cs",
-    "general",
-    "faults_and_acknowledgements",
-    "case_management",
-    "case_proposal",
-    "ledger_replication",
+#: One derived row per non-fallback ``SEMANTIC_REGISTRY`` entry, grouped by
+#: page in :data:`PAGE_SLUGS` order and in registry order within a page.
+ROW_SPECS: tuple[RowSpec, ...] = tuple(
+    sorted(
+        (
+            row_for(e, SEMANTIC_REGISTRY)
+            for e in SEMANTIC_REGISTRY
+            if e.semantics not in EXEMPTED_SEMANTICS
+        ),
+        key=lambda row: PAGE_SLUGS.index(row.page),
+    )
 )
 
 #: Mapping from ``MessageSemantics`` → ``RowSpec`` for O(1) lookup.
 SEMANTICS_TO_ROW: dict[MessageSemantics, RowSpec] = {
     row.semantics: row for row in ROW_SPECS
 }
+
+
+# ---------------------------------------------------------------------------
+# The occasion table: the committed YAML projection (ADR-0128).
+# ---------------------------------------------------------------------------
+
+#: The committed, generated occasion table.  Internal: publishing it as an
+#: interface belongs to protocol versioning (#2959).
+OCCASION_TABLE_PATH: Path = Path(__file__).with_name("occasions.yaml")
+
+#: The occasion table's format version, written into the file from the start
+#: so that a later reader can tell the shapes apart.  Version 2 replaced each
+#: row's declared ``howto`` link with the derived ``seen_in`` pages (#4432).
+OCCASION_TABLE_FORMAT_VERSION: Final = 2
+
+_ANCHOR = Annotated[str, Field(pattern=ANCHOR_PATTERN)]
+_RECORD = ConfigDict(frozen=True, extra="forbid")
+
+
+class PageLink(BaseModel):
+    """A ``docs/`` page that embeds an occasion, with its page title.
+
+    Attributes:
+        path: The page, relative to ``docs/``.
+        title: The page's H1, the text a link to it carries.
+    """
+
+    model_config = _RECORD
+
+    path: NonEmptyString
+    title: NonEmptyString
+
+
+class OccasionRow(BaseModel):
+    """One occasion as the table and its section render it; all derived.
+
+    Attributes:
+        anchor: The section anchor on the group's message page.
+        heading: The section heading, which the details link text reuses
+            (MSM-08-008).
+        when: The sender's situation, completing "When…".
+        send: The wire summary, rendered from the entry's ``ActivityPattern``.
+        sent_by: The "Sent by" value (MSM-08-005).
+        distinguished_by: What tells the occasion apart, as markdown.
+        semantics: The ``SEMANTIC_REGISTRY`` entry the occasion belongs to.
+        shorthand: The formal protocol message it carries, if any.
+        status: The entry's mapping status (MSM-06-003).
+        description: What the activity does.
+        notes: Further prose for the section.
+        seen_in: The published pages outside the message pages that embed
+            the occasion, derived from their include directives, in path
+            order.
+        example: The ``vocab_examples`` function that builds its example.
+    """
+
+    model_config = _RECORD
+
+    anchor: _ANCHOR
+    heading: NonEmptyString
+    when: NonEmptyString
+    send: NonEmptyString
+    sent_by: NonEmptyString
+    distinguished_by: NonEmptyString | None = None
+    semantics: MessageSemantics
+    shorthand: ProtocolShorthand | None = None
+    status: MappingStatus
+    description: NonEmptyString
+    notes: NonEmptyString | None = None
+    seen_in: tuple[PageLink, ...] = ()
+    example: NonEmptyString
+
+
+class OccasionGroup(BaseModel):
+    """The occasions of one message page, in registry (dispatch) order.
+
+    Attributes:
+        page: The message page the occasions' sections live on.
+        title: The group's title in the whole table.
+        mechanics: ``True`` for protocol mechanics, which follow the case
+            lifecycle groups.
+        occasions: The group's rows.
+    """
+
+    model_config = _RECORD
+
+    page: MessagePage
+    title: NonEmptyString
+    mechanics: bool
+    occasions: tuple[OccasionRow, ...] = Field(min_length=1)
+
+
+class OccasionTable(BaseModel):
+    """The whole occasion table, as committed in :data:`OCCASION_TABLE_PATH`.
+
+    Validation fails when a page has two groups, an anchor is not unique
+    (MSM-08-004), or the lifecycle groups do not all precede the mechanics.
+    """
+
+    model_config = _RECORD
+
+    format_version: Literal[2]
+    groups: tuple[OccasionGroup, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _pages_and_anchors_are_unique(self) -> OccasionTable:
+        problems: list[str] = []
+        pages = Counter(group.page for group in self.groups)
+        problems.extend(
+            f"page {page.value!r} has {count} groups"
+            for page, count in pages.items()
+            if count > 1
+        )
+        anchors = Counter(
+            row.anchor for group in self.groups for row in group.occasions
+        )
+        problems.extend(
+            f"anchor {anchor!r} is used {count} times (MSM-08-004)"
+            for anchor, count in anchors.items()
+            if count > 1
+        )
+        kinds = [group.mechanics for group in self.groups]
+        if kinds != sorted(kinds):
+            problems.append(
+                "a lifecycle group follows a protocol-mechanics group"
+            )
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+
+def load_occasion_table(
+    path: Path = OCCASION_TABLE_PATH, *, root: Path | None = None
+) -> OccasionTable:
+    """Load and validate the occasion table YAML at *path* (MS-17).
+
+    Args:
+        path: The YAML file; defaults to the committed table.
+        root: Root the displayed path is made relative to; defaults to the
+            repository root.
+
+    Raises:
+        MetadataLoadError: When the file does not parse or does not
+            validate, naming ``path:line:col`` of the fault (a check across
+            the whole table, such as a duplicate anchor, names the path).
+        FileNotFoundError: When *path* does not exist.
+    """
+    shown_root = repo_root(Path(__file__).parent) if root is None else root
+    shown = display_path(path, shown_root)
+    text = read_utf8(path, shown)
+    return validate(
+        OccasionTable,
+        loads_yaml(text, Path(shown)),
+        path=path,
+        root=shown_root,
+        prefix="invalid occasion table",
+        positions=yaml_node_positions(text),
+    )

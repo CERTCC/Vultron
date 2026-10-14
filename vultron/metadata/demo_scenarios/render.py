@@ -13,9 +13,9 @@
 """Renderers for the artifacts derived from the demo scenario registry.
 
 One data model — :class:`~vultron.demo.scenario.registry.ScenarioSpec` — feeds
-several rendered tables through :func:`render_page`, following
-:mod:`vultron.metadata.msm.render`.  Each slug is one *consumer shape*, because
-each consumer asks for different columns of the same rows:
+several rendered tables through :func:`render_page`.  Each slug is one
+*consumer shape*, because each consumer asks for different columns of the same
+rows:
 
 =================== =============================================== ==============
 Slug                Consumer                                        Delivery

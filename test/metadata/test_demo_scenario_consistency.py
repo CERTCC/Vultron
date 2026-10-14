@@ -494,9 +494,10 @@ def test_partition_reports_an_incomplete_planned_row(
     alone leaves ``DEMOMA-16-015`` behind, and the row still names *a* spec ID.
     """
     target = prose_root / PLANNED_REGISTER
-    text = target.read_text()
-    assert text.count(cell) >= 1
-    target.write_text(text.replace(cell, "", 1))
+    # Edit the body only: the note's ``tracks:`` frontmatter also names issues.
+    front, sep, body = target.read_text().partition("\n---\n")
+    assert body.count(cell) >= 1
+    target.write_text(front + sep + body.replace(cell, "", 1))
     problems = partition_problems(root=prose_root)
     assert any(expected in problem for problem in problems)
 
@@ -1129,12 +1130,9 @@ def test_count_check_exempts_a_subsection_of_a_history_section(
     exemption fires on exactly the lines it exists to protect.
     """
     target = prose_root / "notes/demo-ci-scenario-coverage.md"
-    original = target.read_text()
-    assert "### Change history" in original
     target.write_text(
-        original.replace(
-            "### Change history", "### Change history\n\n#### PR log", 1
-        ),
+        target.read_text()
+        + "\n### Change history\n\n#### PR log\n\nNine scenarios ran.\n",
         encoding="utf-8",
     )
     assert restated_counts(prose_root) == []

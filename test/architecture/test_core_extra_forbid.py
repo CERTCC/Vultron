@@ -30,19 +30,12 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.errors import VultronProtocolViolationError
 from vultron.metadata.base import repo_root
+from vultron.subclasses import all_subclasses
 
 
 def _all_core_object_subclasses() -> set[type[CoreObject]]:
     import_all_core_models()
-
-    def descend(cls: type) -> set[type]:
-        found: set[type] = set()
-        for sub in cls.__subclasses__():
-            found.add(sub)
-            found |= descend(sub)
-        return found
-
-    return {c for c in descend(CoreObject)}
+    return all_subclasses(CoreObject)
 
 
 def _constructible_vocab() -> list[tuple[str, CoreObject]]:

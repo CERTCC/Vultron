@@ -1,6 +1,5 @@
 ---
-status: proposed
-status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
+status: accepted-provisional
 date: 2026-09-25
 created: 2026-09-25
 updated: 2026-09-25

@@ -24,10 +24,10 @@ from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
+    rm_read_report_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -227,10 +227,13 @@ class _ReportsMixin:
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        content: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
         offer = self._resolve_offer(offer_id)
-        activity = as_Read(object_=offer, actor=actor, to=to)
+        activity = rm_read_report_activity(
+            offer, actor=actor, to=to, content=content
+        )
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:

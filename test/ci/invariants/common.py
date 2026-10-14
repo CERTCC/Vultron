@@ -41,6 +41,10 @@ from vultron.demo.helpers.ledger_dump import (
     DUMP_MANIFEST_FILENAME,
     default_devlogs_root,
 )
+from vultron.demo.helpers.milestones import (
+    case_closure_violations,
+    own_closure_tail_index,
+)
 from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
@@ -615,13 +619,12 @@ def check_rm_closed_termination(
 ) -> list[str]:
     """The log terminates with every participant in RM=CLOSED (Invariant 7).
 
-    Recognises two event types as RM-state carriers:
-
-    - ``add_participant_status_to_participant``: explicit RM state for the
-      participant in the ``payloadSnapshot`` (pre-ADR-0050 CS transitions).
-    - ``close_case``: signals ``RM=CLOSED`` for the departing actor whose ID
-      is in ``payloadSnapshot.actor`` (ADR-0050 canonical closure path via
-      ``Leave(VulnerabilityCase)``).
+    Only ``add_participant_status_to_participant`` entries carry an RM state.
+    A ``close_case`` entry records the received ``Leave``; the RM transitions
+    it caused are the status entries the CASE_MANAGER commits after it, one
+    per step, and a replica reaches ``RM.CLOSED`` only by applying them
+    (CM-23-001).  Reading ``close_case`` as ``RM.CLOSED`` would let a missing
+    step entry pass unseen (#4210).
     """
     auth = auth_entries(replicas)
     latest_rm: dict[str, str] = {}
@@ -632,19 +635,11 @@ def check_rm_closed_termination(
             p_id, rm_state = participant_status_identity_and_rm(snap)
             if p_id and rm_state:
                 latest_rm[p_id] = rm_state
-        elif et == "close_case":
-            # close_case entries record the departing actor in payloadSnapshot.actor
-            # (ADR-0050: Leave(VulnerabilityCase) is the canonical RM closure path).
-            actor_val = snap.get("actor")
-            if isinstance(actor_val, dict):
-                actor_val = actor_val.get("id")
-            if isinstance(actor_val, str) and actor_val:
-                latest_rm[actor_val] = "CLOSED"
 
     if not latest_rm:
         return [
-            "No add_participant_status_to_participant or close_case entries"
-            " found in case-actor log"
+            "No add_participant_status_to_participant entries found in"
+            " case-actor log"
         ]
 
     return [
@@ -654,6 +649,69 @@ def check_rm_closed_termination(
     ]
 
 
+#: The dump manifest's ``actorName`` of the CASE_MANAGER's replica.
+_CASE_ACTOR_NAME = "case-actor"
+
+
+def _recorded_ids(entry: dict) -> list[str]:
+    """Every actor id *entry*'s snapshot names: its actor and its subject."""
+    snap = payload(entry)
+    found: list[object] = [snap.get("actor")]
+    nested = snap.get("object")
+    if isinstance(nested, dict):
+        found.append(nested.get("attributedTo") or nested.get("attributed_to"))
+    ids: list[str] = []
+    for value in found:
+        ref = (
+            value.get("id") or value.get("@id")
+            if isinstance(value, dict)
+            else value
+        )
+        if isinstance(ref, str) and ref:
+            ids.append(ref)
+    return ids
+
+
+def check_no_participant_act_after_case_fully_closed(
+    replicas: dict[str, list[dict]],
+    actor_names: Mapping[str, str],
+) -> list[str]:
+    """No entry after ``case_fully_closed`` records a participant's act.
+
+    The whole-scenario form of the CM-23-013 write boundary: on the
+    CASE_MANAGER's exported ledger, ``case_fully_closed`` appears exactly once,
+    and every later entry is the CASE_MANAGER's own (CM-23-002, CM-23-015).
+    The ledger judgement is
+    :func:`~vultron.demo.helpers.milestones.case_closure_violations`, the same
+    one each scenario's closure ``demo_check`` runs live, so the two cannot
+    drift apart.
+
+    The CASE_MANAGER is the actor the dump manifest names ``case-actor``; its
+    full id is read back from the ledger, where its own ``RM.CLOSED`` status
+    entry names it (CM-23-005).
+
+    Args:
+        replicas: The scenario's exported replicas, by actor name.
+        actor_names: ``{routeKey: actorName}`` from the dump manifest
+            (:func:`load_actor_names`).
+    """
+    entries = _milestone_shape(auth_entries(replicas))
+    route_key = next(
+        (rk for rk, name in actor_names.items() if name == _CASE_ACTOR_NAME),
+        None,
+    )
+    case_manager_id = next(
+        (
+            actor_id
+            for e in auth_entries(replicas)
+            for actor_id in _recorded_ids(e)
+            if route_key is not None and strip_id_prefix(actor_id) == route_key
+        ),
+        None,
+    )
+    return case_closure_violations(entries, [], case_manager_id)
+
+
 def check_late_joiner_has_full_history(
     replicas: dict[str, list[dict]],
     early_actor: str,
@@ -661,7 +719,10 @@ def check_late_joiner_has_full_history(
 ) -> list[str]:
     """Late-joining actor has all logIndex values present in the early actor's replica.
 
-    Spec: CLP-07 (Invariant 8).
+    Only up to the late actor's own last entry: once it has left, a
+    participant is sent nothing further (CM-23-004).
+
+    Spec: CLP-07 (Invariant 8), CM-23-004.
     """
     early_entries = replicas.get(early_actor, [])
     late_entries = replicas.get(late_actor, [])
@@ -669,8 +730,15 @@ def check_late_joiner_has_full_history(
     if not early_entries or not late_entries:
         return []  # skip check — caller should pytest.skip when replicas absent
 
-    early_indices = {log_index(e) for e in early_entries}
     late_indices = {log_index(e) for e in late_entries}
+    # A participant that has left is sent nothing after the entries recording
+    # its own closure (CM-23-004), so the early actor's entries past the late
+    # actor's last one are not owed to it; whether that last entry is its own
+    # closure is the per-replica termination invariant's question.
+    late_tail = max(late_indices)
+    early_indices = {
+        log_index(e) for e in early_entries if log_index(e) <= late_tail
+    }
     missing = sorted(early_indices - late_indices)
 
     if missing:
@@ -1016,20 +1084,98 @@ def check_per_actor_replica_no_rm_state_oscillation(
     return for_each_replica(replicas, check_no_rm_state_oscillation)
 
 
+def _milestone_shape(entries: list[dict]) -> list[dict]:
+    """Recast exported entries in the DataLayer shape the demo milestones read."""
+    return [
+        {
+            "log_index": log_index(e),
+            "event_type": event_type(e),
+            "payload_snapshot": payload(e),
+        }
+        for e in entries
+    ]
+
+
+def _leaver_ids(
+    auth: list[dict], actor_names: Mapping[str, str]
+) -> dict[str, str]:
+    """``{actorName: actor id}`` for every actor a ``close_case`` entry records."""
+    leavers: dict[str, str] = {}
+    for e in auth:
+        if event_type(e) != "close_case":
+            continue
+        name, _recorded = recorded_actor_name(e, actor_names)
+        raw = payload(e).get("actor")
+        if isinstance(raw, dict):
+            raw = raw.get("id") or raw.get("@id")
+        if name is not None and isinstance(raw, str):
+            leavers.setdefault(name, raw)
+    return leavers
+
+
 def check_per_actor_replica_rm_closed_termination(
     replicas: dict[str, list[dict]],
+    actor_names: Mapping[str, str],
 ) -> list[str]:
-    """Each replica's log terminates with every participant in RM=CLOSED.
+    """Each leaver's replica ends at its own closure, with itself RM=CLOSED.
 
-    Replica-side counterpart of invariant 7.  This is the one property
-    ISSUE-2505 owned: until the CASE_MANAGER's own ``RM.CLOSED`` transition was
-    committed as a ledger entry (CM-23-005), no replica could observe it.
+    Replica-side counterpart of invariant 7.  A participant at RM ``CLOSED``
+    is sent the entries that record its own closure and nothing after them
+    (CM-23-004), so no participant replica holds every closure: invariant 7
+    checks every participant on the ``case-actor`` log, and this checks each
+    departing participant's own replica only for its own departure.  The
+    replica's last ``logIndex`` MUST be the last entry the ``case-actor`` log
+    records for that participant's closure (its ``close_case`` and the status
+    entries after it,
+    :func:`~vultron.demo.helpers.milestones.own_closure_tail_index`, the same
+    reading each scenario's closure ``demo_check`` runs live), and the
+    participant's own last RM state in it MUST be ``CLOSED``.
+
+    Every exported participant replica is checked.  A replica whose actor
+    the ``case-actor`` log records no ``close_case`` for — it never left, or
+    its name did not resolve through the manifest — is a violation, not a
+    skip, so the check cannot pass with nothing checked.
+
+    Args:
+        replicas: The scenario's exported replicas, by actor name.
+        actor_names: ``{routeKey: actorName}`` from the dump manifest
+            (:func:`load_actor_names`).
     """
-    return for_each_replica(
-        replicas,
-        check_rm_closed_termination,
-        requires_status_entries=True,
-    )
+    auth = auth_entries(replicas)
+    shaped = _milestone_shape(auth)
+    leavers = _leaver_ids(auth, actor_names)
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        if actor == _CASE_ACTOR_NAME:
+            continue
+        if actor not in leavers:
+            violations.append(
+                f"Actor {actor!r}: the case-actor log records no close_case"
+                " for it, so its replica's own closure cannot be checked"
+                " (CM-23-004)"
+            )
+            continue
+        actor_id = leavers[actor]
+        tail = own_closure_tail_index(shaped, actor_id)
+        last = max((log_index(e) for e in entries), default=None)
+        if last != tail:
+            violations.append(
+                f"Actor {actor!r}: replica ends at logIndex={last}, expected"
+                f" {tail}, the last entry recording its own closure (CM-23-004)"
+            )
+        own_rm: str | None = None
+        for e in sorted(entries, key=log_index):
+            if event_type(e) != "add_participant_status_to_participant":
+                continue
+            p_id, rm_state = participant_status_identity_and_rm(payload(e))
+            if p_id == actor_id:
+                own_rm = rm_state
+        if own_rm != "CLOSED":
+            violations.append(
+                f"Actor {actor!r}: its own final RM state on its replica ="
+                f" {own_rm!r}, expected CLOSED"
+            )
+    return violations
 
 
 def check_per_actor_replica_participant_status_schema_completeness(

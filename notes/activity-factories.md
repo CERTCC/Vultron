@@ -1,10 +1,10 @@
 ---
-title: "Activity Factories — Design Rules and Inventory"
+title: "Activity Factories — Design Rules"
 status: active
-tags: [factories, wire, outbound-activities, migration, as2]
+kind: guidance
+tags: [factories, wire, outbound-activities, as2]
 description: >
-  Design decisions, full factory inventory, migration guide, and testing
-  patterns for the factory-function layer that wraps Vultron's internal
+  Design rules for the factory-function layer that wraps Vultron's internal
   ActivityStreams subclasses. Operating rules live in
   vultron/wire/as2/factories/AGENTS.md.
 related_specs:
@@ -13,361 +13,53 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/architecture-hexagonal.md
   - notes/wire-core-boundary.md
+  - notes/wire-artifact-immutability.md
 relevant_packages:
   - vultron/wire/as2/factories
   - vultron/wire/as2/vocab/activities
 ---
 
-# Activity Factories — Design Rules and Inventory
-
-Operating rules summary: `vultron/wire/as2/factories/AGENTS.md`.
-Spec: `specs/activity-factories.yaml` (AF-01 through AF-08).
-
-## Design Decisions
-
-| Question | Decision | Rationale |
-|---|---|---|
-| Replace subclasses outright or additive? | Additive first: factories alongside existing classes, then migrate call sites, then make classes private | Non-breaking; lets us validate the pattern before removing the old API. |
-| Which classes become factory functions? | All Vultron activity subclasses across all domain modules | Partial migration would leave an inconsistent API. |
-| Return type of factory functions? | Plain AS2 base type (for example, `as_Offer`, not `RmSubmitReportActivity`) | Callers do not need to understand Vultron's inheritance hierarchy. |
-| Module location? | `vultron/wire/as2/factories/` — sibling of `vocab/` | Makes the import boundary rule easy to state and enforce. |
-| One module or split by domain? | One module per domain (`report.py`, `case.py`, `embargo.py`, `case_participant.py`, `actor.py`, `sync.py`) | Mirrors the existing `vocab/activities/` split and keeps files small. |
-| Internal classes kept or deleted? | Kept as private implementation details inside factory modules | They provide Pydantic runtime validation for free. |
-| Error handling? | Catch `ValidationError`, raise `VultronActivityConstructionError` (chains `__cause__`) | Keeps internal class names out of public error messages. |
-| Import boundary enforcement? | pytest `test/architecture/test_activity_factory_imports.py` + AGENTS guidance | Lightweight, CI-enforced boundary rule. |
-| TypeAlias cleanup? | Remove unused `OfferRef` and `RmInviteToCaseRef`; rename `EmProposeEmbargoRef` to `_EmProposeEmbargoRef` | Reduces public API surface. |
-| `from_core()` on `as_VultronActivity`? | Keep; it is a separate concern | Factories build from primitives; `from_core()` converts an existing domain object. |
-| Architecture violation in `sync.py`? | Track separately | `vultron/core/use_cases/*/sync.py` calling `from_core()` is a different layer violation. |
-
-## Key Patterns
-
-### Factory Function Shape
-
-```python
-# vultron/wire/as2/factories/report.py
-
-from pydantic import ValidationError
-
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.vocab.activities.report import _RmSubmitReportActivity
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import VulnerabilityReport
-
-
-def rm_submit_report_activity(
-    report: VulnerabilityReport,
-    to: as_Actor | str,
-    **kwargs,
-) -> as_Offer:
-    """Build an Offer(VulnerabilityReport) — the RS message."""
-    try:
-        return _RmSubmitReportActivity(object_=report, to=[to], **kwargs)
-    except ValidationError as exc:
-        raise VultronActivityConstructionError(
-            "rm_submit_report_activity: invalid arguments"
-        ) from exc
-```
-
-### Error Class
-
-```python
-# vultron/wire/as2/factories/errors.py
-
-from vultron.errors import VultronError
-
-
-class VultronActivityConstructionError(VultronError):
-    """Raised when a factory function cannot construct the requested activity.
-
-    Wraps a Pydantic ValidationError as __cause__ so that callers can
-    inspect the original validation details if needed.
-    """
-```
-
-### `__init__.py` Re-export Pattern
-
-```python
-# vultron/wire/as2/factories/__init__.py
-
-from vultron.wire.as2.factories.errors import (
-    VultronActivityConstructionError,
-)
-from vultron.wire.as2.factories.report import (
-    rm_close_report_activity,
-    rm_create_report_activity,
-    rm_invalidate_report_activity,
-    rm_read_report_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
-)
-
-__all__ = [
-    "VultronActivityConstructionError",
-    "rm_submit_report_activity",
-    # ...
-]
-```
-
-## Full Factory Inventory
-
-### `factories/report.py`
-
-| Factory function | Return type | Internal class |
-|---|---|---|
-| `rm_create_report_activity` | `as_Create` | `_RmCreateReportActivity` |
-| `rm_submit_report_activity` | `as_Offer` | `_RmSubmitReportActivity` |
-| `rm_read_report_activity` | `as_Read` | `_RmReadReportActivity` |
-| `rm_validate_report_activity` | `as_Accept` | `_RmValidateReportActivity` |
-| `rm_invalidate_report_activity` | `as_TentativeReject` | `_RmInvalidateReportActivity` |
-| `rm_close_report_activity` | `as_Reject` | `_RmCloseReportActivity` |
-| `parse_submit_report_offer` | `tuple[as_VulnerabilityReport, as_Offer]` (parser, not a builder) | — |
-
-### `factories/case.py`
-
-| Factory function | Return type | Internal class |
-|---|---|---|
-| `add_report_to_case_activity` | `as_Add` | `_AddReportToCaseActivity` |
-| `add_status_to_case_activity` | `as_Add` | `_AddStatusToCaseActivity` |
-| `create_case_activity` | `as_Create` | `_CreateCaseActivity` |
-| `create_case_status_activity` | `as_Create` | `_CreateCaseStatusActivity` |
-| `add_note_to_case_activity` | `as_Add` | `_AddNoteToCaseActivity` |
-| `update_case_activity` | `as_Update` | `_UpdateCaseActivity` |
-| `rm_engage_case_activity` | `as_Join` | `_RmEngageCaseActivity` |
-| `rm_defer_case_activity` | `as_Ignore` | `_RmDeferCaseActivity` |
-| `rm_close_case_activity` | `as_Leave` | `_RmCloseCaseActivity` |
-| `offer_case_ownership_transfer_activity` | `as_Offer` | `_OfferCaseOwnershipTransferActivity` |
-| `accept_case_ownership_transfer_activity` | `as_Accept` | `_AcceptCaseOwnershipTransferActivity` |
-| `reject_case_ownership_transfer_activity` | `as_Reject` | `_RejectCaseOwnershipTransferActivity` |
-| `rm_invite_to_case_activity` | `as_Invite` | `_RmInviteToCaseActivity` |
-| `rm_accept_invite_to_case_activity` | `as_Accept` | `_RmAcceptInviteToCaseActivity` |
-| `rm_reject_invite_to_case_activity` | `as_Reject` | `_RmRejectInviteToCaseActivity` |
-| `announce_vulnerability_case_activity` | `as_Announce` | `_AnnounceVulnerabilityCaseActivity` |
-| `offer_case_participant_role_activity` | `as_Offer` | `_OfferCaseParticipantRoleActivity` |
-| `accept_case_participant_role_activity` | `as_Accept` | `_AcceptCaseParticipantRoleActivity` |
-| `reject_case_participant_role_activity` | `as_Reject` | `_RejectCaseParticipantRoleActivity` |
-| `reject_close_case_activity` | `as_Reject` | `_RmRejectCloseCaseActivity` |
-| `bootstrap_replay_question_activity` | `as_Question` | — |
-| `create_case_proposal_activity` | `as_Create` | — |
-| `accept_case_proposal_activity` | `as_Accept` | — |
-| `reject_case_proposal_activity` | `as_Reject` | — |
-| `validate_held_case_invite` | `as_Invite` (validates a held Invite, not a builder) | — |
-
-### `factories/embargo.py`
-
-| Factory function | Return type | Internal class |
-|---|---|---|
-| `em_propose_embargo_activity` | `as_Invite` | `_EmProposeEmbargoActivity` |
-| `em_accept_embargo_activity` | `as_Accept` | `_EmAcceptEmbargoActivity` |
-| `em_reject_embargo_activity` | `as_Reject` | `_EmRejectEmbargoActivity` |
-| `activate_embargo_activity` | `as_Accept` | `_ActivateEmbargoActivity` |
-| `reject_embargo_proposal_activity` | `as_Reject` | `_RejectEmbargoProposalActivity` |
-| `announce_embargo_activity` | `as_Announce` | `_AnnounceEmbargoActivity` |
-| `remove_embargo_from_case_activity` | `as_Remove` | `_RemoveEmbargoFromCaseActivity` |
-
-### `factories/case_participant.py`
-
-| Factory function | Return type | Internal class |
-|---|---|---|
-| `create_participant_activity` | `as_Create` | `_CreateParticipantActivity` |
-| `create_status_for_participant_activity` | `as_Create` | `_CreateStatusForParticipantActivity` |
-| `add_status_to_participant_activity` | `as_Add` | `_AddStatusToParticipantActivity` |
-| `add_participant_to_case_activity` | `as_Add` | `_AddParticipantToCaseActivity` |
-| `remove_participant_from_case_activity` | `as_Remove` | `_RemoveParticipantFromCaseActivity` |
-
-### `factories/actor.py`
-
-| Factory function | Return type | Internal class |
-|---|---|---|
-| `recommend_actor_activity` | `as_Offer` | `_RecommendActorActivity` |
-| `accept_actor_recommendation_activity` | `as_Accept` | `_AcceptActorRecommendationActivity` |
-| `reject_actor_recommendation_activity` | `as_Reject` | `_RejectActorRecommendationActivity` |
-| `offer_case_participant_activity` | `as_Offer` | `_OfferCaseParticipantActivity` |
-| `accept_case_participant_offer_activity` | `as_Accept` | `_AcceptCaseParticipantOfferActivity` |
-| `reject_case_participant_offer_activity` | `as_Reject` | `_RejectCaseParticipantOfferActivity` |
-
-### `factories/sync.py`
-
-| Factory function | Return type | Internal class |
-|---|---|---|
-| `announce_log_entry_activity` | `as_Announce` | `_AnnounceLogEntryActivity` |
-| `reject_log_entry_activity` | `as_Reject` | `_RejectLogEntryActivity` |
-
-### `factories/fault.py`
-
-| Factory function | Return type | Internal class |
-|---|---|---|
-| `create_processing_fault_activity` | `as_Create` | — |
-
-Internal classes are module-private (leading underscore) and live in
-`vultron/wire/as2/vocab/activities/`; only factory modules import them. A `—`
-means the factory builds the AS2 base type directly, with no internal class.
-
-## Anti-Pattern: `model_dump` + `model_validate` Instead of a Declared Field Map
-
-When converting a core domain object to its wire counterpart in adapter code,
-route the conversion through the **declarative field-map translator**. **Do NOT
-use** `wire_cls.model_validate(core_obj.model_dump(by_alias=True, serialize_as_any=True))`.
-
-The `model_dump + model_validate` pattern breaks silently when a wire class
-has field types that differ from the core class. Example: `VulnerabilityCase.case_activity`
-is `list[str]` (URI strings) in core, but `as_VulnerabilityCase.case_activity`
-is `list[as_Activity]`. Pydantic raises `ValidationError` when validating URI
-strings as `as_Activity` objects — with no indication that the wrong conversion
-path was used.
-
-The durable lesson is about the *mechanism*, not about which method holds it: a
-core→wire conversion needs a declared per-field map, because a dump/revalidate
-round-trip has no place to record that `case_activity` is `list[str]` on one side
-and `list[as_Activity]` on the other. `_field_map`, `_strip_core_context`, and
-the per-field conversion logic are what supply that.
-
-**Where that mechanism lives is changing.** Today it is
-`from_core()` on `as_VultronObject` (overridden on specific wire classes). Under
-ADR-0082, ARCH-12-005 as amended **forbids** `from_core()`/`to_core()` on wire
-vocabulary classes: projection moves to a generic bidirectional translator on the
-adapter side, driven by a declarative core↔wire pairing registry (ARCH-23-001),
-so wire classes carry no domain knowledge. Do not write new
-`from_core()`/`to_core()` overrides. See
-[notes/wire-core-boundary.md](wire-core-boundary.md).
-
-Source: ISSUE-1503 — discovered during `datalayer_sqlite` adapter refactoring.
-
-## Testing Patterns
-
-```python
-# test/wire/as2/factories/test_report_factories.py
-
-from vultron.wire.as2.factories import rm_submit_report_activity
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-
-
-def test_rm_submit_report_returns_offer(sample_report, sample_actor):
-    result = rm_submit_report_activity(report=sample_report, to=sample_actor)
-    assert isinstance(result, as_Offer)
-    assert result.object_ == sample_report
-
-
-def test_rm_submit_report_wrong_type_raises():
-    with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_submit_report_activity(report="not-a-report", to="actor")
-    assert exc_info.value.__cause__ is not None
-```
-
-```python
-# test/architecture/test_activity_factory_imports.py
-
-import ast
-from pathlib import Path
-
-VULTRON_ROOT = Path("vultron")
-ALLOWED = {
-    VULTRON_ROOT / "wire" / "as2" / "vocab" / "activities",
-    VULTRON_ROOT / "wire" / "as2" / "factories",
-}
-BANNED_PREFIX = "vultron.wire.as2.vocab.activities"
-
-
-def test_no_direct_activity_class_imports():
-    violations = []
-    for py_file in VULTRON_ROOT.rglob("*.py"):
-        if any(py_file.is_relative_to(a) for a in ALLOWED):
-            continue
-        if py_file.name == "__init__.py":
-            continue
-        source = py_file.read_text()
-        tree = ast.parse(source, filename=str(py_file))
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                mod = getattr(node, "module", "") or ""
-                if mod.startswith(BANNED_PREFIX):
-                    violations.append(f"{py_file}:{node.lineno}: {mod}")
-    assert not violations
-```
-
-## Anti-pattern: Projection Logic in the Adapter
-
-**Problem:** An adapter method builds a partial wire object (e.g. `as_VulnerabilityCaseStub`)
-and passes it to a factory function, rather than passing the core domain object and letting
-the factory project it.
-
-This pattern appeared in PR #1346, where `_ActorsMixin._build_enriched_case_stub()` was
-added to the adapter layer to construct an enriched `as_VulnerabilityCaseStub` before calling
-`rm_invite_to_case_activity()`. The stated reason was that building wire types
-(`as_VulnerabilityCaseStub`, `EmbargoEvent`, `CaseStatus`) in core would violate ARCH-01-001.
-That reasoning is wrong — the *factory* is the correct home for this projection, and
-factories are already allowed to import both core and wire types.
-
-The concrete bug this caused: `VulnerabilityCase.active_embargo` is `str | None` in the
-core model (it stores only the embargo's URI). The adapter read the string, set
-`embargo_ref = active_embargo`, and never fetched the `EmbargoEvent` entity from the
-DataLayer. The `else` branch that would have built a full `EmbargoEvent(id_=..., end_time=...)`
-was unreachable. CM-17-002 requires "ID + `end_time`" in the stub, but only the bare URI
-reached the wire. The factory, given a full `VulnerabilityCase`, would naturally call
-`self._dl.read(case.active_embargo)` to obtain the entity and extract `end_time` — or the
-factory could accept `VulnerabilityCase` + `EmbargoEvent` directly.
-
-**Correct pattern:**
-
-```python
-# WRONG — adapter pre-builds partial wire stub
-class _ActorsMixin:
-    def _build_enriched_case_stub(self, case_id: str) -> as_VulnerabilityCaseStub:
-        case = self._dl.read(case_id)
-        ...  # projection logic here, risks being incomplete
-        return as_VulnerabilityCaseStub(id_=case_id, active_embargo=embargo_ref, ...)
-
-    def invite_actor_to_case(self, ..., case_id: str, ...) -> ...:
-        target = self._build_enriched_case_stub(case_id)   # ← passes wire stub to factory
-        activity = rm_invite_to_case_activity(target=target, ...)
-
-# CORRECT — adapter passes core object; factory projects
-class _ActorsMixin:
-    def invite_actor_to_case(self, ..., case_id: str, ...) -> ...:
-        case = self._dl.read(case_id)                       # ← core object
-        activity = rm_invite_to_case_activity(target=case, ...)  # factory projects
-
-# In factories/case.py:
-def rm_invite_to_case_activity(
-    invitee: CoreActor | as_Actor,
-    target: VulnerabilityCase | as_VulnerabilityCaseStub | str | None = None,
-    ...
-) -> as_Invite:
-    if isinstance(target, VulnerabilityCase):
-        target = _project_case_stub(target)   # projection lives here
-    ...
-```
-
-**Rule (AF-01-005):** When a factory parameter represents a domain entity whose fields
-determine how the wire object is enriched, the factory MUST accept the complete domain
-object — under ADR-0099 the core class is its own wire form — and derive the enrichment
-from that object's fields; callers never hand it a hand-built partial stub. See
-`specs/activity-factories.yaml` AF-01-005.
-
-## Layer and Import Summary
-
-```text
-vultron/wire/as2/
-├── vocab/
-│   └── activities/          <- internal only; imported only by factories/
-│       ├── report.py
-│       ├── case.py
-│       ├── embargo.py
-│       ├── case_participant.py
-│       ├── actor.py
-│       └── sync.py
-└── factories/               <- public construction API
-    ├── __init__.py          <- re-exports all factory functions
-    ├── errors.py            <- VultronActivityConstructionError
-    ├── report.py
-    ├── case.py
-    ├── embargo.py
-    ├── case_participant.py
-    ├── actor.py
-    └── sync.py
-```
-
-External code (demos, trigger services, adapters, tests) imports from
-`vultron.wire.as2.factories`. The `vocab/activities/` classes are
-private implementation details.
+# Activity Factories — Design Rules
+
+Operating rules: `vultron/wire/as2/factories/AGENTS.md`. Spec:
+`specs/activity-factories.yaml` (AF-01 through AF-08). The factory inventory is
+`vultron/wire/as2/factories/__init__.py` (`__all__`); one module per domain
+(`report.py`, `case.py`, `embargo.py`, `case_participant.py`, `actor.py`,
+`sync.py`, `fault.py`) mirrors `vocab/activities/`.
+
+## Design Rules
+
+- **Factories return the plain AS2 base type** (`as_Offer`, not
+  `_RmSubmitReportActivity`). Callers need not know Vultron's inheritance
+  hierarchy.
+- **Internal activity classes stay private** (leading underscore) in
+  `vocab/activities/`, imported only by `factories/`. They give Pydantic runtime
+  validation for free; `test/architecture/test_activity_factory_imports.py`
+  enforces the boundary.
+- **Wrap validation failures**: catch `ValidationError`, raise
+  `VultronActivityConstructionError` with the original as `__cause__`
+  (`factories/errors.py`), so internal class names stay out of public errors.
+- **Factories build from primitives**, never from a dump of a domain object.
+- **Tests import from `vultron.wire.as2.factories`**, as all external code does.
+  Examples: `test/wire/as2/factories/`.
+
+## Render Core Objects Through the Port, Never Dump-and-Revalidate
+
+Do not convert a core object to a wire class with
+`wire_cls.model_validate(core_obj.model_dump(...))`. A dump/revalidate round trip
+has nowhere to record that a field differs in type or name between the two
+sides, so it fails with a `ValidationError` that does not name the wrong
+conversion path. A paired domain type needs no conversion at all: its wire shape
+is the core object's own aliased dump, produced by `WireRenderPort` (ARCH-20-001,
+ARCH-20-002). `from_core()` and `_field_map` on the wire base classes are this
+same round trip; do not add new overrides or callers. See
+[core-wire-rendering-port](core-wire-rendering-port.md).
+
+## Pass the Domain Object, Not a Hand-Built Stub
+
+When a factory parameter is a domain entity whose fields decide how the wire
+object is enriched, pass the complete domain object and let the factory derive
+the enrichment; never pre-build a partial stub in the adapter. A hand-built
+stub silently omits fields the object would have supplied: an adapter-built
+case stub once carried only the embargo URI, dropping the `end_time` CM-17-002
+requires. Rule: AF-01-005.

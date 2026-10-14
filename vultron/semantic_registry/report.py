@@ -30,7 +30,14 @@ from vultron.core.use_cases.received.report import (
     SubmitReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    HowToGuide,
+    MessagePage,
+    Occasion,
+    ProtocolShorthand,
+)
 from vultron.wire.as2.extractor import (
     AckReportPattern,
     CloseReportPattern,
@@ -57,6 +64,27 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created a vulnerability report",
         wire_activity_class=_RmCreateReportActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Reporter has written up a vulnerability and is about to"
+                    " submit the report"
+                ),
+                anchor="create-report",
+                heading="Create report",
+                description=(
+                    "Mints the vulnerability report object. It precedes the "
+                    "Offer that submits the report."
+                ),
+                example="create_report",
+                howto=HowToGuide.REPORT_VULNERABILITY,
+                usual_senders=(
+                    CVDRole.FINDER,
+                    CVDRole.REPORTER,
+                ),
+            ),
+        ),
+        page=MessagePage.RM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.SUBMIT_REPORT,
@@ -66,6 +94,24 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} submitted the report",
         wire_activity_class=_RmSubmitReportActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Reporter submits a vulnerability report to a Vendor or "
+                    "Coordinator"
+                ),
+                anchor="report-submission",
+                description=(
+                    "Offers the report to a new Participant. The Offer may "
+                    "carry proposed embargo terms."
+                ),
+                example="submit_report",
+                howto=HowToGuide.REPORT_VULNERABILITY,
+                shorthand=ProtocolShorthand.RS,
+                usual_senders=(CVDRole.REPORTER,),
+            ),
+        ),
+        page=MessagePage.RM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ACK_REPORT,
@@ -75,6 +121,25 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} acknowledged the report",
         wire_activity_class=_RmReadReportActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a report receiver has read a submitted report",
+                anchor="report-acknowledgment",
+                description=(
+                    "Acknowledges receipt of the submitted report. Report "
+                    "submission is not replicated through the case ledger, so "
+                    "the acknowledgment is an explicit message."
+                ),
+                example="read_report",
+                howto=HowToGuide.REPORT_VULNERABILITY,
+                shorthand=ProtocolShorthand.RK,
+                usual_senders=(
+                    CVDRole.VENDOR,
+                    CVDRole.COORDINATOR,
+                ),
+            ),
+        ),
+        page=MessagePage.RM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.VALIDATE_REPORT,
@@ -84,6 +149,25 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} validated the report",
         wire_activity_class=_RmValidateReportActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a report receiver judges the report valid",
+                anchor="report-valid",
+                heading="Validate report",
+                description=(
+                    "Designates the report as valid, moving the sender's RM "
+                    "state to Valid."
+                ),
+                example="validate_report",
+                howto=HowToGuide.REPORT_VULNERABILITY,
+                shorthand=ProtocolShorthand.RV,
+                usual_senders=(
+                    CVDRole.VENDOR,
+                    CVDRole.COORDINATOR,
+                ),
+            ),
+        ),
+        page=MessagePage.RM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.INVALIDATE_REPORT,
@@ -93,6 +177,25 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} invalidated the report",
         wire_activity_class=_RmInvalidateReportActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a report receiver judges the report invalid",
+                anchor="report-invalid",
+                heading="Invalidate report",
+                description=(
+                    "Designates the report as invalid, moving the sender's RM "
+                    "state to Invalid."
+                ),
+                example="invalidate_report",
+                howto=HowToGuide.REPORT_VULNERABILITY,
+                shorthand=ProtocolShorthand.RI,
+                usual_senders=(
+                    CVDRole.VENDOR,
+                    CVDRole.COORDINATOR,
+                ),
+            ),
+        ),
+        page=MessagePage.RM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.CLOSE_REPORT,
@@ -102,5 +205,24 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} closed the report",
         wire_activity_class=_RmCloseReportActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a report receiver closes the report",
+                anchor="report-closed",
+                heading="Close report",
+                description=(
+                    "Closes the report, moving the sender's RM state to "
+                    "Closed."
+                ),
+                example="close_report",
+                howto=HowToGuide.REPORT_VULNERABILITY,
+                shorthand=ProtocolShorthand.RC,
+                usual_senders=(
+                    CVDRole.VENDOR,
+                    CVDRole.COORDINATOR,
+                ),
+            ),
+        ),
+        page=MessagePage.RM,
     ),
 ]

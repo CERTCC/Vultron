@@ -28,7 +28,9 @@ from vultron.metadata.file_loading import (
     load_frontmatter,
     load_yaml,
     loads_frontmatter,
+    loads_yaml,
     validate,
+    yaml_node_positions,
 )
 from vultron.metadata.history.cli import _validate_frontmatter
 from vultron.metadata.history.incoming import validate_incoming_learnings
@@ -154,6 +156,19 @@ class TestYamlAttribution:
         with pytest.raises(FileNotFoundError):
             load_yaml(tmp_path / "absent.yaml")
 
+    def test_text_form_names_the_shown_path(self):
+        shown = Path("origin/main:specs/x.yaml")
+
+        with pytest.raises(MetadataLoadError) as info:
+            loads_yaml("a: 1\n" + _UNQUOTED_COLON, shown)
+
+        assert str(info.value).startswith(
+            "origin/main:specs/x.yaml:2:21 — YAML parse error:"
+        )
+
+    def test_text_form_parses_valid_text(self):
+        assert loads_yaml("a: 1\n", Path("HEAD:x.yaml")) == {"a": 1}
+
 
 @pytest.mark.spec("MS-17-001")
 class TestFrontmatterAttribution:
@@ -263,8 +278,55 @@ class TestValidateAttribution:
 
         assert info.value.location == "m.md:3"
 
+    def test_positions_locate_the_failing_node(self, tmp_path):
+        text = (
+            "items:\n  - title: t\n    count: 1\n  - title: u\n    count: x\n"
+        )
+
+        class _Items(BaseModel):
+            items: list[_Model]
+
+        with pytest.raises(MetadataLoadError) as info:
+            validate(
+                _Items,
+                yaml.safe_load(text),
+                path=tmp_path / "m.yaml",
+                root=tmp_path,
+                positions=yaml_node_positions(text),
+            )
+
+        assert info.value.location == "m.yaml:5:5"
+
+    def test_positions_win_over_key_lines(self, tmp_path):
+        text = "title: t\ncount: x\n"
+        with pytest.raises(MetadataLoadError) as info:
+            validate(
+                _Model,
+                yaml.safe_load(text),
+                path=tmp_path / "m.yaml",
+                root=tmp_path,
+                key_lines={"count": 9},
+                positions=yaml_node_positions(text),
+            )
+
+        assert info.value.location == "m.yaml:2:1"
+
     def test_valid_data_round_trips(self):
         assert validate(_Model, {"title": "t", "count": 1}).count == 1
+
+
+class TestYamlNodePositions:
+    def test_keys_and_items_are_located(self):
+        positions = yaml_node_positions("a:\n  - x: 1\n  - y\nb: 2\n")
+
+        assert positions[("a",)] == (1, 1)
+        assert positions[("a", 0)] == (2, 5)
+        assert positions[("a", 0, "x")] == (2, 5)
+        assert positions[("a", 1)] == (3, 5)
+        assert positions[("b",)] == (4, 1)
+
+    def test_text_that_does_not_compose_has_no_positions(self):
+        assert yaml_node_positions("a: [\n") == {}
 
 
 class TestDisplayPath:

@@ -29,7 +29,8 @@ Submodules:
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
-- ``fanout``: Fan-out action nodes, plain and RM.CLOSED-filtered
+- ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped
+  except for the entries recording their own closure (CM-23-004)
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
   monotonic-RM ratchet (ADR-0061)
@@ -40,8 +41,10 @@ Submodules:
 - ``rm_verdict_effect``: Ledger-apply of the activity-typed RM moves (report
   verdicts, engage/defer) to the sender's participant
 
-The ``close_case`` effect is not here: it composes the case participant-status
-writer, so it lives in :mod:`vultron.core.behaviors.case.nodes.close_case_effect`.
+A ``close_case`` entry has no effect slot: it records the received Leave, and
+the RM transitions the Leave caused arrive as the status entries after it
+(CM-23-001, CM-23-016).
+
 Every case node that commits imports
 :mod:`~vultron.core.behaviors.sync.commit_tree`, which loads this package, so
 a module here that imported ``case.nodes`` would close an import cycle
@@ -69,7 +72,6 @@ from vultron.core.behaviors.sync.nodes.embargo_backfill import (
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsAcceptEmbargoInviteEventNode,
     IsAddNoteEventNode,
-    IsCloseCaseEventNode,
     IsCreateCaseParticipantEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
@@ -89,8 +91,6 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
-    CollectNonClosedLogEntryRecipientsNode,
-    FanOutLogEntryExcludingClosedNode,
     FanOutLogEntryNode,
     SendLogEntryToEachNode,
 )
@@ -127,7 +127,10 @@ from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
     EmitImpossibleStateFaultNode,
 )
-from vultron.core.behaviors.sync.nodes.port_guard import RequireSyncPortNode
+from vultron.core.behaviors.sync.nodes.port_guard import (
+    RequireSyncPortNode,
+    RequireWireRenderPortNode,
+)
 from vultron.core.behaviors.sync.nodes.receive import (
     BufferOutOfOrderEntryNode,
     BufferPreGenesisEntryNode,
@@ -169,7 +172,6 @@ __all__ = [
     "IsCreateCaseParticipantEventNode",
     "IsInviteAcceptEventNode",
     "IsInviteRejectEventNode",
-    "IsCloseCaseEventNode",
     "IsSubmitReportEventNode",
     "IsOwnershipTransferEventNode",
     "IsEmbargoProposalEventNode",
@@ -221,6 +223,7 @@ __all__ = [
     "DeclineForeignLedgerCommitNode",
     # port guard
     "RequireSyncPortNode",
+    "RequireWireRenderPortNode",
     "UpdateReplicationStateNode",
     "CreateLogEntryNode",
     "PersistLogEntryNode",
@@ -232,10 +235,8 @@ __all__ = [
     "SendMissingEntriesNode",
     "ReplayMissingEntriesNode",
     "CollectLogEntryRecipientsNode",
-    "CollectNonClosedLogEntryRecipientsNode",
     "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
-    "FanOutLogEntryExcludingClosedNode",
     # embargo_backfill
     "BackfillAdmittedParticipantsNode",
     # re-exported helper function (backward compat)

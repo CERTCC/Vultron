@@ -1,17 +1,23 @@
 ---
 title: Interactive Demo UI — Scenarios and Architecture
 status: active
+kind: plan
+tracks:
+  - "#676"
+  - "#3640"
+  - "#3642"
+  - "#3643"
 description: >
   Design for the Vultron interactive demo UI: a React/ReactFlow dashboard for
   stakeholder presentations that watches the real system's case ledgers live
   over a prototype-only SSE stream, operator-side with no case identity, with
   branch-point choices driven through the real trigger endpoints. Records the
-  feature/demo-ui prior art and the Task sequence under epic #676.
+  feature/demo-ui prior art and the remaining Tasks under epic #676.
 related_notes:
   - notes/demo-future-ideas.md
-  - notes/fv-demo.md
   - notes/demo-scenario-registry.md
   - notes/case-ledger-authority.md
+  - notes/configuration.md
 related_specs:
   - specs/multi-actor-demo.yaml
   - specs/triggerable-behaviors.yaml
@@ -19,16 +25,15 @@ related_specs:
 relevant_packages:
   - vultron/demo/scenario
   - vultron/adapters/driving/fastapi/routers
+  - vultron/adapters/driving/fastapi/ledger_stream.py
 ---
 
 # Interactive Demo UI — Scenarios and Architecture
 
-**Sources**: 2026-05-15 design session (#533); 2026-09-24 planning session for
-planning group G19 (#2847), which settled the vehicle, the data path, and the
-Task sequence. Decision record: ADR-0104.
+Decision record: ADR-0104.
 
 This is presentation tooling, not protocol work. It generates no `specs/`
-requirements (G19 AC-3); everything below is design guidance.
+requirements; everything below is design guidance.
 
 ---
 
@@ -54,7 +59,7 @@ exchange that tells a story.
 
 ---
 
-## Decisions (2026-09-24)
+## Decisions
 
 1. **Vehicle: the React/ReactFlow app on `feature/demo-ui`.** The lighter
    alternatives (a self-contained HTML live page reusing
@@ -79,19 +84,16 @@ exchange that tells a story.
    — would alter every scenario's roster and see only what it is sent.
 5. **Transport: server-sent events of case ledger entries, polled
    server-side.** One direction of flow only (choices go out as ordinary
-   trigger POSTs), so SSE rather than the WebSocket the 2026-05-15 session
-   proposed. The stream is justified on its own observability merits
-   (`curl -N` tailing during debugging and CI), independent of the UI.
-6. **Delivery is blocked on the branch landing.** The branch is not ready to
-   land; landing it is Greg Strom's work, tracked as its own Task that
-   blocks the UI Tasks. The SSE endpoint does not wait for it.
+   trigger POSTs), so SSE rather than a WebSocket. The stream is justified
+   on its own observability merits (`curl -N` tailing during debugging and
+   CI), independent of the UI.
+6. **The UI Tasks wait for the branch to land** (#3640).
 
 ---
 
 ## Prior Art — `origin/feature/demo-ui`
 
-As of 2026-09-08 (tip `4398ed7be`, forked from `main` at `ff4b39cbc`,
-2026-09-03), about 16k lines, authored by Greg Strom:
+About 16k lines:
 
 - **`ui/`** — React 19 + TypeScript + Vite + `@xyflow/react` (ReactFlow).
   `DemoSelector.tsx` toggles two modes:
@@ -114,8 +116,8 @@ As of 2026-09-08 (tip `4398ed7be`, forked from `main` at `ff4b39cbc`,
 - **Housekeeping before landing**: file-mode flips on several `.sh`
   scripts, a deleted `docs/reference/codebase/.codebase-scan.txt`, and
   stale `ui/LOG_REPLAY_README.md` content (old `case-log.jsonl` file names
-  and event types). Several files are very large (`caseLedgerMapper.ts`
-  1709 lines, `vendorActions.ts` 1642 lines).
+  and event types). Several files are very large (`caseLedgerMapper.ts`,
+  `vendorActions.ts`).
 
 ---
 
@@ -138,52 +140,24 @@ actor container (finder, vendor, coordinator, …; may host several actors)
   the built app and proxies each actor under one origin, so the Vultron
   server needs no change.
 - **One stream per actor, not per container.** A container can host several
-  actors, each with its own store: in `fvv` the case-actor is a sub-actor of
-  the vendor container, in `fcv` of the coordinator container, and in `fv` the
-  standalone `case-actor` container deliberately does not hold the case. Live
-  mode picks its streams the way the report tool picks its ledgers — the
-  `LedgerDumpTarget` list each scenario module builds — so it never misses
-  the case manager's authoritative ledger.
+  actors, each with its own store. The canonical case and ledger live in the
+  dedicated `case-actor` container; each participant container holds its
+  replica. Live mode picks its streams the way the report tool picks its
+  ledgers — the `LedgerDumpTarget` list each scenario module builds
+  (`vultron/demo/helpers/ledger_dump.py`) — so it never misses the case
+  manager's authoritative ledger.
 - **Per-replica view.** Because the dashboard reads every actor, it can
   show replica convergence side by side — the same per-actor presence view
   `vultron/demo/report.py` builds after the fact (DRPT-02-005).
 
 ### Live case log stream
 
-Extends the existing prototype-only ledger read endpoints in
-`vultron/adapters/driving/fastapi/routers/demo_triggers.py`
-(`GET /actors/{actor_id}/demo/cases/{case_id}/log` and `…/log/{index}`,
-TRIG-09).
-
-- **Path**: `GET /actors/{actor_id}/demo/cases/{case_id}/log/stream`, beside
-  the existing ledger endpoints — not the `/actors/{actor_id:path}/cases/…`
-  path first proposed in #665. Like every route here it is mounted under
-  `/api/v2`, so the full path the reverse proxy forwards is
-  `/api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`. It resolves
-  the case id with the same `_resolve_case_id` helper as its siblings.
-- **Route order**: the stream route MUST be declared before `…/log/{index}`.
-  Declared after it, `stream` is parsed as the integer `index` and the request
-  fails with 422. A test must prove the stream route is reachable.
-- **Mounted only in `RunMode.PROTOTYPE`** (TRIG-09-002/003); returns 404
-  otherwise because the route is absent.
-- **Response**: `text/event-stream`. Each event's `id:` is the entry's
-  `log_index` and its `data:` is the entry serialized exactly as the list
-  endpoint serializes it (wire form, by alias, `exclude_none`).
-- **Replay**: `?since=<log_index>` (or the browser's `Last-Event-ID` on
-  reconnect) skips entries at or below that index; absent means replay from
-  the beginning.
-- **Notification: server-side polling.** The handler re-reads the case's
-  ledger entries on a short interval (~250 ms) and emits those above the last
-  index sent. Chosen over an in-process queue because it needs no hook in
-  the commit path, catches entries however they arrived (local commit or
-  replicated in), and needs no app-scoped pub/sub state that could leak
-  between test apps. The bounded read load is acceptable for a
-  prototype-only endpoint.
-- **Termination**: stops cleanly when the client disconnects; emits a
-  terminal `event: close` when the server shuts down (and, if cheaply
-  detectable, when the case closes).
-- **Not a replication channel.** Like its siblings, it is demo tooling;
-  participants replicate through the ActivityStreams inbox (SYNC-02-001).
+The stream is built (#3641): `GET
+/api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`, prototype-only
+(TRIG-09), in `vultron/adapters/driving/fastapi/routers/demo_triggers.py` and
+`vultron/adapters/driving/fastapi/ledger_stream.py`. Each event's `id:` is the
+entry's `log_index`, `?since=` or `Last-Event-ID` resumes, and the stream is
+demo tooling, not a replication channel (SYNC-02-001).
 
 ---
 
@@ -191,17 +165,15 @@ TRIG-09).
 
 All presentation scenarios share one UI; only the number of actor lanes
 differs. They map onto registered demo scenarios (`vultron-demo` sub-commands,
-ADR-0098). Where the Case Actor runs differs by scenario (see *One stream
-per actor* above), so the UI must not assume a fixed container layout.
+ADR-0098). The UI takes its lanes and streams from the scenario's ledger
+targets (see *One stream per actor* above), not from a fixed container
+layout.
 
 | Presentation | Narrative | Closest registered scenario |
 |---|---|---|
 | A — Two-Actor | Researcher reports a bug directly to a single vendor | `fv` |
 | B — Coordinator | Reporter routes through a neutral coordinator for a widely-used library | `fcv` |
 | C — Multi-Vendor | Shared component used by several vendors; the vendor set expands | `fvv`, `fvcv-*`, `fcvcv` |
-
-The pre-rebuild `three_actor_demo.py` and `multi_vendor_demo.py` scripts the
-2026-05-15 session planned to remove are already gone.
 
 ---
 
@@ -270,14 +242,12 @@ any branch point is interactive.
 
 ## Task Sequence (epic #676)
 
-1. **Land `feature/demo-ui` on `main`** (#3640) — Greg Strom. Blocks 3
-   and 4.
-2. **Live case log SSE endpoint** (#3641) — independent; can start now.
-3. **Live mode** (#3642) — compose service with reverse proxy; Log Replay
+1. **Land `feature/demo-ui` on `main`** (#3640). Blocks 2 and 3.
+2. **Live mode** (#3642) — compose service with reverse proxy; Log Replay
    subscribes to each actor's stream; scenario selector, branding,
-   disclaimer. Blocked by 1 and 2.
-4. **Branch-point choices via real triggers** (#3643) — report validation
-   on scenario A first. Blocked by 3.
+   disclaimer.
+3. **Branch-point choices via real triggers** (#3643) — report validation
+   on scenario A first. Blocked by 2.
 
 ---
 

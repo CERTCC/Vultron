@@ -390,7 +390,20 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Recipients SHOULD send $RK$ in acknowledgment of any $R*$ message except $RK$ itself
+      Recipients SHOULD acknowledge the $R*$ messages they receive, other than $RK$
+      itself. $RK$ acknowledges only $RS$: an addressee of the report's Offer sends
+      it to the reporter (RMB-08-003). No other $R*$ message is acknowledged with
+      $RK$; once a case exists, its acknowledgment is the CASE_MANAGER's ledger entry
+      for it, fanned out to the participants.
+    rationale: >-
+      The 2022 formal protocol reads "Recipients SHOULD send $RK$ in acknowledgment of
+      any $R*$ message except $RK$ itself". Once a case exists, every $R*$ message goes
+      to the CASE_MANAGER (PCR-08-001), and its ledger entry already acknowledges it to
+      every participant, so a separate $RK$ would only add a message. Narrowed by the
+      maintainer on #4325.
+    verification: >-
+      Tests marked `VP-03-009` confirm that the ack-report trigger addresses $RK$ to
+      the reporter alone, and that an $RK$ snapshot is refused as a ledger entry.
     stories:
     - story_2022_016
   - id: VP-03-010
@@ -404,8 +417,15 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Recipients SHOULD acknowledge $RE$ messages ($RK$) and inquire ($GI$) as to the nature
-      of the error
+      Recipients of an $RE$ message SHOULD inquire ($GI$) as to the nature of the error.
+      They do not acknowledge it with $RK$ (VP-03-009); once a case exists, its
+      acknowledgment is the CASE_MANAGER's ledger entry for it, fanned out to the
+      participants.
+    rationale: >-
+      The 2022 formal protocol reads "Recipients SHOULD acknowledge $RE$ messages
+      ($RK$) and inquire ($GI$) as to the nature of the error". $RK$ now acknowledges
+      only $RS$ (RMB-08-003), and the ledger entry acknowledges a case event, so only
+      the inquiry remains. Narrowed by the maintainer on #4325.
     stories:
     - story_2022_077
   - id: VP-03-012
@@ -431,7 +451,23 @@ groups:
   - id: VP-03-013
     priority: MAY
     kind: protocol
-    statement: Recipients MAY ignore messages received on Closed cases
+    statement: >-
+      Recipients MAY ignore messages received on Closed cases, whatever the
+      message class: RM ($R*$), EM, CS and general-inquiry ($GI$) messages
+      alike. For the CASE_MANAGER, owner close is a hard kill switch rather than
+      a permission: once `case_fully_closed` is committed it MUST NOT record any
+      later inbound message for the case (CM-23-013).
+    rationale: >-
+      The 2022 rule was read as scoped to $R*$ messages, so a note ($GI$) sent after
+      close had no rule and the reference note handler persisted it (CONCERN-1894).
+      ADR-0085 chose a hard kill switch over a selective gate, because no principled
+      line separates note-like traffic from the rest.
+    verification: >-
+      A test sends a $GI$ `Add(Note, target=Case)` to the CASE_MANAGER after the
+      owner has closed the case, and confirms it is refused and the case ledger gains
+      no entry.
+    adr:
+    - ADR-0085
 - id: VP-04
   title: Embargo Management (EM) Process
   specs:

@@ -46,30 +46,26 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
-    verify_case_closed,
     verify_fix_ready,
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
     PARTICIPANT_JOIN_TIMEOUT,
-    wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
     wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
-    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
@@ -176,6 +172,7 @@ def vendor_joins_coordinated_case(
     reporter: as_Actor,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor: as_Actor,
     vendor_client: DataLayerClient,
     vendor_name: str = "Vendor",
@@ -184,6 +181,8 @@ def vendor_joins_coordinated_case(
     """The Coordinator invites the Vendor; the Vendor accepts and triages.
 
     Args:
+        case_actor_client: Client for the dedicated case-actor container,
+            where the CASE_MANAGER's own store is read and acted on.
         vendor_name: What the scenario calls the invitee in step labels
             (``Vendor2`` for the second vendor of ``rcvv-embargo``).
         already_seated: Vendors that joined before this one, so the
@@ -208,7 +207,7 @@ def vendor_joins_coordinated_case(
 
     run_case_invite_chain(
         case=case,
-        case_manager_client=coordinator_client,
+        case_manager_client=case_actor_client,
         invitee_name=vendor_name,
         invitee_client=vendor_client,
         invitee=vendor,
@@ -250,7 +249,7 @@ def vendor_joins_coordinated_case(
             offer=opened.offer,
             report=opened.report,
             finder=reporter,
-            auth_client=coordinator_client,
+            auth_client=case_actor_client,
             case=case,
             invited_obj=vendor,
             timeout_seconds=20.0,
@@ -263,6 +262,7 @@ def open_case_with_vendor(
     *,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     reporter: as_Actor,
     coordinator: as_Actor,
@@ -276,6 +276,7 @@ def open_case_with_vendor(
     sync verification of the Reporter's and the Vendor's replicas.
 
     Args:
+        case_actor_client: Client for the dedicated case-actor container.
         on_case_opened: Called with the case as soon as it exists, before the
             Vendor joins, so a scenario can register its ledger dump while every
             later step can still fail without costing the ledgers (ISSUE-2239).
@@ -297,6 +298,7 @@ def open_case_with_vendor(
         reporter=reporter,
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor=vendor,
         vendor_client=vendor_client,
     )
@@ -468,6 +470,7 @@ def everyone_closes_case(
     *,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     reporter_in_reporter: as_Actor,
     coordinator_in_coordinator: as_Actor,
@@ -475,20 +478,23 @@ def everyone_closes_case(
     case: as_VulnerabilityCase,
     later_vendors: Sequence[tuple[str, DataLayerClient, as_Actor]] = (),
 ) -> None:
-    """Every participant closes the case; check the terminal state everywhere.
+    """Every participant closes the case, and the closure milestone runs.
 
     The Vendor, the Reporter and each of *later_vendors* leave first, in that
     order; the Coordinator, the Case Owner, leaves last, once their
     departures are recorded (CM-23-015).
 
     *later_vendors* are ``(label, client, actor)`` for vendors beyond the first
-    (the second vendor of ``rcvv-embargo``); each closes and is checked for
-    ledger coverage like the rest.
+    (the second vendor of ``rcvv-embargo``); each closes like the rest.  Every
+    closure is verified in the CASE_MANAGER's store, through
+    *case_actor_client*, and each leaver's own replica only for its own
+    closure (CM-23-004, :func:`~vultron.demo.helpers.closure
+    .close_case_owner_last`).
     """
     close_case_owner_last(
         case=case,
         milestone="M7",
-        authority_client=coordinator_client,
+        authority_client=case_actor_client,
         others=[
             CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
             CaseLeaver(client=reporter_client, actor=reporter_in_reporter),
@@ -502,49 +508,6 @@ def everyone_closes_case(
         ),
     )
 
-    with demo_check("M7: all participants RM.CLOSED on all replicas"):
-        wait_for_all_participants_rm_closed(
-            client=coordinator_client,
-            case_id=case.id_,
-        )
-        wait_for_all_participants_rm_closed(
-            client=reporter_client,
-            case_id=case.id_,
-        )
-        verify_case_closed(
-            receiver_client=coordinator_client,
-            reporter_client=reporter_client,
-            case_id=case.id_,
-        )
-
-    with demo_check(
-        "close_case entry present on authoritative actor (coordinator)"
-    ):
-        wait_for_event_type_in_ledger(
-            client=coordinator_client,
-            case_id=case.id_,
-            event_type="close_case",
-        )
-    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
-    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
-    # but the ledger dump depends on it. Bounded per replica by
-    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
-    wait_for_replica_ledger_coverage(
-        auth_client=coordinator_client,
-        replicas=[
-            (reporter_client, "Reporter"),
-            (vendor_client, "Vendor"),
-            *((client, label) for label, client, _ in later_vendors),
-        ],
-        case_id=case.id_,
-        late_joiners=(
-            vendor_client,
-            *(client for _, client, _ in later_vendors),
-        ),
-        phase_label="close phase",
-        causal=False,
-    )
-
 
 def dump_coordinated_case_ledgers(
     *,
@@ -552,6 +515,7 @@ def dump_coordinated_case_ledgers(
     reporter_name: str,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     later_vendors: Sequence[tuple[str, DataLayerClient]] = (),
@@ -593,14 +557,7 @@ def dump_coordinated_case_ledgers(
             LedgerDumpTarget(name, client, replica_route_key(client, name))
             for name, client in later_vendors
         ),
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the coordinator container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget(
-                "case-actor", coordinator_client, case_actor_route_key
-            )
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)

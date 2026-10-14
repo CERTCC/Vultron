@@ -105,11 +105,48 @@ def test_close_writes_the_closure_path(
     before = _rm_history(bt_scenario, participant_id)
 
     status = RMClosureWriter(name="Close").close(
-        _probe(), bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
+        _probe(),
+        bt_scenario.dl,
+        participant_id,
+        case.id_,
+        actor_id=ACTOR_A,
+        steps_out=[],
     )
 
     assert status == Status.SUCCESS
     assert _rm_history(bt_scenario, participant_id) == [*before, *written]
+
+
+@pytest.mark.spec("CM-23-001")
+@pytest.mark.parametrize(
+    "source", [RM.VALID, RM.ACCEPTED, RM.CLOSED], ids=lambda s: s.name
+)
+def test_close_reports_each_step_it_writes(
+    bt_scenario: BTTestScenario, source: RM
+) -> None:
+    """``steps_out`` gets the id of each status written, in path order.
+
+    The CASE_MANAGER commits one ledger entry per reported step, so the list
+    must name exactly the new statuses and nothing written before them.
+    """
+    case, participants = _seed_case(bt_scenario, {ACTOR_A: source})
+    participant_id = participants[ACTOR_A].id_
+    before = len(_rm_history(bt_scenario, participant_id))
+    steps: list[str] = []
+
+    status = RMClosureWriter(name="Close").close(
+        _probe(),
+        bt_scenario.dl,
+        participant_id,
+        case.id_,
+        actor_id=ACTOR_A,
+        steps_out=steps,
+    )
+
+    assert status == Status.SUCCESS
+    stored = bt_scenario.dl.read(participant_id)
+    assert isinstance(stored, CaseParticipant)
+    assert steps == [ps.id_ for ps in stored.participant_statuses[before:]]
 
 
 @pytest.mark.spec("RMB-14-005")
@@ -129,6 +166,7 @@ def test_one_writer_closes_each_actor_it_is_given(
             participants[actor_id].id_,
             case.id_,
             actor_id=actor_id,
+            steps_out=[],
         )
         assert status == Status.SUCCESS, actor_id
 
@@ -160,7 +198,12 @@ def test_a_step_off_the_rm_table_is_refused_not_forced(
     probe = _probe()
 
     status = RMClosureWriter(name="Close").close(
-        probe, bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
+        probe,
+        bt_scenario.dl,
+        participant_id,
+        case.id_,
+        actor_id=ACTOR_A,
+        steps_out=[],
     )
 
     assert status == Status.FAILURE
@@ -188,7 +231,12 @@ def test_a_failed_step_keeps_the_rungs_written_and_a_retry_resumes(
     with monkeypatch.context() as patch:
         patch.setattr(closed_step, "update", lambda: Status.FAILURE)
         status = writer.close(
-            probe, bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
+            probe,
+            bt_scenario.dl,
+            participant_id,
+            case.id_,
+            actor_id=ACTOR_A,
+            steps_out=[],
         )
 
     assert status == Status.FAILURE
@@ -196,7 +244,12 @@ def test_a_failed_step_keeps_the_rungs_written_and_a_retry_resumes(
     assert _rm_history(bt_scenario, participant_id) == [*before, RM.DEFERRED]
 
     status = writer.close(
-        _probe(), bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
+        _probe(),
+        bt_scenario.dl,
+        participant_id,
+        case.id_,
+        actor_id=ACTOR_A,
+        steps_out=[],
     )
 
     assert status == Status.SUCCESS
@@ -225,9 +278,46 @@ def test_unreadable_status_is_reported_as_failure(
     probe = _probe()
 
     status = RMClosureWriter(name="Close").close(
-        probe, bt_scenario.dl, participant_id, case.id_, actor_id=ACTOR_A
+        probe,
+        bt_scenario.dl,
+        participant_id,
+        case.id_,
+        actor_id=ACTOR_A,
+        steps_out=[],
     )
 
     assert status == Status.FAILURE
     assert "not core-shaped" in probe.feedback_message
     assert _rm_history(bt_scenario, participant_id) == before
+
+
+@pytest.mark.spec("CM-23-001")
+def test_a_step_that_reports_no_status_id_fails_the_closure(
+    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A write the caller cannot name is a FAILURE, never a silent drop.
+
+    The CASE_MANAGER commits one ledger entry per reported id, so a step
+    written without one would be a transition no entry records.
+    """
+    case, participants = _seed_case(bt_scenario, {ACTOR_A: RM.ACCEPTED})
+    participant_id = participants[ACTOR_A].id_
+    writer = RMClosureWriter(name="Close")
+    monkeypatch.setattr(
+        writer._writers[RM.CLOSED], "update", lambda: Status.SUCCESS
+    )
+    probe = _probe()
+    steps: list[str] = []
+
+    status = writer.close(
+        probe,
+        bt_scenario.dl,
+        participant_id,
+        case.id_,
+        actor_id=ACTOR_A,
+        steps_out=steps,
+    )
+
+    assert status == Status.FAILURE
+    assert "reported no status id" in probe.feedback_message
+    assert steps == []

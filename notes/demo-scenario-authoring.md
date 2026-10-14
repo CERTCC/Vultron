@@ -1,13 +1,16 @@
 ---
 title: Demo Scenario Authoring Rules
 status: active
+kind: guidance
 description: >
   How to write a multi-actor demo scenario without faking the protocol:
   puppeteer actors through trigger endpoints rather than spoofing via inbox
   injection, never carry one actor's mail to another's inbox, extract helpers
-  before the second use, keep console-script entry points callable with no
-  arguments, treat docker service names as routing labels rather than actor
-  identities, and close every case with the Case Owner leaving last.
+  before the second use, call triggers through `ActorSession`, keep
+  console-script entry points callable with no arguments, treat docker service
+  names as routing labels rather than actor identities, keep raising waits
+  inside a demo context, share the replica-sync phase, and close every case
+  with the Case Owner leaving last.
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
@@ -19,452 +22,238 @@ related_notes:
   - notes/demo-ci-diagnostics.md
   - notes/demo-ci-invariants.md
   - notes/demo-scenario-registry.md
-  - notes/fv-demo.md
   - notes/case-proposal.md
   - notes/ownership-transfer.md
   - notes/devcontainer-tooling.md
+  - notes/activitystreams-semantics.md
 relevant_packages:
   - vultron/demo
 ---
 
 # Demo Scenario Authoring Rules
 
-Migrated out of `vultron/demo/AGENTS.md`, which keeps the one-line rules and
-points here for the reasoning and examples.
+`vultron/demo/AGENTS.md` keeps the one-line rules; this note holds the reasons
+and the application details. The through-line: a demo exists to prove the
+protocol works, so any shortcut that does the protocol's job *for* it turns the
+demo from evidence into decoration.
 
-The through-line: a demo exists to prove the protocol works. Every shortcut that
-makes a scenario pass by doing the protocol's job *for* it converts the demo from
-evidence into decoration.
+The scope is `vultron/demo/scenario/` and the `vultron/demo/helpers/` code a
+scenario calls. Exchange demos under `vultron/demo/exchange/` drive one backend
+directly and are exempt where noted.
 
 ---
 
 ## Puppeteer Actors via Trigger Endpoints, Never Spoof via Inbox Injection
 
-Always drive actor behavior through **real HTTP trigger endpoints** (e.g.
-`POST /{actor_id}/trigger/accept-actor-recommendation`). Never construct and POST
-activities directly to actor inboxes to fake an approval or state change.
+Drive actor behavior only through real trigger endpoints
+(`POST /actors/{id}/trigger/{behavior}`, or `.../demo/{behavior}`). Never build
+an activity and POST it to an inbox to fake a decision or state change.
 
-**Why:** Inbox injection bypasses the BT evaluation layer entirely and creates
-demos that exercise the wrong code path. The distinction:
+**Why:** **puppeteering** makes the actor decide and act, which exercises the
+behavior tree; **spoofing** forges the result and skips the tree, so the demo
+proves nothing about it (DEMOMA-05-001).
 
-- **Puppeteering** = sending a trigger that causes the actor to decide and act
-  (validates the behavior tree path)
-- **Spoofing** = forging the resulting activity as if the actor had already
-  decided (skips the BT entirely)
-
-**How to apply:** Before writing any demo step where one actor "responds" to
-another, check whether the trigger endpoint for that response exists. If it
-doesn't, implement the full hexagonal stack (trigger endpoint → service layer →
-BT) first, then write the demo step. Working around a missing endpoint by
-injecting the response directly means the demo proves nothing about the actual
-behavior tree path.
-
-See also [notes/fv-demo.md](fv-demo.md) § "Puppeteering Constraint".
-
-Source: ISSUE-1535
+**How to apply:** before writing a step where one actor responds to another,
+check the trigger endpoint exists. If it does not, build the full stack
+(endpoint → service → BT) first, then the step.
 
 ---
 
 ## Never Carry One Actor's Mail to Another Actor's Inbox
 
-Scenario demos MUST NOT POST an activity to an actor's inbox on behalf of another
-actor. This includes helper functions such as `post_to_inbox_and_wait`.
+A scenario MUST NOT POST an activity to any actor's inbox on another actor's
+behalf, directly or through a helper such as `post_to_inbox_and_wait`.
 
-**Why:** Delivering an activity to an inbox is the transport layer's job, not the
-demo's. When a demo calls
-`post_to_inbox_and_wait(vendor_client, vendor_id, invite)` it is acting as a
-surrogate mail carrier — putting a message into Vendor's inbox as if it arrived
-from the network. This is a form of spoofing: the real
-outbox→delivery→inbox path is never exercised, so demo CI proves nothing about
-whether the protocol actually works end-to-end.
-
-The distinction that matters:
-
-- **Triggering** = POST to an actor's *trigger endpoint* to cause it to emit an
-  activity (`POST /actors/{id}/trigger/invite-actor-to-case`). The actor decides
-  and sends. Correct.
-- **Mail-carrying** = POST an activity directly to another actor's *inbox* from
-  outside that actor's own delivery path (`POST /actors/{id}/inbox/`). The demo
-  bypasses the real transport. Wrong.
-
-**Root cause of the pattern:** The inbox endpoint returns 202 immediately
-(`BackgroundTasks`) before the activity is fully processed. Naive polling after a
-trigger timed out, so mail-carrying was added as a workaround.
-
-The fix is not a longer timeout — it is observing the *right thing*. Choose the
-observable per EDF-06-002 and EDF-06-003 (the committed state of the actor that
-produces the effect, read from its own container) and express it with
-`demo_gate`. See [notes/event-driven-control-flow.md](event-driven-control-flow.md)
-§ "Temporal Sequence vs. Causal Sequence".
+**Why:** delivery is the transport's job. Hand delivery skips the
+outbox → delivery → inbox path, which is the thing a multi-container demo tests.
+It also double-delivers when the real delivery succeeds too (#3980).
 
 **How to apply:**
 
-1. After triggering an actor to emit an activity, do **not** manually deliver
-   that activity to any inbox. Poll the expected side-effect directly:
-   - `wait_for_case_on_container` — a case replica arrived.
-   - `find_case_invite_for_actor` — an invite arrived.
-   - `wait_for_object_stored` — an arbitrary object arrived in a DataLayer.
-   - `wait_for_report_submission_stored` — the submitted report and its Offer
-     arrived in the Receiver's own store (`reporter_submits_report`).
-2. If a poll times out reliably in CI, the underlying delivery path needs
-   investigation (retry parameters, health checks, container startup order) — not
-   a workaround in the demo script.
+1. After a trigger, wait on the effect, never re-deliver the activity. Choose the
+   observable per EDF-06-002/003 — the committed state of the actor that produces
+   the effect, read from its own container — and gate on it with `demo_gate`
+   (see [event-driven-control-flow.md](event-driven-control-flow.md)
+   § "Temporal Sequence vs. Causal Sequence"). The polling helpers are in
+   `vultron/demo/helpers/polling.py`, `invite_chain.py` and `milestones.py`.
+2. A wait that times out reliably in CI points at the delivery path (retries,
+   health checks, startup order), not at the demo script.
+3. There is no self-delivery exception: an actor's own replica updates from the
+   CASE_MANAGER's `Announce` like everyone else's (see
+   [ownership-transfer.md](ownership-transfer.md) § "The Accepting Actor's
+   Replica Updates via the CASE_MANAGER's Announce").
 
-**Scope — scenario demos, not exchange demos.** `vultron/demo/exchange/` drives a
-single backend directly and uses `post_to_inbox_and_wait` as its normal
-mechanism; there is no second container for the transport to cross. This rule
-governs `vultron/demo/scenario/`, where actors live in separate containers and
-the delivery path is the thing under test.
-
-**Scope reaches the helpers a scenario calls.** The rule binds
-`vultron/demo/helpers/` code that a scenario runs on its behalf, not only the
-scenario module. A helper that carries mail is the same violation one call
-removed. `reporter_submits_report`'s `reporter_client` arm did so for every
-scenario: it POSTed the Offer to the Receiver's inbox after the `submit-report`
-trigger's own outbox drain had already delivered it, so each run double-delivered
-the report (#3980). The hand delivery dated from #1872, when the CaseActor's
-per-case slug was derived after the trigger returned and the outbox delivery
-404'd. The CaseActor is now one stable identity per container, known before any
-report exists, so provision it *before* the trigger and wait on the Receiver's
-own store for the effect. The Offer lands asynchronously, so a one-shot read is
-not a gate (EDF-06-003).
-
-**No self-delivery exception.** An actor does not need to POST to its own inbox
-to update its own replica either — activities route through the CASE_MANAGER, which
-broadcasts the `Announce` that every replica consumes. See
-[notes/ownership-transfer.md](ownership-transfer.md) § "The Accepting Actor's
-Replica Updates via the CASE_MANAGER's Announce".
-
-Source: CONCERN-1635, amended by CONCERN-2181
+Exchange demos use `post_to_inbox_and_wait` as their normal mechanism: they have
+no second container for the transport to cross.
 
 ---
 
 ## Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 
-Before writing a **second use** of a pattern from an existing scenario file,
-extract it to `vultron/demo/helpers/` first. Do not copy-paste a function body, a
-polling loop, a verification block, or any other logical unit from an existing
-scenario file into a new one.
+Before the **second** use of a pattern from an existing scenario — a function
+body, polling loop or verification block — extract it to `vultron/demo/helpers/`
+and call it from both places (DEMOMA-17-001, the MUST-level form of CS-22-001).
 
-**Why:** Every demo scenario written by copying the previous one propagates
-latent bugs alongside valid patterns. Issue #1632 documented residual duplication
-remaining after PR #1629 reactively extracted five helper modules. Copy-paste is
-the root cause; extraction-first prevents the problem from recurring.
+**Why:** a scenario written by copying the previous one copies its latent bugs.
 
 **How to apply:**
 
-1. Before writing a new scenario step, grep `vultron/demo/helpers/` for an
-   existing helper that covers the same pattern.
-2. If one exists, import and call it. Do not inline a copy.
-3. If none exists and this is the second occurrence of the pattern, extract it to
-   the appropriate `helpers/` module first, then call it from both places.
-4. A pattern that appears only once may stay inline, but add a comment marking it
-   as a candidate for extraction when a second use arises.
+1. Grep `vultron/demo/helpers/` for a helper before writing a step.
+2. If the second use differs, parameterize the helper; differing variants are a
+   design task, not a reason to skip. `run_case_invite_chain`
+   (`helpers/invite_chain.py`) is the model: the variants are parameters and what
+   follows is a `then` callback. It is a callback, not a `with` block, because
+   `demo_gate` suppresses an exception before a generator-based context manager
+   could yield. `test_demo_scenarios_use_invite_chain_helper.py` enforces it.
+3. A consolidation must not change what a demo reports as pass or fail (#4192).
 
-This rule applies to scenario files in `vultron/demo/scenario/`. Exchange demos
-under `vultron/demo/exchange/` are lower-level and may duplicate less when a full
-helper would add more abstraction than value.
+---
 
-**Worked example — the invite chain.** PR #3886 hand-nested the same
-invite → deliver → answer → replica chain in every scenario and skipped this rule
-because the variants "do not extract into one helper without a flag per
-variant". That is a design task, not a skip reason: `run_case_invite_chain` in
-`helpers/invite_chain.py` takes the variants as parameters (who asks, accept or
-reject, the sender check, timeouts) and a `then` callback for what follows. On
-an accept it carries the whole join sequence for every invitee, whatever its
-role: stub Invite, stub Accept, `Announce` and replay, the full-case Invite, and
-the invitee's reply to it (CM-11-010, CM-11-011); the CI invariants'
-`joined_invitees` count pins one full-case Invite and one reply per invitee. A
-callback, not a `with` block, because `demo_gate` suppresses an exception
-before a generator-based context manager could yield. The ratchet
-`test_demo_scenarios_use_invite_chain_helper.py` fails on a scenario that calls
-a chain link directly. A consolidation like this must not change what a demo
-reports as pass or fail (#4192).
+## Call Triggers Through `ActorSession`
 
-Normative: `specs/multi-actor-demo.yaml` DEMOMA-17-001 — a MUST-level
-specialisation of the project-wide SHOULD rule CS-22-001 in
-`specs/code-style.yaml`.
+Scenario and exchange demos make every trigger call through `ActorSession`
+(`vultron/demo/actor_session.py`) typed methods, never `post_to_trigger`
+(DEMOMA-26-001).
 
-Source: ISSUE-1652
+**Why:** `post_to_trigger` takes a bare behavior string and an untyped body. A
+misspelled behavior is a runtime 404, and a misspelled body key is silently
+dropped by the `extra="ignore"` request models (TRIG-03-002), so the call is an
+undetectable no-op.
 
 ---
 
 ## BT Demo `main()` Must Be Callable With No Arguments
 
-`[project.scripts]` entry points invoke `main()` with **no arguments**. Demo
-modules that define `def main(args):` — where `args` is a required positional
-parsed by an `if __name__ == "__main__"` block — fail immediately with
-`TypeError: main() missing 1 required positional argument` when invoked via
-`uv run <script>`.
+`[project.scripts]` entry points call `main()` with no arguments, so a BT demo's
+`main` takes `args=None` and falls back to `_parse_args()`. That keeps both the
+console script and `vultron/demo/cli.py`'s click group (which passes a
+`SimpleNamespace` from `_bt_args()`) working.
 
-**Fix:** give `main` an `args=None` default and fall back to `_parse_args()`:
-
-```python
-def main(args=None) -> None:
-    if args is None:
-        args = _parse_args()
-    ...
-```
-
-This preserves the path used by `vultron/demo/cli.py`'s click sub-group (which
-passes a `SimpleNamespace` via `_bt_args()`) while also being callable with zero
-arguments from a console script.
-
-**Always test the actual console script** (`PYTHONPATH= uv run <script>`) — not
-just the module import — and clear the devcontainer's `PYTHONPATH=/app`
-contamination. See [notes/devcontainer-tooling.md](devcontainer-tooling.md).
-
-Source: ISSUE-1568
+**Why:** `def main(args):` fails with `TypeError` under `uv run <script>` while
+every import-level test passes. Test the real console script with
+`PYTHONPATH= uv run <script>` (see
+[devcontainer-tooling.md](devcontainer-tooling.md)).
 
 ---
 
 ## Docker Compose Service Names Are Not Actor Names
 
-The service names in `docker/docker-compose-multi-actor.yml` (`vendor`,
-`coordinator`, `vendor2`, `case-actor`) were chosen to match the roles in the
-first demo scenarios and do not need to match the CVD actor roles housed within
-them. When designing a new multi-actor scenario:
+The service names in `docker/docker-compose-multi-actor.yml` are routing labels
+for container slots. They need not match the CVD role of the actor a scenario
+puts in them.
 
-- The **service name** is a docker-compose routing label. Reuse existing service
-  names by remapping them to new semantic roles via `--env-file` or environment
-  variable overrides — there is no requirement that a service named `vendor`
-  contains a Vendor actor.
-- The **actor name** (`VULTRON_*_BASE_URL` env var bindings, actor IDs seeded at
-  startup) is the meaningful identity. Choose actor names to reflect their CVD
-  role in the scenario, not the docker service name.
-- Avoid adding new services just to get a new actor name. In multi-actor
-  scenarios (FCCV, FVCV-handoff), the existing four services are reused with
-  role-alias environment variable bindings; this keeps the CI service startup
-  count constant.
-
-**Future direction**: the service names may eventually be renamed to neutral
-labels (`actor1`–`actor4`) so the compose file is scenario-agnostic (ISSUE-1786).
-Until then, use the existing services with role-alias bindings.
-
-Source: ISSUE-1216, plan/incoming/learnings/20260722-fccv-handoff-container-remapping.md
+- Reuse an existing service for a new role through its `VULTRON_*_BASE_URL`
+  binding; do not add a service to get a new actor name. That keeps the CI
+  startup count constant.
+- Name actors for their CVD role in the scenario, not for the slot.
+- A scenario's `ActorRole.url_env` therefore names the slot it reads, which is
+  why it cannot be derived from the role name (see
+  [demo-scenario-registry.md](demo-scenario-registry.md) § "The CLI is a
+  registry consumer").
 
 ---
 
 ## A Helper That Extracts a Result Inside `demo_step` Must Return `Optional[T]`
 
-`demo_step` (`vultron/demo/utils.py`) is a context manager that **suppresses
-exceptions** so one failed step records itself without crashing the whole
-scenario. Any demo helper that both wraps a `post_to_trigger` call in `demo_step`
-*and* extracts a result ID from it therefore cannot promise a value — on failure
-the `demo_step` swallows the error and control falls through with nothing
-extracted. Such a helper MUST be typed `-> Optional[T]`, not `-> T`.
-
-**Why:** The alternative — re-raising outside `demo_step` — would crash the
-scenario even when the failure is non-fatal, defeating the whole point of the
-context manager. So the suppression contract propagates outward: every caller
-now has to treat the return as possibly-absent.
+`demo_step` (`vultron/demo/utils.py`) suppresses exceptions so a failed step
+records itself without ending the run. A helper that wraps a trigger call in
+`demo_step` and extracts a result from it cannot promise a value, so it is typed
+`-> T | None` (e.g. `participant_adds_note_to_case` in `helpers/notes.py`).
 
 **How to apply:**
 
-- **Prefer nesting over a sentinel.** When a value is produced inside a
-  `demo_step` / `demo_gate` body in scenario code, put every step that reads it
-  *inside* that body (ADR-0058's nested-block model, `demo_gate` docstring). A
-  failed block then skips its dependents outright. Do **not** pre-initialise the
-  name to `None` and read it after the block: the sentinel satisfies the
-  unbound-variable ratchet while handing `None` (or `.activity` on `None`) to the
-  next step, which then fails — or crashes the run — for the wrong reason
-  (#3038, #3887).
-- Type any such helper `-> Optional[T]` (e.g. `participant_adds_note_to_case` in
-  `vultron/demo/helpers/notes.py` returns `Optional[as_Note]`).
-- In callers, treat `None` as "this step failed and `demo_step` already recorded
-  it" — do not raise. Guard every `.id_` (or other attribute) access on the
-  returned value. This is the fallback when the reader cannot be nested (the
-  value crosses a phase-function boundary, for example).
-- Skip dependent steps when the value is `None`, e.g. by making the next step's
-  `in_reply_to` conditional on the prior result being present.
-
-Source: ISSUE-2390, amended by ISSUE-3038
+- **Prefer nesting over a sentinel.** Put every step that reads the value inside
+  the `demo_step` / `demo_gate` body that produces it (ADR-0058), so a failed
+  block skips its dependents. Do not pre-set the name to `None` and read it after
+  the block: that satisfies the unbound-variable ratchet but hands `None` to the
+  next step, which then fails for the wrong reason (#3887).
+- Where the reader cannot be nested (the value crosses a phase function), treat
+  `None` as "already recorded as failed": do not raise, guard each attribute
+  access, and skip the dependent steps.
 
 ---
 
 ## A Raising `wait_for_*` Must Never Run Bare in a Scenario
 
-Every `wait_for_*` (and equivalent verification) helper in `vultron/demo/`
-raises `AssertionError` on timeout — that is the primitive's contract, and it is
-correct for unit tests that assert the timeout. But inside a scenario a bare
-raising call **crashes the whole run at the first failure**, which contradicts
-the demo failure-accumulation model (DEMOCI-01-003 / DEMOCI-01-004,
-DEMOCI-01-011): failures are supposed to accumulate through
-`demo_step` / `demo_check` / `demo_gate` and surface together at the end via
-`assert_demo_success()`. A bare raise stops the run before later checks execute,
-burying any co-occurring failures behind a single misleading signal.
+Every `wait_for_*` helper raises `AssertionError` on timeout; that contract is
+right for unit tests. In scenario code, call one only inside `demo_step`,
+`demo_check` or `demo_gate` (DEMOCI-01-011).
 
-**Why this keeps happening:** the raising primitive and the accumulating
-scenario are two different execution contexts, and it is easy to call the former
-directly from the latter. It has now bitten the project twice:
-
-- **Ledger coverage (#1772 / #1802):** bare `wait_for_contiguous_ledger_coverage`
-  calls crashed sync-verification; fixed by wrapping them at the call site in
-  `demo_gate` (see `test/demo/test_fvv_demo.py::TestCoverageWaitInsideDemoCheck`).
-- **Participant waits (#3384):** the `wait_for_participants_on_replicas` calls in
-  every replica-sync scenario's `_phase_sync_verification` were bare, so a
-  replica participant-index propagation timeout aborted the entire run.
+**Why:** demo failures accumulate through the demo contexts and surface together
+in `assert_demo_success()` (DEMOCI-01-003). A bare raise ends the run at the
+first failure and hides every co-occurring one.
 
 **How to apply:**
 
-1. A raising wait invoked directly from scenario code MUST sit inside a
-   `demo_step`, `demo_check`, or `demo_gate` — use `demo_gate` when dependent
-   steps follow inside the block, `demo_check` for an independent bounded check.
-2. **Prefer wrapping inside the shared helper** when one exists, so all callers
-   inherit the fix (DRY). `wait_for_replica_ledger_coverage` in
-   `vultron/demo/helpers/sync.py` is the reference pattern: it wraps each
-   per-replica poll in a demo context internally, and
-   `wait_for_participants_on_replicas` in `vultron/demo/helpers/polling.py`
-   does the same for the participant-index wait. Note that when the wrap lives
-   in the helper and the dependent steps live in the scenario, `demo_check` and
-   `demo_gate` behave identically — the block contains only the wait, so
-   nothing is skipped either way; pick the label that reads true.
-3. Keep the raising primitive raising for its unit tests — add the accumulation
-   wrap in a scenario-facing helper, not in the low-level `_poll_until` /
-   `wait_for_case_participants` primitives that tests depend on.
+1. Use `demo_gate` when dependent steps follow in the block, `demo_check` for an
+   independent check.
+2. Prefer putting the wrap inside a shared scenario-facing helper so every caller
+   inherits it, as `wait_for_replica_ledger_coverage` (`helpers/sync.py`) and
+   `wait_for_participants_on_replicas` (`helpers/polling.py`) do.
+3. Keep the low-level primitives raising; their unit tests depend on it.
 
-Normative: `specs/demo-ci.yaml` DEMOCI-01-011, refining DEMOCI-01-003. An
-architecture ratchet enforces that scenario `_phase_*` functions do not call a
-known raising wait outside a demo context.
-
-Source: CONCERN-3384 (generalising the #1772/#1802 fix)
+`test/architecture/test_demo_scenario_waits_in_demo_context.py` enforces the rule
+for scenario `_phase_*` functions.
 
 ---
 
 ## Replica Sync Verification Is One Shared Helper, Not a Per-Scenario Phase Body
 
-Every multi-actor scenario needs the same guard between its report-submission
-and notes phases: the Finder must hold the case replica, and every replica must
-have contiguous ledger coverage up to the authority's tail. All but the
-fcv-reject scenario then go on to wait for every replica's participant index and
-to compare a couple of replicas against the authority's state. Every scenario
-also needs the coverage half of that again after case closure, before the
-ledger dump.
+Every multi-actor scenario guards its notes phase on the Finder holding the case
+replica and every replica holding contiguous ledger coverage. That logic exists
+once.
 
-**Why this matters:** the concern that filed #3042 believed the pre-notes race
-guard existed in fcv-reject only. It was in fact present everywhere — as one
-copy per scenario module of the `_phase_sync_verification` body, plus one copy
-per module of the post-closure coverage wait. That is why the race-window fix
-in #2756 had to touch most of those modules, why the timeouts drifted (literals
-of 15 s or 45 s by replica label in most modules, 30 s or 45 s in fcvcv
-after #2337, and no timeout at all — so the primitive's own default — in fv,
-fvv and fcv-reject), and why every scenario test file except fcv-reject's
-carries the same "skip the coverage wait when the Finder case never arrives"
-unit test. The guard was never missing; the single place to fix it was.
+- `wait_for_replica_ledger_coverage` (`helpers/sync.py`) is the only
+  read-authority-tail-then-poll-replicas loop, the `demo_gate` before the notes
+  phase and the Phase 1 drain. It returns the replicas whose wait passed, so
+  later steps can gate per replica. It is never used after closure: a closed
+  participant is sent nothing after the entries recording its own closure
+  (CM-23-004), so no replica covers the authority's tail then.
+- A scenario's `_phase_sync_verification` is a thin call to
+  `run_sync_verification_phase`, declaring only its authority, Finder, replicas,
+  late joiners, expected participants and the replica pairs to state-check
+  (DEMOMA-23-007). A replica whose coverage gate failed is not state-checked, and
+  an authority with no entries is one failure naming the authority — the
+  comparison would only cascade or misattribute the fault (EDF-06-005).
+- No module under `vultron/demo/` except `helpers/sync.py` calls
+  `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
+  (DEMOMA-23-006, enforced by
+  `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`).
+- Timeouts are the named constants in `helpers/polling.py`
+  (`LEDGER_COVERAGE_TIMEOUT`, `LATE_JOINER_COVERAGE_TIMEOUT`), passed as
+  parameters, never literals in a scenario. Each is a stall budget, not a
+  total: every newly arrived entry restarts it, up to
+  `BACKFILL_PROGRESS_CEILING`, so a long backfill under CI load is waited for
+  and a stalled one fails (#4424).
 
-**How to apply:**
-
-1. The read-authority-tail-then-poll-each-replica loop lives once, as
-   `wait_for_replica_ledger_coverage` in `vultron/demo/helpers/sync.py`. It
-   takes the authority client, an ordered list of `(replica_client, label)`
-   pairs, the case id and the late-joiner clients; it applies the named timeout
-   constants from `vultron/demo/helpers/polling.py` (`LEDGER_COVERAGE_TIMEOUT`
-   by default, `LATE_JOINER_COVERAGE_TIMEOUT` for a late joiner — the widest
-   budgets any copy carried, so sharing the loop tightened nothing) and wraps
-   each per-replica wait in a demo context itself, the same way
-   `wait_for_participants_on_replicas` does. Called with `causal=True` (the
-   default) it is the `demo_gate` before the notes phase and the Phase 1
-   drain before Phase 2 (`phase_label="Phase 1 drain before Phase 2"`); with
-   `causal=False` and `phase_label="close phase"` it is the `demo_check` after
-   case closure, labelled temporal per EDF-06-006. It returns the replicas
-   whose wait passed, so a dependent step can be gated on coverage per
-   replica. There is no other copy of the loop: `drain_phase1_ledger` in
-   `polling.py` was the last one, invisible to the DEMOMA-23-006 ratchet while
-   that ratchet scanned scenario modules only, so the ratchet now parses every
-   module under `vultron/demo/` except `helpers/sync.py` (#3906).
-2. A scenario's `_phase_sync_verification` is a thin call to
-   `run_sync_verification_phase`, declaring only its authority (client, label,
-   actor id), the Finder, its replicas, late joiners, expected participant set,
-   and which replica pairs to state-check. A replica whose coverage gate failed
-   is not state-checked: the gate already recorded the failure and the
-   comparison would only cascade (EDF-06-005, #1911). An authority with no
-   entries to cover is likewise one recorded failure naming the authority, and
-   no replica is state-checked — the writer is at fault, not the fan-out, so
-   the failure must not be left for a replica-side check to misattribute.
-   Scenario-specific extras
-   — the two-actor fv scenario's check that the dedicated case-actor container
-   stayed unused — follow the helper call as separate steps. A scenario with no
-   participant expectation (fcv-reject) declares none and no participant wait
-   runs.
-3. A scenario module never calls `wait_for_contiguous_ledger_coverage` or
-   `_get_log_entries_for_case` directly (DEMOMA-23-006). The architecture
-   ratchet `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`
-   fails if one does, on a call or an import.
-4. Timeouts are named constants passed as parameters, never literals in a
-   scenario file. The shared defaults already carry the widest budget any
-   scenario needed (fcvcv's non-late-joiner replicas, #2337, are covered by
-   `LEDGER_COVERAGE_TIMEOUT`); a scenario that needs another budget passes a
-   different constant, and its regression test asserts the parameter the helper
-   applies, not a literal.
-
-Normative: `specs/multi-actor-demo.yaml` DEMOMA-23-005 (the shared coverage
-helper), DEMOMA-23-006 (no direct primitive call from a scenario module), and
-DEMOMA-23-007 (the thin phase), refining DEMOMA-17-001, DEMOMA-22-002, and
-DEMOCI-01-011.
-
-Source: CONCERN-3042, #3846
-
----
-
-## Use ActorSession Typed Methods, Not `post_to_trigger` Directly (DEMOMA-26)
-
-Once `ActorSession` is available (#3398), demo scripts under
-`vultron/demo/scenario/` and `vultron/demo/exchange/` MUST use its typed methods
-for all trigger endpoint calls. Calling `post_to_trigger` directly is prohibited
-at those call sites (DEMOMA-26-001).
-
-**Why:** `post_to_trigger` accepts a bare `str` behavior name and an untyped
-`dict` body. A misspelled behavior name is a 404 at runtime; a misspelled body
-key is silently dropped because trigger request models use `extra="ignore"`
-(TRIG-03-002), producing an undetectable no-op. `ActorSession` makes both
-mistakes unrepresentable at the call site.
-
-**What changes on migration:**
-
-- `vultron/demo/helpers/actions.py` is deleted; its wrappers become
-  `ActorSession` methods (DEMOMA-26-005).
-- The architecture ratchet test
-  `test/architecture/test_demo_trigger_client_matches_actor.py` is deleted only
-  after the last `post_to_trigger` call site is removed — it is the migration's
-  own safety net until then (DEMOMA-26-006).
-
-**Until `ActorSession` lands**, the existing `post_to_trigger`-based helpers in
-`vultron/demo/helpers/` remain correct. The `Optional[T]` return-type rule in the
-section above still applies to any helper that extracts a result from a
-`post_to_trigger` call wrapped in `demo_step`.
-
-Source: #3356, DEMOMA-26
+**Why:** one copy per scenario module is how the timeouts drifted apart and why
+one race fix had to touch most modules (DEMOMA-23-005).
 
 ---
 
 ## Close a Case Through `close_case_owner_last`, Owner Last
 
 The Case Owner's `Leave(VulnerabilityCase)` closes the case for everyone
-(CM-23-002). The CASE_MANAGER records nothing a participant sends after
+(CM-23-002), and the CASE_MANAGER records nothing a participant sends after
 `case_fully_closed` (CM-23-013). So the owner leaves last (CM-23-015).
 
-Every closure phase calls `close_case_owner_last` in
-`vultron/demo/helpers/closure.py`. The other participants leave first, in the
-order given. The owner's `Leave` waits until the CASE_MANAGER's store shows each
-of them at `RM.CLOSED`. A trigger returns 202 before its effect commits, so
-script order alone does not put the owner's `Leave` after the others on the
-ledger (EDF-06-002).
+Every closure phase calls `close_case_owner_last` (`helpers/closure.py`). The
+other participants leave first; the owner's `Leave` waits until the
+CASE_MANAGER's store shows each of them at `RM.CLOSED`, because a trigger returns
+202 before its effect commits (EDF-06-002). The helper then runs the whole
+closure milestone, each part in its own `demo_check` and read where the
+CASE_MANAGER lives: `verify_case_closure_recorded` and `verify_case_closed`
+(`helpers/milestones.py`), and, for each leaver, that its own replica ends at the
+last entry recording its own closure (`wait_for_replica_ledger_ending_at`). Pass
+the scenario's milestone label; the scenario adds no closure checks of its own.
 
-After the owner leaves, the helper runs `verify_case_closure_recorded` from
-`vultron/demo/helpers/milestones.py` in its own `demo_check`. That check reads
-the CASE_MANAGER's ledger. It asserts that each departure is recorded at
-`RM.CLOSED` before `case_fully_closed`, and that no later entry records a
-participant's act. Pass the scenario's milestone label (`milestone="M7"`); the
-scenario adds only its replica checks.
-
-Rules:
-
-- Do not write the `close_case()` steps inline in a scenario.
-- Name the participant that holds `CASE_OWNER` at closure. After a handoff, this
-  is not the participant that created the case.
+- Do not write the `close_case()` steps inline.
+- Do not add an "every participant `RM.CLOSED` on every replica" check or a
+  close-phase coverage wait on the CASE_MANAGER's tail: a closed replica is
+  never sent the later closures (CM-23-004).
+- Name the participant that holds `CASE_OWNER` at closure; after a handoff it is
+  not the case's creator.
 - Each narrative under `docs/topics/scenarios/` declares a
-  `close_case → close_case` causal edge whose `consequent_actor` is the owner.
-  `test/ci/invariants/test_narrative_edges.py` checks that the edge rejects an
+  `close_case → close_case` causal edge whose `consequent_actor` is the owner;
+  `test/ci/invariants/test_narrative_edges.py` checks that it rejects an
   owner-first closure.
-
-Source: #4163, CM-23-015

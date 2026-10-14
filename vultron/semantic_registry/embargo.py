@@ -24,6 +24,7 @@ from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
+from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -35,6 +36,13 @@ from vultron.core.use_cases.received.embargo import (
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    HowToGuide,
+    MessagePage,
+    Occasion,
+    ProtocolShorthand,
+    StateContext,
+)
 from vultron.wire.as2.extractor import (
     AcceptInviteToEmbargoOnCasePattern,
     ActivateEmbargoOnCasePattern,
@@ -64,6 +72,23 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created an embargo event",
         # The use case's door check reads to/cc (HP-01-005, ADR-0118).
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant has drafted embargo terms it is about to "
+                    "propose"
+                ),
+                anchor="create-embargo-event",
+                heading="Create embargo event",
+                description=(
+                    "Mints the embargo event that carries the proposed terms. "
+                    "It precedes the Invite that proposes them."
+                ),
+                example="create_embargo_event",
+                howto=HowToGuide.ESTABLISH_EMBARGO,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
@@ -73,6 +98,17 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} removed an embargo from the case",
         wire_activity_class=_RemoveEmbargoFromCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Owner terminates the active embargo",
+                anchor="embargo-termination",
+                description="Terminates the embargo with immediate effect.",
+                example="remove_embargo",
+                howto=HowToGuide.MANAGE_EMBARGO,
+                shorthand=ProtocolShorthand.ET,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
@@ -83,6 +119,22 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_AnnounceEmbargoActivity,
         # The use case's door check reads to/cc (HP-01-005, ADR-0118).
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager states the terms of the embargo in force"
+                ),
+                anchor="announce-embargo",
+                heading="Announce embargo",
+                description=(
+                    "Tells participants the terms of the active embargo. It "
+                    "proposes nothing."
+                ),
+                example="announce_embargo",
+                howto=HowToGuide.MANAGE_EMBARGO,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
@@ -92,6 +144,51 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} proposed an embargo",
         wire_activity_class=_EmProposeEmbargoActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant proposes embargo terms for a case with no "
+                    "active embargo"
+                ),
+                anchor="embargo-proposal",
+                description=(
+                    "Proposes embargo terms, such as an end date and time."
+                ),
+                example="propose_embargo",
+                distinguisher=StateContext(
+                    machine=EM,
+                    states=(
+                        EM.NONE,
+                        EM.PROPOSED,
+                    ),
+                ),
+                howto=HowToGuide.ESTABLISH_EMBARGO,
+                shorthand=ProtocolShorthand.EP,
+            ),
+            Occasion(
+                when=(
+                    "a Participant proposes revised terms for the active "
+                    "embargo"
+                ),
+                anchor="embargo-revision-proposal",
+                description=(
+                    "Proposes a revision to the terms of the active embargo. "
+                    "The wire form is the same as a first proposal; the "
+                    "receiver's EM state makes it a revision."
+                ),
+                example="propose_embargo_revision",
+                distinguisher=StateContext(
+                    machine=EM,
+                    states=(
+                        EM.ACTIVE,
+                        EM.REVISE,
+                    ),
+                ),
+                howto=HowToGuide.MANAGE_EMBARGO,
+                shorthand=ProtocolShorthand.EV,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
@@ -101,6 +198,35 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} accepted the embargo",
         wire_activity_class=_EmAcceptEmbargoActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant agrees to proposed embargo terms",
+                anchor="embargo-proposal-acceptance",
+                description=(
+                    "Records the sender's own consent to the proposed terms. "
+                    "The embargo becomes active only when the Case Owner sends"
+                    " its decision."
+                ),
+                example="accept_embargo",
+                distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
+                howto=HowToGuide.ESTABLISH_EMBARGO,
+                shorthand=ProtocolShorthand.EA,
+            ),
+            Occasion(
+                when="a Participant agrees to a proposed embargo revision",
+                anchor="embargo-revision-acceptance",
+                description=(
+                    "Records the sender's own consent to the revision. The "
+                    "revision replaces the active embargo only when the Case "
+                    "Owner sends its decision."
+                ),
+                example="accept_embargo_revision",
+                distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
+                howto=HowToGuide.MANAGE_EMBARGO,
+                shorthand=ProtocolShorthand.EC,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
@@ -110,6 +236,34 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} declined the embargo",
         wire_activity_class=_EmRejectEmbargoActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant refuses proposed embargo terms",
+                anchor="embargo-proposal-rejection",
+                description=(
+                    "Records the sender's own refusal of the proposed terms. "
+                    "The proposal is rejected for the case only when the Case "
+                    "Owner sends its decision."
+                ),
+                example="reject_embargo",
+                distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
+                howto=HowToGuide.ESTABLISH_EMBARGO,
+                shorthand=ProtocolShorthand.ER,
+            ),
+            Occasion(
+                when="a Participant refuses a proposed embargo revision",
+                anchor="embargo-revision-rejection",
+                description=(
+                    "Records the sender's own refusal of the revision. The "
+                    "Case Owner keeps the prior terms by sending its decision."
+                ),
+                example="reject_embargo_revision",
+                distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
+                howto=HowToGuide.MANAGE_EMBARGO,
+                shorthand=ProtocolShorthand.EJ,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
     # The case owner's decision for the case (ADR-0122): Accept/Reject of
     # the EmbargoEvent itself, never of the Invite that proposed it.
@@ -121,6 +275,20 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} activated the embargo",
         wire_activity_class=_ActivateEmbargoActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Owner decides to activate a proposed embargo",
+                anchor="activate-embargo",
+                heading="Activate embargo",
+                description=(
+                    "Activates the proposal for the case. If an embargo is "
+                    "already active, the proposal replaces it."
+                ),
+                example="activate_embargo",
+                howto=HowToGuide.MANAGE_EMBARGO,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
@@ -130,5 +298,19 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} rejected the proposed embargo",
         wire_activity_class=_RejectEmbargoProposalActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Owner decides to reject a proposed embargo",
+                anchor="reject-embargo-proposal",
+                heading="Reject embargo proposal",
+                description=(
+                    "Rejects the proposal for the case. An active embargo "
+                    "stays in force on its current terms."
+                ),
+                example="reject_embargo_proposal",
+                howto=HowToGuide.MANAGE_EMBARGO,
+            ),
+        ),
+        page=MessagePage.EM,
     ),
 ]

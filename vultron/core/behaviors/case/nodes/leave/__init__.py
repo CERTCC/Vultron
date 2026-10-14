@@ -24,13 +24,24 @@ by semantic concern (BTND-07-004):
   departure effect is the same; what differs is whether the whole case also
   closes); the second is reached only on the owner path (CM-23-002 step 2).
 
-- :mod:`.record` — :class:`CommitCaseActorRMClosedEntryNode`, which records the
-  CASE_MANAGER's transition as a canonical
-  ``add_participant_status_to_participant`` ledger entry and fans it out, so the
-  replicas can observe it rather than infer it (CM-23-005).
+- :mod:`.record` — :class:`CommitRMClosureEntriesNode`, which records each
+  closure step an advance node wrote, for the leaving actor or for the
+  CASE_MANAGER itself, as a canonical ``add_participant_status_to_participant``
+  ledger entry and fans it out, so the replicas apply the steps rather than
+  derive them (CM-23-001, CM-23-005).
+
+- :mod:`.settle` — :class:`ExpirePendingInvitesOnCloseNode`, which expires
+  every embargo Invite still awaiting a reply before ``case_fully_closed``
+  (CM-23-014).
+
+- :mod:`.fully_closed` — :class:`CommitCaseFullyClosedNode`, which commits
+  ``case_fully_closed`` as the CASE_MANAGER's own factory-built
+  ``Update(VulnerabilityCase)`` carrying the closed case (CM-23-002 step 3,
+  CLP-07-013).
 
 - :mod:`.decline` — :class:`EmitRejectCloseCaseNode`, the ``as:Reject`` arm for
-  an owner close blocked by a live embargo (CM-23-011).
+  an owner close blocked by a live embargo (CM-23-011), and the optional reply
+  to a Leave that arrives after ``case_fully_closed`` (CM-23-013).
 
 Re-exported here so existing importers keep working unchanged.
 
@@ -42,15 +53,25 @@ from vultron.core.behaviors.case.nodes.leave.advance import (
     AdvanceParticipantToRMClosedNode,
 )
 from vultron.core.behaviors.case.nodes.leave.decline import (
+    LATE_LEAVE_DECLINE,
     EmitRejectCloseCaseNode,
 )
+from vultron.core.behaviors.case.nodes.leave.fully_closed import (
+    CommitCaseFullyClosedNode,
+)
 from vultron.core.behaviors.case.nodes.leave.record import (
-    CommitCaseActorRMClosedEntryNode,
+    CommitRMClosureEntriesNode,
+)
+from vultron.core.behaviors.case.nodes.leave.settle import (
+    ExpirePendingInvitesOnCloseNode,
 )
 
 __all__ = [
     "AdvanceCaseActorToRMClosedNode",
     "AdvanceParticipantToRMClosedNode",
-    "CommitCaseActorRMClosedEntryNode",
+    "CommitCaseFullyClosedNode",
+    "CommitRMClosureEntriesNode",
     "EmitRejectCloseCaseNode",
+    "ExpirePendingInvitesOnCloseNode",
+    "LATE_LEAVE_DECLINE",
 ]

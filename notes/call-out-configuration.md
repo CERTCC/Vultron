@@ -1,72 +1,69 @@
 ---
 title: "Call-Out Point Configuration System — Backend Selection Design"
 status: active
+kind: guidance
 description: >
-  Design decisions for how running code selects backend factories for call-out
-  point nodes in BT tree builders. Covers the three-mode model, domain bundle
-  dataclasses, pre-built singletons, extension points, the security-significant
-  gate audit, and why a data-producing capability's default must write its
-  declared outputs. Derived from the planning sessions for issues #1631 and #2835.
+  How running code selects backend factories for call-out point nodes in BT
+  tree builders: the three-mode model and its ceiling/floor default rule, domain
+  bundles and singletons, the security-significant gate verdicts, STOCHASTIC
+  bundles for production-only domains, and why a data-producing capability's
+  default must write its declared outputs.
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
   - specs/received-status-handling.yaml
   - specs/em-behavior.yaml
   - specs/case-proposal.yaml
+  - specs/prototype-shortcuts.yaml
 related_notes:
   - notes/bt-pitfalls.md
+  - notes/bt-integration.md
+  - notes/bt-canonical-reference.md
   - notes/coordination-agents.md
-  - notes/bt-fuzzer-nodes.md
+  - notes/call-out-simulation-plan.md
   - notes/configuration.md
   - notes/received-status-authorization.md
   - notes/embargo-lifecycle.md
   - notes/protocol-asks.md
+  - notes/cvd-recipe-injects.md
+  - notes/case-proposal.md
 relevant_packages:
-  - vultron/core/behaviors
+  - vultron/core/behaviors/call_out
   - vultron/demo/fuzzer
   - vultron/demo/exchange
 ---
 
 # Call-Out Point Configuration System — Backend Selection Design
 
-## Background
-
-ADR-0025 established the factory-based injection pattern for call-out points:
-tree-building functions accept `CallOutBackendFactory` kwargs and default to
-fuzzer/deterministic backends (BT-18-004). After #1151 delivered the exemplar
-implementations, one design gap remained: **how does running code — a demo
-scenario, a test fixture, or eventually a production actor — decide which
-factory to inject for each call-out point?**
-
-This note documents the decisions reached in the #1631 planning session.
-The pattern is implemented by #1152 (FUZZ-08c).
+ADR-0025 makes tree builders accept `CallOutBackendFactory` backends (BT-18-004).
+This note covers how running code (a demo, a test fixture, a deployment) picks
+which backend each call-out point gets. Normative requirements: BT-23. The
+fuzzer node catalog is `docs/developer/reference/bt-fuzzer/index.md`.
 
 ---
 
 ## Three-Mode Model
 
-There are three logical modes for call-out point backends:
-
 | Mode | Backends used | When used |
 |---|---|---|
-| `DETERMINISTIC` | `AlwaysSucceed` / `AlwaysFail` (ceiling/floor of stochastic p) | Default for all demo and test scenarios |
-| `STOCHASTIC` | Probabilistic fuzzer classes (`UsuallySucceed`, `ProbablyFail`, …) | Opt-in for simulation / fuzz-testing scenarios. Canonical entry point: `vultron/demo/fuzzer/stochastic_demo.py` (run via `python -m vultron.demo.fuzzer.stochastic_demo`). |
-| `REAL` | Production implementations (data lookups, policy engines, agents) | Deferred to FUZZ-08d through FUZZ-08h |
+| `DETERMINISTIC` | `AlwaysSucceed` / `AlwaysFail` (ceiling/floor of stochastic p) | Default for every tree builder, demo, and test |
+| `STOCHASTIC` | Probabilistic fuzzer classes (`UsuallySucceed`, `ProbablyFail`, …) | Opt-in simulation; entry point `python -m vultron.demo.fuzzer.stochastic_demo` |
+| `REAL` | Production implementations (data lookups, policy engines, agents) | Injected by a deployment |
 
-**Test vs. demo** is a call-context distinction, not a mode distinction.
-`DETERMINISTIC` backends are identical whether used in a pytest fixture or a
-demo script.
+Test vs. demo is a call-context distinction, not a mode: `DETERMINISTIC`
+backends are identical in a pytest fixture and a demo script.
 
 ### Default direction rule
 
-The default for any tree builder is `DETERMINISTIC`. `STOCHASTIC` is always
-opt-in.
+The default for any tree builder is `DETERMINISTIC`; `STOCHASTIC` is always
+opt-in. Within `DETERMINISTIC`, each backend follows the **ceiling/floor rule**
+on its stochastic counterpart's success probability `p`:
 
-Within `DETERMINISTIC`, the backend for each node is derived from its
-stochastic counterpart by the **ceiling/floor rule**:
-
-- If the fuzzer node's success probability `p > 0.5` → `AlwaysSucceed`
-- If `p < 0.5` → `AlwaysFail`
-- If `p == 0.5` → `AlwaysSucceed` (happy path; see below)
+- `p > 0.5` → `AlwaysSucceed`
+- `p < 0.5` → `AlwaysFail`
+- `p == 0.5` → `AlwaysSucceed`, because the deterministic bundle is a happy-path
+  demonstration in which the protocol makes forward progress. A scenario that
+  needs a failure path injects an explicit `AlwaysFail` factory.
 
 > **The ceiling/floor rule fixes the status direction only.** For a capability
 > that declares output ports, the ceiling is a *contract-honouring* backend — one
@@ -74,48 +71,26 @@ stochastic counterpart by the **ceiling/floor rule**:
 > `AlwaysSucceed` (BT-23-013). See
 > [A data-producing capability's default must write its outputs](#a-data-producing-capabilitys-default-must-write-its-outputs).
 
-The `p == 0.5` tie-breaking default is `AlwaysSucceed` because the intended
-use of the deterministic bundle is a **happy-path demonstration** in which the
-protocol makes forward progress. Scenarios that need to exercise failure paths
-should use a pessimistic bundle or inject an explicit `AlwaysFail` factory.
-
-**Security-significant gate exception (ADR-0076, ADR-0025 amended):** For
-call-out points whose permissive default enables unilateral state change or
-embargo consequences — e.g., `CaseOwnerApprovesStatusUpdate` in
-`StatusAdoptionGate` and `EmbargoTeardownAuthorizationGate` — the
-DETERMINISTIC default MUST be `RequireCaseOwnerApproval`, not `AlwaysSucceed`,
-regardless of stochastic p. The ceiling/floor rule applies only to
-simulation-domain nodes where permissiveness is a prototype-stage convenience.
-See RSH-07-001 and RSH-07-002.
-
-Currently there are four `p=0.5` nodes (all default to `AlwaysSucceed`):
-
-| Node | Domain | Rationale |
-|---|---|---|
-| `FollowUpOnErrorMessage` | Messaging | Happy path = can compose a follow-up |
-| `WantToProposeEmbargo` | Embargo | Happy path = want to propose |
-| `AllPartiesKnown` | Reporting to others | Happy path = all parties identified |
-| `NotificationsComplete` | Reporting to others | Happy path = notifications done |
+**Security-significant gate exception (BT-23-012, ADR-0076):** a call-out
+point whose permissive default would enable unilateral state change or embargo
+consequences defaults to the conservative backend regardless of `p`. See the
+next section.
 
 ---
 
-## Security-Significant Gate Audit (#2676)
-
-ADR-0076 flipped the two named status gates to a conservative default and
-declared a project-wide exception to the ceiling/floor rule (now generalized
-as a normative rule in **BT-23-012**). Issue #2676 audited **every**
-`CallOutBackendFactory` field across all bundles under
-`vultron/core/behaviors/call_out/bundles/` against that exception's criterion:
+## Security-Significant Gate Audit
 
 > A gate qualifies as **security-significant** when its permissive backend
 > would let a party **other than the Case Owner** *unilaterally* cause
 > **canonical case-state adoption** or **embargo teardown** on the **received
-> side** — not merely operational inconvenience.
+> side** — not merely operational inconvenience. (BT-23-012)
+
+Every new gate owes this section a written verdict.
+`test/core/behaviors/call_out/test_security_significant_defaults.py` discovers
+bundle singletons reflectively, so it proves a verdict was applied, not that it
+was reasoned.
 
 ### Qualifying gates (default conservative)
-
-Exactly two, both received-side, both already flipped under ADR-0076
-(delivered by #2092) — no further change:
 
 | Gate | Bundle field | Default |
 |---|---|---|
@@ -124,472 +99,124 @@ Exactly two, both received-side, both already flipped under ADR-0076
 
 `STATUS_AUTHORIZATION_PERMISSIVE` is the explicit opt-in override; the FastAPI
 inbox adapter wires it for the two inbound status semantics
-(`vultron/adapters/driving/fastapi/inbox_port_factories.py`), making the
-trusted-deployment posture visible in code (RSH-07-003).
+(`vultron/adapters/driving/fastapi/inbox_port_factories.py`), so the
+trusted-deployment posture is visible in code (RSH-07-003).
 
-> **Mechanism vs. posture (ADR-0080 / RSH-07-004).** The tables and guard in
-> this audit classify the conservative-default *posture* — which of these gates
-> must default to the floor rather than to a p-driven permissive backend. That
-> posture is settled and unchanged. The *mechanism* that currently implements it
-> for the two status gates — `RequireCaseOwnerApprovalNode`, an interim blocking
-> stub that returns `FAILURE` unconditionally (`nodes.py`, self-described as
-> such) — is **superseded** by RSH-07-004 (ADR-0080, CONCERN-2812), which found
-> the ADR-0046/ADR-0076 Evaluator model unreachable at the moment authorization
-> is first needed and mandates a conversation-state *routing subtree* instead.
-> RSH-07-004's verification explicitly requires that "no `CallOutBackendFactory`
-> returns an unconditional `FAILURE` node as the conservative default." So when
-> the routing subtree lands, the qualifying-gate rows above stay in this table
-> (they remain security-significant), but the `Default` mechanism changes and
-> the guard's `test_status_gates_conservative_default_blocks` assertion must be
-> revised to check the security *property* rather than the `FAILURE` tick. This
-> audit deliberately did not implement RSH-07-004 (a separate, larger change);
-> it only pins the current interim reality.
+**Posture vs. mechanism.** The table fixes the *posture* (these gates default
+to the floor). The *mechanism*, `RequireCaseOwnerApprovalNode`, is an interim
+stub that returns `FAILURE` unconditionally; RSH-07-004 (ADR-0080) replaces it
+with a conversation-state routing subtree and forbids an unconditional-`FAILURE`
+default. When that lands, keep both rows and rewrite
+`test_status_gates_conservative_default_blocks` to assert the security property
+rather than the `FAILURE` tick.
 
 ### Look-alike gates that do NOT qualify (default stays permissive)
 
-Two embargo gates share surface structure with the qualifying set but fail the
-criterion. They are called out here because a future reader auditing for
-`AlwaysSucceed` on an authorization-flavored gate will find them and must not
-"harden" them:
+Do not "harden" these when auditing for `AlwaysSucceed` on an
+authorization-flavored gate:
 
-- **`CaseOwnerApprovesEmbargoResponse`** (`case_owner_approves_embargo_response_factory`,
-  `embargo/response_decision_tree.py`) — received-side, and carries the same
-  `CheckIsCaseOwner` gospel-bypass as `StatusAdoptionGate`. But its permissive
-  default is *accept-by-default*, which **EMB-15-001 (MUST) requires**, and
-  entering/maintaining an embargo is the **protective** direction — the
-  opposite of the teardown/premature-disclosure threat ADR-0076 addresses.
-  Flipping it to a blocking default would both violate EMB-15-001 and route
-  non-owners to the reject arm, *reducing* embargo protection. Not
-  security-significant.
+- **`CaseOwnerApprovesEmbargoResponse`**
+  (`case_owner_approves_embargo_response_factory`,
+  `embargo/response_decision_tree.py`) — received-side, but accept-by-default is
+  required by EMB-15-001, and entering an embargo is the protective direction.
+  A blocking default would violate EMB-15-001 and route non-owners to the
+  reject arm, reducing embargo protection.
 - **`EmbargoExitPolicyGuard`** (`embargo_exit_policy_guard_factory`,
-  `embargo/terminate_active_embargo_tree.py`) — its permissive default does
-  authorize embargo *exit* (the teardown direction), but this is a
-  **trigger-side** seam: the actor's own voluntary exit of an embargo it is a
-  party to (self-authorized), not a channel a remote non-owner controls. It is
-  gated behind a fail-closed reason Selector (all three
-  `exit_embargo_*` reason factories default `AlwaysFail`), so the tree makes no
-  forward progress by default, and EMB-14-002 frames the guard as an optional
-  policy veto ("MAY veto"). Flipping it to a blocking default would kill EMB-14's
-  legitimate voluntary-exit path. Not security-significant. (The received-side
-  teardown path *is* covered — by `EmbargoTeardownAuthorizationGate`, above.)
-
-### Case-proposal admission — permissive, and not a BT-23-012 gate
-
-`CaseProposalCallOutBundle.evaluate_proposal_factory` (`EvaluateCaseProposal`,
-p=0.90 → `AlwaysSucceed`) is the case actor service's admission decision on an
-inbound `Create(as_CaseProposal)` (CP-05-002). It looks security-adjacent —
-declining it is the only way a service can refuse work — but it fails the
-BT-23-012 criterion, which asks whether a permissive backend lets a party *other
-than the Case Owner* force canonical case-state adoption or embargo teardown.
-Admitting a proposal creates a **new** case in which the proposing actor becomes
-the `CASE_OWNER`; no existing case's agreed state is touched and no other
-participant's embargo is affected. The ceiling/floor rule governs it.
-
-The permissive default is also load-bearing for compatibility: before this seam
-existed the service admitted unconditionally, so `AlwaysSucceed` is what keeps an
-unconfigured deployment behaving as it did (BT-23-001, BT-23-011).
-
-What the gate *is* for is admission policy — who may propose, how many open cases
-one actor may hold, whether the inline report is substantive. A deployment that
-wants any of that injects its own bundle. Without the seam that policy had
-nowhere to live, which is what #3399 recorded.
+  `embargo/terminate_active_embargo_tree.py`) — authorizes exit, but it is a
+  trigger-side seam for the actor's own voluntary exit, behind a fail-closed
+  reason Selector (every `exit_embargo_*` reason factory defaults `AlwaysFail`),
+  and EMB-14-002 frames it as an optional veto. A blocking default would kill
+  EMB-14's voluntary-exit path. The received-side teardown path is covered by
+  `EmbargoTeardownAuthorizationGate`.
+- **`CaseProposalCallOutBundle.evaluate_proposal_factory`**
+  (`EvaluateCaseProposal`, CP-05-002) — admitting a proposal creates a *new* case
+  owned by the proposer; no existing case's state or embargo is touched. The
+  permissive default also keeps an unconfigured deployment admitting
+  unconditionally, as it did before the seam existed (BT-23-001, BT-23-011).
+  The seam exists for admission policy a deployment injects (#3399).
 
 ### Remaining gates
 
-Every other bundle field (report validation, prioritization, CVE/vulnerability
-ID assignment, exploit acquisition, fix/mitigation deployment and monitoring,
-report closure, publication, actor discovery, and the remaining embargo
-proposal/response evaluators) is a **local operational decision** — the actor's
-own triage, data retrieval, or content production — with no mechanism to impose
-canonical case state or an embargo consequence on another party. The
-ceiling/floor rule (BT-23-002/006/007) governs them.
-
-Note that `test_security_significant_defaults.py` discovers bundle singletons
-**reflectively** by walking the `bundles` package modules, so a newly added
-bundle is audited automatically. A new gate still owes this section a written
-verdict; the test only proves the verdict was applied, not that it was reasoned.
-
-### Outcome
-
-No additional gates require flipping. The audit's normative product is the
-generalized rule **BT-23-012** (so the criterion binds future gate authors);
-its durable analysis is this section; its regression guard is
-`test/core/behaviors/call_out/test_security_significant_defaults.py`. ADR-0025's
-security-significant exception (and ADR-0076) already stand and needed no change
-(#2676 AC-5's "if additional gates are found" condition was not triggered). The
-conservative-default *posture* recorded here is unaffected by ADR-0080 —
-RSH-07-004 amends only the *mechanism* for the two status gates (see the
-mechanism-vs-posture note above).
+Every other bundle field (validation, prioritization, ID assignment, exploit
+acquisition, fix/mitigation deployment and monitoring, closure, publication,
+actor discovery, the remaining embargo evaluators) is a local operational
+decision with no way to impose case state or an embargo consequence on another
+party. The ceiling/floor rule governs them (BT-23-002/006/007).
 
 ---
 
-## Domain Bundle Dataclasses
+## Domain Bundles
 
-Call-out factories are grouped into **domain bundles** — one frozen
-`@dataclass` per domain area. Each bundle holds exactly the set of
-`CallOutBackendFactory` fields consumed by the tree builders in that domain.
-Two **pre-built singleton instances** are provided per domain:
-`<DOMAIN>_DETERMINISTIC` and `<DOMAIN>_STOCHASTIC`.
+Call-out factories are grouped into one frozen dataclass per domain area,
+holding exactly the `CallOutBackendFactory` fields that domain's tree builders
+consume. Each domain has two pre-built singletons, `<DOMAIN>_DETERMINISTIC` and
+`<DOMAIN>_STOCHASTIC`, and a tree builder takes one typed `call_out:` bundle
+parameter defaulting to the deterministic singleton. The bundle list lives in
+`vultron/core/behaviors/call_out/bundles/__init__.py`.
 
-### Structure pattern
+**Layering rule (BT-16-001):** the bundle dataclasses, the
+`CallOutBackendFactory` Protocol (`call_out/protocol.py`), the deterministic
+`AlwaysSucceed`/`AlwaysFail` nodes, and the `<DOMAIN>_DETERMINISTIC` singletons
+are core-owned under `vultron/core/behaviors/call_out/`. Only the probabilistic
+`WeightedBehavior` nodes and the `<DOMAIN>_STOCHASTIC` singletons live under
+`vultron/demo/fuzzer/`. Core never imports from `vultron/demo/`
+(`test/architecture/test_core_no_demo_imports.py`). New code imports the
+Protocol from `vultron.core.behaviors.call_out`, not the
+`call_out_point` re-export shim.
 
-```python
-from __future__ import annotations
-from dataclasses import dataclass, field
-import py_trees
+### Adding a backend
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+A backend is any callable matching `CallOutBackendFactory`: it takes
+`name: str` and returns a `py_trees.behaviour.Behaviour` that honours the
+call-out point's blackboard contract (BT-18-001 through BT-18-004). No
+registry, decorator, or base class is needed; pyright/mypy check the
+signature. Instantiate the domain bundle with the new factory in its field
+(unspecified fields keep the bundle defaults) and pass the bundle to the tree
+builder.
 
-
-@dataclass(frozen=True)
-class ValidationCallOutBundle:
-    """Call-out backend bundle for the report validation workflow."""
-
-    credibility_factory: CallOutBackendFactory = field(
-        default_factory=lambda: _default_credibility_factory
-    )
-    validity_factory: CallOutBackendFactory = field(
-        default_factory=lambda: _default_validity_factory
-    )
-    gather_info_factory: CallOutBackendFactory = field(
-        default_factory=lambda: _default_gather_info_factory
-    )
-
-
-# Pre-built singletons (import once, use everywhere)
-VALIDATION_DETERMINISTIC = ValidationCallOutBundle(
-    credibility_factory=lambda n: AlwaysSucceed(n),
-    validity_factory=lambda n: AlwaysSucceed(n),
-    gather_info_factory=lambda n: AlwaysSucceed(n),
-)
-VALIDATION_STOCHASTIC = ValidationCallOutBundle(
-    credibility_factory=lambda n: EvaluateReportCredibility(n),
-    validity_factory=lambda n: EvaluateReportValidity(n),
-    gather_info_factory=lambda n: GatherValidationInfo(n),
-)
-```
-
-### Tree builder integration
-
-Tree builders replace individual factory kwargs with a single typed bundle
-parameter:
-
-```python
-def create_validate_report_tree(
-    report_id: str,
-    offer_id: str,
-    captured: dict | None = None,
-    call_out: ValidationCallOutBundle = VALIDATION_DETERMINISTIC,
-) -> py_trees.behaviour.Behaviour:
-    credibility_node = call_out.credibility_factory("EvaluateReportCredibility")
-    validity_node    = call_out.validity_factory("EvaluateReportValidity")
-    ...
-```
-
-Demo and test code imports the pre-built singleton:
-
-```python
-from vultron.demo.fuzzer.bundles.validation import VALIDATION_STOCHASTIC
-
-tree = create_validate_report_tree(
-    report_id=report.id,
-    offer_id=offer.id,
-    call_out=VALIDATION_STOCHASTIC,
-)
-```
-
-### Domain areas
-
-One bundle is defined per domain area (matching the `vultron/demo/fuzzer/`
-sub-module layout):
-
-| Bundle class | Domain | Tree builder(s) |
-|---|---|---|
-| `ValidationCallOutBundle` | Report validation | `create_validate_report_tree` |
-| `PrioritizationCallOutBundle` | Report prioritization | `create_prioritize_subtree` |
-| `EmbargoCallOutBundle` | Embargo management | `create_manage_embargo_tree` |
-| `PublicationCallOutBundle` | Publication pipeline | `create_publication_tree`, `create_publish_artifact_tree` |
-| `DeployFixCallOutBundle` | Fix deployment | `create_deploy_fix_tree` |
-| `DeployMitigationCallOutBundle` | Mitigation deployment | `create_deploy_mitigation_tree` |
-| `AcquireExploitCallOutBundle` | Exploit acquisition | `create_acquire_exploit_tree`, `create_acquire_exploit_strategy_tree` |
-| `AssignVulIdCallOutBundle` | Vulnerability ID assignment | `create_assign_vul_id_tree` |
-| `CloseReportCallOutBundle` | Report closure | `create_close_report_tree` |
-| `StatusAuthorizationCallOutBundle` | Received-side status authorization | `add_participant_status_tree`, `add_case_status_tree` |
-| `DevelopFixCallOutBundle` | Fix development | `create_develop_fix_tree` |
-| `AssignCveIdCallOutBundle` | CVE ID assignment | `create_assign_cve_id_tree` |
-| `CaseProposalCallOutBundle` | Received case-proposal admission | `create_case_proposal_received_tree` |
-| `ActorDiscoveryCallOutBundle` | Actor discovery (Sentinel seam; no core tree yet) | — |
-
-### PrioritizationCallOutBundle fields
-
-| Field | Node replaced | p (stochastic) | Deterministic default |
-|---|---|---|---|
-| `evaluate_priority_factory` | `EvaluateCasePriority` | 1.0 → `AlwaysSucceed` | `AlwaysSucceed` (always engage; SSVC deferred — PROTO-05-001) |
-| `on_accept_factory` | `OnAccept` | 1.0 → `AlwaysSucceed` | `AlwaysSucceed` |
-| `on_defer_factory` | `OnDefer` | 1.0 → `AlwaysSucceed` | `AlwaysSucceed` |
-| `enough_info_factory` | `EnoughPrioritizationInfo` | 0.75 → `AlwaysSucceed` | `AlwaysSucceed` (Phase 2 reserved) |
-| `gather_info_factory` | `GatherPrioritizationInfo` | 0.90 → `AlwaysSucceed` | `AlwaysSucceed` (Phase 2 reserved) |
-
-`evaluate_priority_factory` is the production SSVC seam (PROTO-05-001). In DETERMINISTIC
-mode it resolves `AlwaysSucceed` so all cases are engaged. In STOCHASTIC mode it uses the
-`EvaluateCasePriority` fuzzer node. A real SSVC evaluator would implement
-`CallOutBackendFactory` and be passed here — no other code change required.
-
-### Module layout (corrected 2026-07-29, issue #1793)
-
-The bundle **dataclasses**, the `CallOutBackendFactory` Protocol, the
-deterministic `AlwaysSucceed`/`AlwaysFail` nodes, and the
-`<DOMAIN>_DETERMINISTIC` singletons are **core-owned**. Only the probabilistic
-`WeightedBehavior` fuzzer nodes and the `<DOMAIN>_STOCHASTIC` singletons are
-simulation artifacts. Core tree builders default to the core DETERMINISTIC
-singleton and never import from `vultron/demo/` (enforced by
-`test/architecture/test_core_no_demo_imports.py`).
-
-```text
-vultron/core/behaviors/call_out/     ← core-owned seam
-  __init__.py       ← re-exports CallOutBackendFactory, AlwaysSucceed, AlwaysFail
-  protocol.py       ← CallOutBackendFactory Protocol (canonical home)
-  nodes.py          ← deterministic AlwaysSucceed / AlwaysFail
-  guard.py          ← SynchronousCallOut guard + guard_call_out_factory (BT-18-011)
-  bundles/
-    __init__.py     ← re-exports all bundle classes + <DOMAIN>_DETERMINISTIC
-    base.py         ← CallOutBundle base dataclass
-    validation.py   ← ValidationCallOutBundle + VALIDATION_DETERMINISTIC
-    prioritization.py
-    embargo.py
-    publication.py
-    deploy_monitoring.py  ← DeploymentMonitoringBundle (shared base)
-    deploy_fix.py         ← DeployFixCallOutBundle + DEPLOY_FIX_DETERMINISTIC
-    deploy_mitigation.py  ← DeployMitigationCallOutBundle + DEPLOY_MITIGATION_DETERMINISTIC
-    acquire_exploit.py
-    assign_vul_id.py
-    close_report.py
-    status_authorization.py   ← StatusAuthorizationCallOutBundle + STATUS_AUTHORIZATION_DETERMINISTIC
-    develop_fix.py
-    assign_cve_id.py
-    case_proposal.py
-    actor_discovery.py
-
-vultron/demo/fuzzer/                  ← simulation-only
-  base.py           ← WeightedBehavior family (incl. its own AlwaysSucceed/Fail)
-  bundles/
-    __init__.py     ← re-exports bundle classes + both DETERMINISTIC/STOCHASTIC
-    validation.py   ← VALIDATION_STOCHASTIC (+ re-exports core dataclass/default)
-    ...             ← one per domain, STOCHASTIC singletons only
-```
-
-> **History**: the original 2026-07-23 design placed the dataclasses and
-> `<DOMAIN>_DETERMINISTIC` singletons under `vultron/demo/fuzzer/bundles/` and
-> had core tree builders import them — a core→demo inversion that violated
-> BT-16-001. Issue #1793 moved the core-owned pieces into
-> `vultron/core/behaviors/call_out/` and added the boundary ratchet. `vultron.core.behaviors.call_out_point` remains as a
-> backward-compatible re-export shim of the Protocol.
-
----
-
-## CallOutBackendFactory as a Protocol
-
-The `CallOutBackendFactory` type alias is promoted to a `typing.Protocol` so
-static type checkers (mypy, pyright) can verify that a new backend callable
-matches the expected signature:
-
-```python
-# vultron/core/behaviors/call_out_point.py
-from typing import Protocol, runtime_checkable
-
-import py_trees
-
-
-@runtime_checkable
-class CallOutBackendFactory(Protocol):
-    """Protocol for call-out point backend factories.
-
-    A factory must accept a single ``name: str`` argument (the BT node's
-    display name) and return a ``py_trees.behaviour.Behaviour`` that honours
-    the call-out point's declared blackboard contract (BT-18-001 through
-    BT-18-004).
-    """
-
-    def __call__(self, name: str) -> py_trees.behaviour.Behaviour:
-        ...
-```
-
-Any callable that satisfies this signature (including plain lambdas and module-
-level functions) is a valid backend. No registration, inheritance, or decorator
-is required. Static type checking via pyright/mypy is the validation mechanism.
-
----
-
-## Extensibility
-
-To add a new backend for a call-out point:
-
-1. Implement a callable matching `CallOutBackendFactory` — a function or class
-   that accepts `name: str` and returns a `py_trees.behaviour.Behaviour`
-   honouring the blackboard contract (BT-18-001 through BT-18-004).
-2. Instantiate the domain bundle with the new factory in the relevant field:
-
-   ```python
-   my_bundle = ValidationCallOutBundle(
-       credibility_factory=MyRealCredibilityEvaluator,
-   )
-   ```
-
-3. Pass the bundle to the tree builder.
-
-No central registry, decorator, or base class is required for the backend
-itself. The bundle dataclass enforces completeness (all fields must be
-supplied; unspecified fields use the bundle class defaults).
-
-### Future: YAML/CLI configuration surface
-
-YAML or CLI configuration of call-out backends is deferred to the production
-path (FUZZ-08d through FUZZ-08h or a follow-on production-config issue). The
-production configuration surface will map domain names + mode strings to bundle
-singletons or factory class paths. The bundle dataclass structure defined here
-is the natural target for that mapping.
-
----
-
-## Future: Personality / Bias Bundles
-
-The three-mode model (deterministic / stochastic / real) is the foundation;
-personality variants are a future layer on top. A **personality bundle** is
-a domain bundle instantiated with factories that have a *biased* probability
-distribution, allowing actor-level behavioural differences in multi-actor
-simulation:
-
-```python
-# Example (not yet implemented)
-PESSIMISTIC_EMBARGO = EmbargoCallOutBundle(
-    want_to_propose_embargo_factory=lambda n: AlwaysFail(n),      # never proposes
-    current_embargo_acceptable_factory=lambda n: UsuallyFail(n),  # rarely accepts
-    ...
-)
-```
-
-This enables scenarios such as a "recalcitrant embargo negotiator" paired
-with a "cooperative embargo negotiator" to explore interaction dynamics.
-
-Personality/bias bundles are tracked as a separate design question in
-issue #1646 (type:Idea). The bundle
-dataclass structure defined here is sufficient to support personality variants
-without modification; no new mechanism is needed.
+`PrioritizationCallOutBundle.evaluate_priority_factory` is the production SSVC
+seam (PROTO-05-001): a real SSVC evaluator is passed there with no other code
+change.
 
 ---
 
 ## Production-Only Domains: STOCHASTIC Bundle Without Fuzzer Nodes
 
-(ISSUE-1843, 2026-07-30)
+A domain with no legacy simulator counterpart (e.g.
+`StatusAuthorizationCallOutBundle`, ADR-0046) has no named fuzzer classes. Its
+STOCHASTIC singleton uses the generic `WeightedBehavior` subclass nearest the
+DETERMINISTIC ceiling:
 
-Some call-out domains are **production-only patterns** with no legacy simulator
-counterpart — the call-out seams did not exist in the old `vultron/bt/`
-simulation and no named probabilistic fuzzer classes were written for them.
-`StatusAuthorizationCallOutBundle` (ADR-0046, #1843) is the first such domain.
+- ceiling `AlwaysSucceed` → `AlmostAlwaysSucceed` (p = 0.90)
+- ceiling `AlwaysFail` → `AlmostAlwaysFail`
 
-**How to build the STOCHASTIC singleton for a production-only domain**:
-
-Use the **generic `WeightedBehavior` subclass whose success rate equals the
-`p` implied by the DETERMINISTIC ceiling**:
-
-- DETERMINISTIC ceiling is `AlwaysSucceed` (p → 1.0): use `AlmostAlwaysSucceed`
-  (p = 0.90) for the STOCHASTIC singleton.
-- DETERMINISTIC ceiling is `AlwaysFail` (p → 0.0): use `AlmostAlwaysFail` for
-  the STOCHASTIC singleton.
-
-**Rationale**: `AlmostAlwaysSucceed` (p = 0.90) matches the p = 0.90
-convention used by other Evaluator call-outs (e.g., report credibility/validity)
-and aligns with the ceiling/floor rule already established for all other
-domains. It still occasionally exercises the reject/block path during fuzz
-runs — which a literal mirror of DETERMINISTIC (both `AlwaysSucceed`) would
-not.
-
-**Contrast with domains that have fuzzer node counterparts**: For domains with
-existing named simulator nodes (e.g., `EvaluateReportCredibility`), the
-STOCHASTIC singleton wires those named classes directly. Only for production-
-only domains does the generic `AlmostAlwaysSucceed`/`AlmostAlwaysFail`
-fallback apply.
-
-<!-- Source: ISSUE-1843; user confirmed the AlmostAlwaysSucceed choice -->
+p = 0.90 matches the other Evaluator call-outs and still occasionally exercises
+the reject path during fuzz runs, which a literal `AlwaysSucceed` mirror would
+not. Domains with named simulator nodes wire those classes directly.
 
 ---
 
-## Relationship to ADR-0025
+## Two Integration Surfaces: Call-In and Call-Out
 
-ADR-0025 established the factory injection seam but left the question of
-"how does running code choose which factory" explicitly open ("formed in sand,
-not concrete"). This note fills that gap. ADR-0025 has been updated to reflect
-the bundle/singleton/Protocol pattern as the resolved design. See
-`docs/adr/0025-call-out-point-abstraction-layer.md` § "Bundle Selection
-Mechanism (2026-07-23 amendment)".
+External capabilities meet the protocol on one of two surfaces; know which one
+you are designing for before choosing a shape.
 
-Normative requirements: `specs/behavior-tree-integration.yaml` BT-23.
+- **Call-in**: trigger endpoints (`vultron/core/use_cases/triggers/`). The
+  external party has already decided; the use case executes the decision.
+- **Call-out**: call-out points inside BT nodes. The protocol needs a decision,
+  a fact, or content, and asks a capability for it.
 
----
-
-## Multi-Actor In-Process Simulation
-
-The three-mode model and STOCHASTIC bundles are the foundation for the
-**fully-fuzzed in-process simulation scenario**, planned under #1178 and
-implemented by #1732 (see spec `DEMOMA-18`).
-
-### Design decisions (from #1178 planning)
-
-**In-process delivery via direct DataLayer injection** was chosen over two
-alternatives:
-
-- *ASGIEmitter loopback* — more realistic wire path, but requires spinning up
-  a FastAPI ASGI application per actor and routing inbound AS2 JSON through
-  the full HTTP pipeline; significant setup overhead for a simulation tool.
-- *In-memory message queue* — closest to the conceptual worker model in
-  `notes/event-driven-control-flow.md`, but requires new infrastructure
-  (a queue type + delivery scheduler) with no benefit over direct injection
-  for an in-process simulation.
-
-Direct injection: when actor A's BT emits an activity to actor B, the
-simulation controller intercepts A's outbox and directly calls B's dispatcher
-with the activity object. No network, no serialisation round-trip. The full
-trigger→BT→outbox→peer-inbox cascade is exercised within the single Python
-process.
-
-**Finder + Coordinator + Vendor (3 actors)** was chosen as the minimum
-meaningful configuration. FV (2 actors) omits coordinator role interactions;
-FCV (3) covers the core multi-party CVD pattern exercised by existing
-deterministic scenario demos.
-
-**Fresh in-memory DataLayer per iteration** ensures each iteration is an
-independent probabilistic sample. Persisting state across iterations would
-cause later runs to depend on earlier ones.
-
-**Multi-container variant deferred** — a future Idea under a new "stochastic
-demos" Epic should scope a containerised fuzz scenario once container reset
-and STOCHASTIC bundle configuration via environment variables are designed.
-
-### Termination model
-
-The simulation controller drives each iteration forward by:
-
-1. Calling a trigger on one actor (Finder submits report).
-2. Processing each outbox emission as an inbound activity on the target actor.
-3. Repeating until all actors reach `RM.CLOSED` or no state change occurs
-   over a configurable number of rounds (stall detection).
-
-A tick-count-only limit was rejected because many use-case BTs only activate
-on incoming activities; "ticks" have no direct meaning in the event-driven
-prototype. Progress is measured by RM state advancement across actors.
+All four capability shapes sit on the call-out surface. The Sentinel pattern is
+call-in only (it watches, then calls a trigger), so it has no BT node: a
+synchronous external query reached by the tick is a Retriever (BT-18-013).
 
 ## Capabilities Grounded in External Versioned Standards Are One Call-Out Unit
 
-When a BT capability is grounded in an external, independently-versioned
-specification (e.g. CNA Operational Rules), treat the full capability as a
-single Evaluator call-out point rather than exposing each criterion as a
-separate call-out. The correct substitution unit is the whole capability
-(replace the evaluator for the new rules edition), not individual criteria.
-Modeling it as N individual call-out points misrepresents the update boundary
-and makes adoption of a new rules edition require N separate factory changes
-instead of one. See BTND-05-007, ADR-0071.
-
-Source: CONCERN-2108
+When a capability is grounded in an external, independently-versioned
+specification (e.g. CNA Operational Rules), model the whole capability as one
+Evaluator call-out point, not one per criterion. The substitution unit is the
+rules edition; N call-outs would make adopting a new edition N factory changes.
+See BTND-05-007.
 
 ## Automation Potential and Call-Out Point Shape Are Orthogonal
 
@@ -600,50 +227,26 @@ automatable the step looks. See BT-18-005, BT-18-006.
 
 ## A Data-Producing Capability's Default Must Write Its Outputs
 
-Normative requirement: **BT-23-013**. Decision record: **ADR-0097** (planning
-group G07).
-
 A backend that returns `SUCCESS` while writing none of its declared output keys
-violates BT-18-002. For a *data-producing* capability — one whose declaration
-names one or more output ports — a bare `AlwaysSucceed` does exactly that, so it
-is not a legal DETERMINISTIC default no matter what the ceiling rule says about
-the status direction.
+violates BT-18-002. For a capability whose declaration names output ports, a
+bare `AlwaysSucceed` does exactly that, so it is not a legal DETERMINISTIC
+default whatever the ceiling rule says about direction (BT-23-013).
+`AlwaysSucceed` is shape-blind and cannot write outputs it cannot enumerate,
+which is why BT-18-012 puts the declaration in core.
 
-### Why this is easy to get wrong
-
-The ceiling/floor rule reads as a complete specification of the default, because
-for a **boolean** call-out it is one: direction is the whole contract. Extending
-the same sentence to a capability that produces data silently drops half the
-contract. Nothing in `AlwaysSucceed` can compensate, because it is
-shape-blind — it is one class standing in for every capability, and it can only
-write outputs it can enumerate. That is why BT-18-012 puts the declaration in
-core: a default cannot honour a contract it cannot read.
-
-### Why the gap is invisible rather than loud
-
-A missing output does not raise. A downstream gate declares the key as
-`PortInformation(..., required=False)` and returns `FAILURE` when it is absent, so
-the arm becomes a graceful no-op. The tree goes green, the demo runs, and the
-protocol makes no progress through that arm — the precise opposite of the
-ceiling rule's purpose.
+The gap is silent: a downstream gate declares the key
+`PortInformation(..., required=False)` and returns `FAILURE` when it is absent,
+so the arm becomes a no-op and the tree still goes green.
 
 **Diagnostic**: if a data-gated arm never fires in DETERMINISTIC mode, check
 whether the capability's default writes its declared ports before looking at the
-gate. And be suspicious of a test that writes a capability's output key by hand
-before ticking a **whole tree**: that is usually compensating for a non-conforming
-default, and once the default conforms the hand-write is what hides a regression.
-The legitimate use is narrower — a unit test that hand-writes the key to exercise a
-*gate* in isolation, independently of which backend produced the value. The
-distinction is what the test asserts: the tree making progress (suspicious) versus
-the gate reading correctly (fine). `test_publication_tree.py` shows both, and it is
-also the one capability with a real regression test on its default.
+gate. Distrust a test that hand-writes a capability's output key before ticking
+a **whole tree** — it usually compensates for a non-conforming default. Hand-writing
+the key is fine in a unit test of the *gate* alone. `test_publication_tree.py`
+shows both.
 
-### The same obligation binds the STOCHASTIC side
-
-BT-18-003 already requires a fuzzer backend to write type-conformant synthetic
-data. The shape base classes satisfy this for any capability that subclasses
-them, writing a zero-value instance per declared port. The exposure is the
-**production-only domains** described above: a domain with no named fuzzer node
-wires a generic `AlmostAlwaysSucceed`/`AlmostAlwaysFail`, which is as shape-blind
-as `AlwaysSucceed`. A generic probabilistic backend on a data-producing
-capability needs the same contract-honouring treatment as the deterministic one.
+The STOCHASTIC side has the same obligation (BT-18-003). The shape base classes
+write a zero-value instance per declared port; the generic
+`AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for production-only domains is as
+shape-blind as `AlwaysSucceed` and needs the same contract-honouring treatment
+on a data-producing capability.

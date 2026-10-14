@@ -30,22 +30,6 @@ class CreateCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.object_)
 
 
-class UpdateCaseReceivedEvent(VultronEvent):
-    """Actor updated a VulnerabilityCase."""
-
-    semantic_type: Literal[MessageSemantics.UPDATE_CASE] = (
-        MessageSemantics.UPDATE_CASE
-    )
-
-    @property
-    def case_id(self) -> str | None:
-        return self.object_id
-
-    @property
-    def case(self) -> "VulnerabilityCase | None":
-        return cast("VulnerabilityCase | None", self.object_)
-
-
 class EngageCaseReceivedEvent(VultronEvent):
     """Actor joined (engaged) a VulnerabilityCase."""
 

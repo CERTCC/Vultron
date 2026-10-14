@@ -31,6 +31,7 @@ from test.support.core_vocab import import_all_core_models
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject, CoreRecord, with_record_id
 from vultron.core.models.retired_stored_fields import RetiredFieldsRecord
+from vultron.subclasses import all_subclasses
 
 import_all_core_models()
 
@@ -43,6 +44,11 @@ _PROPOSAL = {
 #: Minimal valid data for each concrete record.  The abstract
 #: ``RetiredFieldsRecord`` base has no fields of its own to build from.
 _SAMPLES: dict[str, dict[str, Any]] = {
+    "ActorRecommendationRecord": {
+        "case_id": _URI,
+        "recommendation_id": _URI,
+        "recommender_id": _URI,
+    },
     "CaseProposalAdmissionRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "CaseProposalDeclineRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "PendingCreateCaseActivity": {**_PROPOSAL, "owner_uri": _URI},
@@ -93,17 +99,10 @@ _SAMPLES: dict[str, dict[str, Any]] = {
 
 
 def _record_types() -> list[type[CoreRecord]]:
-    found: set[type[CoreRecord]] = set()
-    stack = [CoreRecord]
-    while stack:
-        for sub in stack.pop().__subclasses__():
-            if sub not in found:
-                found.add(sub)
-                stack.append(sub)
     return sorted(
         (
             cls
-            for cls in found
+            for cls in all_subclasses(CoreRecord)
             if not issubclass(cls, CoreObject)
             and not cls.__module__.startswith("test")
             and cls is not RetiredFieldsRecord

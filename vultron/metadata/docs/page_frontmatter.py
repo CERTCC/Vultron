@@ -20,6 +20,10 @@ Every ``docs/**/*.md`` file is one of three things:
 * a **reader-facing page** — everything else. It declares both keys
   (DF-11-001).
 
+A file matched by ``exclude_docs`` that no page includes is none of the three:
+MkDocs never builds it, so it has no reader until a page pulls it in. The
+generated occasion fragments wait there for their hosts (ADR-0128).
+
 A page included only from a ``start=`` marker (a user story on its
 traceability page, a worked example quoted by the specification's annexes) is
 still a page: it has a URL and readers of its own. A page included *whole* has
@@ -48,6 +52,7 @@ from pathlib import Path
 from pathspec.gitignore import GitIgnoreSpec
 
 from vultron.metadata.base import (
+    excluded_docs_spec,
     mkdocs_config,
     nav_exclusion_fault,
     nav_paths,
@@ -115,7 +120,11 @@ class CheckResult:
 
 
 def include_directives(
-    host_path: Path, docs_dir: Path, *, uncut: bool = False
+    host_path: Path,
+    docs_dir: Path,
+    *,
+    uncut: bool = False,
+    existing: bool = True,
 ) -> Iterator[tuple[int, str, bool]]:
     """Yield ``(offset, target, whole)`` for each ``.md`` file *host_path* includes.
 
@@ -125,7 +134,9 @@ def include_directives(
     are not pages and are skipped. *offset* is where the directive starts in
     the host's source, and *target* is ``docs/``-relative. *whole* means no
     ``start=``, so the target's frontmatter renders; with *uncut* it also
-    means no ``end=``, so every link in the target renders.
+    means no ``end=``, so every link in the target renders. With
+    *existing* false, a target that does not exist yet is yielded too, so a
+    generator can read the directives naming a file it is about to write.
     """
     docs_resolved = docs_dir.resolve()
     text = host_path.read_text(encoding="utf-8", errors="replace")
@@ -145,7 +156,7 @@ def include_directives(
             resolved = candidate.resolve()
             if (
                 resolved.suffix == ".md"
-                and resolved.is_file()
+                and (resolved.is_file() or not existing)
                 and resolved.is_relative_to(docs_resolved)
             ):
                 target = resolved.relative_to(docs_resolved).as_posix()
@@ -201,8 +212,18 @@ def classify_docs_tree(root: Path) -> DocsTree:
     }
     for appended in _auto_appended(root, docs_dir):
         fragments.setdefault(appended, ("every page (snippets auto_append)",))
+    # An excluded file is never built, so it has no reader of its own; until
+    # a page includes it (and it becomes a fragment above) it is neither.
+    # This holds for every `exclude_docs` pattern, not only the occasion
+    # fragments: a page excluded by mistake also leaves DF-11's scope, so
+    # widen `exclude_docs` only for files that are never pages.
+    excluded = excluded_docs_spec(mkdocs_config(root))
     return DocsTree(
-        pages=tuple(p for p in every if p not in fragments),
+        pages=tuple(
+            p
+            for p in every
+            if p not in fragments and not excluded.match_file(p)
+        ),
         fragments=fragments,
         whole_includes=whole_includes,
         navved=navved,

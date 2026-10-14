@@ -167,7 +167,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         for cls in (
             "ApplyCaseParticipantRoleGrantFromLedgerNode",
             "ApplyCaseStatusFromLedgerNode",
-            "ApplyCloseCaseFromLedgerNode",
             "ApplyEmbargoAbandonmentFromLedgerNode",
             "ApplyEmbargoAcceptanceFromLedgerNode",
             "ApplyEmbargoActivationFromLedgerNode",
@@ -243,6 +242,10 @@ _LOCAL = (
     "the actor's own bookkeeping before or beside a case, not a record of"
     " the case (ADR-0041, CP-06)"
 )
+_BOOKKEEPING = (
+    "the CASE_MANAGER's case bookkeeping (who recommended whom), kept beside"
+    " the case and never part of it (CLP-07-014)"
+)
 _REPLICATION = (
     "writes the CASE_MANAGER's per-peer replication state (pause, replay"
     " position), not a record of the case (CM-10-005, SYNC-15-003)"
@@ -309,6 +312,10 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.case.nodes.submit_report",
         "StoreSubmitReportOfferRecordNode",
     ): _ARCHIVE,
+    (
+        f"{_B}.case.nodes.suggest_actor.emit",
+        "RecordRecommendationRecommenderNode",
+    ): _BOOKKEEPING,
     (
         f"{_B}.case.reject_case_proposal_received_tree",
         "RecordCaseProposalRejectionNode",

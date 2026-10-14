@@ -26,15 +26,24 @@ from py_trees.ports import NoDataAvailable
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CommitNativeLedgerEntriesNode,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
     UpdateActorOutbox,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.port_guard import (
+    RequireSyncPortNode,
+    RequireWireRenderPortNode,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError
 
 
 class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
@@ -181,8 +190,104 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
+class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
+    """Withdraw a new case none of whose creation entries committed.
+
+    Runs only after ``CommitNativeLedgerEntriesNode`` fails, and always
+    returns FAILURE, carrying that node's reason.  When no entry for the case
+    is in the ledger, nothing about it was committed or sent: the trigger
+    commits before it queues the ``Create``.  The case, the participant
+    records it names and the unqueued ``Create`` are then removed, so the
+    case file is as it was before the trigger (CLP-07-013).  The report the
+    case was created from is not the creation's write and stays.  So do the
+    sealed outbound bodies the activity factory kept for the ``Create`` and
+    the genesis activity: they are the delivery adapter's bookkeeping, not
+    case-file state, nothing queued refers to them, and the core layer has
+    no port to them (ARCH-01-001).
+
+    A participant record, the ``Create`` or the case that cannot be deleted
+    raises: a withdrawal that leaves part of the case behind is not one.
+
+    Once the genesis entry has committed, the case cannot be withdrawn: the
+    ledger records it.  The node then removes nothing.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "activity_id": PortInformation(data_type=str, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id", "activity_id": "/activity_id"}
+
+    def __init__(
+        self, commit: CommitNativeLedgerEntriesNode, name: str | None = None
+    ) -> None:
+        """Create the node.
+
+        Args:
+            commit: The commit node this one follows; its feedback is the
+                reason the creation failed.
+            name: Node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._commit = commit
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = ""
+        self._activity_id_bb = ""
+        try:
+            self._case_id_bb = self.get_input("case_id")
+            self._activity_id_bb = self.get_input("activity_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+
+    def _delete(self, table: str, record_id: str) -> None:
+        """Delete one record of the withdrawn case, or raise."""
+        assert self.datalayer is not None
+        if not self.datalayer.delete(table, record_id):
+            raise VultronNotFoundError(table, record_id)
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        reason = self._commit.feedback_message or "creation commit failed"
+        case, failure = self._require_case(self._case_id_bb)
+        if failure is not None:
+            # Regime 1: nothing written to withdraw (ADR-0087).  The commit's
+            # reason is still the creation's failure, so it is kept.
+            self.feedback_message = f"{reason}; {self.feedback_message}"
+            return failure
+        if recorded_entries_for_case(case_id=case.id_, dl=self.datalayer):
+            self.feedback_message = reason
+            return Status.FAILURE
+        for participant_id in case.actor_participant_index.values():
+            participant = self.datalayer.read(participant_id)
+            if not isinstance(participant, CaseParticipant):
+                raise VultronNotFoundError("CaseParticipant", participant_id)
+            for status in participant.participant_statuses:
+                # A status may be held only inline on its participant, with
+                # no row of its own; the participant's deletion removes it.
+                self.datalayer.delete("ParticipantStatus", status.id_)
+            self._delete("CaseParticipant", participant_id)
+        if self._activity_id_bb:
+            self._delete("Create", self._activity_id_bb)
+        self._delete("VulnerabilityCase", case.id_)
+        self.feedback_message = (
+            f"{reason}; nothing was committed or sent, so the case was"
+            " withdrawn (CLP-07-013)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 def create_case_trigger_bt(
     *,
+    actor_id: str,
     case_name: str,
     case_content: str,
     report_id: str | None,
@@ -195,8 +300,23 @@ def create_case_trigger_bt(
     ``queue_for_delivery`` is ``False`` when the activity names no recipient:
     the case and its ``Create`` are still built, but nothing is queued, since
     the outbox refuses an activity whose ``to:`` names no one (OX-08-001).
+
+    The creating actor (*actor_id*) is the case's CASE_OWNER and its
+    CASE_MANAGER (CM-02-015), so it commits the case's creation entries:
+    the genesis ``create_case`` entry, then one entry for each record the
+    tree wrote (CLP-07-013).  ``CommitNativeLedgerEntriesNode`` is the same
+    node the case-proposal tree composes, so a case created either way is
+    committed as the same entry sequence.  It runs before the ``Create`` is
+    queued: the creator is the new case's only participant, so the entries
+    fan out to nobody and cannot overtake the ``Create`` (CP-09-009).  A
+    genesis entry that fails to commit therefore withdraws the case before
+    anything about it is sent, and a later entry that fails stops the tree
+    before the ``Create`` is queued.  The ports those commits need are
+    checked first, so a composition fault refuses before the case is written.
     """
     children: list[py_trees.behaviour.Behaviour] = [
+        RequireWireRenderPortNode(),
+        RequireSyncPortNode(),
         _CreateCaseRecordNode(
             case_name=case_name,
             case_content=case_content,
@@ -209,6 +329,16 @@ def create_case_trigger_bt(
             result_out=result_out,
         ),
     ]
+    commit = CommitNativeLedgerEntriesNode(
+        owner_uri=actor_id, report_id=report_id
+    )
+    children.append(
+        py_trees.composites.Selector(
+            name="CommitOrWithdrawCase",
+            memory=False,
+            children=[commit, WithdrawUncommittedCaseNode(commit=commit)],
+        )
+    )
     if queue_for_delivery:
         children.append(UpdateActorOutbox())
     return py_trees.composites.Sequence(

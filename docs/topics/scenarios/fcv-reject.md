@@ -70,7 +70,7 @@ This scenario validates the rejection path of the invite protocol (CLP-13).
 - **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Coordinator** — receives the report; validates, engages, and owns the case.
 - **Vendor** — receives an invitation; **rejects** it and does not join.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Coordinator's platform hosts it, but its authority comes from the role, not from where it runs.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -111,7 +111,8 @@ The Vendor declines to participate.  The Case Actor records the rejection as a
 
 ### 6. Finder and Coordinator exchange notes
 
-Finder and Coordinator communicate through case notes (`add_note_to_case`).
+Finder and Coordinator communicate through case notes.
+Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 

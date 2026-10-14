@@ -29,6 +29,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange import embargo_lifecycle as lifecycle
+from vultron.demo.helpers import polling
 from vultron.demo.utils import _demo_failures, reset_demo_failures
 
 CASE_ID = "http://case-actor:7999/api/v2/VulnerabilityCases/abc"
@@ -122,9 +123,12 @@ def polls():
                     side_effect=lambda *a, **kw: log.append("accepted"),
                 )
             ),
+            # Without a case-manager client the helpers scope the reading
+            # participant's container to a CaseActor it co-hosts, which
+            # ``case_manager_store`` resolves in the polling module.
             "store": stack.enter_context(
                 patch.object(
-                    lifecycle,
+                    polling,
                     "resolve_case_actor_store_id",
                     return_value=MANAGER,
                 )
@@ -437,3 +441,61 @@ class TestTerminate:
         mocks["em"].side_effect = AssertionError("timed out")
         lifecycle.demo_terminate_embargo(_session("coordinator", log), case)
         assert any("EM.EXITED" in f for f in _demo_failures)
+
+
+class TestDedicatedCaseManagerContainer:
+    """With a ``case_manager_client`` the CASE_MANAGER's store is read there.
+
+    In the Docker scenarios the CaseActor runs in the dedicated case-actor
+    container (DEMOMA-06-004), which no participant's container can address
+    (#1876).
+    """
+
+    @pytest.mark.spec("DEMOMA-20-011")
+    def test_terminate_reads_exited_through_the_case_manager(
+        self, case, polls
+    ):
+        mocks, log = polls
+        manager = MagicMock()
+        lifecycle.demo_terminate_embargo(
+            _session("coordinator", log), case, case_manager_client=manager
+        )
+        em_call = mocks["em"].call_args
+        assert em_call.args[0] is manager
+        assert em_call.kwargs["dl_actor_id"] is None
+        mocks["store"].assert_not_called()
+
+    @pytest.mark.spec("DEMOMA-20-002")
+    def test_propose_and_activate_reads_canonical_state_there(
+        self, case, polls
+    ):
+        mocks, log = polls
+        manager = MagicMock()
+        reporter, coordinator, vendor = (
+            _session(n, log) for n in ("reporter", "coordinator", "vendor")
+        )
+        lifecycle.demo_propose_and_activate_embargo(
+            reporter, coordinator, vendor, case, case_manager_client=manager
+        )
+        committed = [
+            c for c in mocks["consent"].call_args_list if c.args[0] is manager
+        ]
+        assert [c.args[2] for c in committed] == [vendor.actor.id_]
+        assert mocks["em"].call_args_list[0].args[0] is manager
+        mocks["store"].assert_not_called()
+
+    @pytest.mark.spec("DEMOMA-21-002")
+    def test_revision_reads_canonical_state_there(self, case, polls):
+        mocks, log = polls
+        manager = MagicMock()
+        proposing, accepting, owner = (
+            _session(n, log) for n in ("vendor", "reporter", "coordinator")
+        )
+        lifecycle.demo_propose_embargo_revision(
+            proposing, accepting, owner, case, case_manager_client=manager
+        )
+        canonical = mocks["em"].call_args_list
+        assert canonical[0].args[0] is manager  # EM.REVISE commit
+        assert any(c.args[0] is manager for c in canonical[1:])  # EM.ACTIVE
+        assert mocks["accepted"].call_args.args[0] is manager
+        mocks["store"].assert_not_called()

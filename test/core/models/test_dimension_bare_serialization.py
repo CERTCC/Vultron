@@ -236,6 +236,27 @@ def test_core_participant_status_as2_output_matches_wire(
     assert payload(core) == payload(wire)
 
 
+def test_enclosing_field_alias_carries_the_bare_state_on_the_wire():
+    """The AS2 wire form is pinned to literals, not to the wire class.
+
+    ``as_ParticipantStatus`` is ``ParticipantStatus`` (ARCH-25-003), so the
+    core/wire comparison above compares a class with itself. This holds the
+    wire form ARCH-25-005 says must not change: the enclosing field's alias
+    (``rmState``, ``emState``, ``pxaState``) maps to the bare state value.
+    """
+    participant = ParticipantStatus(
+        id_="urn:uuid:ps-wire",
+        context="urn:case:1",
+        rm=RmDimension(state=RM.ACCEPTED),
+    ).model_dump(mode="json", by_alias=True)
+    case = CaseStatus(id_="urn:uuid:cs-wire", context="urn:case:1").model_dump(
+        mode="json", by_alias=True
+    )
+
+    assert participant["rmState"] == "ACCEPTED"
+    assert (case["emState"], case["pxaState"]) == ("NONE", "pxa")
+
+
 class TestStatePersistsThroughTheNormalisationRoundTrip:
     """Regression for the silent state loss the spike uncovered.
 

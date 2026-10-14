@@ -10,7 +10,6 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import datetime as _dt
 import os
 import re
 import sys
@@ -20,14 +19,15 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from vultron.metadata.adr.lifecycle import (
-    hardened_adrs,
-    today_utc,
+    unflipped_adrs,
     verified_dependents,
 )
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.specs.kind_classification import (
-    check_protocol_kind_code_references,
+    check_foundation_standard_tags,
+    check_implementer_kind_code_references,
+    suppression_status_lines,
 )
 from vultron.metadata.specs.registry import (
     SpecRegistry,
@@ -69,30 +69,34 @@ _ADR_PROVISIONAL_MARKERS = (
 )
 
 
-def _hardened_adr_notes(
+def _unflipped_adr_warnings(
     adr_registry: Mapping[str, AdrFrontmatter],
     registry: SpecRegistry,
     root: Path,
-    today: _dt.date,
 ) -> list[str]:
-    """Report ADRs a tested dependent spec has hardened early (MS-14-010)."""
-    hardened = hardened_adrs(
-        dict(adr_registry),
-        verified_dependents(registry.all_specs, root),
-        today,
+    """Warn on a ``proposed`` ADR that has tested dependents (MS-14-010).
+
+    The status is clock-free here: the dependency alone ends epoch 1, so the
+    change that added the first dependent should have flipped it.
+    """
+    unflipped = unflipped_adrs(
+        adr_registry,
+        verified_dependents(
+            registry.all_specs, lambda rel: (root / rel).is_file()
+        ),
     )
     return [
-        f"[INFO] {Path(rel_path).name}: hardened early (MS-14-010); tested "
-        f"dependents {', '.join(sorted(spec_ids))} can justify a human "
-        f"promoting it to 'accepted' with a 'status_override:'"
-        for rel_path, spec_ids in sorted(hardened.items())
+        f"[WARN] {Path(rel_path).name}: status is 'proposed' but tested "
+        f"dependents {', '.join(sorted(spec_ids))} end its epoch 1; the "
+        f"change that adds the first one sets it to 'accepted-provisional' "
+        f"(MS-14-010)"
+        for rel_path, spec_ids in sorted(unflipped.items())
     ]
 
 
 def _check_adr_status(
     adr_dir: Path | None,
     registry: SpecRegistry | None = None,
-    today: _dt.date | None = None,
 ) -> tuple[list[str], list[str]]:
     """Validate ADR frontmatter (MS-14-001 hard, MS-14-002 advisory).
 
@@ -109,22 +113,20 @@ def _check_adr_status(
       surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
       opt out with ``lint_suppress: [status_prose_contradiction]``.
 
-    - **Not here (MS-14-007)**: a ``status`` that disagrees with the epoch
-      computed from ``updated`` and ``today`` is never a lint failure, because
-      the answer changes with the clock and no commit. The diff-based
-      ``adr-lifecycle-check`` fails a material edit that leaves it wrong, and
-      the scheduled ``adr-status-drift`` workflow reports the rest.
-    - **Informational (MS-14-007)**: with a spec ``registry``, an ADR still in
-      epoch 1 or 2 that a tested spec requirement depends on is reported as
-      hardened, so a human can promote it early.
+    - **Not here (MS-14-007)**: a ``status`` behind the epoch computed from
+      ``updated`` and today is never a lint failure, because the answer
+      changes with the clock and no commit. The diff-based
+      ``adr-lifecycle-check`` fails the change that leaves it wrong, and the
+      scheduled ``adr-status-drift`` workflow reports the rest.
+    - **Advisory (MS-14-010)**: with a spec ``registry``, a ``proposed`` ADR
+      that a tested spec requirement depends on is warned about. That needs
+      no clock: the dependency alone ends epoch 1.
 
     Degrades to empty lists when ``adr_dir`` is missing so the check is a no-op
     in environments without a docs/ tree.
     """
     if adr_dir is None or not adr_dir.is_dir():
         return [], []
-    today = today or today_utc()
-
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -164,8 +166,8 @@ def _check_adr_status(
 
     if registry is not None:
         warnings.extend(
-            _hardened_adr_notes(
-                adr_registry, registry, adr_dir.parent.parent, today
+            _unflipped_adr_warnings(
+                adr_registry, registry, adr_dir.parent.parent
             )
         )
     return errors, warnings
@@ -1020,7 +1022,8 @@ def lint(
     hard_errors.extend(_check_phantom_spec_id_citations(registry, source_scan))
     hard_errors.extend(_check_phantom_symbols(registry, source_scan))
     hard_errors.extend(_check_missing_story_references(registry))
-    hard_errors.extend(check_protocol_kind_code_references(registry))
+    hard_errors.extend(check_implementer_kind_code_references(registry))
+    hard_errors.extend(check_foundation_standard_tags(registry))
 
     warnings.extend(_check_per_spec_advisory_warnings(registry))
     verification_errors, verification_lines = check_verification_coverage(
@@ -1028,6 +1031,7 @@ def lint(
     )
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
+    status_lines.extend(suppression_status_lines(registry))
     if closing_pr is not None:
         hard_errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
 

@@ -1,450 +1,159 @@
 ---
-title: "Vocabulary Registry — Design and Migration Notes"
+title: "Vocabulary Registry — Design Rules"
 status: active
-tags: [vocabulary, registry, wire, as2, deserialization, migration]
+kind: guidance
+tags: [vocabulary, registry, wire, as2, deserialization]
 description: >
-  Design decisions and migration path for the AS2 vocabulary registry
-  refactor: auto-registration via __init_subclass__, flat dict, VocabNamespace
-  enum, fail-fast on unknown types, and dynamic discovery. Operating rules
-  live in vultron/wire/as2/vocab/AGENTS.md.
+  Design rules for the AS2 vocabulary registry: auto-registration via
+  __init_subclass__, flat dict, VocabNamespace, the generated JSON-LD
+  context, fail-fast lookup, CORE_TYPE_MAP, and disjoint registry keys.
+  Operating rules live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
-  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010, ARCH-20-002, ARCH-23-001, ARCH-23-002)
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010,
+    ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
-  - specs/message-validation.yaml (MV-11-005)
+  - specs/message-validation.yaml (MV-04-003)
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
   - notes/core-wire-rendering-port.md
   - notes/documentation-strategy.md
   - notes/datalayer-design.md
+  - notes/demo-scenario-registry.md
 relevant_packages:
   - vultron/wire/as2/vocab
   - vultron/adapters/driven/wire_render
   - vultron/adapters/driven/trigger_activity_adapter
 ---
 
-# Vocabulary Registry — Design and Migration Notes
+# Vocabulary Registry — Design Rules
 
-Operating rules summary: `vultron/wire/as2/vocab/AGENTS.md`.
-Specs: `specs/vocabulary-model.yaml` (VM-01 through VM-03).
+Operating rules: `vultron/wire/as2/vocab/AGENTS.md`. Specs:
+`specs/vocabulary-model.yaml`. Implementation:
+`vultron/wire/as2/vocab/base/registry.py`.
 
-## Problem Statement
-
-The original registry populated itself as a side-effect of class
-decorator application:
-
-```python
-@activitystreams_object  # writes to VOCABULARY.objects at import time
-class VulnerabilityCase(as_VultronObject): ...
-```
-
-This created two fragility points:
-
-1. **Population fragility** — if a vocab module is never imported by any
-   application code path, its classes never appear in the registry.
-   Deserialization silently fails.
-2. **Developer overhead** — every new vocabulary class required the
-   developer to add both the decorator and an `__init__.py` import.
-
-## Design Decisions
+## Registration
 
 ### 1. Auto-registration via `__init_subclass__`
 
-Registration lives in `as_Base.__init_subclass__`. Every new subclass of
-`as_Base` that narrows `type_` to a `Literal[...]` annotation is
-automatically registered at class-definition time — no decorator needed.
-
-`__init_subclass__` is explicit in the class hierarchy, deterministic,
-and zero-overhead for new classes.
-
-**Alternative rejected**: dynamic-discovery-only (auto-import all sibling
-modules from `__init__.py`). Dynamic discovery is retained as a startup
-guarantee, but not as the primary mechanism.
-
-### 2. Concrete vs. abstract class detection
-
-Use the `type_` field annotation as the heuristic. A class is treated as
-concrete (and registered) if its `type_` annotation is `Literal[...]`.
-Abstract/intermediate bases (for example, `as_Object`, `as_Activity`,
-`as_VultronObject`, `as_Actor`) leave `type_` typed as `str | None` and are
+`as_Base.__init_subclass__` registers every subclass that narrows `type_` to a
+`Literal[...]`, at class-definition time; no decorator. Abstract bases
+(`as_Object`, `as_Activity`, `as_Actor`, …) leave `type_` as `str | None` and are
 skipped.
 
-This avoids boilerplate on abstract classes and matches the existing
-pattern where concrete classes narrow `type_` as part of VM-03-002.
+### 2. A concrete class MUST narrow `type_` to a `Literal`
+
+`set_type_from_class_name` (VM-03-001) derives `type_` at construction for a
+class with no annotation, but registration skips it, so the two mechanisms
+disagree about which classes are concrete and registration is the silent one
+(VM-03-002). `test_registry.py::TestWireTypeValues` walks the `as_Base`
+subclasses and requires each class presenting its own type value to be what
+`WIRE_TYPE_MAP` answers, with a per-class exemption set whose members each name
+a reason.
 
 ### 3. Flat registry dict
 
-Replace the three-sub-dict `Vocabulary(BaseModel)` with a single flat
-`dict[str, type[as_Base]]` module-level singleton.
+The registry is one flat `dict[str, type[as_Base]]`; objects, activities and
+links share one namespace with no collisions.
 
-No name collisions exist across objects/activities/links in the current
-vocabulary. The `item_type` filter in `find_in_vocabulary()` is
-vestigial; all callers use the plain `find_in_vocabulary(name)` form.
+### 4. `VocabNamespace` is not a key, but it is load-bearing
 
-### 4. `VocabNamespace` is not a key discriminator — but it is not just metadata
-
-Introduce a `VocabNamespace` enum (`AS`, `VULTRON`) in
-`vultron/wire/as2/vocab/base/enums.py`. Each `as_Base` subclass carries a
-`_vocab_ns: ClassVar[VocabNamespace]` attribute (default:
-`VocabNamespace.AS`). `as_VultronObject` overrides it to
-`VocabNamespace.VULTRON`.
-
-Namespace is **not** part of the dict key — the type name alone is the
-key.
-
-Most callers of `find_in_vocabulary()` have only a type name string from
-the wire `"type"` field. Including namespace in the key would force
-callers to know it first, defeating the simplicity of the registry.
-
-**Since #2943, `_vocab_ns` is load-bearing, not merely introspectable.** It is
-the sole input to the generated JSON-LD `@context` document (see below), so a
-mis-annotated class is a protocol defect, not a cosmetic one: a Vultron-specific
-type left annotated `AS` ships with no `vultron:` term and receivers cannot
-resolve it (VM-10-001, VM-10-002).
+Each `as_Base` subclass carries `_vocab_ns: ClassVar[VocabNamespace]`
+(default `AS`; `as_VultronObject` sets `VULTRON`). The type name alone is the
+key, because callers usually hold only the wire `type` string. But `_vocab_ns`
+is the sole input to the generated JSON-LD `@context`, so a Vultron-specific type
+left annotated `AS` ships without a `vultron:` term and receivers cannot resolve
+it (VM-10-001, VM-10-002).
 
 ### 4a. `docs/ns/context.jsonld` is generated, never hand-edited
 
-`docs/ns/context.jsonld` is the one **normative** external artifact of the wire
-vocabulary — and it is **withheld from the published site** (#3549), so the URI
-every outbound message cites does not resolve and has never resolved. The term
-set has settled: ADR-0099 is `accepted`, the `as_*` classes its terms once named
-are gone (#3487, #3488), and #2943 landed the drift check. What still gates
-publication is the **path**. ADR-0106 decided that the context URL carries the
-wire-format version (`…/ns/v1/context.jsonld`), and #3653 moves the document
-there; publishing the unversioned URL first would mint a long-lived URI the
-project has already decided to replace. So `ns/` leaves `draft_docs` in the
-change that lands #3653, and not before. That same change drops `ns/index.md`
-from `not_in_nav`, deletes the JSON-LD declaration in
-`vultron/metadata/docs/withheld.py`, and rewrites this paragraph. Vocabulary
-governance (#3368) is *not* a gate: it decides who ratifies a term change, and
-the versioned URL is what lets such a change ship later without breaking the
-first one. Until then `ns/` is a `draft_docs` pattern in `mkdocs.yml`, and
-`uv run docs-withheld` fails CI if a build publishes it anyway (DOCBW-03-005).
-Do not read "normative" as "reachable".
+`uv run wire-context --write` (`vultron/metadata/wire_context/sync.py`)
+generates it from every wire class whose `_vocab_ns` is `VULTRON`, keyed by the
+emitted `type` value, so a class sharing another's `type` needs no term of its
+own. When adding or renaming a wire type:
 
-It is generated by `vultron/metadata/wire_context/sync.py`
-(`uv run wire-context --write`) from every wire class whose `_vocab_ns` is
-`VocabNamespace.VULTRON`, keyed by the emitted `type` *value* rather than the
-class name — a class sharing another's `type` value needs no term of its own.
-`as_VulnerabilityCaseStub` emits its own `type: "VulnerabilityCaseStub"`
-(CM-11-013, #4045), so it has its own term.
+- Regenerate and commit the artifact. `uv run wire-context --check` (pre-commit)
+  and `test_committed_context_is_not_stale` (CI) enforce it.
+- Annotate a Vultron-specific type `VULTRON`.
+  `test_non_as2_wire_types_are_annotated_vultron` checks against the AS2 term set
+  from the *defining module*, never from `_vocab_ns` itself, which would blind
+  the guard to the mistake it looks for.
+- Keep the enumeration filter to classes defined under `vultron.wire.as2.vocab`:
+  a class declared inside a test joins the subclass graph, and without the filter
+  a test probe could inject a term into the normative document.
 
-Consequences when adding or renaming a wire type:
+The document is normative but not reachable: `ns/` stays withheld from the
+published site until #3653 moves it to the versioned URL ADR-0106 decided, and
+`uv run docs-withheld` fails CI if a build publishes it (DOCBW-03-005).
 
-- Regenerate and commit the artifact. A drift check enforces it two ways:
-  `uv run wire-context --check` in the local pre-commit hook, and
-  `test_committed_context_is_not_stale` in the unit suite, which is what
-  enforces it in CI.
-- Annotate a Vultron-specific type `VocabNamespace.VULTRON`.
-  `test_non_as2_wire_types_are_annotated_vultron` catches a mis-annotation by
-  comparing against the AS2 term set derived from the
-  `vultron.wire.as2.vocab.base` module tree. Provenance deliberately comes from
-  the *defining module*, not from `_vocab_ns` itself (that would make the guard
-  blind to the very mistake it looks for) and not from `WIRE_TYPE_MAP`, which is
-  the whole wire registry, Vultron terms included.
-- Enumeration walks the live `as_Object.__subclasses__()` graph, filtered to
-  classes defined under `vultron.wire.as2.vocab`. The filter is load-bearing: a
-  class declared inside a test function joins that graph and cannot be removed
-  by deleting its registry entries, so without it a test probe can inject a
-  bogus term into the normative document.
+### 5. Lookup fails fast on unknown types
 
-### 5. Fail-fast on unknown types
+`find_in_vocabulary()` raises `KeyError` for an unregistered name (VM-06-005):
+a silent `None` lets corrupt deserialization proceed. A caller that should skip
+unknown types catches `KeyError`.
 
-`find_in_vocabulary()` MUST raise `KeyError` when the requested type name
-is not in the registry.
+### 6. Dynamic discovery is the startup guarantee
 
-A missing type indicates a registration gap that must be fixed before
-deployment (VM-06-005). Silent `None` returns allow corrupt
-deserialization to proceed undetected.
+`vocab/objects/__init__.py` and `vocab/activities/__init__.py` import every
+sibling module with `pkgutil.iter_modules`, because `__init_subclass__` fires
+only for classes that are defined, and a never-imported module defines none.
 
-**Migration note**: callers that previously used `if vocab_cls is not
-None` must preserve skip-on-unknown behavior with `try/except KeyError`,
-not a `None` check.
+## `CORE_TYPE_MAP` Is Core-Only
 
-### 6. Dynamic discovery as startup guarantee
+Core types never enter the wire `VOCABULARY` (ARCH-12-003). `CoreRecord` and
+`CoreObject` subclasses auto-register in `CORE_TYPE_MAP`
+(`vultron/core/models/registry.py`). The hook lives on `CoreRecord` because the
+bookkeeping records extend it but not `CoreObject` (ARCH-12-010); ratchets
+`test_core_record_types_in_core_type_map` and
+`test_no_wire_types_in_core_type_map` hold both directions.
 
-`vocab/objects/__init__.py` and `vocab/activities/__init__.py` each use
-`pkgutil.iter_modules` plus `importlib.import_module` to import all
-sibling modules at package import time.
+`find_in_vocabulary()` is wire-only unless the caller passes
+`include_core=True` (VM-06-008). Only persistence read paths ask for the core
+fallback. A wire-side caller must not (MV-04-003): a core class placed in a wire
+tree is rejected by the parent's field type, so the fallback degrades the parent
+instead of resolving the child. A hit there is a coincidence of naming, not a
+wire counterpart. See [wire-core-boundary](wire-core-boundary.md).
 
-`__init_subclass__` only fires when a class is defined. If a vocab module
-is never imported, its classes are never defined and never registered.
-Dynamic discovery gives one startup guarantee that all vocab modules are
-loaded without requiring each application path to import them manually.
+A core collection model MUST NOT be reintroduced: `CoreActor.inbox` and
+`.outbox` are URL strings (ARCH-12-006), and a core class declaring
+`type_: Literal["OrderedCollection"]` squats the wire name in `CORE_TYPE_MAP`.
 
----
+## Actor Overrides Keep `"Actor"`
 
-## CORE_TYPE_MAP and the ARCH-12-003 Fix
+A Vultron actor module overrides only the concrete actor keys it needs
+(`Person`, `Organization`, `Service`, …); `"Actor"` stays mapped to `as_Actor`,
+its only registration. The VM-01-007 ratchet refuses an `as_Actor` left
+unreachable.
 
-(ISSUE-1992, 2026-08-19)
+## Registry Keys Are Disjoint: `VOCABULARY` vs. `WIRE_TYPE_MAP`
 
-ARCH-12-003 forbids core-branch types from appearing in the wire `VOCABULARY`
-dict. Before this fix, six core types (`VultronOfferRecord`,
-`VultronPendingCaseInbox`, `PendingCreateCaseActivity`,
-`VultronReplicationState`, `VultronReportCaseLink`, `CoreActor`) were
-explicitly assigned to `VOCABULARY` keys in their wire-side re-export modules.
-
-The fix:
-
-1. **`CORE_TYPE_MAP`** (`vultron/core/models/registry.py`) — a new dict
-   separate from `VOCABULARY` and `CORE_VOCABULARY`. Auto-populated by
-   `CoreRecord.__init_subclass__` (for concrete `Literal[...]` `type_`
-   annotations, keyed by class name and by the `Literal` value) and by
-   `CoreObject.__init_subclass__` (for no-`type_` subclasses that use
-   `_set_type_from_class_name`).
-
-2. **`find_in_vocabulary(..., include_core=True)` fallback** — after checking
-   `WIRE_TYPE_MAP` and `VOCABULARY`, the function calls
-   `find_in_core_type_map()` before raising `KeyError`, but only when the
-   caller asks. The persistence read paths (`db_record.py`,
-   `hydration.object_from_storage`) ask, so stored core types reconstruct by
-   name without polluting the wire registry. The default is wire-only
-   (VM-06-008, #3565).
-
-   **Wire-side callers must not take this fallback** (MV-04-003, ADR-0090). A
-   core class placed inside a wire tree is rejected by the wire parent's field
-   type, so the fallback silently degraded the parent instead of resolving the
-   child — it flattened every inline actor on the inbound path to an `as_Link`,
-   because `OrderedCollection` is registered only in the core map. A hit there is
-   a coincidence of naming, not a wire counterpart (ARCH-23-002). Inline type
-   resolution in `parser._inline_vocab_class` first filtered on
-   `issubclass(cls, as_Base) or type in WIRE_TYPE_MAP`; #3565 moved that rule
-   into the lookup's default, so every wire caller gets it. Full write-up:
-   [wire-core-boundary](wire-core-boundary.md) § "ARCH-12-010 is a trap for
-   wire-side callers".
-
-3. **Wire re-export modules** (`offer_record.py`, etc.) no longer write to
-   `VOCABULARY`. They import and re-export the core class unchanged.
-
-**Why `CoreRecord`, not `CoreObject`**: the bookkeeping records
-(`VultronOfferRecord`, `VultronPendingCaseInbox`, `PendingCreateCaseActivity`,
-`VultronReplicationState`, …) extend `CoreRecord` but not `CoreObject`, so the
-hook must live on the record root (ARCH-12-002, ARCH-12-010). It was
-originally placed on the old shared root for the same reason.
-Ratchet: `test_core_record_types_in_core_type_map`.
-
-**No wire-branch guard is needed any more** (issue #2416). While wire classes
-inherited the core root, its `__init_subclass__` had to skip them through an
-`_is_core_branch` sentinel. ADR-0099 detail 4 made `as_Base` stand on
-`pydantic.BaseModel` directly (ARCH-12-001), so no wire class ever reaches the
-core hook and the sentinel is gone. `test_no_wire_types_in_core_type_map` in
-`test/architecture/test_hierarchy_invariants.py` stays as a regression
-guard.
-
----
-
-## Why `OrderedCollection` Collided At All
-
-(CONCERN-3242, 2026-09-23; resolved by #3563 and #3564, 2026-09-24)
-
-The collision that caused #3217 was not a naming accident between two live
-classes. It was a **vestigial core class squatting on a name the wire side had
-never claimed**, and both halves of that sentence are load-bearing.
-
-**The core half.** `CoreActor.inbox` and `.outbox` are a never-empty `str` — a
-plain URL, with a `mode="before"` validator that accepts a full collection dict
-and keeps only its `id`, and an absent, `None`, blank or id-less endpoint is
-derived as `{id_}/inbox` (#3616), because the Vultron actor types are the wire form too
-(ADR-0099). Core does not model an actor's inbox as a list. But a
-`CoreActorCollection` class was left behind when that reduction happened, and
-because it declared `type_: Literal["OrderedCollection"]` it registered itself in
-`CORE_TYPE_MAP` under that name. Nothing read it; its sole live effect was to
-make `find_in_vocabulary("OrderedCollection")` answer with a core class. It was
-deleted in #3563, and a core collection model MUST NOT be reintroduced.
-
-**The wire half.** `as_Collection` and `as_OrderedCollection` declared no `type_`
-annotation, so `set_type_from_class_name` (VM-03-001) derived `type_` from the
-class name at construction time while `as_Base.__init_subclass__` — which uses
-the presence of a non-union `type_` annotation as its test for "is this class
-concrete" — registered nothing. The two mechanisms disagreed about which classes
-are concrete, and registration was the silent one. VM-03-002 is a MUST for
-exactly this reason; both classes (and `as_Link`) now narrow `type_` to a
-`Literal`.
-
-**The ratchet that could not see it.** The old completeness test worked per
-module and skipped any module with no own `type_` annotation as "semantic alias
-or abstract" — which is precisely what an unregistered module looks like. Its
-skip predicate *was* the defect. VM-01-007's replacement,
-`test_registry.py::TestWireTypeValues`, walks the `as_Base` subclasses, computes
-the `type` each presents, and requires a class presenting its own
-class-name-derived value to be what `WIRE_TYPE_MAP` answers for it. Exceptions
-are a per-class exemption set, each member naming its reason: abstract roots and
-mixins, and the five VM-01-008 actor shadows. A companion test fails an
-exemption that no longer needs to exist.
-
-**The per-caller filter was not the fix.** #3232's guard in
-`parser._inline_vocab_class` (now `unknown_keys.resolve_inline_class`) closed
-one path, while the FastAPI inbox adapter's re-parse helper
-(`inbox_storage.py::_reparse_as_specific_type`, since deleted by #3922 under
-MV-11-005) still resolved any name registered only in `CORE_TYPE_MAP` to a
-core class — measured at #3565, `{"type": "CoreActor"}` persisted a `CoreActor`. The general rule is
-VM-06-008, and since #3565 the lookup enforces it: `find_in_vocabulary()`
-returns only what the wire registry holds unless the caller passes
-`include_core=True`.
-
-**The paging machinery went with it.** `as_CollectionPage`,
-`as_OrderedCollectionPage`, `as_Mention`, the `following`/`followers`/`liked`/
-`streams` actor fields and the paging fields had no readers and were deleted
-(#3563). The `current` field was not inert, though. It serialized as
-`"current": 0` in every actor's inbox and outbox, and AS2's `current` is a page
-reference, not an integer. Its removal is the one intended change to an actor's
-serialized form. The other change is that an actor built without an
-inbox/outbox now gets `{id}/inbox` and `{id}/outbox`, as `set_collections`
-always intended, instead of a fresh `urn:uuid:`. A third followed in #3732:
-those endpoint collections no longer carry a `published`/`updated` — an
-endpoint is an address, and a clock stamp minted on it could never round-trip
-through the URI-only core actor (see `notes/datalayer-design.md` § "A Default
-Minted From the Clock Cannot Round-Trip Through a Field That Does Not Store
-It").
-
-Separately, 32 `CORE_TYPE_MAP` keys (27 distinct classes) resolved through
-the then-default `find_in_vocabulary` fallback to a class that is not an `as_Base` subclass when this was
-measured. The figure moves with the code; re-measure rather than quoting it
-(MS-16-001).
-
----
-
-## Vocabulary Override Preservation
-
-(ISSUE-801, 2026-06-09)
-
-When overriding actor-type keys in `VOCABULARY` from a Vultron-specific
-actor module (e.g., `vultron_actor.py`), overriding **all** actor keys can
-leave `as_Actor` unreachable under `"Actor"`, which the per-class
-registry-completeness ratchet (VM-01-007) refuses.
-
-**Rule**: Keep at least one base-actors-module registration. Override only
-the concrete keys that need Vultron-specific subclasses (e.g., `Person`,
-`Organization`, `Service`), while retaining the generic `Actor → as_Actor`
-mapping in the base module.
-
-```python
-# base/objects/actors.py — keep at least this registration
-VOCABULARY["Actor"] = as_Actor  # ← must stay (and is the correct state as of ISSUE-1992)
-
-# vultron_actor.py — override specific concrete types only
-VOCABULARY["Person"] = VultronPerson
-VOCABULARY["Organization"] = VultronOrganization
-```
-
-**Why**: `WIRE_TYPE_MAP["Actor"]` is the only registration for `as_Actor`,
-which declares no concrete `type_` of its own. The per-class completeness
-ratchet (VM-01-007, § "Why `OrderedCollection` Collided At All") requires
-`as_Actor` to be what `"Actor"` resolves to. The five base actor subtypes
-are exempt from it as sanctioned VM-01-008 shadows.
-
-**Current state (post ISSUE-1992)**: `VOCABULARY["Actor"]` correctly maps to
-`as_Actor`. The earlier `CoreActor` assignment was removed as an ARCH-12-003
-violation — `CoreActor` is a core-layer type and must not appear in the wire
-`VOCABULARY`. It is now reachable via `find_in_vocabulary("CoreActor", include_core=True)`
-through the `CORE_TYPE_MAP` fallback; the wire-only default refuses it
-(VM-06-008).
-
----
-
-## Cancelled: Declarative Pairing Registry (ARCH-23-001)
-
-> **Cancelled by [ADR-0099](../docs/adr/0099-one-object-model-as2-is-a-serialization.md).**
-> Do not implement this, and do not revive issue #2937.
-
-A single declarative core↔wire **pairing registry** was to become the
-authoritative statement of type correspondence (ARCH-23-001), tracked by
-issue #2937. **A pairing registry exists to reconcile two classes that mean the
-same thing.** ADR-0099 deletes the second hierarchy instead — measured across the
-27 paired classes, none of the 346 differing fields is a semantic disagreement —
-so there is no pair left to record. The paired domain classes are now gone (the
-`as_*` names survive only as aliases of the core classes), so ARCH-23-001 had
-nothing left to govern and was removed (#3491). It is not a target to build.
-
-The other half of ADR-0082 has landed and still stands: `VOCABULARY` and
-`CORE_VOCABULARY` no longer share bare-name keys, and nothing resolves a
-counterpart by name coincidence (ARCH-23-002). See § "Registry Keys Are Disjoint"
-below for the key forms and the lookup to use.
-
-`_WIRE_ACTOR_TO_CORE` is **gone**, retired by the deletion of the paired classes
-rather than by a pairing registry: under one object model the stored object and
-the transmitted object are the same class, so there is nothing to normalise.
-`_NORMALIZE_WIRE_TO_CORE` is **gone** too — #2940 removed write-side normalisation
-along with the grow-only gate and its ratchet, because `extra="forbid"` makes a
-core type reject a wire-shaped payload loudly instead of mis-storing it. A row
-persisted in a wire shape is now projected on *read* by
-`datalayer_sqlite/hydration.py::project_wire_row_to_core`. The section that
-described the old gate is archived as
-`NOTES-vocabulary-registry--storablerecord-normalization-gate`.
-
-Design rationale: [notes/wire-core-boundary.md](wire-core-boundary.md), whose
-diagnosis ADR-0099 builds on and whose remedy it replaces.
-
-## Related Files
-
-- `specs/vocabulary-model.yaml` — normative requirements (VM-01 through
-  VM-03)
-- `vultron/wire/as2/vocab/base/registry.py` — implementation
-- `vultron/wire/as2/vocab/base/base.py` — `as_Base` class
-- `notes/activitystreams-semantics.md` — AS2 type model
-
-## Registry Keys Are Disjoint: `VOCABULARY` vs. `WIRE_TYPE_MAP` (ARCH-23-002)
-
-Wire classes use the `as_` prefix (ARCH-14-001). For a *domain* type the prefixed
-name is no longer a wire class: ADR-0099 detail 3 made `as_VulnerabilityCase` an
-alias of the core `VulnerabilityCase`, so it holds no `VOCABULARY` key. The prefix
-still marks a real wire class for unpaired AS2 vocabulary (`as_Link`,
-`as_Collection`, …).
-
-The two registries are keyed differently, and the distinction matters
-(ARCH-23-002, issue #2941):
+Wire classes use the `as_` prefix (ARCH-14-001), but for a *domain* type the
+prefixed name is an alias of the core class (ARCH-25-003) and holds no
+`VOCABULARY` key. The prefix still marks a real wire class for unpaired AS2
+vocabulary (`as_Link`, `as_Collection`, …).
 
 | Registry | Key | Example | Spec |
 |---|---|---|---|
 | `VOCABULARY` | full `as_*` class name | `"as_Collection"` | VM-01-004 |
 | `WIRE_TYPE_MAP` | emitted wire `type` value | `"Collection"` | VM-01-008 |
 
-Both key forms are now **derived, not asserted**, by
-`as_Base.__init_subclass__` — `VOCABULARY` from `cls.__name__`, `WIRE_TYPE_MAP`
-from `wire_type_value()` in `registry.py`:
-the declared `type_` default, or the stripped class name when there is none
-(matching what `set_type_from_class_name` assigns, VM-03-001). Two classes
-cannot own one `type` value, so a class that shares another's declares
-`_wire_type_alias: ClassVar[bool] = True` and holds no `WIRE_TYPE_MAP` key.
-No production class declares it today: `as_VulnerabilityCaseStub`, its one user,
-became its own `VulnerabilityCaseStub` type and key in #4045 (CM-11-013, ADR-0114).
+Both keys are derived by `as_Base.__init_subclass__`, `WIRE_TYPE_MAP` via
+`wire_type_value()`. Two classes cannot own one `type` value, so a class that
+shares another's declares `_wire_type_alias: ClassVar[bool] = True` and takes no
+`WIRE_TYPE_MAP` key. The Vultron actor classes (`as_VultronPerson`, …) are
+the only sanctioned unflagged sharers: they register after the base actors and
+shadow them, so `{"type": "Person"}` gets the subclass carrying
+`embargo_policy`. The ratchet fails on any other collision, which would silently
+move the key to whichever class imports last
+(`test/architecture/test_vocab_registry_keys.py`; disjointness from
+`CORE_VOCABULARY` in `test/wire/as2/vocab/base/test_registry.py`). Do not
+restate a key count in prose (MS-16-001).
 
-`as_VultronPerson` and its four actor siblings deliberately **shadow** the base
-`as_Person`/`as_Service`/… under the same `type` value: `vultron_actor.py`
-imports `base/objects/actors.py`, so it always registers second, and an inbound
-`{"type": "Person"}` gets the subclass that carries `embargo_policy`. These
-five are the only unflagged sharers VM-01-008 allows; the ratchet enumerates
-them and fails on any other collision, since an accidental one would silently
-move the key to whichever class imports last.
-Until #2982 they *also* registered under their class names (`"VultronPerson"`),
-which is why the key form needed a ratchet:
-`test/architecture/test_vocab_registry_keys.py` now asserts both forms behind a
-population guard, alongside the disjointness assertion
-(`set(VOCABULARY) & set(CORE_VOCABULARY) == set()`) in
-`test/wire/as2/vocab/base/test_registry.py`. Do not restate a key count in prose
-here — a count drifts the moment a key is renamed.
-
-**Never resolve a core type's wire counterpart by name coincidence.** Use
-`WIRE_TYPE_MAP` for `type` values and `VOCABULARY` for wire class-name lookups.
-There were two such lookups, both a *core* class name against a wire
-`type`-value index that resolved only where the two strings coincided.
-`As2WireRenderAdapter.render()`'s `WIRE_TYPE_MAP.get(type(obj).__name__)` never
-resolved the five actor types; #3490 removed it. The trigger adapter's
-`_to_wire_object()` (`trigger_activity_adapter/_base.py`) called
-`find_in_vocabulary(type(core_obj).__name__)`, whose answer was always the
-object's own class; #3565 removed it, and #3694 added the ratchet. Under
-ADR-0099 there is no counterpart to resolve: `render()` is the object's own
-`model_dump` (ARCH-20-002), `_to_wire_object()` returns a `CoreObject` unchanged
-after refusing an abstract class, and the pairing registry that would have
-replaced the lookup (ARCH-23-001) is **cancelled** — see § "Cancelled:
-Declarative Pairing Registry" above. Do not reintroduce a class-name lookup to
-find "the wire class" for a core object; there is none (#3571). Two ratchets
-refuse every registry and lookup name in `REGISTRY_LOOKUP_NAMES`
-(`test/support/source_names.py`) in the source they scan:
-`test_render_adapter_does_not_resolve_a_wire_counterpart`
-(`test/adapters/driven/test_wire_render_adapter.py`, the render module) and
-`test_package_does_not_resolve_a_wire_counterpart`
-(`test/adapters/driven/trigger_activity_adapter/test_cases.py`, every module in
-the trigger adapter package). They match direct name references only; a registry
-reached by string or through an outside helper is not caught.
+**Never resolve a core type's wire counterpart by name.** Under ADR-0099 there
+is none: `render()` is the object's own `model_dump` (ARCH-20-002), and the
+declarative pairing registry (ARCH-23-001) was cancelled, not deferred; do not
+revive #2937. `test_render_adapter_does_not_resolve_a_wire_counterpart` and
+`test_package_does_not_resolve_a_wire_counterpart` refuse every name in
+`REGISTRY_LOOKUP_NAMES` (`test/support/source_names.py`) in the render and
+trigger adapters. They match direct name references only.

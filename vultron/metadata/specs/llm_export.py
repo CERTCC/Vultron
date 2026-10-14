@@ -186,9 +186,14 @@ def select_spec_ids(
     topics: str | Iterable[str] | None = None,
     groups: Iterable[str] | None = None,
     spec_ids: Iterable[str] | None = None,
+    adrs: Iterable[str] | None = None,
     include_deps: bool = False,
 ) -> set[str] | None:
     """Resolve the selectors to a set of spec IDs (their union).
+
+    *adrs* selects every requirement whose ``adr:`` field names one of the
+    given ``ADR-NNNN`` ids: the structured edge read in the
+    record-to-requirements direction (SR-07-017).
 
     Returns *None* when no selector is given, meaning "every spec".  With
     *include_deps*, the selection is expanded with the transitive
@@ -197,15 +202,26 @@ def select_spec_ids(
     topic_list = _as_list(topics)
     group_list = _as_list(groups)
     id_list = _as_list(spec_ids)
-    if topic_list is None and group_list is None and id_list is None:
+    adr_list = _as_list(adrs)
+    if all(
+        selector is None
+        for selector in (topic_list, group_list, id_list, adr_list)
+    ):
         return None
 
     topic_set = set(topic_list or [])
     group_set = set(group_list or [])
+    adr_set = set(adr_list or [])
     selected = set(id_list or [])
     for spec_id, (group, file) in registry._spec_context.items():
         if file.id in topic_set or group.id in group_set:
             selected.add(spec_id)
+    if adr_set:
+        selected |= {
+            spec_id
+            for spec_id, spec in registry.all_specs.items()
+            if adr_set.intersection(spec.adr or [])
+        }
     if include_deps:
         for spec_id in list(selected):
             selected |= registry.transitive_deps(spec_id)
@@ -235,6 +251,19 @@ def unknown_selectors(
         if missing:
             problems.append(f"unknown {label} value(s): {', '.join(missing)}")
     return problems
+
+
+def uncited_adrs(registry: SpecRegistry, adrs: Iterable[str]) -> list[str]:
+    """Return the ids in *adrs* that no requirement names in its ``adr:`` field.
+
+    Such a record is reached only by a prose citation in ``specs/`` or
+    ``notes/`` (or is record-only), so ``--adr`` selects nothing for it; the
+    caller says so rather than printing an empty selection silently.
+    """
+    cited = {
+        adr for spec in registry.all_specs.values() for adr in spec.adr or []
+    }
+    return sorted(set(adrs) - cited)
 
 
 def _iter_matching(
@@ -289,6 +318,7 @@ def to_llm_json(
     topic: str | Iterable[str] | None = None,
     groups: Iterable[str] | None = None,
     spec_ids: Iterable[str] | None = None,
+    adrs: Iterable[str] | None = None,
     include_deps: bool = False,
     kinds: list[str] | None = None,
     scope: str | None = None,
@@ -298,7 +328,8 @@ def to_llm_json(
 ) -> str:
     """Produce a flat, inheritance-resolved JSON projection of the registry.
 
-    Selectors (*topic*, *groups*, *spec_ids*) are combined as a **union**;
+    Selectors (*topic*, *groups*, *spec_ids*, *adrs*) are combined as a
+    **union**;
     attribute filters (*kinds*, *scope*, *tags*, *priority*) then narrow
     that selection.  With no selector, every spec is a candidate.
 
@@ -307,6 +338,8 @@ def to_llm_json(
         topic: A topic (file) ID or an iterable of topic IDs.
         groups: Group IDs (e.g. ``["ARCH-01"]``).
         spec_ids: Specific spec IDs.
+        adrs: ``ADR-NNNN`` ids; selects the requirements whose ``adr:``
+            field names one of them.
         include_deps: Expand the selection with the transitive dependencies
             of every selected spec via the requirements graph.
         kinds: Filter to specs whose kind value is in this list (e.g.
@@ -326,6 +359,7 @@ def to_llm_json(
         topics=topic,
         groups=groups,
         spec_ids=spec_ids,
+        adrs=adrs,
         include_deps=include_deps,
     )
     filters = _AttrFilters(
@@ -365,6 +399,7 @@ def to_requirements_text(
     topic: str | Iterable[str] | None = None,
     groups: Iterable[str] | None = None,
     spec_ids: Iterable[str] | None = None,
+    adrs: Iterable[str] | None = None,
     include_deps: bool = False,
     kinds: list[str] | None = None,
     scope: str | None = None,
@@ -384,6 +419,7 @@ def to_requirements_text(
         topics=topic,
         groups=groups,
         spec_ids=spec_ids,
+        adrs=adrs,
         include_deps=include_deps,
     )
     filters = _AttrFilters(
@@ -426,6 +462,7 @@ def to_index_text(
     topic: str | Iterable[str] | None = None,
     groups: Iterable[str] | None = None,
     spec_ids: Iterable[str] | None = None,
+    adrs: Iterable[str] | None = None,
     include_deps: bool = False,
     kinds: list[str] | None = None,
     scope: str | None = None,
@@ -444,6 +481,7 @@ def to_index_text(
         topics=topic,
         groups=groups,
         spec_ids=spec_ids,
+        adrs=adrs,
         include_deps=include_deps,
     )
     filters = _AttrFilters(

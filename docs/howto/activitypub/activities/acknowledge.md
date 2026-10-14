@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Acknowledge a Report
@@ -15,7 +15,7 @@ You finish with the sender informed and your own Report Management (RM) state un
 
 {% include-markdown "./_demo_prerequisites.md" %}
 
-- A report you have received, at `RM.RECEIVED`.
+- A report you have received, at `RM.RECEIVED`, whose `Offer(VulnerabilityReport)` was addressed to you.
 - The sender's actor Uniform Resource Identifier (URI).
 
 ---
@@ -32,12 +32,21 @@ An acknowledgment carries no verdict, so it is worth sending only while you have
 
 Sending `Read(Offer(VulnerabilityReport))` immediately before a verdict adds a message without adding information.
 
+You may acknowledge at any time after the report arrives, whether or not a case exists yet; the acknowledgment answers the sender's original Offer and sits outside the case (RMB-08-003, PCR-08-001).
+
 ---
 
 ## Send the acknowledgment
 
 1. Send `Read(Offer(VulnerabilityReport))` to the sender's inbox, with the original `Offer(VulnerabilityReport)` activity as its `object`.
-2. Leave your RM state at `RECEIVED`.
+   The `ack-report` trigger does this for you: `POST /actors/{actor_id}/trigger/ack-report` with the Offer's `offer_id`.
+   It addresses the sender alone.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/report-acknowledgment.md" %}
+
+2. Do not send it to the CASE_MANAGER.
+   The CASE_MANAGER holds no record of who the Offer was addressed to, so nobody sends it an acknowledgment (RMB-08-003).
+3. Leave your RM state at `RECEIVED`.
    Acknowledgment is not a transition.
 
 The nested form is the one a receiver recognizes: the acknowledgment answers the `Offer`, so the `Offer` is its `object` ([Report Management (RM) Messages](../../../reference/messages/rm.md), MSM-01-008).
@@ -48,6 +57,7 @@ A bare `Read(VulnerabilityReport)` carrying the report itself is not a Vultron a
 ## Verify
 
 The sender holds a `Read(Offer(VulnerabilityReport))` from you, and your RM state is still `RECEIVED`.
+The sender accepted it because you are an addressee of its Offer; it refuses an acknowledgment from any other actor (RMB-08-004).
 No `CaseLedgerEntry` is written, because report submission is not ledger-replicated.
 
 ---
@@ -56,9 +66,7 @@ No `CaseLedgerEntry` is written, because report submission is not ledger-replica
 
 !!! example "Try it: `vultron-demo acknowledge`"
 
-    ```bash
-    vultron-demo acknowledge
-    ```
+    {% include-markdown "./_demo_acknowledge.md" %}
 
     Or with Docker Compose:
 

@@ -3,7 +3,7 @@
 The lint-path behaviour — exit code, story-bearing exemption, suppression — is
 covered in ``test_lint.py``. This module pins the detector itself: the closed
 token set MS-12-006 names, the domain-English shapes it must leave alone, and
-the carrier counts the MS-12-007 and MS-12-008 ratchets read.
+the carrier sets the MS-12-007 guard and the MS-12-008 assertion read.
 """
 
 import pytest
@@ -11,8 +11,9 @@ import pytest
 from test.metadata.specs._helpers import write_yaml
 from vultron.metadata.specs.kind_classification import (
     code_reference_in,
-    count_missing_story_suppressions,
-    count_suppressions,
+    missing_story_suppression_carriers,
+    suppression_carriers,
+    suppression_status_lines,
 )
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import LintWarningCode, StatementSpec
@@ -165,26 +166,43 @@ def _registry_with_carriers(tmp_path):
     return load_registry(tmp_path)
 
 
-def test_count_missing_story_suppressions_counts_every_carrier(tmp_path):
-    """MS-12-007 counts carriers whether or not SR-11-003 would fire on them."""
-    assert (
-        count_missing_story_suppressions(_registry_with_carriers(tmp_path))
-        == 4
-    )
+def test_missing_story_carriers_include_every_carrier(tmp_path):
+    """MS-12-007 collects carriers whether or not SR-11-003 would fire."""
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    _registry_with_carriers(specs)
+    assert missing_story_suppression_carriers(tmp_path) == {
+        "TST-01-001",
+        "TST-01-002",
+        "TST-01-003",
+        "TST-01-005",
+    }
 
 
 @pytest.mark.parametrize(
     ("code", "expected"),
     [
-        (LintWarningCode.MISSING_STORY_REFERENCE, 4),
-        (LintWarningCode.PROTOCOL_KIND_WITH_CODE_REFERENCE, 1),
-        (LintWarningCode.PHANTOM_PATH_REF, 2),
+        (
+            LintWarningCode.MISSING_STORY_REFERENCE,
+            {"TST-01-001", "TST-01-002", "TST-01-003", "TST-01-005"},
+        ),
+        (LintWarningCode.PROTOCOL_KIND_WITH_CODE_REFERENCE, {"TST-01-005"}),
+        (LintWarningCode.PHANTOM_PATH_REF, {"TST-01-003", "TST-01-004"}),
     ],
 )
-def test_count_suppressions_counts_only_the_named_code(
+def test_suppression_carriers_match_only_the_named_code(
     tmp_path, code, expected
 ):
-    """MS-12-007 and MS-12-008 each count their own code's carriers."""
-    assert (
-        count_suppressions(_registry_with_carriers(tmp_path), code) == expected
+    """MS-12-007 and MS-12-008 each collect their own code's carriers."""
+    assert suppression_carriers(_registry_with_carriers(tmp_path), code) == (
+        expected
     )
+
+
+def test_suppression_status_lines_report_live_totals(tmp_path):
+    """spec-lint prints each MS-12 suppression total, computed (AC-5, #4315)."""
+    assert suppression_status_lines(_registry_with_carriers(tmp_path)) == [
+        "[INFO] lint_suppress missing_story_reference: 4 spec(s) carry it",
+        "[INFO] lint_suppress protocol_kind_with_code_reference: "
+        "1 spec(s) carry it",
+    ]

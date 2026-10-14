@@ -109,6 +109,7 @@ class TestNoteUseCases:
         stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
 
+    @pytest.mark.spec("CLP-07-013")
     def test_create_note_attaches_to_case_when_context_set(
         self, monkeypatch, make_payload
     ):
@@ -117,9 +118,12 @@ class TestNoteUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
+        # attributed_to anchors the per-case ledger genesis: the attachment
+        # is committed before it is made (CLP-07-013, CLP-08-005).
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn1",
             name="Context Case",
+            attributed_to="https://example.org/users/vendor",
         )
         # RSH-08-003/#3814: attaching the note to the case is now
         # CASE_MANAGER-gated, so the store's own actor must hold the role.
@@ -148,6 +152,14 @@ class TestNoteUseCases:
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
+        # CLP-07-013 (#4441): the attachment has its own committed entry.
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+        ]
+        assert [e.event_type for e in entries] == ["create_note"]
+        assert entries[0].log_object_id == activity.id_
 
     def test_create_note_attach_to_case_idempotent(
         self, monkeypatch, make_payload

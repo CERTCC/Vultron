@@ -43,6 +43,7 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     find_named,
     node_failed,
+    post_close_refusal,
     verdict_from_bt,
 )
 from vultron.core.use_cases.received._store_only import (
@@ -87,7 +88,7 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 
 class CreateCaseStatusReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case status creation"
+        "#4522", "no sender check defined for case status creation"
     )
 
     def __init__(
@@ -125,7 +126,7 @@ class CreateCaseStatusReceivedUseCase:
 
 class AddCaseStatusToCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case status update"
+        "#4522", "no sender check defined for case status update"
     )
 
     def __init__(
@@ -177,6 +178,8 @@ class AddCaseStatusToCaseReceivedUseCase:
             activity=request,
         )
 
+        if (refusal := post_close_refusal(tree)) is not None:
+            return refusal  # dropped with no reply, no fault (CM-23-017)
         if (
             result.status != Status.SUCCESS
             and BTBridge.get_failure_reason(tree)
@@ -212,7 +215,7 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 class CreateParticipantStatusReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for participant status creation"
+        "#4522", "no sender check defined for participant status creation"
     )
 
     def __init__(
@@ -328,6 +331,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             activity=request,
         )
 
+        if (refusal := post_close_refusal(tree)) is not None:
+            return refusal  # dropped with no reply, no fault (CM-23-017)
         verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
         if verdict.disposition is HandlerDisposition.REFUSED and (
             _adoption_gate_blocked(tree)

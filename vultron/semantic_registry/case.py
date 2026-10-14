@@ -24,7 +24,6 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
-    UpdateCaseReceivedEvent,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -36,14 +35,20 @@ from vultron.core.use_cases.received.case import (
     CreateCaseReceivedUseCase,
     DeferCaseReceivedUseCase,
     EngageCaseReceivedUseCase,
-    UpdateCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case_proposal import (
     AcceptCaseProposalReceivedUseCase,
     CreateCaseProposalReceivedUseCase,
     RejectCaseProposalReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    HowToGuide,
+    MessagePage,
+    Occasion,
+    ProtocolShorthand,
+)
 from vultron.wire.as2.extractor import (
     AcceptCaseProposalPattern,
     AddReportToCaseActivityPattern,
@@ -52,14 +57,12 @@ from vultron.wire.as2.extractor import (
     DeferCasePattern,
     EngageCasePattern,
     RejectCaseProposalPattern,
-    UpdateCaseActivityPattern,
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AddReportToCaseActivity,
     _CreateCaseActivity,
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
-    _UpdateCaseActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -74,6 +77,26 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} proposed a new case",
         wire_activity_class=None,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a report receiver asks a Case Actor Service to open a "
+                    "case for a report"
+                ),
+                anchor="create-case-proposal",
+                heading="Create case proposal",
+                description=(
+                    "Submits a case proposal for the attached report to the "
+                    "service's inbox. No case exists yet."
+                ),
+                example="create_case_proposal",
+                usual_senders=(
+                    CVDRole.VENDOR,
+                    CVDRole.COORDINATOR,
+                ),
+            ),
+        ),
+        page=MessagePage.CASE_PROPOSAL,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ACCEPT_CASE_PROPOSAL,
@@ -83,6 +106,19 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} accepted the case proposal",
         wire_activity_class=None,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Case Actor Service agrees to open the proposed case",
+                anchor="accept-case-proposal",
+                heading="Accept case proposal",
+                description=(
+                    "Accepts the case proposal and tells the proposing actor "
+                    "that a case will be opened for its report."
+                ),
+                example="accept_case_proposal",
+            ),
+        ),
+        page=MessagePage.CASE_PROPOSAL,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_CASE_PROPOSAL,
@@ -92,6 +128,16 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} declined the case proposal",
         wire_activity_class=None,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Case Actor Service declines to open the proposed case",
+                anchor="reject-case-proposal",
+                heading="Reject case proposal",
+                description="Rejects the case proposal. No case is opened.",
+                example="reject_case_proposal",
+            ),
+        ),
+        page=MessagePage.CASE_PROPOSAL,
     ),
     SemanticEntry(
         semantics=MessageSemantics.CREATE_CASE,
@@ -101,14 +147,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created the case",
         wire_activity_class=_CreateCaseActivity,
         include_activity=True,
-    ),
-    SemanticEntry(
-        semantics=MessageSemantics.UPDATE_CASE,
-        pattern=UpdateCaseActivityPattern,
-        event_class=UpdateCaseReceivedEvent,
-        use_case_class=UpdateCaseReceivedUseCase,
-        phrase="{actor} updated the case",
-        wire_activity_class=_UpdateCaseActivity,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has opened a case for a submitted report"
+                ),
+                anchor="create-case",
+                heading="Create case",
+                description=(
+                    "Mints the vulnerability case, seats its initial "
+                    "participants and links the report."
+                ),
+                example="create_case",
+                howto=HowToGuide.INITIALIZE_CASE,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ENGAGE_CASE,
@@ -118,6 +172,21 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} engaged the case",
         wire_activity_class=_RmEngageCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant accepts the case for further action",
+                anchor="report-accepted",
+                description=(
+                    "Joins the case, moving the sender's RM state to Accepted."
+                    " Engaging is a case-participation decision, so the verb "
+                    "names the case rather than the report."
+                ),
+                example="engage_case",
+                howto=HowToGuide.MANAGE_CASE,
+                shorthand=ProtocolShorthand.RA,
+            ),
+        ),
+        page=MessagePage.RM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.DEFER_CASE,
@@ -133,6 +202,21 @@ ENTRIES: list[SemanticEntry] = [
         # therefore never reached the ledger, and when the receiving actor held
         # CASE_MANAGER the abort also skipped the RM→DEFERRED transition.
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant defers further action on the case",
+                anchor="report-deferred",
+                description=(
+                    "Ignores the case, moving the sender's RM state to "
+                    "Deferred. Deferring is a case-participation decision, so "
+                    "the verb names the case rather than the report."
+                ),
+                example="defer_case",
+                howto=HowToGuide.MANAGE_CASE,
+                shorthand=ProtocolShorthand.RD,
+            ),
+        ),
+        page=MessagePage.RM,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_REPORT_TO_CASE,
@@ -142,5 +226,20 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} added the report to the case",
         wire_activity_class=_AddReportToCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Owner links a further report to an existing case"
+                ),
+                anchor="add-report-to-case",
+                heading="Add report to case",
+                description=(
+                    "Adds a vulnerability report to the case named by the "
+                    "target."
+                ),
+                example="add_report_to_case",
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
 ]

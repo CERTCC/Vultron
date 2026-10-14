@@ -140,8 +140,8 @@ class ApplyOfferReportFromLedgerNode(
     def _maybe_restore_report(
         self, object_data: Any, report_id: str | None
     ) -> None:
-        # The add_report_to_case snapshot embeds the full report inline
-        # (build_add_report_to_case_snapshot -> obj_to_inline_dict).  An invited
+        # The add_report_to_case snapshot embeds the full report inline (the
+        # CASE_MANAGER's record_report_added_to_case activity).  An invited
         # replica never received the VulnerabilityReport object directly, so
         # reconstruct and store it from the snapshot here — otherwise
         # report lookups on this replica miss (#2180).

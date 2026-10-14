@@ -35,6 +35,7 @@ from vultron.wire.as2.extractor._builders import (
     proposed_embargo_from,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ def extract_intent(
         inner_context = getattr(obj, "context", None)
 
     _obj_type = str(getattr(obj, "type_", "")) if obj is not None else ""
+    carries_deadline = "answer_deadline" in event_class.model_fields
     extra_kwargs = _build_object_kwargs(
         obj,
         _obj_type,
@@ -96,12 +98,19 @@ def extract_intent(
         activity,
         actor_id,
         origin,
+        # Carried as received on the activity the entry records (CS-13-005,
+        # CLP-07-011); core reads it back through ``parse_published``.
+        activity_end_time=(
+            _activity_end_time(activity) if carries_deadline else None
+        ),
     )
 
     if "rsvp_deadline" in event_class.model_fields:
         extra_kwargs["rsvp_deadline"] = _effective_rsvp_deadline(
             activity, actor_id, obj, min_rsvp_window, default_rsvp_window
         )
+    if carries_deadline:
+        extra_kwargs["answer_deadline"] = _answer_deadline(activity)
     if "proposed_embargo" in event_class.model_fields:
         # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
         # carries it on the Offer inlined in the proposal (EP-04-004,
@@ -134,6 +143,20 @@ def extract_intent(
             )
         extra_kwargs["proposer_profile"] = actor
 
+    if "proposer_case_roles" in event_class.model_fields:
+        # The proposer's own roles ride on the proposal (CP-01-011, ADR-0133):
+        # the CASE_MANAGER has no other way to learn them.  as_CaseProposal
+        # refused a CASE_MANAGER claim when it was parsed (CP-01-012).  Any
+        # other object is refused rather than read as "no roles", which would
+        # seat the owner as CASE_OWNER alone without a sound.
+        if not isinstance(obj, as_CaseProposal):
+            raise VultronParseValidationError(
+                f"Create(CaseProposal) {activity.id_!r} carries no parsed"
+                f" CaseProposal (got {type(obj).__name__}); its"
+                " proposerCaseRoles cannot be read (CP-01-011)"
+            )
+        extra_kwargs["proposer_case_roles"] = list(obj.proposer_case_roles)
+
     return cast(
         AnyReceivedEvent,
         event_class(
@@ -154,6 +177,27 @@ def extract_intent(
             **extra_kwargs,
         ),
     )
+
+
+def _activity_end_time(activity: as_Activity) -> datetime | None:
+    """The activity-level ``end_time`` as received, or ``None``.
+
+    ``as_Object.validate_datetime`` already read a naive value as UTC, so
+    the value is aware; its offset is the sender's.
+    """
+    raw_end_time = getattr(activity, "end_time", None)
+    return raw_end_time if isinstance(raw_end_time, datetime) else None
+
+
+def _answer_deadline(activity: as_Activity) -> datetime | None:
+    """The ownership-transfer Offer's deadline to answer, in UTC (CM-21-016).
+
+    The activity-level ``end_time``, normalised to UTC here, at the edge
+    (ADR-0032), so core compares and reports one zone (CS-13-001).  ``None``
+    when the Offer names no deadline.
+    """
+    end_time = _activity_end_time(activity)
+    return end_time.astimezone(UTC) if end_time is not None else None
 
 
 def _effective_rsvp_deadline(

@@ -61,7 +61,7 @@ directly with no coordinator.
 
 - **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Vendor** — receives the report; validates, engages, and owns the case.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Vendor's platform hosts it, but its authority comes from the role, not from where it runs.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -102,9 +102,9 @@ entry.
 
 ### 5. Finder and Vendor exchange notes
 
-Participants communicate about the vulnerability through case notes.  Each note
-is posted via the protocol and recorded as an `add_note_to_case` entry in the
-ledger.  The Finder may ask about workarounds; the Vendor provides status updates.
+Participants communicate about the vulnerability through case notes.
+Each note is posted via the protocol and recorded in the ledger as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
+The Finder may ask about workarounds; the Vendor provides status updates.
 
 *Antecedent:* `engage_case` is present in the ledger.
 
@@ -129,10 +129,15 @@ No participant deploys a fix in this scenario: deployment is a Deployer's step, 
 ### 8. All participants close the case
 
 Both the Finder and the Vendor indicate that their participation in the case is complete.
-Each closure is recorded as a `close_case` entry in the ledger.
+Each departure is recorded as a `close_case` entry in the ledger, followed by one participant status entry for each step the Case Actor takes to move that participant to RM `CLOSED`.
+A replica moves the participant only by applying those status entries; a participant never records its own closure.
+A participant that has closed receives its own `close_case` entry and the status entries for its own closure, and nothing after them.
 The Finder leaves first.
+After its closure, the Finder receives no further entries, so it does not learn of the Vendor's departure.
 The Vendor is the Case Owner, so it leaves last: its departure also closes the case, and a departure sent after that is not recorded.
 The Case Actor records its own closure as a participant status entry, then records `case_fully_closed`, the last entry for a participant's act.
+The Vendor has already closed when the Case Actor writes these two entries, so the Vendor does not receive them.
+The Case Actor's own ledger is where the closure of every participant is recorded.
 
 *Antecedent:* `validate_report` and `engage_case` are both present in the ledger.
 The Vendor's `close_case` follows the Finder's.

@@ -1,20 +1,18 @@
 ---
 title: RFC Spec Document Authoring Decisions
 status: active
+kind: guidance
 description: >
   Structural and editorial conventions for the Vultron Protocol Specification
-  under docs/reference/vultron-spec/: the page map (routing landing page, six
-  body pages, seven annex pages, Open Questions, hidden full.md) and the
-  fragments each page includes, the full.md in-page link rewrite, fragment
-  naming, the per-annex fragment split, the shared tip fragment, the section
-  citation convention, source treatment, STE style, and the DAG-first authoring
-  workflow.
+  under docs/reference/vultron-spec/: the page map (routing landing page, body
+  pages, annex pages, Open Questions, hidden full.md) and the fragments each
+  page includes, the full.md in-page link rewrite, fragment kinds and naming,
+  annex embedding, the section citation convention, source treatment, STE
+  style, and the DAG-first authoring workflow.
 related_notes:
   - notes/documentation-strategy.md
   - notes/rfc-review-rubric.md
   - notes/site-information-architecture.md
-  - notes/spec-authoring-rules.md
-  - notes/case-state-model.md
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/docs-build-workflow.yaml
@@ -23,9 +21,8 @@ related_specs:
 # RFC Spec Document Authoring Decisions
 
 This note records the structural and editorial conventions of the Vultron
-Protocol Specification, `docs/reference/vultron-spec/`. The document was
-written under #3255 and paginated into a Reference section under #4059. These
-are durable conventions for anyone continuing or extending it.
+Protocol Specification, `docs/reference/vultron-spec/`, for anyone continuing or
+extending it.
 
 The lint model the page structure relies on — fragments linted as source,
 page-scoped rules evaluated on each page that renders them — is
@@ -51,10 +48,10 @@ on.
 
 ## Page Map
 
-`docs/reference/vultron-spec/` holds sixteen pages, built by issue #4061. The
-table lists each page, its nav title, and the fragments it includes, in include
-order. Fragments that other fragments pull in (the `_oq-*.md` open questions and
-the `includes/` tables) are not listed; they arrive with their host fragment.
+The table lists each page of `docs/reference/vultron-spec/`, its nav title, and
+the fragments it includes, in include order. Fragments that other fragments pull
+in (the `_oq-*.md` open questions and the `includes/` tables) are not listed; they
+arrive with their host fragment.
 
 | Page | Nav title | Covers | Fragments included |
 |---|---|---|---|
@@ -75,28 +72,11 @@ the `includes/` tables) are not listed; they arrive with their host fragment.
 | `open-questions.md` | Open Questions | Open Questions | `_full-page-tip.md`, `_open-questions.md` |
 | `full.md` | — (not in nav) | The whole document | Every fragment above except `_full-page-tip.md`, in document order, plus `_annexes-intro.md` immediately before `_annex-a.md` |
 
-The section ranges by name:
-
-- **Introduction and Overview** — the Abstract, §1 Introduction, §2 Terminology
-  and §3 Protocol Overview.
-- **Protocol Layers** — §4 Semantic Layer — Message Meanings and §5 Syntactic
-  Layer — Wire Format.
-- **Case Tracking Models** — §6 Report Management (RM) State Machine, §7 Embargo
-  Management (EM) State Machine, §8 Case State (CS) Dimensions and §9
-  Participant Embargo Consent (PEC) State Machine.
-- **Interactions and Lifecycle** — §10 Model Interactions and Cascade Rules and
-  §11 Participant Lifecycle Within a Case.
-- **Conformance** — §12 Conformance.
-- **Considerations and References** — §13 IANA and Namespace Considerations, §14
-  Security Considerations and §15 References.
-
 ### The landing page
 
 `index.md` is a routing page (`contents: routing`, DF-11-005): its framing
 links every body page, every annex page, `open-questions.md` and `full.md`, and
-`docs-site --check` holds it to linking each member. It is recorded in the
-decided-set table of `notes/site-information-architecture.md` § "Sub-section
-index decisions".
+`docs-site --check` holds it to linking each member.
 
 ### `full.md`, the all-in-one page
 
@@ -152,66 +132,21 @@ fragment that renders on a single page. An annex page does not need it: the
 
 ### Annex Sources
 
-Annexes pull in existing site pages where a page already holds the content. An
-included source page MUST read correctly both standalone and embedded, which can
-mean light revision of headers that assume standalone context.
-
-| Annex | Source |
-|---|---|
-| A Worked Example: Single-Vendor CVD | `docs/tutorials/worked_example.md`, `single-vendor` region |
-| B Worked Example: Multi-Party CVD | `docs/tutorials/worked_example.md`, `multi-party` region |
-| C Notation Reference | `docs/reference/notation.md`, `notation-math` region |
-| D Possible Case Histories | `docs/topics/measuring_cvd/possible_histories.md`, `possible-histories` region |
-| E Relationship to ActivityPub | Written in place; links `docs/howto/activitypub/activities/` for wire examples |
-| F Behavior Trees as an Implementation Pattern | Written in place; links `docs/topics/behavior_logic/` |
-| G Capability Shapes | Written in place, in `_conformance/_capability-shapes.md` |
-
-The regions are `include-markdown` `start`/`end` markers in the source page. A
-renamed or deleted marker silently includes the wrong span, so the review rubric
-checks they still exist.
+Annexes A–D pull in existing site pages that already hold the content, through
+`include-markdown` `start`/`end` regions named in each annex fragment; Annexes
+E–G are written in place. An included source page MUST read correctly both
+standalone and embedded, which can mean light revision of headers that assume
+standalone context. The region markers live in the source page; a renamed or
+deleted marker silently includes the wrong span, so the review rubric checks
+they still exist.
 
 ---
 
-## File Layout
+## Fragment Kinds
 
-```text
-docs/reference/vultron-spec/
-  index.md, introduction.md, layers.md, tracking-models.md,
-  interactions.md, conformance.md, considerations.md,
-  annex-a-single-vendor.md … annex-g-capability-shapes.md,
-  open-questions.md, full.md     ← pages (see Page Map)
-  _full-page-tip.md              ← shared tip linking full.md
-  _abstract.md                   ← Abstract
-  _introduction.md               ← §1 Introduction
-  _terminology.md                ← §2 Terminology
-  _protocol-overview.md          ← §3 Protocol Overview
-  _semantic-layer.md             ← §4 Semantic Layer — Message Meanings
-  _syntactic-layer.md            ← §5 Syntactic Layer — Wire Format
-  _rm-state-machine.md           ← §6 Report Management (RM) State Machine
-  _em-state-machine.md           ← §7 Embargo Management (EM) State Machine
-  _cs-dimensions.md              ← §8 Case State (CS) Dimensions
-  _pec-state-machine.md          ← §9 Participant Embargo Consent (PEC) State Machine
-  _model-interactions.md         ← §10 Model Interactions and Cascade Rules
-  _participant-lifecycle.md      ← §11 Participant Lifecycle Within a Case
-  _conformance/                  ← §12 Conformance, one file per subsection
-    _intro.md
-    _capability-sets.md
-    _role-taxonomy.md
-    _role-requirements.md
-    _conformance-testing.md
-    _capability-shapes.md        ← Annex G Capability Shapes
-  _iana.md                       ← §13 IANA and Namespace Considerations
-  _security.md                   ← §14 Security Considerations
-  _references.md                 ← §15 References
-  _annexes-intro.md              ← §16 Informative Annexes heading (full.md only)
-  _annex-a.md … _annex-f.md      ← Annexes A–F, one fragment each
-  _open-questions.md             ← Open Questions summary
-  _oq-*.md                       ← one open question each
-  includes/                      ← shared tables and notes
-```
-
-**§12 Conformance** is split into per-subsection files because it is the longest
-section and its subsections are independently authorable.
+**§12 Conformance** is split into per-subsection files under `_conformance/`
+because it is the longest section and its subsections are independently
+authorable. Annex G lives there too (see "Annex Fragments").
 
 **Open-question fragments** (`_oq-*.md`) are each one admonition. Most are
 included in two places in the specification: inline at the point of use, in the
@@ -306,9 +241,9 @@ split decides what a fragment must carry:
 
 **Step 1 — DAG analysis before writing.** Map concept dependencies across
 sections and within sections. A concept MUST NOT be used before it is
-introduced. Produce authoring scratch-pads in `notes/` documenting the confirmed
-section order and per-section concept introduction notes. These scratch-pads are
-archived after the PR merges; the PR description draws from them.
+introduced. Record the confirmed section order and per-section concept
+introduction notes in a `kind: plan` note that tracks the authoring issue, and
+archive it when the PR merges; the PR description draws from it.
 
 **Step 2 — Parallel section writes.** Subagents write each section independently
 using the confirmed order and the per-section writing briefs from the DAG
@@ -319,7 +254,7 @@ appears before its introduction, then read each body page on its own to verify
 it introduces or links every concept it uses. Section order is adjustable
 because only include directives need updating.
 
-The current order was measured, not assumed:
+Keep the current order; each alternative was measured and is worse:
 
 - Swapping §4 Semantic Layer — Message Meanings and §5 Syntactic Layer — Wire
   Format increases unresolved forward references rather than reducing them.
@@ -334,7 +269,7 @@ The current order was measured, not assumed:
 
 ## Source Treatment
 
-Draft sections carried `*Source:` pointers. These are **author construction
+A draft section may carry `*Source:` pointers. These are **author construction
 notes**, not citations that appear in the published document.
 
 | Source type | Treatment in published doc |

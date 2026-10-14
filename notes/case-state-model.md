@@ -1,11 +1,18 @@
 ---
 title: Case State Model Notes
 status: active
-description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-only history, and canonical CaseLedgerEntry history."
+kind: guidance
+description: >
+  Rules for working with the CVD case state: where the CS rules live and the
+  legacy reference model's status, which dimensions are per-participant versus
+  per-case, role-gated VF/D writes, the two v→V drive paths, the d→D causal
+  gate, append-only status history, the invite-path RM entry point, and why
+  the compound CS enum stays.
 related_specs:
   - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
   - specs/cs-behavior.yaml
+  - specs/em-behavior.yaml
   - specs/received-status-handling.yaml
   - specs/rm-behavior.yaml
 related_notes:
@@ -15,6 +22,13 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/domain-validation.md
   - notes/case-joining.md
+  - notes/embargo-lifecycle.md
+  - notes/status-dimension-objects.md
+  - notes/lifecycle-staged-types.md
+  - notes/case-ledger-authority.md
+  - notes/sync-ledger-replication.md
+  - notes/documentation-strategy.md
+  - notes/rfc-review-rubric.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -24,625 +38,136 @@ relevant_packages:
 
 # Case State Model Notes
 
-## The Six-Dimensional Case State Model
+The model itself (six dimensions, 32 states, 58 transitions) is documented in
+`docs/topics/process_models/cs/` and `docs/reference/case_states/`; the
+participant-agnostic versus participant-specific split in
+`docs/topics/process_models/model_interactions/index.md`. This note holds the
+rules for changing the code that implements it.
 
-The CVD case state model tracks six binary dimensions, each representing
-whether a key event has occurred:
+## Where the CS Rules Live (ADR-0060)
 
-| Symbol | Meaning |
-|--------|---------|
-| `V/v`  | Vendor is aware (`V`) or unaware (`v`) |
-| `F/f`  | Fix is ready (`F`) or not ready (`f`) |
-| `D/d`  | Fix is deployed (`D`) or not deployed (`d`) |
-| `P/p`  | Public is aware (`P`) or unaware (`p`) |
-| `X/x`  | Exploit is public (`X`) or not public (`x`) |
-| `A/a`  | Attacks have been observed (`A`) or not (`a`) |
+- **Enums**: `vultron/core/states/cs.py`. The 32-member `CS` enum makes the
+  impossible combinations (`vF`, `fD`) unrepresentable; the split sub-machine
+  enums are `CS_vf`, `CS_d`, `CS_pxa` (ADR-0075).
+- **Invariants**: `vultron/core/states/cs_invariants.py` (CSB-17). New code
+  MUST use it and MUST NOT import `vultron/core/case_states/validations.py`.
+  `vultron/core/case_states/` is a reference model and the test oracle for the
+  invariants, not a protocol path.
+- **Cross-dimension combinations**: call `composite_state_violations()` (or,
+  on the emit path, `participant_transition_violations()`), never the
+  individual predicates; ratchet tests enforce this (CSB-17-001, RSH-05-020).
+  After ADR-0075 `*fD*` is representable, so the check is a runtime one.
+- **Transitions delegate to the dimension machines** (`VfDimension`,
+  `DDimension`, `PxaDimension`); only the two ephemeral rules are compound-level
+  logic. Do not re-derive monotonicity at the compound level, or the two drift.
+- **History validity is causal replay.** Use `is_valid_cs_history_prefix()` for
+  live cases; `is_valid_cs_history()` requires all six events.
+- **Ephemeral states**: the six `vP` states must next take `V`, and the six
+  `pX` states must next take `P` (`required_next_cs_events()`, CSB-17-003).
 
-Six binary dimensions give 2^6 = 64 combinations, but **only 32 are valid
-states**: the VFD dimension is a linear chain, not three free bits, so a fix
-cannot be ready while the vendor is unaware (`vF`) and cannot be deployed if it
-was never ready (`fD`). Valid transitions move from lowercase to uppercase
-(events cannot be undone), one dimension at a time; there are exactly **58 valid
-transitions** and **70 valid complete histories** (of 720 orderings). This model
-is the authoritative definition of the "Case State" (CS) dimension in the
-RM/EM/CS state machine triad.
+Do not delete the legacy module (ADR-0060): `cs.py` still uses
+`case_states.validations.ensure_valid_state`, and
+`vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`
+endpoint) still uses `case_states.patterns.potential_actions`. Its potential
+actions are a menu of **possible** actions per CS state, never required ones;
+the decision is left to participant policy.
 
-**Implementation**: `vultron/core/states/cs.py` — enums `VendorAwareness`,
-`FixReadiness`, `FixDeployment`, `PublicAwareness`, `ExploitPublication`,
-`AttackObservation`, plus the `PxaState` named tuple and the
-`CS_vf` (3 members), `CS_d` (2 members), `CS_pxa` (8) and `CS` (32) enums. The 32-member `CS` enum
-is where the two impossible-combination rules live: they are unrepresentable
-rather than rejected at runtime.
+## Participant-Specific vs. Participant-Agnostic State
 
-**Invariants**: `vultron/core/states/cs_invariants.py` — compound transition
-validity, the two ephemeral-state rules, and causal history validity. See the
-rule inventory below and CSB-17 / ADR-0060.
+Mixing these up produces wrong case state.
 
-**Reference paper**: [A State-Based Model for Multi-Party Coordinated
-Vulnerability Disclosure](https://doi.org/10.1184/R1/16416771), CMU/SEI-2021-SR-021.
-
----
-
-## Hypercube Graph Implementation
-
-`vultron/core/case_states/hypercube.py` implements the `CVDmodel` class, which:
-
-- Builds the 32-state DAG (directed acyclic graph) of all 58 valid
-  transitions using NetworkX.
-- Implements random walks through the state space for simulation.
-- Provides scoring functions to measure the "quality" of a CVD case history.
-- Computes statistics over ensembles of histories.
-
-The `CVDmodel` can be used to:
-
-1. Generate the Hasse diagram of case states.
-2. Compute all valid histories (orderings of V, F, D, P, X, A events).
-3. Score a specific history against desirable orderings.
-4. Benchmark a case against random walk baselines.
-
-**Dependencies**: `networkx`, `numpy`, `pandas`.
-
-**Status (ADR-0060)**: `vultron/core/case_states/` is a **reference model, not a
-protocol path**. It is the specification of record for the CS rules and the
-oracle the `cs_invariants.py` tests compare against, but new code MUST NOT
-import `case_states.validations` — use `vultron/core/states/cs_invariants.py`.
-See "Rule Inventory and Legacy Module Status" below.
-
----
-
-## Potential Actions per Case State
-
-`vultron/core/case_states/patterns/potential_actions.py` maps 6-character state
-patterns (e.g., `"...P.."`, `"VfdpX."`) to `Actions` enum values — things a
-participant COULD do when the case is in a given state.
-
-The patterns use regex-like matching where `.` matches either letter of a
-dimension. For example:
-
-- `"...P.."` → public is aware → recommend terminating embargo, publishing vul
-- `"....X."` → exploit is public → publish detection, monitor refinement
-- `".....A"` → attacks observed → publish detection, monitor additional attacks
-
-**Important**: These are menus of **possible** actions, not required actions.
-Actual decisions are left to participant policy. This makes the pattern table
-useful for:
-
-- Future UI design (show actionable suggestions given current state)
-- Future agent design (understand what actions are available)
-- Protocol documentation (explain why transitions matter)
-
-The corresponding documentation is in `docs/reference/case_states/*.md` — one
-file per case state, each listing available actions and context.
-
----
-
-## Rule Inventory and Legacy Module Status
-
-The legacy `vultron/core/case_states/` tree encodes the CS rules as
-six-character strings and regexes. Issue #2237 assessed each rule and
-re-expressed the survivors against the current enums in
-`vultron/core/states/cs_invariants.py`. No rule was found to be *wrong*; the
-verdicts split between *still valid* and *superseded by structure*.
-
-| Legacy rule (`validations.py`) | Verdict | Current expression |
+| Dimension | Scope | Where tracked |
 |---|---|---|
-| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement is via `composite_state_violations()` (`composite_state_invariants.py`), which composes `violation_vf_d_entailment()` with the two RM rules. The received path (`_adjudicate_dimensions`) and the replica-apply path (`ApplyParticipantStatusFromLedgerNode`, RSH-05-021) call it directly; since ADR-0086 the emit path reaches it as one member of the wider `participant_transition_violations()` rule set, which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` call. Ratchet tests forbid any of them from calling the individual predicates. See [notes/received-status-authorization.md](received-status-authorization.md) § "Independent adjudication cannot see a combination". CSB-17-001, RSH-05-020 |
-| `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
-| `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
-| `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |
-| `TRANSITION_RULES`: `v..P.. → V..P..` | Still valid; SM-09-001 already required it at the persistence boundary, with only the legacy module implementing it | `required_next_cs_events()`, CSB-17-003 (which `refines` SM-09-001) |
-| `is_valid_history`: `V≺F≺D`, `P≺X`/`XP`, `V≺P`/`PV` | Still valid — the most valuable rule in the module | `is_valid_cs_history()`, `is_valid_cs_history_prefix()`, `replay_cs_history()`, CSB-17-004 (complete) and CSB-17-005 (prefixes) |
-| `is_valid_pattern` and the `.`-wildcard pattern language | **Superseded** | Enum membership tuples (`VFD_VENDOR_AWARE`, `PXA_EXPLOIT_PUBLIC`, …) plus the `is_*` predicates |
-| `hypercube.py` scoring, tf-idf, pagerank, `DESIDERATA` | Analytical, not normative | Stays in `hypercube.py`; no protocol path needs it |
+| RM | Per participant | `ParticipantStatus.rm` |
+| VF (vendor path) | Per participant, VENDOR only | `ParticipantStatus.vf` |
+| D (deployer path) | Per participant, DEPLOYER only | `ParticipantStatus.d` |
+| EM | Per case | Derived from the embargo register (ADR-0122) |
+| PXA | Per case | `CaseStatus.pxa_state` |
 
-Two re-expression choices worth knowing:
+- An RM or VF/D transition updates the **sending actor's** `CaseParticipant`;
+  a PXA transition updates the shared `CaseStatus`.
+- EM is never set on a status: it is derived from the case's embargo register
+  and stamped onto `current_status`; `append_case_status(em_state=...)` is
+  refused (ADR-0122).
 
-- **Transitions delegate to the dimension machines** rather than re-deriving
-  monotonicity, so compound-level validity cannot drift from what
-  `VfDimension` / `DDimension` / `PxaDimension` enforce. Only the two ephemeral rules are new
-  logic at the compound level.
-- **History validity is causal replay, not index comparison.** Replaying the
-  event sequence from `CS.vfdpxa` is provably equivalent to the legacy ordering
-  predicates (the tests assert this over all 720 permutations) but also
-  generalises to **prefixes** — which matters because real cases are usually
-  still in progress. Use `is_valid_cs_history_prefix()` for live cases;
-  `is_valid_cs_history()` requires all six events.
+### Role-gated VF and D writes
 
-**Ephemeral states.** Twelve of the 32 compound states are ephemeral: the six
-`vP` states (public aware, vendor unaware → next event MUST be `V`) and the six
-`pX` states (exploit public, public unaware → next event MUST be `P`). The two
-conditions are mutually exclusive, so each ephemeral state has exactly one valid
-successor.
+`ParticipantStatus` auto-seeds `vf` for a VENDOR and `d` for a DEPLOYER, but
+does **not** raise on a stray dimension. Role authorization is enforced at the
+guard layer against the participant's authoritative `case_roles`:
 
-**Legacy module status: keep, demoted (ADR-0060).** `validations.py` and
-`hypercube.py` are retained as the reference model and as the test oracle that
-proves the re-expression faithful over the whole state space. Retirement is
-deliberately deferred and gated on two migrations:
+- **Trigger / emit path** (fail-closed): `ValidateTriggerTransitionsNode` and
+  the role guards on the add-participant-status trigger tree (BTND-10-001,
+  CSB-15-001/002).
+- **Receive path** (partial accept, offending dimension carried forward):
+  `vultron/core/behaviors/status/nodes/_adjudication.py` (RSH-05-001/002).
 
-1. `vultron/core/states/cs.py` must stop importing
-   `case_states.validations.ensure_valid_state` (four decorated string helpers
-   need an enum-native validator).
-2. `vultron/core/use_cases/query/action_rules.py` must stop importing
-   `case_states.patterns.potential_actions` — which is also the live
-   `actors_get_action_rules` endpoint's only source.
+Do not move the check into the model. The extractor builds a
+`ParticipantStatus` from the sender's untrusted self-reported role, so a
+construction-time raise would turn the receive path's partial accept into
+whole-object rejection (ADR-0075; `notes/domain-validation.md`).
 
-As of PR #2479, `cs_invariants.py` is wired into the BT write paths:
-`is_valid_cs_transition` (AC-3 / SM-09-002) is enforced in
-`CreateParticipantStatusNode`, and pX→PX / vP→VP promotion (AC-1 / SM-09-001)
-is enforced in `CreateParticipantStatusNode`, `AppendCaseStatusToCaseNode`, and
-`EmitCaseStatusUpdateNode`. Receive-path history validation is wired too
-(#2524): `CheckCsHistoryPrefixNode`
-(`core/behaviors/status/nodes/cs_invariant_guards.py`) checks each received CS
-event with `is_valid_cs_history_prefix` against the current state.
+### `v→V` has two authorized drive paths
 
----
-
-## Measuring CVD Process Quality
-
-Based on the research paper [*A State-Based Model for Multi-Party CVD*](
-https://www.sei.cmu.edu/documents/1952/2021_003_001_737890.pdf), the
-`hypercube.py` module implements a framework for measuring the quality of a
-CVD process by analyzing the order in which case state events occur.
-
-Documentation in `docs/topics/measuring_cvd/` covers:
-
-- `benchmarking.md` / `benchmarking_mpcvd.md` — how to compare a case history against baselines
-- `desirable_histories.md` — which event orderings are considered "good"
-- `discriminating_skill_and_luck.md` — statistical methods for separating skill from chance
-- `possible_histories.md` — enumeration of all valid event sequences
-- `random_walk.md` — using random walks as a null hypothesis baseline
-- `reasoning_over_histories.md` — how to draw conclusions from history analysis
-
-**Future application**: Applying these scoring techniques to `VulnerabilityCase`
-objects and their event history logs would provide quantitative quality metrics
-for the CVD process. This is not high priority for the prototype but would be
-a valuable analytical capability.
-
-**Prerequisite**: The `VulnerabilityCase` object's activity/event history
-needs to be in a format that `hypercube.py` can consume. This likely requires
-a translation layer from ActivityStreams history to the `(V, F, D, P, X, A)`
-event sequence format expected by `CVDmodel`.
-
----
-
-## Participant-Specific vs. Participant-Agnostic States
-
-This distinction is **vitally important** for implementation correctness. Mixing
-up which states belong to a single participant versus which states are shared
-across all participants in a case leads to incorrect modeling and protocol
-behavior.
-
-### The Split
-
-| State dimension | Participant-Specific or Agnostic? | Where tracked |
-|-----------------|----------------------------------|---------------|
-| RM state | **Participant-specific** | `ParticipantStatus.rm` |
-| VF (Vendor Awareness / Fix Ready) path | **Participant-specific** (VENDOR role only; `None` for others) | `ParticipantStatus.vf` |
-| D (Fix Deployed) path | **Participant-specific** (DEPLOYER role only; `None` for others) | `ParticipantStatus.d` |
-| EM (Embargo Management) state | **Participant-agnostic** (global per case) | `CaseStatus.em_state` |
-| PXA (Public/Exploit/Attack) sub-state | **Participant-agnostic** (global per case) | `CaseStatus.pxa_state` |
-
-In the Mermaid diagram from `docs/topics/process_models/model_interactions/index.md`:
-
-```text
-Participant-Agnostic: EM ↔ CS_pxa
-Participant-Specific: RM ↔ CS_vf (vendor path) + CS_d (deployer path)
-```
-
-The vendor and deployer paths are **structurally separated** into two
-independently nullable fields: `ParticipantStatus.vf` carries the vendor path
-and `ParticipantStatus.d` the deployer path. A `model_validator` on
-`ParticipantStatus` (`_enforce_role_dimension_invariant`, `mode="before"`)
-*auto-seeds* the applicable dimension for a VENDOR or DEPLOYER role, so a
-role-consistent object is produced by construction. It does **not**, however,
-raise on a stray dimension — role *authorization* is enforced at the guard
-layer, not at construction (see [Role-Specific VFD Access](#role-specific-vfd-access)).
-
-### Implementation: CaseStatus vs. ParticipantStatus
-
-The canonical Python implementation is in
-`vultron/wire/as2/vocab/objects/case_status.py`:
-
-**`CaseStatus`** — participant-agnostic, one per case:
-
-- `em_state: EM` — Embargo management state (default `EM.NONE`)
-- `pxa_state: CS_pxa` — Public/exploit/attack sub-state (default `CS_pxa.pxa`)
-- `context` — references the `VulnerabilityCase` this status belongs to
-
-**`ParticipantStatus`** — participant-specific, one per (actor × case) pair:
-
-- `rm: RmDimension` — Report management state (default `RM.START`)
-- `vf: VfDimension | None` — Vendor-path sub-state (`CS_vf`: `vf` → `Vf` → `VF`);
-  auto-seeded for VENDOR participants, `None` by default otherwise
-- `d: DDimension | None` — Deployer-path sub-state (`CS_d`: `d` → `D`);
-  auto-seeded for DEPLOYER participants, `None` by default otherwise
-- `actor` — references the participant Actor
-- `context` — references the `VulnerabilityCase`
-- `case_engagement: bool` — whether participant is engaged
-- `tracking_id: str | None` — participant's local tracking ID for the case
-- `case_status: CaseStatus | None` — optionally embeds the shared case status
-
-Note that `ParticipantStatus` MAY embed a `CaseStatus` for convenience when
-presenting the full participant state, corresponding to the formal protocol's
-participant state tuple `(q^rm, q^em, q^cs)`.
-
-### Role-Specific VFD Access
-
-The `vf` and `d` fields are auto-seeded by participant role. The
-`model_validator` on `ParticipantStatus` (`_enforce_role_dimension_invariant`,
-`mode="before"`) seeds the applicable dimension when the corresponding role is
-present and the dimension is absent:
-
-| Role(s) | `vf` (auto-seeded default) | `d` (auto-seeded default) |
-|---------|------|-----|
-| VENDOR only | `VfDimension()` (non-None) | `None` |
-| DEPLOYER only | `None` | `DDimension()` (non-None) |
-| VENDOR + DEPLOYER | `VfDimension()` (non-None) | `DDimension()` (non-None) |
-| Finder / Reporter / Coordinator / Observer | `None` | `None` |
-
-The seeding covers the common case (a role-consistent status is produced
-automatically), but the model **does not enforce the reverse direction**: it
-will *not* raise if a caller explicitly attaches a `vf` to a non-VENDOR status
-or a `d` to a non-DEPLOYER status. Role *authorization* is enforced at the
-guard layer, against the acting participant's **authoritative** `case_roles`,
-on both write paths:
-
-- **Trigger / emit path** (fail-closed — the whole write is refused):
-  `ValidateTriggerTransitionsNode._check_vf_role` and the
-  `CheckVendorRoleNode` / `CheckDeployerRoleNode` / `CheckNotSoleObserverVfdNode`
-  guards on the add-participant-status trigger tree (BTND-10-001, CSB-15-001,
-  CSB-15-002, CM-25-005).
-- **Receive path** (partial-accept — only the offending dimension is refused
-  and the current value carried forward): `_adjudicate_vf` / `_adjudicate_d`
-  in `vultron/core/behaviors/status/nodes/_adjudication.py` (RSH-05-001/002).
-
-This split is deliberate. The wire→core extractor
-(`vultron/wire/as2/extractor/_builders.py`) builds a `ParticipantStatus` from
-the sender's *untrusted, self-reported* `cvd_role`. A construction-time raise
-would fire inside that boundary and turn the receive path's per-dimension
-partial-accept into whole-object rejection — breaking the emit/receive Postel
-asymmetry documented in `notes/domain-validation.md` (do not "reconcile" the
-two paths). See issue #2860 and [ADR-0075](../docs/adr/0075-split-vfd-state-machine.md).
-
-The previous single-field `vfd: VfdDimension` (using `CS_vfd` with 4 states
-`vfd → Vfd → VFd → VFD`) is replaced by these two nullable fields. The old
-`CS_vfd.vfd` "null element" workaround for non-applicable participants is
-superseded by the two independently nullable fields (`None` = path absent).
-
-### Consequence for Handler Implementation
-
-When handlers process incoming Activities:
-
-- **RM state transitions** (e.g., `engage_case`, `defer_case`):
-  Update `ParticipantStatus.rm` for the **sending actor's**
-  `CaseParticipant`.
-- **VFD transitions** (e.g., a vendor signaling fix readiness):
-  Advance `ParticipantStatus.vf` (for VENDOR actors) or `ParticipantStatus.d`
-  (for DEPLOYER actors) on the **sending actor's** `CaseParticipant`. Only the
-  applicable dimension is non-None; the other remains `None` (structural).
-- **EM transitions** (e.g., `accept_embargo`):
-  Update `CaseStatus.em_state` — this is **shared** and affects all
-  participants.
-- **PXA transitions** (e.g., public disclosure, exploit publication):
-  Update `CaseStatus.pxa_state` — this is **shared** state of the world.
-
-Getting this wrong — e.g., updating `CaseStatus.em_state` with a
-participant-specific value, or forgetting to scope RM updates to the correct
-participant — would produce incorrect case state representations.
-
-### `v→V` Transition: Two Authorized Drive Paths
-
-The `v→V` transition (vendor becomes aware of a vulnerability) has two authorized
-drive paths. This is different from `f→F` and `d→D`, which are strictly
-self-reports by the role that performed the action.
-
-**Path 1 — Vendor self-report**: An actor holding the Vendor role MAY assert their
-own `v→V` transition. A vendor who is posting to a case is by definition already
-aware of the issue, so asserting `v` (unaware) for themselves would be logically
-contradictory. They would therefore only ever emit this transition, never the
-starting state.
-
-**Path 2 — Third-party assertion by the reporting party**: The actor who submitted
-the report to the vendor, or who invited the vendor to the case, MAY assert `v→V`
-on the vendor's behalf. The reasoning: delivering a report constitutes providing the
-vendor with an opportunity to see the information. Awareness is defined as having
-received the information, not as having acknowledged or agreed with it. The sending
-party has direct knowledge of when they delivered the information — this is the
-basis for their authority to assert the transition.
-
-This design was established during planning for issue #3255 and is the basis for
-the normative text in §12.4.1 of the protocol specification. The edge cases (vendor
-disputing third-party assertion of awareness; whether transport-level delivery
-success alone suffices to constitute receipt) remain open and are tracked as
-an open question in the protocol specification, stated inline at §12.4.1
+The vendor may self-report `v→V`, and the party that delivered the report to
+the vendor (or invited it) may assert `v→V` on its behalf, because awareness
+means having received the information. `f→F` and `d→D` are self-reports only.
+The on-behalf path is the add-on-behalf-status trigger, which permits only
+`v→V` for a vendor (`vultron/core/use_cases/triggers/request_bodies.py`). The
+dispute edge cases are an open question in protocol spec §12.4.1
 (`docs/reference/vultron-spec/_oq-v-to-V.md`).
 
-**Contrast with `f→F` and `d→D`**: Fix-readiness (`f→F`) is a vendor
-self-declaration that they have produced a fix; no third party can assert this on
-their behalf. Fix-deployment (`d→D`) is similarly deployer-only. Vendor awareness
-(`v→V`) differs because awareness of a delivered report is an external, observable
-fact from the sender's perspective.
+### DEPLOYER `d→D` needs some vendor at VF (CSB-15-004)
 
-**Implementation note**: `v→V` has no trigger-side specification or BT node in the
-current implementation. The drive-path design above is settled; the implementation
-work is unstarted. See issue #3255 AC notes.
+A DEPLOYER may advance `d→D` only when at least one VENDOR in the case is at
+`CS_vf.VF`. `CheckSomeVendorAtVFNode` enforces it on both the direct and
+on-behalf trigger trees. The gate is deliberately case-wide, not per vendor
+(Concern #2665).
 
-### CSB-15-004 Causal Gate: DEPLOYER-only d→D
+## Status Lists Are Append-Only History
 
-A DEPLOYER-only participant (holds `CVDRole.DEPLOYER`, `vf=None`) may advance
-`d.state` from `CS_d.d` to `CS_d.D` only when at least one VENDOR participant
-in the same case has `vf.state=CS_vf.VF` (fix-ready). This causal gate prevents
-a deployer from recording fix deployment before any vendor has produced a fix.
+- `VulnerabilityCase.case_status` and `CaseParticipant.participant_status` are
+  append-only lists. The current entry is the one with the latest `updated`
+  timestamp; items may arrive out of order. Use `current_status`, never list
+  indexing.
+- A status update carrying a future timestamp is an error.
+- The CASE_MANAGER's trusted timestamp for a state-changing event is its
+  `CaseLedgerEntry` commit, not an edit to the object's own timestamp, which
+  would break the append-only history (CM-02-009).
 
-Implemented in PR #3197 (closes #3109):
+## Invite-Path Participants Enter at RM.RECEIVED
 
-- **Predicate**: `some_vendor_at_vf(participants: list[CaseParticipant]) -> bool`
-  in `vultron/core/predicates/participants.py`. Pure function; no I/O.
-- **BT node**: `CheckSomeVendorAtVFNode` in
-  `vultron/core/behaviors/case/nodes/vfd_role_guards.py`. Reads all case
-  participants from the DataLayer via `_collect_all_participants` (indexed fast
-  path then `case_participants` fallback) and delegates to the predicate.
-- **BT wiring (direct path)**: in `add_participant_status_trigger_tree.py`, when
-  `d_state` is non-None the sequence is `CheckDeployerRoleNode` (role check) →
-  `CheckSomeVendorAtVFNode` (causal precondition) → `ValidateTriggerTransitionsNode`
-  → `CreateParticipantStatusNode` → emit.
-- **BT wiring (on-behalf path)**: in `add_on_behalf_status_trigger_tree.py`, when
-  `d_state` is non-None `CheckSomeVendorAtVFNode` is inserted after
-  `CheckOnBehalfTargetIsParticipantNode`, applying the same causal gate when a
-  CASE_MANAGER asserts d→D on behalf of an existing DEPLOYER participant.
+An invitee's participant record is created inert at `RM.RECEIVED` when the
+CASE_MANAGER sends the stub Invite (CM-11-006), and the stub `Accept` moves no
+RM state (CM-11-001). Accepting a stub agrees to join and to the embargo; it is
+not a judgement of a case the actor has not seen, so recording `RM.VALID` or
+`RM.ACCEPTED` there is wrong. RM then advances only on the participant's own
+reply to the full-case Invite and its `Join`/`Ignore`. This applies to
+post-initialization invitees, not the participants created during case
+initialization (CM-12, CM-13). Full flow: [case-joining.md](case-joining.md).
 
-The gate is generic — "some vendor at VF" — because per-deployer/per-vendor
-dependency tracking is intentionally out of scope (Concern #2665).
+## Case-Level Action Rules Aggregate Across Participants
 
-### Key Reference Documents
+A case-level rule (CASE_MANAGER or case owner perspective) MUST aggregate over
+all relevant participants: for example, an `EMBARGO_END` trigger MUST NOT fire
+because one vendor reached `FIX_READY` while others have not. Participant-level
+rules evaluate one participant's state. No aggregation threshold is specified
+("all engaged vendors at `FIX_READY`" versus "≥X% of vendors"); do not hard-code
+one in a node. It needs a spec, or a call-out that delegates the judgment.
 
-The following documents explain this distinction in depth and MUST be
-consulted when implementing state-related handlers or BT nodes:
+## CS Representation: Keep the Compound Enum
 
-- `docs/topics/process_models/model_interactions/index.md` — canonical
-  explanation of the participant-agnostic vs. participant-specific split
-- `docs/reference/activitypub/objects.md` — how objects are structured in the
-  ActivityStreams vocabulary
-- `docs/topics/case_lifecycle/case_model.md` — the case model as implemented
-  (`docs/howto/case_object.md` is now a moved stub pointing here)
-- `docs/topics/behavior_logic/msg_cs_bt.md` — behavior tree logic for CS
-  message handling
-- `docs/topics/process_models/cs/index.md` — CS model overview
-- `docs/topics/process_models/cs/transitions.md` — CS transitions, diagrams, and
-  grammar
-- `docs/reference/formal_protocol/states.md` — formal participant state space;
-  per-role state-space counts are in
-  `docs/topics/measuring_cvd/state_space_size.md`
-- `docs/reference/formal_protocol/conclusion.md` — protocol design conclusions
+Do not introduce a `CaseState(BaseModel)`. `CS` is already
+`CompoundState(CS_vf, CS_d, CS_pxa)`; core code consumes the split enums
+(ADR-0075), the monolithic enum serves the legacy `vultron/bt/` simulator, and
+the ADR-0036 dimension objects already give a structured per-dimension view. A
+second structure would duplicate that surface. Likewise, explicit transition
+constructors stay rejected until the ADR-0033 reopen bar is met (see
+[lifecycle-staged-types.md](lifecycle-staged-types.md)).
 
----
+## A Replica Applies the Ledger, It Does Not Re-Derive (CM-23-016)
 
-## CaseStatus and ParticipantStatus as Append-Only History
-
-The `case_status` field on `VulnerabilityCase` is an **append-only list** of
-`CaseStatus` objects representing the full history of case status changes. Key
-rules for correct handling:
-
-- The **current** case status is the `CaseStatus` with the **latest `updated`
-  timestamp**. Sort by timestamp to determine the current status; do not assume
-  list order.
-- Items may arrive out of order (e.g., delayed network messages), so timestamp
-  sorting is always required.
-- It is an error for a status update to carry a timestamp in the future.
-- Use `VulnerabilityCase.current_status` (a property that returns the
-  most-recent `CaseStatus` sorted by `updated` timestamp) when you need the
-  active status; avoid direct list indexing.
-
-The same pattern applies to `CaseParticipant.participant_status`: each
-`ParticipantStatus` is an append-only history entry, and the current
-participant status is the entry with the latest timestamp.
-
-**CASE_MANAGER trusted timestamp principle** (see `CM-02-009`): The CASE_MANAGER
-MUST apply its own timestamp to every state-changing event it receives —
-not just embargo acceptances, but also participant joins, notes, status
-updates, and any other activity that modifies canonical case state.
-Using participant-supplied timestamps would allow different copies of a
-case (held by different actors) to disagree on event ordering, undermining
-auditability and the single-source-of-truth guarantee provided by CM-02-002.
-
-**Implementation note**: EM is not set on a status at all. It is derived from
-the case's embargo register (ADR-0122), and the case stamps the derived value
-onto `current_status`; `append_case_status(em_state=...)` is refused.
-
-**Trusted timestamp implementation note**: When the spec says the CASE_MANAGER
-must timestamp state-changing events on receipt, this does NOT mean modifying
-the `updated_at` field on the receiving or participating object. It means
-the CASE_MANAGER records the event to the canonical `CaseLedgerEntry` hash
-chain. The distinction matters: modifying an existing object's timestamp
-would break the append-only history invariant and allow event-ordering
-disagreements across actor copies.
-
-**Cross-reference**: `vultron/wire/as2/vocab/objects/vulnerability_case.py`
-(the `current_status` property),
-`vultron/wire/as2/vocab/objects/case_status.py`.
-
----
-
-## RM and EM State Machines (Cross-Reference)
-
-Case State (CS) is one of three interacting state machines:
-
-- **RM (Report Management)**: Per-participant; tracks `RECEIVED → VALID →
-  INVALID → ACCEPTED → DEFERRED → CLOSED` lifecycle. Tracked in
-  `CaseParticipant.participant_status[].rm_state`.
-- **EM (Embargo Management)**: Shared across case participants; tracks
-  `NONE → PROPOSED → ACTIVE → REVISE → EXITED`. Tracked in
-  `CaseStatus`. Note: `Accept` is an **activity type** that triggers the
-  `PROPOSED → ACTIVE` (or `REVISE → ACTIVE`) transition — it is not itself a
-  state. See `vultron/bt/embargo_management/states.py`.
-- **CS (Case State)**: The 6-dimensional VFD/PXA hypercube described above.
-
-See `docs/topics/process_models/rm/`, `docs/topics/process_models/em/`, and
-`docs/topics/process_models/cs/` for process model documentation. See
-`docs/reference/formal_protocol/` for formal state machine definitions with
-transition rules.
-
----
-
-## Case Lifecycle Stages: Caterpillar / Butterfly (RM-state framing)
-
-A durable metaphor for the RM-state progression of a case:
-
-- **Caterpillar** = `RM.RECEIVED` or `RM.INVALID` — the case/work exists but has
-  not yet been validated.
-- **Butterfly** = `RM.VALID`, `RM.ACCEPTED`, or `RM.DEFERRED` — validated and
-  actionable.
-- **Terminal** = `RM.CLOSED` (regardless of path).
-
-Work genuinely happens in both stages, and participants exist in both.
-
-> Note: the earlier "Implemented Lifecycle (per ADR-0015)" description — which
-> created a `VulnerabilityCase` at report receipt — is superseded by ADR-0041
-> (the receiver holds no interim `VulnerabilityCase`). See
-> [notes/case-proposal.md](case-proposal.md) and
-> [notes/case-bootstrap-trust.md](case-bootstrap-trust.md) § "ADR-0041 Update".
-
-## Invite-Path Participant RM Entry Point
-
-> **Source**: CONCERN-1756. Corrects CM-11-001 and `CreateInviteeParticipantAtAcceptedNode`.
-
-Participants who join a case via the invite path sit at **RM.RECEIVED** until
-they judge the case, never RM.ACCEPTED. This is a protocol-correctness
-requirement, not merely a demo-visibility gap. ADR-0114 and ADR-0121 refine it
-into two Invites; the full flow is in [case-joining.md](case-joining.md).
-
-### Why Accept(Invite(stub)) ≠ RM.ACCEPTED
-
-When an actor sends `Accept(Invite(actor, VulnerabilityCaseStub))`, they have
-seen only the case stub — enough to agree to join and consent to the embargo,
-but not the full vulnerability details (report, description, affected
-versions, etc.). The full case is replicated to them *after* the CASE_MANAGER
-processes their Accept. Therefore:
-
-- `Accept(Invite(stub))` = "I am joining this case and accept its embargo
-  terms."
-- It does NOT mean "I have validated the vulnerability" (RV) or "I have
-  committed to remediation" (RA).
-
-Recording the participant at RM.ACCEPTED — or RM.VALID — on the stub Accept is
-incorrect, because both are judgements of a case the actor has not yet seen.
-
-### Correct Lifecycle for Invited Participants
-
-1. CASE_MANAGER sends the stub Invite and, in the same step, creates the
-   invitee's participant record, inert, at **RM.RECEIVED** (CM-11-006).
-   `Reject(Invite(stub))` closes that kept record, `R → C` (CM-11-007,
-   RMB-14-004).
-2. On `Accept(Invite(stub))` RM stays at RECEIVED (CM-11-001). The CASE_MANAGER
-   replicates the full `VulnerabilityCase` via `Announce(VulnerabilityCase)`
-   and ledger replay (CM-11-008).
-3. CASE_MANAGER sends the **full-case Invite** `Invite(Actor,
-   VulnerabilityCase)`, queued after the last replayed entry, carrying its
-   ledger position (CM-11-010).
-4. The participant reviews the full case and replies to the full-case Invite:
-   `Accept` → **RM.VALID**, `TentativeReject` → **RM.INVALID**, `Reject` →
-   **RM.CLOSED**; the reply carries its own ledger position (CM-11-011,
-   CM-11-012). It never answers the original `Offer(VulnerabilityReport)`
-   (CM-11-020).
-5. If valid, the participant decides to engage or defer with
-   `Join(VulnerabilityCase)` (**RM.ACCEPTED**) or `Ignore(VulnerabilityCase)`
-   (**RM.DEFERRED**) (CM-11-002, CM-11-004).
-
-### Scope Boundary
-
-This rule applies to **post-initialization invitees** only — participants added
-to an existing case via an Invite. It does not apply to the initial reporter
-and receiver participants created during case initialization (CM-12, CM-13),
-whose RM states are set as part of the case creation sequence.
-
-### Implementation
-
-- **`CreateInertInviteeParticipantNode`** creates the invitee's participant
-  when the CASE_MANAGER sends the stub Invite (CM-11-006), at `RM.RECEIVED`
-  (ADR-0089 birth: construct → attach → advance, through the sole writer
-  `CreateParticipantStatusNode`). The stub `Accept` moves no RM state
-  (CM-11-001).
-- The accept-invite tree creates no participant. `InviteeHasParticipantRecordNode`
-  refuses, before any write, an Accept whose invitee has no record (CM-11-021);
-  `ActivateInviteeParticipantNode` marks the inert record joined.
-- The participant's subsequent RM transitions are driven by messages from the
-  participant itself — its full-case Invite reply and then `Join`/`Ignore`.
-
-**Normative requirements**: `specs/case-management.yaml` CM-11-001 through
-CM-11-016.
-
----
-
-## Multi-Vendor Case State Action Rules
-
-When implementing the case state action rules (see `specs/agentic-readiness.yaml`
-and `specs/case-management.yaml`), the rules must distinguish two perspectives:
-
-1. **Participant-specific rules**: Evaluated against a single participant's
-   RM/VFD state (applies to each vendor independently).
-2. **Case-level rules (CASE_MANAGER / Case Owner perspective)**: Must aggregate
-   across all relevant participants. For example, an `EMBARGO_END` trigger
-   MUST NOT be based on a single vendor reaching `FIX_READY` when other
-   vendors have not.
-
-**Design decision**: (open) Threshold heuristics for multi-vendor rules
-(e.g., "all engaged vendors in FIX_READY", "≥X% of vendors with FIX_READY")
-need to be formally specified. A cognitive agent delegating the judgment
-call is an alternative to fixed heuristics.
-
-**See**: `specs/agentic-readiness.yaml` and `specs/case-management.yaml` for
-the CVD action rules; `notes/bt-fuzzer-nodes.md` for related external
-touchpoints.
-
----
-
-## CS Representation: Keep the Compound Enum (do not introduce `CaseState(BaseModel)`)
-
-**Decision (CONCERN-2099, planning group G06 / #2834):** The case-state
-representation stays as it is. The top-level `CS` enum in
-`vultron/core/states/cs.py` is already composed from the two sub-machine enums —
-it is `CompoundState(CS_vf, CS_d, CS_pxa)` yielding the 32 reachable states — which is
-exactly the decomposition the long-standing `# TODO consider replacing this with
-a combination of VfdState and PxaState / either directly or just creating
-CaseState(BaseModel)` comment contemplated. That TODO is now **resolved by the
-code that already exists**, and the resolution is "keep the compound enum," so
-the stale TODO is to be retired (tracked as a small follow-on Task under
-Epic #2684).
-
-Why not a `CaseState(BaseModel)` structured model:
-
-- New `vultron/core/` protocol code already consumes the **split** sub-machine
-  enums directly (`CS_vf` / `CS_d` / `CS_pxa`, per ADR-0075). It does not reach
-  for the monolithic `CS`.
-- The monolithic 32-member `CS` enum is retained mainly for the legacy
-  `vultron/bt/` simulator, which indexes states as compound labels. Replacing it
-  with a Pydantic model would churn the legacy simulator for no core benefit.
-- Structured, per-dimension decomposition of live status already exists via the
-  **ADR-0036 dimension objects** on `CaseStatus` / `ParticipantStatus`. A second
-  structured representation (`CaseState(BaseModel)`) would duplicate that surface
-  and create a divergence risk with no consumer that needs it.
-
-**Companion verdict (CONCERN-1912):** explicit transition constructors are **not**
-adopted; the field-mutation write path is retained. ADR-0033 already rejected
-transition constructors as a second write path and set the bar for reopening the
-question — the migration audit must show the field-mutation path is error-prone in
-practice (concretely, ≥2 distinct field-mutation error classes at promotion
-sites). The staged types now exist (`vultron/core/models/staged_case.py`:
-`IncomingReport` / `Case` / `EmbargoedCase`), so the migration is substantially
-real, but no such error evidence has surfaced. The ADR-0033 reopen precondition is
-therefore unmet and #1912 resolves to "no change." See
-`notes/lifecycle-staged-types.md`.
-
-**See**: `docs/adr/0033-lifecycle-staged-case-types.md`,
-`docs/adr/0036-status-dimension-objects.md`,
-`docs/adr/0075-split-vfd-state-machine.md`; `vultron/core/states/cs.py`.
-
-## Replica Principle (2026-10-02 audit, CM-23-016)
-
-A participant's replica of a case is `case(t0)` plus the ledger entries that
-followed it. A replica applies the transitions the ledger records; it never
-re-derives a transition by walking the RM table (#4091). The RM table (including
-the `R → C` row, `Leave` from V as `V → D → C`, and from S as `S → R → C`,
-ratified in ADR-0114) governs what the CASE_MANAGER may commit, not what a
-replica may infer. Closure semantics (CM-23-002/013/014, #4065/#4066) await a
-separate maintainer decision and are unchanged here.
+A participant's replica is `case(t0)` plus the ledger entries that followed.
+It applies the transitions the ledger records and never re-derives one by
+walking the RM table: the table governs what the CASE_MANAGER may commit, not
+what a replica may infer.

@@ -17,12 +17,16 @@
 
 Covers CM-23-002 (owner Leave) and CM-23-003 (non-owner Leave) across:
 
-1. The Case Actor's direct receive path (``create_close_case_received_tree``).
-2. The fan-out replica path (``ApplyCloseCaseFromLedgerNode`` via announce tree).
+1. The Case Actor's direct receive path (``create_close_case_received_tree``),
+   which commits ``close_case`` and then one status entry per RM step it
+   writes for each closing actor (CM-23-001, CM-23-002, CM-23-005).
+2. The replica path: the announce tree applies those status entries, and the
+   ``close_case`` entry alone changes no RM state (CM-23-001, CM-23-016).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import cast
 from unittest.mock import MagicMock
@@ -33,15 +37,19 @@ import pytest
 from test.support.embargo_register import (
     activate,
     propose,
+    reject,
     terminate,
     write_consent_rows,
 )
+from test.support.ledger import fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.config.actor import ActorConfig, PostCloseReply
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -67,17 +75,24 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -220,6 +235,22 @@ def _seed_rm(dl: SqliteDataLayer, actor_id: str, rm_state: RM) -> None:
     dl.save(participant)
 
 
+def _participant_id_for(dl: SqliteDataLayer, actor_id: str) -> str:
+    case = dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    return case.actor_participant_index[actor_id]
+
+
+def _announced(
+    sync_mock: MagicMock,
+) -> list[tuple[CaseLedgerEntry, list[str]]]:
+    """``(entry, to)`` for each ``send_announce_log_entry`` call, in order."""
+    return [
+        (c.kwargs["entry"], list(c.kwargs["to"]))
+        for c in sync_mock.send_announce_log_entry.call_args_list
+    ]
+
+
 def _latest_rm(dl: SqliteDataLayer, actor_id: str) -> RM | None:
     """Return the actor's most-recent RM state, or None if it has no status."""
     states = _participant_rm_states(dl, actor_id)
@@ -242,6 +273,25 @@ def _participant_rm_states(dl: SqliteDataLayer, actor_id: str) -> list[RM]:
         for ps in participant.participant_statuses
         if hasattr(ps, "rm") and ps.rm is not None
     ]
+
+
+def _case_file(dl: SqliteDataLayer, actor_id: str) -> tuple[object, ...]:
+    """What a closure writes for *actor_id*: its record and every status.
+
+    The participant record in full and the ids of the actor's
+    ``ParticipantStatus`` records in the store, so a test can assert a failed
+    closure left both as they were (CLP-07-013).
+    """
+    participant = dl.read(_participant_id_for(dl, actor_id))
+    assert isinstance(participant, CaseParticipant)
+    return (
+        participant.model_dump(mode="json"),
+        sorted(
+            o.id_
+            for o in dl.list_objects("ParticipantStatus")
+            if isinstance(o, ParticipantStatus) and o.attributed_to == actor_id
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +320,7 @@ class TestOwnerLeaveReceivePath:
         dl = _make_full_dl()
         result = CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -288,6 +339,7 @@ class TestOwnerLeaveReceivePath:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -309,6 +361,7 @@ class TestOwnerLeaveReceivePath:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -328,6 +381,7 @@ class TestOwnerLeaveReceivePath:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -367,6 +421,7 @@ class TestOwnerLeaveReceivePath:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -401,7 +456,8 @@ class TestOwnerLeaveReceivePath:
         """The CaseActor's RM.CLOSED entry is committed before case_fully_closed.
 
         CM-23-002 orders the sequence: advancing the CASE_MANAGER is step 2 and
-        ``case_fully_closed`` is the final entry, which is precisely why this is
+        ``case_fully_closed`` is the write boundary that must follow it
+        (CM-23-013), which is precisely why this is
         committed synchronously in the receive tree rather than emitted as a
         self-addressed ``Add(ParticipantStatus)`` through the CLP-10-001
         loopback — that is an outbox background task and could not honour the
@@ -411,6 +467,7 @@ class TestOwnerLeaveReceivePath:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -444,57 +501,74 @@ class TestOwnerLeaveReceivePath:
             f" {fully_closed_idx}"
         )
 
-    @pytest.mark.spec("CM-23-002")
-    def test_owner_leave_case_fully_closed_fanout_includes_all_non_case_actor(
+    @pytest.mark.spec("CM-23-002", "CM-23-004")
+    def test_owner_leave_case_fully_closed_fanout_skips_closed_participants(
         self,
     ):
-        """Owner Leave: case_fully_closed fan-out reaches all participants except the sending CaseActor.
+        """Owner Leave: case_fully_closed reaches only participants not CLOSED.
 
-        ``FanOutLogEntryNode`` excludes only ``self.actor_id`` (the CaseActor); it does NOT
-        filter by RM state.  The ``case_fully_closed`` entry is the replica-completeness
-        termination signal and must reach all replicas regardless of their RM state so every
-        participant learns the case is fully closed.
+        The Case Owner is at ``RM.CLOSED`` once its own status entries are
+        committed, so it is not sent ``case_fully_closed`` (CM-23-004).  The
+        Vendor, still open, is; the sending CaseActor never is.
         """
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
         dl = _make_full_dl()
         sync_mock = MagicMock(spec=SyncActivityPort)
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=sync_mock,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert sync_mock.send_announce_log_entry.called, (
-            "Fan-out must call sync_port.send_announce_log_entry after owner Leave (CM-23-002)"
+        recipients = [
+            to
+            for entry, to in _announced(sync_mock)
+            if entry.event_type == "case_fully_closed"
+        ]
+        assert recipients == [[VENDOR_ID]], (
+            "case_fully_closed must reach exactly the open Vendor"
+            f" (CM-23-004); sends: {recipients}"
         )
 
-        # Identify calls for the case_fully_closed entry specifically
-        case_fully_closed_recipients: list[str] = []
-        for c in sync_mock.send_announce_log_entry.call_args_list:
-            entry = c.kwargs.get("entry") or (c.args[0] if c.args else None)
-            if (
-                isinstance(entry, CaseLedgerEntry)
-                and getattr(entry, "event_type", None) == "case_fully_closed"
-            ):
-                recipients = c.kwargs.get("to") or (
-                    c.args[2] if len(c.args) > 2 else []
-                )
-                case_fully_closed_recipients.extend(recipients)
+    @pytest.mark.spec("CM-23-004", "CM-23-001")
+    def test_closed_owner_receives_its_own_closure_and_nothing_after(self):
+        """The owner gets close_case and its own steps, then nothing.
 
-        assert VENDOR_ID in case_fully_closed_recipients, (
-            f"case_fully_closed fan-out must include VENDOR_ID;"
-            f" actual recipients: {case_fully_closed_recipients}"
-        )
-        assert OWNER_ID in case_fully_closed_recipients, (
-            f"case_fully_closed fan-out must include OWNER_ID (replica-completeness signal);"
-            f" actual recipients: {case_fully_closed_recipients}"
-        )
-        assert CASE_ACTOR_ID not in case_fully_closed_recipients, (
-            f"case_fully_closed fan-out must NOT include CASE_ACTOR_ID (excluded as self.actor_id);"
-            f" actual recipients: {case_fully_closed_recipients}"
-        )
+        Ledger order: close_case(owner) → owner steps → CASE_MANAGER steps →
+        case_fully_closed (CM-23-002).  The owner's replica stops at its own
+        steps.
+        """
+        dl = _make_full_dl()
+        sync_mock = MagicMock(spec=SyncActivityPort)
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=sync_mock,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        owner = dl.read(_participant_id_for(dl, OWNER_ID))
+        assert isinstance(owner, CaseParticipant)
+        owner_status_ids = {s.id_ for s in owner.participant_statuses}
+        sent = _announced(sync_mock)
+        to_owner = [entry for entry, to in sent if OWNER_ID in to]
+
+        assert to_owner[0].event_type == "close_case"
+        own_steps = to_owner[1:]
+        assert own_steps, "the owner must receive its own closure steps"
+        assert all(
+            e.event_type == "add_participant_status_to_participant"
+            and e.log_object_id in owner_status_ids
+            for e in own_steps
+        ), [(e.event_type, e.log_object_id) for e in own_steps]
+        last_own = max(e.log_index for e in to_owner)
+        later = [entry for entry, _ in sent if entry.log_index > last_own]
+        assert {e.event_type for e in later} >= {
+            "add_participant_status_to_participant",
+            "case_fully_closed",
+        }, "CASE_MANAGER steps and case_fully_closed follow the owner's"
 
 
 class TestNonOwnerLeaveReceivePath:
@@ -506,6 +580,7 @@ class TestNonOwnerLeaveReceivePath:
         dl = _make_full_dl()
         result = CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -524,6 +599,7 @@ class TestNonOwnerLeaveReceivePath:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -541,6 +617,7 @@ class TestNonOwnerLeaveReceivePath:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -567,15 +644,58 @@ def _close(
     ).execute()
 
 
+def _seed_pending_invite(
+    dl: SqliteDataLayer,
+    suffix: str = "proposed",
+    invitee_id: str = VENDOR_ID,
+) -> str:
+    """Propose an embargo and leave *invitee_id*'s Invite to it unanswered.
+
+    The RSVP deadline is a year away, so only a settle step expires it before
+    close.  Returns the embargo's id.
+    """
+    case = dl.read_case(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    embargo = as_EmbargoEvent(
+        id_=f"{CASE_ID}/embargo_events/{suffix}",
+        context=CASE_ID,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+    propose(case, embargo.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    invitee = dl.read(case.actor_participant_index[invitee_id])
+    assert isinstance(invitee, CaseParticipant)
+    invitee.apply_pec_transition(
+        embargo.id_,
+        PEC_Trigger.INVITE,
+        entry_status=EmbargoRegisterStatus.PROPOSED,
+        rsvp_deadline=days_from_now_utc(365),
+    )
+    dl.save(invitee)
+    return embargo.id_
+
+
+def _consent(dl: SqliteDataLayer, actor_id: str, embargo_id: str):
+    case = dl.read_case(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    participant = dl.read(case.actor_participant_index[actor_id])
+    assert isinstance(participant, CaseParticipant)
+    return participant.consent_for(embargo_id)
+
+
+def _expiry_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    return [
+        e
+        for e in _case_ledger(dl)
+        if e.event_type == INVITE_EXPIRED_EVENT_TYPE
+    ]
+
+
 class TestPostCloseBoundary:
     """CM-23-013/014: nothing a participant does lands after case_fully_closed."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CM-23-013: a bystander Leave after owner close is still"
-        " committed as close_case. Tracked by #4162 (record nothing, reply"
-        " optional) and #4065 (refusal and demo closure order).",
-    )
     @pytest.mark.spec("CM-23-013")
     def test_bystander_leave_after_owner_close_is_refused(self):
         """A bystander Leave after owner close commits nothing and closes no one.
@@ -625,55 +745,20 @@ class TestPostCloseBoundary:
             "the as:Reject must decline the Leave activity itself"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CM-23-014: owner close does not yet expire pending Invites"
-        " before case_fully_closed. Tracked by #4066.",
-    )
     @pytest.mark.spec("CM-23-014")
     def test_owner_close_expires_pending_invite_before_boundary(self):
         """An unanswered Invite is expired at close, not left waiting on its deadline."""
-        from datetime import UTC, datetime, timedelta
-
-        from vultron.core.states.embargo_register import (
-            EmbargoRegisterStatus,
-        )
-        from vultron.core.states.participant_embargo_consent import (
-            EmbargoConsentState,
-            PEC_Trigger,
-        )
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-
         dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
         case = dl.read_case(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
-        embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/proposed",
-            context=CASE_ID,
-            end_time=datetime.now(tz=UTC) + timedelta(days=45),
-        )
-        dl.create(embargo)
-        propose(case, embargo.id_)
-        dl.save(case)
-        write_consent_rows(dl, case)
-        vendor = dl.read(case.actor_participant_index[VENDOR_ID])
-        assert isinstance(vendor, CaseParticipant)
-        vendor.apply_pec_transition(
-            embargo.id_,
-            PEC_Trigger.INVITE,
-            entry_status=EmbargoRegisterStatus.PROPOSED,
-            rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=365),
-        )
-        dl.save(vendor)
 
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
         assert (
-            vendor.consent_for(embargo.id_) == EmbargoConsentState.TIMED_OUT
+            vendor.consent_for(embargo_id) == EmbargoConsentState.TIMED_OUT
         ), "owner close must expire a pending Invite immediately (CM-23-014)"
         ledger = _case_ledger(dl)
         types = [e.event_type for e in ledger]
@@ -695,8 +780,515 @@ class TestPostCloseBoundary:
         )
 
 
+class TestOwnerCloseSettlesPendingInvites:
+    """CM-23-014: the settle step between RM.CLOSED and case_fully_closed."""
+
+    @pytest.mark.spec("CM-23-014")
+    def test_close_without_pending_invite_commits_no_expiry_entry(self):
+        """A case with no pending Invite closes exactly as before (AC-4)."""
+        dl = _make_full_dl()
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert _expiry_entries(dl) == []
+
+    @pytest.mark.spec("CM-23-014")
+    def test_every_pending_invite_gets_one_entry(self):
+        """Two pending Invites, two expiry entries, both before the boundary."""
+        dl = _make_full_dl()
+        first = _seed_pending_invite(dl, "first")
+        second = _seed_pending_invite(dl, "second")
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        expired = _expiry_entries(dl)
+        named = {e.payload_snapshot["object"]["object"]["id"] for e in expired}
+        assert named == {first, second}
+        assert len(expired) == 2
+        assert all(e.payload_snapshot["actor"] == VENDOR_ID for e in expired)
+        assert _consent(dl, VENDOR_ID, first) == EmbargoConsentState.TIMED_OUT
+        assert _consent(dl, VENDOR_ID, second) == EmbargoConsentState.TIMED_OUT
+        ledger = _case_ledger(dl)
+        assert ledger[-1].event_type == "case_fully_closed"
+        assert all(e.log_index < ledger[-1].log_index for e in expired)
+
+    @pytest.mark.spec("CM-23-014")
+    def test_row_on_a_final_entry_is_not_settled(self):
+        """A row frozen by a final register entry is not pending (ADR-0122)."""
+        dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        reject(case, embargo_id)
+        dl.save(case)
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert _expiry_entries(dl) == []
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.spec("CM-23-014")
+    def test_stub_invitee_row_on_the_ended_embargo_is_not_settled(self):
+        """A stub Invite's INVITED row needs no settling (CM-23-014, CM-11-006).
+
+        A stub Invite leaves its invitee ``INVITED`` on the embargo in force.
+        The close requires that embargo to end first (CM-23-011), which
+        freezes the row, so the settle step leaves it and commits nothing.
+        """
+        dl = _make_full_dl()
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        embargo = as_EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/in-force",
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        activate(case, embargo.id_)
+        dl.save(case)
+        write_consent_rows(dl, case)
+        invitee = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(invitee, CaseParticipant)
+        invitee.apply_pec_transition(
+            embargo.id_,
+            PEC_Trigger.INVITE,
+            entry_status=EmbargoRegisterStatus.ACTIVE,
+            rsvp_deadline=days_from_now_utc(365),
+        )
+        dl.save(invitee)
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        terminate(case)
+        dl.save(case)
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert _expiry_entries(dl) == []
+        assert (
+            _consent(dl, VENDOR_ID, embargo.id_) == EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.spec("CM-23-014")
+    def test_failed_expiry_commit_still_closes_the_case(
+        self, monkeypatch, caplog
+    ):
+        """A refused expiry commit is logged, and the case still closes."""
+        dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
+        monkeypatch.setattr(
+            "vultron.core.behaviors.case.nodes.leave.settle"
+            ".create_commit_and_record_expiry_tree",
+            lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
+        )
+
+        with caplog.at_level(logging.WARNING):
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _expiry_entries(dl) == []
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
+        )
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert any(
+            "could not expire the Invite" in r.getMessage()
+            for r in caplog.records
+        )
+
+    @pytest.mark.spec("CM-23-014")
+    def test_entry_names_the_invite_the_ledger_recorded(self):
+        """The expiry entry's object is the last Invite sent to that invitee."""
+        from vultron.core.behaviors.case.nodes.leave.settle import (
+            latest_invite_id,
+        )
+        from vultron.core.behaviors.embargo.nodes.relay import (
+            EMBARGO_INVITE_EVENT_TYPE,
+        )
+        from vultron.core.models.rsvp_deadline import (
+            EMBARGO_REINVITE_EVENT_TYPE,
+        )
+
+        embargo_id = f"{CASE_ID}/embargo_events/proposed"
+
+        def entry(index: int, event_type: str, to: str, invite: str):
+            return _to_persistable_entry(
+                HashChainLedgerRecord(
+                    case_id=CASE_ID,
+                    log_index=index,
+                    object_id=invite,
+                    event_type=event_type,
+                    payload_snapshot={
+                        "type": "Invite",
+                        "actor": CASE_ACTOR_ID,
+                        "to": [to],
+                        "object": {"type": "EmbargoEvent", "id": embargo_id},
+                    },
+                    prev_log_hash=_ZERO_HASH,
+                )
+            )
+
+        entries = [
+            entry(0, EMBARGO_INVITE_EVENT_TYPE, VENDOR_ID, "urn:invite:1"),
+            entry(1, EMBARGO_INVITE_EVENT_TYPE, OWNER_ID, "urn:invite:2"),
+            entry(2, EMBARGO_REINVITE_EVENT_TYPE, VENDOR_ID, "urn:invite:3"),
+            entry(3, "close_case", VENDOR_ID, "urn:leave:4"),
+        ]
+
+        assert latest_invite_id(entries, VENDOR_ID, embargo_id) == (
+            "urn:invite:3"
+        )
+        assert latest_invite_id(entries, OWNER_ID, embargo_id) == (
+            "urn:invite:2"
+        )
+        assert latest_invite_id(entries, VENDOR_ID, "urn:other") is None
+
+    @pytest.mark.spec("CM-23-014")
+    def test_a_replica_applies_the_settled_expiry(self):
+        """The settle entry replays on a replica through the announce tree (AC-2)."""
+        manager = _make_full_dl()
+        embargo_id = _seed_pending_invite(manager)
+        _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
+        (settled,) = _expiry_entries(manager)
+
+        replica = _make_full_dl(store_owner_id=VENDOR_ID)
+        assert _seed_pending_invite(replica) == embargo_id
+        case = replica.read(CASE_ID)
+        genesis_hash = getattr(case, "genesis_hash", _ZERO_HASH) or _ZERO_HASH
+        # The settled snapshot, as the first entry of the replica's chain.
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id=settled.log_object_id,
+                event_type=settled.event_type,
+                payload_snapshot=settled.payload_snapshot,
+                prev_log_hash=genesis_hash,
+            )
+        )
+        BTBridge(
+            datalayer=replica, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=VENDOR_ID,
+            activity=_make_announce_event(
+                entry=entry, sender_actor_id=CASE_ACTOR_ID
+            ),
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert (
+            _consent(replica, VENDOR_ID, embargo_id)
+            == EmbargoConsentState.TIMED_OUT
+        )
+
+
+def _close_with_policy(
+    dl: SqliteDataLayer,
+    sender_actor_id: str,
+    activity_id: str,
+    policy: PostCloseReply,
+) -> HandlerResult:
+    return CloseCaseReceivedUseCase(
+        dl=dl,
+        request=_make_close_case_event(
+            sender_actor_id=sender_actor_id, activity_id=activity_id
+        ),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
+        actor_config=ActorConfig(post_close_reply=policy),
+    ).execute()
+
+
+def _closed_dl() -> SqliteDataLayer:
+    """The CaseActor's store after the Case Owner has closed the case."""
+    dl = _make_full_dl()
+    _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+    assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+    return dl
+
+
+def _add_note_event(note_id: str, sender_id: str = VENDOR_ID):
+    from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(id_=note_id, content="late note", context=CASE_ID)
+    activity = add_note_to_case_activity(
+        note, target=as_VulnerabilityCase(id_=CASE_ID), actor=sender_id
+    )
+    event = extract_event(activity).model_copy(
+        update={"receiving_actor_id": CASE_ACTOR_ID}
+    )
+    assert isinstance(event, AddNoteToCaseReceivedEvent)
+    return note, event
+
+
+def _add_note(dl: SqliteDataLayer, note_id: str, sync_port=None):
+    from vultron.core.use_cases.received.note import (
+        AddNoteToCaseReceivedUseCase,
+    )
+
+    note, event = _add_note_event(note_id)
+    dl.create(note)
+    return AddNoteToCaseReceivedUseCase(
+        dl,
+        event,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=sync_port or SyncActivityAdapter(dl),
+    ).execute()
+
+
+class TestPostCloseWriteBoundary:
+    """CM-23-013 / ADR-0085: after case_fully_closed, nothing is recorded."""
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.parametrize(
+        ("policy", "replies"),
+        [(PostCloseReply.DROP, 0), (PostCloseReply.REJECT, 1)],
+    )
+    def test_late_leave_follows_the_reply_policy(self, policy, replies):
+        """A late Leave is REFUSED and records nothing; only REJECT replies."""
+        dl = _closed_dl()
+        entries_at_close = len(_case_ledger(dl))
+        rm_before = _participant_rm_states(dl, VENDOR_ID)
+        outbox_before = set(dl.outbox_list())
+
+        result = _close_with_policy(
+            dl, VENDOR_ID, "https://example.org/activities/leave-late", policy
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-013" in (result.reason or "")
+        assert len(_case_ledger(dl)) == entries_at_close
+        assert _participant_rm_states(dl, VENDOR_ID) == rm_before
+        queued = [i for i in dl.outbox_list() if i not in outbox_before]
+        assert len(queued) == replies, queued
+        if replies:
+            reject = dl.read(queued[0])
+            assert getattr(reject, "type_", None) == "Reject"
+            assert VENDOR_ID in (getattr(reject, "to", None) or [])
+            inner = getattr(reject, "object_", None)
+            assert getattr(inner, "type_", None) == "Leave"
+
+    @pytest.mark.spec("CM-23-013")
+    def test_default_policy_drops_a_late_leave(self):
+        """The default ActorConfig drops a late Leave with no reply (ADR-0131)."""
+        assert ActorConfig().post_close_reply is PostCloseReply.DROP
+        dl = _closed_dl()
+        outbox_before = set(dl.outbox_list())
+
+        result = _close(
+            dl, VENDOR_ID, "https://example.org/activities/leave-late"
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert set(dl.outbox_list()) == outbox_before
+
+    @pytest.mark.spec("CM-23-013")
+    def test_late_leave_drop_is_logged_with_activity_and_actor(self, caplog):
+        """The drop names the activity id and the sender at INFO (SL-01)."""
+        dl = _closed_dl()
+        activity_id = "https://example.org/activities/leave-late-logged"
+        with caplog.at_level(logging.INFO):
+            _close(dl, VENDOR_ID, activity_id)
+        dropped = [
+            r.getMessage()
+            for r in caplog.records
+            if "dropped activity_id" in r.getMessage()
+        ]
+        assert dropped, "the post-close drop must be logged at INFO"
+        assert activity_id in dropped[0]
+        assert VENDOR_ID in dropped[0]
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_late_reply_is_answered_at_most_once(self):
+        """A redelivered late Leave is not answered again under REJECT."""
+        dl = _closed_dl()
+        outbox_before = set(dl.outbox_list())
+        activity_id = "https://example.org/activities/leave-late-twice"
+        for _ in range(2):
+            _close_with_policy(
+                dl, VENDOR_ID, activity_id, PostCloseReply.REJECT
+            )
+        queued = [i for i in dl.outbox_list() if i not in outbox_before]
+        assert len(queued) == 1, queued
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("VP-03-013")
+    def test_post_close_add_note_is_refused_with_no_ledger_append(self):
+        """#3060 AC-1: a post-close Add(Note, target=Case) appends nothing.
+
+        The note is not attached to the case and no entry is committed or
+        announced; the CASE_MANAGER sends nothing back (non-Leave traffic
+        after close is never answered, ADR-0131).
+        """
+        dl = _closed_dl()
+        entries_at_close = len(_case_ledger(dl))
+        outbox_before = set(dl.outbox_list())
+
+        result = _add_note(dl, "https://example.org/notes/late-note")
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-013" in (result.reason or "")
+        assert len(_case_ledger(dl)) == entries_at_close
+        case = dl.read_case(CASE_ID)
+        assert case is not None
+        assert "https://example.org/notes/late-note" not in case.notes
+        assert set(dl.outbox_list()) == outbox_before
+
+    @pytest.mark.spec("CM-23-013")
+    def test_add_note_before_close_is_still_recorded(self):
+        """Control: the same Add(Note) on an open case is committed."""
+        dl = _make_full_dl()
+        entries_before = len(_case_ledger(dl))
+
+        result = _add_note(dl, "https://example.org/notes/open-note")
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert len(_case_ledger(dl)) == entries_before + 1
+
+    @pytest.mark.spec("CM-23-002")
+    @pytest.mark.spec("CM-23-013")
+    def test_closure_announce_is_emitted_before_external_writes_cease(self):
+        """#3060 AC-4: case_fully_closed is announced, then nothing more is."""
+        dl = _make_full_dl()
+        sync = MagicMock(wraps=SyncActivityAdapter(dl))
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=sync,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        announced = [
+            (c.kwargs.get("entry") or c.args[0]).event_type
+            for c in sync.send_announce_log_entry.call_args_list
+        ]
+        assert "case_fully_closed" in announced, announced
+        calls_at_close = sync.send_announce_log_entry.call_count
+
+        result = _add_note(
+            dl, "https://example.org/notes/after-announce", sync_port=sync
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert sync.send_announce_log_entry.call_count == calls_at_close
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_replica_still_processes_after_close(self):
+        """The guard binds only the CASE_MANAGER: a replica's store passes it."""
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+
+        dl = _closed_dl()
+        node = CaseOpenToExternalWritesNode(case_id=CASE_ID)
+        node.datalayer = dl
+        node.actor_id = VENDOR_ID
+        assert node.update() == py_trees.common.Status.SUCCESS
+        node.actor_id = CASE_ACTOR_ID
+        assert node.update() == py_trees.common.Status.FAILURE
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-017")
+    def test_a_late_participant_status_gets_no_processing_fault(self):
+        """A refused status claim is normally answered; after close it is not."""
+        from vultron.core.models.events.status import (
+            AddParticipantStatusToParticipantReceivedEvent,
+        )
+        from vultron.core.use_cases.received.status import (
+            AddParticipantStatusToParticipantReceivedUseCase,
+        )
+        from vultron.wire.as2.factories import (
+            add_status_to_participant_activity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_ParticipantStatus,
+        )
+
+        dl = _closed_dl()
+        case = dl.read_case(CASE_ID)
+        assert case is not None
+        participant = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(participant, CaseParticipant)
+        status = as_ParticipantStatus(
+            id_=f"{CASE_ID}/participants/vendor/statuses/late",
+            context=CASE_ID,
+            attributed_to=VENDOR_ID,
+            rm=RmDimension(state=RM.VALID),
+        )
+        activity = add_status_to_participant_activity(
+            status,
+            target=participant,
+            actor=VENDOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID),
+        )
+        event = extract_event(activity).model_copy(
+            update={"receiving_actor_id": CASE_ACTOR_ID}
+        )
+        assert isinstance(
+            event, AddParticipantStatusToParticipantReceivedEvent
+        )
+        entries_at_close = len(_case_ledger(dl))
+        outbox_before = set(dl.outbox_list())
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-013" in (result.reason or "")
+        assert len(_case_ledger(dl)) == entries_at_close
+        assert set(dl.outbox_list()) == outbox_before
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.parametrize("policy", ["drop", "reject"])
+    def test_dispatcher_wires_the_policy_point(self, policy):
+        """End to end: the configured policy reaches the late-Leave reply.
+
+        Through the inbox dispatcher, a late Leave is answered only under
+        ``reject``; a late Add(Note) is dropped under both settings.
+        """
+        from vultron.adapters.driving.fastapi.inbox_handler import (
+            make_dispatcher,
+        )
+        from vultron.config.app import config_override
+
+        dl = _closed_dl()
+        with config_override(VULTRON_ACTOR__POST_CLOSE_REPLY=policy):
+            dispatcher = make_dispatcher()
+            outbox_before = set(dl.outbox_list())
+            note, note_event = _add_note_event(
+                "https://example.org/notes/dispatched-late-note"
+            )
+            dl.create(note)
+            note_result = dispatcher.dispatch(note_event, dl)
+            assert note_result.disposition is HandlerDisposition.REFUSED
+            assert set(dl.outbox_list()) == outbox_before
+
+            leave_result = dispatcher.dispatch(
+                _make_close_case_event(
+                    sender_actor_id=VENDOR_ID,
+                    activity_id="https://example.org/activities/leave-disp",
+                ),
+                dl,
+            )
+            assert leave_result.disposition is HandlerDisposition.REFUSED
+            queued = [i for i in dl.outbox_list() if i not in outbox_before]
+            assert len(queued) == (1 if policy == "reject" else 0), queued
+
+
 # ---------------------------------------------------------------------------
-# Fan-out path (ApplyCloseCaseFromLedgerNode via announce tree)
+# Replica path: the announce tree applies the closure step entries
 # ---------------------------------------------------------------------------
 
 
@@ -738,69 +1330,713 @@ def _make_announce_event(
     return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
 
-class TestCloseCaseFanOut:
-    """Fan-out: ApplyCloseCaseFromLedgerNode advances departing participant on replicas."""
+def _replica_of(manager: SqliteDataLayer, actor_id: str = VENDOR_ID):
+    """*actor_id*'s replica, seeded with the case exactly as *manager* holds it.
 
+    A replica is the case as seeded plus the ledger entries since
+    (CM-23-016), so the seed copies every case record with its ids: the
+    status entries name the participant and status ids the CASE_MANAGER
+    holds.
+    """
+    replica = _make_dl(actor_id)
+    for type_key in (
+        "VulnerabilityCase",
+        "CaseParticipant",
+        "ParticipantStatus",
+    ):
+        for obj in manager.list_objects(type_key):
+            replica.create(obj)
+    return replica
+
+
+def _replay(manager: SqliteDataLayer, replica: SqliteDataLayer) -> None:
+    """Announce every entry of *manager*'s ledger to *replica*, in order."""
+    _deliver(replica, _case_ledger(manager))
+
+
+def _deliver(replica: SqliteDataLayer, entries) -> None:
+    """Announce each of *entries* to *replica*, in order."""
+    for entry in entries:
+        result = BTBridge(
+            datalayer=replica, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=replica.actor_id,
+            activity=_make_announce_event(
+                entry=entry, sender_actor_id=CASE_ACTOR_ID
+            ),
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+        assert result.status == py_trees.common.Status.SUCCESS, (
+            f"replica refused {entry.event_type} at logIndex"
+            f" {entry.log_index}: {result.feedback_message}"
+        )
+
+
+def _status_history(
+    dl: SqliteDataLayer, actor_id: str
+) -> list[tuple[str, RM]]:
+    """The actor's ``(status id, RM state)`` history in *dl*, in order."""
+    case = dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    participant = dl.read(case.actor_participant_index[actor_id])
+    assert isinstance(participant, CaseParticipant)
+    return [
+        (ps.id_, ps.rm.state)
+        for ps in participant.participant_statuses
+        if isinstance(ps, ParticipantStatus)
+    ]
+
+
+def _ledger_rm_steps(dl: SqliteDataLayer, actor_id: str) -> list[str]:
+    """The status ids the ledger records for *actor_id*, in ledger order."""
+    return [
+        e.log_object_id
+        for e in _case_ledger(dl)
+        if e.event_type == "add_participant_status_to_participant"
+        and e.payload_snapshot["object"].get("attributedTo") == actor_id
+    ]
+
+
+def _ledger_shape(
+    dl: SqliteDataLayer,
+) -> list[tuple[str, str | None, str | None]]:
+    """``(event type, subject, rm state)`` per ledger entry, in ledger order.
+
+    The subject of a status entry is the actor its status is attributed to;
+    of every other entry, the snapshot's ``actor``.
+    """
+    shape: list[tuple[str, str | None, str | None]] = []
+    for e in _case_ledger(dl):
+        snapshot = e.payload_snapshot or {}
+        status = snapshot.get("object")
+        if e.event_type == "add_participant_status_to_participant":
+            assert isinstance(status, dict)
+            shape.append(
+                (
+                    e.event_type,
+                    status.get("attributedTo"),
+                    status.get("rmState"),
+                )
+            )
+        else:
+            shape.append((e.event_type, snapshot.get("actor"), None))
+    return shape
+
+
+_STATUS = "add_participant_status_to_participant"
+
+
+class TestLeaveCommitsEachClosureStep:
+    """CM-23-001/002/003: close_case first, then one status entry per RM step."""
+
+    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CM-23-003")
-    def test_fan_out_advances_departing_participant_to_rm_closed(self):
-        """Announce(close_case entry) advances the departing participant on a non-CaseActor replica.
+    @pytest.mark.spec("RMB-14-005")
+    def test_non_owner_leave_from_valid_commits_two_steps(self):
+        """A non-owner Leave from Valid commits close_case, V → D, D → C."""
+        dl = _make_full_dl()
+        _seed_rm(dl, VENDOR_ID, RM.VALID)
 
-        This simulates the VENDOR actor's local DataLayer receiving the
-        ``Announce(CaseLedgerEntry)`` that the Case Actor broadcast after
-        processing the owner's Leave.  The vendor replica must advance the
-        OWNER participant to RM.CLOSED (CM-23-003).
+        _close(dl, VENDOR_ID, "https://example.org/activities/leave-vendor")
 
-        The entry is NOT pre-stored: ``CheckLedgerEntryAlreadyStoredNode`` in
-        the announce tree short-circuits with SUCCESS (skips effects) when the
-        entry is already present.  The fan-out scenario is: entry arrives fresh.
+        assert _ledger_shape(dl) == [
+            ("close_case", VENDOR_ID, None),
+            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
+            (_STATUS, VENDOR_ID, RM.CLOSED.value),
+        ]
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-002")
+    @pytest.mark.spec("CM-23-005")
+    @pytest.mark.spec("CM-23-014")
+    def test_owner_leave_orders_every_entry_before_the_boundary(self):
+        """Owner Leave: close_case, owner steps, CASE_MANAGER steps, settle, boundary.
+
+        The owner leaves from Valid (V → D → C) with an embargo Invite still
+        pending, so every kind of entry the owner-close sequence commits
+        appears once, in the order CM-23-002 and CM-23-014 give.
         """
-        dl = _make_full_dl(store_owner_id=VENDOR_ID)
-        entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
+        dl = _make_full_dl()
+        _seed_rm(dl, OWNER_ID, RM.VALID)
+        _seed_rm(dl, CASE_ACTOR_ID, RM.ACCEPTED)
+        _seed_pending_invite(dl)
 
-        event = _make_announce_event(
-            entry=entry, sender_actor_id=CASE_ACTOR_ID
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        shape = _ledger_shape(dl)
+        assert shape[:4] == [
+            ("close_case", OWNER_ID, None),
+            (_STATUS, OWNER_ID, RM.DEFERRED.value),
+            (_STATUS, OWNER_ID, RM.CLOSED.value),
+            (_STATUS, CASE_ACTOR_ID, RM.CLOSED.value),
+        ]
+        assert shape[4][0] == INVITE_EXPIRED_EVENT_TYPE
+        assert shape[5:] == [("case_fully_closed", CASE_ACTOR_ID, None)]
+
+    @pytest.mark.spec("CM-23-004")
+    @pytest.mark.parametrize(
+        "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
+    )
+    def test_the_leaver_receives_every_step_entry(self, leaver_id: str):
+        """Each of the leaver's status entries is announced to the leaver.
+
+        The step that reaches RM.CLOSED included: the leaver is already
+        closed when that entry fans out, and it still receives it (AC-4).
+        """
+        dl = _make_full_dl()
+        _seed_rm(dl, leaver_id, RM.VALID)
+        sync_port = MagicMock(spec=SyncActivityPort)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=leaver_id),
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        sent_to_leaver = {
+            call.kwargs["entry"].log_object_id
+            for call in sync_port.send_announce_log_entry.call_args_list
+            if call.kwargs["to"] == [leaver_id]
+        }
+        steps = _ledger_rm_steps(dl, leaver_id)
+        assert len(steps) == 2, steps
+        assert set(steps) <= sent_to_leaver, (
+            f"the leaver's replica must receive every step entry (CM-23-004);"
+            f" steps={steps}, sent={sent_to_leaver}"
         )
 
-        tree = create_announce_log_entry_tree()
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("RMB-14-005")
+    def test_a_step_written_before_a_refused_one_is_still_recorded(
+        self, monkeypatch
+    ):
+        """V → D written, D → C refused: the D step is on the ledger anyway.
+
+        The CASE_MANAGER commits an entry for every transition it writes, so
+        a closure that stops part-way leaves no unrecorded step in its store.
+        """
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
+
+        original = CreateParticipantStatusNode.update
+
+        def _refuse_closed(node):
+            if node._rm_state is RM.CLOSED:
+                return py_trees.common.Status.FAILURE
+            return original(node)
+
+        monkeypatch.setattr(
+            CreateParticipantStatusNode, "update", _refuse_closed
+        )
+        dl = _make_full_dl()
+        _seed_rm(dl, VENDOR_ID, RM.VALID)
+
+        _close(dl, VENDOR_ID, "https://example.org/activities/leave-vendor")
+
+        assert _latest_rm(dl, VENDOR_ID) == RM.DEFERRED
+        assert _ledger_shape(dl) == [
+            ("close_case", VENDOR_ID, None),
+            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
+        ]
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CLP-07-013")
+    def test_failed_step_commit_leaves_the_case_file_unchanged(
+        self, monkeypatch, caplog
+    ):
+        """A step entry that cannot be committed takes its step back (AC-3).
+
+        The leaver's participant record and the store's statuses are exactly
+        what they were before the Leave, and the Leave is not applied: a
+        change with no committed entry is not made (CLP-07-013).
+        """
+        dl = _make_full_dl()
+        _seed_rm(dl, VENDOR_ID, RM.VALID)
+        before = _case_file(dl, VENDOR_ID)
+        monkeypatch.setattr(
+            "vultron.core.behaviors.case.nodes.leave.record"
+            ".create_commit_log_entry_tree",
+            lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
+        )
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="vultron.core.behaviors.case.nodes.leave.record",
+        ):
+            result = _close(
+                dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+            )
+
+        assert result.disposition != HandlerDisposition.APPLIED
+        assert _case_file(dl, VENDOR_ID) == before
+        assert _latest_rm(dl, VENDOR_ID) == RM.VALID
+        assert [e.event_type for e in _case_ledger(dl)] == ["close_case"]
+        assert any(
+            VENDOR_ID in r.getMessage() and "withdrew 2" in r.getMessage()
+            for r in caplog.records
+        ), [r.getMessage() for r in caplog.records]
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_committed_step_stays_when_a_later_one_fails(self, monkeypatch):
+        """V → D commits, D → C does not: only the C step is taken back."""
+        from vultron.core.behaviors.case.nodes.leave import record
+
+        calls = fail_commits(monkeypatch, record, allowed=1)
+        dl = _make_full_dl()
+        _seed_rm(dl, VENDOR_ID, RM.VALID)
+
+        _close(dl, VENDOR_ID, "https://example.org/activities/leave-vendor")
+
+        assert _participant_rm_states(dl, VENDOR_ID)[-2:] == [
+            RM.VALID,
+            RM.DEFERRED,
+        ]
+        assert _ledger_shape(dl) == [
+            ("close_case", VENDOR_ID, None),
+            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
+        ]
+        assert dl.read(calls[1]) is None, "the withdrawn status is deleted"
+
+    @pytest.mark.spec("CM-23-001")
+    def test_a_redelivered_leave_completes_the_withdrawn_closure(
+        self, monkeypatch
+    ):
+        """The Leave is not lost: a redelivery walks the closure again."""
+        dl = _make_full_dl()
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                "vultron.core.behaviors.case.nodes.leave.record"
+                ".create_commit_log_entry_tree",
+                lambda *a, **kw: py_trees.behaviours.Failure(name="Forced"),
+            )
+            _close(
+                dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+            )
+
+        result = _close(
+            dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+        )
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert _latest_rm(dl, VENDOR_ID) == RM.CLOSED
+        assert _ledger_rm_steps(dl, VENDOR_ID)
+
+    @pytest.mark.spec("CM-23-001")
+    def test_crash_in_step_commit_is_an_internal_error_not_a_warning(
+        self, monkeypatch
+    ):
+        """A refused commit fails the node; a bug in the commit raises.
+
+        A crash inside the nested commit tree is carried across the hop as
+        an internal error, so the received verdict does not log it as a
+        WARNING and report the closure as applied (CONCERN-3019, #4113).
+        """
+
+        class _Crash(py_trees.behaviour.Behaviour):
+            def update(self) -> py_trees.common.Status:
+                raise RuntimeError("simulated crash in the step commit")
+
+        dl = _make_full_dl()
+        monkeypatch.setattr(
+            "vultron.core.behaviors.case.nodes.leave.record"
+            ".create_commit_log_entry_tree",
+            lambda *a, **kw: _Crash(name="CrashingCommit"),
+        )
+
+        before = _case_file(dl, VENDOR_ID)
+        with pytest.raises(VultronBTInternalError, match="nested commit"):
+            _close(
+                dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+            )
+
+        assert _case_file(dl, VENDOR_ID) == before, (
+            "a crashed commit records nothing, so its step is taken back too"
+        )
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_raise_while_building_a_step_entry_takes_the_steps_back(
+        self, monkeypatch
+    ):
+        """Any raise part-way through the commits withdraws the steps left.
+
+        The V -> D entry commits; building the D -> C activity then raises.
+        The committed step stays, the uncommitted one is taken back, and the
+        fault propagates rather than leave a step the ledger lacks.
+        """
+        original = TriggerActivityAdapter.record_participant_status_added
+        built: list[str] = []
+
+        def _raise_on_second(self, *args, **kwargs):
+            built.append(kwargs["status"].id_)
+            if len(built) == 2:
+                raise RuntimeError("simulated factory fault")
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(
+            TriggerActivityAdapter,
+            "record_participant_status_added",
+            _raise_on_second,
+        )
+        dl = _make_full_dl()
+        _seed_rm(dl, VENDOR_ID, RM.VALID)
+
+        with pytest.raises(Exception, match="simulated factory fault"):
+            _close(
+                dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+            )
+
+        assert _participant_rm_states(dl, VENDOR_ID)[-2:] == [
+            RM.VALID,
+            RM.DEFERRED,
+        ]
+        assert _ledger_shape(dl) == [
+            ("close_case", VENDOR_ID, None),
+            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
+        ]
+        assert dl.read(built[1]) is None, "the withdrawn status is deleted"
+
+
+class TestCaseFullyClosedIsTheCaseManagersOwnAct:
+    """CM-23-002 step 3: closure is the CASE_MANAGER's own activity (#3743).
+
+    The ``Leave`` is recorded as received (``close_case``); the closure that
+    follows is the CASE_MANAGER's factory-built ``Update(VulnerabilityCase)``
+    carrying the closed case, recorded from its sealed blob (CLP-07-013,
+    VM-08-003).  No entry poses as an act the Case Owner did not send.
+    """
+
+    @staticmethod
+    def _closure(dl: SqliteDataLayer) -> CaseLedgerEntry:
+        (entry,) = [
+            e for e in _case_ledger(dl) if e.event_type == "case_fully_closed"
+        ]
+        return entry
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CM-23-002")
+    def test_the_closure_is_the_case_managers_update_of_the_case(self):
+        dl = _make_full_dl()
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        snapshot = self._closure(dl).payload_snapshot
+        assert snapshot["type"] == "Update"
+        assert snapshot["actor"] == CASE_ACTOR_ID
+        assert snapshot["context"] == CASE_ID
+        case = snapshot["object"]
+        assert case["type"] == "VulnerabilityCase"
+        assert case["id"] == CASE_ID
+        # Carried in full: the participants are objects, not ids (CBT-01-007).
+        assert case["caseParticipants"]
+        assert all(isinstance(p, dict) for p in case["caseParticipants"])
+
+    @pytest.mark.spec("VM-08-003")
+    def test_the_entry_is_the_sealed_blob(self):
+        dl = _make_full_dl()
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        entry = self._closure(dl)
+        sealed = read_sealed_body(dl, entry.log_object_id)
+        assert sealed is not None, "the closure activity was not sealed"
+        assert entry.payload_snapshot == json.loads(sealed.body)
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_the_closure_follows_the_leaves_own_entry(self):
+        dl = _make_full_dl()
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        types = [e.event_type for e in _case_ledger(dl)]
+        assert types.index("close_case") < types.index("case_fully_closed")
+        assert types[-1] == "case_fully_closed"
+
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("RSH-08-004")
+    def test_a_replica_stores_the_closure_and_changes_nothing(self):
+        """The replica stores the entry; the case it carries is already held.
+
+        Every RM step arrived as its own entry before it, so applying the
+        closure writes nothing (CM-23-016): the replica's case is the same
+        before and after it.
+        """
+        manager = _make_full_dl()
+        replica = _replica_of(manager)
+        _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
+        *before, closure = _case_ledger(manager)
+        assert closure.event_type == "case_fully_closed"
+        _deliver(replica, before)
+        case_before = replica.read_case(CASE_ID)
+
+        _deliver(replica, [closure])
+
+        assert replica.read(closure.id_) is not None
+        assert replica.read_case(CASE_ID) == case_before
+
+    @pytest.mark.spec("CM-23-002")
+    def test_a_close_with_no_factory_raises_rather_than_half_closing(self):
+        """No trigger-activity factory is a wiring fault, not a non-owner Leave.
+
+        A FAILURE would send the owner arm's Selector down the non-owner path
+        and report a half-closed case as SUCCESS.
+        """
+        dl = _make_full_dl()
+        with pytest.raises(VultronBTInternalError):
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+        assert not _case_fully_closed_present(dl)
+
+
+class TestReplicaAppliesTheClosureSteps:
+    """A replica advances the leaver only by applying the status entries.
+
+    CM-23-001, CM-23-016: the CASE_MANAGER commits one status entry per RM
+    transition it writes for the leaver; the ``close_case`` entry changes no
+    RM state; a replica never walks the RM table from its own view (#4091).
+    """
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-003")
+    @pytest.mark.parametrize(
+        "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
+    )
+    def test_replica_closes_the_leaver_from_the_ledger(self, leaver_id: str):
+        """Replaying the CASE_MANAGER's ledger closes the leaver on a replica."""
+        manager = _make_full_dl()
+        _seed_rm(manager, leaver_id, RM.ACCEPTED)
+        replica = _replica_of(manager)
+        _close(manager, leaver_id, "https://example.org/activities/leave")
+
+        _replay(manager, replica)
+
+        assert _latest_rm(replica, leaver_id) == RM.CLOSED
+
+    @pytest.mark.spec("CM-23-004")
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.parametrize(
+        "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
+    )
+    def test_leavers_replica_closes_only_from_what_it_is_sent(
+        self, leaver_id: str
+    ):
+        """The leaver's own replica closes on the CASE_MANAGER's entries only.
+
+        It writes no ``CLOSED`` of its own when it leaves (the sender side
+        does not, AC-4 of #4212), so it is still open until the entries the
+        CASE_MANAGER sends it arrive.  Those are its ``close_case`` entry and
+        its own closure steps; nothing after them, ``case_fully_closed``
+        included, is sent to it (CM-23-004).
+        """
+        manager = _make_full_dl()
+        _seed_rm(manager, leaver_id, RM.VALID)
+        replica = _replica_of(manager, leaver_id)
+        sync_port = MagicMock(spec=SyncActivityPort)
+
+        CloseCaseReceivedUseCase(
+            dl=manager,
+            request=_make_close_case_event(sender_actor_id=leaver_id),
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(manager),
+        ).execute()
+        assert _latest_rm(replica, leaver_id) == RM.VALID
+
+        sent = [e for e, to in _announced(sync_port) if leaver_id in to]
+        _deliver(replica, sent)
+
+        assert _latest_rm(replica, leaver_id) == RM.CLOSED
+        assert _status_history(replica, leaver_id) == _status_history(
+            manager, leaver_id
+        )
+        own_steps = set(_ledger_rm_steps(manager, leaver_id))
+        assert sent[0].event_type == "close_case"
+        assert {e.log_object_id for e in sent[1:]} == own_steps
+        last_sent = sent[-1].log_index
+        assert _case_ledger(manager)[-1].log_index >= last_sent
+        if leaver_id == OWNER_ID:
+            # The CASE_MANAGER's steps and the boundary follow, unsent.
+            assert "case_fully_closed" not in {e.event_type for e in sent}
+            assert _case_ledger(manager)[-1].log_index > last_sent
+
+    @pytest.mark.spec("CM-23-004")
+    def test_an_earlier_leaver_is_sent_nothing_of_the_owner_close(self):
+        """A participant that left first receives no entry of the owner close."""
+        manager = _make_full_dl()
+        _close(manager, VENDOR_ID, "https://example.org/activities/leave-v")
+        sync_port = MagicMock(spec=SyncActivityPort)
+
+        CloseCaseReceivedUseCase(
+            dl=manager,
+            request=_make_close_case_event(
+                sender_actor_id=OWNER_ID,
+                activity_id="https://example.org/activities/leave-o",
+            ),
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(manager),
+        ).execute()
+
+        sent = _announced(sync_port)
+        assert _case_ledger(manager)[-1].event_type == "case_fully_closed"
+        # Every participant is closed by then, so the boundary goes to nobody.
+        assert "case_fully_closed" not in {e.event_type for e, _ in sent}
+        assert all(VENDOR_ID not in to for _, to in sent), [
+            (e.event_type, to) for e, to in sent
+        ]
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-016")
+    def test_close_case_entry_alone_changes_no_rm_state(self):
+        """Applying only the close_case entry leaves every RM state as it was."""
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
+        _seed_rm(dl, OWNER_ID, RM.VALID)
+        before = {a: _status_history(dl, a) for a in (OWNER_ID, VENDOR_ID)}
+        entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
+
         BTBridge(
             datalayer=dl, wire_render_port=As2WireRenderAdapter()
         ).execute_with_setup(
-            tree=tree,
+            tree=create_announce_log_entry_tree(),
             actor_id=VENDOR_ID,
-            activity=event,
+            activity=_make_announce_event(
+                entry=entry, sender_actor_id=CASE_ACTOR_ID
+            ),
             sync_port=MagicMock(spec=SyncActivityPort),
         )
 
-        rm_states = _participant_rm_states(dl, OWNER_ID)
-        assert RM.CLOSED in rm_states, (
-            f"Announce(close_case) fan-out must advance departing participant"
-            f" to RM.CLOSED on vendor replica (CM-23-003);"
-            f" rm_states={rm_states}"
+        assert dl.read(entry.id_) is not None, "the entry is still stored"
+        after = {a: _status_history(dl, a) for a in (OWNER_ID, VENDOR_ID)}
+        assert after == before, (
+            "a close_case entry must change no participant's RM state"
+            " (CM-23-001)"
         )
 
-    def test_fan_out_does_not_advance_non_departing_participant(self):
-        """Announce(close_case entry for OWNER) must not advance VENDOR to RM.CLOSED."""
-        dl = _make_full_dl(store_owner_id=VENDOR_ID)
-        entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-012")
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.parametrize(
+        "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
+    )
+    @pytest.mark.parametrize(
+        "source",
+        [None, RM.RECEIVED, RM.ACCEPTED, RM.VALID],
+        ids=["START", "RECEIVED", "ACCEPTED", "VALID"],
+    )
+    def test_replica_history_equals_the_case_managers(
+        self, leaver_id: str, source: RM | None
+    ):
+        """Every closure step the CASE_MANAGER wrote reaches the replica.
 
-        event = _make_announce_event(
-            entry=entry, sender_actor_id=CASE_ACTOR_ID
+        The replica's per-actor status history ends identical to the
+        CASE_MANAGER's, status ids included, for every closing actor: a Leave
+        from Valid is V → D → C and from Start S → R → C on both (AC-3).
+        """
+        manager = _make_full_dl()
+        if source is not None:
+            _seed_rm(manager, leaver_id, source)
+        replica = _replica_of(manager)
+        _close(manager, leaver_id, "https://example.org/activities/leave")
+
+        _replay(manager, replica)
+
+        closing = [leaver_id] + (
+            [CASE_ACTOR_ID] if leaver_id == OWNER_ID else []
+        )
+        for actor_id in closing:
+            assert _status_history(replica, actor_id) == _status_history(
+                manager, actor_id
+            ), actor_id
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("RSH-05-021")
+    def test_replica_refusing_a_step_writes_no_step_of_its_own(
+        self, monkeypatch, caplog
+    ):
+        """A refused step entry is logged and the replica invents nothing.
+
+        The replica's participant-status effect refuses the CLOSED entry (a
+        stand-in for an impossible composite state, RSH-05-021).  It logs a
+        WARNING, keeps the steps it did apply, and writes no CLOSED of its
+        own: nothing else on the ledger moves the leaver (CM-23-001).
+        """
+        from types import SimpleNamespace
+
+        from vultron.core.behaviors.sync.nodes import participant_status_effect
+
+        manager = _make_full_dl()
+        _seed_rm(manager, VENDOR_ID, RM.VALID)
+        replica = _replica_of(manager)
+        before = _status_history(replica, VENDOR_ID)
+        _close(manager, VENDOR_ID, "https://example.org/activities/leave")
+        monkeypatch.setattr(
+            participant_status_effect,
+            "composite_state_violations",
+            lambda rm, _vf, _d: (
+                [SimpleNamespace(message="refused for the test")]
+                if rm is RM.CLOSED
+                else []
+            ),
         )
 
-        tree = create_announce_log_entry_tree()
-        BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=VENDOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
+        with caplog.at_level(logging.WARNING):
+            for entry in _case_ledger(manager):
+                BTBridge(
+                    datalayer=replica, wire_render_port=As2WireRenderAdapter()
+                ).execute_with_setup(
+                    tree=create_announce_log_entry_tree(),
+                    actor_id=VENDOR_ID,
+                    activity=_make_announce_event(
+                        entry=entry, sender_actor_id=CASE_ACTOR_ID
+                    ),
+                    sync_port=MagicMock(spec=SyncActivityPort),
+                )
+
+        added = [rm for _id, rm in _status_history(replica, VENDOR_ID)][
+            len(before) :
+        ]
+        assert added == [RM.DEFERRED], added
+        assert any(
+            "impossible composite state" in r.getMessage()
+            and r.levelno == logging.WARNING
+            for r in caplog.records
         )
 
-        rm_states = _participant_rm_states(dl, VENDOR_ID)
-        assert RM.CLOSED not in rm_states, (
-            f"Announce(close_case for OWNER) must NOT advance VENDOR to RM.CLOSED;"
-            f" rm_states={rm_states}"
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("CM-23-001")
+    def test_lagging_replica_writes_no_step_the_ledger_lacks(self):
+        """The #4091 case: the replica still has the leaver at VALID.
+
+        The CASE_MANAGER has the leaver at DEFERRED, so it writes and records
+        only D → C.  A replica holding the older VALID status applies that one
+        entry: it ends at CLOSED with no DEFERRED step of its own, where a
+        table walk from its own view would have written V → D → C.
+        """
+        manager = _make_full_dl()
+        _seed_rm(manager, VENDOR_ID, RM.VALID)
+        replica = _replica_of(manager)
+        _seed_rm(manager, VENDOR_ID, RM.DEFERRED)
+        before = _status_history(replica, VENDOR_ID)
+        _close(manager, VENDOR_ID, "https://example.org/activities/leave")
+
+        _replay(manager, replica)
+
+        after = _status_history(replica, VENDOR_ID)
+        assert after[: len(before)] == before
+        added = after[len(before) :]
+        assert [status_id for status_id, _rm in added] == _ledger_rm_steps(
+            manager, VENDOR_ID
+        )
+        assert [rm for _id, rm in added] == [RM.CLOSED], (
+            "the replica must write only the step the ledger records,"
+            f" not a DEFERRED of its own (#4091); got {added}"
         )
 
 
@@ -840,6 +2076,7 @@ class TestClosureRMBoundary:
 
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=leaver_id),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -871,6 +2108,7 @@ class TestClosureRMBoundary:
 
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=leaver_id),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -896,6 +2134,7 @@ class TestClosureRMBoundary:
 
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -903,46 +2142,6 @@ class TestClosureRMBoundary:
 
         after = _participant_rm_states(dl, VENDOR_ID)
         assert after == [*before, RM.RECEIVED, RM.CLOSED], after
-
-    @pytest.mark.spec("CM-23-012")
-    @pytest.mark.spec("RMB-14-005")
-    @pytest.mark.parametrize(
-        ("source", "path"),
-        [
-            (RM.RECEIVED, [RM.CLOSED]),
-            (RM.ACCEPTED, [RM.CLOSED]),
-            (RM.VALID, [RM.DEFERRED, RM.CLOSED]),
-        ],
-        ids=lambda v: v.name if isinstance(v, RM) else None,
-    )
-    def test_fanout_records_the_same_closure_path(
-        self, source: RM, path: list[RM]
-    ):
-        """A replica applying a close_case entry records the same RM path.
-
-        ``ApplyCloseCaseFromLedgerNode`` walks the RM table exactly as the
-        CASE_MANAGER does, so a departing participant at VALID passes through
-        DEFERRED on every replica too (RMB-14-005).
-        """
-        dl = _make_full_dl(store_owner_id=VENDOR_ID)
-        _seed_rm(dl, OWNER_ID, source)
-        before = _participant_rm_states(dl, OWNER_ID)
-        entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
-        event = _make_announce_event(
-            entry=entry, sender_actor_id=CASE_ACTOR_ID
-        )
-
-        BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
-        ).execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=VENDOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
-
-        after = _participant_rm_states(dl, OWNER_ID)
-        assert after == [*before, *path], after
 
     @pytest.mark.spec("CM-23-005")
     @pytest.mark.spec("RMB-14-005")
@@ -970,6 +2169,7 @@ class TestClosureRMBoundary:
 
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -994,6 +2194,7 @@ class TestClosureRMBoundary:
 
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -1353,179 +2554,141 @@ def test_close_without_case_id_is_refused():
     assert result.disposition == HandlerDisposition.REFUSED
 
 
-class TestCaseActorRMClosedRecordingIsBestEffort:
-    """Recording the CaseActor's own RM.CLOSED must never cost the case its closure.
+class TestCaseActorRMClosedRecordingFailsClosed:
+    """The CaseActor's own RM.CLOSED is not written unless it is recorded.
 
-    ``CommitCaseActorRMClosedEntryNode`` sits between CM-23-002 step 2 (advance
-    the CASE_MANAGER) and step 3 (``case_fully_closed``) in a single Sequence.
-    If it returned FAILURE, steps 3 and 4 would be skipped — and because the
-    enclosing ``OwnerOrNonOwnerEffects`` Selector reads a failed owner arm as
-    "the sender is not the Case Owner", the tree would then succeed down the
-    non-owner path and report SUCCESS with an empty failure reason. The result
-    is a permanently half-closed case with no diagnostic: no
-    ``case_fully_closed``, no fan-out, nothing logged.
-
-    So the node warns and returns SUCCESS on every path where it cannot produce
-    the entry. These tests pin that: closure completes, the owner arm is the arm
-    that ran, and the only thing lost is the one entry.
+    ``CommitRMClosureEntriesNode`` sits between CM-23-002 step 2 (advance the
+    CASE_MANAGER) and step 3 (``case_fully_closed``).  A step whose entry does
+    not commit is withdrawn and the node fails, so the CASE_MANAGER's store
+    never holds a closure its ledger lacks (CLP-07-013).  The owner arm then
+    stops before ``case_fully_closed``, and the non-owner arm's own role check
+    keeps the enclosing Selector from closing the owner as an ordinary leaver.
     """
+
+    @staticmethod
+    def _fail_case_actor_commits(monkeypatch, dl: SqliteDataLayer) -> None:
+        """Fail only the commits of the CaseActor's own closure steps."""
+        from vultron.core.behaviors.case.nodes.leave import record
+
+        def _case_actors(kwargs: dict) -> bool:
+            status = dl.read(kwargs["object_id"])
+            return (
+                isinstance(status, ParticipantStatus)
+                and status.attributed_to == CASE_ACTOR_ID
+            )
+
+        fail_commits(monkeypatch, record, when=_case_actors)
 
     @pytest.fixture
     def rm_closed_node_without_port(self, monkeypatch):
-        """Blind only the RM.CLOSED recording node to the render port.
-
-        The rest of the tree keeps the port: the Leave's own guarded commit
-        needs it and fails closed without it (ARCH-20-001).  This isolates the
-        one entry the node skips when it cannot render its snapshot.
-        """
+        """Blind only the RM closure recording nodes to the trigger port."""
         from vultron.core.behaviors.case.nodes.leave.record import (
-            CommitCaseActorRMClosedEntryNode,
+            CommitRMClosureEntriesNode,
         )
 
-        original = CommitCaseActorRMClosedEntryNode.initialise
+        original = CommitRMClosureEntriesNode.initialise
 
         def _initialise_without_port(node) -> None:
             original(node)
-            node.wire_render_port = None
+            node.trigger_activity_factory = None
 
         monkeypatch.setattr(
-            CommitCaseActorRMClosedEntryNode,
+            CommitRMClosureEntriesNode,
             "initialise",
             _initialise_without_port,
         )
 
-    @pytest.mark.spec("CM-23-002")
-    def test_missing_port_still_commits_case_fully_closed(
-        self, rm_closed_node_without_port
-    ):
-        """No WireRenderPort: the entry is skipped, the case still fully closes."""
+    @pytest.mark.spec("CM-23-005")
+    @pytest.mark.spec("CLP-07-013")
+    def test_failed_commit_leaves_the_case_actor_unchanged(self, monkeypatch):
+        """AC-3: the CaseActor's record is as it was, and the case stays open."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        before = _case_file(dl, CASE_ACTOR_ID)
+        self._fail_case_actor_commits(monkeypatch, dl)
 
-        assert _case_fully_closed_present(dl), (
-            "case_fully_closed must still be committed when the CASE_MANAGER's"
-            " own RM.CLOSED cannot be recorded — a missing WireRenderPort must"
-            " not strand the case half-closed (CM-23-002 steps 3-4)"
+        result = _close(
+            dl, OWNER_ID, "https://example.org/activities/leave-owner"
         )
 
-    @pytest.mark.spec("CM-23-002")
-    def test_missing_port_still_takes_the_owner_arm(
-        self, rm_closed_node_without_port
-    ):
-        """No WireRenderPort: the owner arm ran, not the non-owner fallback.
-
-        The distinguishing effect is the CaseActor's own advance to RM.CLOSED
-        (step 2), which only the owner arm performs. If a failed recording had
-        bumped the tree onto ``NonOwnerLeaveFallbackSeq``, only the departing
-        owner would have advanced.
-        """
-        dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        assert _latest_rm(dl, OWNER_ID) == RM.CLOSED, (
-            "the departing owner must reach RM.CLOSED (CM-23-002 step 1)"
+        assert result.disposition != HandlerDisposition.APPLIED, (
+            "a closure the ledger cannot record is not reported as applied"
         )
-        assert RM.CLOSED in _participant_rm_states(dl, CASE_ACTOR_ID), (
-            "the CaseActor must still advance itself to RM.CLOSED (CM-23-002"
-            " step 2) — a failed *recording* must not divert the tree onto the"
-            " non-owner path"
+        assert "could not commit" in (result.reason or ""), (
+            "the verdict names the failed commit, not the role check"
+            f" (got {result.reason!r})"
+        )
+        assert _case_file(dl, CASE_ACTOR_ID) == before
+        assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID)
+        assert not _case_actor_rm_closed_entries(dl)
+        assert not _case_fully_closed_present(dl), (
+            "the owner arm stops before case_fully_closed (CM-23-002)"
         )
 
     @pytest.mark.spec("CM-23-005")
-    def test_missing_port_skips_only_the_case_actor_entry(
-        self, rm_closed_node_without_port
-    ):
-        """No WireRenderPort: the ledger entry is the only casualty.
-
-        The honest cost of best-effort recording. This is ISSUE-2505 in
-        miniature — replicas cannot see the CASE_MANAGER's closure on this run —
-        and it is the trade accepted to keep the case's terminal anchor.
-        """
+    def test_failed_commit_keeps_the_owners_committed_steps(self, monkeypatch):
+        """The owner's own steps committed, so they stay; only the CaseActor's go."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        self._fail_case_actor_commits(monkeypatch, dl)
 
-        assert not _case_actor_rm_closed_entries(dl), (
-            "without a WireRenderPort no snapshot can be rendered, so no entry"
-            " should be committed — an empty payload would be worse"
-        )
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _latest_rm(dl, OWNER_ID) == RM.CLOSED
+        assert _ledger_rm_steps(dl, OWNER_ID)
 
     @pytest.mark.spec("CM-23-002")
-    def test_failed_commit_still_commits_case_fully_closed(self, monkeypatch):
-        """A failing commit tree does not take case closure down with it.
-
-        This is the path reachable without any wiring regression:
-        ``create_commit_log_entry_tree`` opens with ``CheckLedgerFreshnessNode``,
-        which returns FAILURE on a gapped local prefix by design
-        (SYNC-10-001/002). Stand-in for that here is a tree that always fails.
-        """
+    def test_a_redelivered_owner_leave_completes_the_closure(
+        self, monkeypatch
+    ):
+        """The failed closure heals on redelivery, through the owner arm."""
         dl = _make_full_dl()
-        monkeypatch.setattr(
-            "vultron.core.behaviors.case.nodes.leave.record"
-            ".create_commit_log_entry_tree",
-            lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
+        with monkeypatch.context() as patch:
+            self._fail_case_actor_commits(patch, dl)
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        result = _close(
+            dl, OWNER_ID, "https://example.org/activities/leave-owner"
         )
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        assert not _case_actor_rm_closed_entries(dl), (
-            "sanity: the forced failure must actually have suppressed the entry"
-        )
-        assert _case_fully_closed_present(dl), (
-            "case_fully_closed must still be committed when the CASE_MANAGER's"
-            " RM.CLOSED entry cannot be committed — a gapped local ledger must"
-            " not block case closure (SYNC-10-001/002)"
-        )
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert _case_actor_rm_closed_entries(dl)
+        assert _case_fully_closed_present(dl)
 
     @pytest.mark.spec("CM-23-005")
-    def test_failed_recording_is_logged_to_the_stdlib_logger(
-        self, caplog, rm_closed_node_without_port
+    @pytest.mark.spec("ARCH-15-001")
+    def test_missing_port_raises_and_writes_nothing(
+        self, rm_closed_node_without_port
     ):
-        """A skipped entry is announced where deployment logs can see it.
+        """No TriggerActivityPort is a wiring fault: raise, keep no step."""
+        dl = _make_full_dl()
+        before = _case_file(dl, OWNER_ID)
 
-        Best-effort is only defensible if the miss is observable.
-        ``py_trees.behaviour.Behaviour.logger`` writes to the console and never
-        reaches the stdlib ``logging`` tree, so the node must also log through
-        its module logger — otherwise this degrades into the silent drop that
-        ISSUE-2505 already was.
+        with pytest.raises(VultronBTInternalError):
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _case_file(dl, OWNER_ID) == before
+        assert not _case_fully_closed_present(dl)
+
+    @pytest.mark.spec("CM-23-005")
+    def test_withdrawal_is_logged_to_the_stdlib_logger(
+        self, monkeypatch, caplog
+    ):
+        """A withdrawn step is announced where deployment logs can see it.
+
+        ``py_trees.behaviour.Behaviour.logger`` writes to the console and
+        never reaches the stdlib ``logging`` tree (ISSUE-2505).
         """
         dl = _make_full_dl()
+        self._fail_case_actor_commits(monkeypatch, dl)
         with caplog.at_level(
             logging.WARNING,
             logger="vultron.core.behaviors.case.nodes.leave.record",
         ):
-            CloseCaseReceivedUseCase(
-                dl=dl,
-                request=_make_close_case_event(sender_actor_id=OWNER_ID),
-                sync_port=SyncActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
         assert any(
-            "WireRenderPort" in r.getMessage() for r in caplog.records
-        ), (
-            "the skipped entry must be logged via the stdlib logger; got"
-            f" {[r.getMessage() for r in caplog.records]}"
-        )
+            CASE_ACTOR_ID in r.getMessage() and "withdrew" in r.getMessage()
+            for r in caplog.records
+        ), [r.getMessage() for r in caplog.records]
 
 
 class TestCaseActorRMClosedRecordingIsRoleGated:
@@ -1554,6 +2717,7 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
 
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -1571,6 +2735,7 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -1580,68 +2745,3 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
             "the CASE_MANAGER must still record its own RM.CLOSED (CM-23-005)"
             " — the role gate must not suppress the entry it exists to protect"
         )
-
-
-class TestCaseActorClosureStatusSelection:
-    """Which statuses ``CommitCaseActorRMClosedEntryNode`` reads as a closure."""
-
-    @staticmethod
-    def _closure_rms(rms: list[RM]) -> list[RM]:
-        from vultron.core.behaviors.case.nodes.leave.record import (
-            CommitCaseActorRMClosedEntryNode,
-        )
-        from vultron.core.models.participant_status import (
-            participant_status_rm_state,
-        )
-
-        participant = as_CaseParticipant(
-            attributed_to=CASE_ACTOR_ID,
-            context=CASE_ID,
-            case_roles=[CVDRole.CASE_MANAGER],
-            participant_statuses=[],
-        )
-        for rm_state in rms:
-            participant.participant_statuses.append(
-                ParticipantStatus(
-                    attributed_to=CASE_ACTOR_ID,
-                    context=CASE_ID,
-                    rm=RmDimension(state=rm_state),
-                )
-            )
-        node = CommitCaseActorRMClosedEntryNode(
-            case_actor_id=CASE_ACTOR_ID, case_id=CASE_ID
-        )
-        return [
-            participant_status_rm_state(status)
-            for status in node._closure_statuses(participant)
-        ]
-
-    @pytest.mark.spec("CM-23-005")
-    def test_bootstrap_status_is_not_a_closure_rung(self):
-        """A bootstrap RECEIVED status is not read as the R of S → R → C.
-
-        The first status is the bootstrap write (``owner.py`` may seed
-        RECEIVED), so an R → C closure records only the CLOSED status.
-        """
-        assert self._closure_rms([RM.RECEIVED, RM.CLOSED]) == [RM.CLOSED]
-
-    @pytest.mark.spec("CM-23-005")
-    @pytest.mark.spec("RMB-14-005")
-    @pytest.mark.parametrize(
-        ("rms", "expected"),
-        [
-            ([RM.START, RM.RECEIVED, RM.CLOSED], [RM.RECEIVED, RM.CLOSED]),
-            (
-                [RM.RECEIVED, RM.VALID, RM.DEFERRED, RM.CLOSED],
-                [RM.DEFERRED, RM.CLOSED],
-            ),
-            ([RM.RECEIVED, RM.VALID, RM.ACCEPTED, RM.CLOSED], [RM.CLOSED]),
-            ([RM.CLOSED], [RM.CLOSED]),
-            ([RM.RECEIVED, RM.VALID], []),
-        ],
-    )
-    def test_closure_rungs_follow_the_closure_path(
-        self, rms: list[RM], expected: list[RM]
-    ):
-        """The closure is the rungs after the bootstrap that match the path."""
-        assert self._closure_rms(rms) == expected

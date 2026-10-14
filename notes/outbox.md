@@ -1,7 +1,10 @@
 ---
 title: Outbox Notes
 status: active
-description: Implementation guidance for outbox addressing requirements.
+kind: guidance
+description: >
+  Rules for outbox addressing enforcement (OX-08), the structure of
+  `handle_outbox_item`, and the test coverage every delivery change carries.
 related_specs:
   - specs/outbox.yaml
 related_notes:
@@ -16,182 +19,48 @@ relevant_packages:
 
 # Outbox Notes
 
-Implementation guidance for outbox addressing requirements.
+Delivery ordering, retry, and dead-lettering are in
+[outbox-delivery-reliability](outbox-delivery-reliability.md).
 
-**Spec**: `specs/outbox.yaml` OX-08-001 through OX-08-004  
-**Source idea**: IDEA-26041001
+## Addressing Is `to:` Only (OX-08)
 
----
-
-## Context
-
-The `D5-7-TRIGNOTIFY-1` task fixed missing `to:` fields in trigger use-case
-outbound activities. The root cause was the absence of a spec requirement and
-enforcement mechanism. IDEA-26041001 formalises the rule: all outbound
-Vultron activities are direct messages and MUST have a non-empty `to:` field.
+Every outbound Vultron activity is a direct message and MUST carry a non-empty `to:`
+(OX-08-001/002); an empty list is as bad as `None`. `handle_outbox_item` refuses one
+without it with `VultronOutboxToFieldMissingError` (`vultron/errors.py`). Any
+`cc`/`bto`/`bcc` logs a WARNING with no exemption, including a copy naming the sender:
+the emitting tree commits its own entry, so no outbound activity addresses its own
+sender (OX-08-004, ADR-0109).
 
 ---
 
-## Decision Table
+## `handle_outbox_item` Orchestrates Named Helpers
 
-| Question | Decision | Rationale |
-|---|---|---|
-| Which addressing fields are valid? | `to:` required; no exceptions | All Vultron exchanges are DMs; `cc`/`bto`/`bcc` are unsupported (OX-08-004, ADR-0109) |
-| Where to enforce? | `handle_outbox_item` in `outbox_handler.py` | Already has the full activity; consistent with existing `VultronOutboxObjectIntegrityError` pattern |
-| Exception class? | New `VultronOutboxToFieldMissingError` | Matches project exception naming convention; distinct from object-integrity errors |
-| Scope? | All outbox activities, no exceptions | Every outbound activity must be addressed |
-| What counts as valid `to:`? | Non-empty list (or scalar) of URI strings | Empty list is as bad as `None`; format validation out of scope |
-| `cc`/`bto`/`bcc` presence? | Log WARNING, no exemption | OX-08-004: the former CASE_MANAGER self-copy exemption was retired by ADR-0109 — the emitting tree commits its own entry, so no outbound activity names its own sender |
+`handle_outbox_item()` (`vultron/adapters/driving/fastapi/outbox_handler.py`) only
+sequences named helpers (`_load_sealed_body`, `_validate_to_field`,
+`_warn_secondary_addressing`, `_validate_inline_object` in `outbox_delivery.py`;
+`_extract_recipients` in `outbox_addressing.py`). A new `OX-*` or `MV-*` outbox
+requirement is a new `_<action>_<subject>` helper called from it, never inline logic, so
+each protocol check stays independently reviewable and testable.
 
----
-
-## Testing Patterns
-
-```python
-# Test: missing to: raises VultronOutboxToFieldMissingError
-activity = make_test_activity(to=None)
-dl.save(activity)
-dl.outbox_append(activity.id_)
-with pytest.raises(VultronOutboxToFieldMissingError):
-    await handle_outbox_item(actor_id, activity.id_, dl, emitter)
-
-# Test: empty list raises
-activity = make_test_activity(to=[])
-...
-
-# Test: cc present but no to: raises
-activity = make_test_activity(to=None, cc=["https://example.org/alice"])
-...
-
-# Test: to: present with cc: pointing to a *third party* logs WARNING
-activity = make_test_activity(
-    to=["https://example.org/alice"],
-    cc=["https://example.org/bob"],  # bob ≠ sender → WARNING fires
-)
-with caplog.at_level(logging.WARNING):
-    await handle_outbox_item(actor_id, activity.id_, dl, emitter)
-assert any("cc" in r.message for r in caplog.records)
-emitter.emit.assert_called_once()
-
-# Test: cc: naming the sender's own ID also logs WARNING — no self-copy
-# exemption (OX-08-004, ADR-0109); the emitting tree commits its own entry
-activity = make_test_activity(
-    actor=actor_id,
-    to=["https://example.org/invitee"],
-    cc=[actor_id],  # sender's own ID → WARNING fires like any other cc
-)
-with caplog.at_level(logging.WARNING):
-    await handle_outbox_item(actor_id, activity.id_, dl, emitter)
-assert any("cc" in r.message for r in caplog.records)
-emitter.emit.assert_called_once()
-```
+**A helper guards or refuses; it never repairs.** The handler is a dumb relay
+(VM-08-003, OX-07-001): it delivers the body the emitting adapter sealed
+(`vultron/adapters/outbox_sealed_body.py`) and reads nothing else. Expansion,
+re-typing, or hydration helpers make the wire disagree with the ledger; do not add one.
+See `notes/wire-artifact-immutability.md` § "How the blob reaches delivery".
 
 ---
 
-## Layer / Import Rules
+## Every Delivery Change Carries Targeted Unit Tests
 
-- `VultronOutboxToFieldMissingError` lives in `vultron/errors.py` (neutral
-  module, same as `VultronOutboxObjectIntegrityError`)
-- `outbox_handler.py` is in the driving adapter layer
-  (`vultron/adapters/driving/fastapi/`) — importing from `vultron/errors.py`
-  is permitted
+A change to recipient routing, the sealed-body relay, or activity validation in the
+outbox handler MUST add or update the unit test for that behavior, because a delivery
+regression is silent message loss (#653):
 
----
+| Behavior | Tests |
+|---|---|
+| Recipient extraction and dedup | `test/adapters/driving/fastapi/test_outbox_helpers.py` |
+| Sealed body reaches the emitter byte for byte; a missing sealed body is dropped with an ERROR | `test_outbox_handle_item_delivery.py`, `test_outbox_sealed_body_delivery.py` |
+| `to:` refusal, secondary-addressing warning, inline-object integrity | `test_outbox_handle_item_validation.py` |
 
-## Test-Coverage Requirements for Delivery Changes
-
-The `outbox_handler.py` file is a high-churn module (31+ commits/90 days) due to
-ongoing protocol feature additions, DataLayer architectural changes, and bug
-fixes in delivery routing. To prevent silent delivery failures and message loss,
-**every change to recipient routing, object dehydration, or activity validation
-MUST include targeted unit tests**.
-
-### Required Test Coverage
-
-When modifying `outbox_handler.py`, add or update tests for these scenarios:
-
-1. **Recipient Extraction and Deduplication** (`_extract_recipients`)
-   - Test: extract from `to` field
-   - Test: deduplicate across multiple recipients
-   - Test: handle missing/None fields gracefully
-   - Location: `test/adapters/driving/fastapi/test_outbox_helpers.py`
-
-2. **Sealed-body relay** (`_load_sealed_body`, `handle_outbox_item`)
-   - Test: the emitter receives the sealed text itself, byte for byte (VM-08-003)
-   - Test: a queued id with no sealed body is dropped with an ERROR, not delivered
-   - Test: an Invite's stub `target` and an Announce's inline `CaseLedgerEntry`
-     reach the emitter as sealed
-   - Location: `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py`,
-     `test_outbox_sealed_body_delivery.py`
-
-3. **Activity Validation** (`handle_outbox_item`)
-   - Test: reject missing or empty `to:` field (OX-08-001, OX-08-002)
-   - Test: warn on any `cc`/`bto`/`bcc` presence, including the sender's own id (OX-08-004, ADR-0109)
-   - Test: enforce `VultronOutboxObjectIntegrityError` for malformed activities
-   - Location: `test/adapters/driving/fastapi/test_outbox_handle_item_validation.py`
-
-### Test Philosophy
-
-- **Unit tests only**: Focus on quick-running tests for local development
-  velocity. Integration tests (full multi-actor scenarios) are handled by CI
-  demo verification or separate acceptance test suites.
-- **Fail-fast gates**: Each delivery-routing change MUST be gated on passing
-  the corresponding unit test(s) before commit. This prevents silent regressions
-  in recipient targeting or activity structure.
-- **No test exemptions**: Even refactors or style changes that touch
-  `_extract_recipients`, `_load_sealed_body`, or `handle_outbox_item`
-  MUST verify that existing tests still pass. If tests are modified, document
-  the reason in the commit message.
-
-### Related Issue
-
-See GitHub Concern #653 for the full context and commitment to test-driven
-delivery validation.
-
----
-
-## Related
-
-- `specs/outbox.yaml` — OX-08-*, OX-09-*, MV-10-* requirements
-- `vultron/adapters/driving/fastapi/outbox_handler.py` — enforcement point
-- `vultron/errors.py` — exception hierarchy
-- `test/adapters/driving/fastapi/test_outbox_helpers.py`,
-  `test_outbox_handle_item_validation.py` — test locations
-- GitHub Concern #653 — high-churn analysis and test-coverage commitment
-
----
-
-## Outbox Handler Decomposition Pattern
-
-(OUTBOX-874, 2026-06-11)
-
-The `handle_outbox_item()` function in `outbox_handler.py` uses a
-helper-extraction pattern to keep the delivery orchestration readable:
-each protocol check (sealed-body loading, `to:` enforcement, secondary
-addressing, inline-object integrity) is extracted into a named helper
-function rather than inlined in the main function body.
-
-**Why this matters**: `handle_outbox_item` is a high-churn, high-correctness
-area. Nesting multiple protocol checks inline makes the control flow hard to
-reason about and increases the risk of inadvertently breaking OX/MV invariants
-during future changes. Named helpers make each protocol check independently
-reviewable and testable.
-
-**Naming convention**: Helper functions follow the form
-`_<action>_<subject>(...)` (e.g., `_load_sealed_body`, `_validate_to_field`,
-`_validate_inline_object`). The main function is responsible only for
-sequence-level orchestration: call helpers in order, handle errors, return the
-result.
-
-**Rule**: a helper guards or refuses; it never repairs. The handler is a dumb
-relay (VM-08-003, OX-07-001): it delivers the body the emitting adapter sealed
-(`vultron/adapters/outbox_sealed_body.py`) and reads nothing else. The
-expansion, re-typing and hydration helpers that used to sit here compensated
-for factory gaps and made the wire disagree with the ledger; do not bring one
-back. See `notes/wire-artifact-immutability.md` § "How the blob reaches
-delivery".
-
-**Rule**: When adding a new outbox protocol requirement (new OX-*or MV-*
-spec), implement it as a new named helper and call it from the appropriate
-point in `handle_outbox_item()`. Do not inline protocol logic directly in
-the orchestration function.
+Multi-actor behavior is covered by the demo suites, not these unit tests. A change that
+modifies an existing test says why in the commit message.

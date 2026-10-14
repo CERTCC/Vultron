@@ -92,6 +92,8 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
 )
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
+    RejectCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
@@ -128,6 +130,7 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     em_reject_embargo_activity,
     offer_case_ownership_transfer_activity,
+    reject_case_ownership_transfer_activity,
     reject_case_participant_offer_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
@@ -195,27 +198,68 @@ def _report_id(report: Any) -> str:
     return report_id
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-21-011: ownership Accept from a non-transferee is applied. Tracked by #4070.",
-)
+_TRANSFEREE_ID = "https://example.org/actors/transferee"
+
+
+def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
+    """The CASE_MANAGER records (ledgers) an Offer naming ``_TRANSFEREE_ID``.
+
+    Its forward to the transferee is not what these tests are about.
+    """
+    cm_store.create(owned_case)
+    offer = offer_case_ownership_transfer_activity(
+        owned_case,
+        # Inline, as the inbox rehydrates it: the ledger commit refuses a
+        # bare-id target (VultronCanonicalEntryError).
+        target=as_Actor(id_=_TRANSFEREE_ID),
+        actor=_OWNER_ID,
+        to=[_CASE_MANAGER_ID],
+        id_=offer_id,
+    )
+    forward = MagicMock()
+    forward.offer_case_ownership_transfer.return_value = (
+        f"{offer_id}-forwarded",
+        "{}",
+    )
+    recorded = OfferCaseOwnershipTransferReceivedUseCase(
+        cm_store,
+        make_payload(offer, receiving_actor_id=_CASE_MANAGER_ID),
+        trigger_activity=forward,
+        sync_port=SyncActivityAdapter(cm_store),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+    assert recorded.disposition is HandlerDisposition.APPLIED
+    return offer
+
+
+def _reject_ownership_offer(cm_store, make_payload, offer, sender):
+    """*sender* declines *offer* at the CASE_MANAGER."""
+    event = make_payload(
+        reject_case_ownership_transfer_activity(offer, actor=sender),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+    return RejectCaseOwnershipTransferReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=SyncActivityAdapter(cm_store),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
 @pytest.mark.spec("CM-21-011")
 @pytest.mark.spec("HP-01-006")
 def test_ownership_accept_from_non_transferee_is_refused(
     cm_store, owned_case, make_payload
 ):
     """The recorded Offer names another transferee; the impostor accepts it."""
-    cm_store.create(owned_case)
-    offer = offer_case_ownership_transfer_activity(
+    offer = _record_ownership_offer(
+        cm_store,
         owned_case,
-        # Inline, as the inbox rehydrates it: the ledger commit refuses a
-        # bare-id target (VultronCanonicalEntryError).
-        target=as_Actor(id_="https://example.org/actors/transferee"),
-        actor=_OWNER_ID,
-        id_="https://example.org/activities/offer-ownership-se",
+        make_payload,
+        "https://example.org/activities/offer-ownership-se",
     )
-    cm_store.create(offer)
+    entries_before = list(cm_store.list_objects("CaseLedgerEntry"))
+    outbox_before = cm_store.outbox_list()
     event = make_payload(
         accept_case_ownership_transfer_activity(offer, actor=_IMPOSTOR_ID),
         receiving_actor_id=_CASE_MANAGER_ID,
@@ -229,8 +273,58 @@ def test_ownership_accept_from_non_transferee_is_refused(
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert (
+        result.reason is not None and "is not the transferee" in result.reason
+    )
     assert _reload_case(cm_store, owned_case.id_).attributed_to == _OWNER_ID
-    assert cm_store.outbox_list() == []
+    # No ledger commit and nothing sent for the refused Accept.
+    assert list(cm_store.list_objects("CaseLedgerEntry")) == entries_before
+    assert cm_store.outbox_list() == outbox_before
+
+
+_REJECTED_OFFER_ID = "https://example.org/activities/offer-ownership-se-reject"
+
+
+@pytest.mark.spec("CM-21-013")
+@pytest.mark.spec("HP-01-006")
+def test_ownership_reject_from_non_transferee_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """The recorded Offer names another transferee; the impostor declines it."""
+    offer = _record_ownership_offer(
+        cm_store, owned_case, make_payload, _REJECTED_OFFER_ID
+    )
+    entries_before = list(cm_store.list_objects("CaseLedgerEntry"))
+    outbox_before = cm_store.outbox_list()
+
+    result = _reject_ownership_offer(
+        cm_store, make_payload, offer, _IMPOSTOR_ID
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert (
+        result.reason is not None and "is not the transferee" in result.reason
+    )
+    # No ledger commit and nothing sent for the refused Reject: the Offer
+    # stays open.
+    assert cm_store.outbox_list() == outbox_before
+    assert list(cm_store.list_objects("CaseLedgerEntry")) == entries_before
+
+
+@pytest.mark.spec("CM-21-013")
+def test_ownership_reject_from_the_named_transferee_is_not_refused(
+    cm_store, owned_case, make_payload
+):
+    """The sender check refuses impostors only, not the transferee it names."""
+    offer = _record_ownership_offer(
+        cm_store, owned_case, make_payload, _REJECTED_OFFER_ID
+    )
+
+    result = _reject_ownership_offer(
+        cm_store, make_payload, offer, _TRANSFEREE_ID
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED
 
 
 @pytest.mark.spec("CM-11-017")
@@ -255,6 +349,7 @@ def test_accept_of_unrecorded_invite_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -299,6 +394,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     case = _reload_case(cm_store, owned_case.id_)
@@ -344,6 +440,7 @@ def test_accept_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -388,6 +485,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -422,6 +520,7 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -459,6 +558,7 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED

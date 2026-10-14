@@ -23,13 +23,17 @@ Specs: DEMOMA-06-002, DEMOMA-06-003.
 
 import logging
 from collections.abc import Mapping, Sequence
+from typing import cast
 
+from vultron.core.predicates.case_closure import (
+    CASE_FULLY_CLOSED_EVENT_TYPE,
+)
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
-    resolve_case_actor_store_id,
+    wait_for_all_participants_rm_closed,
     wait_for_case_actor_ledger_event,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -390,70 +394,78 @@ def verify_publicly_disclosed(
 
 
 def verify_case_closed(
-    receiver_client: DataLayerClient,
-    reporter_client: DataLayerClient,
+    case_manager_client: DataLayerClient,
     case_id: str,
 ) -> None:
-    """Verify that all participants are RM.CLOSED on both replicas.
+    """Verify that every participant is RM.CLOSED in the CASE_MANAGER's store.
 
-    The Case Actor automatically closes the case once all participants report
-    RM.CLOSED (DEMOMA-07-003 step 5).  This helper verifies the terminal
-    participant state on both DataLayers.
+    The CASE_MANAGER's own store, not any participant's replica, is where
+    every participant's closure is verified (CM-23-004).  A participant at
+    RM ``CLOSED`` is sent nothing after the entries that record its own
+    closure, so an earlier leaver's replica never learns of a later
+    closure, and the Case Owner's replica never receives the CASE_MANAGER's
+    closure steps or ``case_fully_closed``.  Each departing participant's
+    replica is checked for its own closure only
+    (:func:`~vultron.demo.helpers.closure.close_case_owner_last`).
 
     The CASE_MANAGER is checked like any other participant.  It used to be
     skipped here as "a coordinator", but it has a full RM lifecycle
     (ADR-0051, CM-23-005) and CM-23-010 defines ``RM.CLOSED`` on its record as
     "the Case Owner has left and the case is fully closed".  Skipping it meant
-    this check passed while the authority still read ``RM.ACCEPTED`` on every
-    replica — the mask over ISSUE-2505.
+    this check passed while the authority still read ``RM.ACCEPTED`` — the
+    mask over ISSUE-2505.
 
-    Spec: DEMOMA-06-002.
+    Polls through :func:`~vultron.demo.helpers.polling
+    .wait_for_all_participants_rm_closed`, then names every participant
+    that is not ``RM.CLOSED``.
+
+    Spec: DEMOMA-06-002, CM-23-004.
 
     Args:
-        receiver_client: Client connected to the receiver container.
-        reporter_client: Client connected to the reporter container.
+        case_manager_client: Client bound to the CASE_MANAGER's own store
+            (see :func:`~vultron.demo.helpers.polling.case_manager_store`).
         case_id: Full URI of the ``as_VulnerabilityCase``.
 
     Raises:
-        AssertionError: If any locally-fetchable participant is not RM.CLOSED
-            on either replica.
+        AssertionError: If any joined participant is not RM.CLOSED in the
+            CASE_MANAGER's store.
     """
-    for label, client in [
-        ("receiver", receiver_client),
-        ("reporter", reporter_client),
-    ]:
-        case_data = client.get(client.dl_path(case_id))
-        assert case_data, (
-            f"verify_case_closed {label}: case {case_id!r} not found"
+    client = case_manager_client
+    try:
+        wait_for_all_participants_rm_closed(client=client, case_id=case_id)
+    except AssertionError:
+        pass  # name the participants that are still open, below
+    case_data = client.get(client.dl_path(case_id))
+    assert case_data, f"verify_case_closed: case {case_id!r} not found"
+    case = as_VulnerabilityCase.model_validate(case_data)
+    open_actors: list[str] = []
+    for a_id, p_id in case.actor_participant_index.items():
+        p_data = _fetch_participant_data(client, p_id)
+        if p_data is None:
+            open_actors.append(f"'{a_id}' (no participant record)")
+            continue
+        p = as_CaseParticipant(**p_data)
+        if not p.joined:
+            continue  # unanswered invitee (CM-11-006) — not yet a full
+            # participant; excluded from the "all closed" check
+            # (parallel to _all_fetchable_participants_rm_closed)
+        latest = p.participant_status
+        rm = latest.rm_state if latest is not None else None
+        if rm != RM.CLOSED:
+            open_actors.append(f"'{a_id}' at {rm!r}")
+    if open_actors:
+        raise AssertionError(
+            "verify_case_closed: in the CASE_MANAGER's store, expected"
+            " RM.CLOSED for every participant; found " + ", ".join(open_actors)
         )
-        case = as_VulnerabilityCase.model_validate(case_data)
-        for a_id, p_id in case.actor_participant_index.items():
-            p_data = _fetch_participant_data(client, p_id)
-            if p_data is None:
-                continue  # remote container — not fetchable here
-            p = as_CaseParticipant(**p_data)
-            if not p.joined:
-                continue  # unanswered invitee (CM-11-006) — not yet a full
-                # participant; excluded from the "all closed" check
-                # (parallel to _all_fetchable_participants_rm_closed)
-            latest = p.participant_status
-            if latest is None:
-                raise AssertionError(
-                    f"verify_case_closed {label}: actor '{a_id}' has no"
-                    " participant statuses"
-                )
-            rm = latest.rm_state
-            if rm != RM.CLOSED:
-                raise AssertionError(
-                    f"verify_case_closed {label}: actor '{a_id}' RM state is"
-                    f" {rm!r}, expected RM.CLOSED"
-                )
-        logger.info("✓ case closed %s: all participants RM.CLOSED", label)
-    logger.info("✓ case closed: all participants RM.CLOSED on both replicas")
+    logger.info(
+        "✓ case closed: all participants RM.CLOSED in the CASE_MANAGER's store"
+    )
 
 
-#: The CASE_MANAGER's owner-close write boundary (ADR-0085, CM-23-002).
-CASE_FULLY_CLOSED = "case_fully_closed"
+#: The CASE_MANAGER's owner-close write boundary (ADR-0085, CM-23-002); the
+#: same constant the core post-close guard reads (CM-23-013).
+CASE_FULLY_CLOSED = CASE_FULLY_CLOSED_EVENT_TYPE
 
 #: The receipt entry of a ``Leave(VulnerabilityCase)`` (ADR-0050, CM-23-001).
 _CLOSE_CASE = "close_case"
@@ -472,18 +484,15 @@ def _ref(value: object) -> str | None:
 def _rm_on_ledger(entry: Mapping[str, object]) -> tuple[str, str] | None:
     """Return ``(actor_id, rm_state)`` when *entry* records an RM state.
 
-    A ``close_case`` entry records its sender at ``RM.CLOSED`` (ADR-0050); a
-    participant status entry records the RM state of the actor its status is
-    attributed to.  Every other entry records no RM state.
+    Only a participant status entry records an RM state: that of the actor its
+    status is attributed to.  A ``close_case`` entry records the received
+    ``Leave`` and no RM state; the transitions the Leave caused are the status
+    entries the CASE_MANAGER commits after it (CM-23-001).
     """
     snapshot = entry.get("payload_snapshot")
     if not isinstance(snapshot, Mapping):
         return None
-    event_type = entry.get("event_type")
-    if event_type == _CLOSE_CASE:
-        actor_id = _ref(snapshot.get("actor"))
-        return (actor_id, RM.CLOSED.value) if actor_id else None
-    if event_type == _PARTICIPANT_STATUS:
+    if entry.get("event_type") == _PARTICIPANT_STATUS:
         status = snapshot.get("object")
         if not isinstance(status, Mapping):
             return None
@@ -507,8 +516,9 @@ def case_closure_violations(
 
     - It has exactly one ``case_fully_closed`` entry (CM-23-002).
     - Every actor in *departed_actor_ids* has a ``close_case`` entry before
-      ``case_fully_closed``, and the last RM state the ledger records for it
-      before that boundary is ``RM.CLOSED`` (CM-23-001, CM-23-015).
+      ``case_fully_closed``, and the last RM state a status entry records for
+      it before that boundary is ``RM.CLOSED`` (CM-23-001, CM-23-015).  The
+      ``close_case`` entry itself records no RM state.
     - ``case_fully_closed`` is the last entry that records a participant's
       act: every later entry records the CASE_MANAGER's own act, its
       ``payloadSnapshot.actor`` being *case_manager_id* (CM-23-013).
@@ -567,13 +577,17 @@ def _departure_violations(
     rm_states: dict[str, str] = {}
     left: set[str] = set()
     for entry in before:
-        recorded = _rm_on_ledger(entry)
-        if recorded is None:
-            continue
-        actor_id, rm_state = recorded
-        rm_states[actor_id] = rm_state
         if entry.get("event_type") == _CLOSE_CASE:
-            left.add(actor_id)
+            snapshot = entry.get("payload_snapshot")
+            if isinstance(snapshot, Mapping) and (
+                leaver := _ref(snapshot.get("actor"))
+            ):
+                left.add(leaver)
+            continue
+        recorded = _rm_on_ledger(entry)
+        if recorded is not None:
+            actor_id, rm_state = recorded
+            rm_states[actor_id] = rm_state
 
     violations: list[str] = []
     for actor_id in departed_actor_ids:
@@ -619,6 +633,62 @@ def _post_boundary_violations(
     return violations
 
 
+def case_manager_ledger(
+    client: DataLayerClient, case_id: str
+) -> list[Mapping[str, object]]:
+    """Return *case_id*'s ledger entries as the CASE_MANAGER holds them.
+
+    Read through *client* as given: it MUST already be bound to the
+    CASE_MANAGER's own store (the closure milestone binds it once, through
+    :func:`~vultron.demo.helpers.polling.case_manager_store`), so no second
+    store lookup is made here.  DataLayer shape (``log_index``,
+    ``event_type``, ``payload_snapshot``), in no particular order.
+    """
+    raw = client.get(client.dl_path("CaseLedgerEntrys/"))
+    if not isinstance(raw, dict):
+        return []
+    return [
+        v
+        for v in raw.values()
+        if isinstance(v, dict) and v.get("case_id") == case_id
+    ]
+
+
+def own_closure_tail_index(
+    entries: Sequence[Mapping[str, object]], actor_id: str
+) -> int | None:
+    """Return the ``log_index`` of the last entry recording *actor_id*'s closure.
+
+    The entries that record a participant's own closure are its
+    ``close_case`` entry and the status entries the CASE_MANAGER commits for
+    it (CM-23-001).  They are the last entries a departing participant is
+    sent (CM-23-004), so its replica's ledger ends here.  ``None`` when the
+    ledger records no ``close_case`` for *actor_id*.
+    """
+    closed_at: int | None = None
+    tail: int | None = None
+    for entry in sorted(
+        (e for e in entries if isinstance(e.get("log_index"), int)),
+        key=lambda e: cast(int, e["log_index"]),
+    ):
+        index = cast(int, entry["log_index"])
+        snapshot = entry.get("payload_snapshot")
+        if entry.get("event_type") == _CLOSE_CASE:
+            if isinstance(snapshot, Mapping) and (
+                _ref(snapshot.get("actor")) == actor_id
+            ):
+                closed_at = tail = index
+            continue
+        recorded = _rm_on_ledger(entry)
+        if (
+            closed_at is not None
+            and recorded is not None
+            and recorded[0] == actor_id
+        ):
+            tail = index
+    return tail
+
+
 def verify_case_closure_recorded(
     client: DataLayerClient,
     case_id: str,
@@ -627,15 +697,15 @@ def verify_case_closure_recorded(
     """Verify the CASE_MANAGER's ledger records the case's closure in order.
 
     The ledger half of the closure milestone; :func:`verify_case_closed` is
-    the replica half.  Waits for ``case_fully_closed`` in the CASE_MANAGER's
-    own store, then checks the ledger with :func:`case_closure_violations`:
-    every participant in *departed_actor_ids* is ``RM.CLOSED`` on the ledger
-    before ``case_fully_closed``, and no later entry records a participant's
-    act.  The read goes through *client*, scoped to the co-hosted CaseActor's
-    store when there is one (ADR-0073).
+    the participant-record half, read in the same store.  Waits for
+    ``case_fully_closed`` in the CASE_MANAGER's own store, then checks the
+    ledger with :func:`case_closure_violations`: every participant in
+    *departed_actor_ids* is ``RM.CLOSED`` on the ledger before
+    ``case_fully_closed``, and no later entry records a participant's act.
 
     Args:
-        client: Client for the container that hosts the case's CASE_MANAGER.
+        client: Client bound to the CASE_MANAGER's own store (see
+            :func:`~vultron.demo.helpers.polling.case_manager_store`).
         case_id: Full URI of the ``as_VulnerabilityCase``.
         departed_actor_ids: Every participant that left before the case
             closed, the Case Owner included, as
@@ -651,17 +721,7 @@ def verify_case_closure_recorded(
     wait_for_case_actor_ledger_event(
         client=client, case_id=case_id, event_type=CASE_FULLY_CLOSED
     )
-    store_id = resolve_case_actor_store_id(client, case_id)
-    raw = client.get(client.dl_path("CaseLedgerEntrys/", actor_id=store_id))
-    entries = (
-        [
-            v
-            for v in raw.values()
-            if isinstance(v, dict) and v.get("case_id") == case_id
-        ]
-        if isinstance(raw, dict)
-        else []
-    )
+    entries = case_manager_ledger(client, case_id)
     violations = case_closure_violations(
         entries,
         departed_actor_ids,

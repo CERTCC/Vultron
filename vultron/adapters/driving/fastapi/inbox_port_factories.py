@@ -117,9 +117,9 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
       natively and fans them out (``CommitNativeLedgerEntriesNode``, ADR-0041
       AC-4); the port is that fan-out's only channel (ARCH-04-004), and its
       outbox order relative to ``Create(VulnerabilityCase)`` is CP-09-009's.
-    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders the
-      CASE_MANAGER's own ``RM.CLOSED`` status into the snapshot CM-23-005
-      requires (``CommitCaseActorRMClosedEntryNode``, ISSUE-2505).
+    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders
+      each RM closure status, the leaver's and the CASE_MANAGER's own, into
+      the snapshots CM-23-001/005 require (``CommitRMClosureEntriesNode``).
     """
 
     def _factory(dl: DataLayer) -> dict[str, Any]:
@@ -150,7 +150,7 @@ def _trigger_activity_with_actor_config_port_factory(
 ) -> dict[str, Any]:
     """Create the trigger port and resolve the local ``ActorConfig``.
 
-    Registered for two semantic sets that need the receiver's own
+    Registered for the semantic sets that need the receiver's own
     configuration:
 
     - ``SUBMIT_REPORT``, so that ``SubmitReportReceivedUseCase`` can honour
@@ -159,6 +159,8 @@ def _trigger_activity_with_actor_config_port_factory(
       whose CASE_MANAGER stamps every Invite it relays, and the EMB-17-003
       re-invite, with an RSVP deadline measured against its configured
       ``min_rsvp_window`` and ``default_rsvp_window`` (CM-28-012, EP-07-002).
+    - ``CLOSE_CASE``, whose CASE_MANAGER answers a Leave that arrives after
+      ``case_fully_closed`` per ``post_close_reply`` (CM-23-013, ADR-0131).
 
     Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable:
     report submission keeps the always-create default and the embargo use
@@ -179,14 +181,14 @@ def _with_actor_config(kwargs: dict[str, Any]) -> dict[str, Any]:
 def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Resolve the local ``ActorConfig`` for ``CREATE_CASE_PROPOSAL``.
 
-    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
-    CaseActor grants the proposing actor its real CVD roles alongside
-    ``CVDRole.CASE_OWNER`` (CFG-07-002, CFG-07-004).  Without it the node would
-    have to guess, and labelling a coordinator as ``CVDRole.VENDOR`` makes
-    downstream VFD fix-lifecycle checks demand a fix it never produces.
+    ``CreateCaseProposalReceivedUseCase`` reads the CaseActor's *own* settings
+    from it, such as the protocol default embargo (EP-04-005).  The proposing
+    actor's CVD roles are not among them: the proposer states those on the
+    proposal (CP-09-007, ADR-0133), because this configuration belongs to the
+    CaseActor's container and says nothing about the proposer.
 
     Falls back to omitting ``actor_config`` when config load fails, leaving the
-    receiver with ``CVDRole.CASE_OWNER`` only.
+    ``ActorConfig`` defaults in force.
 
     The trigger-activity port is needed only on the decline path, where
     ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through
@@ -216,7 +218,6 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
 # in no set at all.
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
-        MessageSemantics.ACK_REPORT,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
@@ -224,9 +225,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # direct Add(CaseParticipant) notice and, when it is not bound by
         # the active embargo, that embargo's Invite (CM-31-011, CM-31-013).
         MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-        # CLOSE_CASE emits the as:Reject that declines an owner close during a
-        # live embargo (CM-23-011).
-        MessageSemantics.CLOSE_CASE,
         # CLOSE_REPORT and INVALIDATE_REPORT post the RSH-06-004
         # clarification note on a non-adjacent RM jump (RSH-06-006).
         MessageSemantics.CLOSE_REPORT,
@@ -242,14 +240,14 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
         # to a peer that has no case yet before replaying entries (SYNC-15-002).
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
+        # REJECT_INVITE_ACTOR_TO_CASE closes the invitee's inert record and
+        # commits each status it writes as the CASE_MANAGER's own
+        # factory-built Add(ParticipantStatus) (ADR-0114, VM-08-003).
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
         # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
         # direct Remove(CaseParticipant) notice (CM-31-006).
         MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-        # UPDATE_CASE broadcasts Announce(VulnerabilityCase) to the
-        # participants (CM-06-001); the adapter builds and seals it
-        # (VM-08-003).
-        MessageSemantics.UPDATE_CASE,
         MessageSemantics.VALIDATE_REPORT,
     }
 )
@@ -259,6 +257,13 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
 # runtime (CM-15-001, issue #1319).  Kept in a separate set so the disjoint
 # guard in make_dispatcher() does not need special-casing.
 _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
+
+# CLOSE_CASE emits the as:Reject that declines an owner close during a live
+# embargo (CM-23-011), and reads ActorConfig.post_close_reply, the one policy
+# point that decides whether a Leave after case_fully_closed is answered with
+# Reject(Leave(VulnerabilityCase)) or dropped (CM-23-017, ADR-0131).  See
+# _trigger_activity_with_actor_config_port_factory.
+_CLOSE_CASE_SEMANTICS = frozenset({MessageSemantics.CLOSE_CASE})
 
 # CREATE_CASE_PROPOSAL needs the local actor's ActorConfig so the CaseActor can
 # assign the proposing actor its configured CVD roles (CFG-07-002, CFG-07-004),

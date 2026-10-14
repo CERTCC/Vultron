@@ -243,6 +243,44 @@ def load_yaml(
         raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
 
 
+def read_utf8(path: Path, shown: str) -> str:
+    """Read *path* as UTF-8 text, attributing a decode fault to *shown*.
+
+    For a loader that needs the text itself as well as its parse, such as one
+    that also locates nodes with :func:`yaml_node_positions`, so the file is
+    read once.
+
+    Raises:
+        MetadataLoadError: When the file is not valid UTF-8.
+        FileNotFoundError: If *path* does not exist.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
+
+
+def loads_yaml(
+    text: str,
+    shown: Path,
+    *,
+    loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
+) -> object:
+    """Parse YAML *text* that has no working-tree file behind it.
+
+    The text form of :func:`load_yaml`, for content read from elsewhere (a
+    blob at a commit). A fault is attributed to *shown*, for example
+    ``<ref>:specs/x.yaml``.
+
+    Raises:
+        MetadataLoadError: On a YAML syntax fault.
+    """
+    try:
+        return yaml.load(text, Loader=loader)  # noqa: S506 — caller's loader
+    except yaml.YAMLError as exc:
+        raise _yaml_error(exc, str(shown), "YAML parse error") from exc
+
+
 #: Lead-in for a frontmatter parse fault. Kept identical across loaders so the
 #: fault reads the same whichever directory the author edited.
 _FRONTMATTER_LEAD = "malformed YAML frontmatter"
@@ -321,11 +359,7 @@ def load_frontmatter(
         FileNotFoundError: If *path* does not exist.
     """
     shown = display_path(path, root)
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
-    return _parse_frontmatter(text, shown)
+    return _parse_frontmatter(read_utf8(path, shown), shown)
 
 
 def loads_frontmatter(text: str) -> frontmatter.Post:
@@ -354,6 +388,57 @@ def describe_validation_error(exc: ValidationError) -> str:
     return "; ".join(parts)
 
 
+#: A position in a parsed YAML document: a Pydantic-style ``loc`` (mapping
+#: keys and sequence indices) mapped to its 1-based ``(line, column)``.
+NodePositions = Mapping[tuple[str | int, ...], tuple[int, int]]
+
+
+def yaml_node_positions(
+    text: str,
+) -> dict[tuple[str | int, ...], tuple[int, int]]:
+    """Return the position of every mapping key and sequence item in *text*.
+
+    Keys are paths in the shape Pydantic reports as an error's ``loc``, so
+    :func:`validate` can place a failure on the line and column of the value
+    that failed.  Text that does not compose returns no positions; the parse
+    step reports that fault.
+    """
+    try:
+        root = yaml.compose(text, Loader=yaml.SafeLoader)
+    except yaml.YAMLError:
+        return {}
+    positions: dict[tuple[str | int, ...], tuple[int, int]] = {}
+
+    def walk(node: yaml.Node, here: tuple[str | int, ...]) -> None:
+        if isinstance(node, yaml.MappingNode):
+            for key, value in node.value:
+                there = (*here, str(key.value))
+                mark = key.start_mark
+                positions[there] = (mark.line + 1, mark.column + 1)
+                walk(value, there)
+        elif isinstance(node, yaml.SequenceNode):
+            for index, item in enumerate(node.value):
+                there = (*here, index)
+                mark = item.start_mark
+                positions[there] = (mark.line + 1, mark.column + 1)
+                walk(item, there)
+
+    if root is not None:
+        walk(root, ())
+    return positions
+
+
+def _position_of(
+    loc: tuple[str | int, ...], positions: NodePositions
+) -> tuple[int, int] | None:
+    """Return the position of the longest prefix of *loc* in *positions*."""
+    for end in range(len(loc), 0, -1):
+        found = positions.get(loc[:end])
+        if found is not None:
+            return found
+    return None
+
+
 def validate(
     model: type[M],
     data: object,
@@ -362,6 +447,7 @@ def validate(
     root: Path | None = None,
     prefix: str | None = None,
     key_lines: Mapping[str, int] | None = None,
+    positions: NodePositions | None = None,
 ) -> M:
     """Validate *data* against *model*, attributing a failure to *path*.
 
@@ -376,6 +462,10 @@ def validate(
             When given, the failure is located at the line of the first key
             that failed, so a schema fault reads ``path:line`` like a parse
             fault does.
+        positions: Optional position of every node, from
+            :func:`yaml_node_positions`.  When given, the failure is located
+            at the line and column of the deepest node on the first error's
+            path, so a fault deep in a file reads ``path:line:col``.
 
     Raises:
         MetadataLoadError: If validation fails. The detail lists every field
@@ -389,10 +479,19 @@ def validate(
             detail = f"{prefix}: {detail}"
         shown = None if path is None else display_path(path, root)
         line = None
-        if key_lines:
+        column = None
+        if positions:
+            for err in exc.errors():
+                found = _position_of(tuple(err.get("loc", ())), positions)
+                if found is not None:
+                    line, column = found
+                    break
+        if line is None and key_lines:
             for err in exc.errors():
                 loc = err.get("loc", ())
                 if loc and str(loc[0]) in key_lines:
                     line = key_lines[str(loc[0])]
                     break
-        raise MetadataLoadError(detail, path=shown, line=line) from exc
+        raise MetadataLoadError(
+            detail, path=shown, line=line, column=column
+        ) from exc

@@ -118,16 +118,16 @@ Pytest treats `Test*` classes as test candidates even when they're helper enums.
 Use neutral names: `MockEnum`, `ExampleState`, `FixtureEnum`. Enforced by
 `test/test_pytest_collection_hygiene.py`.
 
-### Tests Verifying a Protocol-Kind Requirement MUST Carry `@pytest.mark.spec`
+### Tests Verifying a Protocol- or Foundation-Kind Requirement MUST Carry `@pytest.mark.spec`
 
-(SR-05-004, ISSUE-2117)
+(SR-05-004, ISSUE-2117, ISSUE-4528)
 
-Without a marker the CI uncovered-count ratchet (SR-05-005,
+Without a marker the PR-only coverage guard (SR-05-005,
 `test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage, so
 the conformance-critical requirement becomes unverifiable. Add
-`@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` entry;
-`spec-coverage` lists protocol IDs still unmarked. The strict-`xfail` pattern for
-a spec whose implementation does not exist yet:
+`@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` or
+`kind: foundation` entry; `spec-coverage` lists the IDs of both kinds still
+unmarked. The strict-`xfail` pattern for a spec not implemented yet:
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
 
 ### Renaming a Mark Touches Three Files
@@ -162,7 +162,7 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 - **Vacuous assertions** — broadcast guards need a third participant; hash-chain
   comparisons need presence checks before equality (`"" == ""` passes);
   `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
-  path needs a stored case (CLP-08-995); `call_args.args` over `call_args[0]`.
+  path needs a stored case (CLP-08-004); `call_args.args` over `call_args[0]`.
 - **A test that "falls back to" a value for *malformed* input is asserting a
   bug** — absent input and unreadable input are different.
 - **A FAILURE test must prove the harness can produce its named reason** — the

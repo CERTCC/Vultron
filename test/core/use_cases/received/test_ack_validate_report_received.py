@@ -40,6 +40,7 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -102,10 +103,21 @@ class TestAckReportNoStandaloneStatus:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        AckReportReceivedUseCase(
+        # The vendor is the Offer's addressee, so its RK is admitted
+        # (RMB-08-004) and the assertion below is on an admitted run.
+        dl.create(
+            VultronOfferRecord(
+                offer_id="https://example.org/activities/offer-ack-1",
+                report_id="https://example.org/reports/r-ack-1",
+                offer_actor_id="https://example.org/actors/finder",
+                offer_to=["https://example.org/actors/vendor"],
+            )
+        )
+        result = AckReportReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
 
+        assert result.disposition is HandlerDisposition.APPLIED
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == [], (
             "AckReportReceivedUseCase must not create standalone "

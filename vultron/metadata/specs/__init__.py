@@ -9,9 +9,9 @@ import warnings
 from pathlib import Path
 
 from vultron.metadata.specs.coverage import (
-    ProtocolCoverageReport,
+    ImplementerCoverageReport,
     collect_marked_ids,
-    compute_protocol_coverage,
+    compute_implementer_coverage,
 )
 from vultron.metadata.specs.llm_export import CROSS_CUTTING_TOPICS
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
@@ -79,13 +79,13 @@ def warn_unknown_spec_id(spec_id: str, registry: SpecRegistry) -> None:
 
 __all__ = [
     "CROSS_CUTTING_TOPICS",
-    "ProtocolCoverageReport",
+    "ImplementerCoverageReport",
     "SPEC_ID_CITATION_RE",
     "SpecRegistry",
     "SpecRegistryUnavailableWarning",
     "UnknownSpecIdWarning",
     "collect_marked_ids",
-    "compute_protocol_coverage",
+    "compute_implementer_coverage",
     "load_registry",
     "warn_spec_registry_unavailable",
     "warn_unknown_spec_id",

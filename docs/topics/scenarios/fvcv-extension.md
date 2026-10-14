@@ -91,7 +91,7 @@ Both vendors reach the fix-ready state before joint disclosure.
 - **Vendor1** — receives the report; validates, engages, and owns the case.
 - **Coordinator** — invited by Vendor1; suggests Vendor2.
 - **Vendor2** — joins via the actor-suggestion path; develops and ships a fix.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. Vendor1's platform hosts it, but its authority comes from the role, not from where it runs.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -156,7 +156,8 @@ Vendor2 reviews and accepts.  An `accept_invite_actor_to_case` entry is recorded
 
 ### 10. Participants exchange notes
 
-All participants communicate via `add_note_to_case` entries.
+All participants communicate through case notes.
+Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 

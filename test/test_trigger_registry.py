@@ -205,3 +205,24 @@ def test_the_assembled_table_indexes_cleanly() -> None:
     the test rather than the collection phase."""
     index = index_by_request_model(entries())
     assert set(index) == {row.request_model for row in entries()}
+
+
+@pytest.mark.spec("TRIG-11-005")
+def test_reject_case_ownership_transfer_trigger_is_registered() -> None:
+    assert "reject-case-ownership-transfer" in {row.verb for row in entries()}
+
+
+@pytest.mark.spec("TRIG-11-006")
+def test_withdraw_case_ownership_transfer_trigger_is_registered() -> None:
+    assert "withdraw-case-ownership-transfer" in {
+        row.verb for row in entries()
+    }
+
+
+@pytest.mark.spec("TRIG-11-007")
+def test_offer_case_ownership_transfer_trigger_accepts_end_time() -> None:
+    (row,) = [
+        row for row in entries() if row.verb == "offer-case-ownership-transfer"
+    ]
+    field = row.request_model.model_fields.get("end_time")
+    assert field is not None and not field.is_required()

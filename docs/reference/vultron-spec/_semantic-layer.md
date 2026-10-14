@@ -155,9 +155,12 @@ Every later message routes through the CASE_MANAGER
 ([§5.4.2 Routing Topology](layers.md#542-routing-topology)). The transition between those two regimes
 is the bootstrap, and it is where a case's trust is established.
 
-**The case-creation message is the trust root.** When the receiving party creates
-the case, it sends the reporter a case-creation message signed by the creating
-actor. That message introduces the actor holding the `CASE_MANAGER` role. Every
+**The case-creation message is the trust root.** When a case is created for a report,
+the receiving party sends the reporter a case-creation message signed by the receiving
+party itself, the actor the reporter chose. That message introduces the actor holding
+the `CASE_MANAGER` role, which may be the receiving party or another actor it delegated
+case maintenance to. The reporter trusts the introduction because it came from the actor
+the reporter addressed, and never because a case snapshot names its own sender. Every
 participant's trust in the ledger derives from it: a participant accepts entries
 from the CASE_MANAGER because it accepts the message that established which actor
 holds the role.

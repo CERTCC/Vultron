@@ -11,7 +11,7 @@ Spec: ``specs/case-proposal.yaml`` CP-01-001 through CP-01-006.
 # Rationale: as_CaseProposal narrows several optional base-class fields to
 # required.  The formatter wraps the Field() calls across multiple lines,
 # making inline pyright-ignore comments unreliable (see
-# notes/codebase-structure-fastapi-patterns.md
+# notes/codebase-structure.md
 # § "The Formatter Can Invalidate Inline Type-Checker Suppressions").
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -29,9 +29,10 @@ Spec: ``specs/case-proposal.yaml`` CP-01-001 through CP-01-006.
 
 from typing import ClassVar, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.enums.object_types import VultronObjectType as VO_type
+from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -79,6 +80,10 @@ class as_CaseProposal(as_VultronObject):
             a sender inlines the objects it introduces (ADR-0107), the
             case-actor having never seen the Offer.  It is how the Reporter's
             proposed embargo terms (EP-04-004) reach case creation.
+        proposer_case_roles: The CVD roles the proposer holds in a case it
+            owns, copied from its own ``ActorConfig.default_case_roles``
+            (CP-01-011, ADR-0133).  The CASE_MANAGER seats the proposer with
+            these plus ``CASE_OWNER``.  Never ``CASE_MANAGER`` (CP-01-012).
     """
 
     # CP-01-004 / AKM-03-001: the report is carried, not referenced. Declared
@@ -168,6 +173,48 @@ class as_CaseProposal(as_VultronObject):
             " (CP-01-008)."
         ),
     )
+
+    # CP-01-011, ADR-0133: the proposer's own roles, which the CASE_MANAGER
+    # cannot read anywhere else — it runs in another container and has no read
+    # into the proposer's configuration (ADR-0073).  Empty means "CASE_OWNER
+    # only", which is what a receiver with no default_case_roles gets.
+    proposer_case_roles: list[CVDRole] = Field(
+        default_factory=list,
+        validation_alias="proposerCaseRoles",
+        serialization_alias="proposerCaseRoles",
+        description=(
+            "CVD roles the proposer holds in a case it owns, from its own"
+            " default_case_roles (CP-01-011)."
+        ),
+    )
+
+    @field_serializer("proposer_case_roles")
+    def _serialize_proposer_case_roles(
+        self, value: list[CVDRole]
+    ) -> list[str]:
+        return serialize_roles(value)
+
+    @field_validator("proposer_case_roles", mode="before")
+    @classmethod
+    def _validate_proposer_case_roles(cls, value: object) -> list[CVDRole]:
+        return validate_roles(value, field_name="proposerCaseRoles")
+
+    @field_validator("proposer_case_roles")
+    @classmethod
+    def _proposer_claims_no_case_manager(
+        cls, value: list[CVDRole]
+    ) -> list[CVDRole]:
+        """Refuse a claim to ``CASE_MANAGER`` at the parse edge (CP-01-012).
+
+        Only the CaseActor holds that role; a proposer that could name it here
+        would seat itself as the case's manager.
+        """
+        if CVDRole.CASE_MANAGER in value:
+            raise ValueError(
+                "as_CaseProposal proposerCaseRoles claims CASE_MANAGER, which"
+                " only the CaseActor holds (CP-01-012)"
+            )
+        return value
 
     @model_validator(mode="after")
     def _offer_reference_agrees_with_inline_offer(self) -> "as_CaseProposal":

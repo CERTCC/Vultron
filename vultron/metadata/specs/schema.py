@@ -118,7 +118,7 @@ class AdrStatus(StrEnum):
 
     A retired ADR uses ``SUPERSEDED`` with a separate ``superseded_by:``
     frontmatter field (the project convention, see
-    ``notes/notes-frontmatter.md``). The linter also tolerates the inline MADR
+    ``specs/notes-frontmatter.yaml`` NF-01-004). The linter also tolerates the inline MADR
     form ``superseded by <link>`` by normalising it to ``SUPERSEDED`` before
     the enum check.
     """
@@ -176,36 +176,49 @@ class Trigger(BaseModel):
 
 
 class SpecKind(StrEnum):
-    """Portability tier for a spec requirement (SR-02-005).
+    """Portability tier for a spec requirement (SR-02-005, ADR-0134).
 
-    The four tiers form a portability hierarchy.  Use them to filter which
-    specs apply to your project:
+    Who must obey a rule decides its kind; naming a codebase construct never
+    does (MS-12-002). A spec that mixes kinds is split before it is classified
+    (MS-12-010). The five tiers:
 
-    - ``protocol``     — Required for Vultron compliance — any implementation
-                         in any language must satisfy this.  Covers wire
-                         behaviour, state machine invariants, behavioural
-                         contracts, message semantics, and protocol rules.
-    - ``architecture`` — Implementation-independent structural guidance —
-                         transferable across languages and frameworks, but not
-                         required for Vultron compliance per se.  Covers
-                         hexagonal boundaries, event-driven dispatch,
-                         port/adapter patterns, fail-fast principles.
-    - ``project``      — Specific to this codebase — Python paths, BT nodes,
-                         py_trees, pydantic, factory names, module
-                         organisation, endpoint conventions.
+    - ``protocol``     — The Vultron layer: Vultron's message forms on the
+                         wire (including where ActivityStreams allows several
+                         forms and Vultron requires one), which messages are
+                         sent and when, what a receiver does given its state
+                         (including on duplicate delivery), and the state
+                         machines underlying those behaviors. State-machine
+                         states such as ``RM.CLOSED`` are protocol constructs.
+                         The CASE_MANAGER role and case-ledger sync are
+                         ``protocol`` for now.
+    - ``foundation``   — Rules Vultron inherits from the standards beneath it:
+                         ActivityStreams 2.0, ActivityPub, HTTP. Addressing and
+                         delivery, HTTP status codes, and rules that only
+                         restate ActivityStreams (IDs are opaque URIs). A tag
+                         records the standard (``as2``, ``activitypub``,
+                         ``http``; MS-12-009).
+    - ``architecture`` — Recommended structure that carries over to other
+                         languages but is not required for compliance.
+                         Behavior trees, and keeping protocol behavior inside
+                         the behavior tree, are here.
+    - ``project``      — This codebase only: deployment choices (the
+                         CASE_MANAGER as an actor separate from the case
+                         owner), performance and operating limits, how a
+                         receiver records what it receives, core internals.
     - ``process``      — How we run this project — CI config, GitHub workflow,
                          agent conventions, docs standards, spec authoring
                          rules.
 
     Portability use cases
     ~~~~~~~~~~~~~~~~~~~~~
-    - Implement Vultron in any language          → ``protocol``
-    - Understand the reference architecture      → ``protocol`` + ``architecture``
-    - Contribute to this Python codebase         → ``protocol`` + ``architecture`` + ``project``
-    - Contribute to this project (incl. process) → all four tiers
+    - Implement Vultron in any language          → ``protocol`` + ``foundation``
+    - Understand the reference architecture      → the above + ``architecture``
+    - Contribute to this Python codebase         → the above + ``project``
+    - Contribute to this project (incl. process) → all five tiers
     """
 
     PROTOCOL = "protocol"
+    FOUNDATION = "foundation"
     ARCHITECTURE = "architecture"
     PROJECT = "project"
     PROCESS = "process"
@@ -221,9 +234,14 @@ class Scope(StrEnum):
 class SpecTag(StrEnum):
     """Controlled vocabulary of topic tags (SR-02-007).
 
-    See ``notes/spec-registry.md`` for the full tag inventory and rationale.
+    Three tags name the standard a ``foundation`` rule is inherited from —
+    ``as2``, ``activitypub`` and ``http`` (:data:`FOUNDATION_STANDARD_TAGS`,
+    MS-12-009). They may also mark a ``protocol`` rule that narrows that
+    standard.
     """
 
+    ACTIVITYPUB = "activitypub"
+    AS2 = "as2"
     AUTHENTICATION = "authentication"
     BEHAVIOR_TREE = "behavior-tree"
     CI_CD = "ci-cd"
@@ -233,6 +251,7 @@ class SpecTag(StrEnum):
     DOCUMENTATION = "documentation"
     ERROR_HANDLING = "error-handling"
     FEDERATION = "federation"
+    HTTP = "http"
     IDEMPOTENCY = "idempotency"
     LOGGING = "logging"
     MESSAGING = "messaging"
@@ -246,6 +265,22 @@ class SpecTag(StrEnum):
     TOOLING = "tooling"
     WIRE_FORMAT = "wire-format"
     BEHAVIORAL = "behavioral"
+
+
+#: The kinds every Vultron implementation must obey: the kinds an implementer
+#: reads (ADR-0134). The marker-coverage guard (SR-05-004, SR-05-005) and the
+#: code-reference detector (MS-12-006) cover both; the story gate (SR-11-003)
+#: names its own population.
+IMPLEMENTER_KINDS: frozenset[SpecKind] = frozenset(
+    {SpecKind.PROTOCOL, SpecKind.FOUNDATION}
+)
+
+
+#: The tags that name the standard a ``foundation`` rule is inherited from.
+#: Every ``foundation`` spec carries at least one (MS-12-009).
+FOUNDATION_STANDARD_TAGS: frozenset[SpecTag] = frozenset(
+    {SpecTag.AS2, SpecTag.ACTIVITYPUB, SpecTag.HTTP}
+)
 
 
 class LintWarningCode(StrEnum):

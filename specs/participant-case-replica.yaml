@@ -201,7 +201,7 @@ groups:
     statement: >-
       A participant actor MUST NOT create a local case replica from an `Announce(VulnerabilityCase)`
       message unless prior trust for that case has been established: either (a) the actor has
-      already processed a `Create(VulnerabilityCase)` from the case creator that introduced the
+      already processed a `Create(VulnerabilityCase)` from the report receiver that introduced the
       CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
       exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
       from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
@@ -392,10 +392,17 @@ groups:
       all case-scoped outbound messages (notes, status updates, embargo proposals, RM transitions,
       and any other protocol messages targeting the case) exclusively to the CASE_MANAGER for that
       case. A participant actor MUST NOT send these messages directly to other participants.
+      The one exception is RK, `Read(Offer(VulnerabilityReport))`: it answers the
+      reporter's original Offer, outside the case, so an addressee of that Offer sends it to
+      the reporter directly and never to the CASE_MANAGER (RMB-08-003).
+    rationale: >-
+      The RK exception was decided by the maintainer on #4560.
     verification: >-
       Integration tests in `test/demo/test_pcr_engage_case.py` confirm that
       every outbound participant activity carries `to` set solely to the
-      CASE_MANAGER's ID, with no direct peer-to-peer addressing.
+      CASE_MANAGER's ID, with no direct peer-to-peer addressing. Tests marked
+      `PCR-08-001` in `test/core/use_cases/triggers/test_ack_report.py` confirm that
+      the RK exception reaches the reporter alone once a case exists.
     stories:
     - story_2022_045
     - story_2022_088

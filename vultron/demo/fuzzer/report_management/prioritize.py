@@ -28,7 +28,7 @@ References
 ----------
 - Source: ``vultron/bt/report_management/fuzzer/prioritize_report.py``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-16-003, BT-16-004, BT-16-005
-- Notes: ``notes/bt-fuzzer-nodes-report-management.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-prioritization.md``
 """
 
 from __future__ import annotations

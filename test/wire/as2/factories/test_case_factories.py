@@ -47,6 +47,7 @@ from vultron.wire.as2.factories import (
     rm_engage_case_activity,
     rm_invite_to_case_activity,
     rm_reject_invite_to_case_activity,
+    undo_case_ownership_transfer_activity,
     update_case_activity,
 )
 from vultron.wire.as2.factories.case import (
@@ -63,6 +64,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Offer,
     as_Reject,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
@@ -468,6 +470,35 @@ def test_reject_ownership_transfer_plain_offer_raises(sample_report):
 
 
 # ---------------------------------------------------------------------------
+# undo_case_ownership_transfer_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("CM-21-015")
+def test_undo_ownership_transfer_returns_undo(sample_offer):
+    result = undo_case_ownership_transfer_activity(
+        offer=sample_offer, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Undo)
+
+
+def test_undo_ownership_transfer_object_is_offer(sample_offer):
+    result = undo_case_ownership_transfer_activity(
+        offer=sample_offer, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_offer
+
+
+@pytest.mark.spec("AF-04-001")
+def test_undo_ownership_transfer_plain_offer_raises(sample_report):
+    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        undo_case_ownership_transfer_activity(offer=plain_offer)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
 # rm_invite_to_case_activity
 # ---------------------------------------------------------------------------
 
@@ -798,6 +829,7 @@ def test_all_case_factories_importable_from_package():
         rm_engage_case_activity,
         rm_invite_to_case_activity,
         rm_reject_invite_to_case_activity,
+        undo_case_ownership_transfer_activity,
         update_case_activity,
     )
 

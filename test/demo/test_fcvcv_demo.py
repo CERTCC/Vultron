@@ -31,7 +31,12 @@ import pytest
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.fcvcv_demo as demo
 import vultron.demo.utils as demo_utils
-from test.demo._helpers import patch_chain_shared, patched_report_submission
+from test.demo._helpers import (
+    assert_reset_reseeds_case_actor,
+    null_demo_contexts,
+    patch_chain_shared,
+    patched_report_submission,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain
 from vultron.demo.utils import reset_demo_failures
@@ -163,6 +168,7 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
                 v1_client=v1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=MagicMock(),
                 finder_id=None,
                 c1_id=None,
                 v1_id=None,
@@ -287,6 +293,7 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
                 c1_client=c1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=MagicMock(),
                 c1_in_c1=c1_in_c1,
                 c2_in_c2=c2_in_c2,
                 v2=v2,
@@ -420,6 +427,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
                 v1_client=v1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=MagicMock(),
                 finder_id=None,
                 c1_id=None,
                 v1_id=None,
@@ -501,6 +509,7 @@ class TestFcvcvCausalGates(_Helpers):
                 c1_client=c1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=MagicMock(),
                 c1_in_c1=c1_in_c1,
                 c2_in_c2=c2_in_c2,
                 v2=v2,
@@ -584,6 +593,7 @@ class TestFcvcvCausalGates(_Helpers):
                 v1_client=v1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=MagicMock(),
                 finder_id=None,
                 c1_id=None,
                 v1_id=None,
@@ -655,6 +665,7 @@ class TestFcvcvCausalGates(_Helpers):
                 c1_client=c1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=MagicMock(),
                 c1_in_c1=c1_in_c1,
                 c2_in_c2=c2_in_c2,
                 v2=v2,
@@ -765,6 +776,7 @@ class TestFcvcvRmTriageTimeout(_Helpers):
                 v1_client=self._client(),
                 c2_client=self._client(),
                 v2_client=self._client(),
+                case_actor_client=MagicMock(),
                 finder_id=None,
                 c1_id=None,
                 v1_id=None,
@@ -846,6 +858,7 @@ class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
                 v1_client=v1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=MagicMock(),
                 finder_id=None,
                 c1_id=None,
                 v1_id=None,
@@ -894,6 +907,7 @@ class TestFcvcvPhase1DrainViaSharedHelper(_Helpers):
         "v1_client",
         "c2_client",
         "v2_client",
+        "case_actor_client",
     )
 
     def _run_report_submission(self, clients: dict, *, stub_coverage: bool):
@@ -1007,3 +1021,180 @@ class TestFcvcvPhase1DrainViaSharedHelper(_Helpers):
         assert "holds no CaseLedgerEntry" in failure
         for label in ("Finder", "V1", "C2"):
             assert label not in failure, failure
+
+
+# ---------------------------------------------------------------------------
+# The dedicated case-actor container (DEMOMA-06-004, #1876)
+# ---------------------------------------------------------------------------
+
+
+class TestFcvcvDedicatedCaseActor(_Helpers):
+    """Every CASE_MANAGER read and act goes to the case-actor container.
+
+    C1 proposes the case to the dedicated case-actor container, so the
+    CaseActor's store is there and nowhere else: a C1 client cannot address it.
+    """
+
+    _NAMES = (
+        "finder_client",
+        "c1_client",
+        "v1_client",
+        "c2_client",
+        "v2_client",
+    )
+
+    def test_reset_resets_and_reseeds_the_case_actor_container(self):
+        assert_reset_reseeds_case_actor(
+            demo, {name: MagicMock(name=name) for name in self._NAMES}
+        )
+
+    def test_report_submission_routes_case_manager_to_case_actor(self):
+        clients = {
+            k: MagicMock(name=k) for k in (*self._NAMES, "case_actor_client")
+        }
+        case_actor_client = clients["case_actor_client"]
+        with patched_report_submission(
+            demo,
+            seed_fn="seed_containers_fcvcv",
+            seeded_actors=(
+                self._actor("urn:test:finder"),
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+                MagicMock(),
+            ),
+            actor_lookups=[
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+            ],
+            case=self._case("urn:test:case"),
+            demo_patches={
+                name: {}
+                for name in (
+                    "wait_for_case_participants",
+                    "wait_for_replica_ledger_coverage",
+                    "wait_for_case_on_container",
+                    "run_case_invite_chain",
+                    "run_invite_path_rm_triage",
+                    "verify_case_active",
+                )
+            },
+        ) as mocks:
+            demo._phase_report_submission(
+                finder_id=None,
+                c1_id=None,
+                v1_id=None,
+                c2_id=None,
+                v2_id=None,
+                **clients,
+            )
+            reset_kwargs = demo.reset_containers.call_args.kwargs  # type: ignore[attr-defined]
+            v1_chain = mocks["run_case_invite_chain"].call_args_list[0].kwargs
+            # V1's RM triage runs inside the chain once V1 has joined.
+            v1_chain["then"]()
+
+        assert reset_kwargs["case_actor_client"] is case_actor_client
+        assert v1_chain["case_manager_client"] is case_actor_client
+        triage = mocks["run_invite_path_rm_triage"]
+        assert triage.call_args.kwargs["auth_client"] is case_actor_client
+
+    def test_v2_join_reads_case_manager_on_case_actor(self):
+        case_actor_client = MagicMock(name="case_actor_client")
+        with contextlib.ExitStack() as stack:
+            chain = stack.enter_context(
+                patch.object(demo, "run_case_invite_chain")
+            )
+            triage = stack.enter_context(
+                patch.object(demo, "run_invite_path_rm_triage")
+            )
+            for name in (
+                "wait_for_case_participants",
+                "wait_for_case_on_container",
+                "get_actor_by_id",
+            ):
+                stack.enter_context(patch.object(demo, name))
+            stack.enter_context(
+                patch.object(
+                    demo, "find_cp_offer_for_case", return_value="urn:test:cp"
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    demo,
+                    "find_case_actor_participant_id",
+                    return_value="urn:test:case-actor",
+                )
+            )
+            for name in (
+                "suggest_actor_to_case",
+                "accept_actor_recommendation",
+            ):
+                stack.enter_context(patch.object(ActorSession, name))
+            null_demo_contexts(stack, demo)
+            demo._phase_c2_suggests_v2(
+                finder_client=MagicMock(),
+                c1_client=MagicMock(),
+                c2_client=MagicMock(),
+                v2_client=MagicMock(),
+                case_actor_client=case_actor_client,
+                c1_in_c1=self._actor("urn:test:c1"),
+                c2_in_c2=self._actor("urn:test:c2"),
+                v2=self._actor("urn:test:v2"),
+                case=self._case(),
+                offer=MagicMock(),
+                report=MagicMock(),
+                finder=self._actor("urn:test:finder"),
+                v1=self._actor("urn:test:v1"),
+            )
+
+        assert chain.call_args.kwargs["ledger_client"] is case_actor_client
+        assert triage.call_args.kwargs["auth_client"] is case_actor_client
+
+    def test_closure_reads_departures_on_case_actor(self):
+        case_actor_client = MagicMock(name="case_actor_client")
+        with contextlib.ExitStack() as stack:
+            close = stack.enter_context(
+                patch.object(demo, "close_case_owner_last")
+            )
+            null_demo_contexts(stack, demo)
+            demo._phase_case_closure(
+                finder_client=MagicMock(),
+                c1_client=MagicMock(),
+                v1_client=MagicMock(),
+                c2_client=MagicMock(),
+                v2_client=MagicMock(),
+                c1_in_c1=self._actor("urn:test:c1"),
+                v1_in_v1=self._actor("urn:test:v1"),
+                c2_in_c2=self._actor("urn:test:c2"),
+                v2_in_v2=self._actor("urn:test:v2"),
+                finder_in_finder=self._actor("urn:test:finder"),
+                case=self._case(),
+                case_actor_client=case_actor_client,
+            )
+
+        assert close.call_args.kwargs["authority_client"] is case_actor_client
+
+    def test_dump_reads_case_actor_ledger_from_dedicated_container(self):
+        clients = {
+            k: MagicMock(name=k, actor_id=f"https://example.org/actors/{k}")
+            for k in self._NAMES
+        }
+        case_actor_client = MagicMock(
+            name="case_actor_client",
+            actor_id="https://example.org/actors/case-actor",
+        )
+        with patch.object(demo, "dump_case_ledgers") as dump:
+            demo._phase_dump_case_ledgers(
+                case_actor_client=case_actor_client,
+                case=self._case(),
+                **clients,
+            )
+
+        targets = dump.call_args.kwargs["targets"]
+        case_actor_targets = [
+            t for t in targets if t.actor_name == "case-actor"
+        ]
+        assert len(case_actor_targets) == 1
+        assert case_actor_targets[0].client is case_actor_client
+        assert case_actor_targets[0].route_key == "case-actor"

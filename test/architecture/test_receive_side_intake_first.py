@@ -225,6 +225,11 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # stale-embargo branch; commits the manager's own emission under its
         # CASE_MANAGER gate, not a received assertion (EMB-17-011).
         "create_reinvite_stale_accepter_tree",
+        # ownership-transfer Offer expiry tree — the CASE_MANAGER-gated lazy
+        # expiry run before the Accept, Reject, Undo and Offer received trees;
+        # synthesises and commits an expiry entry without processing the
+        # received activity itself (CM-21-017, CLP-07-013, BT-17-001).
+        "create_ownership_offer_expiry_tree",
     }
 )
 
@@ -322,6 +327,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     assert isinstance(tree.children[0], IntakeReceivedActivityNode)
     assert names == [
         "IntakeReceivedActivityNode",
+        "CaseOpenToExternalWrites",
         "Guard",
         "GuardedCommitCaseLedgerEntryBT",
         "Effect",
@@ -336,6 +342,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     assert isinstance(no_commit.children[0], IntakeReceivedActivityNode)
     assert [c.name for c in no_commit.children] == [
         "IntakeReceivedActivityNode",
+        "CaseOpenToExternalWrites",
         "Guard",
         "Effect",
     ]

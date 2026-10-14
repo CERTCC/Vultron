@@ -1,18 +1,22 @@
 ---
 title: Agentic Development Workflow
 status: active
+kind: guidance
 description: >
-  Documents the skill-based agentic development pipeline used in this project:
-  ingest-idea, learn, update-plan, and build. Explains the inputs, outputs,
-  and priority-interrupt loop that governs when each skill runs.
+  Rules for the skill-based agent pipeline: what goes in the incoming-learnings
+  queue and what is routed elsewhere, how to size large mechanical migrations
+  for a fork, how to find the full set a finding belongs to, when a passing
+  check is not evidence, and how to handle a spec that disagrees with the code.
 related_notes:
-  - notes/append-only-file-handling.md
   - notes/agents-md-structure.md
   - notes/git-workflow-pitfalls.md
+  - notes/history-management.md
   - notes/parallel-development.md
   - notes/bt-pitfalls.md
   - notes/specs-vs-adrs.md
   - notes/spec-authoring-rules.md
+  - notes/coordination-agents.md
+  - notes/site-information-architecture.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
@@ -22,286 +26,127 @@ related_specs:
 
 # Agentic Development Workflow
 
-This project uses a four-skill pipeline for AI-assisted development. Each
-skill has a clearly bounded scope, well-defined inputs and outputs, and a
-defined place in a **priority-interrupt loop** that governs execution order.
-
-The pipeline is designed to be automatable: an orchestrating agent can inspect
-file-change signals to decide which skill to run next, always resolving
-higher-priority steps before lower-priority ones.
-
----
-
-## File Roles in the Pipeline
-
-| File | Role | Ephemeral? |
-|---|---|---|
-| GitHub Idea-type issues | Raw human ideas awaiting ingestion | Yes — processed and closed by `ingest-idea` |
-| `plan/history/` | Archive of processed ideas, tasks, learnings | Permanent (append-only, chunked) |
-| `specs/*.yaml` | Authoritative requirements | Permanent |
-| `notes/*.md` | Durable design insights | Permanent |
-| `AGENTS.md` | Agent conventions and patterns | Permanent |
-| GitHub Project #24 | Authoritative priority scheduling: `Schedule` on Epics (Focus/Now/Next/Later/Someday), mirrored `Status` on other issues | Live — updated via API |
-| GitHub Task/Subtask Issues | Pending + in-progress tasks | Yes — closed when PR merges |
-| `plan/incoming/learnings/` | Ephemeral build/bugfix observations (individual files) | Yes — files moved to history by `learn` |
-| `vultron/`, `test/` | Implementation | Permanent |
+Work flows through skills: `work-issue` routes an issue by type to `build`,
+`bugfix` or `plan-issue`; `learn`, `update-plan`, `decision-audit` and
+`review-priorities` (run in order by `reflect-cycle`) fold what the builds
+learned back into specs, notes and priorities. Keep `build` and `bugfix` as two
+skills: `bugfix` investigates and writes the failing test first, `build` selects
+from the priority queue.
 
 ---
 
-## Incoming Learnings Queue Content Policy
+## Incoming Learnings Queue
 
-`plan/incoming/learnings/` is the **exclusive upstream channel** from
-code-executing skills (`build`, `bugfix`) to the `learn` skill.
+`plan/incoming/learnings/` is the only channel from `build` and `bugfix` to
+`learn`. Each observation is its own file, so concurrent PRs never conflict on
+it. `learn` promotes each file, then moves it to `plan/history/YYMM/learning/`
+with `uv run append-history --from-file <path>`.
 
-Each observation is recorded as an individual file (`YYYYMMDD-SLUG.md`) with
-YAML frontmatter matching the history entry format. Using individual files
-instead of a shared flat file eliminates merge conflicts when multiple PRs
-each have an observation to record.
-
-**The slug describes the observation; it is not the `source`.** Name files
-`YYYYMMDD-<issue>-<descriptive-phrase>.md` (e.g.
-`20260918-3399-bt18-has-no-contract-for-a-refusal-carrying-a-payload.md`) and
-put the work-item id in the `source` frontmatter (`ISSUE-3399`). One issue
-routinely yields several learnings, so a filename derived from `source` alone
-collides — an earlier wording of BW-01-003 required exactly that, and #1777's
-five learnings would all have been `20260730-ISSUE-1777.md` (BW-01-003,
-BW-02-002; #1857).
+**The filename slug describes the observation; it is not the `source`.** Name
+files `YYYYMMDD-<issue>-<descriptive-phrase>.md` and put the work-item id in the
+`source` frontmatter (`ISSUE-3399`). One issue often yields several learnings,
+so a filename derived from `source` alone collides (BW-01-003, BW-02-002).
 
 ### What belongs here
 
-The queue is narrow by design. A finding gets a learning file **only** when it
-is one of two things (tag it with the matching `signal:` frontmatter field, per
-BW-07-002):
+A finding gets a learning file **only** when it carries one of these `signal:`
+values (BW-07-002):
 
-- `spec-gap` — behaviour implemented in code with no corresponding spec entry.
-  Only externally-observable or protocol-visible behaviour qualifies; file
-  locations, naming conventions, and agent guidance go to `AGENTS.md` instead
-- `spec-ambiguity` — a requirement was unclear; record what interpretation was
-  made so `learn` can clarify it
-- `spec-contradiction` — two requirements appeared to conflict; record which
-  were at odds and how the conflict was resolved
-- `theme-candidate` — a general claim you believe but cannot verify from a
-  single instance. It stays queued until a second independent witness
-  corroborates it (BW-07-005); an uncorroborated candidate is archived
-  unpromoted after 30 days (BW-07-007)
+- `spec-gap` — protocol-visible behaviour implemented with no spec entry. File
+  locations, naming conventions and agent guidance go to `AGENTS.md` instead.
+- `spec-ambiguity` — a requirement was unclear; record the interpretation made.
+- `spec-contradiction` — two requirements conflicted; record which and how the
+  conflict was resolved.
+- `theme-candidate` — a general claim you cannot verify from one instance. It
+  waits for a second independent witness (BW-07-005) and is archived unpromoted
+  after 30 days (BW-07-007).
 
-`learn` processes the `spec-*` signals before `theme-candidate` and untagged
-entries (BW-07-003).
+`learn` processes the `spec-*` signals first (BW-07-003).
 
-Everything else is **routed at discovery to a nearer owner, not queued**
-(BW-07-004). Before completing a `build` or `bugfix` session the agent MUST run
-the upward-reflection checklist (BW-07-001) — see
-[`upward-reflection.md`](../.agents/skills/shared/upward-reflection.md) for the
-full routing table — and send each triggered item to exactly one destination:
+Everything else is **routed at discovery, not queued** (BW-07-004). Run the
+upward-reflection checklist before finishing a `build` or `bugfix` session
+(BW-07-001; [`upward-reflection.md`](../.agents/skills/shared/upward-reflection.md))
+and send each triggered item to exactly one destination:
 
-- Something that exists but is wrong → a GitHub `type:Concern` issue
-- Something that should exist but does not → a GitHub `type:Idea` issue
-- A broken tool, skill, or tracking artefact → a fix applied in the same session
-- A narrow but true fact about the code → an assertion at the site (regression
-  test, type annotation, or comment) in the same session
-- A code-review finding in a file the change did not touch → a GitHub
-  `type:Bug`/`type:Concern` issue, filed in the session that surfaced it, never
-  a learning file or a PR-comment advisory (BW-07-009)
+- Something that exists but is wrong → a GitHub `type:Concern` issue.
+- Something that should exist but does not → a GitHub `type:Idea` issue.
+- A broken tool, skill or tracking artefact → a fix in the same session.
+- A narrow, true fact about the code → an assertion at the site (test, type
+  annotation or comment) in the same session.
+- A code-review finding in a file the change did not touch → a `type:Bug` or
+  `type:Concern` issue, never a learning file or a PR-comment advisory
+  (BW-07-009).
 
-The signal values `design-question`, `concern`, `tooling-issue`, and
-`process-issue` are **retired** (BW-07-002): they all named findings with a
-definite owner and action, so they are now routed above rather than queued. The
-`append-history` CLI rejects them for new entries and accepts them only when
-parsing pre-existing archived files. A decision that was made, applied, and
-shipped within the session — asking nothing of any future reader — is not a
-learning at all (BW-07-008); its record is the commit, the diff, and the PR body.
-
-### What does NOT belong here
-
-- Completion summaries ("Task X is done") → use `uv run append-history implementation`
-- Status updates ("I completed Y and Z") → use `uv run append-history implementation`
-- Documentation of finished work → use `append-history` or `notes/`
-- `update-plan` gap-analysis observations → write directly to `notes/*.md`
-
-### File format
-
-```yaml
----
-title: "Short observation title"
-type: learning
-timestamp: 'YYYY-MM-DDTHH:MM:SS+00:00'
-source: ISSUE-NNNN
----
-
-Observation body text.
-```
-
-### Lifecycle
-
-```text
-build/bugfix run
-  → creates plan/incoming/learnings/YYYYMMDD-SLUG.md (committed in the PR)
-
-learn run
-  → each file promoted to specs/*.yaml, notes/*.md, or AGENTS.md
-  → promotion note appended to file body
-  → uv run append-history --from-file <path>  ← moves file to history, deletes source
-
-After learn completes:
-  plan/incoming/learnings/ contains only .gitkeep (ideally empty)
-  plan/history/YYMM/learning/*.md contains the archived originals
-```
-
-See `specs/build-workflow.yaml` (BW-01 through BW-06) for the normative
-requirements.
+A decision made, applied and shipped in the session is not a learning; its
+record is the commit and the PR body (BW-07-008). Completion summaries go
+through `uv run append-history implementation`, not the queue.
 
 ---
 
-## Design Decisions
+## Large Migrations: Partition by Node Shape, Then Domain
 
-| Question | Decision | Rationale |
-|---|---|---|
-| Why separate `ingest-idea` from `learn`? | External ideas and internal build lessons are different sources with different quality gates | Ideas need a grill-me interview; build lessons are already structured enough to promote directly |
-| Why is `update-plan` distinct from `build`? | Plan maintenance is a research task; execution is a coding task | Mixing them produces plans that drift from specs |
-| Why restart the loop after each skill? | Higher-priority skills may be triggered by a lower-priority skill's outputs | Ensures design always precedes planning, planning always precedes building |
-| Why no branching inside skills? | Clean boundaries enable future automation of the loop | A BT or script can inspect file-change signals to trigger the right skill |
-| Why rename `IMPLEMENTATION_NOTES.md` to `BUILD_LEARNINGS.md`? | The old name implied general design notes; the new name signals a specific, focused role: a queue of code-execution observations for `learn` to promote | See `specs/build-workflow.yaml` BW-01-001 |
-| Why not let `build` write directly to `notes/`? | `build`'s job is coding; documentation curation is `learn`'s domain. `BUILD_LEARNINGS.md` is the upstream channel for `build` to communicate observations; `learn` decides what to do with them | BW-01-001, BW-01-002 |
-| Why are `build` and `bugfix` two skills rather than one? | Keep two skills. `work-issue` is the single type-routing entry point. The decided direction, pending #3582: each skill also gates on issue type and names the right skill for a mismatched issue, and the phases the two genuinely share (sync, claim, pre-claim AC gate, validate, finalize) move into `.agents/skills/shared/` fragments both include | The workflows diverge where it matters: `bugfix` investigates before briefing and writes the failing regression test first; `build` selects from the priority queue. A merged skill would carry both paths in every session, and these are the most-used skills in the suite, so a rewrite is the riskiest possible change (#1984, planned in #2838) |
-| Why delete (not strike-through) processed learnings? | `BUILD_LEARNINGS.md` is a queue, not an archive. Processed entries live in `plan/history/` via `append-history learning`. Keeping the queue clean prevents accumulation of stale noise | BW-02-002 |
+Classify the nodes a migration touches by structural shape first (trivial
+reparent, read-only extra inputs, complex output ports), then split by domain
+only to balance PR size, so each PR is a lot of the same thing (ISSUE-1809).
 
----
-
-## Large Migration Tasks: Partition by Node Shape (Type), Then Domain for Size
-
-For tasks that migrate many nodes (e.g., Ports adoption), classify nodes by their
-structural shape first (trivial reparent / read-only extra inputs / complex
-output ports), then split by domain only to balance PR size. "Each PR should be a
-lot of the same thing." See ISSUE-1809 for the typed-Ports chain decomposition as
-the reference example.
-
-### A single-pass mechanical refactor can exhaust the fork agent's turn limit
-
-A fork/sub-agent runs under a hard turn cap (200 turns). A purely mechanical
-edit that is nonetheless spread across enough files will hit it: in ISSUE-2490,
-replacing ~120 `isinstance(VulnerabilityCase)` guards across ~60 files ran the
-fork out of turns before completion, leaving a handful of files uncommitted and
-some downstream `pyright` errors unaddressed. The main agent had to inspect the
-stopped state and finish by hand.
-
-Two mitigations, applied before dispatching the agent:
-
-- **Batch by subsystem**, not one 60-file pass — e.g. `behaviors/` first, then
-  `use_cases/`, then `services/` — so each batch fits comfortably inside one
-  agent's budget and commits cleanly.
-- **Script the mechanical part** with `sed`/`awk` (or a codemod) and reserve the
-  agent for edge-case handling and the type-checker fallout only. The
-  substitution itself does not need an LLM; the judgment at the boundaries does.
-
-Corollary for the dispatching agent: after any large fork-run refactor, verify
-the end state (uncommitted files, remaining occurrences, `pyright`) rather than
-trusting the fork's completion report — a turn-capped stop looks like a finish.
-
-Source: ISSUE-2490
+A fork runs under a hard 200-turn cap, and a mechanical edit spread across
+enough files exhausts it; a turn-capped stop looks like a finish. Before
+dispatching, batch by subsystem (`behaviors/`, then `use_cases/`, …) and script
+the mechanical substitution (`sed`, a codemod), keeping the agent for edge cases
+and type-checker fallout. Afterwards, verify the end state yourself:
+uncommitted files, remaining occurrences, `pyright` (ISSUE-2490).
 
 ---
 
-## Enumerate the Affected Set From Its Consumers, Not From the Site the Report Names
+## Enumerate the Affected Set From Its Consumers
 
-A finding names one site: the node that failed, the workflow the issue mentions,
-the trees that share the pattern the author had open. The defect belongs to the
-*set* that site is a member of, and the named site is only the member someone
-happened to look at. Three independent sessions fixed or counted the named site
-and missed the rest:
+A finding names one site, but the defect belongs to the set that site is a
+member of. Derive the set from whoever *uses* the thing, by a corpus query,
+before the number or the fix goes in (ISSUE-3870):
 
-- **A refusal arm in a Selector** (ISSUE-3399). The fix installed its barrier on
-  the child the review named; a second review broke the same arm one child
-  earlier, because every node between the arm's entry and its point of no return
-  shared the fall-through (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector
-  Fails Toward 'Admit'").
-- **A CI gate** (ISSUE-3549). The withheld-artifact check went into the workflow
-  that reviews the site, while the workflow that publishes it ran without the
-  check. The gate is a property of every path by which the artifact reaches a
-  user, not of the check.
-- **A site count in an AC** (ISSUE-3870). "The two receive trees that compose the
-  gate directly" came from grepping the shared pattern; thirteen more trees
-  bypassed the factory another way. The first ratchet repeated the miss by
-  selecting trees by name.
-
-**How to apply.** Derive the set from whoever *uses* the thing, by a corpus
-query, before the number or the fix goes in:
-
-- *At planning*, an AC that says "the N handlers that …" takes N from the
-  consumer side (e.g. "every module under `use_cases/received/` that calls a tree
-  factory"), never from the producer pattern.
-- *At fix time*, ask of every member — every node on the path, every workflow
-  that builds the artifact — what its failure does, and test each answer.
-- *At ratchet authoring*, a `KNOWN_*` set or a name regex is a count of the sites
-  that resemble the one you had open; define membership by use instead.
-
-Source: ISSUE-3399, ISSUE-3549, ISSUE-3870
+- *At planning*, take N in "the N handlers that …" from the consumer side
+  ("every module under `use_cases/received/` that calls a tree factory"), never
+  from the pattern you had open.
+- *At fix time*, ask of every member (every node on the path, every workflow
+  that builds the artifact) what its failure does, and test each answer.
+- *In a ratchet*, define membership by use, not by a `KNOWN_*` set or a name
+  regex.
 
 ---
 
 ## A Passing Check Is Not Evidence It Examined What You Think
 
-A green guard, predicate or test reads as "this was checked". Three independent
-findings show the check can pass without ever examining its subject:
-
-- **A guard that never ran** (ISSUE-3192). Two call sites branched on a resolver's
-  `None` (`if case_actor_id and …`). When the resolver began answering, one guard
-  ran for the first time and refused legitimate entries; the other had been
-  silently permissive in exactly the window it policed. Its test *passed* by
-  accepting an imposter.
-- **An exemption that survived its retirement** (ISSUE-2505). ADR-0051 retired the
-  CASE_MANAGER's RM-closure exemption in one place; two other copies kept it, with
-  docstrings asserting it as design, and every demo's "all participants closed"
-  milestone passed while the manager never closed.
-- **Guards with no production caller** (#3156) pass their own unit tests, which
-  exercise the guard directly and never the path that should reach it.
-
-**How to apply.**
+A guard, predicate or test can pass without examining its subject: it
+short-circuits on an empty answer, an exemption copy survives its retirement,
+or production never reaches it (ISSUE-3192).
 
 - When a resolver, lookup or predicate starts returning a value where it used to
-  return `None`/`False`/empty, read every guard that branches on the empty answer
-  and ask which branch was taken before.
+  return `None`/`False`/empty, read every guard that branches on the empty
+  answer and ask which branch ran before.
 - When an ADR removes an exemption, grep the *shape* of the exemption
-  (`CVDRole.CASE_MANAGER in`, `continue`, `skip`), not the ADR number — the
-  copies that never cited the ADR are the whole risk. A docstring that states the
-  exemption is a suspect, not settled design.
-- Before trusting a passing check, ask whether it could fail if its subject were
-  wrong. If it short-circuits, exempts, or is never reached from production, it
-  is not evidence.
-
-Source: ISSUE-3192, ISSUE-2505, CONCERN-3156
+  (`CVDRole.CASE_MANAGER in`, `continue`, `skip`), not the ADR number. A
+  docstring stating the exemption is a suspect, not settled design.
+- Before trusting a passing check, ask whether it could fail if its subject
+  were wrong.
 
 ---
 
 ## Spec Text Conflicts With Code
 
-An implementation PR sometimes finds that the spec and the code disagree. The
-tempting fix is to edit the spec to match the code inside the same PR. In the
-2026-10-02 audit of 72 unsupervised PRs, 17 statements were changed that way,
-with no single place a reviewer could see them.
+When an implementation PR finds the spec and the code disagree, do not quietly
+edit the spec to match. Ask: *would something built on the old text now be
+wrong?* (ISSUE-4189)
 
-**The material test.** Ask: *would something built on the old text now be
-wrong?*
+- **No** — a clarification, corrected reference, typo or renamed symbol. Edit
+  the statement in the PR.
+- **Yes** — the change alters what the requirement obliges (a priority moves, a
+  condition is added or dropped, a forbidden behavior is permitted). Ask the user
+  in the session before editing and record the answer in the PR. Silence is not
+  approval: an unsupervised run holds the PR.
 
-- **No** — a clarification, a corrected reference, a fixed typo or a renamed
-  symbol. The agent may edit the statement in the PR.
-- **Yes** — the change alters what the requirement *obliges*: a priority moves
-  (`SHOULD` to `MAY`), a condition is added or dropped, a behavior is permitted
-  that was forbidden. The agent MUST ask the user **in situ**, in the session,
-  before editing, and record the answer in the PR. Silence is not approval:
-  an unsupervised run holds the PR rather than editing the obligation.
-
-**The record.** Every PR whose diff changes or removes a `statement:` or
-`priority:` in `specs/` carries a `## Spec amended` section: per requirement ID,
-the before text, the after text and the reason
-(`.agents/skills/shared/pr-body-guide.md` § "Spec amended").
-`bash .agents/skills/shared/spec-amendments.sh origin/main` lists the IDs by
-comparing parsed YAML, so a mid-sentence edit of a folded statement is found.
-`create-pr` writes the placeholder, `pr-triage` FAILs a diff without the
-section, and `pr-verify` blocks on it. New requirements are not amendments.
-
-A requirement ID removed by an amendment is never reused (MS-09-004); see
-[notes/spec-authoring-rules.md](spec-authoring-rules.md) § "Removed
-Requirements". A test timeout is an acceptable verification of a time-limit MUST
-(HP-07-002 stands).
-
-Source: ISSUE-4189, ISSUE-4195
+Every PR that changes or removes a `statement:` or `priority:` in `specs/`
+carries a `## Spec amended` section with, per ID, the before text, the after
+text and the reason (`.agents/skills/shared/pr-body-guide.md`).
+`bash .agents/skills/shared/spec-amendments.sh origin/main` lists the IDs.
+`pr-triage` fails a diff without the section. A removed requirement ID is never
+reused (MS-09-004; see [spec-authoring-rules](spec-authoring-rules.md)).

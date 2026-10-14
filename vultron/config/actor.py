@@ -29,6 +29,7 @@ Protocol default embargo duration per ``specs/embargo-policy.yaml`` EP-04-005
 """
 
 from datetime import timedelta
+from enum import StrEnum
 
 from pydantic import (
     BaseModel,
@@ -45,6 +46,33 @@ PROTOCOL_DEFAULT_EMBARGO_MIN = timedelta(hours=72)
 
 PROTOCOL_DEFAULT_EMBARGO_MAX = timedelta(days=5)
 """Upper bound on the configurable protocol default embargo (EP-04-005)."""
+
+
+class PostCloseReply(StrEnum):
+    """What the CASE_MANAGER sends back for a late ``Leave(VulnerabilityCase)``.
+
+    After ``case_fully_closed`` is committed, the CASE_MANAGER records nothing
+    for any inbound activity on the case and changes no case or participant
+    state (CM-23-013, ADR-0085).  This setting decides only the courtesy reply
+    to a late **Leave**:
+
+    - ``DROP`` — send nothing (the default).
+    - ``REJECT`` — send ``Reject(Leave(VulnerabilityCase))`` to the sender.
+
+    Every other late activity is dropped with no reply under **both** settings.
+    A Reject that wraps most other activities already carries a protocol
+    meaning for its recipient (``Reject(Invite)`` is a declined invitation,
+    ``Reject(Offer(...))`` a declined offer), so a reply to them would be
+    misread.  ``Reject(Leave(VulnerabilityCase))`` already means "close
+    declined" (CM-23-011) and cannot be misread (CM-23-017, ADR-0131).
+    """
+
+    DROP = "drop"
+    REJECT = "reject"
+
+
+DEFAULT_POST_CLOSE_REPLY = PostCloseReply.DROP
+"""The default reply to a late Leave: none (CM-23-013, ADR-0131)."""
 
 
 class ActorConfig(BaseModel):
@@ -78,6 +106,11 @@ class ActorConfig(BaseModel):
             [72 hours, 5 days]; a value outside that range is refused
             (EP-04-005, ADR-0096).  It never competes under shortest-wins and
             is never a minimum on agreed terms (EP-04-006, EP-04-007).
+        post_close_reply: The one policy point for replies after the case
+            closes: whether the CASE_MANAGER answers a late
+            ``Leave(VulnerabilityCase)`` with an ``as:Reject`` or drops it.
+            Every other late activity is dropped under either setting
+            (CM-23-013, CM-23-017, ADR-0131).  See :class:`PostCloseReply`.
     """
 
     default_case_roles: list[CVDRole] = Field(default_factory=list)
@@ -123,6 +156,16 @@ class ActorConfig(BaseModel):
             "Embargo duration applied at case creation when no sender proposal "
             "and no actor default applies (EP-04-005). Must lie within "
             "[72 hours, 5 days]. Default: 72 h."
+        ),
+    )
+
+    post_close_reply: PostCloseReply = Field(
+        default=DEFAULT_POST_CLOSE_REPLY,
+        description=(
+            "Reply to a Leave(VulnerabilityCase) that arrives after "
+            "case_fully_closed: 'drop' (default) sends nothing, 'reject' "
+            "sends Reject(Leave(VulnerabilityCase)). Every other late "
+            "activity is dropped under both settings (CM-23-017)."
         ),
     )
 

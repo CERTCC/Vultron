@@ -110,9 +110,12 @@ that the cost of a full scan is justified on every invocation.
    makes the two skills disagree about whether `learn` has input.
 
 3. Invoke `orient-agent` then `deepen-context` for full context: the spec map
-   plus the specs governing the learnings and Concerns in scope, plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
-   Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
-   will read up-to-date architecture and structure information.
+   plus the specs governing the learnings and Concerns in scope, plan files,
+   notes/, AGENTS.md, and a code scan. `deepen-context` routes through
+   decision records by title and `adr:` edge only, so read in full any record
+   body this run writes to (Phase 4 below). Because Phase 0 has already
+   refreshed the codebase docs, `orient-agent`/`deepen-context` will read
+   up-to-date architecture and structure information.
 
 > `plan/incoming/learnings/` is an ephemeral queue. Files are moved to
 > `plan/history/YYMM/learning/` after archiving. Any critical insight
@@ -191,9 +194,13 @@ in the archive body rather than left implicit:
 
 #### Part B — Notes Staleness Review (removals)
 
-For each `notes/*.md` file, review its sections (cards) against the current
-codebase using the codebase knowledge refreshed in Phase 0. Assign each
-section one of three verdicts:
+Start from `uv run notes-tracks`: every `plan` note it flags (all tracked
+issues closed) is on the agenda. Then, for each `notes/*.md` file, review its
+sections (cards) against the current codebase using the codebase knowledge
+refreshed in Phase 0, and against the kind and trim rules in
+`.agents/skills/shared/notes-writing-guide.md` (NF-08). A section that fits
+neither its note's `kind` nor any other is mis-homed: split it out, move it
+to `docs/`, or archive it. Assign each section one of three verdicts:
 
 - **Keep** — still active guidance, well-homed
 - **Archive** → `plan/history/YYMM/note/` — section is stale
@@ -277,16 +284,20 @@ evaluated and rejected; skip it for uncontested rules (MS-11-002, MS-11-005).
 When both are created, cross-reference them: cite the ADR in the spec's per-requirement
 `rationale` field (per MS-11-004 — not the spec-group `description`), and list the
 generated spec IDs in the ADR's "More Information" section (MS-11-004).
+Read the body of every record you cross-reference before you edit it, and weigh
+it by `.agents/skills/shared/weighing-decision-records.md`.
 
 ### Phase 5 — Update Design Notes (`notes/`) and `docs/`
 
-- Promote insights, tradeoffs, and lessons from `BUILD_LEARNINGS.md` and
-  resolved GitHub Concern issues into the appropriate `notes/*.md` file.
-  Do not duplicate spec text.
+- Write per `.agents/skills/shared/notes-writing-guide.md`: lasting rules go
+  into a `kind: guidance` note as rule + reason + one citation, never the
+  backstory; design for unbuilt work goes into a `kind: plan` note with
+  `tracks:`. Never add a plan item to a `guidance` note. Do not duplicate
+  spec text.
 - Mark unresolved items explicitly: `Open Question:` / `Design Decision:`.
 - Update `notes/README.md` when files are added, removed, or reorganized.
 - Every `notes/*.md` (except `notes/README.md`) must have valid YAML
-  frontmatter with at least `title` and `status`.
+  frontmatter with `title`, `status`, and `kind` (NF-01).
 
 **Archive stale sections** confirmed in the Phase 3 interview:
 

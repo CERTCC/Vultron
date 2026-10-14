@@ -221,19 +221,28 @@ def stub_closure_gate() -> Iterator[MagicMock]:
     A mocked closure-phase test has no CASE_MANAGER store to read, so the
     gate's ``RM.CLOSED`` wait would poll a ``MagicMock`` until it timed out and
     then skip the owner's ``Leave``.  Patching the wait to return at once, and
-    the ledger check the helper runs after the owner leaves, lets such a test
-    check what it is about (call order, which milestones run).
+    the closure checks the helper runs after the owner leaves (the ledger
+    order, every record ``RM.CLOSED`` in the CASE_MANAGER's store, and each
+    leaver's own replica), lets such a test check what it is about (call
+    order, which milestones run).  The CASE_MANAGER's client is the authority
+    client itself.
     Yields the patched wait so a test can assert which departures it waited on.
     """
     with (
         patch(
-            "vultron.demo.helpers.closure.resolve_case_actor_store_id",
-            return_value=None,
+            "vultron.demo.helpers.closure._case_manager_reader",
+            side_effect=lambda client, _case_id: client,
         ),
         patch(
             "vultron.demo.helpers.closure.wait_for_participant_rm_state"
         ) as wait,
         patch("vultron.demo.helpers.closure.verify_case_closure_recorded"),
+        patch("vultron.demo.helpers.closure.verify_case_closed"),
+        patch(
+            "vultron.demo.helpers.closure.case_manager_ledger",
+            return_value=[],
+        ),
+        patch("vultron.demo.helpers.closure._verify_own_closure"),
     ):
         yield wait
 
@@ -391,3 +400,52 @@ def seed_replicas_for_case_participants(
         seed_case_replica_for_actor(source_dl, target, case_id)
         seeded[actor_id] = target
     return seeded
+
+
+def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
+    """Make *demo*'s ``demo_gate``/``demo_check``/``demo_step`` transparent.
+
+    For call-shape tests that observe which client a scenario hands a helper,
+    never gate control flow (``test_demo_context_managers.py`` covers that).
+    """
+    for name in ("demo_gate", "demo_check", "demo_step"):
+        stack.enter_context(
+            patch.object(
+                demo, name, side_effect=lambda _: contextlib.nullcontext()
+            )
+        )
+
+
+def assert_reset_reseeds_case_actor(
+    demo: ModuleType, participant_clients: Mapping[str, MagicMock]
+) -> None:
+    """Run *demo*'s ``reset_containers`` and check the case-actor half (#1876).
+
+    The participants are reset in the order given, the dedicated case-actor
+    container after them, and its CaseActor identity is then re-seeded — the
+    reset wipes it, and every proposal is delivered to it.
+
+    Args:
+        demo: The scenario module under test.
+        participant_clients: ``reset_containers`` keyword → client, in the
+            scenario's reset order.
+    """
+    case_actor_client = MagicMock(name="case_actor_client")
+    for client in (*participant_clients.values(), case_actor_client):
+        client.get.return_value = {}
+
+    with (
+        patch.object(
+            demo, "reset_datalayer", return_value={"status": "ok"}
+        ) as reset_mock,
+        patch(
+            "vultron.demo.helpers.seeding.seed_case_actor_identity"
+        ) as reseed_mock,
+    ):
+        demo.reset_containers(
+            case_actor_client=case_actor_client, **participant_clients
+        )
+
+    reset_clients = [c.kwargs["client"] for c in reset_mock.call_args_list]
+    assert reset_clients == [*participant_clients.values(), case_actor_client]
+    reseed_mock.assert_called_once_with(case_actor_client)

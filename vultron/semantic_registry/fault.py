@@ -22,6 +22,10 @@ from vultron.core.use_cases.received.fault import (
     CreateProcessingFaultReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    MessagePage,
+    Occasion,
+)
 from vultron.wire.as2.extractor._instances import CreateProcessingFaultPattern
 
 ENTRIES: list[SemanticEntry] = [
@@ -33,5 +37,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} reported a processing fault",
         wire_activity_class=None,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant has received a message it cannot process",
+                anchor="create-processing-fault",
+                heading="Create processing fault",
+                description=(
+                    "Tells the sender that its message was received but not "
+                    "understood. It names the failed activity and a failure "
+                    "class, with no implementation diagnostics. This fault "
+                    "serves the not-understood purpose of the formal RE, EE, "
+                    "CE and GE messages."
+                ),
+                example="create_processing_fault",
+                evolved=True,
+            ),
+        ),
+        page=MessagePage.FAULTS_AND_ACKNOWLEDGEMENTS,
     ),
 ]

@@ -1,15 +1,19 @@
 ---
 title: RFC Review Rubric
 description: >
-  Living checklist for reviewing the Vultron Protocol Specification RFC
+  Checklist for reviewing the Vultron Protocol Specification
   (docs/reference/vultron-spec/, a section of pages assembled from shared
-  fragments) against the codebase, system specs, notes, and design. Apply each
-  round of revision; extend as new issue classes emerge.
+  fragments) against the codebase, specs, and design. Run it on each revision
+  round; add an item when a review finds a new class of defect.
 status: active
+kind: guidance
 related_specs:
   - specs/docs-build-workflow.yaml
   - specs/diataxis-requirements.yaml
+  - specs/received-status-handling.yaml
 related_notes:
+  - notes/case-ledger-authority.md
+  - notes/case-state-model.md
   - notes/documentation-strategy.md
   - notes/rfc-spec-authoring.md
   - notes/site-information-architecture.md
@@ -26,9 +30,9 @@ the number and name the review checks for (§ "Cross-Reference Integrity").
 Items tagged `[M]` can be verified mechanically (grep, build output, diff against
 codebase); items tagged `[J]` require reading and judgment.
 
-Add items after each review round. Retire `[M]` items to the "Mechanized"
-section once a linter or CI check covers them. Do not delete items that were
-retired — note the covering mechanism so the reason for the rule survives.
+Add an item when a review finds a defect class no item catches. When a linter or
+CI check covers an `[M]` item, move it to the "Mechanized" table and name the
+mechanism, so the rule stays visible.
 
 ---
 
@@ -70,12 +74,13 @@ sources.
 - `[M]` "case actor" does not appear where "case manager" is meant. Grep:
   `case actor` outside `_terminology.md` and explicitly marked informative
   sidebars.
-- `[M]` State names are never abbreviated in headings or prose. Full names
-  only:
-  - VFD: *Vendor Aware, Fix Ready, Fix Deployed*
-  - PXA: *Public Aware, Exploit Public, Attacks Observed*
-  - RM:  *Received, Invalid, Valid, Deferred, Accepted, Closed*
-  - EM:  *Non-Proposed, Active, Revised, Exited*
+- `[M]` State names are never abbreviated in headings or prose. The full names
+  are the ones in the state tables under `includes/` (`_rm-states-table.md`,
+  `_em-states-table.md`, `_vfd-states-table.md`, `_pxa-states-table.md`,
+  `_pec-states-table.md`).
+- `[J]` Before a requested rename sweep, confirm the target names map one-to-one
+  onto the implemented states. A name set that does not map cleanly turns a
+  blind sweep into new errors.
 - `[M]` CNA is expanded as "CVE Numbering Authority (CNA)" on first use in
   each top-level section.
 - `[M]` "publication" and "public awareness" are not used interchangeably.
@@ -139,8 +144,13 @@ Cross-check against codebase enums, `notes/case-ledger-authority.md`,
   5. If policy requires embargo teardown, case manager initiates it.
 - `[J]` The claim "vendor published a patch" is never conflated with "patch is
   deployed." These are distinct protocol facts (Fix Ready ≠ Fix Deployed).
-- `[M]` State machine enumeration values in the document match the codebase
-  enums. Grep against `vultron/enums/` for each state name.
+- `[J]` A wire-form mapping that holds for one role is not stated as though it
+  held for every sender. `Add(CaseStatus)` is the CASE_MANAGER's activity;
+  participants send `Add(ParticipantStatus)` (RSH-04-001). A mapping table needs a
+  sender column.
+- `[J]` Every normative MUST / MUST NOT traces to a spec ID or ADR. Invented
+  normative content is harder to spot than a wrong citation, because there is
+  nothing to check it against.
 
 ---
 
@@ -169,6 +179,9 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   inline prose directly into `_open-questions.md` if it has a natural
   point-of-use location (i.e., the section that first implies or requires the
   missing definition).
+- `[J]` A section that delegates its mechanics to another document says whether
+  that document is published, and states that conformance to the delegated part
+  cannot be shown from this document alone.
 
 ---
 
@@ -180,12 +193,13 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   resolves. No link targets `index.md#…`: the landing page holds no sections.
   Run `bash .github/scripts/mkdocs-build-strict.sh` and treat any broken-anchor
   warning as a blocker.
-- `[M]` Every section citation carries the number and the section name, in prose
-  and in link text: "§6 Report Management (RM) State Machine", never a bare
-  "§6". An annex is cited as "Annex A Worked Example: Single-Vendor CVD": the
-  "—" after the annex letter in the heading is dropped, while a "—" inside a
-  section name is kept ("§4 Semantic Layer — Message Meanings"). A bare number
-  does not say which page the section is on.
+- `[M]` Every section citation carries the number and the section name:
+  "§6 Report Management (RM) State Machine", never a bare "§6", because a bare
+  number does not say which page the section is on. An annex is cited as
+  "Annex A Worked Example: Single-Vendor CVD": the "—" after the annex letter in
+  the heading is dropped, while a "—" inside a section name is kept ("§4 Semantic
+  Layer — Message Meanings"). Link text is mechanized (see "Mechanized"); check
+  citations in prose by hand.
 - `[M]` Every reference to a Python source file is a clickable Markdown link
   pointing to a canonical GitHub URL — not a bare file path. The RFC must be
   usable as a standalone PDF.
@@ -202,6 +216,8 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   Either reorder content so the prerequisite precedes the dependent material,
   or rewrite the note as a forward pointer explaining what the later
   subsection contributes.
+- `[M]` Region markers used by `include-markdown` `start`/`end` still exist in the
+  source page. A renamed or deleted marker silently includes the wrong span.
 
 ---
 
@@ -210,8 +226,17 @@ Keep protocol text free of implementation accidents and drafting artifacts.
 Run against the current `main` branch of the implementation.
 
 - `[M]` Every state name used in the document appears in the corresponding
-  codebase enum. Diff the full list from `_terminology.md` against
-  `vultron/enums/`.
+  codebase enum under `vultron/core/states/` (`rm.py`, `em.py`, `cs.py`,
+  `participant_embargo_consent.py`).
+- `[M]` Every enum symbol cited in prose resolves against the codebase; for
+  example `CS.P` is not a member of the `CS` enum.
+- `[M]` State machine transition tables match the implementation FSM
+  transition-by-transition, in both directions: every table row exists in code,
+  and every code transition appears in the table.
+- `[J]` No stated default for a security-significant decision contradicts the
+  spec corpus. Check every "the default is …" sentence against the requirement
+  that sets it; for example RSH-07-001/002 require defaulting to Case Owner
+  authorization. A wrong default also invalidates any open question built on it.
 - `[M]` Every message shorthand (RS, RV, RK, EP, etc.) maps to a
   `MessageSemantics` or equivalent enum value. Flag any shorthand without a
   codebase match.
@@ -253,8 +278,8 @@ Check after any structural reorganization or addition of new sections.
   Terminology or accompanied by a one-sentence gloss at first use. §4 Semantic
   Layer — Message Meanings is on a different page from §2 Terminology, so a
   concept it takes from there is also linked to it. A bare forward reference
-  `(§N.M)` is not sufficient for foundational concepts (`Case Actor`,
-  `CaseLedgerEntry`, PEC state names, RM state names at point of gating use).
+  `(§N.M)` is not sufficient for foundational concepts (`CaseLedgerEntry`, the
+  case manager, PEC state names, RM state names at point of gating use).
 - `[J]` When a state machine's state names are used normatively in a section
   more than one major section after the defining section, a compact reminder
   (a small table or admonition listing the state names with one-word glosses)
@@ -317,6 +342,8 @@ admonitions.
 - `[J]` The shorthand-to-wire-form mapping table (§5.7 Shorthand to Wire Form
   Mapping) is available as a standalone fragment for re-inclusion in the §12.5
   Conformance Testing Approach context.
+- `[J]` Repeated reference content (state tables, orienting notes) is a single
+  include, not a retyped copy. Two copies of a state table will diverge.
 - `[J]` The named-configurations summary table (Hosting Coordinator /
   Self-coordinating Vendor / Bug Bounty Platform) is either positioned as an
   orienting preview in §3.2 What a Deployment Looks Like or §12.1 Conformance
@@ -347,72 +374,15 @@ Check when roles, object types, or message patterns are added or redefined.
 
 ---
 
-## 11. Round-2 Finding Classes
-
-Added after the second review round. Each is a class the earlier sections would
-not have caught.
-
-- `[J]` No stated default for a security-significant decision contradicts the
-  spec corpus. Check every "the default is …" sentence against the requirement
-  that sets it. The draft asserted an auto-adopt default where RSH-07-001/002 and
-  ADR-0076 require defaulting to Case Owner authorization — an inversion that
-  also silently invalidated an open question built on top of it.
-- `[J]` A wire-form mapping that holds only for one role is stated as though it
-  held for all senders. `Add(CaseStatus)` is the CASE_MANAGER's activity;
-  participants send `Add(ParticipantStatus)` (RSH-04-001). A mapping table with no
-  sender column will get this wrong.
-- `[J]` Every normative MUST / MUST NOT traces to a spec ID or ADR. The draft
-  asserted "an actor MUST NOT self-assign a role", which no spec group or ADR
-  states. Invented normative content is harder to spot than a wrong citation,
-  because there is nothing to check it against.
-- `[M]` State machine transition tables match the implementation FSM
-  transition-by-transition, in both directions: every table row exists in code,
-  and every code transition appears in the table. The draft's RM table had one
-  transition that does not exist, one over-permissive row, and one omission.
-- `[M]` Every enum symbol cited in prose resolves against the codebase. The draft
-  used `CS.P`/`CS.X`/`CS.A`, which are not members of the `CS` enum.
-- `[J]` A section that delegates its mechanics to another document says whether
-  that document is published, and states that conformance to the delegated part
-  cannot be shown from this document alone.
-- `[J]` Repeated reference content (state tables, orienting notes) is a single
-  include, not a retyped copy. Two copies of a state table will diverge.
-- `[J]` Where the review asks for a rename sweep, confirm the target names map
-  one-to-one onto the actual states before sweeping. This round's requested EM
-  names (*Non-Proposed, Active, Revised, Exited*) do not map cleanly onto the five
-  implemented states, so a blind sweep would have introduced errors.
-- `[M]` Region markers used by `include-markdown` `start`/`end` still exist in the
-  source page. A renamed or deleted marker silently includes the wrong span.
-
----
-
 ## Mechanized (Covered by CI or Pre-commit)
 
 Items moved here are no longer checked manually; the mechanism is noted.
 
-| Item | Mechanism | Since |
-|------|-----------|-------|
-| Markdown lint (heading format, list style) | `markdownlint-cli2` pre-commit hook | pre-existing |
-| MkDocs build with zero warnings | `mkdocs build --strict` in `docs-build-check.yml` and `deploy_site.yml` (DOCBW-03-009, DOCBW-03-010) | #3051 |
-| Broken section heading anchors, on every page of the section | `mkdocs.yml` `validation.links.anchors: warn` + strict build | pre-existing |
-| American spelling (SG-37) in every `docs/` file, fragments included | `codespell` pre-commit hook (`--write-changes`, `files: ^docs/.*\.md$`), dictionary and exclusions in `[tool.codespell]` in `pyproject.toml` | #3318 |
-| Style-guide rules over this document's `_*.md` fragments | `lint-docs` § "Fragments and assembly units": sentence- and block-scoped rules against each fragment with its own line numbers; page-scoped rules (acronym first use, concept order, H1) against each assembling page in `notes/rfc-spec-authoring.md` § "Page Map", `full.md` included (DF-09-007, [ADR-0092](../docs/adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md)); an empty target set is a failure (DF-09-009) | #3318 |
-
-Retired item, kept per this rubric's own rule: this document was outside
-`lint-docs`' target set until #3318, because the linter read the `_` nav-exclusion
-prefix as "not a page" and dropped every fragment. An American-spelling
-regression reached `main` through that gap during the PR #3265 review round. The
-two rows above are the covering mechanism; the `[M]` items in "Structural
-Completeness" and "Terminology Consistency" are mechanical for this document
-again.
-
----
-
-## Changelog
-
-| Date | Change | Source |
-|------|--------|--------|
-| 2026-09-16 | Initial rubric created from review of PR #3265 | Review of draft RFC commit d4572cee7 |
-| 2026-09-16 | Added §8 Readability and Concept Flow, §9 Content Modularity, §10 Concept Lifecycle Coverage; extended §2 (Observer dual-use, track/drive definition), §4 (OQ fragment consistency), §5 (nav-note accuracy) — 24 additional gap items from top-to-bottom sequential audit of assembled spec | PR #3265 review comment |
-| 2026-09-16 | Added §11 Round-2 Finding Classes (9 items) and two Mechanized entries; noted that `lint-docs` skips this document's fragments. Corrected §10: "Bug Bounty Operator" is not a role anywhere in the glossary, specs, notes or code — only the *Bug Bounty Platform* named configuration exists | Second review round of PR #3265 |
-| 2026-09-28 | Retired the "`lint-docs` does not cover this document" warning: fragments are linted as source, page-scoped rules go to the assembled `index.md`, and `codespell` is the SG-37 floor. Two Mechanized rows added; the `[M]`-treated-as-`[J]` instruction removed | #3318 |
-| 2026-10-01 | The specification is a section of pages: added page-map, tip and landing-page checks to Structural Completeness; Cross-Reference Integrity requires links to the owning page and citations with number and name; mechanized lint row evaluates page-scoped rules on every assembling page; corrected stale section numbers (the shorthand table is §5.7 Shorthand to Wire Form Mapping; the four-dimensions note is §3.3 Tracking Dimensions; the named-configurations preview belongs in §3.2 What a Deployment Looks Like; the case histories are annexes) | #4060 |
+| Item | Mechanism |
+|------|-----------|
+| Markdown lint (heading format, list style) | `markdownlint-cli2` pre-commit hook |
+| MkDocs build with zero warnings | `mkdocs build --strict` in `docs-build-check.yml` and `deploy_site.yml` (DOCBW-03-009, DOCBW-03-010) |
+| Broken section heading anchors, on every page of the section | `mkdocs.yml` `validation.links.anchors: warn` + strict build |
+| American spelling (SG-37) in every `docs/` file, fragments included | `codespell` pre-commit hook (`--write-changes`, `files: ^docs/.*\.md$`), dictionary and exclusions in `[tool.codespell]` in `pyproject.toml` |
+| Style-guide rules over this document's `_*.md` fragments | `lint-docs` § "Fragments and assembly units": sentence- and block-scoped rules against each fragment with its own line numbers; page-scoped rules (acronym first use, concept order, H1) against each assembling page in `notes/rfc-spec-authoring.md` § "Page Map", `full.md` included (DF-09-007, [ADR-0092](../docs/adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md)); an empty target set is a failure (DF-09-009) |
+| Section citations in link text carry number and name, and the number agrees with the anchor | `test/metadata/docs/test_spec_citations.py` over the whole `docs/` tree |

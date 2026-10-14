@@ -1,6 +1,7 @@
 ---
 title: ActivityStreams Semantics in Vultron
 status: active
+kind: guidance
 tags: [as2, activitystreams, wire, semantics, extractor, rehydration, accept-reject]
 description: >
   Activities as state-change statements, not commands; inbound/outbound
@@ -12,12 +13,20 @@ related_specs:
   - specs/embargo-policy.yaml
 related_notes:
   - notes/activitystreams-state-update.md
+  - notes/activity-factories.md
   - notes/bt-integration.md
   - notes/demo-scenario-authoring.md
   - notes/message-type-reference.md
   - notes/embargo-lifecycle.md
   - notes/protocol-asks.md
   - notes/case-joining.md
+  - notes/case-bootstrap-trust.md
+  - notes/case-ledger-authority.md
+  - notes/case-proposal.md
+  - notes/case-state-model.md
+  - notes/datalayer-design.md
+  - notes/protocol-event-cascades.md
+  - notes/vocabulary-registry.md
 relevant_packages:
   - pydantic
   - vultron/wire/as2
@@ -26,454 +35,101 @@ relevant_packages:
 
 # ActivityStreams Semantics in Vultron
 
+See also [activitystreams-state-update.md](activitystreams-state-update.md).
+
 ## Activities Are State-Change Notifications, Not Commands
 
-In Vultron, an ActivityStreams Activity is a **statement about a state change
-that has already occurred**, not a request for another Actor to perform an
-action.
+An Activity states that the sender **already** made a protocol-relevant
+transition (RM, EM, or CS); it is not a remote procedure call. The receiver
+treats it as an assertion about the sender's state, updates its own model of the
+case (reports, participants, embargo, CS events), and then its own behavior logic
+decides what to do next. Work outside the protocol (reproduction, fix
+development, human negotiation) causes the Activity; the Activity never causes
+the work.
 
-When an Actor receives an Activity, it is being informed that:
+## `context` Is the Case; `inReplyTo` Is the Cause
 
-- Another Actor performed a state transition in their RM, EM, or CS process.
-- The shared state of the Case has changed.
-- The sender's internal model of the world has been updated accordingly.
+- `context` on every case-scoped activity MUST be the case URI. Inbox deferral
+  (`_activity_context_id()`) reads it to find the activity's case; a non-case URI
+  there queues the activity forever, a bootstrap deadlock for
+  `Create(VulnerabilityCase)`.
+- Causal antecedents (the Accept that authorized an action, the Offer being
+  answered) go in `inReplyTo`, never `context` (CP-05-003, ADR-0045).
 
-The receiver MUST treat the Activity as an assertion about the sender's state
-and update its own model of the world. This includes:
+## Responses Reference the Request Twice
 
-- The Case
-- Reports
-- Participants
-- Embargo status
-- Case state events (V, F, D, P, X, A)
-- Known prior transitions
+A response to an Offer or Invite sets `object` to the full inline Offer/Invite
+**and** `inReplyTo` to its ID (RF-02-003, RF-03-003, RF-04-003, RF-08-001). The
+object must be the inline typed activity, not a bare ID string: the internal
+Accept/Reject classes reject a string at construction. When the request came from
+the DataLayer, `rehydrate(obj, dl=dl)` (`vultron/wire/as2/rehydration.py`)
+restores the nested typed objects the store dehydrated.
 
-Receiving an Activity means:
+## Vocabulary Examples Are the Canonical Reference
 
-> "Someone else observed or performed a state change and is informing me."
+`vultron/wire/as2/vocab/examples/` holds a canonical example of every Vultron
+activity type, split by topic. Consult it before the patterns in
+`vultron/wire/as2/extractor/`, and add an example whenever you add a vocabulary
+type or message semantic.
 
-It does **not** mean:
+## Invite/Accept/Reject Land in Different Inboxes
 
-> "I am being instructed to perform this action."
-
-### Emitting Activities
-
-When an Actor emits an Activity, it is declaring:
-
-- "My internal state has changed."
-- "I have performed a protocol-relevant transition."
-- "The shared case state should now reflect this."
-
-Activities are therefore:
-
-- Distributed state synchronization signals.
-- Logs of completed transitions.
-- Assertions about protocol-visible facts.
-
-They are **not**:
-
-- Remote Procedure Calls.
-- Commands.
-- Requests to execute behavior.
-
-### Work Outside the Protocol
-
-Participants perform substantial work outside the Vultron messaging layer,
-such as:
-
-- Reproducing a vulnerability
-- Root cause analysis
-- Fix development
-- Patch deployment
-- Human embargo negotiation
-- Document preparation
-
-When such work results in a protocol-relevant state transition (e.g., Fix
-Ready, Fix Deployed, Embargo Accepted), the Actor emits the corresponding
-Activity.
-
-**The Activity does not cause the work. The work causes the Activity.**
-
-### Processing Is Still Required
-
-Although Activities are not commands, recipients MUST still process them:
-
-1. Parse and validate the Activity.
-2. Update local RM/EM/CS state.
-3. Potentially trigger local behaviors (e.g., reprioritize, start validation,
-   update embargo tracking).
-
-The key distinction is:
-
-- Activities describe what has happened.
-- Behavior logic determines what to do next in response.
-
----
-
-## AS2 Field Conventions: `context` vs `inReplyTo`
-
-AS2 defines `context` and `inReplyTo` for related but distinct purposes.
-Conflating them causes inbox routing failures.
-
-### `context` — scoping/grouping key
-
-AS2 defines `context` as identifying something "not specific to the activity
-but generally applicable to one or more objects" — a **grouping or scoping
-key**, not a causal antecedent.
-
-**Rule**: `context` on any case-scoped Vultron activity MUST be the case URI.
-This convention holds across all 29+ case-scoped activity sites and is required
-for correct inbox deferral routing: `_activity_context_id()` reads `context` to
-determine which case an activity belongs to. Placing a non-case URI in `context`
-causes the deferral guard to treat the activity as belonging to an unknown case
-and queue it indefinitely — a bootstrap deadlock for `Create(VulnerabilityCase)`.
-
-**MUST NOT**: Do not place causal antecedents (the Accept that authorised an
-action, the Offer being responded to) in `context`. Use `inReplyTo` instead.
-
-### `inReplyTo` — causal antecedent
-
-AS2 defines `inReplyTo` as referencing "one or more Objects for which the
-object is considered a response." It is the correct field for recording **what
-prompted this activity**.
-
-**Rule**: When a case-actor emits `Create(VulnerabilityCase)` in response to an
-`Accept(CaseProposal)`, the Accept URI MUST appear in `in_reply_to`, not in
-`context`. The full causal chain is recoverable: `in_reply_to` → Accept →
-`object_` (inline `as_CaseProposal`).
-
-**Source**: CONCERN-1832; spec: CP-05-003; ADR: 0045.
-
----
-
-## Response Activity Conventions
-
-### inReplyTo
-
-Responses to activities that imply a reply (Offer, Invite) MUST use the
-`inReplyTo` field to reference the original activity. This is required for
-threading and context.
-
-For example, when responding to an Offer of a VulnerabilityReport:
-
-- The response activity's `object` field MUST be the Offer/Invite being
-  responded to.
-- The response activity MUST set `inReplyTo` to the ID of the Offer/Invite.
-
-This allows other actors to understand the relationship between the response
-and the original offer.
-
-**References**: `specs/response-format.yaml` RF-02-003, RF-03-003, RF-04-003,
-RF-08-001.
-
----
-
-## Vocabulary Examples as Canonical Reference
-
-The directory `vultron/wire/as2/vocab/examples/` contains canonical examples
-of every Vultron ActivityStreams activity type, split into submodules by
-topic: `actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
-`report.py`, `status.py`. These examples serve as:
-
-- **Documentation**: Illustrate the expected structure for each message type.
-- **Pattern-matching reference**: Show which `(Activity Type, Object Type)`
-  pairs correspond to each `MessageSemantics` enum value.
-- **Test fixtures**: Provide well-formed activity structures for unit tests
-  against `vultron/wire/as2/extractor.py` and handlers.
-
-When implementing or testing a new handler, consult the examples submodules
-first to understand the expected activity structure before looking at the
-pattern definitions in `vultron/wire/as2/extractor.py`.
-
-The examples MUST be kept up to date as the vocabulary evolves. When adding a
-new vocabulary type or message semantic, add a corresponding example to the
-appropriate submodule in `vultron/wire/as2/vocab/examples/`.
-
-**Cross-references**: `vultron/wire/as2/extractor.py`,
-`vultron/core/models/events.py`, `vultron/wire/as2/vocab/`.
-
----
-
-## Asymmetric Inbox Routing for Invite/Accept/Reject
-
-Invite, Accept, and Reject activities are **not** all received by the same
-actor. Each activity hits the inbox of a **different** actor:
-
-| Activity | Sender | Recipient inbox | Handler |
-|----------|--------|-----------------|---------|
-| `Invite(object=Actor, target=VulnerabilityCaseStub)` | CASE_MANAGER | Target Actor | `invite_actor_to_case` — stores invite for local consideration |
-| `Accept(object=Invite)` | Target Actor | CASE_MANAGER | `accept_invite_actor_to_case` — activates the existing `CaseParticipant` |
-| `Reject(object=Invite)` | Target Actor | CASE_MANAGER | `reject_invite_actor_to_case` — closes the kept record (`R → C`) |
-
-**Consequence for implementation**: the join model (ADR-0114, CM-11-006)
-creates the invitee's `CaseParticipant` on the *sending* side, when the
-CASE_MANAGER issues the stub Invite — inert, at `RM.RECEIVED` — and the
-CASE_MANAGER's reply handlers update that record. The target actor's
-`invite_actor_to_case` handler never creates it: each actor only processes its
-own inbox, and the invitee does not own the case's roster.
-
-This asymmetry is easy to miss. It reflects the ActivityPub convention that
-responses are addressed to the original sender, and the work triggered by the
-response is the responsibility of the party that initiated the flow (the
-CASE_MANAGER). After a stub `Accept`, the CASE_MANAGER also sends a second,
-full-case `Invite(Actor, VulnerabilityCase)`, whose reply is the participant's
-judgement of the case (ADR-0121, CM-11-010/011); see
+`Invite` goes to the invitee; `Accept(Invite)` and `Reject(Invite)` go back to
+the CASE_MANAGER. So the invitee's `CaseParticipant` is created on the sending
+side when the CASE_MANAGER issues the stub Invite (inert, at `RM.RECEIVED`), and
+the CASE_MANAGER's reply handlers update it; the invitee's handler never creates
+it (ADR-0114, CM-11-006). Embargo invitations follow the same shape. The
+full-case Invite that follows a stub Accept is described in
 [case-joining.md](case-joining.md).
 
-The same pattern applies to embargo Invite/Accept/Reject flows:
-`invite_to_embargo_on_case` hits the invitee's inbox, while
-`accept_invite_to_embargo_on_case` hits the inviter's (case owner's) inbox.
+## Rehydrate Before Pattern Matching
 
-**Reference**: `docs/howto/activitypub/activities/invite_actor.md`,
-`docs/howto/activitypub/activities/establish_embargo.md`.
+Activity fields may be inline objects or URI strings, so rehydrate before
+semantic matching (SE-01-002). The inbox pipeline does this before dispatch;
+anywhere else, call `rehydrate()` before `find_matching_semantics()`.
 
----
+## Accepting an Embargo Accepts the Invite
 
-## Rehydration Before Pattern Matching
+Embargo negotiation works like a calendar invitation: the proposer sends
+`Invite(Actor, EmbargoEvent)`, invitees answer `Accept(Invite)` or
+`Reject(Invite)`, and a counter-proposal is a new `Invite` with `inReplyTo` the
+original. The `object` of the Accept is the proposal `Invite`, not the
+`EmbargoEvent`. Background: `docs/topics/process_models/em/`.
 
-ActivityStreams allows both inline objects and URI string references in
-activity fields. Before performing semantic pattern matching, activities MUST
-be rehydrated to expand string URI references into full objects.
+## There Is No Multi-Candidate Embargo Poll
 
-The `inbox_handler.py` performs rehydration before dispatching, so handlers
-receive fully expanded objects. However, when calling `find_matching_semantics`
-outside of the dispatch pipeline, call `rehydrate()` explicitly:
+`ChoosePreferredEmbargo` is retired, not deferred (ADR-0100). Several open
+proposals resolve sequentially, earliest expiration first (EP-08). A related
+trap the retired class exposed: **a subclass field whose alias collides with an
+inherited one is write-only**, because serialization and validation resolve the
+collision in opposite directions.
 
-```python
-from vultron.wire.as2.rehydration import rehydrate
+## Re-Engagement Reuses `RmEngageCase`
 
-activity = rehydrate(activity)
-semantic = find_matching_semantics(activity)
-```
-
-**References**: `specs/semantic-extraction.yaml` SE-01-002,
-`vultron/wire/as2/rehydration.py`.
-
----
-
-## Embargo Management as Calendar Invitation
-
-The embargo management flow is structurally analogous to inviting actors to
-a calendar event:
-
-1. A **proposer** sends an `Invite(object=Actor, target=EmbargoEvent)` to
-   each participant — "can you make this time slot?"
-2. Each invitee **accepts** or **rejects**: `Accept(object=Invite)` /
-   `Reject(object=Invite)` — "yes I can" / "no I can't."
-3. A participant may **counter-propose** a different embargo window by sending
-   a new `Invite` with `inReplyTo` referencing the original — "I can't do
-   Tuesday noon, can we do Wednesday at 3pm?"
-4. Once all relevant parties accept, the embargo becomes `ACTIVE`.
-
-Key consequence: `Accept(object=<Invite>)` — the actor accepts the
-**proposal activity** (the `Invite`), not the `EmbargoEvent` being proposed.
-This is the same pattern as `RmAcceptInviteToCase`. The `as_object` field on
-`EmAcceptEmbargo` must reference the `EmProposeEmbargoRef` (the Invite), not
-the `EmbargoEventRef`.
-
-**Reference docs**: `docs/topics/process_models/em/` (principles, defaults,
-negotiating, working_with_others, early_termination, split_merge).
-
----
-
-## There Is No Multi-Candidate Embargo Poll (ADR-0100)
-
-This section previously recorded `ChoosePreferredEmbargo` as a low-priority
-corner case to implement after the core propose/accept/reject flow. ADR-0100
-settled it the other way: the poll is **retired**, not deferred (#3469).
-
-Multiple simultaneously open embargo proposals are not the corner case — the
-glossary defines `EM.PROPOSED` as "one or more embargo proposals under
-negotiation", and a counter-proposal produces exactly that (EMB-15-003 emits a
-fresh EP while the state stays PROPOSED). What is settled is *how* they resolve:
-**sequentially, earliest expiration first** (EP-08), per the normative heuristic
-in `docs/topics/process_models/em/defaults.md`. A poll that presents N candidates
-at once is the construct that heuristic replaces.
-
-Three facts make the poll unworkable rather than merely unbuilt, and they are
-worth keeping because each is a trap in its own right:
-
-- **A `Question` has no `object`, and no `Question` pattern exists to copy.**
-  `_instances.py` registers **zero** `as_Question` patterns, so a poll pattern
-  would be the first — alongside the one CBT-03-004's
-  `bootstrap_replay_question_activity` still needs (#3471). Two `Question`
-  semantics are separable: SE-08-001 permits patterns sharing a verb provided the
-  more specific one carries an extra discriminator and is ordered first, and
-  CBT-03-004 requires the replay request's `target` be the `case_actor_id`, so
-  `target_` (with `strict=True` per SE-08-004) is that discriminator. The cost is
-  not impossibility — it is designing two `Question` semantics and their registry
-  ordering to gain nothing the sequential `Invite` path does not already give.
-  `ActivityPattern` has no `anyOf_`/`oneOf_` field either, so the candidate list
-  itself is unmatchable.
-- **There was no answer form.** `_EmAcceptEmbargoActivity.object_` is a required,
-  inline-typed `Invite`. A candidate `EmbargoEvent` inside a `oneOf` is not one,
-  so registering a pattern would have left the poll askable and unanswerable.
-- **It could not parse its own output.** `as_Question` declares `anyOf`/`oneOf`
-  as a single value where AS2 defines a collection, and the retired subclass
-  added `any_of`/`one_of` beside them — four fields, two wire aliases.
-  Serialization resolved the collision last-writer-wins; validation bound the
-  inherited singular field. The general lesson: **a subclass field whose alias
-  collides with an inherited one is write-only**, because serialization and
-  validation resolve the collision in opposite directions.
-
-`as_Question` itself stays, for the bootstrap-replay request — though whether
-`Question` is even the right vocabulary for a request/response exchange, given
-that activities here are state-change notifications, is open (#3471).
-
----
-
-## `VulnerabilityCase.case_activity` Cannot Store Typed Activities
-
-`VulnerabilityCase.case_activity: list[as_Activity]` uses
-`as_Activity.as_type: as_ObjectType`. The `as_ObjectType` enum covers only
-core AS2 object types (`'Activity'`, `'Note'`, `'Event'`, etc.) — it does
-**not** include transitive activity types like `'Announce'`, `'Add'`,
-`'Accept'`, `'Reject'`, etc.
-
-**Consequence**: Writing a typed activity (e.g., `AnnounceEmbargo`) to
-`case_activity`, serializing, and reloading causes `model_validate` to fail
-with `Input should be 'Activity', 'Actor', ...`. The `record_to_object`
-fallback returns a raw `TinyDB Document`, losing all typed state silently.
-
-**Fix pattern**: Handlers that would add specific-typed activities to
-`case_activity` MUST log the event instead. Only use `case_activity` for
-generic `as_Activity` objects if the activity type is guaranteed to be a
-core AS2 type.
-
-**Reference**: `notes/bt-integration.md` (BT integration design decisions).
-
----
-
-## Accept/Reject `object` Field MUST Use an Inline Typed Activity Object
-
-When constructing `Accept`, `Reject`, or `TentativeReject` responses to an
-`Invite` or `Offer`, set the `object_` field to the **full typed inline
-activity object** — not a bare string ID. Bare string IDs are rejected by
-Pydantic validation at construction time (enforced by INLINE-OBJ-B).
-
-**Pattern**:
-
-```python
-# Correct: object_ is the full typed inline activity object
-accept = RmAcceptInviteToCase(
-    actor=responding_actor.id_,
-    object_=invite,  # RmInviteToCaseActivity instance
-)
-
-# Incorrect: bare string ID raises pydantic.ValidationError
-accept = RmAcceptInviteToCase(
-    actor=responding_actor.id_,
-    object_=invite.id_,  # ValidationError at construction time
-)
-```
-
-### Reading from the DataLayer
-
-The DataLayer adapter dehydrates nested `object_` fields to ID strings on
-write. When reading an Accept/Reject activity back from the DataLayer, the
-stored offer or invite must be re-read separately and coerced before
-constructing the response:
-
-```python
-# Read the stored offer/invite from the DataLayer
-raw = dl.read(offer_id)
-# Coerce to the correct typed subclass
-invite = RmInviteToCaseActivity.model_validate(raw.model_dump(by_alias=True))
-# Now pass as object_ to the response activity
-accept = RmAcceptInviteToCase(actor=actor.id_, object_=invite)
-```
-
-> **Note**: `DL-REHYDRATE` is implemented (`vultron/wire/as2/rehydration.py`).
-> Call `rehydrate(obj, dl=dl)` on `dl.read()` results to recover nested typed
-> objects; the manual `model_validate` coercion step is no longer needed.
-
-This applies to all `Accept`/`Reject`/`TentativeReject` responses to
-`Invite`/`Offer` activities.
-
-**Cross-reference**: `specs/response-format.yaml` RF-02-003, RF-03-003,
-RF-04-003, RF-08-001; `specs/datalayer.yaml` DL-01-001.
-
----
-
-## Re-Engagement Uses `RmEngageCase`, Not a Separate Activity
-
-Re-engaging a deferred case does **not** use a separate `RmReEngageCase`
-activity. Instead, the existing `RmEngageCase` (`as:Join`) activity is
-reused for re-engagement.
-
-**Rationale**: The RM model already permits reversible transitions between
-`ACCEPTED` and `DEFERRED`. Re-engagement is a forward state transition —
-the actor in `DEFERRED` emits an `accept` transition to move back to
-`ACCEPTED`. Introducing `Undo(Ignore)` was considered and rejected:
-
-- `as:Undo` implies retracting the *effects* of a prior action (historical
-  negation), not a new forward transition.
-- Using only `RmEngageCase` and `RmDeferCase` preserves a minimal symbol set,
-  produces clean audit histories, and keeps engagement distinct from
-  participation semantics such as `RmCloseCase` (`as:Leave`), which
-  represents permanent departure rather than temporary deferral.
-
-**Consequence for implementation**: The `reengage_case()` factory in
-`vultron/wire/as2/vocab/examples/case.py` returns `as_Join` (fixed in #2785).
-Re-engagement is correctly implemented as a second `RmEngageCase` (`as:Join`) activity.
-
-**Reference**: `docs/howto/activitypub/activities/manage_case.md`
-(§ "Engage or defer a valid report"),
-`docs/reference/messages/rm.md` (§ "RA — Report/Case Accepted"),
-`vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).
-
----
-
-> See also: [activitystreams-state-update.md](activitystreams-state-update.md) for the continuation of these design notes.
+Re-engaging a deferred case emits another `RmEngageCase` (`as:Join`), not a
+separate activity or `Undo(Ignore)`. `Undo` means retracting a prior action's
+effects, whereas `DEFERRED → ACCEPTED` is a forward RM transition. See
+`docs/howto/activitypub/activities/manage_case.md`.
 
 ## `Reject(Invite(actor, stub))` Carries the Stub in `inner_target`
 
-`extract_event` does NOT populate `request.target` for the Reject; the stub is
-on the nested Invite's `target` field, exposed as `request.inner_target_id`.
-Always read `request.inner_target_id or request.target_id` (or use a typed
-`case_id` property on the event class) when resolving `case_id` for
-`RejectInviteActorToCaseReceivedUseCase`. The same nesting applies to
-`Accept(Invite(actor, stub))` — `AcceptInviteActorToCaseReceivedEvent.case_id`
-already follows this pattern. Under ADR-0114 the stub has its own ID
-(`<case-id>/stub`) and names the case in a field of its own: resolve `case_id`
-from the case the stub names, never by parsing the stub's ID (CM-11-003,
-CM-11-013).
+`extract_event` does not populate `request.target` for the Reject (or Accept) of
+an Invite: the stub is the nested Invite's `target`, exposed as
+`request.inner_target_id`. Resolve `case_id` from the case the stub names
+(a typed `case_id` property on the event class), never by parsing the stub's ID
+(CM-11-003).
 
-Source: ISSUE-1747
+## `SemanticEntry` Phrases Use Only `{actor}`, `{object}`, `{target}`
 
-## `SemanticEntry` Phrases MUST Use Only `{actor}`, `{object}`, `{target}`
+The render pipeline (`CaseTimelineEvent.summary`, `event_phrase()`) fills no
+other slot, so `{context}` or `{inner_object}` renders a dangling `"—"` in
+production. The SE-07-005 allowlist test in `test/test_semantic_registry.py`
+enforces this.
 
-The runtime render pipeline (`CaseTimelineEvent.summary`, `event_phrase()`)
-never fills `{context}`, `{origin}`, or `{inner_object}`. A phrase referencing
-one of those slots passes the `defaultdict`-based SE-07-004 test (which fills
-every slot with `"X"`) but produces a dangling `"—"` in production. The
-allowlist test (SE-07-005 in `test/test_semantic_registry.py`) enforces this
-structurally.
+## Event Phrases Come From `lookup_entry()`, Never a Local Dict
 
-Source: CONCERN-1898
-
-## Event-Phrase Lookups MUST Use `lookup_entry()`, Not a Local Phrase Dict
-
-Any display-layer code that maps a `MessageSemantics` value to a human-readable
-phrase MUST use `lookup_entry(semantics).phrase` from
-`vultron.semantic_registry`, not a local `dict[str, str]` parallel table.
-
-A local dict keyed by `MessageSemantics` values silently drifts as new semantics
-are added to the enum. `SemanticEntry.phrase` is mandatory (SE-07-003), so a
-missing phrase is a `TypeError` at registry construction time — not a silent
-fallback at render time.
-
-Render with:
-
-```python
-from vultron.semantic_registry import lookup_entry
-
-lookup_entry(semantics).phrase.format_map(defaultdict(lambda: "—", slots))
-```
-
-Use the fallback humanizer (`event_type.replace("_", " ")`) only for event types
-not in the registry (e.g. data from a future protocol version). Note the slot
-allowlist in the section above — only `{actor}`, `{object}` and `{target}` are
-ever filled.
-
-Source: CONCERN-1675
+Display code maps a `MessageSemantics` value to a phrase with
+`lookup_entry(semantics).phrase` (`vultron/semantic_registry/`). A local
+parallel dict drifts silently as the enum grows, whereas a missing
+`SemanticEntry.phrase` fails at registry construction (SE-07-003). Fall back to
+`event_type.replace("_", " ")` only for event types absent from the registry.

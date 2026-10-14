@@ -61,7 +61,6 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
-    exempt,
 )
 
 logger = logging.getLogger(__name__)
@@ -165,8 +164,9 @@ def _case_id_for_report(
 
 
 class CreateReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4325", "no sender check defined for report creation"
+    # A new report precedes any case, so any actor may send one (HP-01-010).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ANY_ACTOR
     )
 
     def __init__(
@@ -205,8 +205,10 @@ class CreateReportReceivedUseCase:
 
 
 class SubmitReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4325", "no sender check defined for report submission"
+    # A new report precedes any case, so any actor may send one (HP-01-010);
+    # only its addressing is checked (HP-01-005, HP-09-001).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ANY_ACTOR
     )
 
     def __init__(
@@ -248,7 +250,11 @@ class SubmitReportReceivedUseCase:
             result = bridge.execute_with_setup(
                 tree, actor_id=receiving_actor_id, activity=request
             )
-            applied_or_raise(tree, result, label="SubmitReportReceivedBT")
+            verdict = applied_or_raise(
+                tree, result, label="SubmitReportReceivedBT"
+            )
+            if verdict.disposition is HandlerDisposition.REFUSED:
+                return verdict  # the case is fully closed (CM-23-013)
             return HandlerResult.skipped(
                 "Offer carries no report id; nothing to propose a case for"
             )
@@ -416,9 +422,11 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4325",
-        "sender is internal echo route (SenderIsExecutingActorNode inside effect node), not an entitlement guard",
+    # RK goes from an actor the Offer(Report) was addressed to, to the
+    # reporter, which holds the Offer and checks the sender against it; it is
+    # never sent to the CASE_MANAGER (RMB-08-003, RMB-08-004).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -426,14 +434,12 @@ class AckReportReceivedUseCase:
         dl: CasePersistence,
         request: AckReportReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: AckReportReceivedEvent = request
         self._sync_port = sync_port
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -442,13 +448,9 @@ class AckReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Resolve case_id for the guarded-commit subtree.
-        tree = create_ack_report_received_tree(
-            request, case_id=_case_id_for_report(self._dl, request.report_id)
-        )
+        tree = create_ack_report_received_tree(request)
         bridge = BTBridge(
             datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )

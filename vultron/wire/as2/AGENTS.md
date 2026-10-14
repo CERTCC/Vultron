@@ -17,7 +17,7 @@
     Do NOT use `VultronAS2Object` — that name is retired. See ARCH-14-002.
   - `TypeAlias` companion types also use the `as_` prefix:
     `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`, etc. See ARCH-14-003.
-  - **IMPORTANT — this changed with ADR-0099 detail 3.** For a *domain* type
+  - **IMPORTANT — this changed with ADR-0099 (ARCH-25-003).** For a *domain* type
     there is now only one class, and `as_X` is a `TypeAlias` onto it:
     `as_VulnerabilityCase is VulnerabilityCase` is `True`. All 27 paired
     classes were collapsed (#3487, #3488), so an `as_` prefix on a domain name
@@ -72,7 +72,7 @@ come before general ones:
 |---|---|---|
 | 1 | Embargo events | `CREATE_EMBARGO_EVENT`, `INVITE_TO_EMBARGO`, `ACCEPT_INVITE_TO_EMBARGO` |
 | 2 | Reports | `CREATE_REPORT`, `SUBMIT_REPORT`, `ACK_REPORT`, `VALIDATE_REPORT`, ... |
-| 3 | Cases | `CREATE_CASE`, `UPDATE_CASE`, `ENGAGE_CASE`, `DEFER_CASE`, ... |
+| 3 | Cases | `CREATE_CASE`, `ENGAGE_CASE`, `DEFER_CASE`, ... |
 | 4 | Case membership | `INVITE_ACTOR_TO_CASE`, `ACCEPT_INVITE_ACTOR_TO_CASE`, ... |
 | 5 | Case participant role | `OFFER_CASE_PARTICIPANT_ROLE`, `ACCEPT_CASE_PARTICIPANT_ROLE`, `REJECT_CASE_PARTICIPANT_ROLE` |
 | 6 | Ownership transfer | `OFFER_CASE_OWNERSHIP_TRANSFER`, `ACCEPT_CASE_OWNERSHIP_TRANSFER`, ... |
@@ -193,7 +193,7 @@ namespace does not declare Vultron-specific types (`VulnerabilityCase`,
 `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
 names. The Vultron context document imports AS2 internally, so citing only the
 Vultron URI is both correct and sufficient. Domain types are core
-`CoreObject`s (ADR-0099 detail 3), not `as_VultronObject` subclasses: they get
+`CoreObject`s (ARCH-25-003), not `as_VultronObject` subclasses: they get
 the same context from `CoreObject`'s `by_alias` serializer, not from delivery
 (#3490). See VM-10-001, ADR-0069.
 *Source: CONCERN-2105*

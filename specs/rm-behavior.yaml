@@ -30,7 +30,8 @@ groups:
       RS is the sole RM message that directly changes the receiver's own RM
       state. All other RM messages announce sender state only.
     verification: A unit test confirms that a participant in `RM.START` whose inbox processes an RS activity has
-      `rm_state == RM.RECEIVED` and a queued RK in its outbox afterwards.
+      `rm_state == RM.RECEIVED` afterwards. The RK the receiver then sends is not queued on receipt; it goes
+      through the `ack-report` trigger, and tests marked `RMB-08-003` cover it.
     testable: true
     preconditions:
     - rm_state:
@@ -72,7 +73,8 @@ groups:
       V-transition records this awareness and CV announces it to other
       Participants.
     verification: A unit test confirms that a vendor participant in `RM.START` with CS pattern `vfd...` transitions
-      to `CS Vfd...` and emits both CV and RK when processing an RS.
+      to `CS Vfd...` and emits CV when processing an RS. The RK is sent through the `ack-report` trigger, not
+      on receipt (RMB-08-003).
     testable: true
     preconditions:
     - rm_state:
@@ -204,10 +206,16 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Closed (q^rm ∈ C) receiving any R* message MAY
-      ignore it without sending a response.
+      ignore it without sending a response. The same holds for non-R* traffic
+      (EM, CS, GI) on a closed case (VP-03-013); for the CASE_MANAGER after
+      `case_fully_closed`, ignoring is not optional: it records nothing
+      (CM-23-013).
     rationale: >-
       Closed cases are terminal. The protocol permits silent discard to avoid
-      generating unnecessary traffic for completed work.
+      generating unnecessary traffic for completed work. The R* scope is this
+      group's trigger, not the limit of the rule: VP-03-013 covers every message
+      class, and ADR-0085 makes owner close a hard kill switch at the
+      CASE_MANAGER.
     testable: false
     lint_suppress:
     - testable_without_steps
@@ -225,7 +233,7 @@ groups:
 
 - id: RMB-02
   title: Receive RI (Report Invalid)
-  description: Behaviors triggered when a participant receives an RI (Report Invalid) message, updating the sender's RM state model and acknowledging receipt.
+  description: Behaviors triggered when a participant receives an RI (Report Invalid) message, updating the sender's RM state model.
   trigger:
     type: message_received
     value: RI
@@ -235,8 +243,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RI
-      SHOULD update their record of the sender's RM state to Invalid and emit
-      RK.
+      SHOULD update their record of the sender's RM state to Invalid.
     rationale: >-
       RI is a status announcement — it does not change the receiver's own RM
       state but informs them of the sender's validation result. Maintaining
@@ -255,18 +262,10 @@ groups:
       actor: receiver
       action: Update local model of sender RM state to INVALID
       expected: Sender RM state recorded as INVALID in receiver's model
-    - order: 2
-      actor: receiver
-      action: Emit RK to acknowledge receipt of RI
-      expected: RK queued for sender
     postconditions:
     - description: >-
-        Receiver RM state unchanged; sender's recorded RM state is INVALID;
-        RK emitted
+        Receiver RM state unchanged; sender's recorded RM state is INVALID
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RI
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
@@ -280,7 +279,7 @@ groups:
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RI SHOULD respond with
       both RE (to signal the unexpected message) and GI (to inquire what the
-      sender expected), in addition to RK.
+      sender expected).
     rationale: >-
       Receiving any R* message other than RS while in RM Start means the
       sender believes the receiver is coordinating a report the receiver has
@@ -299,12 +298,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -315,7 +310,7 @@ groups:
 
 - id: RMB-03
   title: Receive RV (Report Valid)
-  description: Behaviors triggered when a participant receives an RV (Report Valid) message, updating the sender's RM state model and acknowledging receipt.
+  description: Behaviors triggered when a participant receives an RV (Report Valid) message, updating the sender's RM state model.
   trigger:
     type: message_received
     value: RV
@@ -325,8 +320,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RV
-      SHOULD update their record of the sender's RM state to Valid and emit
-      RK.
+      SHOULD update their record of the sender's RM state to Valid.
     rationale: >-
       RV announces the sender's validation result. Maintaining this record
       supports shared situation awareness across Participants.
@@ -344,18 +338,10 @@ groups:
       actor: receiver
       action: Update local model of sender RM state to VALID
       expected: Sender RM state recorded as VALID in receiver's model
-    - order: 2
-      actor: receiver
-      action: Emit RK to acknowledge receipt of RV
-      expected: RK queued for sender
     postconditions:
     - description: >-
-        Receiver RM state unchanged; sender's recorded RM state is VALID;
-        RK emitted
+        Receiver RM state unchanged; sender's recorded RM state is VALID
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RV
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
@@ -368,8 +354,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RV SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected, in
-      addition to RK.
+      RE and GI to signal the error and inquire what the sender expected.
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition indicating the sender has a mistaken expectation about the
@@ -388,12 +373,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -404,7 +385,7 @@ groups:
 
 - id: RMB-04
   title: Receive RD (Report/Case Deferred)
-  description: Behaviors triggered when a participant receives an RD (Report/Case Deferred) message, updating the sender's RM state model and acknowledging receipt.
+  description: Behaviors triggered when a participant receives an RD (Report/Case Deferred) message, updating the sender's RM state model.
   trigger:
     type: message_received
     value: RD
@@ -414,8 +395,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RD
-      SHOULD update their record of the sender's RM state to Deferred and
-      emit RK.
+      SHOULD update their record of the sender's RM state to Deferred.
     rationale: >-
       RD announces the sender's deferral decision. Maintaining this record
       supports shared situation awareness and coordination planning.
@@ -433,18 +413,10 @@ groups:
       actor: receiver
       action: Update local model of sender RM state to DEFERRED
       expected: Sender RM state recorded as DEFERRED in receiver's model
-    - order: 2
-      actor: receiver
-      action: Emit RK to acknowledge receipt of RD
-      expected: RK queued for sender
     postconditions:
     - description: >-
-        Receiver RM state unchanged; sender's recorded RM state is DEFERRED;
-        RK emitted
+        Receiver RM state unchanged; sender's recorded RM state is DEFERRED
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RD
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
@@ -457,8 +429,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RD SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected, in
-      addition to RK.
+      RE and GI to signal the error and inquire what the sender expected.
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition.
@@ -476,12 +447,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -502,8 +469,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RA
-      SHOULD update their record of the sender's RM state to Accepted and
-      emit RK.
+      SHOULD update their record of the sender's RM state to Accepted.
     rationale: >-
       RA announces the sender's commitment to work the report. Recording this
       supports shared situation awareness and helps coordinate timing of
@@ -522,18 +488,10 @@ groups:
       actor: receiver
       action: Update local model of sender RM state to ACCEPTED
       expected: Sender RM state recorded as ACCEPTED in receiver's model
-    - order: 2
-      actor: receiver
-      action: Emit RK to acknowledge receipt of RA
-      expected: RK queued for sender
     postconditions:
     - description: >-
-        Receiver RM state unchanged; sender's recorded RM state is ACCEPTED;
-        RK emitted
+        Receiver RM state unchanged; sender's recorded RM state is ACCEPTED
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RA
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
@@ -546,8 +504,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RA SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected, in
-      addition to RK.
+      RE and GI to signal the error and inquire what the sender expected.
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition indicating the sender has a mistaken expectation about the
@@ -566,12 +523,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -592,8 +545,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RC
-      SHOULD update their record of the sender's RM state to Closed and emit
-      RK.
+      SHOULD update their record of the sender's RM state to Closed.
     rationale: >-
       RC announces that the sender has completed their work on the report.
       Maintaining this record supports shared situation awareness and
@@ -612,18 +564,10 @@ groups:
       actor: receiver
       action: Update local model of sender RM state to CLOSED
       expected: Sender RM state recorded as CLOSED in receiver's model
-    - order: 2
-      actor: receiver
-      action: Emit RK to acknowledge receipt of RC
-      expected: RK queued for sender
     postconditions:
     - description: >-
-        Receiver RM state unchanged; sender's recorded RM state is CLOSED;
-        RK emitted
+        Receiver RM state unchanged; sender's recorded RM state is CLOSED
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-03-009
-      note: RK acknowledgment of RC
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
@@ -664,8 +608,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RC SHOULD respond with
-      RE and GI to signal the error and inquire what the sender expected, in
-      addition to RK.
+      RE and GI to signal the error and inquire what the sender expected.
     rationale: >-
       Receiving any R* message other than RS while in RM Start is an error
       condition.
@@ -683,12 +626,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -709,13 +648,12 @@ groups:
     kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RE
-      SHOULD emit GI (to inquire about the nature of the error) and RK (to
-      acknowledge receipt).
+      SHOULD emit GI (to inquire about the nature of the error).
     rationale: >-
       RE indicates the sender encountered an error related to the report. GI
-      opens a dialogue to resolve the problem; RK closes the acknowledgment
-      loop. Ordering GI before RK is preferred so context accompanies the
-      acknowledgment.
+      opens a dialogue to resolve the problem. No RK is sent: RK acknowledges
+      only a report submission and never goes to the CASE_MANAGER
+      (RMB-08-003).
     testable: true
     preconditions:
     - rm_state:
@@ -730,16 +668,12 @@ groups:
       actor: receiver
       action: Emit GI to inquire about the nature of the error
       expected: GI queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit RK to acknowledge receipt of RE
-      expected: RK queued for sender
     postconditions:
-    - description: GI and RK emitted; receiver RM state unchanged
+    - description: GI emitted; receiver RM state unchanged
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-011
-      note: Acknowledge RE and inquire about the error with GI
+      note: Inquire about the error with GI; RK is not sent (RMB-08-003)
     - rel_type: satisfies
       spec_id: MSM-01-007
       note: 'RE shorthand wire-type mapping'
@@ -749,8 +683,8 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RE SHOULD respond with
-      RE (to signal the unexpected message), GI (to inquire what the sender
-      expected), and RK (to acknowledge receipt).
+      RE (to signal the unexpected message) and GI (to inquire what the sender
+      expected).
     rationale: >-
       Receiving any R* message while in RM Start means the sender has a
       stale or incorrect case reference. RE+GI is the protocol-specified
@@ -771,12 +705,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -848,12 +778,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; no RK in reply to RK (RMB-08-001); receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -861,6 +787,85 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-01-008
       note: 'RK shorthand wire-type mapping'
+
+  - id: RMB-08-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      RK acknowledging a report submission MUST be sent by an actor the
+      `Offer(VulnerabilityReport)` was addressed to, to the reporter (the
+      Offer's actor), at any time after that actor has received the report,
+      whether or not a case exists for it. RK MUST NOT be sent to the
+      CASE_MANAGER, a receiver MUST NOT forward an RK it receives, and RK MUST
+      NOT be ledgered.
+    rationale: >-
+      The reporter checks who may acknowledge its Offer against its own
+      record of that Offer (RMB-08-004); an addressee's store holds one
+      too. RK answers the reporter's original
+      Offer and sits outside the case, which is why it is the stated exception
+      to PCR-08-001. The CASE_MANAGER holds no record of the Offer's
+      addressee, so it could not check an RK sent to it. Decided by the
+      maintainer on #4325 and #4560.
+    verification: >-
+      Tests marked `RMB-08-003` confirm that the ack-report trigger addresses
+      RK to the reporter alone, with or without a case, and that the received
+      AckReport handler forwards nothing and writes no ledger entry.
+    testable: true
+    steps:
+    - order: 1
+      actor: receiver of the report
+      action: Emit RK addressed to the Offer's actor
+      expected: RK queued for the reporter only
+    - order: 2
+      actor: any receiver of RK
+      action: Record the RK at intake
+      expected: No RK forwarded, no ledger entry written
+    postconditions:
+    - description: The reporter holds the RK; the CASE_MANAGER received none
+    relationships:
+    - rel_type: refines
+      spec_id: VP-03-009
+      note: RK acknowledging RS
+    - rel_type: refines
+      spec_id: RMB-01-001
+      note: who sends the RK acknowledging RS, and to whom
+    - rel_type: refines
+      spec_id: PCR-08-001
+      note: the stated RK exception to CASE_MANAGER-only addressing
+    stories:
+    - story_2022_016
+    - story_2022_012
+  - id: RMB-08-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver of an RK acknowledging a report submission (RMB-08-003) MUST
+      accept it only from an actor its own record of the acknowledged
+      `Offer(VulnerabilityReport)` names as an addressee, and MUST
+      refuse it (HP-01-006) when the sender is not one, or when it holds no
+      record of that Offer, writing nothing past intake and sending nothing.
+    rationale: >-
+      The reporter sent the Offer, so its record of the Offer's `to` is the
+      only trustworthy statement of who received it; the copy embedded in the
+      RK was written by the sender. Decided by the maintainer on #4325.
+    verification: >-
+      Tests marked `RMB-08-004` drive the received AckReport handler with the
+      Offer's addressee, which is admitted, and with another actor, which is
+      `REFUSED` with nothing written past intake and an empty outbox.
+    testable: true
+    steps:
+    - order: 1
+      actor: reporter
+      action: Check the RK sender against its recorded Offer's addressees
+      expected: Admitted when the sender is an addressee; REFUSED otherwise
+    postconditions:
+    - description: A refused RK leaves only its intake record
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+      note: the RK sender clause
+    stories:
+    - story_2022_016
 
 - id: RMB-09
   title: Enter RM Received
@@ -1383,10 +1388,13 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Closed (q^rm ∈ C) MAY ignore further R* messages
-      received on the closed report without sending a response.
+      received on the closed report without sending a response. Non-R* traffic
+      (EM, CS, GI) on a closed case is covered by VP-03-013, and the
+      CASE_MANAGER's kill switch after `case_fully_closed` by CM-23-013.
     rationale: >-
       Closed is a terminal state. The protocol permits silent discard to avoid
-      generating traffic for completed work.
+      generating traffic for completed work. ADR-0085 broadened the post-close rule
+      beyond R*: the CASE_MANAGER records no message of any class after owner close.
     testable: false
     lint_suppress:
     - testable_without_steps

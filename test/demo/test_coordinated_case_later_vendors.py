@@ -78,6 +78,7 @@ class TestVendorJoins:
                 reporter=reporter,
                 reporter_client=_client("reporter"),
                 coordinator_client=_client("coordinator"),
+                case_actor_client=_client("case-actor"),
                 vendor=vendor2,
                 vendor_client=_client("vendor2"),
                 vendor_name="Vendor2",
@@ -102,15 +103,13 @@ class TestEveryoneClosesCase:
         vendor2 = _actor("vendor2")
         with (
             patch.object(closure, "ActorSession") as session_cls,
-            patch.object(cc, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(cc, "verify_case_closed"),
-            patch.object(cc, "wait_for_event_type_in_ledger"),
-            patch.object(cc, "wait_for_replica_ledger_coverage") as coverage,
+            patch.object(closure, "_verify_own_closure") as own_closure,
         ):
             cc.everyone_closes_case(
                 reporter_client=reporter_client,
                 coordinator_client=_client("coordinator"),
+                case_actor_client=_client("case-actor"),
                 vendor_client=_client("vendor"),
                 reporter_in_reporter=_actor("reporter"),
                 coordinator_in_coordinator=_actor("coordinator"),
@@ -121,22 +120,21 @@ class TestEveryoneClosesCase:
 
         closed_by = [c.kwargs["actor"].id_ for c in session_cls.call_args_list]
         assert vendor2.id_ in closed_by
-        kwargs = coverage.call_args.kwargs
-        assert (vendor2_client, "Vendor2") in kwargs["replicas"]
-        assert vendor2_client in kwargs["late_joiners"]
+        # Each leaver's own replica is checked for its own closure
+        # (CM-23-004), the later vendor's included.
+        checked = [c.args[0].client for c in own_closure.call_args_list]
+        assert vendor2_client in checked
 
     def test_no_later_vendors_changes_nothing(self, case):
         with (
             patch.object(closure, "ActorSession") as session_cls,
-            patch.object(cc, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(cc, "verify_case_closed"),
-            patch.object(cc, "wait_for_event_type_in_ledger"),
-            patch.object(cc, "wait_for_replica_ledger_coverage") as coverage,
+            patch.object(closure, "_verify_own_closure") as own_closure,
         ):
             cc.everyone_closes_case(
                 reporter_client=_client("reporter"),
                 coordinator_client=_client("coordinator"),
+                case_actor_client=_client("case-actor"),
                 vendor_client=_client("vendor"),
                 reporter_in_reporter=_actor("reporter"),
                 coordinator_in_coordinator=_actor("coordinator"),
@@ -145,7 +143,9 @@ class TestEveryoneClosesCase:
             )
 
         assert session_cls.call_count == 3
-        assert len(coverage.call_args.kwargs["replicas"]) == 2
+        # The Vendor, the Reporter and the Coordinator each check their own
+        # replica; no later vendor adds one.
+        assert own_closure.call_count == 3
 
     @pytest.mark.spec("CM-23-015")
     def test_coordinator_case_owner_leaves_last(self, case):
@@ -165,16 +165,13 @@ class TestEveryoneClosesCase:
         )
         with (
             patch.object(closure, "ActorSession") as session_cls,
-            patch.object(cc, "wait_for_all_participants_rm_closed"),
             stub_closure_gate() as gate_wait,
             patch.object(closure, "verify_case_closure_recorded") as recorded,
-            patch.object(cc, "verify_case_closed"),
-            patch.object(cc, "wait_for_event_type_in_ledger"),
-            patch.object(cc, "wait_for_replica_ledger_coverage"),
         ):
             cc.everyone_closes_case(
                 reporter_client=_client("reporter"),
                 coordinator_client=_client("coordinator"),
+                case_actor_client=_client("case-actor"),
                 vendor_client=_client("vendor"),
                 reporter_in_reporter=reporter,
                 coordinator_in_coordinator=coordinator,
@@ -198,15 +195,13 @@ class TestDump:
         with (
             patch.object(cc, "dump_case_ledgers") as dump,
             patch.object(cc, "replica_route_key", side_effect=lambda c, n: n),
-            patch.object(
-                cc, "resolve_case_actor_route_key", return_value="urn:mgr"
-            ),
         ):
             cc.dump_coordinated_case_ledgers(
                 demo_name="rcvv-embargo",
                 reporter_name="reporter",
                 reporter_client=_client("reporter"),
                 coordinator_client=_client("coordinator"),
+                case_actor_client=_client("case-actor"),
                 vendor_client=_client("vendor"),
                 case=case,
                 later_vendors=[("vendor2", vendor2_client)],
@@ -220,3 +215,74 @@ class TestDump:
             "vendor2",
             "case-actor",
         ]
+
+
+class TestCaseManagerIsTheDedicatedContainer:
+    """Every CASE_MANAGER read or act goes to the case-actor container (#1876).
+
+    The CaseActor runs in the dedicated case-actor container
+    (DEMOMA-06-004), so the Coordinator's container cannot stand in for it.
+    """
+
+    def test_vendor_join_seeds_and_triages_through_the_case_actor(self, case):
+        case_actor_client = _client("case-actor")
+        opened = MagicMock(case=case)
+        opened.coordinator_in_coordinator = _actor("coordinator")
+        with (
+            patch.object(cc, "get_actor_by_id", return_value=_actor("vendor")),
+            patch.object(cc, "run_case_invite_chain") as chain,
+            patch.object(cc, "wait_for_case_participants"),
+            patch.object(cc, "wait_for_case_on_container"),
+            patch.object(cc, "run_invite_path_rm_triage") as triage,
+        ):
+            cc.vendor_joins_coordinated_case(
+                opened=opened,
+                reporter=_actor("reporter"),
+                reporter_client=_client("reporter"),
+                coordinator_client=_client("coordinator"),
+                case_actor_client=case_actor_client,
+                vendor=_actor("vendor"),
+                vendor_client=_client("vendor"),
+            )
+
+        assert chain.call_args.kwargs["case_manager_client"] is (
+            case_actor_client
+        )
+        assert triage.call_args.kwargs["auth_client"] is case_actor_client
+
+    def test_closure_reads_departures_on_the_case_actor(self, case):
+        case_actor_client = _client("case-actor")
+        with (
+            patch.object(cc, "close_case_owner_last") as close,
+        ):
+            cc.everyone_closes_case(
+                reporter_client=_client("reporter"),
+                coordinator_client=_client("coordinator"),
+                case_actor_client=case_actor_client,
+                vendor_client=_client("vendor"),
+                reporter_in_reporter=_actor("reporter"),
+                coordinator_in_coordinator=_actor("coordinator"),
+                vendor_in_vendor=_actor("vendor"),
+                case=case,
+            )
+
+        assert close.call_args.kwargs["authority_client"] is case_actor_client
+
+    def test_case_actor_ledger_is_dumped_from_the_case_actor(self, case):
+        case_actor_client = _client("case-actor")
+        with (
+            patch.object(cc, "dump_case_ledgers") as dump,
+            patch.object(cc, "replica_route_key", side_effect=lambda c, n: n),
+        ):
+            cc.dump_coordinated_case_ledgers(
+                demo_name="fcv",
+                reporter_name="finder",
+                reporter_client=_client("finder"),
+                coordinator_client=_client("coordinator"),
+                case_actor_client=case_actor_client,
+                vendor_client=_client("vendor"),
+                case=case,
+            )
+
+        targets = {t.actor_name: t for t in dump.call_args.kwargs["targets"]}
+        assert targets["case-actor"].client is case_actor_client

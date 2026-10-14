@@ -36,7 +36,6 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
@@ -47,7 +46,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     run_pxa_refusal_tree,
 )
-from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._sender_preflight import door_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -190,12 +189,13 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         self,
         *,
         case_id: str,
-        invite_id: str,
-        embargo_id: str,
-        accepting_actor_id: str,
         receiving_actor_id: str,
     ) -> None:
         """Commit the EMB-17-004 no-op acknowledgement entry (ADR-0118, RSH-08-004).
+
+        The entry is the CASE_MANAGER's factory-built ``Ignore`` of the late
+        Accept (CLP-07-013, VM-08-003), so the tree reads the received Accept
+        from ``activity`` and builds it through ``trigger_activity``.
 
         Gated on CASE_MANAGER (BT-17-001): only the CASE_MANAGER commits the
         no-op entry.  A non-manager receiving the same late Accept is refused
@@ -204,20 +204,16 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         integrity invariant is never accidentally violated if the caller
         ordering changes.
         """
-        tree = create_noop_ledger_entry_tree(
-            case_id=case_id,
-            invite_id=invite_id,
-            embargo_id=embargo_id,
-            accepting_actor_id=accepting_actor_id,
-            published=claimed_published_iso(self._request.activity),
-        )
+        tree = create_noop_ledger_entry_tree(case_id=case_id)
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
+            activity=self._request,
         )
         applied_or_raise(tree, result, label="CommitNoopLedgerEntryBT")
 
@@ -347,9 +343,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             # Commit so replicas can replay (RSH-08-004, ADR-0118).
             self._commit_noop_ledger_entry(
                 case_id=case_id,
-                invite_id=invite_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
                 receiving_actor_id=receiving_actor_id,
             )
 
@@ -379,29 +372,20 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         accepting_actor_id = request.actor_id
         invite_id = request.invite_id or ""
 
-        # Door check before any tree or write, after the shape checks
-        # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0118).
+        # Before any tree or write, since the expiry, EMB-17 and P/X/A paths
+        # below all write or send: the case must not be fully closed
+        # (CM-23-013), the copy must be addressed here (HP-01-005, ADR-0118),
+        # and the sender must be the Invite's invitee (EP-09-010, HP-01-006).
         if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id,
-                request,
-                label="Accept(Invite(EmbargoEvent))",
-            )
-        ) is not None:
-            return refusal
-
-        # The sender must be the recorded Invite's invitee before anything is
-        # written or sent: the P/X/A rejection, the expiry commit and the
-        # EMB-17 routing all write (EP-09-010, HP-01-006, ADR-0115).
-        if (
-            refusal := sender_refusal(
+            refusal := door_refusal(
                 self._dl,
                 receiving_actor_id,
+                request,
                 SenderIsInviteeNode(
                     invite_id=request.invite_id,
                     sender_actor_id=accepting_actor_id,
                 ),
+                case_id=case_id,
                 label="Accept(Invite(EmbargoEvent))",
                 sync_port=self._sync_port,
             )

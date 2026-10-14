@@ -68,7 +68,7 @@ The Vendor carries out the fix; the Coordinator and Finder manage communication.
 - **Coordinator** — receives the report; validates, engages, and owns the case;
   invites the Vendor.
 - **Vendor** — receives an invitation; develops and ships the fix.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Coordinator's platform hosts it, but its authority comes from the role, not from where it runs.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -110,8 +110,8 @@ An `accept_invite_actor_to_case` entry is recorded.
 
 ### 6. Participants exchange notes
 
-The Finder, Coordinator, and Vendor communicate through case notes.  Each
-note is an `add_note_to_case` entry.
+The Finder, Coordinator, and Vendor communicate through case notes.
+Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 

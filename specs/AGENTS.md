@@ -98,34 +98,36 @@ When updating specs per LEARN_prompt instructions:
 different implementation of the Vultron protocol notice if this requirement
 were violated?" If **no**, the requirement is an internal convention — route
 it to `AGENTS.md`, not `specs/`. This test operationalizes MS-05-004
-(declarative requirements) and the four-tier taxonomy (MS-12): if it fails
-the protocol or architecture tier tests, it belongs in `project` or `process`
-kind — and if it also fails the externally-visible test, it belongs in
+(declarative requirements) and the kind taxonomy (MS-12): if it fails the
+protocol, foundation, or architecture tier tests, it belongs in `project` or
+`process` kind — and if it also fails the externally-visible test, it belongs in
 `AGENTS.md` rather than specs at all.
 
 ---
 
 ### Field Values, Lint Traps, and the Coverage Gate
 
-The exact enum values `spec-lint` accepts, the keys it silently drops, and the
+The exact enum values `spec-lint` accepts, `adr:` versus `references:`, and the
 audit passes required when retiring a name or splitting a compound requirement
 are all in
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md). The ones
 that bite most often:
 
-- **`kind:`** — exactly `protocol`, `architecture`, `project`, `process`.
-  `implementation` is not valid, and the rejection can read like a YAML syntax
-  error. Which one to pick is a decision tree, not a judgment call: apply
-  MS-12-001 → MS-12-005 in order (see `notes/spec-authoring-rules.md`), and do
-  not infer a `kind` from the surrounding entries in the same file.
-- **`lint_suppress: [missing_story_reference]`** — a ratcheted escape hatch,
-  not a free one. MS-12-007 pins the corpus-wide count to a ceiling that can
-  only fall (`MAX_MISSING_STORY_SUPPRESSIONS` in
-  `test/architecture/test_spec_kind_ratchet.py`), so adding a suppression fails
-  the ratchet unless another one is removed. If SR-11-003 fires on a new entry,
-  the usual fix is a corrected `kind:`, not a suppression. The same holds for
-  MS-12-006's `protocol_kind_with_code_reference` (MS-12-008,
-  `MAX_CODE_REFERENCE_SUPPRESSIONS`, pinned at 0).
+- **`kind:`** — exactly `protocol`, `foundation`, `architecture`, `project`,
+  `process`. `implementation` is not valid, and the rejection can read like a
+  YAML syntax error. Who must obey a rule decides its kind; naming code never
+  does (MS-12-002, ADR-0134). Split a spec that mixes kinds (MS-12-010), then
+  apply the MS-12 tree in MS-12-005's order (see
+  `notes/spec-authoring-rules.md`), and do not infer a `kind` from the
+  surrounding entries in the same file. A `foundation` spec carries the tag of
+  its standard: `as2`, `activitypub`, or `http` (MS-12-009).
+- **`lint_suppress: [missing_story_reference]`** — a guarded escape hatch,
+  not a free one. MS-12-007's PR-only growth guard
+  (`test/architecture/test_spec_kind_ratchet.py`) fails any PR that adds the
+  code to a spec that lacked it at the merge base; removing one never fails.
+  If SR-11-003 fires on a new entry, the usual fix is a corrected `kind:`, not
+  a suppression. MS-12-006's `protocol_kind_with_code_reference` is closed
+  outright: no spec may carry it (MS-12-008).
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
@@ -147,9 +149,9 @@ that bite most often:
   asserts no ordering. Read the format off the fields — never off `isinstance`,
   and never off the `behavioral` tag.
 - **Adding or modifying a `kind: protocol` entry** requires a same-PR
-  `@pytest.mark.spec("<ID>")` marker (SR-05-004, SR-05-005) — the
-  `MAX_UNCOVERED_PROTOCOL_SPECS` ceiling can only be lowered, never raised. If
-  the implementation does not exist yet, use the strict-`xfail` pattern.
+  `@pytest.mark.spec("<ID>")` marker (SR-05-004, SR-05-005): a PR-only growth
+  guard fails on each protocol ID the branch leaves uncovered. If the
+  implementation does not exist yet, use the strict-`xfail` pattern.
 
 After adding any new key to a spec YAML, verify it appears in
 `PYTHONPATH= uv run spec-dump --ids <ID>` output before treating it as persisted.

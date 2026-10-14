@@ -6,8 +6,7 @@ source: ISSUE-4199
 signal: theme-candidate
 ---
 
-# 4199's AC-4 read: "CI check fails when a `verification_debt` marker names a
-
+Issue #4199's AC-4 read: "CI check fails when a `verification_debt` marker names a
 closed issue (same mechanism as the ARCH-18 ratchet-baseline owner check)." At
 the time, the ARCH-18 owner check was #3927, which was still being planned. No
 mechanism existed to be "the same as", so the AC really carried two claims: a

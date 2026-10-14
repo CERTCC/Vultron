@@ -3,8 +3,9 @@
 The clock alone never fails a merge-blocking check (ARCH-18-004):
 
 - a pull request that materially edits an ADR fails when it leaves the status
-  off its epoch, compared against the merge base, so only its author can
-  cause the failure;
+  off its epoch, and one that gives a ``proposed`` ADR its first test-verified
+  dependent fails unless it flips the status, compared against the merge
+  base, so only its author can cause the failure;
 - drift on every other ADR is reported on a schedule through one tracking
   issue, and never fails the build.
 """
@@ -45,6 +46,18 @@ def test_edit_check_runs_on_pull_requests_against_the_merge_base():
     assert '--base "$base"' in step["run"]
     assert not step.get("continue-on-error", False)
     assert "pull_request" in triggers(load_workflow(_EDIT))
+
+
+@pytest.mark.spec("MS-14-010")
+def test_edit_check_runs_when_only_a_spec_or_test_changes():
+    """The first dependent can arrive in a spec or a test file alone."""
+    paths = triggers(load_workflow(_EDIT))["pull_request"]["paths"]
+    assert {"specs/**", "test/**", "docs/adr/**"} <= set(paths)
+    run = _step_running(_EDIT, _LIFECYCLE)["run"]
+    assert "exit 0" not in run
+    # The lifecycle check runs unconditionally, at the script's top level.
+    (line,) = [ln for ln in run.splitlines() if _LIFECYCLE in ln]
+    assert not line.startswith((" ", "\t"))
 
 
 @pytest.mark.spec("MS-14-009")

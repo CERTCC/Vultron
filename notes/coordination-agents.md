@@ -1,15 +1,28 @@
 ---
 title: Capability Shapes Design Notes
 status: active
+kind: plan
+tracks:
+  - "#1142"
+  - "#1143"
+  - "#1147"
+  - "#1845"
+  - "#1856"
+  - "#1893"
+  - "#1943"
+  - "#2450"
+  - "#3421"
+  - "#3423"
+  - "#3427"
 description: >
-  Design guidance for capability shapes — the four abstract interface contracts that
-  characterise how call-out points interact with the protocol. Covers the three-level
-  taxonomy (shape / capability / capability implementation), the two-surface integration
-  model, the core-declared typed-port contract, the call-out-versus-protocol-ask rule,
-  shape patterns, trust/execution authority, and composite capability design. Records
-  why Sentinel is a call-in pattern rather than a fifth shape.
+  Design for the capability layer's unbuilt work: core-owned typed-port
+  contracts and renamed shape base classes (#3421), the call-out latency budget
+  (#3423), open per-shape questions (#3427), composite capabilities (#1142), and
+  the Sentinel call-in pattern (#2450). Also routes a design question to a
+  capability, an ask, or a call-in monitor, and says why Sentinel is not a fifth
+  shape; the call-in and call-out surfaces themselves are defined in
+  call-out-configuration.md.
 related_notes:
-  - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
   - notes/agentic-workflow.md
   - notes/call-out-configuration.md
@@ -26,74 +39,19 @@ relevant_packages:
 
 # Capability Shapes Design Notes
 
-Vultron's Behavior Trees contain **call-out points** — nodes where the protocol
-cannot determine the correct next action autonomously and must request external
-input before it can continue. The four **capability shapes** characterise the
-interface contracts that answer those call-out points: **Evaluator**,
-**Retriever**, **Composer**, and **Actuator**.
+A **call-out point** is a BT node where the protocol cannot decide the next action
+itself and must ask an external party inside the tick. The four **capability
+shapes** — **Evaluator**, **Retriever**, **Composer**, **Actuator** — are the
+interface contracts that answer them. Definitions: `CONTEXT.md` § Capability
+Shapes; taxonomy: ADR-0097 (superseding ADR-0024's five shapes).
 
-See `CONTEXT.md` § Capability Shapes for the canonical definitions of
-*call-out point*, *capability shape*, *Evaluator*, *Retriever*, *Composer*, and
-*Actuator*.
-See ADR-0024 for the original taxonomy and ADR-0097 for the current one.
+The call-in and call-out surfaces are defined in
+`notes/call-out-configuration.md` § "Two Integration Surfaces: Call-In and
+Call-Out"; all four shapes live on the call-out surface.
 
-> **Sentinel is not one of them.** ADR-0097 (planning group G07) demoted Sentinel
-> out of the capability-shape taxonomy: it is a **call-in integration pattern**
-> whose design questions belong to the Agentic Participants epic (#2450), not a
-> call-out shape. See
-> [The Sentinel pattern is call-in, not a shape](#the-sentinel-pattern-is-call-in-not-a-shape)
-> below for why, and BT-18-013 for the normative statement.
+## Which Surface a Question Belongs On
 
----
-
-## The Two Integration Surfaces
-
-Vultron has two distinct surfaces where external capabilities connect to the
-protocol. Understanding which surface you are working with is the first step
-in any capability shape design.
-
-### Trigger endpoints (call-in surface)
-
-`vultron/core/use_cases/triggers/` contains use cases that external parties
-invoke when they have already decided to take a protocol action. The decision
-has already been made; the use case executes it.
-
-```text
-External party → POST /actors/{id}/triggers/{action} → SvcXxxUseCase.execute()
-```
-
-This is the **call-in** surface: the agent drives the protocol.
-
-### Call-out points (call-out surface)
-
-Inside `vultron/core/behaviors/`, individual BT nodes reach points where
-they cannot proceed without external judgment — a decision, a fact, or
-generated content. These are call-out points: the protocol pauses and waits.
-
-```text
-BT node → call-out point → external party → response → BT continues
-```
-
-This is the **call-out** surface: the protocol drives the agent.
-
-All four capability shapes are called from the call-out surface. The Sentinel
-pattern operates exclusively on the call-in surface (it watches, then calls a
-trigger endpoint) — which is why it is a pattern rather than a shape.
-
-> **Key implication**: the Sentinel pattern has **no BT call-out point**. Nodes
-> that perform on-demand binary condition checks when the BT tick reaches them
-> are Retrievers (or ProtocolInternal if they check data the BT already owns).
-> Per BT-18-013, Sentinel is not an available call-out classification at all, so
-> Retriever is the only answer for a synchronous external query. See ADR-0024 §
-> "Boolean external queries are Retrievers, not Sentinels" and issue #1266
-> (FUZZ-08a-quart) for the reclassification audit.
-
----
-
-## Which surface a question belongs on
-
-Three surfaces, and choosing wrongly produces a seam that cannot work. The
-discriminator is **who can answer, and when** (BT-18-014):
+The discriminator is **who can answer, and when** (BT-18-014):
 
 | The question… | Surface | Mechanism |
 |---|---|---|
@@ -101,349 +59,141 @@ discriminator is **who can answer, and when** (BT-18-014):
 | needs a decision from *another actor in the case* | neither — it is an **ask** | `Offer` + terminate; route on conversation state (ADR-0080) |
 | is "has the moment to act arrived yet?", asked by nobody | call-in | a monitor that decides for itself and calls a trigger endpoint (the Sentinel pattern) |
 
-Modelling an ask as a call-out point produces a gate that **can only ever answer
-no**, because at the moment of asking no answer exists. This is not hypothetical:
-ADR-0080 found exactly this defect in ADR-0076's assignment of the Case Owner
-approval gates to the Evaluator shape, and amended it. `RequireCaseOwnerApprovalNode`
-returning unconditional `FAILURE` is the fossil of that mistake.
+An ask modelled as a call-out point is a gate that can only ever answer no,
+because no answer exists at the moment of asking (ADR-0080). If the answer must
+come from a peer, see `notes/protocol-asks.md`. A synchronous boolean query of an
+external system is a **Retriever**, never a Sentinel (BT-18-013).
 
-Before adding a call-out point, ask which row you are in. If the answer has to
-come from a peer, you want `notes/protocol-asks.md`, not this file.
+## Core-Owned Typed-Port Contracts (#3421)
 
----
+Target state set by ADR-0097 and BT-18-012; today the mixins are still in
+`vultron/demo/fuzzer/call_out_point.py` and declare `output_keys`.
 
-## The capability's contract is core-owned typed ports
+- Each named capability gets a **core-owned declaration** carrying py_trees typed
+  ports (`INPUT_PORTS` / `OUTPUT_PORTS`, ADR-0044). The shape base class cannot
+  hold a per-capability contract, because many capabilities share a shape.
+- The probabilistic fuzzer stand-in stays in `vultron/demo/fuzzer/` (BT-16-001)
+  and binds to that declaration instead of restating it.
+- The docstring is description, not authority: BT-18-001 still requires it, but a
+  test reads the ports, and a disagreeing docstring is a doc bug.
+- The shape bases move to `vultron/core/behaviors/call_out/` as
+  `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`,
+  `ActuatorCapability`; the fuzzer layer re-exports the old `*CallOutPoint` names
+  and new code uses the capability names.
 
-> **Decided, not yet built.** This section records the target state set by
-> ADR-0097 and BT-18-012. None of it exists in the tree yet — the mixins are still
-> in `vultron/demo/fuzzer/call_out_point.py` and still carry `output_keys`.
-> #3421 implements it; #3423 implements the latency budget below.
+Why a contract declared outside core fails: `notes/call-out-configuration.md` §
+"A data-producing capability's default must write its outputs".
 
-A capability declares its blackboard contract as **py_trees typed ports**
-(`INPUT_PORTS` / `OUTPUT_PORTS`, ADR-0044) on a declaration owned by the core
-layer — **not** as a docstring, and **not** as an `output_keys` dict in
-`vultron/demo/fuzzer/` (BT-18-012).
+## A Capability Answers Fast, or It Is Not a Capability (#3423)
 
-Because a shape is shared by many capabilities, the shape base class cannot hold
-the per-capability contract. So the declaration splits in two: each named
-capability gets a **core-owned declaration** carrying its own ports, and the
-probabilistic node that stands in for it stays in `vultron/demo/fuzzer/`
-(BT-16-001) and binds to that declaration rather than restating it. Core owns what
-the capability promises; the simulation layer owns one way of pretending to keep
-it.
+A backend answers within one tick (BT-18-011, `SynchronousCallOut`) **and** within
+a bounded time budget (BT-18-015) configured in `ActorConfig`.
 
-This is not a new mechanism. ADR-0044 already makes typed ports *"the standard
-base for all nodes in `vultron/core/behaviors/`"*; the capability layer uses the
-same one rather than a registry of its own. What a contract declared outside core
-costs is recorded in `notes/call-out-configuration.md` § "A data-producing
-capability's default must write its outputs".
+- The budget is local configuration because no peer can observe it, so
+  deployments choosing different values do not diverge. An ask deadline differs
+  because it travels on the wire in `endTime` so both parties read one number
+  (ASK-03-004), not because it is less configurable (ASK-03-005).
+- Without a budget, a slow backend blocks a `BackgroundTasks` worker until the
+  bridge hits `max_iterations` and fails without naming the node.
+- A seam guard **detects** an overrun and names the node; interrupting the
+  backend means running it off the ticking thread. The implementation must state
+  which one it provides.
+- Work that cannot meet the budget is an ask or a call-in monitor.
 
-Two consequences worth internalising:
+## Fuzzer Nodes Are Call-Out Point Candidates
 
-- **The docstring is description, not authority.** BT-18-001 still requires it —
-  a reader should not have to open two files — but a test reads the declared
-  ports. A docstring that disagrees with the ports is a doc bug, not a contract
-  change.
-- **The shape base classes become core, and named for capabilities.** They move to
-  `vultron/core/behaviors/call_out/` as `EvaluatorCapability`,
-  `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability`
-  (ADR-0097#shape-base-classes-move-to-core-and-are-renamed, #3421). The
-  simulation layer will re-export the older `*CallOutPoint` names so the 81
-  existing fuzzer subclasses keep working; new code uses the capability names.
+Each fuzzer node in `vultron/demo/fuzzer/` stands in for logic not yet identified.
+For each, ask what actually drives the choice:
 
-### A capability answers fast, or it is not a capability
+1. Deterministic from data the case already holds → ProtocolInternal, no
+   capability.
+2. External data, including a binary query → **Retriever**.
+3. Judgment → **Evaluator**.
+4. A side effect in an external system → **Actuator**.
+5. Drafted content → **Composer**.
+6. A decision from another case actor → a **protocol ask** (ADR-0080).
+7. A condition watched over time that should trigger an action → the **Sentinel
+   pattern** on the call-in surface.
 
-A call-out backend answers within one tick (BT-18-011, guarded by
-`SynchronousCallOut`) **and** within a bounded, configurable time budget
-(BT-18-015). The budget belongs in `ActorConfig`, not in the spec and not in a
-literal (#3423). The reason is **wire visibility**, not configurability: the budget
-is local to one actor and observable by no peer, so two deployments choosing
-different values is not divergence. An ask deadline is the contrast — it travels on
-the wire in the AS2 `endTime` field precisely so both parties read the same number
-(ASK-03-004). Do not draw the contrast on configurability: ask deadline durations
-are `ActorConfig`-configurable too (ASK-03-005).
+The docstring's `Input category` and `Automation potential` give a first guess:
+`High` + `Environmental check` needs no capability; `Low` + `Human decision` is an
+Evaluator (or human). Say **call-out point**, never "touchpoint" (ADR-0025).
 
-The failure this addresses is easy to miss. Nothing suspends, so a backend that
-makes a slow HTTP call does not *look* broken — it blocks a `BackgroundTasks`
-worker while the bridge ticks toward `max_iterations`, and then fails without
-naming the offending node. That is the same opaque failure BT-18-011 was written
-to prevent, reached by a different route. Work that cannot meet the budget is an
-ask or a call-in monitor.
+## The Sentinel Pattern Is Call-In, Not a Shape (#2450)
 
-One honest limit: a guard at the seam **detects** an overrun and names the node; it
-does not interrupt the backend. A py_trees tick is synchronous, so interrupting one
-means running it off the ticking thread. An implementation owes a clear statement
-of which of the two it provides.
+A Sentinel runs on its own: it watches a condition and, when it fires, calls a
+trigger endpoint. None of the capability machinery applies to it — no
+`CallOutBackendFactory`, no bundle field, no blackboard contract, no
+`SynchronousCallOut`, no ceiling/floor rule (BT-23-002) — so ADR-0097 removed it
+from the taxonomy (BT-18-013).
 
----
-
-## Fuzzer Nodes as Call-Out Point Discovery
-
-Every fuzzer node in `vultron/demo/fuzzer/` is a **known call-out point
-candidate**. Fuzzer nodes make randomized choices precisely because the real
-capability logic has not been identified or implemented. Each one represents
-an open question: "What information should actually drive this choice?"
-
-### Discovery methodology
-
-For each fuzzer node, ask:
-
-1. What decision or fact is actually needed here?
-2. Is the answer deterministic given data already in the case (no external call)?
-   → ProtocolInternal (no capability needed)
-3. Does it require data from an external system (including binary queries)?
-   → **Retriever** call-out point
-4. Does it require judgment/evaluation? → **Evaluator** call-out point
-5. Does it require a side effect in an external system (notification, queue, API)?
-   → **Actuator** call-out point
-6. Does it require content to be drafted? → **Composer** call-out point
-7. Does it require a **decision from another actor in the case**?
-   → not a call-out point at all — it is a **protocol ask** (ADR-0080,
-   BT-18-014); see `notes/protocol-asks.md`
-8. Does it require a condition to be monitored continuously over time, such that
-   the monitoring should trigger a protocol action when fired?
-   → the **Sentinel pattern** on the call-in surface (no call-out point, no
-   capability shape; designed under #2450, issues still filed under #1147)
-
-The fuzzer node's `Input category` docstring annotation
-(`Human decision`, `Environmental check`, `System integration`, etc.) and
-`Automation potential` rating (`High` / `Medium` / `Low`) give a starting
-assessment. `High` automation potential with `Environmental check` = no
-capability needed. `Low` automation potential with `Human decision` = Evaluator
-(or human) call-out point.
-
----
-
-## The Sentinel pattern is call-in, not a shape
-
-A Sentinel runs independently — it is not called by the protocol. It monitors a
-condition (a timestamp, a case flag, an external system state) and, when the
-condition fires, calls a Vultron trigger endpoint.
-
-ADR-0024 listed it as a fifth capability shape. ADR-0097 removed it, because
-**every property that makes the capability layer work is inapplicable to it**:
-
-| | Evaluator / Retriever / Composer / Actuator | Sentinel |
-|---|---|---|
-| `CallOutBackendFactory` | yes | no |
-| Domain bundle field | yes | no |
-| Blackboard contract | yes | none |
-| `SynchronousCallOut`, BT-18-011 | yes | not applicable |
-| Ceiling/floor rule (BT-23-002) | yes | not applicable |
-| Surface | call-out | call-**in** |
-
-A taxonomy whose fifth member shares none of the machinery of the other four is
-sorting two different things. The clearest evidence was the code: three
-`SentinelCallOutPoint` subclasses existed as py_trees Behaviours carrying a
-`success_rate`, wired into no bundle and instantiated nowhere, while
-`CheckNoNewDeploymentInfoNode` read a blackboard flag documented as written by a
-Sentinel that never ran. The class hierarchy asserted "this is a BT node" and the
-docstring asserted "this is not a BT node" in the same file.
-
-### The discriminator is who initiates, not where the data comes from
-
-Do not define a Sentinel as "the one that reads external data" — it is wrong in a
-way that will mislead you. A Sentinel may be a **case participant**: an Actor
-admitted through the ordinary Invite/Accept path, most naturally holding
-`CVDRole.OBSERVER` (the base role, no vendor-fix-deployment obligations —
-ADR-0057, CM-25). It then receives `Announce(CaseLedgerEntry)` like any
-participant, so what it watches can be **the case's own state**, arriving by
-ordinary replication. #1856 observes case state; #1845 posts
-`Add(ParticipantStatus)` into the case. Neither is externally sourced in any
-meaningful sense.
-
-The real discriminator is **who initiates**:
-
-- A **capability is consulted.** The protocol reaches a call-out point, asks, and
-  uses the answer inside that tick.
-- A **Sentinel is never consulted.** It decides for itself that the moment has
-  come, and acts.
-
-That is the whole call-in/call-out axis, and it holds whether the trigger
-condition came from a threat feed or from the ledger.
-
-It is also the strongest reason for the demotion. A participant Sentinel holds
-protocol identity, a roster seat, a role, and a case replica, and it acts by
-emitting ordinary protocol messages. That is a **peer**, not an interface contract
-at a BT seam.
-
-> **Terminology hazard.** The glossary lists "monitor" and "watcher" among the
-> aliases to *avoid* for the **Observer** role. Keep Sentinel and Observer
-> distinct: Observer is a **role a participant holds**; Sentinel is a
-> **behavioural pattern**. A participant Sentinel holds the one by enacting the
-> other.
-
-### Two deployment shapes, with different protocol visibility
+- **The discriminator is who initiates, not where the data comes from.** A
+  capability is consulted at a call-out point; a Sentinel is never consulted, it
+  decides the moment has come. A Sentinel may watch the case's own replicated
+  state (#1856) and post into the case (#1845).
+- **Observer is a role; Sentinel is a pattern.** A participant Sentinel usually
+  holds `CVDRole.OBSERVER` (ADR-0057) by enacting the pattern; keep the terms
+  distinct.
+- **Two deployment shapes, chosen per monitor for protocol visibility:**
 
 | | Participant Sentinel | Operator-side Sentinel |
 |---|---|---|
 | Case identity | an Actor on the roster, typically `CVDRole.OBSERVER` | none — not a participant |
 | Sees case state by | `Announce(CaseLedgerEntry)` replication | whatever its host actor already knows |
 | Acts by | emitting protocol messages (`Note`, `Add(ParticipantStatus)`) | calling its host actor's trigger endpoints |
-| Visible to other participants | yes — observations and actions replicate | no — messages appear to come from the host actor |
+| Visible to other participants | yes | no — messages appear to come from the host actor |
 | Admission | Invite / Accept | deployment credentials |
 
-Neither form is preferred in general, and the choice is a **protocol-visibility**
-decision rather than a convenience one. A threat-intelligence monitor that should
-be accountable to the case wants the participant form; an embargo timer that is
-merely how one organisation operates its own actor wants the operator-side form.
-Expect to answer this per monitor, not once for all of them.
+A monitor accountable to the case wants the participant form; an embargo timer
+that is just how one organisation runs its actor wants the operator-side form.
+ADR-0080's `reap-expired-asks` trigger (ASK-05-002) is the canonical seam: core
+exposes a trigger, and a watcher calls it.
 
-**Where the work went.** Nothing was cancelled, and nothing was reparented
-either. #1143 and the four Sentinel Ideas (#1845, #1856, #1893, #1943) remain
-children of Epic #1147 — the G07 planning protocol (#2828) keeps members on their existing
-domain-epic parents so board tiers survive — but the **questions** they carry are
-now Agentic Participants questions (#2450), not capability-layer ones. Look for
-them under #1147; read them against #2450. ADR-0080's `reap-expired-asks`
-trigger (ASK-05-002) is the canonical example of the pattern's seam: core exposes
-a trigger endpoint, and a watcher calls it.
+Open questions for #2450 (Sentinel Ideas stay parented under #1147): invocation
+model, authentication to trigger endpoints, per-case versus global scope,
+behaviour when the endpoint is unreachable, audit visibility, and participant
+versus external monitor.
 
-The pattern's open design questions are unchanged by the demotion — invocation
-model, authentication to trigger endpoints, per-case versus global scope, failure
-behaviour when the endpoint is unreachable, audit visibility, and whether a
-monitor joins the case as a participant or drives one from outside. They are just
-no longer capability-layer questions.
+## Per-Shape Integration
 
-## Capability Shape Integration Patterns
+All four shapes share one convention: synchronous, in-process,
+`name: str → Behaviour`; `SynchronousCallOut` raises `CallOutContractError` on a
+`RUNNING` return (BT-18-011). Nothing suspends.
 
-### Evaluator
-
-An Evaluator is called at a call-out node inside a BT. It receives the
-current case context and a description of the decision to be made, and
-returns a structured answer that guides the BT's next branch.
-
-**BT integration**: The call-out node dispatches to the Evaluator within the tick
-that reached it and routes the BT on the answer. There is no async pattern to
-choose: the convention is uniform across the four shapes — synchronous,
-in-process, `name: str → Behaviour` — and `SynchronousCallOut` raises
-`CallOutContractError` on a `RUNNING` return (BT-18-011, ADR-0080,
-ADR-0097#uniform-synchronous-in-process-convention). A judgment that cannot be
-answered inside the tick because it belongs
-to *another actor* is not an Evaluator at all; it is a protocol ask (BT-18-014).
-
-**SSVC reuse**: SSVC decision-point structures (decision point +
-enumerated answer set) are a natural schema for Evaluator input/output.
-This reuse is explicitly called out in CONTEXT.md § SSVC and in the
-WIP notes.
-
-### Retriever
-
-A Retriever is called at a call-out node that needs external facts. It
-receives a query and returns structured data from an external source.
-
-**BT integration**: Same synchronous, in-tick convention as Evaluator. The key
-additional design consideration is caching and staleness: the same external
-fact may be queried multiple times across a case lifetime; the Retriever
-should not be called redundantly if the answer is already in the DataLayer.
-Caching is also one of the few ways a slow external lookup can meet the
-BT-18-015 budget. Open — tracked in #3427.
-
-### Composer
-
-A Composer is called when the BT needs to attach a new content artifact to
-the case — a notification body, an advisory draft, an invitation message.
-Unlike Evaluators and Retrievers, a Composer's output does not affect BT
-control flow; it is attached to the case or placed in the outbox.
-
-**BT integration**: The call-out node dispatches to the Composer within its tick,
-receives the artifact, and writes it to the capability's declared output port. The
-BT then continues regardless of content (unless the Composer signals failure).
-It does **not** suspend — nothing in Vultron does, and `SynchronousCallOut` raises
-on a `RUNNING` return (BT-18-011).
-
-**Human-review gate**: Whether Composer output auto-sends or requires human
-review before dispatch is a per-deployment policy question, not a protocol
-question.
-
-**Open** (tracked in #3427): which BT nodes and use cases should consult a
-Composer, how a Composer relates to the existing Note and advisory behaviours in
-`vultron/core/behaviors/note/`, and whether a Composer may reuse prior advisory
-text (which would make it a composite with a Retriever phase).
-
-### Actuator
-
-An Actuator is called at a call-out node that needs to cause a side effect in
-an external system — firing a notification API, writing to a case management
-system, mutating a queue, calling a timer service. Unlike Evaluators and
-Retrievers, an Actuator does not return structured data for the BT to reason
-with; unlike Composers, it does not produce a content artifact placed on the
-blackboard. It confirms the side effect was executed.
-
-**BT integration**: The call-out node dispatches to the Actuator and receives
-a simple SUCCESS (side effect confirmed) / FAILURE (side effect failed). No
-output blackboard keys are written. The BT may branch on FAILURE, but the
-Actuator's job is execution, not decision.
-
-**Examples**: `OnEmbargoExit`, `OnEmbargoAccept`, `OnEmbargoReject`,
-`SetRcptQrmR`, `InjectParticipant`, `RemoveRecipient` — all nodes that fire
-integration hooks when protocol state transitions occur.
-
-**Open** (tracked in #3427): what the tree does on FAILURE, how partial success is
-reported, and — unlike the other three shapes, because an Actuator is the only one
-that *writes* to a foreign system — what authentication and authorization model it
-uses to reach that system, and which classes of external system it is expected to
-reach at all. The latency bound (BT-18-015) binds an Actuator like any other
-backend, so a hook that cannot confirm its side effect promptly is an ask or a
-call-in monitor, not an Actuator.
-
-**Added in**: ADR-0024 amendment, 2026-07-07 (issue #1239, PR #1195).
-
----
+- **Evaluator** — receives case context and the decision; returns a structured
+  answer that routes the BT. SSVC decision points (decision point + enumerated
+  answers) are a natural input/output schema.
+- **Retriever** — returns external facts. Should not re-query a fact already in
+  the DataLayer; caching is also how a slow lookup meets the BT-18-015 budget.
+  Caching and staleness policy is open (#3427).
+- **Composer** — produces a content artifact (notification body, advisory draft)
+  written to its output port; it does not steer control flow unless it fails.
+  Auto-send versus human review is deployment policy. Open (#3427): which nodes
+  consult a Composer, how it relates to `vultron/core/behaviors/note/`, and
+  whether reusing prior advisory text makes it a composite with a Retriever.
+- **Actuator** — causes an external side effect (e.g. `OnEmbargoExit`,
+  `InjectParticipant`, `RemoveRecipient` hooks) and returns SUCCESS/FAILURE
+  only, writing no outputs. Open (#3427): FAILURE and partial-success policy, the
+  authentication model for the foreign system it writes to, and which systems it
+  may reach. A hook that cannot confirm promptly is an ask or call-in monitor.
 
 ## Trust / Execution Authority
 
-Whether an Evaluator's recommendation is immediately acted on (auto-execute)
-or presented for human confirmation (advisory mode) is **orthogonal to
-capability shape**. The same Evaluator implementation can run in either mode
-depending on deployment configuration.
+Auto-execute versus advisory (human confirms) is orthogonal to shape: one
+Evaluator can run in either mode by deployment configuration, so a call-out point
+must handle both. Recording each recommendation with its outcome (accepted as-is
+or overridden) is what lets an Evaluator earn promotion to auto-execute.
 
-This means the BT call-out point should be designed to handle both modes:
+## Composite Capabilities (#1142)
 
-```text
-call-out node → dispatch to Evaluator
-  → response arrives:
-      if auto-execute mode: use response directly to route BT
-      if advisory mode: present to human, await confirmation, then route BT
-```
+A composite is a bounded, single-purpose workflow composing two or more shapes
+behind **one** call-out point. Worked example, Participant Discovery:
 
-Trust builds over time: an Evaluator that consistently produces recommendations
-that humans confirm is a candidate for promotion to auto-execute mode.
-Recording recommendations alongside outcomes (recommendation made vs.
-recommendation accepted as-is / overridden) enables this trust-building.
+1. **Retriever** — search CPE data, supply-chain graphs, product docs, the web,
+   and GitHub for affected vendors/products; output candidates with sources.
+2. **Evaluator** — winnow to a recommended notification set with rationale.
+3. **Affinity memory** — record who was notified on similar cases to bootstrap
+   future ones; bias toward over-notification.
 
----
-
-## Composite Capability Pattern
-
-Some coordination tasks require more than one capability shape. The worked
-example from the session design is **Participant Discovery** (issue #1142):
-
-1. **Retriever** phase — search CPE data, supply chain graphs, product
-   documentation, web sources, and GitHub for indicators that a vendor or
-   product is affected. Output: candidate list with sources.
-2. **Evaluator** phase — winnow candidates: is this vendor actually affected?
-   worth notifying? Output: recommended notification set with rationale.
-3. **Affinity group** (memory layer) — record which participants were notified
-   for similar past cases so future cases can bootstrap from prior experience.
-   Bias toward overnotification; adds are more important than deletes.
-
-A composite capability coordinates these steps internally. Its external
-interface remains a single call-out point: input is case context, output is a
-recommended participant set. The internal Retriever + Evaluator structure is
-an implementation detail.
-
-This pattern — a bounded, single-purpose workflow that composes two or more
-capability shapes — is the appropriate scope for a composite capability. It is
-NOT the same as an autonomous Actor that manages an entire case (see the
-Agentic Participants epic, #2450).
-
----
-
-## Terminology Note
-
-`notes/bt-fuzzer-nodes.md` and the per-domain fuzzer notes
-(`bt-fuzzer-nodes-embargo.md`, `bt-fuzzer-nodes-report-management.md`, etc.)
-use the phrase **"external dependency touchpoints"** for what we now call
-**call-out points**. These notes predate the canonical term. The terminology
-should be aligned when those notes are next edited; do not introduce new
-uses of "touchpoint" to mean call-out point.
+Input is case context; output is a recommended participant set. A composite is
+not an autonomous Actor managing a whole case (#2450).

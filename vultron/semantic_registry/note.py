@@ -25,6 +25,12 @@ from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    HowToGuide,
+    MessagePage,
+    Occasion,
+    ProtocolShorthand,
+)
 from vultron.wire.as2.extractor import (
     AddNoteToCaseActivityPattern,
     CreateNotePattern,
@@ -42,6 +48,26 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=CreateNoteReceivedUseCase,
         phrase="{actor} created a note",
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant has written a note it is about to post to "
+                    "the case"
+                ),
+                anchor="create-note",
+                heading="Create note",
+                description=(
+                    "Mints a note for the case. When the note's context "
+                    "names the case, the Case Manager attaches it and "
+                    "records the attachment in the case ledger, so the Add "
+                    "that follows changes nothing more."
+                ),
+                example="create_note",
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_NOTE_TO_CASE,
@@ -51,6 +77,21 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} added a note to the case",
         wire_activity_class=_AddNoteToCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant posts a note to the case",
+                anchor="add-note-to-case",
+                heading="Add note to case",
+                description=(
+                    "Attaches the note to the case named by the target, for "
+                    "example to ask or answer a question."
+                ),
+                example="add_note_to_case",
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REMOVE_NOTE_FROM_CASE,
@@ -59,5 +100,22 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RemoveNoteFromCaseReceivedUseCase,
         phrase="{actor} removed a note from the case",
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a note's author or the Case Owner withdraws a note from "
+                    "the case"
+                ),
+                anchor="remove-note-from-case",
+                heading="Remove note from case",
+                description=(
+                    "Removes the note from the case named by the target."
+                ),
+                example="remove_note_from_case",
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
     ),
 ]

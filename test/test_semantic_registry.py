@@ -17,6 +17,7 @@ from vultron.semantic_registry import (
     use_case_map,
 )
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import MessagePage, Occasion
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
 
@@ -176,6 +177,16 @@ def _make_entry(
         event_class=_StubEvent,
         use_case_class=_StubUseCase,
         phrase="{actor} performed an action",
+        occasions=(
+            Occasion(
+                when="a stub situation arises",
+                anchor="stub",
+                heading="Stub",
+                description="Stands in for a real occasion.",
+                example="stub_example",
+            ),
+        ),
+        page=MessagePage.GENERAL,
     )
 
 

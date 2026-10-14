@@ -36,6 +36,7 @@ import py_trees
 import pytest
 
 from test.support.embargo_register import register
+from test.support.ledger import committed_event_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -572,6 +573,47 @@ class TestWriteCreateCaseMarkerNode:
         assert isinstance(marker, PendingCreateCaseActivity)
         assert marker.create_activity_payload["to"] == [_VENDOR_URI, reporter]
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CBT-01-010: the CASE_MANAGER's Create still lists the "
+        "reporters as addressees. Tracked by #4511.",
+    )
+    @pytest.mark.spec("CBT-01-010")
+    def test_case_manager_create_is_addressed_to_the_owner_only(self) -> None:
+        """The CASE_MANAGER's Create goes to the report receiver alone.
+
+        The receiver introduces the CASE_MANAGER to the reporter (ADR-0132).
+        """
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        case_id = "https://example.org/cases/c-owner-only"
+        case = VulnerabilityCase(id_=case_id, attributed_to=_CASE_ACTOR_URI)
+        reporter = "https://example.org/actors/reporter-owner-only"
+        participant = CaseParticipant(
+            id_=f"{reporter}/participant",
+            attributed_to=reporter,
+            context=case_id,
+            case_roles=[CVDRole.REPORTER],
+        )
+        case.add_participant(participant)
+        dl.save(participant)
+        dl.save(case)
+
+        status = self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=case_id,
+            accept_id="https://example.org/activities/a-owner-only",
+            seed=False,
+        )
+
+        assert status == py_trees.common.Status.SUCCESS
+        marker = dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI))
+        assert isinstance(marker, PendingCreateCaseActivity)
+        assert marker.create_activity_payload["to"] == [_VENDOR_URI]
+
     def test_fails_when_case_id_missing(self):
         """FAILURE returned when case_id is absent from blackboard."""
         dl = SqliteDataLayer(
@@ -908,12 +950,14 @@ def _make_full_event(
     *,
     report_id: str | None = _REPORT_URI,
     actor: str | CoreActor | None = None,
+    proposer_case_roles: list | None = None,
 ):
     """Build a CreateCaseProposalReceivedEvent with an optional report URI.
 
     ``actor`` is the Create's ``actor``: the proposing actor's full profile
     inline, without a policy, by default (CP-01-010); a URI to exercise the
-    refusal of a reference.
+    refusal of a reference.  ``proposer_case_roles`` is what the proposal
+    states as the proposer's own roles (CP-01-011).
     """
     if actor is None:
         actor = _vendor_profile()
@@ -926,6 +970,7 @@ def _make_full_event(
         attributed_to=_VENDOR_URI,
         object_=report_id or "https://example.org/reports/none",
         target=_CASE_ACTOR_URI,
+        proposer_case_roles=proposer_case_roles or [],
     )
     activity = as_Create(
         actor=actor,
@@ -955,12 +1000,15 @@ def _run_full_bt(
     actor_config=None,
     *,
     actor: str | CoreActor | None = None,
+    proposer_case_roles: list | None = None,
 ) -> HandlerResult:
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
 
-    event = _make_full_event(make_payload, actor=actor)
+    event = _make_full_event(
+        make_payload, actor=actor, proposer_case_roles=proposer_case_roles
+    )
     return CreateCaseProposalReceivedUseCase(
         dl,
         event,
@@ -1311,25 +1359,6 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
     admits the CASE_OWNER and refuses the CASE_MANAGER acting as owner.
     """
 
-    @pytest.mark.parametrize(
-        ("sender", "expected"),
-        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "FAILURE")],
-    )
-    def test_case_update_gate(self, make_payload, sender, expected):
-        from test.core.behaviors.bt_harness import BTTestScenario
-        from vultron.core.behaviors.case.nodes.update import (
-            CheckCaseUpdateOwnerNode,
-        )
-
-        dl, case, _ = _proposed_case_with_open_revision(make_payload)
-        scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
-
-        result = scenario.run(
-            CheckCaseUpdateOwnerNode(case_id=case.id_, sender_actor_id=sender)
-        )
-
-        assert result.status.name == expected
-
     def test_owner_activating_a_revision_records_the_owners_agreement(
         self, make_payload
     ):
@@ -1430,47 +1459,45 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
 
 @pytest.mark.spec("CP-09-007")
 @pytest.mark.spec("CP-09-008")
-class TestOwnerRolesComeFromActorConfig:
-    """The owner's non-CASE_OWNER roles come from ``ActorConfig`` (CFG-07-002).
+@pytest.mark.spec("CP-01-011")
+class TestOwnerRolesComeFromTheProposal:
+    """The owner's non-CASE_OWNER roles are the ones its proposal states.
 
-    Regression guard: the node used to hard-code ``[CASE_OWNER, VENDOR]``.
-    That mislabelled a coordinator that receives a report as a vendor, after
-    which VFD fix-lifecycle checks demanded a fix the coordinator never
-    produces (fccv-extension M6/M7 failure).
+    The proposer copies them from its own ``ActorConfig.default_case_roles``
+    (CFG-07-002) onto ``proposerCaseRoles`` (CP-01-011, ADR-0133).  The
+    CaseActor used to read its *own* configuration instead, which was the
+    receiver's only while the two shared a container; on the dedicated
+    case-actor container a Vendor was seated as ``CASE_OWNER`` alone and its
+    fix-readiness report was refused (#1876).
+
+    Regression guard, too: the node once hard-coded ``[CASE_OWNER, VENDOR]``,
+    which mislabelled a coordinator as a vendor (fccv-extension M6/M7).
     """
 
-    def test_vendor_config_yields_vendor_role(self, make_payload):
-        from vultron.config.actor import ActorConfig
+    @staticmethod
+    def _dl() -> SqliteDataLayer:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        return dl
+
+    def test_vendor_proposal_yields_vendor_role(self, make_payload):
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        _seed_report(dl)
-        _run_full_bt(
-            make_payload,
-            dl,
-            actor_config=ActorConfig(default_case_roles=[CVDRole.VENDOR]),
-        )
+        dl = self._dl()
+        _run_full_bt(make_payload, dl, proposer_case_roles=[CVDRole.VENDOR])
 
         roles = _owner_roles(dl)
         assert CVDRole.CASE_OWNER in roles
         assert CVDRole.VENDOR in roles
 
-    def test_coordinator_config_does_not_yield_vendor_role(self, make_payload):
-        from vultron.config.actor import ActorConfig
+    def test_coordinator_proposal_does_not_yield_vendor_role(
+        self, make_payload
+    ):
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        _seed_report(dl)
+        dl = self._dl()
         _run_full_bt(
-            make_payload,
-            dl,
-            actor_config=ActorConfig(default_case_roles=[CVDRole.COORDINATOR]),
+            make_payload, dl, proposer_case_roles=[CVDRole.COORDINATOR]
         )
 
         roles = _owner_roles(dl)
@@ -1480,15 +1507,30 @@ class TestOwnerRolesComeFromActorConfig:
             f"a coordinator must not be labelled VENDOR, got {roles}"
         )
 
-    def test_no_actor_config_yields_case_owner_only(self, make_payload):
+    def test_case_actor_config_does_not_supply_owner_roles(self, make_payload):
+        """The CaseActor's own configuration says nothing about the proposer."""
+        from vultron.config.actor import ActorConfig
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
+        dl = self._dl()
+        _run_full_bt(
+            make_payload,
+            dl,
+            actor_config=ActorConfig(default_case_roles=[CVDRole.VENDOR]),
+            proposer_case_roles=[CVDRole.COORDINATOR],
         )
-        _seed_report(dl)
-        _run_full_bt(make_payload, dl, actor_config=None)
+
+        roles = _owner_roles(dl)
+        assert CVDRole.VENDOR not in roles, (
+            f"the CaseActor's config leaked into the owner's roles: {roles}"
+        )
+        assert CVDRole.COORDINATOR in roles
+
+    def test_no_stated_roles_yields_case_owner_only(self, make_payload):
+        from vultron.enums.roles import CVDRole
+
+        dl = self._dl()
+        _run_full_bt(make_payload, dl)
 
         roles = _owner_roles(dl)
         assert roles == [CVDRole.CASE_OWNER]
@@ -2104,6 +2146,35 @@ class TestCM14005ReporterSignatory:
 class TestADR0041LedgerEntries:
     """ADR-0041 AC-4: canonical ledger entries committed natively."""
 
+    @pytest.mark.spec("CLP-07-013")
+    def test_commits_the_creation_sequence_the_trigger_commits(
+        self, make_payload
+    ):
+        """The proposal path's entries follow the one creation rule (#4440).
+
+        ``creation_entry_sequence`` reads the sequence off the resulting case
+        file; the create-case trigger is pinned to the same rule in
+        ``test_create.py``, so a case created either way commits the same
+        entries.
+        """
+        from test.support.ledger import (
+            creation_entry_sequence,
+            ledger_entries,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+
+        expected = creation_entry_sequence(dl, case)
+        entries = ledger_entries(dl, case.id_)
+
+        assert [
+            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+        ] == expected
+
     def test_create_case_ledger_entry_present(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
 
@@ -2632,7 +2703,9 @@ class TestARedeliveryAnnouncesTheCaseOnce:
 class TestADR0041GenesisCommitFailure:
     """The genesis create_case commit failure must not be masked."""
 
-    def test_genesis_create_case_failure_aborts(self, make_payload):
+    def test_genesis_create_case_failure_aborts(
+        self, make_payload, monkeypatch
+    ):
         """A failed genesis create_case commit returns FAILURE (not SUCCESS).
 
         The genesis entry is the root of the CaseActor's hash chain; a
@@ -2645,10 +2718,7 @@ class TestADR0041GenesisCommitFailure:
 
         from vultron.core.behaviors.case.nodes import (
             CommitNativeLedgerEntriesNode,
-        )
-
-        node = CommitNativeLedgerEntriesNode(
-            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+            proposal_ledger,
         )
 
         dl = SqliteDataLayer(
@@ -2656,32 +2726,104 @@ class TestADR0041GenesisCommitFailure:
             actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
-        # Build a real case so the node reaches the commit step.
+        # Build a real case, committing nothing, so the node reaches the
+        # genesis commit with every commit still failing.
+        fail_commits(monkeypatch, proposal_ledger)
         _run_full_bt(make_payload, dl)
         case = next(iter(dl.list_objects("VulnerabilityCase")))
 
-        # Wire up the node against the real DL + case, forcing every commit
-        # (including genesis create_case) to report failure.
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
 
-        class _BB:
-            def get(self, _key):
-                return case.id_
-
-        node.blackboard = _BB()  # type: ignore[assignment]
-
-        with patch.object(
-            CommitNativeLedgerEntriesNode,
-            "_commit_one",
-            return_value=False,
-        ):
-            result = node.update()
-
-        assert result == Status.FAILURE, (
+        assert node.update() == Status.FAILURE, (
             "genesis create_case commit failure must propagate as FAILURE,"
             " not be masked as best-effort SUCCESS"
         )
+        assert "genesis create_case ledger commit failed" in (
+            node.feedback_message
+        )
+        assert dl.read_case(case.id_) is not None, (
+            "the proposal path queued its Create already, so it keeps the case"
+        )
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_failed_later_entry_fails_and_stops_the_sequence(
+        self, make_payload, monkeypatch
+    ):
+        """After genesis every entry is required too (#4442).
+
+        The first entry that fails to commit stops the sequence, so no later
+        entry is committed out of order, and the handler does not report the
+        creation as applied.
+        """
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        attempted = fail_commits(monkeypatch, proposal_ledger, allowed=1)
+
+        result = CreateCaseProposalReceivedUseCase(
+            dl,
+            _make_full_event(make_payload),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is not HandlerDisposition.APPLIED
+        assert "creation entries stop there" in (result.reason or "")
+        case = next(iter(dl.list_objects("VulnerabilityCase")))
+        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert len(attempted) == 2, "nothing is tried after the failed entry"
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CP-05-008")
+    def test_a_redelivery_after_a_failed_later_entry_commits_the_rest(
+        self, make_payload, monkeypatch
+    ):
+        """The remedy the proposal path relies on: redelivery completes it.
+
+        After a later entry fails, the records it carries stay in the store
+        (the ``Create`` is already queued, CP-09-009).  A redelivered proposal
+        commits every entry the first delivery left out, so the ledger ends
+        with the sequence an uninterrupted creation commits.
+        """
+        from test.support.ledger import (
+            creation_entry_sequence,
+            ledger_entries,
+        )
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        with monkeypatch.context() as patch:
+            fail_commits(patch, proposal_ledger, allowed=1)
+            first = _run_full_bt(make_payload, dl)
+        assert first.disposition is not HandlerDisposition.APPLIED
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+        assert committed_event_types(dl, case.id_) == ["create_case"]
+
+        result = _run_full_bt(make_payload, dl)
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        expected = creation_entry_sequence(dl, case)
+        assert len(expected) > 1, expected
+        entries = ledger_entries(dl, case.id_)
+        assert [
+            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+        ] == expected
 
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""
@@ -3260,14 +3402,17 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
 
 
 # ---------------------------------------------------------------------------
-# CM-02-001 / CM-02-010 — one CaseActor per case, distinct from the case owner
+# CM-02-001 / CM-02-010 — one CaseActor per case; two actors keep distinct IDs
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("CM-02-001")
 @pytest.mark.spec("CM-02-010")
 class TestCaseActorIsOneParticipantDistinctFromTheOwner:
-    """The bootstrap snapshot names exactly one CaseActor, and it is not the owner.
+    """The proposal flow's snapshot names exactly one CaseActor, and it is not the owner.
+
+    CM-02-010 lets one actor hold both roles; when the proposal flow yields two
+    actors, each keeps its own actor ID, and that is what is asserted here.
 
     Under ADR-0041 "CaseActor" is the participant holding
     ``CVDRole.CASE_MANAGER``, not a per-case ``Service`` object — the earlier
@@ -3325,7 +3470,7 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
         assert self._managers(case) == [_CASE_ACTOR_URI]
 
     def test_the_case_manager_is_not_the_case_owner(self, make_payload):
-        """CM-02-010: distinct identities, co-located in one store or not.
+        """CM-02-010: when two actors enact the roles, their IDs are distinct.
 
         If these ever coincided, the CaseActor's replication to the owner would
         become a message an actor sends itself — delivery discards those, so the
@@ -4131,9 +4276,7 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
-    from vultron.core.behaviors.case.nodes import (
-        CommitNativeLedgerEntriesNode,
-    )
+    from vultron.core.behaviors.case.nodes import proposal_ledger
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
@@ -4141,9 +4284,8 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     _seed_report(dl)
     event = _make_full_event(make_payload)
-    with patch.object(
-        CommitNativeLedgerEntriesNode, "_commit_one", return_value=False
-    ):
+    with pytest.MonkeyPatch.context() as patch_ctx:
+        fail_commits(patch_ctx, proposal_ledger)
         result = CreateCaseProposalReceivedUseCase(
             dl,
             event,

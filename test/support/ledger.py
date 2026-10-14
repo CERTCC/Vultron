@@ -15,7 +15,17 @@
 
 """Read what a store's canonical case ledger holds, for test assertions."""
 
+from collections.abc import Callable
+from types import ModuleType
+from typing import Any
+
+import py_trees
+import pytest
+
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.datalayer import DataLayer
 
 
@@ -26,3 +36,75 @@ def committed_event_types(dl: DataLayer, case_id: str) -> list[str]:
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
     ]
+
+
+def ledger_entries(dl: DataLayer, case_id: str) -> list[CaseLedgerEntry]:
+    """Every ledger entry committed for *case_id*, in chain order."""
+    entries = [
+        entry
+        for entry in dl.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
+    ]
+    return sorted(entries, key=lambda entry: entry.log_index)
+
+
+def creation_entry_sequence(
+    dl: DataLayer, case: VulnerabilityCase
+) -> list[tuple[str, str]]:
+    """The ``(event_type, object id)`` entries creating *case* commits.
+
+    One rule for every creation path, read off the resulting case file: the
+    genesis ``create_case``, each linked report, each participant's statuses
+    in roster order, then each case status (CLP-07-013).  Two paths that
+    produce the same case therefore commit the same sequence.
+    """
+    sequence = [("create_case", case.id_)]
+    sequence += [
+        ("add_report_to_case", str(_as_id(report)))
+        for report in case.vulnerability_reports
+    ]
+    for participant_ref in case.case_participants:
+        participant = dl.read(str(_as_id(participant_ref)))
+        assert isinstance(participant, CaseParticipant), participant_ref
+        sequence += [
+            ("add_participant_status_to_participant", status.id_)
+            for status in participant.participant_statuses
+        ]
+    sequence += [
+        ("add_case_status_to_case", str(_as_id(status)))
+        for status in case.case_statuses
+    ]
+    return sequence
+
+
+def fail_commits(
+    monkeypatch: pytest.MonkeyPatch,
+    module: ModuleType,
+    *,
+    allowed: int = 0,
+    when: Callable[[dict[str, Any]], bool] = lambda _kwargs: True,
+) -> list[str]:
+    """Make *module*'s ledger commits fail, after *allowed* of them succeed.
+
+    Replaces ``create_commit_log_entry_tree`` as *module* names it with a
+    tree that fails, so the code under test sees a refused commit exactly as
+    it would see a real one.  Only commits whose keyword arguments satisfy
+    *when* are counted and failed; any other commit runs as normal.
+
+    Returns:
+        The ``object_id`` of every counted commit, in order, as it is made.
+    """
+    original: Callable[..., py_trees.behaviour.Behaviour] = (
+        module.create_commit_log_entry_tree
+    )
+    seen: list[str] = []
+
+    def _tree(*args: Any, **kwargs: Any) -> py_trees.behaviour.Behaviour:
+        if when(kwargs):
+            seen.append(kwargs["object_id"])
+            if len(seen) > allowed:
+                return py_trees.behaviours.Failure(name="ForcedCommitFailure")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module, "create_commit_log_entry_tree", _tree)
+    return seen

@@ -32,6 +32,8 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
     RM_VERDICT_TARGETS,
     ApplyRmVerdictFromLedgerNode,
@@ -197,6 +199,31 @@ def test_no_rung_the_ledger_does_not_record_is_written(bridge, datalayer):
         RM.RECEIVED,
         RM.ACCEPTED,
     ]
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-23-016: each replica mints its own id for the replayed status"
+        " instead of copying one the ledger carries. #4295."
+    ),
+)
+def test_two_replicas_applying_one_entry_append_the_same_status():
+    """Same ledger position, same case file: the replay copies, never mints."""
+    appended = []
+    for _ in range(2):
+        replica = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=PARTICIPANT_ACTOR_ID
+        )
+        _seed(replica, RM.RECEIVED)
+        result = _apply(BTBridge(datalayer=replica), _ENGAGE)
+        assert result.status == Status.SUCCESS
+        participant = replica.read(SENDER_PARTICIPANT_ID)
+        assert isinstance(participant, CaseParticipant)
+        appended.append(participant.participant_statuses[-1].model_dump())
+
+    assert appended[0] == appended[1]
 
 
 @pytest.mark.spec("RSH-05-007")

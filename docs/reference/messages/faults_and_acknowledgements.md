@@ -13,8 +13,13 @@ acknowledgments). In the AS2 wire vocabulary, both concerns are served by
 mechanisms partitioned on **different axes** from the formal set. Neither is
 unimplemented; both are shaped differently.
 
-This page is the primary reference for the ledger negative acknowledgment (`Reject(CaseLedgerEntry)`) and for `close_report` as an ordinary `as:Reject` on the fault axis.
+This page is the primary reference for `Create(ProcessingFault)`.
+It is the second home of two activities documented elsewhere: the ledger negative acknowledgment, [Reject case ledger entry](ledger_replication.md#reject-case-ledger-entry), and [Close report](rm.md#report-closed) as an ordinary `as:Reject` on the fault axis.
 The normative mapping is the [Fault and Acknowledgment Mechanism Evolution](../specs/protocol.md#msm-05) requirements group; the design rationale is in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) and [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
+
+## Occasions
+
+{% include-markdown "./_occasions/lookup-faults_and_acknowledgements.md" %}
 
 ---
 
@@ -31,8 +36,11 @@ in a way that state-machine origin is not.
 | Received, understood, **declined** | `as:Reject` | `RE` / `EE` / `CE` / `GE` |
 | Received, understood, **needs explanation** | `Create(Note)` / `Add(Note → Case)` | `RE` / `EE` / `CE` / `GE` |
 
-Status: **evolved** — the formal shorthands have no dedicated wire counterpart;
-see [MSM-05-001](../specs/protocol.md#msm-05-001).
+{% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
+
+In the example, the CASE_MANAGER refuses a status assertion that names an impossible state and reports the fault to the sender.
+
+The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../specs/protocol.md#msm-05-001)).
 
 ### `as:Reject` is overloaded
 

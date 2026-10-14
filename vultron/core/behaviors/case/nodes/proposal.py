@@ -32,6 +32,7 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.config import get_config
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
@@ -53,15 +54,18 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
     Used by the slimmed ``receive_report_case_tree`` (ADR-0041).  Unlike
     the deleted ``ProposeCaseToActorNode`` (issue #4353),
     this node does not require a ``VulnerabilityCase`` to exist — it uses
-    ``report_id`` directly and derives ``case_actor_id`` from
-    ``ActorConfig.case_actor_service_url`` + a deterministic slug from
-    ``report_id``.
+    ``report_id`` directly and addresses the container's CaseActor identity,
+    ``{ActorConfig.case_actor_service_url}/actors/case-actor`` (CP-04-003).
 
     Returns ``FAILURE`` when:
 
     - DataLayer, ``actor_id``, or ``trigger_activity_factory`` is unavailable.
     - ``case_actor_service_url`` is not configured.
     - ``trigger_activity_factory.create_case_proposal()`` raises an exception.
+
+    The proposal states this actor's ``default_case_roles`` (CFG-07-002), which
+    the CASE_MANAGER seats it with alongside ``CASE_OWNER`` (CP-01-011,
+    CP-09-007, ADR-0133).
 
     Per specs/case-proposal.yaml CP-04-001, CP-04-002 and ADR-0041.
     """
@@ -117,6 +121,9 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
                     case_actor_id=case_actor_id,
                     offer_id=offer_id,
                     offer_actor_id=offer_actor_id,
+                    # CP-01-011, ADR-0133: this actor's own roles, which the
+                    # CASE_MANAGER cannot read from its own configuration.
+                    proposer_case_roles=get_config().actor.default_case_roles,
                 )
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).

@@ -46,14 +46,15 @@ and flattens group nesting.
 | `--topic A,B` | Select topics (spec files). |
 | `--group A-01,B-02` | Select groups. |
 | `--ids X,Y` | Select requirement IDs. |
+| `--adr ADR-0127,ADR-0099` | Select the requirements whose `adr:` field names one of these records. A record that no requirement names gets a stderr note pointing at its prose citations. |
 | `--deps` | Add transitive dependencies of the selection. |
 | `--cross-cutting` | Add the cross-cutting topics (see below). |
 | `--kind`, `--tag`, `--scope`, `--priority` | Narrow the selection. `--kind`/`--tag` take comma lists; all tags must match. |
 | `--text` | Print one line per requirement (`id priority statement`) instead of JSON. Needs a selection. |
 | `--slim` | JSON, but keep only `id`, `priority`, `statement`, `note` per requirement. |
 
-Selectors (`--topic`, `--group`, `--ids`, `--cross-cutting`) combine as a
-union. An unknown value exits with code 2 and names the value. A run with
+Selectors (`--topic`, `--group`, `--ids`, `--adr`, `--cross-cutting`)
+combine as a union. An unknown value exits with code 2 and names the value. A run with
 no filters prints the full dump (for `spec-audit`) with a size warning on
 stderr.
 

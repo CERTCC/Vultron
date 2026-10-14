@@ -150,16 +150,15 @@ groups:
     - story_2022_074
     - story_2022_045
   - id: CM-02-010
-    priority: MUST
+    priority: MAY
     kind: protocol
-    statement: The actor enacting CASE_MANAGER and the case owner (named actor) MUST have distinct actor identities — each with their own actor
-      ID — even when co-located on the same server
-    rationale: Enforcing distinct identities ensures that all case-state transitions pass through the wire protocol regardless
-      of deployment topology, preserving audit integrity and enabling future separation onto independent containers without
-      protocol changes
-    verification: Inspection of `vultron/core/` confirms that the actor enacting CASE_MANAGER and
-      the case owner named actor each hold distinct actor IDs, even in single-server
-      deployments.
+    statement: The actor enacting CASE_MANAGER and the case owner (named actor) MAY be the same actor. When they are different
+      actors, each MUST have its own actor ID, even when co-located on the same server
+    rationale: A deployment may enact both roles in one actor. When the proposal flow (CP-09-001) yields two actors, distinct
+      identities keep every case-state transition on the wire protocol, whatever the topology, and let the two separate later
+      without protocol changes. An actor holding both roles still routes case traffic through its CASE_MANAGER role (CBT-01-003).
+    verification: Inspection of `vultron/core/` confirms that, when the actor enacting CASE_MANAGER and the case owner named
+      actor are different actors, they hold distinct actor IDs even in single-server deployments.
     relationships:
     - rel_type: refines
       spec_id: CM-01-001
@@ -646,9 +645,13 @@ groups:
       When the CASE_MANAGER updates canonical case state, it MUST notify every active
       participant (CM-10-004).
     rationale: >-
-      An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (ADR-0111,
-      #3936); the CASE_MANAGER announces a received update to the participants as
-      a broadcast, and every ledgered change reaches them as `Announce(CaseLedgerEntry)`.
+      Every change the CASE_MANAGER makes to the case file is its own ledger entry
+      (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
+      active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
+      announces the updated case as `Announce(VulnerabilityCase)` after admitting
+      a participant's engagement. No participant sends
+      the CASE_MANAGER an `Update(VulnerabilityCase)`; one that arrives is refused
+      as unmatched (CLP-02-013, #4443).
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
@@ -772,7 +775,7 @@ groups:
     verification_debt: '#3612'
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
       translation methods; AS2 serialization MUST be performed by the rendering port (ARCH-20-001)
-      (see `notes/domain-model-separation.md` and ADR-0099)
+      (see `notes/wire-core-boundary.md` and ADR-0099)
     rationale: The two branches stay distinct type hierarchies, and the translation between them lives on the adapter side —
       the one layer permitted to see both — so neither branch imports the other.
     adr:
@@ -1114,6 +1117,7 @@ groups:
       in every field, status ids and times included.
     adr:
     - ADR-0114
+    - ADR-0124
     stories:
     - story_2022_052
     - story_2022_061
@@ -1529,8 +1533,8 @@ groups:
   - id: CM-12-003
     priority: MUST
     kind: protocol
-    statement: When a case is created from an `Offer(Report)`, the case owner MUST queue a `Create(Case)` activity to notify
-      the reporter that a case has been opened
+    statement: When a case is created from an `Offer(Report)`, the case owner (the report receiver) MUST queue a `Create(Case)`
+      activity to notify the reporter that a case has been opened, naming the CASE_MANAGER it delegated to (CBT-01-001)
     verification: Integration tests in `test/demo/` confirm that a `Create(Case)` activity is
       queued for the reporter when a case is created from an `Offer(Report)`.
     relationships:
@@ -1733,7 +1737,7 @@ groups:
       `Offer(VulnerabilityReport)` activity. This requirement is therefore reachable, and the
       reconciliation it describes is the shortest-wins comparison of EP-04-003. Note that the
       protocol default of EP-04-005 is not a candidate in that comparison (EP-04-006). Amended by
-      ADR-0096; see `notes/embargo-default-semantics.md` § "Resolved: Reporter Embargo Proposal
+      ADR-0096; see `notes/embargo-default-semantics.md` § "Reporter Embargo Proposal
       Mechanism (EP-04-004)".
     relationships:
     - rel_type: depends_on
@@ -3165,14 +3169,11 @@ groups:
       too.  If the transferee's Reject goes only to the offerer, the CASE_MANAGER —
       the authoritative record of ownership — never learns the transfer was
       declined and its view of who owns the case can silently diverge from
-      reality.  What the CASE_MANAGER does on receiving a rejection (whether it
-      ledgers the declined transfer, whether the offerer is notified, and
-      whether the case may be re-offered) is a separate open question tracked in
-      `notes/ownership-transfer.md`.
+      reality.
     note: >-
-      This entry governs *addressing* only, mirroring CM-21-005/CM-21-006. The
-      downstream received-side behavior of the rejection is deliberately out of
-      scope here — see the Open Question in `notes/ownership-transfer.md`.
+      This entry governs *addressing* only, mirroring CM-21-005/CM-21-006. What
+      the CASE_MANAGER does on receiving the Reject is CM-21-012 and CM-21-013;
+      whether the case may be offered again is CM-21-014.
     verification: >-
       Inspection of `vultron/demo/exchange/transfer_ownership_demo.py` confirms that an
       ownership-transfer `Reject(Offer(VulnerabilityCase))` is addressed to the CASE_MANAGER's inbox
@@ -3213,6 +3214,192 @@ groups:
       spec_id: CM-21-002
     adr:
     - ADR-0115
+  - id: CM-21-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER admits a `Reject(Offer(VulnerabilityCase))`
+      (ownership-transfer variant) under CM-21-013, it MUST commit a
+      `CaseLedgerEntry` recording the Reject and MUST broadcast
+      `Announce(CaseLedgerEntry)` to all case participants, as it does for the
+      Accept (CM-21-007). The entry closes the Offer (CM-21-014): from it on,
+      that Offer is no longer pending on any replica. A replica applies no
+      further state change from the entry; `VulnerabilityCase.attributed_to` and
+      every participant's `CASE_OWNER` role are unchanged.
+    rationale: >-
+      The Offer was ledgered and broadcast (CM-21-005), so every replica holds a
+      transfer in flight. A Reject that leaves no entry never closes it, and the
+      offerer, who is no longer a recipient of the Reject (CM-21-010), never
+      learns of the decline. A participant's `Reject` is a case event like its
+      `Accept`; it is ledgered for the same reason (CLP-02-012). See #3748.
+    verification: >-
+      A test marked `CM-21-012` confirms that
+      `RejectCaseOwnershipTransferReceivedUseCase` reaches a canonical commit for the
+      `reject_case_ownership_transfer` event type.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-010
+    - rel_type: refines
+      spec_id: CLP-02-012
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Reject(Offer(VulnerabilityCase))` only when the
+      sender is the transferee named in an ownership-transfer Offer it recorded for
+      that case and that is still open, as CM-21-014 defines and reads from the
+      ledger. Any other sender MUST be refused, with no ledger commit, no outbound
+      activity, and the Offer still pending.
+    rationale: >-
+      The same standing CM-21-011 requires for the Accept. Without it any actor that
+      knows an Offer id could close a transfer it is not party to, and the closed
+      Offer could no longer be accepted by the transferee it names.
+    verification: >-
+      A test marked `CM-21-013` sends the Reject from an actor the pending Offer does
+      not name and asserts `REFUSED` with an empty outbox and no new
+      `CaseLedgerEntry`; a companion test confirms the named transferee's Reject is
+      not refused.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-21-011
+    adr:
+    - ADR-0115
+    stories:
+    - story_2022_050
+  - id: CM-21-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse an ownership-transfer `Offer(VulnerabilityCase)`
+      for a case while an earlier ownership-transfer Offer for that case is open.
+      Whether an Offer is open MUST be read from the case ledger (CLP-11-001): it is
+      open until the ledger holds an Accept (CM-21-007), Reject (CM-21-012),
+      withdrawal (CM-21-015) or expiry (CM-21-017) entry for it. Once it is closed,
+      the CASE_MANAGER MUST admit a new Offer for the case to any transferee,
+      including the one that declined, with no waiting period and nothing to clear
+      first.
+    rationale: >-
+      Two pending Offers would let two transferees accept the same case, and
+      CM-21-001 allows one owner. Reading "open" from the ledger rather than from
+      local offer records keeps the CASE_MANAGER and every replica in agreement
+      (CLP-07-014), and no memory of who declined is needed because a decline does
+      not bar a later offer. Withdrawal and expiry exist so that a transferee who
+      never answers cannot block every later transfer of the case.
+    verification: >-
+      A test marked `CM-21-014` delivers a second Offer for a case whose first Offer
+      is open and asserts it is `REFUSED` and not forwarded; a companion test
+      confirms a new Offer is admitted once the first is closed.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: CM-21-005
+    - rel_type: refines
+      spec_id: CLP-11-001
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_OWNER that made an ownership-transfer Offer MAY withdraw it while it
+      is open (CM-21-014) by sending `Undo(Offer(VulnerabilityCase))` addressed to
+      the CASE_MANAGER. When the CASE_MANAGER admits the Undo, it MUST commit a
+      `CaseLedgerEntry` recording the withdrawal and MUST broadcast
+      `Announce(CaseLedgerEntry)` to all case participants; the entry closes the
+      Offer. The CASE_MANAGER MUST refuse an Undo from any other sender, or for an
+      Offer that is already closed, with no ledger commit and no outbound activity.
+    rationale: >-
+      Without a withdrawal, one open Offer per case (CM-21-014) lets a transferee
+      who never answers block every later transfer of the case. Ledgering the
+      withdrawal tells the transferee and every replica that the Offer can no
+      longer be accepted, the same way the Reject entry does (CM-21-012).
+    verification: >-
+      A test marked `CM-21-015` confirms that the received ownership-transfer
+      withdrawal use case reaches a canonical commit.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-014
+    - rel_type: refines
+      spec_id: CLP-02-012
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An ownership-transfer `Offer(VulnerabilityCase)` MAY carry an activity-level
+      `end_time`. When present, it MUST be read as the deadline to answer the
+      Offer: the instant after which the Offer can no longer be accepted or
+      rejected. Unlike an embargo Invite's deadline (CM-28-001), it is binding: the
+      CASE_MANAGER MUST refuse an Accept or Reject of the Offer that it processes
+      after `end_time`, with no role change and no ledger entry for the answer. An
+      Offer without `end_time` stays open until it is answered or withdrawn.
+      `end_time` MUST be normalised to UTC at the wire edge (CS-13-001, ADR-0032).
+    rationale: >-
+      An embargo deadline is a strong suggestion, so participants may still answer
+      late. A transfer deadline has to hold, so that the offerer, the transferee
+      and every other participant know who decides for the case once it passes.
+      `end_time` keeps the meaning CM-28-001 gives it on an Invite — the deadline
+      to answer — so it adds no new meaning to the field.
+    verification: >-
+      A test marked `CM-21-016` delivers an Accept for an Offer whose `end_time`
+      has passed and asserts it is `REFUSED` and the case owner is unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-011
+    - rel_type: refines
+      spec_id: CM-21-013
+    - rel_type: refines
+      spec_id: CS-13-001
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Only the CASE_MANAGER evaluates ownership-transfer Offer expiry, and it MUST
+      do so lazily, from `(end_time, now)`, whenever it processes an Accept, Reject
+      or Undo of the Offer or a new Offer for the case; no scheduler is required.
+      When it finds an open Offer expired, it MUST commit a `CaseLedgerEntry`
+      recording the expiry, distinct from the Reject entry (CM-21-012), and MUST
+      broadcast `Announce(CaseLedgerEntry)` to all case participants; the entry
+      closes the Offer (CM-21-014). The commit MUST be behind the CASE_MANAGER role
+      gate (BT-17-001) and have a replica apply node (RSH-08-004). A replica learns
+      an expiry from that entry and never computes one.
+    rationale: >-
+      Expiry evaluated in one place keeps every replica in agreement about whether a
+      transfer is still in flight, as for embargo Invite expiry (CM-28-003,
+      CM-28-014). Lazy evaluation needs no timer, and the next act on the case is
+      the first moment the expiry matters. A distinct entry keeps "never answered"
+      apart from "declined".
+    verification: >-
+      A test marked `CM-21-017` delivers a new Offer for a case whose earlier Offer
+      has expired unanswered and asserts the CASE_MANAGER commits an expiry entry
+      before admitting it.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-014
+    - rel_type: refines
+      spec_id: CM-21-016
+    - rel_type: refines
+      spec_id: RSH-08-004
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
@@ -3228,7 +3415,9 @@ groups:
       The CASE_MANAGER MUST create the `VulnerabilityCase` object in its own
       DataLayer when accepting a `Create(as_CaseProposal)`, with `attributed_to`
       equal to the proposing actor's ID (the CASE_OWNER, CM-02-008), and MUST be
-      the `actor` of the `Create(VulnerabilityCase)` it emits.
+      the `actor` of the `Create(VulnerabilityCase)` it emits. It MUST address
+      that activity to the report receiver (the CASE_OWNER) only; the report
+      receiver introduces the CASE_MANAGER to the reporter (CBT-01-001, ADR-0132).
     rationale: >-
       ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
       creator, which AS2 records as the `actor` of `Create(VulnerabilityCase)`
@@ -3243,6 +3432,7 @@ groups:
     adr:
     - ADR-0023
     - ADR-0041
+    - ADR-0132
     stories:
     - story_2022_012
     - story_2022_046
@@ -3331,10 +3521,12 @@ groups:
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
 
-    Pending decision: the closure semantics in CM-23-002, CM-23-013 and CM-23-014
-    (what the owner's close does to pending Invites and to later Leaves; #4065, #4066)
-    await a separate decision by the maintainer. Nothing in this group changes
-    them until that decision is recorded.
+    Decided: the maintainer decided the closure semantics in CM-23-002, CM-23-013
+    and CM-23-014 (what the owner's close does to pending Invites and to later
+    Leaves) on 2026-10-12. ADR-0085 sets the owner-close write boundary.
+    ADR-0131 sets the CM-23-013 reply to late traffic: by default it is dropped,
+    and only a late Leave may get an as:Reject (#4065). The CM-23-014 settle step
+    is #4066 (PR #4489).
   specs:
   - id: CM-23-001
     priority: MUST
@@ -3354,9 +3546,11 @@ groups:
       applying those status entries, in ledger order, from the Announce(CaseLedgerEntry)
       fan-out.  A replica
       MUST NOT work out a closure path from its own stored state, and applying the
-      close_case entry MUST NOT change any participant's RM state.  A status entry
-      that cannot be committed is logged at WARNING and does not abort the
-      closure, as for the CASE_MANAGER's own closure (CM-23-005).
+      close_case entry MUST NOT change any participant's RM state.  A status
+      entry that cannot be committed leaves its RM transition unwritten: the
+      CASE_MANAGER MUST take back each transition whose entry did not commit and
+      MUST NOT report the Leave as applied, for the leaving participant and for
+      its own closure alike (CM-23-005, CLP-07-013).
     rationale: >-
       The Leave round-trip makes the CASE_MANAGER the authority for closure and
       prevents ghost-departures from lost messages: a participant cannot
@@ -3372,8 +3566,10 @@ groups:
       that a replica which accepts each of those entries ends with the same per-actor
       status history as the CASE_MANAGER and writes no step the ledger lacks; that a
       replica whose participant-status effect refuses an entry (RSH-05-021) logs a
-      WARNING and still writes no step of its own; and that applying the close_case
-      entry alone changes no participant's RM state.
+      WARNING and still writes no step of its own; that a status entry whose
+      commit is forced to fail leaves the CASE_MANAGER's participant record and
+      status records unchanged and the Leave not applied; and that applying the
+      close_case entry alone changes no participant's RM state.
     adr:
     - ADR-0050
     stories:
@@ -3390,8 +3586,10 @@ groups:
           entry per RM transition it writes, in order (CM-23-001),
       (2) advance the CASE_MANAGER's own CaseParticipant to RM.CLOSED, committing
           one status entry per RM transition it writes, in order (CM-23-005),
-      (3) emit a case_fully_closed CaseLedgerEntry marking the owner-close write
-          boundary (ADR-0085),
+      (3) commit a case_fully_closed CaseLedgerEntry marking the owner-close write
+          boundary (ADR-0085), whose payloadSnapshot is the CASE_MANAGER's own
+          factory-built Update(VulnerabilityCase) carrying the closed case
+          (CLP-07-013, VM-08-003),
       (4) fan-out that entry to every active participant whose closure the ledger
           does not already record (CM-10-004, CM-23-004).
       Every entry of steps (0) to (2) MUST precede case_fully_closed, because no
@@ -3767,23 +3965,32 @@ groups:
       or MAY drop the activity with no reply at all. A participant MUST NOT rely
       on receiving a reply to an activity it sends after the case has closed.
       The sender's RM state on the canonical ledger stays at its last rung
-      (CM-23-012).
+      (CM-23-012). The boundary covers every activity class — RM (R*), EM, CS
+      and general-inquiry (GI) traffic such as `Add(Note)` alike — and is a hard
+      kill switch, not a selective gate (ADR-0085). The CASE_MANAGER MAY keep
+      answering a replica's resync request (`Reject(CaseLedgerEntry)`) by
+      replaying entries the ledger already holds, because a replay appends
+      nothing; it MUST NOT append a new entry on behalf of an external
+      participant.
     rationale: >-
-      In a deployment the process managing a closed case can exit once closure has
-      fanned out, leaving nothing to receive a late message. This rule makes the
-      prototype's CASE_MANAGER behave the same way: nothing reaches the ledger, and a
-      reply is a courtesy. The receipt commit is suppressed because it opens the closure
+      A deployment's process for a closed case can exit once closure has fanned out.
+      The prototype's CASE_MANAGER behaves the same way: nothing reaches the ledger,
+      and a reply is a courtesy. The receipt commit is suppressed because it opens the closure
       whose status entries would close the sender on the replicas (CLP-10-006,
-      CM-23-001). A participant that wants its
-      departure recorded leaves first (CM-23-015). #4162 owns this.
+      CM-23-001). A participant that wants its departure recorded leaves first
+      (CM-23-015). Resync is exempt: a replay appends nothing.
     verification: >-
-      A test confirms that after an owner Leave(VulnerabilityCase) has committed
+      Tests confirm that after an owner Leave(VulnerabilityCase) has committed
       `case_fully_closed`, a later inbound activity for the case — a bystander's
-      Leave(VulnerabilityCase) among them — commits no CaseLedgerEntry and changes no RM
-      or case state, and that the CASE_MANAGER either sends an `as:Reject` or sends
-      nothing:
-      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_bystander_leave_after_owner_close_is_refused`,
-      a strict `xfail` naming #4162 and #4065 until they land.
+      Leave(VulnerabilityCase) and an `Add(Note, target=Case)` among them — commits no
+      CaseLedgerEntry and changes no RM or case state, and that the CASE_MANAGER either
+      sends an `as:Reject` or sends nothing:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_bystander_leave_after_owner_close_is_refused`
+      and `TestPostCloseWriteBoundary`. `test/core/behaviors/case/test_receive_activity_tree.py::TestPostCloseStage`
+      confirms every received tree carries the guard and that the resync tree is
+      exempt. Over each demo scenario's exported ledger,
+      `test_invariant_18_no_participant_act_after_case_fully_closed` confirms no
+      participant act follows `case_fully_closed`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-003
@@ -3816,7 +4023,12 @@ groups:
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
       whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`, commits
       the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
-      and before `case_fully_closed`.
+      and before `case_fully_closed`:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_owner_close_expires_pending_invite_before_boundary`.
+      `TestOwnerCloseSettlesPendingInvites` in the same file covers a case with no pending
+      Invite, several pending Invites, a row frozen by a final register entry, a stub
+      invitee's row on the embargo the close required to end, and replica replay of the
+      settled entry.
     relationships:
     - rel_type: refines
       spec_id: CM-23-002
@@ -3867,26 +4079,112 @@ groups:
     kind: protocol
     statement: >-
       A participant's case replica is the case as it stood when the replica was seeded
-      plus the ledger entries since. A replica MUST apply the transitions the ledger
-      records, in ledger order, and MUST NOT derive a transition the ledger does not
-      record, for example by walking the RM transition table from its own stored state
-      to a target state.
+      plus the ledger entries since. A replica MUST apply the entries in ledger order by
+      copying the objects they carry, so that two replicas at the same ledger position
+      hold identical case files. Applying an entry MUST NOT mint an id, read a clock,
+      read local policy or state outside the case, or run lifecycle logic, for example
+      by walking the RM transition table from its own stored state to a target state.
     rationale: >-
-      The CASE_MANAGER is the single mover (ADR-0108) and the ledger records each move
-      as it makes it. A replica that re-derives a path from its own, possibly lagging,
-      state can write an RM rung the ledger never recorded, so replicas diverge from the
-      CASE_MANAGER's history (#4091). CM-23-001 states the rule for closure; this states
-      it for every replicated transition.
+      The CASE_MANAGER is the single mover (ADR-0108) and the ledger records each change
+      as it makes it (CLP-07-013). A replica that re-derives a path from its own, possibly
+      lagging, state can write an RM rung the ledger never recorded (#4091), and one that
+      builds a record itself gives it a different id and time from the CASE_MANAGER's
+      (#4425), so replicas diverge from the CASE_MANAGER. CM-23-001 states the rule for
+      closure; this states it for every replicated change (ADR-0124).
     verification: >-
       A unit test replays a ledger whose entries skip a rung that a table walk would
       insert, and asserts the replica's per-actor status history equals the ledger's and
-      that no step the ledger lacks is written.
+      that no step the ledger lacks is written. A unit test applies one entry to two
+      fresh replicas and asserts they write identical records, every id and time
+      included, so a minted id or a clock read fails it.
     relationships:
     - rel_type: extends
       spec_id: CM-23-001
     adr:
     - ADR-0108
+    - ADR-0124
     - ADR-0114
+    stories:
+    - story_2022_066
+  - id: CM-23-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The reference CASE_MANAGER MUST choose its CM-23-013 reply at one
+      configuration point, `ActorConfig.post_close_reply`, whose default is
+      `drop`. With `drop` it sends nothing for any activity that arrives after
+      `case_fully_closed`. With `reject` it answers a late
+      Leave(VulnerabilityCase) with Reject(Leave(VulnerabilityCase)) and sends
+      nothing for any other late activity. Every other late activity MUST be
+      dropped with no reply under both settings, and a late activity MUST be
+      reported `REFUSED` under both. The drop MUST be logged at INFO with the
+      activity id, the sender's actor id and the case id.
+    rationale: >-
+      A Reject that wraps most activities already carries a protocol meaning for its
+      recipient: Reject(Invite) is a declined invitation and Reject(Offer(...)) a
+      declined offer, so a reply to a late Invite or Offer would be misread as a
+      decision. Reject(Leave(VulnerabilityCase)) already means "close declined"
+      (CM-23-011) and cannot be misread. Dropping is the default because it is what an
+      exited process does, and CM-23-013 already tells participants not to rely on a
+      reply.
+    verification: >-
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseWriteBoundary`
+      drives a late Leave under both settings (one Reject under `reject`, none under
+      `drop`), confirms the default is `drop`, confirms a late Add(Note) gets no reply
+      under both settings through the inbox dispatcher, and confirms the INFO log line.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-013
+    adr:
+    - ADR-0131
+    - ADR-0085
+  - id: CM-23-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse every activity for a case from a sender whose
+      closure that case's ledger records (its status entry with rm_state=RM.CLOSED),
+      with no ledger entry committed and nothing sent except the refusal notice
+      CLP-05-001 permits, with two exceptions. First, it MUST answer that sender's
+      `Reject(CaseLedgerEntry)` with a replay of only the entries that record its own
+      closure (CM-23-004); the guard for that resync request stays the active check
+      of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`
+      standing defined below. Second, a repeated
+      Leave(VulnerabilityCase) from that sender MUST be reported `SKIPPED`, with no
+      ledger entry committed and nothing sent, whatever its activity id: its effect is
+      already in place (ID-05-003). The `ACTIVE_PARTICIPANT` sender standing
+      (HP-01-009) MUST mean an active participant (CM-10-004) whose closure is not
+      recorded, and every guard that enforces it MUST ask one shared predicate
+      (HP-01-007).
+    rationale: >-
+      RM.CLOSED is terminal (ADR-0085). A closed participant is sent no later case
+      content (CM-23-004), so its act would be recorded in a case it cannot see, and
+      CM-23-013 stops writes only at case_fully_closed. The resync request stays open:
+      its replay appends nothing and is capped. A second Leave changes nothing, and a
+      repeat is decided by effect, not by activity id. Resolves CONCERN-4556.
+    verification: >-
+      Unit tests on the shared sender predicate and on every guard node for the
+      `ACTIVE_PARTICIPANT` kind assert that a sender at RM.CLOSED, an inert sender and
+      a removed sender are refused. A received-use-case test drives an `Add(Note)` and
+      a status update from a closed sender and asserts `REFUSED` with no ledger entry
+      and no outbound activity. A test drives a closed sender's
+      `Reject(CaseLedgerEntry)` and asserts the replay stops at its own closure
+      entries, and a unit test asserts the `Reject(CaseLedgerEntry)` use case does
+      not declare the `ACTIVE_PARTICIPANT` standing. A test drives a second Leave with a new activity id from a closed
+      sender and asserts `SKIPPED` with no ledger entry.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-004
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-10-004
+    - rel_type: refines
+      spec_id: SYNC-03-005
+    adr:
+    - ADR-0085
+    - ADR-0114
+    - ADR-0115
     stories:
     - story_2022_066
 - id: CM-24
@@ -4123,7 +4421,7 @@ groups:
       An Observer that accepts the stub Invite consents to the active embargo
       (MV-10-006). The absence of a remediation function does not change what
       the Observer is entitled to receive once it is active. Introducing a separate
-      reduced delivery tier for Observers is deferred: `notes/stub-objects.md`
+      reduced delivery tier for Observers is deferred: `notes/selective-disclosure.md`
       describes the potential future mechanism but it is not yet implemented.
     verification: >-
       Integration tests in `test/demo/` confirm that an active Observer receives full
@@ -4915,12 +5213,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An accepted removal MUST be recorded as exactly one ledger entry: the Case Owner's received
-      `Remove(CaseParticipant)`, committed by the receive pipeline (CLP-10-006).
+      An accepted removal MUST be recorded by the Case Owner's received `Remove(CaseParticipant)`
+      as its entry, committed by the receive pipeline (CLP-10-006).
       `("Remove", "CaseParticipant")` MUST be a canonical ledger signature, and the CASE_MANAGER MUST
       NOT commit a second entry of its own for the same removal.
     rationale: >-
-      One move gets one entry, authored by the actor that made it, so the ledger shows the removal as
+      The Remove states the change, so it is the change's entry (CLP-07-013), authored by the actor
+      that made it, and no second entry records it again. The ledger therefore shows the removal as
       the Case Owner's decision rather than the CASE_MANAGER acting alone (ADR-0108). Without the
       canonical signature a removal cannot be committed, so it never reaches a replica.
     verification: >-

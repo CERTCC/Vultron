@@ -1,18 +1,19 @@
 ---
 title: Lifecycle-Staged Domain Types
 status: active
+kind: guidance
 description: >
-  Design guidance for lifecycle-staged domain types anchored on guaranteed-field
-  changes: the field-set governing principle, the three-class analysis, the
-  model_validate-at-edge read mechanism, the data-as-source-of-truth transition
-  model, and the DataLayer round-trip constraint.
+  Rules for lifecycle-staged domain types (ADR-0033): a milestone earns a type
+  only when it changes the guaranteed field set; narrow with model_validate at
+  the edge (works on dl.read() results); the stage is derived, never stored; the
+  write path stays field mutation.
 related_specs:
   - specs/lifecycle-staged-types.yaml
   - specs/architecture.yaml
 related_notes:
-  - notes/domain-model-separation.md
   - notes/domain-validation.md
   - notes/case-state-model.md
+  - notes/status-dimension-objects.md
 relevant_packages:
   - vultron/core/models
   - vultron/core/states
@@ -20,164 +21,63 @@ relevant_packages:
 
 # Lifecycle-Staged Domain Types
 
-Design note for ADR-0033. Records *why* the staged-type design is shaped the way
-it is; the normative requirements live in `specs/lifecycle-staged-types.yaml`
-(LST-01 through LST-05), and the decision record is
-`docs/adr/0033-lifecycle-staged-case-types.md`.
+Normative requirements: `specs/lifecycle-staged-types.yaml` (LST-01 to LST-05);
+decision and rejected alternatives: ADR-0033; types:
+`vultron/core/models/staged_case.py`.
 
-## The Problem
+## A Milestone Earns a Type Only If It Changes the Guaranteed Fields
 
-`VulnerabilityCase` is the "fat class" named in ADR-0032: one type for a case at
-every lifecycle stage. Core functions that need a case to have reached a stage
-(e.g. "there is an active embargo") cannot say so in their signatures and fall
-back on runtime guards (`if case.active_embargo is None`,
-`case.current_status.em_state == EM.ACTIVE`).
+> A lifecycle milestone earns a distinct staged **type** only when it changes the
+> set of guaranteed (required, non-None) fields. A milestone that only changes
+> *which actions are permitted* belongs in the transition model and precondition
+> specs, not the type hierarchy (LST-01-001).
 
-Note that the *current* `VulnerabilityCase` has almost no literal `X | None`
-fields — only `active_embargo`; its collections already default to empty. The
-real problem is not annotation noise but that **one class represents a case at
-every stage**, so functions cannot type-demand a stage.
+Without this rule types proliferate (P/X/A alone would imply 2³ combinations).
+Applied to the three state-bearing classes:
 
-## The Governing Principle
-
-> A lifecycle milestone earns a distinct staged **type** only when it changes
-> the set of guaranteed (required, non-None) fields. A milestone that only
-> changes *which actions are permitted* — without changing which fields are
-> present — belongs in the transition model and precondition specs, not the
-> type hierarchy.
-
-This single rule resolves every tension below and prevents type proliferation
-(the P/X/A dimensions alone would otherwise imply 2³ combinations).
-
-## Three-Class Analysis
-
-The domain has three state-bearing classes. Applying the principle to each:
-
-### VulnerabilityCase — case-universal facts (earns types)
-
-RM state is **per-participant**, so "the case is valid/accepted" is undefined
-(valid according to whom?). Only these facts are case-universal and monotonic:
-
-| Milestone | Adds a guaranteed field? | Result |
+| Class | Milestone | Result |
 |---|---|---|
-| Case exists (ADR-0015 create-on-receipt) | Yes — participants, reports, seeded status | **`Case` type** |
-| Embargo active (`em_state ∈ {ACTIVE, REVISE}`) | Yes — `active_embargo` non-None | **`EmbargoedCase` type** |
-| Public / exploit / attacks (P/X/A) | No — `pxa_state` is always present | status flag + precondition |
+| `VulnerabilityCase` | case exists (participants, reports, seeded status) | `Case` type |
+| `VulnerabilityCase` | embargo active (`active_embargo` non-None) | `EmbargoedCase` type |
+| `VulnerabilityCase` | public / exploit / attacks | precondition + guard, never `PublicCase` (LST-01-002) |
+| `ParticipantStatus` | RM ratchets, vfd progress | state groups and predicates (`RM_VALIDATED`, `is_rm_at_least()`) |
+| `CaseStatus` | EM / pxa changes | state groups and predicates |
 
-Plus the pre-case boundary: `IncomingReport` (report data, no case).
+Plus the pre-case boundary `IncomingReport`. RM state is per-participant, so
+"the case is valid" is undefined and earns no case type.
 
-So the VulnerabilityCase family is exactly **`IncomingReport` → `Case` →
-`EmbargoedCase`**. A `Case` always has ≥1 report and the reporter + receiver
-participants (two parties, because Vultron creates the case on receipt and both
-sides are present at that moment).
+## Narrow With `model_validate` at the Edge
 
-The embargo milestone is monotonic: the EM machine
-(`vultron/core/states/em.py`) never returns to `NONE`/`PROPOSED` once `ACTIVE`.
-
-### ParticipantStatus — per-participant RM/vf/d (no types)
-
-`rm_state` is always-present. `vf_state`/`d_state` (split per ADR-0075) are nullable: auto-seeded for VENDOR/DEPLOYER participants respectively, `None` for participants that hold neither role. The RM.VALID ratchet
-is real (once VALID you cannot return to RECEIVED/INVALID; CLOSED only via
-ACCEPTED/DEFERRED) and the vfd path is monotonic (`v→V→F` on VF, `d→D` on D), but neither adds a
-field. Per LST-01-001 they earn **no subtype**. They become state-group tuples
-and predicates — e.g. `RM_VALIDATED`, `is_rm_validated()` — alongside the
-existing `RM_ACTIVE`, `RM_CLOSABLE`, `EM_NEGOTIATING`, and `is_rm_at_least()`
-helpers.
-
-### CaseStatus — case-level EM/pxa (no types)
-
-`em_state` and `pxa_state` are always-present enums; no milestone adds a field.
-Same outcome as `ParticipantStatus`: predicates + state groups, no subtypes.
-
-## P/X/A: Preconditions, Not Types
-
-The public/exploit/attack dimensions change *which actions are permitted* (you
-cannot propose an embargo once any of P/X/A is set; an active embargo must
-terminate on publication) but change no field. They are modeled as **precondition
-specs + transition guards** (LST-01-002, LST-05), never a `PublicCase` type.
-This is deliberately parallel to how RM ratchets are handled — a consistent
-principle across all three classes.
-
-## Read Mechanism: model_validate at the Edge
-
-Staged subtypes share `type_="VulnerabilityCase"` (like the `CaseParticipant`
-role subclasses share `type_="CaseParticipant"`), so the DataLayer stores them
-in one table and rehydrates the **base** type. The staged type is a **view
-derived on demand**, not a stored discriminator.
-
-A core function that needs a narrowed type validates at its entry boundary:
+Staged subtypes share `type_="VulnerabilityCase"`, so the DataLayer stores one
+table and rehydrates the **base** type. A function needing a narrowed type
+validates at its entry boundary:
 
 ```python
-# dl.read() returns a generic Case; the edge narrows it.
 embargoed = EmbargoedCase.model_validate(case)   # raises if no active embargo
-# ... downstream code holds EmbargoedCase; active_embargo is guaranteed.
 ```
 
-The subtype's own `model_validator` **is** the promotion logic — there is no
-separate hand-written promotion function. On invariant violation it raises a
-descriptive error at the boundary (fail-fast), never a silent `None` propagated
-into core. This is ADR-0032 applied at the read boundary.
+The subtype's `model_validator` **is** the promotion logic; write no separate
+promotion function. It raises at the boundary, never returns `None` into core
+(ADR-0032). This works on a real `dl.read()` result, not only on a
+core-constructed object (`test_staged_case.py`,
+`TestDataLayerRoundTrip::test_promotion_works_on_a_real_datalayer_read`).
+An upstream BT guard such as `HasActiveEmbargoNode` is an alternative placement
+for the same precondition, not evidence that promotion fails.
 
-**This works on a real `dl.read()` result, not just a core-constructed object.**
-Root `AGENTS.md` carried a contradicting rule for a while ("staged-type
-`model_validate` only works on core-constructed objects; don't use on `dl.read()`
-results; check pre-conditions directly on the returned object"), and no test
-covered the actual read boundary, so nothing could adjudicate it. Verified against
-a real SQLite round-trip: `case_statuses` rehydrate as materialized `CaseStatus`
-objects and `EmbargoedCase.model_validate(stored)` promotes successfully. The rule
-was wrong and is gone; the behaviour is now pinned by
-`test/core/models/test_staged_case.py::TestDataLayerRoundTrip::test_promotion_works_on_a_real_datalayer_read`.
+## The Stage Is Derived, Never Stored
 
-Note that the surviving *alternative* is not a contradiction: an upstream BT guard
-such as `HasActiveEmbargoNode` (see
-`vultron/core/behaviors/embargo/nodes/lifecycle.py`) may establish the same
-preconditions before a node runs. That is a guard placement choice, not evidence
-that promotion at the read boundary fails.
+Case data is the single source of truth; the stage is re-derived on demand
+(LST-05-002). Do not add a persisted stage discriminator: a staged object must
+rehydrate to the base type and re-validate to its staged type without loss
+(LST-05-003). Register only the base type in `CORE_VOCABULARY`.
 
-## Transition Model: Data Is the Source of Truth
+## The Write Path Stays the Existing One
 
-The case *data* is the single source of truth; the stage is **always re-derived,
-never stored** (LST-05-002). Advancing a case is an ordinary field mutation
-(setting `active_embargo` when EM reaches `ACTIVE`), exactly as today's BT nodes
-and use cases already do. No stored "stage" field and no explicit
-`transition()` constructors — a second write path would risk divergence from the
-existing mutation paths.
-
-*(Recorded at moderate confidence. The alternative — explicit transition
-constructors like `case.to_embargoed(embargo)` — is documented in ADR-0033 and
-may be reopened if the code-migration audit shows the field-mutation path is
-error-prone.)*
-
-## DataLayer Round-Trip Constraint
-
-Round-trip compatibility is a binding design constraint (LST-05-003): a persisted
-staged object must rehydrate to the base type and re-validate to its staged type
-without loss. Register the base type in `CORE_VOCABULARY` as today; do not add a
-persisted stage discriminator.
-
-## Transition Constructors: Not Adopted (field-mutation retained)
-
-**Decision (CONCERN-1912, planning group G06 / #2834):** the write path stays as
-field mutation on the staged types; explicit transition constructors (a second,
-transition-verb-shaped write API) are **not** introduced.
-
-ADR-0033 already evaluated and rejected transition constructors as a second write
-path that risks divergence from the field-mutation path, and set an explicit
-reopen bar: the option "may be reopened if the migration audit shows the
-field-mutation path is error-prone in practice." The concrete threshold applied
-here for "error-prone in practice" is **≥2 distinct classes of field-mutation
-error** observed at staged-type promotion sites (e.g., promoting to
-`EmbargoedCase` without setting `active_embargo`, or mutating `case_statuses`
-without materialising a `CaseStatus`).
-
-State of the evidence: the staged types are substantially implemented
-(`vultron/core/models/staged_case.py` defines `IncomingReport`, `Case`, and
-`EmbargoedCase`, each with `model_validator` invariants keyed to LST-02), so the
-migration is real enough to audit — but no recurring field-mutation error classes
-have surfaced. The ADR-0033 reopen precondition is therefore **unmet**, and #1912
-resolves to "no change; retain field mutation." Re-open only if the bar above is
-later met. The companion CS-representation verdict (CONCERN-2099) is recorded in
-`notes/case-state-model.md`.
-
-**See**: `docs/adr/0033-lifecycle-staged-case-types.md`;
-`vultron/core/models/staged_case.py`; `notes/case-state-model.md`.
+Advancing a case goes through the write path that already owns the data: an
+embargo becomes active through an `EmbargoLifecycle` register step, and
+`active_embargo` is a read-only view of the register's `ACTIVE` entry
+(ADR-0122). Do not add transition constructors such as
+`case.to_embargoed(embargo)`: a second write path would diverge from the
+existing one (ADR-0033, CONCERN-1912). Reopen only on **two or more distinct
+classes of write error** observed at promotion sites (for example, promoting to
+`EmbargoedCase` from a case whose register has no `ACTIVE` entry).

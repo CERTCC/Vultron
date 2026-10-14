@@ -14,9 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Event-type matcher condition nodes for SYNC log-replication.
 
-Each ``Is*EventNode`` matches exactly one ``event_type`` string on the
-blackboard ``activity.log_entry``.  They are used as preconditions in the
-``AnnounceLogEntryReceivedBT`` Selector branches (BTND-08-001/002).
+Each ``Is*EventNode`` matches the ``event_type`` of one kind of entry on
+the blackboard ``activity.log_entry``.  Usually that is one event type; the
+note-attachment node matches the two entries that attach a note.  They are
+used as preconditions in the ``AnnounceLogEntryReceivedBT`` Selector branches
+(BTND-08-001/002).
 """
 
 from __future__ import annotations
@@ -50,8 +52,11 @@ _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 _REJECT_INVITE_ACTOR_TO_CASE_EVENT = "reject_invite_actor_to_case"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
+#: A received ``Create(Note)`` whose note names a case: its entry is the
+#: attachment's entry, as the activity states the note belongs to the case
+#: (CLP-07-013, #4441).
+_CREATE_NOTE_EVENT = MessageSemantics.CREATE_NOTE.value
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
-_CLOSE_CASE_EVENT = "close_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
 # The revision relay's event types (EP-09-007, ADR-0113).  The proposal and
@@ -96,7 +101,23 @@ class _ActivityEventNode(DataLayerConditionWithPorts):
             self.activity = None
 
 
-class _SingleEventTypeNode(_ActivityEventNode):
+class _EventTypeSetNode(_ActivityEventNode):
+    """Base for an ``Is*EventNode`` that matches a set of ``event_type`` values.
+
+    A subclass sets :attr:`matched_event_types`; the node returns SUCCESS iff
+    the entry's ``event_type`` is a member (BTND-08-001, SYNC-12-001).
+    """
+
+    matched_event_types: ClassVar[frozenset[str]]
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type in self.matched_event_types:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class _SingleEventTypeNode(_EventTypeSetNode):
     """Base for an ``Is*EventNode`` that matches exactly one ``event_type``.
 
     A subclass sets :attr:`matched_event_type`; the node returns SUCCESS iff
@@ -105,11 +126,10 @@ class _SingleEventTypeNode(_ActivityEventNode):
 
     matched_event_type: ClassVar[str]
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == self.matched_event_type:
-            return Status.SUCCESS
-        return Status.FAILURE
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if "matched_event_type" in cls.__dict__:
+            cls.matched_event_types = frozenset({cls.matched_event_type})
 
 
 class IsRemoveEmbargoEventNode(_SingleEventTypeNode):
@@ -161,8 +181,14 @@ class IsParticipantStatusEventNode(_SingleEventTypeNode):
     matched_event_type = _ADD_PARTICIPANT_STATUS_EVENT
 
 
-class IsAddNoteEventNode(_SingleEventTypeNode):
-    """Precondition: return SUCCESS when this log entry IS an add-note event.
+class IsAddNoteEventNode(_EventTypeSetNode):
+    """Precondition: SUCCESS when this log entry attaches a note to the case.
+
+    Two entries attach a note: ``add_note_to_case`` (a received
+    ``Add(Note, target=Case)``) and ``create_note`` (a received
+    ``Create(Note)`` whose note's ``context`` names the case).  Each activity
+    states the attachment itself, so its entry is the change's entry and both
+    replay through the one ``NoteEffects`` slot (CLP-07-013, #4441).
 
     Used as the precondition in the ``NoteEffects`` Selector's inner
     Sequence in ``AnnounceLogEntryReceivedBT``::
@@ -181,7 +207,9 @@ class IsAddNoteEventNode(_SingleEventTypeNode):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
 
-    matched_event_type = _ADD_NOTE_TO_CASE_EVENT
+    matched_event_types: ClassVar[frozenset[str]] = frozenset(
+        {_ADD_NOTE_TO_CASE_EVENT, _CREATE_NOTE_EVENT}
+    )
 
 
 class IsRemoveNoteEventNode(_SingleEventTypeNode):
@@ -234,29 +262,6 @@ class IsInviteRejectEventNode(_SingleEventTypeNode):
     """
 
     matched_event_type = _REJECT_INVITE_ACTOR_TO_CASE_EVENT
-
-
-class IsCloseCaseEventNode(_SingleEventTypeNode):
-    """Precondition: return SUCCESS when this log entry IS a close-case event.
-
-    Used as the precondition in the ``CloseCaseEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
-
-        Selector(CloseCaseEffects)
-          Sequence
-            IsCloseCaseEventNode   ← SUCCESS iff event_type matches
-            ApplyCloseCaseFromLedgerNode
-          Inverter(IsCloseCaseEventNode)  ← SUCCESS iff wrong event type
-
-    The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
-    ApplyCloseCaseFromLedgerNode fails, both branches of the Selector fail and
-    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
-
-    Per BTND-08-001, BTND-08-002, CM-23-003, SYNC-12-001.
-    """
-
-    matched_event_type = _CLOSE_CASE_EVENT
 
 
 class IsSubmitReportEventNode(_SingleEventTypeNode):

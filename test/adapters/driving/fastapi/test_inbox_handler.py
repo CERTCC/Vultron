@@ -824,7 +824,7 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
 
     The trigger port comes from ``_TRIGGER_ACTIVITY_PORT_SEMANTICS``; the sync
     and wire-render ports come from the received baseline (#4113).  Without
-    the ``WireRenderPort``, ``CommitCaseActorRMClosedEntryNode`` cannot render the
+    the ``WireRenderPort``, ``CommitRMClosureEntriesNode`` cannot render the
     CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
     the owner-Leave path before ``case_fully_closed`` is committed.  This guards
     the wiring rather than the node, because a lost registration is silent at

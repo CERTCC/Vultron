@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Integration tests for AnnounceLogEntryReceivedBT."""
 
+import json
 from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
@@ -16,11 +17,8 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.ledger_snapshots import (
-    build_create_case_participant_snapshot,
-)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -54,7 +52,10 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import (
+    announce_log_entry_activity,
+    create_participant_activity,
+)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -142,10 +143,12 @@ def _make_event(
 def test_create_announce_log_entry_tree_is_intake_then_role_selector():
     tree = create_announce_log_entry_tree()
     assert tree.name == "AnnounceLogEntryReceivedBT"
-    # Intake first (CLP-10-017), then the CASE_MANAGER / participant arms.
+    # Intake first (CLP-10-017), the post-close guard (CM-23-013), then the
+    # CASE_MANAGER / participant arms.
     assert tree.children[0].name == "IntakeReceivedActivityNode"
-    assert len(tree.children) == 2
-    assert len(tree.children[1].children) == 2
+    assert tree.children[1].name == "CaseOpenToExternalWrites"
+    assert len(tree.children) == 3
+    assert len(tree.children[2].children) == 2
 
 
 def _archived(datalayer, event) -> bool:
@@ -924,11 +927,15 @@ def _create_entry(
     record: CaseParticipant, log_index: int, prev_hash: str
 ) -> CaseLedgerEntry:
     """The CASE_MANAGER's ``create_case_participant`` entry carrying *record*."""
-    snapshot = build_create_case_participant_snapshot(
-        record,
-        "https://example.org/actors/manager",
-        CASE_ID,
-        As2WireRenderAdapter(),
+    snapshot = json.loads(
+        dump_outbound_body(
+            create_participant_activity(
+                record,
+                target=CASE_ID,
+                actor="https://example.org/actors/manager",
+                context=CASE_ID,
+            )
+        )
     )
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -1326,33 +1333,9 @@ class TestEffectsFailureBlocksPersist:
         assert result.status == Status.FAILURE
         assert datalayer.read(entry.id_) is None
 
-    @pytest.mark.spec("SYNC-12-001")
-    @pytest.mark.spec("SYNC-12-002")
-    def test_apply_close_case_failure_blocks_persist(
-        self, bridge, datalayer, case_actor, case_obj
-    ):
-        """PersistReceivedLogEntry must NOT run when ApplyCloseCaseFromLedger returns FAILURE."""
-        entry = _make_close_case_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        tree = create_announce_log_entry_tree()
-        apply_node = _find_node_by_name(tree, "ApplyCloseCaseFromLedger")
-        assert apply_node is not None
-        apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
-
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
-
-        assert result.status == Status.FAILURE
-        assert datalayer.read(entry.id_) is None
-
 
 # ---------------------------------------------------------------------------
-# Announce tree applies close_case ledger entry (CloseCaseEffects slot)
+# A close_case ledger entry changes no RM state on a replica (CM-23-001)
 # ---------------------------------------------------------------------------
 
 DEPARTING_ACTOR_ID = "https://example.org/actors/departing"
@@ -1391,16 +1374,23 @@ def _make_case_with_departing_participant(
     return case
 
 
-class TestAnnounceLogEntryAppliesCloseCase:
-    """Participant receiving close_case ledger entry must advance departing actor to RM.CLOSED."""
+class TestAnnounceLogEntryCloseCaseChangesNoRmState:
+    """A close_case entry is stored; the leaver's RM moves arrive as status entries."""
 
-    @pytest.mark.spec("SYNC-12-001")
-    @pytest.mark.spec("SYNC-12-002")
-    def test_participant_advances_departing_actor_to_rm_closed(
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-016")
+    def test_close_case_entry_alone_changes_no_rm_state(
         self, bridge, datalayer, case_actor
     ):
-        """BT advances the departing actor to RM.CLOSED on close_case entry (CM-23-003, CM-23-004)."""
+        """Applying close_case persists the entry and writes no status.
+
+        The CASE_MANAGER commits one status entry per RM step after the
+        close_case entry, and only those move the leaver on a replica; a
+        replica never works out a closure path from its own state (#4091).
+        """
         case_obj = _make_case_with_departing_participant(datalayer)
+        before = datalayer.read(DEPARTING_PARTICIPANT_ID)
+        assert isinstance(before, CaseParticipant)
         entry = _make_close_case_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
@@ -1412,58 +1402,22 @@ class TestAnnounceLogEntryAppliesCloseCase:
         )
 
         assert result.status == Status.SUCCESS
-        updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
-        assert updated is not None
-        rm_states = [
-            ps.rm.state
-            for ps in updated.participant_statuses
-            if hasattr(ps, "rm") and ps.rm is not None
-        ]
-        assert RM.CLOSED in rm_states, (
-            f"Departing actor must reach RM.CLOSED after close_case announce;"
-            f" rm_states={rm_states}"
+        assert datalayer.read(entry.id_) is not None, (
+            "the close_case entry is still persisted (SYNC-12-002)"
         )
-
-    def test_close_case_not_applied_for_other_event_types(
-        self, bridge, datalayer, case_actor
-    ):
-        """CloseCaseEffects Selector short-circuits for unrelated event_types."""
-        # Use the helper's case, not the ``case_obj`` fixture: the helper saves
-        # a fresh case over the same id, and ``genesis_hash`` is derived from
-        # the second-resolution ``published`` stamp, so the fixture's hash is
-        # stale whenever the two constructions straddle a second boundary.
-        case_obj = _make_case_with_departing_participant(datalayer)
-        entry = _make_entry(
-            0, case_obj.genesis_hash
-        )  # event_type="test_event"
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
-
-        assert result.status == Status.SUCCESS
         updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
-        assert updated is not None
-        rm_states = [
-            ps.rm.state
-            for ps in updated.participant_statuses
-            if hasattr(ps, "rm") and ps.rm is not None
-        ]
-        assert RM.CLOSED not in rm_states, (
-            f"Non-close-case entry must NOT advance departing actor to RM.CLOSED;"
-            f" rm_states={rm_states}"
+        assert isinstance(updated, CaseParticipant)
+        assert updated.participant_statuses == before.participant_statuses, (
+            "close_case must write no ParticipantStatus on a replica"
+            f" (CM-23-001); got {updated.participant_statuses}"
         )
 
     @pytest.mark.spec("SYNC-12-003")
     def test_close_case_apply_is_idempotent(self, datalayer):
-        """ApplyCloseCaseFromLedgerNode called twice must not create duplicate RM.CLOSED entries.
+        """The CASE_MANAGER's Leave advance, run twice, writes RM.CLOSED once.
 
-        Calls the apply node directly (bypassing CheckLogEntryAlreadyStored)
-        so we verify the node's own idempotency guard, not the tree-level guard.
+        Calls the advance node directly, so this checks the node's own
+        idempotency guard; the second run reports no step to record.
         """
         from vultron.core.behaviors.case.nodes.leave import (
             AdvanceParticipantToRMClosedNode,
@@ -1471,17 +1425,20 @@ class TestAnnounceLogEntryAppliesCloseCase:
 
         _make_case_with_departing_participant(datalayer)
 
-        def _run_advance() -> None:
+        def _run_advance() -> list[str]:
+            steps: list[str] = []
             node = AdvanceParticipantToRMClosedNode(
                 leaving_actor_id=DEPARTING_ACTOR_ID,
                 case_id=CASE_ID,
+                closure_steps=steps,
             )
             node.datalayer = datalayer
             node.setup()
             node.update()
+            return steps
 
-        _run_advance()
-        _run_advance()
+        assert _run_advance(), "the first run writes the closure"
+        assert _run_advance() == [], "the second run writes no step"
 
         updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
         assert updated is not None
@@ -1587,6 +1544,70 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         updated = datalayer.read(CASE_ID)
         assert updated is not None
         assert updated.attributed_to == OWNER_ACTOR_ID
+
+
+class TestAnnounceLogEntryOfOwnershipTransferReject:
+    """A replica applies no state change from a declined transfer (CM-21-012).
+
+    ``reject_case_ownership_transfer`` is declared ``NO_REPLICA_EFFECT``
+    (RSH-08-004): the entry closes the Offer, which every reader learns from
+    the ledger itself, and moves no owner or role.
+    """
+
+    @pytest.mark.spec("CM-21-012")
+    @pytest.mark.spec("RSH-08-004")
+    def test_reject_entry_is_persisted_and_ownership_unchanged(
+        self, bridge, datalayer, case_actor
+    ):
+        case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        roles: dict[str, list[CVDRole]] = {
+            OWNER_ACTOR_ID: [CVDRole.CASE_OWNER],
+            NEW_OWNER_ID: [],
+        }
+        for actor_id, case_roles in roles.items():
+            participant = CaseParticipant(
+                attributed_to=actor_id, context=CASE_ID, case_roles=case_roles
+            )
+            datalayer.create(participant)
+            case.actor_participant_index[actor_id] = participant.id_
+            case.case_participants.append(participant.id_)
+        datalayer.save(case)
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/reject-ownership",
+                event_type="reject_case_ownership_transfer",
+                payload_snapshot={"type": "Reject", "actor": NEW_OWNER_ID},
+                prev_log_hash=case.genesis_hash,
+            )
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert [
+            e.event_type
+            for e in datalayer.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ] == ["reject_case_ownership_transfer"]
+        updated = datalayer.read(CASE_ID)
+        assert isinstance(updated, VulnerabilityCase)
+        assert updated.attributed_to == OWNER_ACTOR_ID
+        for actor_id, case_roles in roles.items():
+            participant = datalayer.read(
+                updated.actor_participant_index[actor_id]
+            )
+            assert isinstance(participant, CaseParticipant)
+            assert (CVDRole.CASE_OWNER in participant.case_roles) is (
+                CVDRole.CASE_OWNER in case_roles
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -38,7 +38,7 @@ References
 - Source: ``vultron/bt/report_management/fuzzer/publication.py``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-16-003, BT-16-004, BT-16-005,
   BT-20-002
-- Notes: ``notes/bt-fuzzer-nodes-report-management.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-publication.md``
 - ADR: ``docs/adr/0028-publication-intent-bt-collapse.md``
 """
 

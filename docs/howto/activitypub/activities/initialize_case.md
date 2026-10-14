@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Initialize a Case
@@ -57,8 +57,14 @@ flowchart LR
 
 1. Send `Create(VulnerabilityCase)`, carrying the new `VulnerabilityCase` as its `object`.
    Set yourself as Case Owner.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/create-case.md" %}
+
 2. Attach the report with `Add(VulnerabilityReport)`, targeting the case.
    Only the Case Owner may send it, and the receiving actor must be the case's CASE_MANAGER, so mint the case through the create-case trigger (which seats the creator as Case Owner and CASE_MANAGER) rather than as a bare `Create(VulnerabilityCase)`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/add-report-to-case.md" %}
+
 3. Seat each participant you already know by asking the CASE_MANAGER to invite it, naming its roles; it joins when it accepts.
    See [How to Seat a Participant on an Existing Case](initialize_participant.md).
    `Add(CaseParticipant)` does not seat a member: it reinstates one the Case Owner removed.
@@ -95,9 +101,7 @@ Every one of these is committed to the case ledger by the CASE_MANAGER and fanne
 
 !!! example "Try it: `vultron-demo initialize-case`"
 
-    ```bash
-    vultron-demo initialize-case
-    ```
+    {% include-markdown "./_demo_initialize_case.md" %}
 
     Or with Docker Compose:
 

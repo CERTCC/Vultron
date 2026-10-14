@@ -23,6 +23,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
+import json
 import logging
 from typing import Any
 from unittest.mock import MagicMock, call, patch
@@ -44,7 +45,9 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers.polling import case_manager_store
 from vultron.demo.helpers.sync import verify_replica_state
+from vultron.demo.utils import case_actor_id_on
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -335,10 +338,15 @@ class TestResetContainers:
         vendor_client.get.return_value = {}
         case_actor_client.get.return_value = {}
 
-        with patch(
-            "vultron.demo.scenario.fv_demo.reset_datalayer",
-            return_value={"status": "ok"},
-        ) as reset_mock:
+        with (
+            patch(
+                "vultron.demo.scenario.fv_demo.reset_datalayer",
+                return_value={"status": "ok"},
+            ) as reset_mock,
+            patch(
+                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+            ) as seed_mock,
+        ):
             demo.reset_containers(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
@@ -352,6 +360,9 @@ class TestResetContainers:
                 call(client=case_actor_client),
             ]
         )
+        # The reset wipes the CaseActor identity the Vendor proposes to, so it
+        # is re-seeded before the run starts (#1876).
+        seed_mock.assert_called_once_with(case_actor_client)
 
 
 class TestGetActorById:
@@ -1119,11 +1130,14 @@ class TestWaitForAllParticipantsRmClosed:
     def test_case_manager_does_not_block_rm_closure_check(
         self, client: TestClient, base: str
     ):
-        """CASE_MANAGER participant is excluded from the RM closure check.
+        """The CASE_MANAGER does not block the RM closure check in its store.
 
-        Close vendor and finder; the Case Actor (CASE_MANAGER role) must not
-        block ``_all_fetchable_participants_rm_closed`` from returning True,
-        whether or not the Case Actor has auto-closed.
+        Close vendor and finder; the Case Actor (CASE_MANAGER role) closes on
+        the owner's Leave (CM-23-005), so it does not block
+        ``_all_fetchable_participants_rm_closed`` from returning True.  The
+        check reads the CASE_MANAGER's own store: a closed participant's
+        replica is sent nothing after its own closure (CM-23-004), so the
+        Vendor's replica never learns the CASE_MANAGER closed.
         """
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
@@ -1136,16 +1150,21 @@ class TestWaitForAllParticipantsRmClosed:
         ActorSession(client=vendor_client, actor=vendor).with_case(
             case
         ).notify_published()
-        ActorSession(client=vendor_client, actor=vendor).with_case(
-            case
-        ).close_case()
+        # The finder leaves before the owner: a Leave after the owner's close
+        # records nothing (CM-23-013, CM-23-015).
         ActorSession(client=finder_client, actor=finder).with_case(
             case
         ).close_case()
-        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
+        ActorSession(client=vendor_client, actor=vendor).with_case(
+            case
+        ).close_case()
+        store_client, store_id = case_manager_store(vendor_client, case.id_)
+        assert store_id is not None, "the CaseActor is co-hosted in this test"
+        manager_client = store_client.model_copy(update={"actor_id": store_id})
+        case_data = manager_client.get(manager_client.dl_path(case.id_))
         refreshed_case = as_VulnerabilityCase.model_validate(case_data)
         result = demo._all_fetchable_participants_rm_closed(
-            vendor_client, refreshed_case
+            manager_client, refreshed_case
         )
         assert result is True
 
@@ -1266,6 +1285,9 @@ class TestRunTwoActorDemo:
     ):
         finder_client = make_client(base)
         vendor_client = make_client(base)
+        # In process the CaseActor shares the one TestClient node; the Docker
+        # topology gives it its own container (DEMOMA-06-004).
+        case_actor_client = make_client(base, actor_id=case_actor_id_on(base))
 
         finder_id = f"{base}/actors/finder-full-test"
         vendor_id = f"{base}/actors/vendor-full-test"
@@ -1295,6 +1317,7 @@ class TestRunTwoActorDemo:
             demo.run_fv_demo(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
+                case_actor_client=case_actor_client,
                 finder_id=finder_id,
                 vendor_id=vendor_id,
             )
@@ -1307,113 +1330,22 @@ class TestRunTwoActorDemo:
 class TestDumpCaseLogs:
     """Case-log dump behavior for participant and case-actor outputs."""
 
-    def test_falls_back_to_vendor_case_actor_sub_actor(
-        self, tmp_path, monkeypatch
-    ):
-        finder_client = MagicMock()
-        vendor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
+    _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 
-        case = demo.as_VulnerabilityCase(
-            id_="https://example.org/cases/case-dump-fallback",
-            actor_participant_index={
-                "https://example.org/actors/vendor": (
-                    "https://example.org/cases/case-dump-fallback/"
-                    "participants/vendor"
-                ),
-                "https://example.org/actors/finder": (
-                    "https://example.org/cases/case-dump-fallback/"
-                    "participants/finder"
-                ),
-                "https://example.org/actors/case-actor-demo": (
-                    "https://example.org/cases/case-dump-fallback/"
-                    "participants/case-actor"
-                ),
-            },
-        )
-        finder = demo.as_Actor(
-            id_="https://example.org/actors/finder", name="Finder"
-        )
-        vendor = demo.as_Actor(
-            id_="https://example.org/actors/vendor", name="Vendor"
-        )
-        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
-
-        demo._phase_dump_case_ledgers(
-            finder_client=finder_client,
-            vendor_client=vendor_client,
-            finder=finder,
-            vendor=vendor,
-            case=case,
-            case_actor_client=None,
-        )
-
-        case_slug = "https_example.org_cases_case-dump-fallback"
-        assert (
-            tmp_path / "fv" / "finder" / f"{case_slug}-case-ledger.jsonl"
-        ).exists()
-        assert (
-            tmp_path / "fv" / "vendor" / f"{case_slug}-case-ledger.jsonl"
-        ).exists()
-        assert (
-            tmp_path / "fv" / "case-actor" / f"{case_slug}-case-ledger.jsonl"
-        ).exists()
-        assert any(
-            "/actors/case-actor-demo/demo/cases/case-dump-fallback/log"
-            in call.args[0]
-            for call in vendor_client.get_list.call_args_list
-        )
-
-    def test_prefers_dedicated_case_actor_client_when_provided(
-        self, tmp_path, monkeypatch
-    ):
+    def _dump(self, tmp_path, monkeypatch, case_actor_entries):
         finder_client = MagicMock()
         vendor_client = MagicMock()
         case_actor_client = MagicMock()
+        case_actor_client.actor_id = self._CASE_ACTOR_ID
         finder_client.get_list.return_value = [{"logIndex": 0}]
         vendor_client.get_list.return_value = [{"logIndex": 0}]
-        case_actor_client.get_list.return_value = [{"logIndex": 0}]
+        case_actor_client.get_list.return_value = case_actor_entries
 
         case = demo.as_VulnerabilityCase(
-            id_="https://example.org/cases/case-dump-dedicated"
-        )
-        finder = demo.as_Actor(
-            id_="https://example.org/actors/finder", name="Finder"
-        )
-        vendor = demo.as_Actor(
-            id_="https://example.org/actors/vendor", name="Vendor"
-        )
-        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
-
-        demo._phase_dump_case_ledgers(
-            finder_client=finder_client,
-            vendor_client=vendor_client,
-            finder=finder,
-            vendor=vendor,
-            case=case,
-            case_actor_client=case_actor_client,
-        )
-
-        case_actor_client.get_list.assert_called_once_with(
-            "/actors/case-actor/demo/cases/case-dump-dedicated/log"
-        )
-
-    def test_falls_back_when_dedicated_case_actor_log_is_empty(
-        self, tmp_path, monkeypatch
-    ):
-        finder_client = MagicMock()
-        vendor_client = MagicMock()
-        case_actor_client = MagicMock()
-        finder_client.get_list.return_value = [{"logIndex": 0}]
-        vendor_client.get_list.return_value = [{"logIndex": 0}]
-        case_actor_client.get_list.return_value = []
-
-        case = demo.as_VulnerabilityCase(
-            id_="https://example.org/cases/case-dump-empty-dedicated",
+            id_="https://example.org/cases/case-dump-dedicated",
             actor_participant_index={
-                "https://example.org/actors/case-actor-fallback": (
-                    "https://example.org/cases/case-dump-empty-dedicated/"
+                self._CASE_ACTOR_ID: (
+                    "https://example.org/cases/case-dump-dedicated/"
                     "participants/case-actor"
                 )
             },
@@ -1434,12 +1366,50 @@ class TestDumpCaseLogs:
             case=case,
             case_actor_client=case_actor_client,
         )
+        return vendor_client, case_actor_client
 
-        assert any(
-            "/actors/case-actor-fallback/demo/cases/"
-            "case-dump-empty-dedicated/log" in call.args[0]
+    def test_reads_the_case_actor_ledger_from_the_dedicated_container(
+        self, tmp_path, monkeypatch
+    ):
+        """DEMOMA-06-005: the canonical ledger comes from the case-actor
+        container, not from a sub-actor in the Vendor's."""
+        vendor_client, case_actor_client = self._dump(
+            tmp_path, monkeypatch, [{"logIndex": 0}]
+        )
+
+        case_actor_client.get_list.assert_called_once_with(
+            "/actors/case-actor/demo/cases/case-dump-dedicated/log"
+        )
+        assert not any(
+            "/actors/case-actor/" in call.args[0]
             for call in vendor_client.get_list.call_args_list
         )
+        case_slug = "https_example.org_cases_case-dump-dedicated"
+        for actor in ("finder", "vendor", "case-actor"):
+            assert (
+                tmp_path / "fv" / actor / f"{case_slug}-case-ledger.jsonl"
+            ).exists()
+
+    def test_an_empty_case_actor_ledger_is_not_replaced_by_a_replica(
+        self, tmp_path, monkeypatch
+    ):
+        """No fallback to the Vendor's container: the case-actor dump is
+        recorded as not captured instead of being filled from a replica."""
+        vendor_client, _ = self._dump(tmp_path, monkeypatch, [])
+
+        assert not any(
+            "/actors/case-actor/" in call.args[0]
+            for call in vendor_client.get_list.call_args_list
+        )
+        manifest = json.loads(
+            (tmp_path / "fv" / "dump-manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        case_actor_record = next(
+            a for a in manifest["actors"] if a["actorName"] == "case-actor"
+        )
+        assert case_actor_record["captured"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -1932,14 +1902,16 @@ def completed_workflow(
     with demo.demo_step("vendor reports publication"):
         vendor_session.notify_published()
 
-    # Case closure — both actors must close so RM=CLOSED for all.
+    # Case closure — both actors must close so RM=CLOSED for all.  The finder
+    # leaves first: a Leave after the owner's close records nothing
+    # (CM-23-013, CM-23-015).
     finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
-    with demo.demo_step("vendor closes case"):
-        vendor_session.close_case()
     with demo.demo_step("finder closes case"):
         ActorSession(client=finder_client, actor=finder_in_finder).with_case(
             case
         ).close_case()
+    with demo.demo_step("vendor closes case"):
+        vendor_session.close_case()
 
     # Final refresh to pick up any post-closure case-actor state.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
@@ -2022,7 +1994,7 @@ class TestCaseLedgerInvariants:
 
         The CASE_MANAGER reaches ``RM.CLOSED`` here through its own
         ``add_participant_status_to_participant`` entry, committed by
-        ``CommitCaseActorRMClosedEntryNode`` on the owner-Leave path (CM-23-005).
+        ``CommitRMClosureEntriesNode`` on the owner-Leave path (CM-23-005).
         Before ISSUE-2505 that transition was applied only to the Case Actor's
         own store and never recorded, so this assertion could not pass and the
         test carried a blanket ``xfail``.
@@ -2289,8 +2261,12 @@ class TestFvMilestoneAssertions:
             )
         mock_m6.assert_called()
 
-    def test_phase_case_closure_calls_verify_case_closed(self):
-        """_phase_case_closure calls verify_case_closed at M7."""
+    def test_phase_case_closure_runs_the_closure_milestone(self):
+        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+
+        The milestone checks the CASE_MANAGER's store and each leaver's own
+        replica inside ``close_case_owner_last``; the scenario only names it.
+        """
         import contextlib
 
         finder_client = self._client()
@@ -2312,11 +2288,8 @@ class TestFvMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed") as mock_m7,
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(
                 demo,
                 "demo_check",
@@ -2333,8 +2306,10 @@ class TestFvMilestoneAssertions:
                 finder=finder,
                 finder_in_finder=finder_in_finder,
                 case=case,
+                case_actor_client=MagicMock(),
             )
-        mock_m7.assert_called()
+        mock_m7.assert_called_once()
+        assert mock_m7.call_args.kwargs.get("milestone") == "M7"
 
     @pytest.mark.spec("CM-23-015")
     def test_phase_case_closure_closes_the_case_owner_last(self):
@@ -2360,11 +2335,7 @@ class TestFvMilestoneAssertions:
                 autospec=True,
                 side_effect=record_close,
             ),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed"),
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -2379,6 +2350,7 @@ class TestFvMilestoneAssertions:
                 finder=self._actor("urn:test:finder"),
                 finder_in_finder=finder_in_finder,
                 case=case,
+                case_actor_client=MagicMock(),
             )
 
         assert closed_by == [finder_in_finder.id_, vendor_in_vendor.id_]
@@ -2462,71 +2434,12 @@ class TestFvCausalGates:
             demo._phase_report_submission(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
-                case_actor_client=None,
+                case_actor_client=MagicMock(),
                 finder_id=None,
                 vendor_id=None,
             )
 
         verify_case_active_called.assert_not_called()
-
-    def test_case_closure_skips_coverage_wait_when_close_case_entry_absent(
-        self,
-    ):
-        """demo_gate skips the coverage wait when the close_case entry never lands.
-
-        Runs the real ``demo_gate`` / ``demo_check`` (vultron/demo/AGENTS.md §
-        causal gating, rule 8): the gate must swallow the timeout, record one
-        ``GATE FAILED`` and skip the dependent wait — a patched-out context
-        would let the assertion propagate and prove nothing.
-        """
-        import vultron.demo.utils as demo_utils
-        from vultron.demo.utils import reset_demo_failures
-
-        finder_client = self._client()
-        vendor_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        finder = self._actor("urn:test:finder")
-        finder_in_finder = self._actor("urn:test:finder")
-        case = self._case()
-
-        coverage_wait_called = MagicMock()
-
-        with (
-            patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
-            stub_closure_gate(),
-            patch.object(demo, "verify_case_closed"),
-            patch.object(
-                demo,
-                "wait_for_event_type_in_ledger",
-                side_effect=AssertionError(
-                    "timed out waiting for close_case entry"
-                ),
-            ),
-            patch.object(
-                demo,
-                "wait_for_replica_ledger_coverage",
-                side_effect=coverage_wait_called,
-            ),
-        ):
-            reset_demo_failures()
-            try:
-                demo._phase_case_closure(
-                    finder_client=finder_client,
-                    vendor_client=vendor_client,
-                    vendor=vendor,
-                    vendor_in_vendor=vendor_in_vendor,
-                    finder=finder,
-                    finder_in_finder=finder_in_finder,
-                    case=case,
-                )
-                coverage_wait_called.assert_not_called()
-                (failure,) = demo_utils._demo_failures
-                assert failure.startswith("GATE FAILED")
-                assert "close_case entry present" in failure
-            finally:
-                reset_demo_failures()
 
 
 def test_cli_help_phases_match_tutorial() -> None:

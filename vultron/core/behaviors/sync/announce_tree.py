@@ -5,9 +5,6 @@ from collections.abc import Callable
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.close_case_effect import (
-    ApplyCloseCaseFromLedgerNode,
-)
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -54,7 +51,6 @@ from vultron.core.behaviors.sync.nodes import (
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
-    IsCloseCaseEventNode,
     IsCreateCaseParticipantEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
@@ -298,11 +294,10 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 IsReinstateCaseParticipantEventNode,
                 ApplyReinstateCaseParticipantFromLedgerNode,
             ),
-            _event_effect_slot(
-                "CloseCase",
-                IsCloseCaseEventNode,
-                ApplyCloseCaseFromLedgerNode,
-            ),
+            # No CloseCase slot: close_case records the received Leave, and
+            # the RM moves it caused arrive as the participant-status entries
+            # after it, applied above.  A replica never walks a closure path
+            # from its own stored state (CM-23-001, CM-23-016, #4091).
             _event_effect_slot(
                 "OfferReport",
                 IsSubmitReportEventNode,

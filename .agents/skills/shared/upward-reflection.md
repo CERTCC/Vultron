@@ -87,6 +87,24 @@ frontmatter `title`, `type: learning`, `timestamp` (tz-aware ISO 8601 UTC),
 `source`, and `signal:` (one of `theme-candidate`, `spec-gap`, `spec-ambiguity`,
 `spec-contradiction`). No completion summaries (BW-01-001).
 
+### Body shape
+
+A learning file is read by a future agent deciding whether it is in the same
+situation, so write it for that reader, not as a record of the session:
+
+1. **Trigger** — the symptom or situation a future agent would recognise.
+2. **Claim** — the general statement, or for a `spec-*` file, the question
+   `learn` must settle.
+3. **Evidence** — the instance that suggests it, in one or two sentences.
+   Cite the issue or PR; the story of how the session found it belongs in the
+   PR body, not here. No `What happened` section.
+4. **What would confirm it** (theme-candidates) and **how to apply** it.
+
+If the finding's only open item is a defect, file the defect and write no file;
+once that issue closes, nothing is left for `learn` to do. A proposed remedy
+that names something that should exist is a `type:Idea` issue, not a paragraph.
+Twenty to forty lines is typical; a longer body is usually narrative.
+
 Commit the file as part of the originating PR (BW-01-006). When archiving, pass
 the signal via `uv run append-history learning --signal <type>`; `--from-file`
 preserves the `signal:` frontmatter verbatim.

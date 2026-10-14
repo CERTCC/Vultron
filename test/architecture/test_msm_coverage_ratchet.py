@@ -1,12 +1,15 @@
-"""Architecture ratchet: every ``SEMANTIC_REGISTRY`` entry has exactly one
-primary page in the MSM mapping table.
+"""Architecture ratchet: every ``SEMANTIC_REGISTRY`` entry has one primary page.
 
-AC-5: a ratchet test asserts every ``SEMANTIC_REGISTRY`` entry that is not
-in ``EXEMPTED_SEMANTICS`` appears exactly once in ``ROW_SPECS``.
+The page is declared on the entry itself (``SemanticEntry.page``, ADR-0128),
+so the hand-typed ``ROW_SPECS`` page column that this ratchet used to check is
+gone; ``ROW_SPECS`` is now derived from the entries.  The ratchet checks the
+entries directly: every entry outside the dispatcher fallbacks names a known
+page and appears on it, and the fallbacks name none (MSM-06-002).
 
-This test is intentionally a *hard* assertion (not a ratchet integer ceiling)
-because the mapping table is maintained alongside the registry: adding a new
-``SemanticEntry`` without a corresponding ``RowSpec`` is always wrong.
+This is a hard assertion rather than a ratchet integer ceiling: an entry
+without a page is always wrong, and ``SemanticEntry`` already refuses one at
+construction (MSM-08-001).  The checks here pin the registry-wide facts that
+construction cannot see.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -22,116 +25,77 @@ because the mapping table is maintained alongside the registry: adding a new
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from collections import Counter
+import re
+from pathlib import Path
 
 import pytest
 
 from vultron.core.models.events.base import MessageSemantics
+from vultron.metadata.msm import occasions as gen
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
     PAGE_SLUGS,
     ROW_SPECS,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
+from vultron.semantic_registry._entry import SemanticEntry
 
-# ---------------------------------------------------------------------------
-# Pre-compute the coverage map once at module level (fast; no fixture needed).
-# ---------------------------------------------------------------------------
+_FRAGMENTS = Path(__file__).parents[2] / gen.FRAGMENT_DIR
+_MESSAGES = _FRAGMENTS.parent
 
-_ALL_SEMANTICS: frozenset[MessageSemantics] = frozenset(MessageSemantics)
-_REQUIRED_SEMANTICS: frozenset[MessageSemantics] = (
-    _ALL_SEMANTICS - EXEMPTED_SEMANTICS
-)
-_ROW_SEMANTICS: list[MessageSemantics] = [row.semantics for row in ROW_SPECS]
-_ROW_SEMANTICS_COUNTER: Counter = Counter(_ROW_SEMANTICS)
-_ROW_SEMANTICS_SET: frozenset[MessageSemantics] = frozenset(_ROW_SEMANTICS)
+_PAGED: list[SemanticEntry] = [
+    e for e in SEMANTIC_REGISTRY if e.semantics not in EXEMPTED_SEMANTICS
+]
 
 
 @pytest.mark.spec("MSM-06-002")
-def test_every_required_semantics_has_a_row():
-    """Every non-exempted ``MessageSemantics`` value has at least one
-    ``RowSpec`` in ``ROW_SPECS``.
-
-    Failure here means a new ``SemanticEntry`` was added to
-    ``SEMANTIC_REGISTRY`` without a corresponding entry in
-    ``vultron/metadata/msm/_mapping.py``.
-    """
-    missing = sorted(
-        s.name for s in _REQUIRED_SEMANTICS if s not in _ROW_SEMANTICS_SET
-    )
-    assert missing == [], (
-        f"{len(missing)} MessageSemantics value(s) are in SEMANTIC_REGISTRY "
-        f"but have no RowSpec:\n  " + "\n  ".join(missing)
-    )
+def test_registry_holds_every_message_semantics_once():
+    """Each ``MessageSemantics`` value has exactly one registry entry."""
+    names = [e.semantics for e in SEMANTIC_REGISTRY]
+    assert sorted(names) == sorted(MessageSemantics)
 
 
 @pytest.mark.spec("MSM-06-002")
-def test_every_row_semantics_is_a_known_value():
-    """Every ``RowSpec.semantics`` is a valid ``MessageSemantics`` member.
-
-    Failure means a typo or stale enum value in ``_mapping.py``.
-    """
-    for row in ROW_SPECS:
-        assert row.semantics in _ALL_SEMANTICS, (
-            f"RowSpec references unknown semantics: {row.semantics!r}"
-        )
-
-
-@pytest.mark.spec("MSM-06-002")
-def test_every_row_page_is_a_known_slug():
-    """Every ``RowSpec.page`` is one of the eight canonical page slugs."""
-    for row in ROW_SPECS:
-        assert row.page in PAGE_SLUGS, (
-            f"RowSpec for {row.semantics.name!r} has unknown page {row.page!r}"
-        )
-
-
-@pytest.mark.spec("MSM-06-002")
-def test_each_semantics_has_exactly_one_primary_page():
-    """Each ``MessageSemantics`` value appears on at most one page.
-
-    Multiple ``RowSpec`` entries for the same semantics are allowed (that is
-    how expansion is expressed), but they MUST all share the same ``page``
-    value — a semantics value cannot have two different primary pages.
-    """
-    page_for: dict[MessageSemantics, set[str]] = {}
-    for row in ROW_SPECS:
-        page_for.setdefault(row.semantics, set()).add(row.page)
-
-    violations = [
-        f"{sem.name}: pages={sorted(pages)}"
-        for sem, pages in page_for.items()
-        if len(pages) > 1
+def test_every_non_exempt_entry_names_a_known_page():
+    unknown = [
+        f"{e.semantics.name}: {e.page!r}"
+        for e in _PAGED
+        if e.page is None or e.page.value not in PAGE_SLUGS
     ]
-    assert violations == [], (
-        "Some semantics values appear on more than one primary page:\n  "
-        + "\n  ".join(violations)
-    )
+    assert unknown == []
 
 
 @pytest.mark.spec("MSM-06-002")
-def test_registry_and_mapping_have_same_semantics_set():
-    """The set of semantics in ``SEMANTIC_REGISTRY`` equals the set in
-    ``ROW_SPECS`` union ``EXEMPTED_SEMANTICS``.
+def test_exempt_entries_name_no_page():
+    paged = [
+        e.semantics.name
+        for e in SEMANTIC_REGISTRY
+        if e.semantics in EXEMPTED_SEMANTICS and e.page is not None
+    ]
+    assert paged == []
 
-    This cross-check catches any drift between the two files: a new registry
-    entry without a row, or a stale row for a deleted semantics value.
-    """
-    registry_semantics = frozenset(e.semantics for e in SEMANTIC_REGISTRY)
-    mapping_semantics = _ROW_SEMANTICS_SET | EXEMPTED_SEMANTICS
 
-    in_registry_not_mapping = sorted(
-        s.name for s in registry_semantics - mapping_semantics
-    )
-    in_mapping_not_registry = sorted(
-        s.name for s in mapping_semantics - registry_semantics
-    )
+@pytest.mark.spec("MSM-06-002")
+@pytest.mark.parametrize("entry", _PAGED, ids=lambda e: e.semantics.name)
+def test_entry_appears_on_its_designated_page(entry: SemanticEntry):
+    """The entry's page includes the section of each of its occasions."""
+    assert entry.page is not None
+    page = (_MESSAGES / f"{entry.page.value}.md").read_text(encoding="utf-8")
+    text = re.sub(r"<!--.*?-->", "", page, flags=re.S)
+    for occasion in entry.occasions:
+        section = _FRAGMENTS / "sections" / f"{occasion.anchor}.md"
+        directive = (
+            f'include-markdown "./{section.relative_to(_MESSAGES).as_posix()}"'
+        )
+        assert directive in text, occasion.anchor
 
-    assert in_registry_not_mapping == [], (
-        "In SEMANTIC_REGISTRY but not in ROW_SPECS (or EXEMPTED_SEMANTICS):\n  "
-        + "\n  ".join(in_registry_not_mapping)
-    )
-    assert in_mapping_not_registry == [], (
-        "In ROW_SPECS (or EXEMPTED_SEMANTICS) but not in SEMANTIC_REGISTRY:\n  "
-        + "\n  ".join(in_mapping_not_registry)
-    )
+
+@pytest.mark.spec("MSM-06-002")
+def test_row_specs_are_one_row_per_paged_entry():
+    """``ROW_SPECS`` is derived: one row per non-exempt entry, its own page."""
+    rows = {row.semantics: row.page for row in ROW_SPECS}
+    assert len(rows) == len(ROW_SPECS)
+    expected = {
+        e.semantics: e.page.value for e in _PAGED if e.page is not None
+    }
+    assert rows == expected

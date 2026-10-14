@@ -1,12 +1,12 @@
 ---
 status: accepted
-status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-07-28
 created: 2026-07-28
 updated: 2026-10-06
 revision: 2
 deciders: [adh, Claude Sonnet 4.6]
 supersedes: 0015-create-case-at-report-receipt.md
+partially_superseded_by: 0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md
 stakeholder_type: [project-contributor]
 ---
 

@@ -17,7 +17,10 @@ from vultron.core.models.events.actor import (
     AcceptCaseParticipantRoleReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -39,7 +42,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for accept case participant role"
+        "#4522", "no sender check for accept case participant role"
     )
 
     def __init__(
@@ -84,7 +87,7 @@ class RejectCaseParticipantRoleReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for reject case participant role"
+        "#4522", "no sender check for reject case participant role"
     )
 
     def __init__(
@@ -108,9 +111,11 @@ class RejectCaseParticipantRoleReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        applied_or_raise(
+        verdict = applied_or_raise(
             tree, result, label="RejectCaseParticipantRoleReceivedBT"
         )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            return verdict  # the case is fully closed (CM-23-013)
         logger.warning(
             "RejectCaseParticipantRoleReceived: actor '%s' rejected role"
             " delegation offer '%s'",

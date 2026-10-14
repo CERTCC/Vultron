@@ -272,6 +272,7 @@ class TestLeaveCaseRoundTrip:
             request=event,
             sync_port=SyncActivityAdapter(ca_dl),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(ca_dl),
         ).execute()
 
         # Step 3: vendor is RM.CLOSED on Case Actor replica (CM-23-003)
@@ -406,6 +407,7 @@ class TestLeaveCaseRoundTrip:
             request=event,
             sync_port=SyncActivityAdapter(ca_dl),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(ca_dl),
         ).execute()
 
         # Step 4: owner and CaseActor are both RM.CLOSED on the CA replica

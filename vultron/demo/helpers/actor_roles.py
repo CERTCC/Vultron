@@ -273,3 +273,37 @@ __all__ = [
     "role_kwarg_names",
     "role_map",
 ]
+
+
+#: Env var naming the dedicated case-actor container in every scenario.
+CASE_ACTOR_URL_ENV = "VULTRON_CASE_ACTOR_BASE_URL"
+
+
+def case_actor_role(default_url: str, *, has_id: bool = False) -> ActorRole:
+    """The ``case-actor`` slot every Docker scenario declares (#1876).
+
+    Every scenario proposes its cases to the dedicated case-actor container
+    (CP-08-008, DEMOMA-06-004), so each has this role and they differ only in
+    the local fallback port — which is whatever that scenario's other roles
+    leave free — and in whether the handoff scenarios take a deterministic
+    ``--case-actor-id``.
+
+    Args:
+        default_url: Base URL used when :data:`CASE_ACTOR_URL_ENV` is unset.
+        has_id: Whether the scenario also takes ``--case-actor-id``.
+    """
+    return ActorRole(
+        name="case-actor",
+        url_env=CASE_ACTOR_URL_ENV,
+        default_url=default_url,
+        url_help=(
+            "Base URL of the dedicated CaseActor container API "
+            f"(env: {CASE_ACTOR_URL_ENV})."
+        ),
+        has_id=has_id,
+        id_help=(
+            "Deterministic full URI for the CaseActor actor (optional)."
+            if has_id
+            else None
+        ),
+    )

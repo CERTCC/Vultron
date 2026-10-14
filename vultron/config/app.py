@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
@@ -109,10 +109,15 @@ class ServerConfig(BaseModel):
             does.
         log_level: Root log level name.  Must be one of ``DEBUG``, ``INFO``,
             ``WARNING``, ``ERROR``, or ``CRITICAL``.  Defaults to ``"INFO"``.
+        ledger_stream_poll_seconds: How often (in seconds) an open demo case
+            ledger stream re-reads the actor's DataLayer for new entries
+            (``GET /actors/{id}/demo/cases/{case_id}/log/stream``, ADR-0104).
+            Must be positive.  Defaults to 0.25.
     """
 
     base_url: str = "http://localhost:7999/api/v2"
     log_level: LogLevelName = "INFO"
+    ledger_stream_poll_seconds: float = Field(default=0.25, gt=0)
 
     @field_validator("base_url")
     @classmethod

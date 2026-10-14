@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Post a Status Update or a Case Note
@@ -30,20 +30,28 @@ Which one you are sending is determined by the field you set, not by a different
 
 In every case, first send `Create(ParticipantStatus)` carrying the new value, then send `Add(ParticipantStatus)` targeting your own participant record.
 
+{% include-markdown "../../../reference/messages/_occasions/embeds/create-participant-status.md" %}
+
 ### Report that a vendor now knows
 
 Set `vf_state` from `vf` to `Vf`.
 That is Vendor Awareness (CV).
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/vendor-awareness.md" %}
 
 ### Report that a fix is ready
 
 Set `vf_state` from `Vf` to `VF`.
 That is Fix Readiness (CF).
 
+{% include-markdown "../../../reference/messages/_occasions/embeds/fix-readiness.md" %}
+
 ### Report that a fix is deployed
 
 Set `d_state` from `d` to `D`.
 That is Fix Deployed (CD).
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/fix-deployed.md" %}
 
 Send only your own status.
 Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (PRM-06-001, ADR-0121).
@@ -59,20 +67,28 @@ All three set `pxa_state`; which one you are sending is determined by which lett
 
 In every case, first send `Create(CaseStatus)` carrying the new `pxa_state` and naming the case in `context`, then send `Add(CaseStatus)` naming the case in `target`.
 
+{% include-markdown "../../../reference/messages/_occasions/embeds/create-case-status.md" %}
+
 ### Report that the vulnerability is public
 
 Change `p` to `P` in `pxa_state`.
 That is Public Awareness (CP).
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/public-awareness.md" %}
 
 ### Report that an exploit is public
 
 Change `x` to `X`.
 That is Exploit Public (CX).
 
+{% include-markdown "../../../reference/messages/_occasions/embeds/exploit-public.md" %}
+
 ### Report that attacks are happening
 
 Change `a` to `A`.
 That is Attacks Observed (CA).
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/attacks-observed.md" %}
 
 The state change hangs off the `Add`, because that is the activity that asserts the attachment.
 
@@ -90,7 +106,17 @@ Use a note when the case needs narrative that no status field carries — a ques
 A note goes to the case participants, not to the public.
 
 1. Draft the note: send `Create(Note)` with the note body.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/create-note.md" %}
+
 2. Post it to the case: send `Add(Note)`, targeting the case.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
+
+To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
+The CASE_MANAGER accepts it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/remove-note-from-case.md" %}
 
 The formal message set does not name this activity: it falls under the General Inquiry (GI) umbrella, which is a placeholder rather than a description — see [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
 
@@ -114,9 +140,7 @@ Each of these is committed by the CASE_MANAGER and fanned out, so checking your 
 
 !!! example "Try it: `vultron-demo status-updates`"
 
-    ```bash
-    vultron-demo status-updates
-    ```
+    {% include-markdown "./_demo_status_updates.md" %}
 
     Or with Docker Compose:
 

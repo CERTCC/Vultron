@@ -19,13 +19,13 @@ stakeholder_type: [project-contributor]
 | `vultron/bt/` | Original behavior tree simulator (read-only reference for the protocol BTs; backs the `vultrabot*` CLIs); production BTs live in `vultron/core/behaviors/` | `notes/bt-composability.md`, `vultron/bt/base/bt_node.py` |
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py`, `vultron/config/ledger.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, object types) imported by config and core | `vultron/enums/roles.py`, `vultron/enums/object_types.py` |
-| `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration | `vultron/errors.py`, `vultron/primitives.py` |
+| `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py`, `vultron/subclasses.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration, the one subclass-tree walk (`all_subclasses`) | `vultron/errors.py`, `vultron/primitives.py` |
 | `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli.py` |
 | `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
 | `specs/` | Structured YAML specification files | `specs/README.md` |
-| `notes/` | Durable design insight Markdown files | `notes/README.md` |
+| `notes/` | Working notes that inform work not yet done, each declaring `kind: guidance`, `plan`, or `generated` (NF-08) | `notes/README.md`, `.agents/skills/shared/notes-writing-guide.md` |
 | `archived_notes/` | Superseded design notes kept for reference | `archived_notes/README.md` |
 | `docs/` | MkDocs documentation source | `mkdocs.yml` |
 | `doc/examples/` | Committed JSON examples of the activity vocabulary | `doc/README.md` |
@@ -55,10 +55,13 @@ stakeholder_type: [project-contributor]
     Hard errors exit 1, and that includes the MS-12 kind tree (`vultron/metadata/specs/kind_classification.py`).
     An unverified `MUST`/`MUST_NOT` requirement without its own `verification_debt` marker is a hard error.
     The marked ones are printed as one line per kind, `--list-unverified` names the IDs, `--check-debt-owners` reports an owner issue that is closed, and `--check-closing-pr N` fails a PR that closes an owner still in use (both run in `verification-debt-owners.yml`).
+    It also prints one `[INFO]` line per MS-12 `lint_suppress` code, giving the live total of specs that carry it.
   - `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
   - `glossary-index` → `vultron.metadata.docs.glossary_index:main` (term index of `docs/reference/glossary.md`)
   - `adr-index` → `vultron.metadata.adr.index_gen:main`
+  - `adr-back-edges` → `vultron.metadata.adr.back_edges:main`.
+    It reports each live decision record that no requirement's `adr:` edge and no `specs/` or `notes/` citation points back to, unless it is in the record-only exemption set, and each exemption that is no longer needed.
   - `docs-frontmatter` → `vultron.metadata.docs.page_frontmatter:main`.
     It validates the `stakeholder_type` and `level` every `docs/` page declares (DF-11-001), skipping include fragments.
     It also fails a working-record page that is in the nav or matched by no `not_in_nav` pattern (DF-11-003).
@@ -78,6 +81,7 @@ stakeholder_type: [project-contributor]
   - `wire-context` → `vultron.metadata.wire_context.sync:main` (generates the normative JSON-LD `@context` from the wire vocabulary, VM-10-001)
   - `bundle-fit` → `vultron.metadata.planning.bundle_fit:main` (two-stage issue-bundle selection for the `propose-bundle` skill); `pr-size` → `vultron.metadata.planning.size_bands:main` (the `size:` label band table); `targeted-tests` → `vultron.metadata.planning.targeted_tests:main` (the post-first-push local test gate derived from the branch diff, and the base-overlap check, PAD-18)
   - `learnings-index` → `vultron.metadata.history.incoming:main` (validates and indexes `plan/incoming/learnings/`)
+  - `notes-tracks` → `vultron.metadata.notes.tracks:main` (lists `plan` notes whose tracked issues are all closed, NF-09; advisory, never archives)
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment (`docker/Dockerfile`) uses `vultron.adapters.driving.fastapi.main:app`.
   The `Makefile` `api_dev` target still names `vultron.api:app`, which does not exist (see `CONCERNS.md`).
@@ -127,6 +131,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | `vultron/adapters/outbox_sealed_body.py` | Seals the outbound activity JSON at emission so delivery relays it byte for byte (VM-08-003) |
 | `vultron/wire/as2/unknown_keys.py` | Inbound unknown-key disposition at the parse edge (MV-11) |
 | `vultron/metadata/specs/kind_classification.py`, `vultron/metadata/specs/yaml_items.py` | MS-12 kind-tree enforcement for `spec-lint`, and the spec-YAML item slicer shared by `scripts/` |
+| `vultron/metadata/specs/growth_guard.py` | PR-only growth guard: runs a per-item extractor at the merge base and on the working tree and reports only the items the branch added; backs the protocol-coverage (SR-05-005) and `missing_story_reference` (MS-12-007) guards |
 | `vultron/demo/exchange/report_with_embargo_demo.py` + `vultron/demo/helpers/embargo_outcome.py` | Exchange demo where the Reporter proposes embargo terms with the report, and its creation-time embargo checks |
 
 ### 6) Evidence

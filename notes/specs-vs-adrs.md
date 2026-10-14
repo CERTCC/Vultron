@@ -1,20 +1,32 @@
 ---
 title: Specs vs. ADRs — Delineation Guidelines
 status: active
+kind: guidance
+description: >
+  When to write a spec entry, an ADR, or both (MS-11); why an ADR is a
+  historical record while specs and notes carry the current state (ADR-0127),
+  so no refactor obliges an ADR edit and no scrub is owed; back-edges from live
+  records; the externally-observable test for what belongs in specs/; choosing
+  an ADR status and the epoch and edit-tier lifecycle (ADR-0120, MS-14); and
+  never restating drift-prone counts in long-lived docs (MS-16).
 related_specs:
-  - specs/meta-specifications.yaml
+  - specs/meta-specifications.yaml (MS-11, MS-12, MS-14, MS-15, MS-16)
+  - specs/spec-registry.yaml (SR-07-017)
+  - specs/architecture.yaml (ARCH-18-005)
+  - specs/demo-ci.yaml (DEMOCI-11-008)
 related_notes:
-  - notes/bt-pitfalls.md
   - notes/spec-authoring-rules.md
   - notes/agentic-workflow.md
   - notes/documentation-sweeps.md
+  - notes/user-story-catalog.md
+  - notes/git-workflow-pitfalls.md
 ---
 
 # Specs vs. ADRs — Delineation Guidelines
 
-Implementation guidance for deciding when to write a spec entry, an ADR, or
-both. Formalizes the decision tree captured in `specs/meta-specifications.yaml`
-MS-11-001 through MS-11-006.
+How to decide between a spec entry, an ADR, or both. The normative rules are
+MS-11-001 through MS-11-008 in `specs/meta-specifications.yaml`; the human-facing
+version is `docs/adr/index.md`.
 
 ---
 
@@ -29,79 +41,7 @@ MS-11-001 through MS-11-006.
 | When an ADR alone suffices | When the decision is a one-time structural/process choice with no per-change requirement | Not every decision produces enforceable requirements |
 | Cross-referencing | Spec `rationale` field SHOULD cite the ADR; ADR "More Information" SHOULD list spec IDs | Bidirectional links preserve traceability in both directions |
 
----
-
-## An ADR Is a Historical Record; Specs and Notes Are the Current State
-
-An ADR answers what we decided and why, given what we knew at the time — an
-answer that cannot go stale, because the past does not change. It is not a
-description of the current codebase. Specs and notes are, and they carry a
-currency obligation that an ADR does not.
-
-Three consequences for everyday work:
-
-- **A refactor is never responsible for updating an ADR.** Renaming a symbol or
-  splitting a module does not oblige you to touch any ADR that mentions it. When
-  an ADR names a function or module path that was later renamed or deleted, the
-  decision still stands and the record is still accurate about the decision;
-  only its description of the code has aged. Nothing in the tooling fails on a
-  stale symbol in an ADR body, and that is deliberate.
-- **A constraint future code must obey does not live in an ADR body.** Put it in
-  a spec requirement when it is testable, or a `notes/` file when it is design
-  insight, and cite the ADR as provenance (MS-11-004, and the Cross-Referencing
-  Pattern below).
-- **A spec or note must not resolve its own meaning by pointing into an ADR
-  body.** Cite the ADR for *why*; state the rule where the reader already is. The
-  corpus does not satisfy this yet — the "ADR-0099 detail N" citations across
-  `specs/` and `notes/` are the known exception, and they are what gates the
-  change that stops routine agent context from loading ADR bodies at all. Do not
-  add another: a citation that names a numbered detail inside a body makes that
-  body load-bearing again.
-
-What stays in the body: the reasoning, the rejected options, and how the code
-looked when the decision was made — the last written so it reads as of its time,
-with removed symbols annotated in the ADR-0063 style rather than deleted. What
-does not: project tracking (a completed migration step, a struck-through progress
-list) and drift-prone detail (counts, metrics, `file.py:line` citations). The
-human-facing version of this is `docs/adr/index.md` § "Revising vs. amending an
-ADR"; the editing mechanics are the Edit Tiers section below.
-
-### An aged code reference in an ADR body is not a defect, and there is no scrub
-
-This is the consequence most likely to be re-derived as work, so it is stated
-outright: the corpus's existing stale code references are **not** a backlog. A
-reference in a record's context or validation prose is an accurate account of the
-code as it then stood. No issue owns scrubbing them, and no advisory count of
-them is reported — a count would re-describe the same sentences as debt and
-invite the scrub back. Most of them sit inside a Decision Outcome or Considered
-Options section anyway, where the Edit Tiers below would make a rename cost a
-dated Amendment.
-
-Enforcement is therefore **forward-only**: a reference newly written into a
-record should resolve on the day it is written, which is a question about the
-pull request's own diff rather than about the corpus. A merge-blocking check
-keyed on code changes is rejected — it would reinstate the refactor obligation
-the first bullet above removes. Note that the phantom-symbol half of the
-spec-corpus check (MS-15-004) resolves only what `_SPEC_SYMBOL_RE` in
-`vultron/metadata/specs/lint.py` matches, which is where to read the live shape.
-When #4412 was scoped that was backticked all-caps identifiers with an
-underscore, which saw neither a stale class name nor a function name — so a
-check extended to record bodies has to widen the shape to be worth anything,
-and #4412 is where it widens.
-
-Source: ADR-0127 (`docs/adr/0127-decision-records-leave-routine-agent-context.md`)
-and concern #4389. This replaces the ISSUE-1777 guidance (2026-07-31) that
-asked authors to revise accepted ADR bodies in place so a reader met only
-currently-accurate statements. That pursued the same goal — keeping stale detail
-out of a reader's way — through the only mechanism available while every ADR body
-was read as routine agent context. Records revised in place under it are left as
-they are.
-
----
-
-## Decision-Tree Heuristic
-
-Use this self-check before committing a change:
+### Decision-Tree Heuristic
 
 ```text
 1. Am I capturing what the system must/should/may do?
@@ -120,12 +60,124 @@ Use this self-check before committing a change:
    YES → ADR only. No spec entry needed.
 ```
 
+Worked examples: **ADR only** — ADR-0006 (CalVer) and ADR-0014 (SHA-pinned
+Actions), one-time choices with no per-change requirement. **Spec only** —
+MS-04-001 (ID format) and CS-08-002 (non-empty strings), uncontested rules.
+**Both** — ADR-0009 (hexagonal architecture) and the ARCH layer rules; ADR-0016
+(SQLModel DataLayer) and the DataLayer requirements.
+
+### Cross-Referencing Pattern
+
+Cite the ADR in the per-requirement `rationale` (not the group `description`)
+and in the `adr:` field; list the generated requirements in the ADR's "More
+Information" section (MS-11-004):
+
+```yaml
+rationale: >
+  Rules for DataLayer writes derived from ADR-0016
+  (docs/adr/0016-sqlmodel-sqlite-datalayer.md).
+```
+
+```markdown
+## More Information
+
+Generated spec requirements: `datalayer.yaml` DL-01 through DL-03.
+```
+
+---
+
+## An ADR Is a Historical Record; Specs and Notes Are the Current State
+
+An ADR answers what we decided and why, given what we knew at the time — an
+answer that cannot go stale, because the past does not change (ADR-0127). Specs
+and notes describe the current codebase and carry a currency obligation an ADR
+does not. Consequences:
+
+- **A refactor is never responsible for updating an ADR.** When an ADR names a
+  function or path later renamed or deleted, the decision still stands; only its
+  description of the code has aged. Nothing fails on a stale symbol in an ADR
+  body, deliberately.
+- **A constraint future code must obey does not live in an ADR body.** Put it in
+  a spec requirement when testable, or a `notes/` file when design insight, and
+  cite the ADR as provenance (MS-11-004).
+- **A spec or note must not resolve its meaning by pointing into an ADR body.**
+  Cite the ADR for *why*; state the rule where the reader already is. MS-11-007
+  forbids citing a numbered detail, and
+  `test/metadata/test_no_adr_detail_citations.py` fails one under `specs/` or
+  `notes/`.
+
+What stays in the body: the reasoning, the rejected options, and how the code
+looked then, written to read as of its time, with removed symbols annotated in
+the ADR-0063 style rather than deleted. What does not: project tracking and
+drift-prone detail (counts, metrics, `file.py:line`). The editing mechanics are
+the Edit Tiers below.
+
+### An ADR records what stays invariant
+
+An ADR must not state a decision already known to become obsolete. Write the
+stable principle with room for a foreseeable change, and keep the current,
+changeable policy in the specs and notes that cite the ADR. ADR-0134 states that
+checks protecting implementers apply to the implementer-facing kinds; which kind
+each check covers today is in SR-05-004/005, SR-11-003/004 and MS-12-006,
+because the story gate is expected to widen (#4528).
+
+### An aged code reference in an ADR body is not a defect, and there is no scrub
+
+The corpus's existing stale code references are **not** a backlog: each is an
+accurate account of the code as it then stood. No issue owns scrubbing them and
+no advisory counts them, since a count would re-describe the same sentences as
+debt and invite the scrub back. Enforcement is **forward-only**: the
+`adr-added-reference-check` hook fails a backticked path or symbol that an ADR
+edit *adds* and that resolves nowhere (MS-15-006); a reference already on the
+base never fails, so no refactor can trip it. A record that annotates a removed
+name opts out with `lint_suppress: [phantom_symbol_ref]` or `[phantom_path_ref]`
+(MS-15-007). A merge-blocking check keyed on code changes is rejected; it would
+reinstate the refactor obligation.
+
+### Routine context routes through records by title and edge
+
+Routine task context does not load record bodies (MS-11-008). `deepen-context`
+Step 2 finds in-scope records by title in the generated sections of
+`docs/adr/index.md`, then loads the requirements each generated with
+`spec-dump --adr ADR-NNNN`, which walks the `adr:` edge backwards (SR-07-017).
+A record with only a prose back-edge has no `adr:` edge, so `--adr` selects
+nothing; `spec-dump` names it, and the agent reads the `specs/` and `notes/`
+files that cite it. Converting such a citation to an `adr:` edge makes the
+record reachable by the tool.
+
+The skills that make a record their object of work keep full access to bodies;
+the list and reasons are the exception table in `deepen-context` Step 2, and
+each weighs what it reads by `.agents/skills/shared/weighing-decision-records.md`.
+`test/metadata/test_routine_context_skips_adr_bodies.py` fails a skill off the
+list that instructs reading a body. If the list grows until most work falls
+under it, ADR-0127's revisit trigger has fired.
+
+### Every live record is reachable from a spec or a note, or is record-only
+
+A decision stated nowhere but a body is lost to routine context, so every live
+record (not archived, superseded, deprecated or rejected) needs a **back-edge**:
+an `adr:` edge on a requirement, or a citation in a `specs/` or `notes/` file.
+A record without one is handled one of three ways:
+
+- **A requirement already covers the decision** — add the record to its `adr:`
+  field. This is the usual case, and the only edge tooling can walk.
+- **Nothing covers it** — state the decision in full in a spec requirement or a
+  `notes/` file, citing the record as provenance.
+- **The record is legitimately record-only** — a one-time process choice
+  (MS-11-006). Add it to `RECORD_ONLY_EXEMPTIONS` in
+  `vultron/metadata/adr/back_edges.py`, a pinned exemption set with no terminal
+  value (ARCH-18-005).
+
+`uv run adr-back-edges` reports every live record with no back-edge and every
+exemption no longer needed; `test/metadata/test_adr_back_edges.py` fails on
+either.
+
 ---
 
 ## The Externally-Observable Behavior Test
 
-Before writing a new `specs/` requirement for any behavior observed during
-implementation, apply this gate:
+Before writing a new `specs/` requirement for a behavior observed during
+implementation, ask:
 
 > **Would a participant running a different implementation of the Vultron
 > protocol notice if this requirement were violated?**
@@ -135,85 +187,24 @@ implementation, apply this gate:
 | **Yes** — the behavior is externally-observable or protocol-visible | `specs/` | Message semantics, state-machine invariants, wire format constraints, compliance-visible output |
 | **No** — the behavior is an internal implementation convention | `AGENTS.md` | File paths, naming conventions, agent guidance, demo step ordering, coding practices |
 
-This gate operationalizes two existing rules:
-
-- **MS-05-004**: Requirements must be declarative — describing *what* the
-  system must do, not *how* it is implemented internally.
-- **MS-12** (four-tier taxonomy): A requirement that cannot pass the
-  `protocol` or `architecture` tier tests is `project` or `process` kind.
-  If it also fails the externally-visible test — i.e., only this codebase
-  cares about it — it belongs in `AGENTS.md` rather than `specs/` entirely.
-
-### Common Misrouted Requirements
-
-These patterns commonly appear in `specs/` but belong in `AGENTS.md`:
-
-- **File/module paths**: "Factory functions MUST live in
-  `vultron/wire/as2/factories/`" — only this codebase has this layout.
-- **Demo step ordering**: "Step 3 MUST follow step 2 in the demo script" —
-  a different implementation would have no demo, let alone this step order.
-- **Agent instructions**: "The agent MUST confirm the selected bug with the
-  user before fixing it" — describes agent workflow, not protocol compliance.
-- **Naming conventions**: "Test files MUST be named `test_*.py`" — already
-  enforced by pytest discovery config; not protocol-relevant.
-- **Ambiguous `project`/`process` kind requirements**: If a requirement would
-  be kind `project` (MS-12-002) *and* only an internal convention, it belongs
-  in `AGENTS.md`. The `specs/` corpus should capture what an independent
-  conformance checker would verify; internal conventions belong in agent guidance.
-
-### How This Relates to the `learn` Skill
-
-The `learn` skill's `signal: spec-gap` path must apply this test before
-promoting an observation to `specs/`. If the behavior is not externally
-observable, the correct destination is `AGENTS.md` (recurring pitfall) or
-`notes/` (design decision), not a new MUST requirement in `specs/`. See also
-the anti-pattern list in `specs/AGENTS.md`.
-
----
-
-## Worked Examples
-
-### ADR only
-
-- **ADR-0006 Use CalVer for Project Versioning** — this is a binary,
-  one-time choice ("we use CalVer, not SemVer"). There is no recurring
-  per-change requirement for agents to check, so no spec entry is needed.
-- **ADR-0014 Pin GitHub Actions to Full Commit SHAs** — once the policy is
-  set, there is a CI enforcement mechanism; agents do not need a spec entry
-  to implement it per-change.
-
-### Spec only
-
-- `MS-04-001` "Requirement IDs MUST follow `PREFIX-NN-NNN` format" — this
-  is an uncontested formatting rule. No alternatives were evaluated; it is
-  simply the chosen convention. A spec entry captures the rule for agents
-  without requiring ADR justification.
-- `CS-08-002` "Optional string fields MUST reject empty strings" — a
-  practical validation rule with no meaningful opposing design.
-
-### Both ADR and spec
-
-- **ADR-0009 Hexagonal Architecture** generated multiple
-  `architecture.yaml` ARCH-01 through ARCH-12 requirements. The ADR records
-  why hexagonal was chosen over a layered or transaction-script architecture;
-  the spec entries define the per-change layer-separation rules that agents
-  must enforce.
-- **ADR-0016 SQLModel/SQLite DataLayer** generated DataLayer spec entries
-  covering type-safe writes, auto-rehydration, and port isolation. The ADR
-  records why SQLModel was preferred over TinyDB or raw SQLite; the spec
-  entries give agents enforceable rules.
+This operationalizes MS-05-004 (declarative requirements) and MS-12: a
+requirement that fails the `protocol`, `foundation` and `architecture` tests is
+`project` or `process`, and if only this codebase's conventions care about it,
+it belongs in `AGENTS.md` rather than `specs/`. Commonly misrouted: file and
+module paths, demo step ordering, agent instructions, and naming conventions a
+tool already enforces. The `learn` skill's `signal: spec-gap` path applies this
+test before promoting an observation to `specs/`.
 
 ---
 
 ## Choosing the ADR `status` Value
 
-The ADR `status:` frontmatter field is the **primary confidence signal** that
-reaches coding agents: `deepen-context` weights how much to trust an ADR by its
-status. A wrong or careless status value is a landmine — an agent will treat a
-`status: accepted` ADR as settled fact even when the decision was never
-validated. Choose the value deliberately, not by habit.
+The ADR `status:` is the **primary confidence signal** that reaches coding
+agents: routine context sees it as the `docs/adr/index.md` section a record is
+listed under, and every skill that reads a body weighs the record by it. An
+agent treats `status: accepted` as settled fact, so choose it deliberately.
 
-**Value set** (MADR-aligned, extended with `accepted-provisional`):
+**Value set** (MADR-aligned, extended with `accepted-provisional`; ADR-0043):
 
 | Value | Meaning | Agent should |
 |---|---|---|
@@ -254,171 +245,92 @@ validated. Choose the value deliberately, not by habit.
 ```
 
 **The cardinal rule:** the `status:` value and the ADR prose must agree. If the
-body says the design is provisional, "formed in sand", or "expected to
-converge", the status is `accepted-provisional` (or `proposed`), never
-`accepted`. A lint check enforces this (see `specs/meta-specifications.yaml`
-MS-14). The `decision-audit` skill hunts for exactly this contradiction.
-
-> **Why a status value and not a separate `confidence` field?** We already have
-> a status field that agents read; a parallel confidence field would be one
-> more thing to keep in sync and one more source of drift. Expanding the status
-> vocabulary keeps a single source of truth. See ADR-0043.
+body says the design is provisional or expected to converge, the status is
+`accepted-provisional` (or `proposed`), never `accepted`. A lint check enforces
+this (MS-14), and the `decision-audit` skill hunts for the contradiction.
 
 ### ADR Lifecycle: Epochs and Edit Tiers
 
-ADR-0120 ties `status` to age. Frontmatter carries `created` (immutable),
-`updated` (material edits only) and `revision` (integer, bumped per material
-edit). Epochs are measured from `updated`:
+ADR-0120 ties `status` to how far a decision has been built on, with timers as a
+backstop. Frontmatter carries `created` (immutable), `updated` (material edits
+only) and `revision` (bumped per material edit) (MS-14-008). The timers run from
+`updated`, in whole days:
 
-| Epoch | Age | `status` | Editing |
+| Epoch | Ends | `status` | Editing |
 |---|---|---|---|
-| 1 | under 72 hours | `proposed` | edit in place freely |
-| 2 | 72 hours to day 10 | `accepted-provisional` | ask the human: edit in place or supersede |
-| 3 | day 10 onward | `accepted` | supersede (below) |
+| 1 | first test-verified dependent, or day 14 | `proposed` | edit in place freely |
+| 2 | day 28 | `accepted-provisional` | ask the human: edit in place or supersede |
+| 3 | never | `accepted` | supersede (below) |
 
-A merged dependent implementation may harden an ADR to epoch 3 early, and a
-human may override the computed status. Agents implement against `proposed`
-ADRs; the mandatory human touch is the epoch-2 ask.
-
-**The clock never fails a merge-blocking check.** An ADR crossing a boundary
-changes no commit, so a check reading today's date turns `main` red with no one to
-blame (ADR-0110, 2026-10-08). A PR that materially edits an ADR (or adds one) owns
-its status on that date, enforced against the merge base. Every other drifted
-status is reported by the hourly `adr-status-drift` workflow through one
-self-closing issue, and a human flips it (MS-14-007).
+A **test-verified dependent** is a requirement that cites the ADR in `adr:` and
+whose verification names a test file that exists (not one that passes). The PR
+that creates the first one sets the ADR to `accepted-provisional` in the same
+change (MS-14-010). Status only moves forward; a promotion ahead of the computed
+epoch needs a `status_override:` the PR adds or changes (MS-14-012). Agents
+implement against `proposed` ADRs; the mandatory human touch is the epoch-2 ask.
 
 **Edit tiers.** Editorial fixes and append-only annotations are allowed in any
 epoch and change neither `updated` nor `revision`. A clarification after epoch 1
-is appended as a dated note. A material change (*would something built on the old
-text now be wrong?*) bumps `updated` and `revision`. In epoch 3, a material
+is appended as a dated note. A material change (*would something built on the
+old text now be wrong?*) bumps `updated` and `revision`. In epoch 3, a material
 change to one detail with the chosen option intact is a dated Amendment quoting
 the replaced text; a change of chosen option is a new ADR that supersedes the
-old one, whose original text is restored. Never rewrite an accepted ADR under its
-own number.
+old one. Never rewrite an accepted ADR under its own number.
 
-**What is checked (MS-14-007, MS-14-009, MS-14-010, MS-15-006).** Three fields
-are required on every ADR (MS-14-008); `date` is the older spelling of `created`
-and may stay.
-Epochs are counted in whole days (3 and 10) because `updated` is a date.
+**The clock never fails a merge-blocking check.** An ADR crossing a boundary
+changes no commit, so a check reading today's date would turn `main` red with
+no one to blame. A PR that materially edits or adds an ADR owns its status on
+that date (MS-14-007); every other status behind its epoch is reported by the
+hourly `adr-status-drift` workflow through one self-closing issue, and a human
+flips it. The `adr-lifecycle-check` hook and the `ADR Lifecycle` PR workflow
+enforce MS-14-007, -009, -010 and -012 against `HEAD` and the merge base.
+`uv run adr-index --epochs` prints each live ADR's epoch, status and revision.
 
-- `spec-lint` fails an ADR whose `status` differs from its epoch, unless the ADR
-  carries `status_override:` with the human's reason. Retired and rejected ADRs
-  have no epoch. Because the epoch moves with the calendar, an ADR that nobody
-  touches fails on the day it crosses a boundary; promoting it, or recording an
-  override, is the human touch.
-- The `adr-lifecycle-check` pre-commit hook compares an edited ADR with `HEAD`.
-  It fails a changed Decision Outcome or Considered Options section on an
-  epoch-3 ADR unless the edit adds a heading naming "Amendment" and a
-  `YYYY-MM-DD` date. It also fails a bump of `updated` on an ADR that was past
-  epoch 1, unless `status_override:` is present.
-- The `adr-added-reference-check` pre-commit hook (MS-15-006) also compares an
-  edited ADR with `HEAD`, and fails a backticked path or code symbol the edit
-  *adds* that resolves nowhere — class names, called names and class members
-  included, not only underscored constants. A reference already on the base
-  never fails, so no refactor can trip it (ADR-0127). A record that annotates a
-  removed name opts out with `lint_suppress: [phantom_symbol_ref]` or
-  `[phantom_path_ref]` (MS-15-007).
-- Both hooks also run in the `ADR Lifecycle` pull-request workflow against the
-  merge base, so skipping a local hook does not bypass them.
-- `spec-lint` prints an `[INFO]` line for an ADR in epoch 1 or 2 that a spec
-  requirement cites in `adr:` and verifies with an existing `test/` file: the
-  hardened signal that a human may promote it early. It checks that the file
-  exists, not that it passes.
-- `uv run adr-index --epochs` prints each live ADR's epoch, status and revision.
-  The generated `index.md` shows only the revision (`*(revision N)*`, when above
-  1), because the epoch depends on today's date and the index is compared byte
-  for byte.
+**`status_override:` is a human's reason, for that one ADR.** A tooling rollout
+or an agent never writes a placeholder override: it hides the ADR from the drift
+report, and nothing would ever prompt the promised review (#4521).
 
-### A Provisional ADR Must Phrase an Unbuilt Contract in the Future Tense
+### A Provisional ADR Phrases an Unbuilt Contract in the Future Tense
 
-The `accepted-provisional` status warns that the *decision* is unvalidated, but
-it does not stop the prose from asserting an *enforcement contract* in the
-present, definite tense of a shipped one. That is a distinct trap: a reader (or
-a downstream note that quotes the ADR verbatim) takes "the validator raises
-`X` on violation" as a fact about the code, when it names an intended behavior
-that was never built — and nothing ties the sentence to a test, so the drift is
-silent. ADR-0075 did exactly this: it stated that `ParticipantStatus`
-construction "validates role-dimension invariants… raising `VultronValidationError`",
-a `mode="after"` raise that was never written (the real validator is a
-`mode="before"` auto-seed that deliberately does not raise). `notes/case-state-model.md`
-copied the claim, and a bug (#2860) was filed on the false premise that the
-invariant was unenforced — when it is in fact enforced at the guard layer.
+`accepted-provisional` warns that the *decision* is unvalidated, but the prose
+can still state an enforcement contract in the present tense of a shipped one,
+and a reader takes "the validator raises `X`" as a fact about the code. ADR-0075
+did this, a note copied it, and a bug was filed on the false premise (#2860).
 
-**How to apply:**
+- In a provisional or proposed ADR, phrase not-yet-built enforcement in the
+  **future or conditional** tense ("will raise") until a regression test pins
+  it.
+- Before relying on such a present-tense claim, or a note that cites one, grep
+  for the named validator or guard and confirm it truly raises.
 
-- When writing a provisional (or proposed) ADR, phrase any not-yet-built
-  enforcement in the **future or conditional** tense ("will raise", "is expected
-  to refuse") until a linked regression test pins it. Reserve present-tense
-  "raises / refuses / validates" for behavior that a test actually exercises.
-- Before relying on a provisional ADR's present-tense enforcement claim — or a
-  note that cites one — grep for the named validator/guard and confirm it truly
-  raises or refuses. The claim may be aspirational.
-- This is the tense-level companion to the cardinal rule above: the status must
-  match the *decision's* confidence, and the prose tense must match the
-  *implementation's* build state.
+The status must match the decision's confidence; the tense must match the
+implementation's build state.
 
-Source: ISSUE-2860
+### ADR "What Is Removed" Lists Are Scoped to One Use, Not Global Existence
 
-## Cross-Referencing Pattern
-
-When creating both an ADR and spec entries, wire them together:
-
-**In the spec `rationale` field** (MS-11-004 — use the per-requirement `rationale`, not the spec-group `description`):
-
-```yaml
-rationale: >
-  Rules for DataLayer writes derived from ADR-0016
-  (docs/adr/0016-sqlmodel-sqlite-datalayer.md).
-```
-
-**In the ADR "More Information" section:**
-
-```markdown
-## More Information
-
-Generated spec requirements: `datalayer.yaml` DL-01 through DL-03.
-```
+An ADR may list a component as removed from one flow while spec entries still
+require it in another. Before deleting a node, grep the spec corpus for MUSTs
+describing the *operation* it implements (#1777).
 
 ---
 
 ## Never State Unverifiable, Drift-Prone Facts in Long-Lived Docs
 
-Long-lived documents — specs, notes files, AGENTS.md — **MUST NOT state
-counts that will drift independently of their authoritative source**
-(MS-16-001), and more generally **MUST NOT state any fact that no automated
-check could falsify and that drifts independently of its source** (MS-16-002).
-A restated count is only the most common instance; the governing test is
-"could a test fail on this sentence?" — not "is this a number?".
+Long-lived documents — specs, notes files, AGENTS.md — **MUST NOT state counts
+that will drift independently of their authoritative source** (MS-16-001), and
+more generally **MUST NOT state any fact that no automated check could falsify
+and that drifts independently of its source** (MS-16-002). The test is "could a
+test fail on this sentence?", not "is this a number?".
 
-### The problem
+A sibling requirement tempted to copy an enumeration's size — "the five
+universal types (DEMOMA-16-001)" — drifts silently when the source changes, and
+the linter checks only that the ID resolves. The count adds no normative force.
+A doc table that mirrors a code, spec or config inventory rots unevenly: the
+columns a test could check stay roughly right while the rest go confidently
+wrong. Triage such a table per `notes/documentation-sweeps.md` § "Mirrored
+tables rot in the column no test can hold".
 
-When a spec requirement like DEMOMA-16-001 defines an enumeration ("the five
-universal event types"), sibling requirements and cross-file citations are
-tempted to copy the count: "the five universal types (DEMOMA-16-001)". The
-linter validates that `DEMOMA-16-001` resolves; it has no opinion about the
-prose next to it. When DEMOMA-16-001 is updated (e.g., a sixth type is added),
-every copied count drifts silently — a reader who encounters a stale count first
-gets a false picture of the system. The count adds no normative force.
-
-The same applies to any long-lived doc: writing "there are 4 unimplemented
-nodes" or "15 xfails" is a snapshot virtually guaranteed to be wrong when read
-later.
-
-The failure is sharpest in a **doc table that mirrors a code, spec, or config
-inventory**. Such tables drift unevenly: the columns a test could check stay
-roughly right, while the columns no test could hold go wholly wrong — and rot
-into confident wrong answers, not into silence. Before syncing such a table,
-sort its columns into verifiable and not, *disaggregating any column that packs
-two facts into one heading first* — a column may look unverifiable only because
-it answers two questions at once, and splitting it can make one part derivable.
-The full triage procedure is in `notes/documentation-sweeps.md` §
-"Mirrored tables rot in the column no test can hold" (witnesses ISSUE-3337 and
-the scenario table, CONCERN-3466).
-
-### The fix
-
-**When cross-referencing another spec**, omit the count and cite the source by
-ID:
+**Cross-reference without the count:**
 
 | Instead of | Write |
 |---|---|
@@ -426,63 +338,29 @@ ID:
 | "these four scenarios cover all types" | "these scenarios cover all types" |
 | "the full 9-scenario suite" | "the full scenario suite" |
 
-**Counts are only appropriate in the authoritative source itself** — the spec
-entry that *defines* the enumeration (e.g., DEMOMA-16-001 listing its own
-members is the authority for that count; siblings that cross-reference it are
-not).
-
-**In notes and AGENTS.md**, avoid counting items that can change: replace
-"there are 4 unimplemented nodes" with "the unimplemented nodes are listed in
-[...]"; replace "15 xfails" with "known-flaky tests are tracked in
-`notes/flaky-tests.md`".
+Counts belong only in the authoritative source itself (DEMOMA-16-001 listing its
+own members). In notes and AGENTS.md, point at the list instead of counting it.
 
 ### The scenario-count rule is machine-enforced, and this file is exempt
 
-For one enumeration — the demo scenario set — MS-16-001 is no longer advice.
-DEMOCI-11-008 forbids any declared scenario-table consumer from restating the
-count, and `restated_counts()` in
-`vultron/metadata/demo_scenarios/prose_counts.py` enforces it over the
-`SCENARIO_TABLE_CONSUMERS` tuple, wired into `uv run demo-scenarios --check` and
-the `demo-scenarios-sync` pre-commit hook. A restatement inside a
-`## Change history` section (or any subsection of one) is exempt, because that
-sentence records a past state and rewriting it would destroy the record.
+For the demo scenario set, DEMOCI-11-008 forbids a declared scenario-table
+consumer from restating the count; `restated_counts()` in
+`vultron/metadata/demo_scenarios/prose_counts.py` enforces it over
+`SCENARIO_TABLE_CONSUMERS`, wired into `uv run demo-scenarios --check` and the
+`demo-scenarios-sync` hook. A restatement inside a `## Change history` section
+is exempt, because it records a past state.
 
 **This file is deliberately not a declared consumer.** The "Instead of" column
 above must keep its restated counts — they are the counter-examples the guidance
 is made of — and a check cannot tell a counter-example from the thing it warns
 against. Adding `notes/specs-vs-adrs.md` to `SCENARIO_TABLE_CONSUMERS` would
-therefore report this section's own table and pressure someone into deleting the
-guidance to get the hook green. If you are editing the counter-examples, that is
-why they survive; the exemption is recorded in `EXEMPT_CONSUMERS` in the same
-module.
+report this section's own table and pressure someone into deleting the guidance.
+The exemption is recorded in `EXEMPT_CONSUMERS` in the same module.
 
 ### ADR bodies are out of scope, and stay that way
 
-MS-16 names specs, notes files, AGENTS.md and mirrored `docs/` tables. It does
-not name ADR bodies, and ADR-0127 decided it should not — concern #4389 had
-asked whether it should. A body is read as history, so a dated measurement in
-one stays correct as of its date however far the corpus moves; extending MS-16
-there would re-describe accurate historical prose as debt and invite the scrub
-ADR-0127 rejects. That is the same carve-out the `## Change history` exemption
-above makes, for the same reason. The one thing a body does owe is the
-forward-only reference check, which carries its own requirement rather than
-widening MS-16.
-
----
-
-## Where the Authoritative Rules Live
-
-| Artifact | Location |
-|---|---|
-| Normative requirements (MS-11-001 – MS-11-006) | `specs/meta-specifications.yaml` |
-| Human-facing guidance ("when to write an ADR") | `docs/adr/index.md` |
-| This decision table and heuristic | `notes/specs-vs-adrs.md` (this file) |
-| Agent-facing shorthand | `AGENTS.md` "Change Protocol" section |
-
-## ADR "What Is Removed" Lists Are Scoped to One Use, Not Global Existence
-
-Grep the spec corpus for MUSTs describing the *operation* a node implements
-before deleting it. An ADR may list a component as removed from one specific
-initialization flow while spec entries still require it in another.
-
-Source: ISSUE-1777; see also `notes/bt-pitfalls.md`
+MS-16 names specs, notes, AGENTS.md and mirrored `docs/` tables, not ADR bodies,
+and ADR-0127 decided it should not. A body is read as history, so a dated
+measurement in one stays correct as of its date; extending MS-16 there would
+re-describe accurate prose as debt and invite the scrub ADR-0127 rejects. A body
+owes only the forward-only reference check (MS-15-006).

@@ -15,8 +15,8 @@
 """Planned behaviour for the case split (ADR-0125, CM-32, VP-10).
 
 Strict-``xfail`` tests for protocol requirements written before the code that
-satisfies them exists; see ``notes/spec-authoring-rules.md`` § "Never Raise the
-Ceiling — Use a Strict ``xfail``".
+satisfies them exists; see ``notes/spec-authoring-rules.md`` § "Use a
+Strict ``xfail`` for Not-Yet-Implemented Specs".
 
 Two placeholders stand in for the behaviour: a message type for the split
 proposal (CM-32-001 through CM-32-012, CM-32-016), and one for the

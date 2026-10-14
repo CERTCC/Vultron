@@ -1,10 +1,13 @@
 ---
 title: Behavior Tree Integration Design Notes
 status: active
+kind: guidance
 tags: [bt, behavior-trees, py_trees, blackboard, BT-nodes, protocol-cascades]
 description: >
-  BT design decisions, py_trees patterns, simulation-to-prototype translation
-  strategy, subtree map, and anti-patterns to avoid.
+  Rules for integrating py_trees behavior trees with use cases: the design
+  decisions that bind new trees, actor and identity isolation, the BT
+  concurrency lock, why all protocol-significant behavior lives in the tree,
+  the four received-side stages, and how to translate a simulator tree.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
@@ -13,17 +16,34 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/participant-case-replica.yaml
   - specs/case-bootstrap-trust.yaml
+  - specs/case-management.yaml
+  - specs/case-proposal.yaml
 related_notes:
   - notes/bt-canonical-reference.md
+  - notes/call-out-configuration.md
+  - notes/bt-composability.md
   - notes/case-ledger-authority.md
   - notes/bt-pitfalls.md
   - notes/embargo-lifecycle.md
-  - notes/bt-fuzzer-nodes.md
   - notes/protocol-event-cascades.md
   - notes/use-case-behavior-trees.md
   - notes/testing-pitfalls.md
   - notes/inbox-orchestration.md
   - notes/participant-embargo-consent.md
+  - notes/case-proposal.md
+  - notes/bt-design-patterns.md
+  - notes/coordination-agents.md
+  - notes/event-driven-control-flow.md
+  - notes/received-status-authorization.md
+  - notes/triggerable-behaviors.md
+  - notes/flaky-tests.md
+  - notes/activitystreams-semantics.md
+  - notes/activitystreams-state-update.md
+  - notes/codebase-structure.md
+  - notes/documentation-strategy.md
+  - notes/domain-validation.md
+  - notes/protocol-asks.md
+  - notes/structured-logging.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -33,739 +53,333 @@ relevant_packages:
 
 # Behavior Tree Integration Design Notes
 
-## Architecture Overview
+Use cases in `vultron/core/use_cases/` run `py_trees` behavior trees through
+the bridge in `vultron/core/behaviors/`. All protocol-significant behavior MUST
+be BT nodes or subtrees (BT-06-001).
 
-Use-case functions in `vultron/core/use_cases/` orchestrate complex workflows
-using the `py_trees` behavior tree library via the bridge layer in
-`vultron/core/behaviors/`. All protocol-significant behaviors MUST be
-implemented as BT nodes or subtrees. See
-`specs/behavior-tree-integration.yaml` BT-06-001.
-
-**Key boundary**: `vultron/bt/` is the simulation BT engine (custom, do NOT
-modify or reuse for prototype handlers). `vultron/core/behaviors/` uses
-`py_trees` for prototype handler BTs. These coexist independently and MUST
-NOT be merged.
+**Key boundary**: `vultron/bt/` is the simulation BT engine (custom; do NOT
+modify it or reuse it in prototype handlers). `vultron/core/behaviors/` uses
+`py_trees`. The two coexist and MUST NOT be merged (ADR-0008).
 
 ---
 
-## Key Design Decisions
+## Design Rules for New Trees
 
-### 1. py_trees for Prototype (Not Custom BT Engine)
-
-Use `py_trees` (v2.2.0+) for prototype handler BTs. The existing
-`vultron/bt/` simulation code uses a custom BT engine and MUST remain
-unchanged.
-
-**Rationale**: py_trees is mature, well-tested, provides visualization and
-debugging tools, and allows focus on workflow logic rather than BT engine
-maintenance. See ADR-0008.
-
-### 2. Handler-Orchestrated BT (Handler-First)
-
-Handlers orchestrate BT execution — handlers call BTs, BTs do not replace
-the handler architecture.
-
-**Rationale**: Preserves semantic extraction and dispatch infrastructure.
-Allows gradual handler-by-handler migration. Keeps ActivityStreams as the API
-surface (BT is an internal implementation detail). Aligns with ADR-0007.
-
-**Rejected alternative**: BTs directly consuming ActivityStreams — would
-require rewriting semantic extraction and tighter coupling.
-
-### 3. DataLayer as State Store (No Separate Blackboard Persistence)
-
-BTs interact directly with DataLayer for all persistent state. The py_trees
-blackboard MAY be used for transient in-execution state only.
-
-**Rationale**: Single source of truth, eliminates sync issues, simplifies
-architecture, transaction semantics handled by DataLayer.
-
-**Blackboard key naming**: Keys MUST NOT contain slashes (py_trees
-hierarchical path parsing issues). Use `{noun}_{id_segment}` where
-`id_segment` is the last path segment of the object's URI.
-Examples: `object_abc123`, `case_def456`, `actor_vendorco`.
-
-**Rejected alternative**: Separate blackboard with periodic sync — risk of
-inconsistencies, complex sync logic.
-
-### 4. Focused BTs per Workflow (Not Monolithic)
-
-Create small, focused behavior trees triggered by specific message semantics.
-Each `MessageSemantics` type that uses BT has a corresponding tree
-encapsulating that workflow.
-
-**Rationale**: Event-driven model (one message → one tree), easier to test
-in isolation, clear handler entry points, composable via subtrees, better
-performance.
-
-**Rejected alternative**: Single monolithic `CvdProtocolBT` — doesn't match
-event-driven handler architecture, harder to test, poor performance.
-
-### 5. Single-Shot Execution (Not Persistent Tick Loop)
-
-BTs execute to completion per handler invocation. No state is preserved
-between handler invocations.
-
-**Rationale**: Matches HTTP request/response model, simpler failure handling,
-clear transaction boundaries (one execution = one commit).
-
-**Rejected alternative**: Async tick-based execution with pause/resume —
-requires BT state persistence between ticks, complex failure recovery.
-
-### 6. Case Creation Does *Not* Generate a Per-Case CaseActor Object
-
-**Corrected in #1872.** This note previously said case creation creates a
-CaseActor object, one per `VulnerabilityCase` (1:1). It does not, and that model
-was the bug.
-
-Authority over a case is a **role** — `CVDRole.CASE_MANAGER`, held by whichever
-participant is the case's authority — worn by a container, one per container, not
-a per-case object (CP-08-002/003). The concrete actor that enacts it (the
-prototype's "CaseActor") has the stable identity
-`{case_actor_service_url}/actors/case-actor`. A per-case identity such as
-`.../actors/case-actor-{slug}` was a phantom: computed by the sender, hosted by
-nobody, so delivery to it 404'd permanently and the proposal round-trip never
-began.
-
-What actually happens: `PublishCaseActorIdentityNode` *publishes* the configured
-identity to the blackboard and creates nothing;
-`EnsureCaseActorHostedNode` provisions the record in the enacting actor's own store so
-its inbox answers, and returns `SUCCESS` when that actor is hosted elsewhere,
-because that is a normal topology. `ResolveCaseActorUrlsNode` — which derived the
-per-case identity *and* created a per-case `Service` object to match — is gone.
-
-**Rationale**: a case needs a message-processing owner, but "owner" is a role
-held in the case, and its holder may be any Actor type. Making it a role rather
-than an object is also what lets a dedicated container provision itself from its
-own seed config.
-
-**Case ownership model**:
-
-- **Case Owner**: Organizational Actor (vendor/coordinator) responsible for
-  decisions.
-- **CASE_MANAGER**: the case-management authority role; the actor enacting it
-  (the prototype's "CaseActor", an ActivityStreams Service) manages case state,
-  distinct from the case owner.
-- **Initial Owner**: Typically the recipient of the VulnerabilityReport Offer.
-
-### 7. CLI Invocation Support (MAY)
-
-BTs can be invoked independently via CLI for testing and AI agent
-integration. See `BT-08-*` in `specs/behavior-tree-integration.yaml`.
+- **Handler-first** (ADR-0007): use cases call BTs; a BT never consumes
+  ActivityStreams directly or replaces semantic extraction and dispatch.
+- **DataLayer is the state store**: persistent state lives in the DataLayer;
+  the py_trees blackboard holds transient in-execution state only.
+- **Blackboard keys contain no slashes** (py_trees parses them as paths). Use
+  `{noun}_{id_segment}`, where `id_segment` is the last path segment of the
+  object's URI: `object_abc123`, `case_def456`, `actor_vendorco`.
+- **One focused tree per workflow**: each BT-backed `MessageSemantics` has its
+  own tree; compose larger workflows from subtrees
+  (`notes/bt-composability.md`), never one monolithic protocol tree.
+- **Single-shot execution**: a tree runs to completion per invocation and keeps
+  no state between invocations; one execution commits its act's ledger entry,
+  then one entry per further change to the case file (CLP-07-013).
+- **Case authority is a role, not a per-case object** (CP-08-002/003). The
+  CASE_MANAGER role is held by one actor per container with the stable identity
+  `{case_actor_service_url}/actors/case-actor`. Never compute a per-case
+  identity such as `.../actors/case-actor-{slug}`: nobody hosts it, so delivery
+  404s. `case_actor_identity()` (`case/case_actor_identity.py`) derives the
+  configured identity; `EnsureCaseActorHostedNode` provisions the record locally
+  and returns `SUCCESS` when the actor is hosted elsewhere
+  (`case/nodes/case_setup.py`).
+- **CLI invocation** of individual BTs is supported for testing and agents
+  (BT-08).
 
 ---
 
 ## Actor Isolation and BT Domains
 
-Each actor has an isolated BT execution domain with no shared blackboard
-access:
-
-- Actor A and Actor B have separate py_trees blackboards.
-- Cross-actor interaction happens ONLY through ActivityStreams messages
-  (inboxes/outboxes).
-- This models real-world CVD: independent organizations making autonomous
-  decisions.
-- Each actor's internal state (RM/EM/CS state machines) is private.
+Each actor has its own BT execution domain and blackboard. Actors interact
+ONLY through ActivityStreams messages, and each actor's RM/EM/CS state is
+private.
 
 ### The store follows the executing actor (BT-05-005)
 
-`BT-05-002` and `BT-05-003` put the store and the executing actor on the
-blackboard as two independent facts, so they could disagree. Under per-actor
-storage they are one fact: a store is always *some* actor's own, so the blackboard
-`actor_id` determines which store the tree operates on. `BTBridge` therefore
-**reconciles** the two rather than accepting whatever store the caller injected —
-see `_store_for_actor`, which delegates to
-`vultron/core/behaviors/store_scope.py::store_for_actor`.
+Under per-actor storage the blackboard `actor_id` determines which store the
+tree operates on, so `BTBridge` **reconciles** the injected store to the
+executing actor (`BTBridge._store_for_actor` →
+`vultron/core/behaviors/store_scope.py::store_for_actor`) instead of trusting
+the caller. Divergence bites on delegated emits: a trigger emitting on the
+CASE_MANAGER's behalf with the requester's DataLayer would create the activity
+in one store and queue it in the other's outbox, so it is never delivered.
 
-The delegated-emit pattern is where divergence bites. A trigger emitting on the
-CASE_MANAGER's behalf runs with `actor_id` set to the CASE_MANAGER while the injected
-DataLayer belongs to the *requesting* actor: the activity is created in one store
-and queued in the other's outbox, so the CASE_MANAGER never delivers it and its
-outbox names an activity its own store does not hold.
-
-Exception: a store that reports no `actor_id` at all — a test double, or any
-implementation that predates per-actor storage — is passed through untouched, and
-a test may deliberately let the identities differ to assert the *skip* path.
+A store that reports no `actor_id` (a test double) is passed through untouched,
+and a test may let the identities differ deliberately to assert the skip path.
 
 ### Role-gated trees: three identities must be one (BT-05-006)
 
 Where a tree is gated on a role held in the case, the **role holder**, the
-**receiving actor** and the **store owner** must be one actor. Letting any two
-drift produces a silent skip rather than an error: the gate evaluates against an
-actor holding no role, returns SUCCESS-by-skip, and nothing is written.
+**receiving actor** and the **store owner** must be one actor. If any two
+drift, the gate evaluates against an actor holding no role and returns
+SUCCESS-by-skip with nothing written.
 
-The corollary for node authors: gate on the role
-(`create_case_manager_gated_tree`), never by comparing `actor_id` against a
-computed `case_actor_id` (CM-24-004). Once the emit is role-gated the executing
-actor *is* the case manager, so the activity and its outbox entry land in one
-store by construction. Ungated, the same helper is identity spoofing.
+Gate on the role (`create_case_manager_gated_tree`), never by comparing
+`actor_id` against a computed `case_actor_id` (CM-24-004). Once the emit is
+role-gated, the executing actor *is* the case manager, so the activity and its
+outbox entry land in one store by construction.
 
 ### The message subject is a fourth identity, and it must stay separate
 
-BT-05-006 above is about three identities that must **coincide**. There is a
-fourth that must **not**: the *subject* the message names — invitee, accepting
-actor, rejecting actor, target actor. It answers "whose consent/state is this
-message about?", which is a different question from "whose replica am I
-applying it to?" (`resolve_receiving_actor_id()`) and from "who is executing
-the tree?" (blackboard `actor_id`).
+The *subject* a message names (invitee, accepting, rejecting or target actor)
+answers "whose consent/state is this about?". That is neither "whose replica am
+I applying it to?" (`resolve_receiving_actor_id()`) nor "who is executing the
+tree?" (blackboard `actor_id`).
 
-Subject identities MUST be read from the message and threaded into the tree as
-leaf-node constructor data — never derived from the receiving actor (ADR-0022,
-which names `invitee_id` and `accepting_actor_id` as legitimate leaf-node
-inputs that are never legitimate `actor_id` values). They coincide with the
-receiving actor on the direct-delivery path, which is exactly what makes the
-conflation survive testing: it breaks only under CLI dispatch, log replay, a
-CASE_MANAGER relaying on a participant's behalf, or a multi-recipient activity.
+Read subject identities **from the message** and thread them into the tree as
+leaf-node constructor data, never derived from the receiving actor (ADR-0022).
+They coincide with the receiving actor on direct delivery, so a conflation
+passes tests and breaks only under CLI dispatch, log replay, CASE_MANAGER relay,
+or a multi-recipient activity (ISSUE-2762). Watch for:
 
-Two failure shapes to watch for, both of which returned SUCCESS while writing
-to the wrong record (ISSUE-2762):
+- **Reusing the resolved receiving actor as a subject.**
+- **A tree factory that accepts a subject argument and only logs it**, behind a
+  lookup that falls back to the execution actor when the subject is falsy. Log
+  at WARNING when a named subject did not resolve, as
+  `CanAnswerEmbargoInviteNode` does.
 
-- **Reusing the resolved receiving actor as a subject.** Satisfies every
-  written requirement and inverts the semantics.
-- **A tree factory that accepts a subject argument and only logs it.** A
-  lenient lookup that falls back to the BT execution actor when the subject is
-  falsy makes a dropped subject argument indistinguishable from one never
-  supplied. Log at WARNING when a subject *was* named and did not resolve, as
-  `CanAnswerEmbargoInviteNode` does, which separates the two.
+For an `Invite(EmbargoEvent)` the invitee is the Invite's *sole* `to:`
+recipient (EP-09-010, ADR-0113). `resolve_invitee_id()`
+(`vultron/core/use_cases/received/embargo/invite.py`) returns it in canonical
+spelling and raises `VultronProtocolViolationError` naming the recipient count
+otherwise, which the use case reports as `REFUSED`. A proposal addressed to the
+CASE_MANAGER names the manager as sole recipient, but the manager adjudicates it
+and is never its invitee, so its own record gets no RSVP deadline (CM-28-003).
 
-Read a subject **from the message**, never from the receiving actor. For an
-`Invite(EmbargoEvent)` the invitee is the Invite's *sole* `to:` recipient
-(EP-09-010, ADR-0113): every emitter sends one recipient (a participant to the
-CASE_MANAGER; the CASE_MANAGER to one participant per relayed Invite), so an
-Invite naming several recipients or none is refused as a misrouting, never
-resolved by membership or guessed at. `resolve_invitee_id()`
-(`vultron/core/use_cases/received/embargo/invite.py`) returns the sole recipient in its
-canonical spelling and raises `VultronProtocolViolationError` naming the
-recipient count, which the use case reports as `REFUSED`. A proposal addressed
-to the CASE_MANAGER names the manager as that sole recipient, but the manager
-adjudicates it and is never its invitee, so its own record gets no RSVP
-deadline (CM-28-003, ISSUE-2762).
 Where a message legitimately names several recipients (the report `Offer`),
 test membership with `is_addressed_to()` (`vultron/core/predicates/addressing.py`),
 never a bare `in`: `to:`/`cc:` arrive as the sender wrote them, so a trailing
-slash misses an exact match while the receiver is canonical (#2667); see
-`_not_primary_recipient_reason()` in `received/report.py`. Full rule:
-`vultron/core/AGENTS.md` § "A Message Subject Is Never
-`resolve_receiving_actor_id()`".
+slash misses an exact match (#2667). Full rule: `vultron/core/AGENTS.md`
+§ "A Message Subject Is Never `resolve_receiving_actor_id()`".
 
 ---
 
 ## Concurrency Model
 
-**Prototype approach**: Sequential FIFO message processing per actor.
-
-**Implementation**: BackgroundTasks queues messages; inbox endpoint returns
-202 immediately. BT execution happens in the background on a **thread pool**
-— not a single thread, and never on the event loop — by two routes:
+Messages are processed sequentially per actor: the inbox endpoint returns 202
+and queues work on `BackgroundTasks`. BT execution runs on a **thread pool**,
+never on the event loop:
 
 - Trigger routes are synchronous `def` endpoints, so Starlette runs them via
   `anyio.to_thread.run_sync`.
-- The inbox background task (`run_inbox_pipeline`) is an `async def`, which
-  Starlette runs *on the event loop*; it therefore hands the synchronous BT
-  pipeline (`process_payload` and the replay loop) to `asyncio.to_thread`
-  itself, inside the per-actor asyncio lock (IE-06-003).
+- The inbox background task (`run_inbox_pipeline`) is `async def` and so runs
+  on the event loop; it hands the synchronous BT pipeline (`process_payload`
+  and the replay loop) to `asyncio.to_thread` itself, inside the per-actor
+  asyncio lock (IE-06-003). Without that hop every inbound activity stalls the
+  whole container for its BT tick (#3033).
 
-**Why the inbox hop matters** (#3033, #2898): before the hop, every inbound
-activity stalled the whole container for its BT tick. No HTTP response went
-out, peers' deliveries were not accepted, no co-hosted outbox drain could run
-(the served app did not even start an `OutboxMonitor` until ADR-0112 — its
-root lifespan had drifted from `app_v2`'s), and a trigger route waiting on the BT lock from
-its threadpool thread starved until the client timed out. In the fv demo the
-CaseActor's outbox paid one full BT tick per delivery on the vendor container
-(0.6–5 s each under CI load), and `Create(VulnerabilityCase)` was queued
-behind a ledger fan-out that took 17 s to drain. A stale version of this
-section said the inbox path already ran on the thread pool; it had, before
-the task became a coroutine.
-
-**Critical implication**: Two BT executions can and do run on different
-threads simultaneously. The `py_trees.blackboard.Blackboard.storage` dict
-is process-global and is **not** thread-safe without explicit locking.
-
-**Fix**: `BTBridge.execute_with_setup` wraps its entire
-setup → execute → cleanup critical section with a module-level
-`threading.RLock`. An `RLock` (not `Lock`) is required because
-`lifecycle.py` BT nodes call `execute_with_setup` recursively — a plain
-`Lock` deadlocks in that path.
-
-**Race condition that prompted this fix** (PR-886): Thread A's
-`execute_with_setup` writes `actor_id=A` and `datalayer=DL_A`; Thread B
-overwrites them with `actor_id=B` / `datalayer=DL_B`; Thread A then reads
-the wrong `actor_id`, queuing its outbound activity under the wrong actor's
-outbox — the activity is silently lost. Thread B may also crash when
-Thread A's cleanup removes `/datalayer` before B reads it.
-
-**Future optimization paths** (defer until needed):
-
-- Optimistic locking (version numbers on VulnerabilityCase)
-- Resource-level locking (lock specific case during mutations)
-- Actor-level concurrency (parallel across actors, sequential per-actor)
+Two BT executions therefore run on different threads at once, and
+`py_trees.blackboard.Blackboard.storage` is process-global and not thread-safe.
+`BTBridge.execute_with_setup` wraps setup → execute → cleanup in a module-level
+`threading.RLock`; it must be an `RLock` because `lifecycle.py` nodes call
+`execute_with_setup` recursively. Without it one thread's `actor_id` overwrites
+another's and an outbound activity lands in the wrong actor's outbox (PR-886).
 
 ---
 
 ## All Protocol-Significant Behavior MUST Be in the BT
 
-**There is no "simple enough to skip" threshold for BT usage.**
+There is no "simple enough to skip" threshold. Emitting activities,
+transitioning RM/EM/CS state, creating or updating protocol-state objects, and
+cascading to downstream behaviors (validate → engage/defer) are all BT nodes or
+subtrees (BT-06-001, BT-06-005, BT-06-006). A behavior outside the tree is
+invisible to analysis, audit, and explainability.
 
-All protocol-observable actions and state transitions MUST be implemented as
-BT nodes or subtrees. This includes:
-
-- Emitting ActivityStreams activities
-- Transitioning RM/EM/CS state
-- Creating or updating domain objects that represent protocol state
-- Cascading to downstream behaviors (e.g., validate → engage/defer)
-
-The BT is the domain documentation. If a behavior is not in the tree, it is
-invisible to analysis, audit, and explainability tools. See BT-06-001,
-BT-06-005, BT-06-006 in `specs/behavior-tree-integration.yaml`.
-
-### Post-BT Procedural Cascade Anti-Pattern
-
-```python
-# ❌ WRONG — cascade hidden outside the tree
-def execute(self) -> None:
-    bridge.execute_with_setup(self._dl, bt, bb)
-    if bt.status == Status.SUCCESS:
-        SvcEngageCaseUseCase(self._dl, engage_event).execute()  # ← VIOLATION
-```
-
-The validate→engage cascade is invisible at the BT level. This pattern exists
-in three places and is tracked as D5-7-BTFIX-1 and D5-7-BTFIX-2.
-
-```python
-# ✅ CORRECT — cascade expressed as a child subtree
-class ValidateReportBt:
-    def __init__(...):
-        bt = py_trees.composites.Sequence(...)
-        validate_node = ValidateReportNode(...)
-        prioritize_subtree = PrioritizeBt(...)  # engage OR defer
-        bt.add_children([validate_node, prioritize_subtree])
-```
-
-The cascade from the canonical `?_RMValidateBt → ?_RMPrioritizeBt` is now
-visible in the BT structure and auditable from the tree alone.
+**Post-BT procedural cascade anti-pattern**: calling another use case from
+`execute()` after the tree succeeds (`if bt.status == SUCCESS:
+SvcEngageCaseUseCase(...).execute()`) hides the cascade. Express it as a child
+subtree of the tree instead (`create_prioritize_subtree` in
+`report/prioritize_tree.py` is the reusable engage/defer subtree).
 
 ### Procedural Glue Exception
 
-The `execute()` method MAY contain infrastructure glue only:
+`execute()` MAY contain infrastructure glue only: instantiate the BT, set up the
+blackboard from the event, call `bridge.execute_with_setup()`, check the
+status, extract output from the blackboard.
 
-- Instantiate the BT
-- Set up the blackboard from the event (load actor/case IDs)
-- Call `bridge.execute_with_setup()`
-- Check BT status
-- Extract output from the blackboard
-
-Nothing domain-significant lives outside the tree. In particular, a call from
-`execute()` to a helper function that writes to the DataLayer is **not** glue:
-the write is outside the tree whatever the helper is named, and the mutation
-ratchet (`test/architecture/test_no_dl_mutations_in_execute.py`) resolves such
-calls through the use-case package transitively (CLP-10-020): a write that a
-received `execute()` reaches through any function or method defined under
-`vultron/core/use_cases/` — module helper, `self._method()`, relative or
-re-exported import, any depth — is a violation of the file holding the
-`execute()`. Resolution stops at the package boundary, so a BT node's write is
-never one. Trigger-side bodies get only the direct rule (BT-15-001 governs
-them). Eleven received `execute()` bodies in nine files reached a write this way
-when the rule was widened, most through one shared `_idempotent_create` helper
-and the rest through bespoke ones, invisible to the earlier body-only scan
-because the write sat one call away (ISSUE-3339, ADR-0111). Each was held in the
-exact `KNOWN_VIOLATIONS` set, annotated with the issue that retired it; the set is
-now an empty `frozenset()`, and a new entry needs the issue that owns its removal.
+A call from `execute()` to a helper that writes to the DataLayer is **not**
+glue, whatever the helper is named (CLP-10-020, ADR-0111). The ratchet
+`test/architecture/test_no_dl_mutations_in_execute.py` resolves calls from a
+received `execute()` transitively through anything defined under
+`vultron/core/use_cases/` (module helper, `self._method()`, relative or
+re-exported import, any depth), stopping at the package boundary, so a BT node's
+write is never a violation. Its `KNOWN_VIOLATIONS` set is empty; a new entry
+needs the issue that owns its removal. Trigger-side bodies get only the direct
+rule (BT-15-001).
 
 ### The Four Received-Side Stages (ADR-0111)
 
-A received-side tree composed via `create_receive_activity_tree` runs four
-stages in a fixed order (CLP-10-006, CLP-10-010):
+A received-side tree composed via `create_receive_activity_tree`
+(`vultron/core/behaviors/case/receive_activity_tree.py`) runs four stages in a
+fixed order (CLP-10-006, CLP-10-010):
 
-1. **Intake** — one shared node, `IntakeReceivedActivityNode`
-   (`vultron/core/behaviors/case/nodes/intake.py`), archives the mail: the
-   received activity exactly as received, idempotently, as a
-   `ReceivedActivityRecord` (`vultron/core/models/received_activity_record.py`)
-   whose id the *receiver* derives (`build_id(sender_activity_id)`) and which
-   carries the sender's id for the reverse lookup. Never under the sender's
-   id: the DataLayer is one id-keyed table per actor, so a sender naming its
-   activity after a record we derive (a pending-case-inbox marker, an offer
-   record) would occupy that id ahead of our own write and a read-then-create
-   helper would read the squatter as "already stored". A reader that needs
-   the archived activity goes through `build_id`. It decides nothing,
-   ledgers nothing, and writes nothing else (CLP-10-017). It runs first, so a
-   refusal a moment later still leaves the receiver holding the archive
-   (CLP-10-018). The letter's contents are not core's records: a case, note,
-   status or embargo carried inline is a *message shaped like* that object, and
-   the record core keeps is written by an effect node from the event's copy,
-   after the guards. Intake writing them would let any sender seed a replica
-   ahead of the trust checks — a stored case row *is* the replica (PCR-03-004,
-   CBT-01-005). A stored `VultronActivity` dehydrates `object`/`target` to ids,
-   so the faithful copy is the received evidence ADR-0107 step 5 seals at parse;
-   #3742 persists it beside the archived row, through this node.
-2. **Guards** — read-only precondition checks that return FAILURE to refuse.
-   They write nothing. A refusal goes to the process log and, where the
-   protocol calls for an answer, back to the sender — never to the ledger
-   (CLP-05-002). A tree that owes that answer passes it as `refusal_effects`
-   (CLP-10-022): the factory wraps the guards in a `PreconditionGuardStage`
-   (`case/nodes/refusal_stage.py`) that runs the refusal effects only when a
-   precondition guard fails — not the sender guard, and never on an accepted
-   delivery — inside a CASE_MANAGER gate, and skips them on a redelivery intake
-   found already archived. The stage then fails with the guard's reason, so
-   nothing is committed and the handler still reads `REFUSED`. A refusal effect
-   must be `EmitCapable` and hold no `StateWriteCapable` node; the factory
-   refuses any other, because a refusal changes no state. The redelivery skip
-   keys on intake's archive, not on a record that the effects ran, so a
-   redelivery whose first delivery never reached them is not answered either. Do not hand-build a `Selector[guard, emit]` instead: an
-   emit beside a guard runs ahead of the commit on an accepted delivery. The
-   RSH-06-004 note for a refused backward RM declaration is the first user.
+1. **Intake** — `IntakeReceivedActivityNode` (`case/nodes/intake.py`) archives
+   the received activity exactly as received, idempotently, as a
+   `ReceivedActivityRecord` whose id the *receiver* derives
+   (`build_id(sender_activity_id)`), carrying the sender's id for reverse
+   lookup. Never store under the sender's id: one id-keyed table per actor lets
+   a sender squat an id we derive for our own records. Readers of the archive go
+   through `build_id`. Intake decides nothing, ledgers nothing, and writes
+   nothing else (CLP-10-017); it runs first so a refusal still leaves the
+   archive (CLP-10-018). An object carried inline (case, note, status, embargo)
+   is a message shaped like that object; the record core keeps is written by an
+   effect node after the guards, because a stored case row *is* the replica
+   (PCR-03-004, CBT-01-005).
+
+   Directly after intake the factory places `CaseOpenToExternalWritesNode`
+   (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
+   CASE_MANAGER, once the ledger holds `case_fully_closed`, it fails the tree so
+   no commit, effect, or emit runs; on every other store it passes, so replicas
+   keep applying the closure fan-out. The handler verdict comes from
+   `post_close_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
+   `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. A handler that
+   commits or sends *before* its tree runs (embargo Accept and Invite) asks
+   through `post_close_refusal_before_tree` (`_sender_preflight.py`). A tree
+   opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
+   nodes that answer the refusal; only the close-case tree passes one
+   (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other
+   late activity is dropped with no reply (ADR-0131, CM-23-017).
+2. **Guards** — read-only precondition checks that return FAILURE to refuse and
+   write nothing. A refusal goes to the process log and, where the protocol
+   calls for an answer, back to the sender — never to the ledger (CLP-05-002).
+   A tree that owes that answer passes it as `refusal_effects` (CLP-10-022): the
+   factory wraps the guards in a `PreconditionGuardStage`
+   (`case/nodes/refusal_stage.py`) that runs them only when a precondition guard
+   (not the sender guard) fails, inside a CASE_MANAGER gate, and skips them on a
+   redelivery whose intake was already archived. The stage then fails with the
+   guard's reason, so nothing commits and the handler reads `REFUSED`. A refusal
+   effect must be `EmitCapable` and hold no `StateWriteCapable` node. Do not
+   hand-build a `Selector[guard, emit]`: the emit would run ahead of the commit
+   on an accepted delivery.
 3. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
-   postmark on the envelope (ADR-0107, CLP-07-011). It never rebuilds the
-   assertion from processed state.
+   postmark on the envelope (ADR-0107, CLP-07-011); it never rebuilds the
+   assertion from processed state. Every commit goes through
+   `CommitCaseLedgerEntryNode`; a received `execute()` never commits (BT-06-006).
 4. **Effects** — apply the accepted assertion to the local replica and enqueue
-   any cascades. `replica_effects` run on every replica; `manager_effects` run
-   only at the CASE_MANAGER, inside the gate the factory adds (BT-17-008). See
+   cascades. `replica_effects` run on every replica; `manager_effects` run only
+   at the CASE_MANAGER, inside the gate the factory adds (BT-17-008; see
    `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From
-   the Factory".
+   the Factory").
 
-Every ledger commit goes through `CommitCaseLedgerEntryNode` inside the tree; a
-received `execute()` never commits one itself (BT-06-006).
+**Intake is the only path that stores the received activity** (CLP-10-019). Do
+not add a per-tree store node or handler-local store helper. A receive tree
+that does not compose through the factory runs no intake; the exceptions are an
+exact set, `KNOWN_FACTORIES_BYPASSING_INTAKE`, in
+`test/architecture/test_receive_side_intake_first.py`, each with its reason. The
+ratchet also checks that the factory *returns* the shared factory's result
+(`KNOWN_FACTORIES_NESTING_INTAKE`, empty): nesting it under a hand-built root
+runs something before intake. A tree that needs a branch ahead of the receipt
+commit uses an outer factory with `case_id=None` (intake, no commit) and an
+inner factory per arm that commits; the inner intake finds the archive and
+writes nothing. Intake archives nothing when the event carries no activity, so
+a semantic-registry entry must set `include_activity=True`. A handler that
+turns a delivery away before it can build its tree uses `refuse_after_intake`
+(`use_cases/received/_store_only.py`).
 
-Intake is the only path that stores the received activity (CLP-10-019). Do not
-add a per-tree store node or a handler-local store helper; the factory
-(`create_receive_activity_tree`, `vultron/core/behaviors/case/receive_activity_tree.py`)
-already supplies the intake node as the first child of every tree it builds. A
-receive tree that does not compose through the factory runs no intake. #3870
-moved the two that composed `create_case_manager_gated_tree` directly (add-note,
-update-case) and found more that never used the factory; those are held as an
-exact set in `test/architecture/test_receive_side_intake_first.py`
-(`KNOWN_FACTORIES_BYPASSING_INTAKE`), where a receive-side tree is one a
-received use case calls rather than one whose name says "received". The case,
-report and note factories moved with #4288; what remains are the embargo trees
-that synthesise an entry rather than process a received activity, each with its
-reason in the test. Intake archives nothing when the event carries no activity,
-so a semantic-registry entry must set `include_activity=True` (#4288 set it for
-add/remove-case-participant and create-note). A handler that turns a delivery
-away before it can build its tree uses `refuse_after_intake`
-(`use_cases/received/_store_only.py`) so the refusal still leaves the archive.
-Calling the factory is not enough: the ratchet checks that the factory
-*returns* the shared factory's result, because a tree that nests it under a
-hand-built root (as the close-case tree did, a Selector whose first arm guarded
-ahead of intake) runs something before intake. Those are a second exact set,
-`KNOWN_FACTORIES_NESTING_INTAKE`, empty since #3870 lifted the close-case
-tree's intake to its root. A tree that needs a branch ahead of the receipt
-commit wraps the branch: outer factory with `case_id=None` (intake, no commit),
-inner factory per arm that commits. The inner intake finds the archive and
-writes nothing.
-
-The factory commits only when it is given a `case_id`, and CLP-10-013 requires
-the commit exactly when the received `(type, object)` pair is a canonical payload
-signature (`_CANONICAL_PAYLOAD_SIGNATURES`) — otherwise the CASE_MANAGER would
-refuse its own commit. `Update(VulnerabilityCase)` is not one, so
-`create_update_case_received_tree` passes `case_id=None` and the CASE_MANAGER
-publishes the update through its `Announce` broadcast (CM-06-001) as before.
-That is a decision, not a gap: an owner's update is deliberately not a ledgered
-assertion (ADR-0111, #3936).
-
-One canonical signature also passes `case_id=None` (#4304):
-`Announce(VulnerabilityCase)`. Only the CASE_MANAGER sends it and only a
-participant replica receives it, so the commit gate could only skip.
-`Add(CaseParticipant)` was the other until #4081 made it the Case Owner's
-reinstatement request; it now commits, and replicas apply its entry through
-`ApplyReinstateCaseParticipantFromLedgerNode` (RSH-08-004).
-Any other tree whose activity is canonical passes `case_id`, with its refusing nodes
-in `precondition_guards`, so a refused activity leaves no entry.
+**The factory commits only when given a `case_id`**, and CLP-10-013 requires a
+commit exactly when the received `(type, object)` pair is a canonical payload
+signature (`_CANONICAL_PAYLOAD_SIGNATURES`); otherwise the CASE_MANAGER would
+refuse its own commit. The `Announce(VulnerabilityCase)` tree passes
+`case_id=None` by decision: only the CASE_MANAGER sends it and only replicas
+receive it, so the gate could only skip. `Update(VulnerabilityCase)` has no
+received tree; an inbound one resolves to `UNKNOWN` and is refused (#4443).
+Every other tree whose activity is canonical passes `case_id`, with its
+refusing nodes in `precondition_guards`, so a refused activity leaves no entry.
 
 ### Trigger/Received Parity
 
-The BTBridge requirement applies equally to **trigger-side** and
-**received-side** `execute()` methods. There is no carve-out for trigger
-use cases.
-
-State machine transitions — RM transitions (e.g., `RM.INVALID`, `RM.CLOSED`),
-EM lifecycle calls (e.g., `EmbargoLifecycle.propose_embargo()`), direct
-`ParticipantStatus` writes with a specific `rm_state` — are all
-protocol-significant behavior (BT-15-001, BT-06-006). They MUST live in BT
-leaf nodes executed via `bridge.execute_with_setup()`, not directly in
-`execute()`.
-
-```python
-# ❌ WRONG — trigger-side inline RM state transition
-def execute(self) -> dict:
-    set_status = ParticipantStatus(rm_state=RM.INVALID, ...)
-    dl.create(set_status)
-    add_activity_to_outbox(actor_id, activity_id, dl)
-    return {"activity": activity_dict}
-```
-
-```python
-# ✅ CORRECT — trigger-side SM transition in BTBridge
-def execute(self) -> dict:
-    bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-    tree = invalidate_report_trigger_bt(...)
-    result = bridge.execute_with_setup(tree, actor_id=actor_id)
-    if result.status != Status.SUCCESS:
-        raise VultronValidationError(
-            f"InvalidateReport failed: {BTBridge.get_failure_reason(tree)}"
-        )
-    return {"activity": captured.get("activity")}
-```
-
-The historical asymmetry — where `received/` use cases used BTBridge and
-`triggers/` did not — arose from the now-retired "simple CRUD" guidance.
-See BT-15-001 in `specs/behavior-tree-integration.yaml`.
-
-### Historical Decision Table (Retired)
-
-The "When to Use BTs vs. Procedural Code" table that previously appeared in
-this section has been removed. It created a false "simple enough to skip"
-threshold that led directly to the anti-pattern violations above.
-
-For the mapping of canonical BT subtrees to current use cases, see
-the "Canonical CVD Protocol Behavior Tree Reference" section of this file.
+The BTBridge requirement applies equally to trigger-side `execute()` methods.
+RM transitions, `EmbargoLifecycle` calls, and `ParticipantStatus` writes with a
+specific `rm_state` are protocol-significant (BT-15-001, BT-06-006): they live in
+BT leaf nodes run via `bridge.execute_with_setup()`, never inline in
+`execute()`. On a non-`SUCCESS` status the trigger raises with
+`BTBridge.get_failure_reason(tree)`.
 
 ---
 
 ## Simulation-to-Prototype Translation Strategy
 
-Use simulation trees in `vultron/bt/` as **architectural reference** (not
-code reuse targets). The simulation uses a custom BT engine with incompatible
-initialization patterns.
+Use the simulation trees in `vultron/bt/` as **architectural reference**, not
+code to reuse; the custom engine's initialization is incompatible with
+py_trees.
 
-**Translation steps**:
+1. Find the simulation tree in `vultron/bt/report_management/_behaviors/` (or
+   the embargo/case equivalents).
+2. Keep its sequence/fallback composition and node ordering.
+3. Map condition nodes (e.g. `RMinStateValid`) to `Behaviour` subclasses that
+   check DataLayer state.
+4. Replace fuzzer nodes with call-out points (`notes/call-out-configuration.md`);
+   the fuzzer catalog is `docs/developer/reference/bt-fuzzer/index.md`.
+5. Preserve state-transition order and precondition checks; wrap state changes
+   in DataLayer updates; emit ActivityStreams activities to the outbox where the
+   simulation emits messages.
 
-1. Find the corresponding simulation tree in
-   `vultron/bt/report_management/_behaviors/` (or embargo/case equivalents).
-2. Note the sequence/fallback composition hierarchy and node ordering.
-3. Map condition nodes (e.g., `RMinStateValid`) to py_trees `Behaviour`
-   subclasses checking DataLayer state.
-4. Replace fuzzer nodes (e.g., `EvaluateReportCredibility`) with
-   deterministic policy nodes using configurable defaults.
-5. Preserve state transition order and precondition checks.
-6. Wrap state changes with DataLayer update operations.
-7. Generate ActivityStreams activities for outbox where simulation emits
-   messages.
+`vultron/bt/case_state/` has only `conditions.py` and `transitions.py` (no
+`_behaviors/`): build case nodes from the ActivityPub how-to docs, using those
+as state-machine reference. In `vultron/bt/embargo_management/`, `Accept` is an
+**activity type** that triggers `PROPOSED → ACTIVE` (or `REVISE → ACTIVE`), not
+a state; `states.py` is the authoritative state list.
 
-**Fuzzer node replacement pattern**: Create a policy class with a clear
-interface (e.g., `ValidationPolicy.is_credible(report) -> bool`) and a
-default `AlwaysAcceptPolicy` implementation. This provides a deterministic
-stub with an explicit extension point.
+**Source of truth priority** when the sources conflict:
 
-**A word about Fuzzer nodes**: Fuzzer nodes in the simulation
-represent
-non-deterministic decisions where the system might need to check some
-external condition, ask a human for input, or perform some complex task
-before proceeding. In the simulation, they would just randomly return
-SUCCESS or FAILURE based on a stochastic model. In the prototype, we will
-need to keep track of these nodes as places where further specification may
-be needed or additional implementation work may be required to handle the
-real-world logic that these nodes represent. See `bt-fuzzer-nodes.md`
-for more discussion on this topic.
+1. `docs/howto/activitypub/activities/*.md` — process descriptions, message
+   examples, workflow steps.
+2. `vultron/bt/report_management/_behaviors/*.py` — state-machine logic, tree
+   composition.
+3. `docs/topics/behavior_logic/*.md` — conceptual diagrams, motivation.
 
 ### py_trees Fuzzer Node Home: `vultron/demo/fuzzer/`
 
-When re-implementing the `vultron/bt/` fuzzer nodes using `py_trees`,
-the correct target location is **`vultron/demo/fuzzer/`** — NOT
-`vultron/core/behaviors/`.
+py_trees re-implementations of `vultron/bt/` fuzzer nodes go in
+**`vultron/demo/fuzzer/`**, never `vultron/core/behaviors/` (BT-16-004): they
+are simulation stubs for call-out points, not protocol
+behavior. Modules mirror the simulator: `base.py` (probabilistic base types),
+`embargo.py`, `messaging.py`, and `report_management/`.
+`vultron/bt/vul_discovery/fuzzer.py` is intentionally not ported: discovery
+happens upstream of Vultron, which starts at `Offer(VulnerabilityReport)`.
 
-**Why demo, not core?** Fuzzer nodes are simulation/demo stubs standing
-in for real external-dependency touchpoints (system integrations, human
-decisions, environmental checks). They are not production protocol
-behaviors and MUST NOT pollute `vultron/core/behaviors/`.
+Each fuzzer node's docstring names (BT-16-005):
 
-**Module layout** (see BT-16-004):
-
-| Module | Source | Nodes |
-|---|---|---|
-| `vultron/demo/fuzzer/base.py` | `vultron/bt/base/fuzzer.py` | Probabilistic base types |
-| `vultron/demo/fuzzer/embargo.py` | `vultron/bt/embargo_management/fuzzer.py` | ~15 embargo nodes |
-| `vultron/demo/fuzzer/messaging.py` | `vultron/bt/messaging/inbound/_behaviors/fuzzer.py` | ~1 messaging node |
-| `vultron/demo/fuzzer/report_management/` | `vultron/bt/report_management/fuzzer/` | ~70 nodes in submodules |
-
-**Note**: `vultron/bt/vul_discovery/fuzzer.py` is intentionally excluded —
-the `DiscoverVulnerabilityBt` tree operates upstream of real Vultron
-(which starts at `Offer(VulnerabilityReport)`). There is no corresponding
-real workflow in `vultron/core/` to target.
-
-Each fuzzer node MUST include a docstring identifying:
-
-1. Its semantic function in the CVD process
-2. The category of external input it simulates:
-   - **System integration** — automatable via API calls, metadata queries,
-     or policy-rule evaluation
-   - **Human decision** — requires analyst judgment or policy oversight
-   - **Environmental check** — real-world state observable automatically
-3. Its approximate success probability (maps to `WeightedBehavior` subclass)
-4. Its automation potential (High / Medium / Low / N/A) per BT-16-005
-
-**Source of truth priority** when conflicts arise:
-
-1. **Primary**: `docs/howto/activitypub/activities/*.md` — process
-   descriptions, message examples, workflow steps.
-2. **Secondary**: `vultron/bt/report_management/_behaviors/*.py` — state
-   machine logic, tree composition.
-3. **Tertiary**: `docs/topics/behavior_logic/*.md` — conceptual diagrams,
-   motivation.
-
-**Simulation tree to handler mapping**:
-
-| Handler             | Simulation Reference                              | Status                |
-|---------------------|---------------------------------------------------|-----------------------|
-| `validate_report`   | `_behaviors/validate_report.py:RMValidateBt`      | ✅ DONE               |
-| `engage_case`       | `_behaviors/prioritize_report.py:RMPrioritizeBt`  | ✅ DONE               |
-| `defer_case`        | `_behaviors/prioritize_report.py:RMPrioritizeBt`  | ✅ DONE               |
-| `create_case`       | `case_state/conditions.py`, `transitions.py`      | ✅ DONE               |
-| `invalidate_report` | `_behaviors/validate_report.py:_InvalidateReport` | ⚠️ Optional refactor  |
-| `close_report`      | `_behaviors/close_report.py:RMCloseBt`            | ⚠️ Optional refactor  |
-
----
-
-## Case and Embargo BT Structure Notes
-
-**Case management** (`vultron/bt/case_state/`): Contains `conditions.py` and
-`transitions.py` but no `_behaviors/` subdirectory (unlike report
-management). Implement BT nodes directly from the ActivityPub how-to docs,
-using `conditions.py` and `transitions.py` as state machine logic reference.
-
-**Embargo management** (`vultron/bt/embargo_management/`): Contains
-`behaviors.py`, `conditions.py`, `states.py`, `transitions.py`. The embargo
-state machine (EM: NONE → PROPOSED → ACTIVE → REVISE → EXITED) maps
-directly to the handler sequence for the establish_embargo workflow. Note:
-`Accept` is an **activity type** that triggers `PROPOSED → ACTIVE` (or
-`REVISE → ACTIVE`) — it is not a state. See
-`vultron/bt/embargo_management/states.py` for the authoritative state list.
-
----
-
-## Demo Script Architecture Pattern
-
-Each demo script should follow `receive_report_demo.py` as the reference
-pattern:
-
-1. `setup_*()` — create preconditions (actors, prior state)
-2. `demo_*(server_url)` — execute the workflow via HTTP inbox POSTs
-3. `show_state(dl)` — display relevant DataLayer state after workflow
-4. `main()` — orchestrate with logging, call setup then demos
-
-Use `httpx` or `requests` against a live FastAPI test server (via
-`TestClient` for in-process testing, or a running server for integration
-tests).
+1. its semantic function in the CVD process;
+2. the external input it simulates — **system integration**, **human
+   decision**, or **environmental check**;
+3. its approximate success probability (the `WeightedBehavior` subclass);
+4. its automation potential (High / Medium / Low / N/A).
 
 ---
 
 ## EvaluateCasePriority: Outgoing Direction Only
 
-`EvaluateCasePriority` (in `vultron/core/behaviors/report/nodes.py`) is a
-**stub node for the outgoing direction** — when the local actor decides whether
-to engage or defer a case after receiving a validated report.
+`EvaluateCasePriority` (`vultron/core/behaviors/report/nodes/conditions.py`) is
+for the **outgoing direction**: the local actor deciding whether to engage or
+defer a validated report. The receive-side `EngageCaseBT` and `DeferCaseBT`
+(`report/prioritize_tree.py`) do not use it; they record the **sender's
+already-made decision** in the sender's
+`CaseParticipant.participant_status[].rm_state`. Activities are state-change
+notifications, not commands, so a received `Join`/`Ignore(VulnerabilityCase)`
+needs no policy evaluation.
 
-The receive-side trees (`EngageCaseBT`, `DeferCaseBT` in
-`vultron/core/behaviors/report/prioritize_tree.py`) do **not** use
-`EvaluateCasePriority`. They only record the **sender's already-made
-decision** by updating the sender's `CaseParticipant.participant_status[].rm_state`.
+## RM Is Participant-Specific
 
-This distinction matters because Activities are state-change notifications, not
-commands: when the local actor receives `Join(VulnerabilityCase)` (ENGAGE_CASE)
-or `Ignore(VulnerabilityCase)` (DEFER_CASE), it is being informed that another
-participant already made their decision — the receiver simply records that fact.
-Policy evaluation is only needed when the **local actor** decides to engage or
-defer.
-
----
-
-## RM State Machine: Participant-Specific Context
-
-RM is a **participant-specific** state machine — each `CaseParticipant`
-carries its own RM state in `participant_status[].rm_state`, independently
-of other participants.
-
-Per ADR-0015, a `VulnerabilityCase` is created at report receipt
-(RM.RECEIVED). `CaseParticipant` records are created at that time:
-reporter at RM.ACCEPTED, receiver at RM.RECEIVED. RM state is tracked
-in `CaseParticipant.participant_status[].rm_state` from the moment
-of case creation.
-
-> **ADR-0015 is superseded by ADR-0041.** In the CASE_MANAGER-authoritative model
-> the report receiver's tree no longer creates the `VulnerabilityCase` directly.
-> The report receiver stores the report, writes a pending `VultronReportCaseLink`,
-> and sends `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER
-> creates the case, adds participants, and initializes embargo before emitting
-> `Create(VulnerabilityCase)` back to the report receiver, which becomes the
-> CASE_OWNER.  See `notes/case-proposal.md`
-> for the corrected flow (CM-22, CP-09).
-
-`ReportStatus` in the flat status layer is a **transient pre-case
-mechanism** that was previously used for reports not yet associated with
-a case (pre-case RM states: RECEIVED, INVALID). Under ADR-0015, the case
-is created at receipt, so `CaseParticipant` records carry RM state
-from the start. `ReportStatus` is retained for backwards compatibility but
-is no longer the primary RM state carrier.
-
-This distinction affects how `engage_case` / `defer_case` handlers work:
-they update participant-level RM state, not flat report status.
-
----
-
-## Performance Baseline
-
-Phase BT-1 measurements (100 runs of `validate_report` BT):
-
-- P50 = 0.44ms, P95 = 0.69ms, P99 = 0.84ms
-
-This is well within the 100ms target. If more complex trees degrade
-performance, consider caching BT structure (instantiate once, reuse with
-fresh blackboard) and batching DataLayer operations. Measure before
-optimizing.
-
----
-
-## Composability of Behavior Trees
-
-Behavior trees can be composed by adding one tree's root node as the child
-of a node in another tree. In this way, the Vultron Behavior Trees represent
-a library of reusable mini-workflows that can be composed into larger workflows.
-This allows us to build complex behavior logic while keeping individual trees focused
-and maintainable. In fact, the entire behavior logic described in
-`docs/topics/behavior_logic` is really one big behavior tree with all the
-sub-nodes described separately for clarity. In the real implementation, we
-want these behaviors to be more individually triggerable and composable, but
-we may still want to be able to trigger an individual behavior tree as well
-as another item that contains it for a larger workflow.
-
----
-
-## Open Architecture Questions
-
-**Multi-actor state synchronization**: Each actor's BT loads only that
-actor's DataLayer state. Cross-actor coordination happens via message
-exchange. Whether to add optimistic locking for multi-actor scenarios should
-be decided based on observed issues during testing.
-
-**Message emission and outbox processing**: BT nodes generate activities and
-write to actor outbox via DataLayer. Whether outbox delivery should be
-triggered synchronously after BT execution or asynchronously remains to be
-decided.
-
-**Human-in-the-loop decision handling**: Report validation, embargo
-acceptance, and similar steps require human judgment. The prototype uses
-configurable default policies (always-accept stubs with audit logging). Async
-workflow support with pause/resume is a future consideration.
+Each `CaseParticipant` carries its own RM state in
+`participant_status[].rm_state`. Handlers such as engage/defer update
+participant-level RM state; there is no case-level or flat report RM status. The
+CASE_MANAGER creates the case and its participants from the report receiver's
+`Create(as_CaseProposal)` (ADR-0041; `notes/case-proposal.md`).
 
 ---
 
 ## Related
 
-- `notes/bt-integration.md` — canonical subtree map, trunk-removed
-  branches model, anti-pattern examples (merged from former
-  `canonical-bt-reference.md`)
-- `specs/behavior-tree-integration.yaml` — formal BT requirements
-  (BT-06-001 through BT-06-006 especially)
-- `notes/bt-fuzzer-nodes.md` — fuzzer node catalog and replacement patterns
-- `notes/use-case-behavior-trees.md` — use-case/BT conceptual layering
+- `notes/bt-canonical-reference.md` — canonical CVD protocol BT subtree map,
+  node symbol legend, BT-IDM anti-patterns
+- `notes/bt-composability.md` — composing trees from subtrees
+- `notes/bt-pitfalls.md` — per-pitfall notes on blackboard semantics,
+  idempotency, role guards
+- `notes/use-case-behavior-trees.md` — tree-is-the-documentation and no
+  post-tree cascades
 - `notes/protocol-event-cascades.md` — cascade gaps and BT subtree fixes
-- `notes/vultron-bt.txt` — full canonical CVD protocol BT dump (read-only
-  reference)
-
----
-
-> See also: [bt-canonical-reference.md](bt-canonical-reference.md) for the
-> canonical CVD Protocol BT subtree map, node symbol legend, and BT-IDM
-> anti-patterns.
->
-> See also: [bt-pitfalls.md](bt-pitfalls.md) for per-pitfall debugging notes
-> on blackboard semantics, idempotency, role guards, and other common BT
-> implementation pitfalls.
+- `notes/vultron-bt.txt` — full canonical CVD protocol BT dump (read-only)

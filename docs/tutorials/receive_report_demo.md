@@ -83,9 +83,7 @@ The `api-dev` container exposes the Vultron API at
 
 Inside the container shell, run:
 
-```bash
-vultron-demo receive-report
-```
+{% include-markdown "../howto/activitypub/activities/_demo_receive_report.md" %}
 
 The demo runs three separate workflows in sequence.
 Each step begins with a `🚥` marker and ends with either `🟢` (success) or `🔴` (failure).

@@ -33,6 +33,9 @@ node_db_url_template
 get_trigger_dl
     Alias of :func:`get_actor_dl`, kept as a distinct override point for
     trigger-route tests.
+get_ledger_stream_shutdown
+    Return the event the serving app's lifespan sets when the server shuts
+    down, which ends every open demo ledger stream.
 get_hosted_actor_dls
     Return every store this node hosts, keyed by canonical actor URI, for
     node-level operations such as the admin reset.
@@ -47,6 +50,7 @@ that actor's own store.  The ``{actor_id}`` path parameter is no longer
 "accepted but unused".
 """
 
+import threading
 from typing import cast
 
 from fastapi import Depends, Path, Request
@@ -59,10 +63,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.ledger_stream import SHUTDOWN_STATE_KEY
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
+from vultron.errors import VultronWiringError
 from vultron.trigger_registry import entries as trigger_registry_entries
 
 
@@ -163,6 +169,29 @@ def get_trigger_dl(
     different stores for the same actor.
     """
     return dl
+
+
+def get_ledger_stream_shutdown(request: Request) -> threading.Event:
+    """FastAPI dependency: the event that ends open demo ledger streams.
+
+    The serving app's lifespan publishes it in lifespan state (see
+    :func:`~vultron.adapters.driving.fastapi.ledger_stream.install_shutdown_signal_hook`),
+    which reaches mounted sub-applications too.  An app whose lifespan did not
+    run — a bare ``FastAPI()`` in a test, or an ASGI host that skips lifespan —
+    has none; tests override this dependency instead.
+
+    Raises:
+        VultronWiringError: no lifespan published the event.  A stream with no
+            way to learn of shutdown would hold the server open until the
+            graceful-shutdown timeout, so it is refused rather than started.
+    """
+    shutdown = getattr(request.state, SHUTDOWN_STATE_KEY, None)
+    if not isinstance(shutdown, threading.Event):
+        raise VultronWiringError(
+            "No ledger stream shutdown event in lifespan state; the serving "
+            "app's lifespan did not run."
+        )
+    return shutdown
 
 
 def get_hosted_actor_dls(

@@ -15,25 +15,25 @@ It is written for developers who are building actors that must interoperate with
 
 The page does not explain how to run the demo or why the case moves as it does.
 [Run the FV Demo](../tutorials/fv-demo.md) carries the run-it-yourself steps, and the [FV scenario narrative](../topics/scenarios/fv.md) carries the explanation in Coordinated Vulnerability Disclosure (CVD) terms.
-Every activity named below is documented, with its canonical example, on the [Message Reference](messages/index.md) pages linked from the tables.
+Each activity table links the occasion section on the [Message Types](messages/index.md) pages that documents the activity, with its canonical example.
 
 ---
 
 ## Actors and topology
 
 The compose stack starts every actor container the multi-actor scenarios share.
-The FV scenario uses two of them and three logical actors:
+The FV scenario uses three of them, one per logical actor:
 
 | Actor | CVD role(s) | Container | Actor id |
 |:------|:------------|:----------|:---------|
 | Finder | `REPORTER` | `finder` | `http://finder:7999/api/v2/actors/{id}` |
 | Vendor | `VENDOR`, `CASE_OWNER` | `vendor` | `http://vendor:7999/api/v2/actors/{id}` |
-| Case Actor | `CASE_MANAGER` | `vendor` (co-hosted) | `http://vendor:7999/api/v2/actors/case-actor` |
+| Case Actor | `CASE_MANAGER` | `case-actor` | `http://case-actor:7999/api/v2/actors/case-actor` |
 
 The **Case Actor** is the actor that enacts the `CASE_MANAGER` role for the case.
 It is the single writer of the canonical case ledger, and every case-scoped activity a participant sends is addressed to it ([The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md)).
-The Vendor's container hosts it as a second actor record with its own inbox, because the Vendor's `case_actor_service_url` points at the Vendor's own container.
-The dedicated `case-actor` container in the compose file takes no part in this scenario, and the demo runner asserts at the end of Phase 2 that it holds no case data.
+It runs on the dedicated `case-actor` container, because every container's `case_actor_service_url` names that container (CP-08-008).
+That container holds the canonical case and ledger, and the demo runner asserts at the end of Phase 2 that it holds the case with its Case Actor as the `CASE_MANAGER` participant.
 
 The Finder is not a protocol role.
 The actor labeled Finder holds `REPORTER`, the role of whoever submits the report ([ADR-0078](../adr/0078-retire-finder-role.md)).
@@ -80,26 +80,27 @@ sequenceDiagram
     note over F,CA: ✅ M3 — Vendor holds the authoritative final case state
 
     note over F,CA: Phase 4 — Fix lifecycle
-    V->>CA: Add(ParticipantStatus Vf), Add(ParticipantStatus VF) — Fix Readiness (CF)
+    V->>CA: Add(ParticipantStatus Vf), Add(ParticipantStatus VF) — Vendor Awareness (CV), Fix Readiness (CF)
     CA-->>V: Announce(CaseLedgerEntry) ×n
     CA-->>F: Announce(CaseLedgerEntry) ×n
     note over F,CA: ✅ M4, M5 — both replicas show CS includes F
 
     note over F,CA: Phase 5 — Publication and embargo teardown
-    V->>CA: Add(ParticipantStatus Pxa) — Public Awareness (CP)
-    CA->>V: Remove(EmbargoEvent) — Embargo Termination (ET)
-    CA->>F: Remove(EmbargoEvent) — Embargo Termination (ET)
-    F->>CA: Add(ParticipantStatus Pxa) — Public Awareness (CP)
+    V->>CA: Add(ParticipantStatus Pxa) — public awareness
+    CA->>V: Remove(Event) — Embargo Termination (ET)
+    CA->>F: Remove(Event) — Embargo Termination (ET)
+    F->>CA: Add(ParticipantStatus Pxa) — public awareness
     CA-->>V: Announce(CaseLedgerEntry) ×n
     CA-->>F: Announce(CaseLedgerEntry) ×n
     note over F,CA: ✅ M6 — CS.VFdPxa · EM.EXITED on both replicas
 
     note over F,CA: Phase 6 — Case closure
     F->>CA: Leave(VulnerabilityCase) — participant closes
+    CA-->>V: Announce(CaseLedgerEntry) ×n — the Finder's closure
+    CA-->>F: Announce(CaseLedgerEntry) ×n — its own closure, then nothing
     V->>CA: Leave(VulnerabilityCase) — owner closes last
-    CA-->>V: Announce(CaseLedgerEntry) ×n
-    CA-->>F: Announce(CaseLedgerEntry) ×n
-    note over F,CA: ✅ M7 — all participants RM.CLOSED
+    CA-->>V: Announce(CaseLedgerEntry) ×n — its own closure, then nothing
+    note over F,CA: ✅ M7 — all participants RM.CLOSED in the Case Actor's store
 ```
 
 A run also contains `Announce(VulnerabilityCase)` from the Case Actor to every participant, which seeds a replica, and `Reject(CaseLedgerEntry)` from a replica to the Case Actor, which reports that an entry arrived before its predecessor and asks for replay.
@@ -119,14 +120,14 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Offer(VulnerabilityReport)` | Report Submission (RS) | `SUBMIT_REPORT` | Finder → Vendor | [RM Messages](messages/rm.md) |
-| `Create(CaseProposal)` | Create Case Proposal | `CREATE_CASE_PROPOSAL` | Vendor → Case Actor | [Case Proposal Messages](messages/case_proposal.md) |
-| `Accept(CaseProposal)` | Accept Case Proposal | `ACCEPT_CASE_PROPOSAL` | Case Actor → Vendor | [Case Proposal Messages](messages/case_proposal.md) |
-| `Create(VulnerabilityCase)` | Create Case | `CREATE_CASE` | Case Actor → Vendor, Finder | [Case Management Messages](messages/case_management.md) |
-| `Accept(Offer(VulnerabilityReport))` | Report Valid (RV) | `VALIDATE_REPORT` | Vendor → Case Actor | [RM Messages](messages/rm.md) |
-| `Join(VulnerabilityCase)` | Report/Case Accepted (RA) | `ENGAGE_CASE` | Vendor → Case Actor | [RM Messages](messages/rm.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Offer(VulnerabilityReport)` | [Report Submission (RS)](messages/rm.md#report-submission) | Finder → Vendor |
+| `Create(CaseProposal)` | [Create case proposal](messages/case_proposal.md#create-case-proposal) | Vendor → Case Actor |
+| `Accept(CaseProposal)` | [Accept case proposal](messages/case_proposal.md#accept-case-proposal) | Case Actor → Vendor |
+| `Create(VulnerabilityCase)` | [Create case](messages/case_management.md#create-case) | Case Actor → Vendor, Finder |
+| `Accept(Offer(VulnerabilityReport))` | [Validate report](messages/rm.md#report-valid) | Vendor → Case Actor |
+| `Join(VulnerabilityCase)` | [Report/Case Accepted (RA)](messages/rm.md#report-accepted) | Vendor → Case Actor |
 
 ### What happens
 
@@ -136,7 +137,11 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
 3. The Case Actor creates the case, seats itself as `CASE_MANAGER`, the Vendor as `CASE_OWNER` at `RM.RECEIVED`, and the Finder as `REPORTER` at `RM.ACCEPTED`, initializes the Vendor's default embargo, and seeds both participants' [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md) as signatories.
    The embargo is therefore `ACTIVE` from the first ledger entry without a proposal round-trip (EP-04-001).
    It then sends `Accept(CaseProposal)` to the Vendor, followed by `Create(VulnerabilityCase)` to both the Vendor and the Finder.
-   That `Create` carries the case with its participants inline; it is the trust bootstrap that lets the Finder bind the Case Actor's identity to this case (CBT-01-001).
+   That `Create` carries the case with its participants inline; it is the [trust bootstrap](../topics/case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust) that lets the Finder bind the Case Actor's identity to this case (CBT-01-001).
+
+   !!! note "ADR-0132 changes this step"
+       The specs now have the Case Actor send that `Create` to the Vendor only, and the Vendor send the Finder its own `Create` naming the Case Actor.
+       The demo follows the specs once [#4511](https://github.com/CERTCC/Vultron/issues/4511) lands.
 4. The Vendor's `validate-report` trigger sends Report Valid (RV) to the Case Actor, and the Vendor's participant record advances to `RM.VALID`.
 5. The Vendor's `engage-case` trigger sends Report/Case Accepted (RA), and the record advances to `RM.ACCEPTED`.
 
@@ -175,7 +180,7 @@ The `actor` is the Case Actor, acting as `CASE_MANAGER`, while the case's `attri
 {
   "type": "Create",
   "id": "urn:uuid:ac0e2f61-…",
-  "actor": "http://vendor:7999/api/v2/actors/case-actor",
+  "actor": "http://case-actor:7999/api/v2/actors/case-actor",
   "to": [
     "http://vendor:7999/api/v2/actors/{vendor_id}",
     "http://finder:7999/api/v2/actors/{finder_id}"
@@ -213,7 +218,7 @@ This phase reads the two replicas and sends nothing.
 1. The demo runner reads the highest ledger index the Vendor's replica holds.
 2. It waits until the Finder's replica holds a contiguous ledger up to that index.
 3. It compares the two replicas: the participant index, the active embargo id, and the ledger tail hash must match.
-4. It reads the dedicated `case-actor` container and asserts that it holds no case.
+4. It reads the dedicated `case-actor` container and asserts that it holds the case, with its Case Actor as a `CASE_MANAGER` participant.
 
 Ledger entries reach a replica through `Announce(CaseLedgerEntry)`, one activity per entry per participant.
 Entries can arrive out of order; a replica that receives an entry ahead of its predecessor answers with `Reject(CaseLedgerEntry)`, and the Case Actor replays the missing range ([Ledger Replication Messages](messages/ledger_replication.md)).
@@ -226,7 +231,7 @@ Entries can arrive out of order; a replica that receives an entry ahead of its p
 | Matching `actorParticipantIndex` | both replicas |
 | Matching active embargo (the register's `ACTIVE` entry) | both replicas |
 | Matching ledger tail hash | both replicas |
-| No case data | dedicated `case-actor` container |
+| Case held, Case Actor is `CASE_MANAGER` | dedicated `case-actor` container |
 
 ---
 
@@ -241,16 +246,17 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Create(Note)` | General Inquiry (GI) | `CREATE_NOTE` | Participant → Case Actor | [General Messages](messages/general.md) |
-| `Add(Note, target=VulnerabilityCase)` | General Inquiry (GI) | `ADD_NOTE_TO_CASE` | Participant → Case Actor | [General Messages](messages/general.md) |
-| `Announce(CaseLedgerEntry)` | Announce Case Ledger Entry | `ANNOUNCE_CASE_LEDGER_ENTRY` | Case Actor → every other participant | [Ledger Replication Messages](messages/ledger_replication.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Create(Note)` | [Create note](messages/general.md#create-note) | Participant → Case Actor |
+| `Add(Note)[target=VulnerabilityCase]` | [Add note to case](messages/general.md#add-note-to-case) | Participant → Case Actor |
+| `Announce(CaseLedgerEntry)` | [Announce case ledger entry](messages/ledger_replication.md#announce-case-ledger-entry) | Case Actor → every other participant |
 
 ### What happens
 
 1. The Finder's trigger sends `Create(Note)` and then `Add(Note, target=VulnerabilityCase)` to the Case Actor.
-2. The Case Actor attaches the note to the case, commits an `add_note_to_case` ledger entry, and fans it out.
+2. The Case Actor commits the `Create(Note)` as a `create_note` ledger entry and attaches the note to the case, because the note's `context` names the case.
+   It then commits the `Add(Note)` as an `add_note_to_case` entry, which changes nothing more, and fans both entries out.
 3. The Vendor replies the same way, with the reply note's `inReplyTo` naming the question.
 4. Both replicas end up holding both notes.
 
@@ -272,9 +278,10 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Add(ParticipantStatus, target=CaseParticipant)` | Fix Readiness (CF) | `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` | Vendor → Case Actor | [CS Messages](messages/cs.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Add(ParticipantStatus)[target=CaseParticipant]`, `vf_state` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
+| `Add(ParticipantStatus)[target=CaseParticipant]`, `vf_state` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
 
 ### What happens
 
@@ -304,15 +311,19 @@ POST /api/v2/actors/{finder_id}/demo/notify-published
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Add(ParticipantStatus, target=CaseParticipant)` | Public Awareness (CP) | `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` | Vendor → Case Actor; Finder → Case Actor | [CS Messages](messages/cs.md) |
-| `Remove(EmbargoEvent, origin=VulnerabilityCase)` | Embargo Termination (ET) | `REMOVE_EMBARGO_EVENT_FROM_CASE` | Case Actor → Vendor, Finder | [EM Messages](messages/em.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Add(ParticipantStatus)[target=CaseParticipant]`, its case status at `Pxa` | none yet; see the note below | Vendor → Case Actor; Finder → Case Actor |
+| `Remove(Event)` | [Embargo Termination (ET)](messages/em.md#embargo-termination) | Case Actor → Vendor, Finder |
+
+!!! note "Public awareness inside a participant status"
+    The demo reports public awareness as a participant status whose embedded case status carries `pxa_state` `Pxa`.
+    The occasion table has no row for that form yet ([#4569](https://github.com/CERTCC/Vultron/issues/4569)): its [Public Awareness (CP)](messages/cs.md#public-awareness) occasion is `Add(CaseStatus)[target=VulnerabilityCase]`.
 
 ### What happens
 
 1. The Vendor's trigger sends `Add(ParticipantStatus)` with the public-path state `Pxa`.
-2. The Case Actor records the status and, because the report of public awareness comes from the Case Owner, terminates the embargo: it sends `Remove(EmbargoEvent)` to every participant and commits an `add_case_status_to_case` entry carrying `EM.EXITED`.
+2. The Case Actor records the status and, because the report of public awareness comes from the Case Owner, terminates the embargo: it sends `Remove(Event)` to every participant and commits an `add_case_status_to_case` entry carrying `EM.EXITED`.
 3. The Finder's trigger sends its own `Add(ParticipantStatus)` with `Pxa`.
 
 ### Milestone M6
@@ -336,9 +347,9 @@ POST /api/v2/actors/{vendor_id}/demo/close-case
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Leave(VulnerabilityCase)` | Close Case | `CLOSE_CASE` | Finder → Case Actor; Vendor → Case Actor | [Case Management Messages](messages/case_management.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Leave(VulnerabilityCase)` | [Close case](messages/case_management.md#close-case) | Finder → Case Actor; Vendor → Case Actor |
 
 ### What happens
 
@@ -350,11 +361,23 @@ The owner's departure closes the case, and the Case Actor records nothing a part
 1. The Finder sends `Leave(VulnerabilityCase)`.
    As a non-owner, this advances only the Finder (CM-23-003); no other participant's RM state changes (CM-23-012).
    The Case Actor commits `close_case` for the Finder.
+   It then moves the Finder to `RM.CLOSED` and commits one `add_participant_status_to_participant` entry for each RM transition it writes, in order (CM-23-001).
+   The Finder is at `RM.ACCEPTED`, so that is one entry; a participant at `RM.VALID` would get two, for `VALID → DEFERRED` and `DEFERRED → CLOSED` (RMB-14-005).
 2. The demo waits until the Case Actor's own store shows the Finder at `RM.CLOSED`.
    A trigger returns before its effect commits, so the demo does not let the Vendor's `Leave` overtake the Finder's.
 3. The Vendor sends `Leave(VulnerabilityCase)`.
-   The Vendor is the `CASE_OWNER`, so this is an owner closure: the Case Actor commits `close_case` for the Vendor, advances its own participant record to `RM.CLOSED` and records that transition as an `add_participant_status_to_participant` entry (CM-23-005), then commits `case_fully_closed` (CM-23-002).
-4. Each entry is fanned out as `Announce(CaseLedgerEntry)`, and every replica applies it, which is how a participant learns that a peer has departed.
+   The Vendor is the `CASE_OWNER`, so this is an owner closure (CM-23-002).
+   The Case Actor commits `close_case` for the Vendor and then the Vendor's status entries.
+   It advances its own participant record to `RM.CLOSED` and commits those status entries too (CM-23-005).
+   It expires every embargo invitation still waiting for an answer, with one entry each (CM-23-014); the FV run has none.
+   Last, it commits `case_fully_closed`.
+4. Each entry is fanned out as `Announce(CaseLedgerEntry)` to every participant that has not closed, and each replica applies what it receives.
+   A closed participant receives its own closure entries and nothing after them (CM-23-004).
+   The leaving participant's replica receives its `close_case` entry and every status entry for its departure, the one that reaches `RM.CLOSED` included.
+   The Finder therefore receives none of the Vendor's closure entries.
+   The Vendor receives its own `close_case` and status entries, but not the Case Actor's own status entry or `case_fully_closed`.
+   A replica moves a departing participant only by applying those status entries: the `close_case` entry itself changes no RM state, and a replica never works out the steps from its own stored state (CM-23-016).
+   A participant does not write its own `RM.CLOSED`; it waits for the Case Actor's entries.
 
 ### Example: Leave(VulnerabilityCase)
 
@@ -363,7 +386,7 @@ The owner's departure closes the case, and the Case Actor records nothing a part
   "type": "Leave",
   "id": "urn:uuid:541b09bc-…",
   "actor": "http://vendor:7999/api/v2/actors/{vendor_id}",
-  "to": ["http://vendor:7999/api/v2/actors/case-actor"],
+  "to": ["http://case-actor:7999/api/v2/actors/case-actor"],
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:8eee4e72-…",
@@ -377,9 +400,11 @@ The owner's departure closes the case, and the Case Actor records nothing a part
 | Check | Where |
 |:------|:------|
 | Every departure recorded before `case_fully_closed`, and no participant act after it | Case Actor's ledger |
-| Every participant `RM.CLOSED`, including the `CASE_MANAGER` | both replicas |
-| `close_case` entry present | Vendor replica |
-| Ledger coverage contiguous to the Vendor's tail | Finder replica |
+| Every participant `RM.CLOSED`, including the `CASE_MANAGER` | Case Actor's store |
+| Ledger contiguous through the Finder's own last closure entry, and nothing after it; the Finder is `RM.CLOSED` | Finder replica |
+| Ledger contiguous through the Vendor's own last closure entry, and nothing after it; the Vendor is `RM.CLOSED` | Vendor replica |
+
+No participant replica is checked for every closure: a closed participant is sent nothing after its own closure entries (CM-23-004), so the Case Actor's store is where every closure is verified.
 
 ---
 
@@ -397,20 +422,24 @@ The exact count of `add_participant_status_to_participant` and `add_case_status_
 | 7 | `add_case_status_to_case` | Vendor (initial case status, `EM.ACTIVE`) | 1 |
 | 8 | `validate_report` | Vendor | 1 |
 | 9 | `engage_case` | Vendor | 1 |
-| 10 | `add_note_to_case` | Finder | 3 |
-| 11 | `add_note_to_case` | Vendor | 3 |
-| 12–15 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
-| 16–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
-| 18–19 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
-| 20–21 | `add_participant_status_to_participant`, `add_case_status_to_case` | Finder's `Pxa` status and the case status that follows it | 5 |
-| 22 | `close_case` | Finder | 6 |
-| 23 | `close_case` | Vendor | 6 |
-| 24 | `add_participant_status_to_participant` | Case Actor (its own `RM.CLOSED`) | 6 |
-| 25 | `case_fully_closed` | Vendor (owner closure) | 6 |
+| 10–11 | `create_note`, `add_note_to_case` | Finder | 3 |
+| 12–13 | `create_note`, `add_note_to_case` | Vendor | 3 |
+| 14–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
+| 18–19 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
+| 20–21 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
+| 22–23 | `add_participant_status_to_participant`, `add_case_status_to_case` | Finder's `Pxa` status and the case status that follows it | 5 |
+| 24 | `close_case` | Finder | 6 |
+| 25 | `add_participant_status_to_participant` | Case Actor (the Finder's `ACCEPTED → CLOSED`) | 6 |
+| 26 | `close_case` | Vendor | 6 |
+| 27 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
+| 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
+| 29 | `case_fully_closed` | Case Actor (its own `Update(VulnerabilityCase)` closing the case on the Vendor's departure) | 6 |
 
 The ledger ends at `case_fully_closed`: the Finder left first, so no participant act follows the owner closure.
 
-The Finder's replica and the Vendor's replica hold the same sequence, entry for entry, once fan-out completes.
+Each participant's replica holds the same sequence, entry for entry, up to the last entry recording its own closure, and nothing after it (CM-23-004).
+The Finder's replica ends at index 23, its own closure step.
+The Vendor's replica ends at index 25, its own closure step, so it does not hold the Case Actor's own status entry or `case_fully_closed`.
 The demo runner exports all three ledgers as JSONL under `devlogs/fv/` at the end of a run, and the invariant harness in `test/ci/invariants/` checks them against the causal edges the [FV scenario narrative](../topics/scenarios/fv.md) declares.
 
 ---
