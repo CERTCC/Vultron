@@ -243,10 +243,10 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             return f
         assert self.datalayer is not None
         reason = self._commit.feedback_message or "creation commit failed"
-        case = self.datalayer.read_case(self._case_id_bb)
-        if case is None or recorded_entries_for_case(
-            case_id=case.id_, dl=self.datalayer
-        ):
+        case, failure = self._require_case(self._case_id_bb)
+        if failure is not None:
+            return failure  # Regime 1: nothing written to withdraw (ADR-0087)
+        if recorded_entries_for_case(case_id=case.id_, dl=self.datalayer):
             self.feedback_message = reason
             return Status.FAILURE
         for participant_id in case.actor_participant_index.values():
