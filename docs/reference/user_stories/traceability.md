@@ -810,7 +810,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[AKM-03-001](../specs/protocol.md#akm-03-001)</td>
-<td markdown="span">Outbound initiating activities MUST carry the `object` field as a fully inline typed domain object — invite proposal payload integrity.</td>
+<td markdown="span">Outbound initiating activities MUST carry, as their `object`, the domain object they act on, inline or by reference — invite proposal payload integrity.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_054](story_2022_054.md)</td>
