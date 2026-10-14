@@ -1007,7 +1007,8 @@ def test_owner_embargo_decisions_are_distinct_from_invite_answers(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("MSM-07-010", "VAM-05-010")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("VAM-05-010")
 def test_leave_of_the_embargo_is_a_withdrawal() -> None:
     import vultron.wire.as2.vocab.examples.embargo as examples
 
@@ -1017,7 +1018,8 @@ def test_leave_of_the_embargo_is_a_withdrawal() -> None:
     )
 
 
-@pytest.mark.spec("MSM-07-010", "VAM-05-010")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("VAM-05-010")
 def test_leave_of_the_case_is_not_a_withdrawal_from_the_embargo() -> None:
     from vultron.wire.as2.factories import rm_close_case_activity
     from vultron.wire.as2.vocab.examples._base import case, finder

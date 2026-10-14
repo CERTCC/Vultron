@@ -193,7 +193,9 @@ def _ledger(dl: SqliteDataLayer) -> list[str]:
     ]
 
 
-@pytest.mark.spec("MSM-07-010", "VP-13-017", "VP-13-008")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("VP-13-017")
+@pytest.mark.spec("VP-13-008")
 def test_the_case_manager_applies_and_commits_a_withdrawal(make_payload):
     dl = _store()
     register_before = _register(dl)
@@ -216,7 +218,8 @@ def test_the_case_manager_applies_and_commits_a_withdrawal(make_payload):
     assert _FINDER in _announced_to(dl)
 
 
-@pytest.mark.spec("MSM-07-010", "CLP-10-009")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("CLP-10-009")
 def test_a_leave_of_an_embargo_not_in_force_is_refused_uncommitted(
     make_payload,
 ):
@@ -230,7 +233,8 @@ def test_a_leave_of_an_embargo_not_in_force_is_refused_uncommitted(
     assert _ledger(dl) == []
 
 
-@pytest.mark.spec("MSM-07-010", "CLP-10-009")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("CLP-10-009")
 def test_a_leave_with_no_embargo_in_force_is_refused_uncommitted(
     make_payload,
 ):
@@ -244,7 +248,8 @@ def test_a_leave_with_no_embargo_in_force_is_refused_uncommitted(
     assert _ledger(dl) == []
 
 
-@pytest.mark.spec("MSM-07-010", "CLP-10-009")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("CLP-10-009")
 @pytest.mark.parametrize("row", [ECS.INVITED, ECS.TIMED_OUT, ECS.DECLINED])
 def test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted(
     make_payload, row
@@ -264,7 +269,9 @@ def test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted(
     assert _ledger(dl) == []
 
 
-@pytest.mark.spec("MSM-07-010", "CM-02-005", "CLP-10-009")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("CM-02-005")
+@pytest.mark.spec("CLP-10-009")
 def test_a_leave_from_the_case_owner_is_refused_uncommitted(make_payload):
     """The case owner ends an embargo by terminating it (CM-02-005)."""
     dl = _store()
@@ -277,7 +284,9 @@ def test_a_leave_from_the_case_owner_is_refused_uncommitted(make_payload):
     assert _ledger(dl) == []
 
 
-@pytest.mark.spec("MSM-07-010", "BT-17-001", "HP-01-005")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("BT-17-001")
+@pytest.mark.spec("HP-01-005")
 def test_a_replica_does_not_apply_a_withdrawal(make_payload):
     """Only the CASE_MANAGER records it; a replica learns it from the ledger."""
     dl = _store(receiver=_OWNER)
@@ -312,7 +321,8 @@ def _reject(
     ).execute()
 
 
-@pytest.mark.spec("MSM-07-004", "CLP-10-009")
+@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("CLP-10-009")
 def test_a_reject_of_the_embargo_in_force_from_an_agreed_row_is_refused(
     make_payload,
 ):

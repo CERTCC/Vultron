@@ -128,7 +128,9 @@ def _rows(datalayer, actor_id: str) -> dict[str, str]:
     return {r.embargo_id: r.state.value for r in participant.embargo_consents}
 
 
-@pytest.mark.spec("MSM-07-010", "EP-09-007", "RSH-08-004")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("RSH-08-004")
 def test_replica_replays_its_own_withdrawal(
     datalayer, bridge, revising_replica
 ) -> None:
@@ -147,7 +149,8 @@ def test_replica_replays_its_own_withdrawal(
     assert case.proposed_embargo_ids == [REVISION_ID]
 
 
-@pytest.mark.spec("MSM-07-010", "SYNC-12-001")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("SYNC-12-001")
 def test_a_repeat_of_the_withdrawal_replays_as_a_no_op(
     datalayer, bridge, revising_replica
 ) -> None:
@@ -199,7 +202,8 @@ def test_a_replica_without_the_case_skips_the_entry(datalayer, bridge) -> None:
     assert result.status == Status.SUCCESS
 
 
-@pytest.mark.spec("MSM-07-010", "SYNC-12-001")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("SYNC-12-001")
 def test_a_replica_whose_row_diverges_is_warned_not_blocked(
     datalayer, bridge, revising_replica, caplog
 ) -> None:

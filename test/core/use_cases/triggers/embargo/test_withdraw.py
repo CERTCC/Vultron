@@ -137,7 +137,9 @@ def test_a_withdraw_embargo_trigger_exists() -> None:
     assert hasattr(embargo_triggers, "SvcWithdrawEmbargoUseCase")
 
 
-@pytest.mark.spec("EP-09-013", "MSM-07-010", "PCR-08-001")
+@pytest.mark.spec("EP-09-013")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("PCR-08-001")
 def test_a_seeded_signatory_withdraws_with_no_invite(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -167,7 +169,8 @@ def test_a_seeded_signatory_withdraws_with_no_invite(
     assert _row(dl, participant_id, embargo_id) is ECS.AGREED
 
 
-@pytest.mark.spec("EP-09-013", "SYNC-11-002")
+@pytest.mark.spec("EP-09-013")
+@pytest.mark.spec("SYNC-11-002")
 def test_a_repeat_withdrawal_inside_the_window_is_suppressed(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -183,7 +186,8 @@ def test_a_repeat_withdrawal_inside_the_window_is_suppressed(
     assert list(dl.outbox_list()) == queued
 
 
-@pytest.mark.spec("EP-09-013", "MSM-07-010")
+@pytest.mark.spec("EP-09-013")
+@pytest.mark.spec("MSM-07-010")
 def test_a_case_manager_signatory_records_and_commits_its_own_withdrawal(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -235,7 +239,8 @@ def test_withdrawal_from_a_row_that_is_not_agreed_is_refused(
     assert dl.outbox_list() == []
 
 
-@pytest.mark.spec("EP-09-013", "CM-02-005")
+@pytest.mark.spec("EP-09-013")
+@pytest.mark.spec("CM-02-005")
 def test_the_case_owner_cannot_withdraw(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -259,7 +264,9 @@ def _reject_no_name(dl: SqliteDataLayer, actor_id: str, case_id: str):
     ).execute()
 
 
-@pytest.mark.spec("EP-09-013", "MSM-07-004", "EP-08-002")
+@pytest.mark.spec("EP-09-013")
+@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("EP-08-002")
 def test_a_no_name_reject_refuses_the_revision_and_never_withdraws(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -282,7 +289,8 @@ def test_a_no_name_reject_refuses_the_revision_and_never_withdraws(
     assert _row(dl, participant_id, embargo_id) is ECS.AGREED
 
 
-@pytest.mark.spec("EP-09-013", "MSM-07-004")
+@pytest.mark.spec("EP-09-013")
+@pytest.mark.spec("MSM-07-004")
 def test_a_case_manager_signatorys_no_name_reject_keeps_it_bound(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
