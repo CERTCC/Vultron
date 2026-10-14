@@ -59,6 +59,7 @@ from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckProposalCaseFullyClosedNode,
     activity_names_proposal,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
@@ -76,6 +77,7 @@ from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -1283,6 +1285,17 @@ class TestTheClosedCaseCheckFailsTowardRefusal:
             dl.read(CaseProposalAdmissionRecord.build_id(_SECOND_PROPOSAL_URI))
             is None
         ), "the accept arm never began"
+
+    def test_a_missing_datalayer_raises_rather_than_answering(self):
+        """With no store the node cannot tell, so neither status is safe."""
+        node = CheckProposalCaseFullyClosedNode(
+            proposal_id=_PROPOSAL_URI,
+            proposer_uri=_VENDOR_URI,
+            report_id=_REPORT_URI,
+        )
+
+        with pytest.raises(VultronWiringError):
+            node.update()
 
     @pytest.mark.parametrize(
         "broken_emit",

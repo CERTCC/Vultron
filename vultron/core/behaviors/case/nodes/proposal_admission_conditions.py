@@ -52,6 +52,7 @@ from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -228,13 +229,9 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
                 candidates.append(str(own.id_))
 
         if self._may_have_been_accepted(datalayer):
-            accept = find_activity_for_proposal(
-                datalayer, self._proposal_id, "Accept"
-            )
-            result = getattr(accept, "result", None)
-            accepted_case_id = getattr(result, "id_", result)
-            if isinstance(accepted_case_id, str) and accepted_case_id:
-                candidates.append(accepted_case_id)
+            accepted = accepted_case_id(datalayer, self._proposal_id)
+            if accepted is not None:
+                candidates.append(accepted)
         return candidates
 
     def _may_have_been_accepted(self, datalayer: CasePersistence) -> bool:
@@ -252,7 +249,7 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
 
     def update(self) -> Status:
         if self.datalayer is None:
-            raise RuntimeError(
+            raise VultronWiringError(
                 f"{self.name}: no DataLayer, so it cannot tell whether"
                 f" proposal '{self._proposal_id}' resolves to a fully closed"
                 f" case; failing the tree rather than admitting"
@@ -265,7 +262,7 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
                     f"proposal '{self._proposal_id}' resolves to case"
                     f" '{case_id}', which is fully closed (CM-23-013)"
                 )
-                logger.info(
+                self.logger.info(
                     "%s: declining proposal '%s' from actor_id=%s: case '%s'"
                     " is fully closed (CP-05-006, CP-05-008, CM-23-013)",
                     self.name,
@@ -407,12 +404,26 @@ def find_activity_for_proposal(
     return None
 
 
+def accepted_case_id(datalayer: Any, proposal_id: str) -> str | None:
+    """Return the case the stored ``Accept`` for *proposal_id* names.
+
+    The ``Accept``'s ``result`` is the case the proposal produced or reused
+    (CP-05-006, CP-05-008).  It round-trips as the case id or as a rehydrated
+    object.  Returns ``None`` when no ``Accept`` is stored or it names no case.
+    """
+    accept = find_activity_for_proposal(datalayer, proposal_id, "Accept")
+    result = getattr(accept, "result", None)
+    case_id = getattr(result, "id_", result)
+    return case_id if isinstance(case_id, str) and case_id else None
+
+
 __all__ = [
     "CheckProposalAlreadyAnsweredNode",
     "CheckProposalCaseFullyClosedNode",
     "CheckDeclineRecordExistsNode",
     "CheckNoDeclineRecordNode",
     "CheckRejectAlreadyAnsweredNode",
+    "accepted_case_id",
     "activity_names_proposal",
     "find_activity_for_proposal",
 ]
