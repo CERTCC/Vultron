@@ -745,8 +745,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         participant may act on nothing further (CM-23-018).  The answer is
         computed from the replicated participant record and this case's own
         status, never stored, so every replica derives the same answer.
-        Recipients are
-        selected through :mod:`vultron.core.participants.recipients`, which
+        Recipients are selected through :mod:`vultron.core.participants.recipients`, which
         resolves each roster entry to its record and asks this method.
         """
         if not participant.joined or participant.removed:

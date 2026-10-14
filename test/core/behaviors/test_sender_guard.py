@@ -588,39 +588,41 @@ def _store_where_vendor(
     return scenario
 
 
-def _vendor_guards() -> list[py_trees.behaviour.Behaviour]:
-    """Each guard of the ACTIVE_PARTICIPANT standing, for the vendor."""
-    composed = [
-        compose_sender_guard(
-            SenderRule.in_case(kind),
-            SenderCheckContext(
-                sender_id=VENDOR, case_id=CASE_ID, authored_object_id=NOTE_ID
-            ),
-        )
-        for kind in (Kind.ACTIVE_PARTICIPANT, Kind.AUTHOR)
-    ]
-    return [
-        *(guard for guard in composed if guard is not None),
-        SenderMayAssertEmbargoNode(
+def _composed_vendor_guard(kind: Kind) -> py_trees.behaviour.Behaviour:
+    guard = compose_sender_guard(
+        SenderRule.in_case(kind),
+        SenderCheckContext(
+            sender_id=VENDOR, case_id=CASE_ID, authored_object_id=NOTE_ID
+        ),
+    )
+    assert guard is not None
+    return guard
+
+
+#: Each guard of the ACTIVE_PARTICIPANT standing, built for the vendor.
+_VENDOR_GUARDS = pytest.mark.parametrize(
+    "make_guard",
+    [
+        lambda: _composed_vendor_guard(Kind.ACTIVE_PARTICIPANT),
+        lambda: _composed_vendor_guard(Kind.AUTHOR),
+        lambda: SenderMayAssertEmbargoNode(
             case_id=CASE_ID,
             sender_actor_id=VENDOR,
             manager_arm=Kind.ACTIVE_PARTICIPANT,
         ),
-    ]
-
-
-_GUARD_IDS = ["active-participant", "note-author", "embargo-manager-arm"]
+    ],
+    ids=["active-participant", "note-author", "embargo-manager-arm"],
+)
 
 
 @pytest.mark.spec("CM-23-018")
-@pytest.mark.parametrize("index", range(3), ids=_GUARD_IDS)
+@_VENDOR_GUARDS
 def test_each_active_participant_guard_admits_an_active_open_sender(
-    index: int,
+    make_guard: Callable[[], py_trees.behaviour.Behaviour],
 ) -> None:
     """Control: the vendor, active and not closed, is admitted by each guard."""
-    guard = _vendor_guards()[index]
     result = _store_where_vendor(None).run(
-        guard, activity=SimpleNamespace(actor_id=VENDOR)
+        make_guard(), activity=SimpleNamespace(actor_id=VENDOR)
     )
     assert not result.internal_error, result.feedback_message
     assert result.status == Status.SUCCESS, result.feedback_message
@@ -628,14 +630,14 @@ def test_each_active_participant_guard_admits_an_active_open_sender(
 
 @pytest.mark.spec("CM-23-018", "CM-10-004")
 @_MAY_NOT_ACT
-@pytest.mark.parametrize("index", range(3), ids=_GUARD_IDS)
+@_VENDOR_GUARDS
 def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(
-    index: int, standing: Callable[[CaseParticipant], None]
+    make_guard: Callable[[], py_trees.behaviour.Behaviour],
+    standing: Callable[[CaseParticipant], None],
 ) -> None:
     """A closed, an inert and a removed sender each fail every guard."""
-    guard = _vendor_guards()[index]
     result = _store_where_vendor(standing).run(
-        guard, activity=SimpleNamespace(actor_id=VENDOR)
+        make_guard(), activity=SimpleNamespace(actor_id=VENDOR)
     )
     assert not result.internal_error, result.feedback_message
     assert result.status == Status.FAILURE

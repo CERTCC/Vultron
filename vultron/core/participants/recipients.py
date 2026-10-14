@@ -518,10 +518,7 @@ def is_case_content_recipient(
     sends a closed peer with :func:`closed_participant_ledger_cutoff`
     instead (CM-23-004).
     """
-    participant_id = case.actor_participant_index.get(actor_id)
-    if participant_id is None:
-        return False
-    record = _resolve_record(case, dl, participant_id)
+    record = _listed_record(case, dl, actor_id)
     return record is not None and case.is_active_participant(record)
 
 
@@ -536,7 +533,10 @@ def may_act_on_case(
     """True when *actor_id* may act on *case* as a sender (CM-23-018).
 
     The one predicate behind the ``ACTIVE_PARTICIPANT`` sender standing
-    (HP-01-007, HP-01-009): every guard for that standing asks it.  The
+    (HP-01-009): every guard for that standing asks it.  The guards
+    themselves stay in the sender-entitlement module (HP-01-007); the
+    predicate lives here, beside the recipient test it shares, so a sender
+    may act exactly when it would be sent the case's content.  The
     sender is an active participant (CM-10-004) whose closure is not
     recorded, the same test :func:`case_content_recipients` applies to a
     recipient (:func:`_receives_case_content`).  No actor acts on content it
@@ -552,8 +552,19 @@ def may_act_on_case(
     An actor the case does not list, or whose record does not resolve, may
     not act: the case cannot vouch for it.
     """
+    record = _listed_record(case, dl, actor_id)
+    return record is not None and _receives_case_content(case, record)
+
+
+def _listed_record(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> CaseParticipant | None:
+    """The record *case*'s roster lists for *actor_id*, or ``None``.
+
+    ``None`` when the roster does not list the actor or its record does not
+    resolve (:func:`_resolve_record`).
+    """
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id is None:
-        return False
-    record = _resolve_record(case, dl, participant_id)
-    return record is not None and _receives_case_content(case, record)
+        return None
+    return _resolve_record(case, dl, participant_id)

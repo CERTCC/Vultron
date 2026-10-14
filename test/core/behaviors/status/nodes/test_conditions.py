@@ -212,4 +212,4 @@ class TestClosedSenderRefused:
             datalayer=request.getfixturevalue(store)
         ).execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
-        assert "REFUSED" in node.feedback_message
+        assert "CM-23-018" in node.feedback_message
