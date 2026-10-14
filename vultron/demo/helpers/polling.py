@@ -148,10 +148,17 @@ class ProgressDeadline:
         """Name the last progress reading, for a timeout message."""
         if self._best is None:
             return "no progress reading was taken"
+        if (
+            self._ceiling_seconds > self._stall
+            and self._deadline >= self._ceiling
+        ):
+            return (
+                f"progress reached {self._best} and was still advancing when"
+                f" the wait hit its {self._ceiling_seconds:.0f} s ceiling"
+            )
         return (
-            f"progress reached {self._best}, then either did not advance for"
-            f" {self._stall:.0f} s or the wait hit its"
-            f" {self._ceiling_seconds:.0f} s ceiling"
+            f"progress reached {self._best}, then did not advance for"
+            f" {self._stall:.0f} s"
         )
 
 
@@ -800,8 +807,6 @@ def _poll_datalayer_for(
         try:
             all_objects = client.get(client.dl_path())
             if isinstance(all_objects, dict):
-                if progress_fn is not None:
-                    deadline.observe(progress_fn(all_objects))
                 for raw_id, obj_data in all_objects.items():
                     if not isinstance(obj_data, dict):
                         continue
@@ -813,6 +818,10 @@ def _poll_datalayer_for(
                         )
                         logger.info(log_msg, obj_id)
                         return obj_id
+                # Read progress only after the match, so a reading that raises
+                # can never hide an object that has already arrived.
+                if progress_fn is not None:
+                    deadline.observe(progress_fn(all_objects))
         except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)

@@ -31,6 +31,11 @@ import pytest
 
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driving.fastapi.routers.datalayer import (
+    get_datalayer_contents,
+    get_objects,
+)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.demo.helpers import polling
 from vultron.demo.helpers.invite_chain import FULL_CASE_REPLY_TIMEOUT
@@ -62,37 +67,69 @@ def clock(monkeypatch) -> list[float]:
     return now
 
 
-def _ledger_entry(index: int, case_id: str = CASE_ID) -> tuple[str, dict]:
-    """A ledger entry as the whole-store dump serializes it (camelCase)."""
-    entry_id = f"{case_id}/log/{index}"
-    return entry_id, {
-        "id": entry_id,
-        "type": "CaseLedgerEntry",
-        "caseId": case_id,
-        "logIndex": index,
-    }
+def _entry(index: int, case_id: str = CASE_ID) -> CaseLedgerEntry:
+    return CaseLedgerEntry(
+        case_id=case_id,
+        log_index=index,
+        log_object_id=f"http://example.com/activities/a{index}",
+        event_type="test",
+    )
 
 
-def _full_case_invite() -> tuple[str, dict]:
-    invite = rm_invite_to_full_case_activity(
+def _full_case_invite():
+    return rm_invite_to_full_case_activity(
         INVITEE,
         CASE_ID,
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=MANAGER,
         id_=INVITE_ID,
     )
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
-    record = archive_received(dl, invite)
-    return record.id_, record.model_dump(
-        mode="json", exclude_none=True, by_alias=True
-    )
 
 
-def _dump(ledger_count: int, *, invite: bool = False) -> dict[str, dict]:
-    objects = dict(_ledger_entry(i) for i in range(ledger_count))
+class _Store:
+    """A real invitee store, read through the real DataLayer routes.
+
+    The fakes are not hand-written dicts: the whole-store dump and the
+    ``CaseLedgerEntrys/`` collection are what the routes serve for these saved
+    objects, so a change to either serialization reaches these tests.
+    """
+
+    def __init__(self) -> None:
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
+
+    def add_entries(self, start: int, stop: int, case_id: str = CASE_ID):
+        for index in range(start, stop):
+            self.dl.save(_entry(index, case_id))
+        return self
+
+    def add_invite(self):
+        archive_received(self.dl, _full_case_invite())
+        return self
+
+    def whole_dump(self) -> dict[str, dict]:
+        return get_datalayer_contents(datalayer=self.dl)
+
+    def ledger_collection(self) -> dict[str, dict]:
+        return get_objects("CaseLedgerEntry", datalayer=self.dl)
+
+
+def _backfill(
+    count: int, *, reads_per_entry: int, read, invite: bool = False
+) -> list[dict[str, dict]]:
+    """Snapshots of a store applying *count* entries, one at a time.
+
+    Each stage is read *reads_per_entry* times (one read per poll), so with
+    the 0.5 s poll interval an entry lands every ``reads_per_entry / 2`` s.
+    """
+    store = _Store()
+    snapshots: list[dict[str, dict]] = []
+    for applied in range(count):
+        snapshots += [read(store)] * reads_per_entry
+        store.add_entries(applied, applied + 1)
     if invite:
-        objects.update([_full_case_invite()])
-    return objects
+        store.add_invite()
+    snapshots.append(read(store))
+    return snapshots
 
 
 def _client(dumps: list[dict[str, dict]]) -> MagicMock:
@@ -144,6 +181,16 @@ class TestProgressDeadline:
 
         assert deadline.expired()
 
+    def test_a_late_first_reading_only_sets_the_baseline(self, clock):
+        """Progress made before the first reading earns no extra time."""
+        deadline = ProgressDeadline(stall_seconds=10.0, ceiling_seconds=100.0)
+
+        clock[0] += 8.0
+        deadline.observe(50)
+        clock[0] += 2.0
+
+        assert deadline.expired()
+
     def test_progress_never_moves_the_deadline_past_the_ceiling(self, clock):
         deadline = ProgressDeadline(stall_seconds=10.0, ceiling_seconds=25.0)
 
@@ -153,11 +200,59 @@ class TestProgressDeadline:
 
         assert deadline.expired()
 
-    def test_describe_names_the_last_progress_reading(self, clock):
+    def test_a_ceiling_below_the_stall_budget_is_raised_to_it(self, clock):
+        deadline = ProgressDeadline(stall_seconds=10.0, ceiling_seconds=4.0)
+
+        clock[0] += 9.9
+        assert not deadline.expired()
+        clock[0] += 0.1
+        assert deadline.expired()
+
+    def test_describe_says_the_measure_stalled(self, clock):
         deadline = ProgressDeadline(stall_seconds=10.0, ceiling_seconds=25.0)
         deadline.observe(7)
 
-        assert "7" in deadline.describe()
+        message = deadline.describe()
+
+        assert "reached 7" in message
+        assert "did not advance for 10 s" in message
+        assert "ceiling" not in message
+
+    def test_describe_says_the_wait_hit_the_ceiling(self, clock):
+        deadline = ProgressDeadline(stall_seconds=10.0, ceiling_seconds=25.0)
+        for reading in range(5):
+            deadline.observe(reading)
+            clock[0] += 6.0
+
+        message = deadline.describe()
+
+        assert "reached 4" in message
+        assert "still advancing" in message
+        assert "25 s ceiling" in message
+
+    def test_describe_without_a_reading(self, clock):
+        deadline = ProgressDeadline(stall_seconds=10.0, ceiling_seconds=25.0)
+
+        assert deadline.describe() == "no progress reading was taken"
+
+
+class TestPollUntilKeepsItsFixedDeadline:
+    """Without a progress measure, ``_poll_until`` behaves as before."""
+
+    def test_a_zero_budget_still_tries_the_condition_once(self, clock):
+        calls: list[float] = []
+
+        polling._poll_until(lambda: calls.append(clock[0]) or True, 0.0)
+
+        assert len(calls) == 1
+
+    def test_fails_after_the_fixed_budget(self, clock):
+        start = clock[0]
+
+        with pytest.raises(AssertionError, match=r"^never$"):
+            polling._poll_until(lambda: False, 5.0, error_msg="never")
+
+        assert 5.0 <= clock[0] - start < 5.5
 
 
 class TestFullCaseInviteWaitFollowsTheBackfill:
@@ -171,10 +266,9 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
         """A backfill longer than the budget no longer outruns the gate (#4424)."""
         # One entry applied every 2 s for 40 entries: 80 s, four times the
         # 20 s budget that failed in CI, with the Invite behind the last one.
-        dumps: list[dict[str, dict]] = []
-        for applied in range(40):
-            dumps += [_dump(applied)] * 4
-        dumps.append(_dump(40, invite=True))
+        dumps = _backfill(
+            40, reads_per_entry=4, read=_Store.whole_dump, invite=True
+        )
         client = _client(dumps)
         start = clock[0]
 
@@ -189,10 +283,12 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
         assert clock[0] - start > FULL_CASE_REPLY_TIMEOUT
 
     def test_fails_once_the_backfill_stops_advancing(self, clock):
-        client = _client([_dump(1), _dump(2), _dump(3)])
+        client = _client(
+            _backfill(3, reads_per_entry=1, read=_Store.whole_dump)
+        )
         start = clock[0]
 
-        with pytest.raises(AssertionError, match="reached 3"):
+        with pytest.raises(AssertionError, match="reached 3, then did not"):
             find_full_case_invite_for_actor(
                 client, CASE_ID, INVITEE, timeout_seconds=5.0
             )
@@ -201,10 +297,11 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
 
     def test_another_cases_ledger_is_not_progress(self, clock):
         """Only the invited case's backfill delays its Invite."""
-        dumps = [
-            dict(_ledger_entry(i, OTHER_CASE_ID) for i in range(n))
-            for n in range(1, 100)
-        ]
+        store = _Store()
+        dumps = []
+        for index in range(100):
+            store.add_entries(index, index + 1, case_id=OTHER_CASE_ID)
+            dumps.append(store.whole_dump())
         client = _client(dumps)
         start = clock[0]
 
@@ -217,11 +314,12 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
 
     def test_a_backfill_that_never_ends_fails_at_the_ceiling(self, clock):
         # A new entry on every 0.5 s poll, for longer than the 30 s ceiling.
-        dumps = [_dump(n) for n in range(1, 100)]
-        client = _client(dumps)
+        client = _client(
+            _backfill(100, reads_per_entry=1, read=_Store.whole_dump)
+        )
         start = clock[0]
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="30 s ceiling"):
             find_full_case_invite_for_actor(
                 client,
                 CASE_ID,
@@ -231,6 +329,24 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
             )
 
         assert 30.0 <= clock[0] - start < 31.0
+
+    def test_a_progress_reading_that_raises_does_not_hide_the_invite(
+        self, clock, monkeypatch
+    ):
+        def _broken(_dump: dict, _case_id: str) -> int:
+            raise RuntimeError("progress reading failed")
+
+        monkeypatch.setattr(polling, "_count_case_ledger_entries", _broken)
+        client = _client(
+            [_Store().add_entries(0, 3).add_invite().whole_dump()]
+        )
+
+        assert (
+            find_full_case_invite_for_actor(
+                client, CASE_ID, INVITEE, timeout_seconds=5.0
+            )
+            == INVITE_ID
+        )
 
     def test_the_ceiling_defaults_to_the_backfill_ceiling(self):
         import inspect
@@ -242,22 +358,11 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
 class TestContiguousCoverageFollowsTheBackfill:
     """A late joiner's coverage wait follows its backfill the same way."""
 
-    @staticmethod
-    def _ledger(count: int) -> dict[str, dict]:
-        # The CaseLedgerEntrys/ collection is served snake_case.
-        return {
-            f"{CASE_ID}/log/{i}": {"case_id": CASE_ID, "log_index": i}
-            for i in range(count)
-        }
-
     @pytest.mark.spec("SYNC-10-004")
     def test_waits_past_the_stall_budget_while_entries_keep_arriving(
         self, clock
     ):
-        dumps: list[dict[str, dict]] = []
-        for applied in range(30):
-            dumps += [self._ledger(applied)] * 4
-        dumps.append(self._ledger(30))
+        dumps = _backfill(30, reads_per_entry=4, read=_Store.ledger_collection)
         client = _client(dumps)
         start = clock[0]
 
@@ -268,7 +373,7 @@ class TestContiguousCoverageFollowsTheBackfill:
         assert clock[0] - start > 10.0
 
     def test_fails_once_entries_stop_arriving(self, clock):
-        client = _client([self._ledger(3)])
+        client = _client([_Store().add_entries(0, 3).ledger_collection()])
         start = clock[0]
 
         with pytest.raises(AssertionError, match="reached 3"):
