@@ -219,9 +219,15 @@ groups:
       operation so no caller can omit it. A delivered id is queued again and the receiver drops it
       by id (ID-02-001), as for a re-sent response (CP-05-006).
     verification: >-
-      `test/adapters/driven/test_sqlite_inbox_outbox.py` asserts a pending id is not queued again,
-      also by concurrent writers on a file-backed store, that a popped id is, and that the enqueue
-      callback fires only for a new row;
+      The `vultron_queue` table carries a `UNIQUE(queue, activity_id)` constraint
+      (added in issue #4629) so the store itself rejects a duplicate pending entry;
+      `test/adapters/driven/test_sqlite_inbox_outbox.py::test_unique_index_exists_on_queue_entry_table`
+      asserts the constraint is present;
+      `test/adapters/driven/test_sqlite_inbox_outbox.py::test_two_sessions_appending_same_pending_id_leave_one_row`
+      asserts two separate DataLayer instances sharing a file store queue one row;
+      the remainder of `test/adapters/driven/test_sqlite_inbox_outbox.py` asserts a pending id is
+      not queued again, also by concurrent writers on a file-backed store, that a popped id is, and
+      that the enqueue callback fires only for a new row;
       `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` retries
       the owner-direct invite after an attempt that queued its Invite without committing it and
       asserts one outbox entry and one ledger entry;

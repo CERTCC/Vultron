@@ -38,7 +38,8 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import delete, exists, insert, literal, select as sa_select
+from sqlalchemy import delete
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import col, select
 
 from vultron.adapters.outbox_dead_letter import (
@@ -120,25 +121,21 @@ def _queue_append_unless_pending(
 ) -> bool:
     """Append *activity_id* to *queue* unless it is already there.
 
-    One ``INSERT ... SELECT ... WHERE NOT EXISTS`` statement does the check
-    and the insert, and SQLite runs a single statement atomically, so two
-    writers cannot both find the id absent and both queue it — on a
-    file-backed store too, where sessions are not serialized.
+    Relies on the UNIQUE constraint on ``(queue, activity_id)`` in
+    :class:`~.schema.QueueEntry` to make the store itself reject a duplicate.
+    ``INSERT OR IGNORE`` attempts the insert and silently skips it when the
+    constraint fires, returning no rows.  SQLite executes the statement
+    atomically, so two concurrent writers cannot both insert the same row —
+    on a file-backed store too, where sessions are not serialized (OX-06-002).
 
     Returns:
         ``True`` when the id was queued, ``False`` when it was already pending.
     """
-    already_pending = exists().where(
-        col(QueueEntry.queue) == queue,
-        col(QueueEntry.activity_id) == activity_id,
-    )
     stmt = (
-        insert(QueueEntry)
-        .from_select(
-            ["queue", "activity_id"],
-            sa_select(literal(queue), literal(activity_id)).where(
-                ~already_pending
-            ),
+        sqlite_insert(QueueEntry)
+        .values(queue=queue, activity_id=activity_id)
+        .on_conflict_do_nothing(
+            index_elements=["queue", "activity_id"],
         )
         .returning(col(QueueEntry.id))
     )

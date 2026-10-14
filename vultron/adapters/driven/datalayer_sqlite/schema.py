@@ -17,7 +17,7 @@
 
 from typing import Any
 
-from sqlalchemy import Column
+from sqlalchemy import Column, UniqueConstraint
 from sqlalchemy.dialects.sqlite import JSON
 from sqlmodel import Field, SQLModel
 
@@ -50,10 +50,21 @@ class QueueEntry(SQLModel, table=True):
     class of bug where a queue was written under one actor-id spelling and read
     under another (BUG-2026040901; see ``notes/datalayer-design.md``
     § "One Actor Id Is One Database").
+
+    The UNIQUE constraint on ``(queue, activity_id)`` makes the store itself
+    enforce OX-06-002: a pending outbox entry cannot be inserted twice.  The
+    table holds only *pending* rows (they are deleted when popped), so the
+    constraint does not prevent re-queuing an id after delivery removes its row.
+    Existing stores do not gain the constraint automatically
+    (``create_all`` never alters a table); they must be reset — see the PR body
+    for issue #4629.
     """
 
     __tablename__ = "vultron_queue"  # type: ignore[assignment]
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = (
+        UniqueConstraint("queue", "activity_id", name="uq_queue_activity_id"),
+        {"extend_existing": True},
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     queue: str = Field(index=True)  # "inbox" or "outbox"

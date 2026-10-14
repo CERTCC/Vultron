@@ -162,6 +162,65 @@ def test_the_inbox_does_not_take_the_outbox_check(dl):
 
 
 # ---------------------------------------------------------------------------
+# UNIQUE index on (queue, activity_id) — AC-3 for issue #4629
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("OX-06-002")
+def test_unique_index_exists_on_queue_entry_table(dl):
+    """The vultron_queue table carries a UNIQUE index on (queue, activity_id).
+
+    Asserts the schema-level constraint so that a store-reset note without a
+    test would be easy to miss.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    inspector = sa_inspect(dl._engine)
+    unique_constraints = inspector.get_unique_constraints("vultron_queue")
+    # SQLite also surfaces UNIQUE indexes through get_indexes; check both.
+    unique_indexes = [
+        idx
+        for idx in inspector.get_indexes("vultron_queue")
+        if idx.get("unique")
+    ]
+    all_unique_cols = [
+        tuple(sorted(uc["column_names"])) for uc in unique_constraints
+    ] + [tuple(sorted(idx["column_names"])) for idx in unique_indexes]
+    assert ("activity_id", "queue") in all_unique_cols, (
+        f"No UNIQUE(queue, activity_id) found on vultron_queue; "
+        f"unique_constraints={unique_constraints!r}, "
+        f"unique_indexes={unique_indexes!r}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.spec("OX-06-002")
+def test_two_sessions_appending_same_pending_id_leave_one_row(file_dl):
+    """Two independent DataLayer instances sharing a file store queue one row.
+
+    The UNIQUE constraint on (queue, activity_id) ensures the second insert is
+    rejected at the store level, regardless of whether either session checked
+    for an existing row beforehand.
+    """
+    import vultron.adapters.driven.datalayer_sqlite as _mod
+
+    # Open a second DataLayer pointing at the same on-disk database.
+    actor_id = file_dl._actor_id
+    db_url = file_dl._db_url
+    second_dl = _mod.SqliteDataLayer(db_url, actor_id=actor_id)
+    try:
+        first_queued = file_dl.outbox_append("urn:test:shared-id")
+        second_queued = second_dl.outbox_append("urn:test:shared-id")
+
+        assert first_queued is True
+        assert second_queued is False
+        assert file_dl.outbox_list() == ["urn:test:shared-id"]
+    finally:
+        second_dl.clear_all()
+        second_dl.close()
+
+
+# ---------------------------------------------------------------------------
 # File-backed integration test
 # ---------------------------------------------------------------------------
 
