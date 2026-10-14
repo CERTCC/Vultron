@@ -713,6 +713,7 @@ def test_pending_invitations_skips_frozen_and_answered_rows(
 
 
 @pytest.mark.spec("EMB-17-001")
+@pytest.mark.spec("EMB-17-002")
 @pytest.mark.parametrize(
     ("seed", "expected"),
     [
@@ -722,7 +723,7 @@ def test_pending_invitations_skips_frozen_and_answered_rows(
         ),
         (
             ECS.DECLINED,
-            [("DECLINED", "INVITED"), ("INVITED", "AGREED")],
+            [("DECLINED", "AGREED")],
         ),
     ],
 )
@@ -731,7 +732,7 @@ def test_honour_late_accept_agrees_to_the_active_embargo(
     seed: ECS,
     expected: list[tuple[str, str]],
 ) -> None:
-    """A late Accept is honoured from TIMED_OUT, and from DECLINED via INVITED."""
+    """A late Accept is honoured from TIMED_OUT or DECLINED, in one step."""
     owner, dl = owner_and_dl
     late = _make_actor(dl, "Late")
     case, participants = _make_case(dl, owner.id_, [late.id_])

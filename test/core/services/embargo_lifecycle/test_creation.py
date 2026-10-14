@@ -198,12 +198,13 @@ def test_an_owner_already_signatory_stays_signatory(
 
 @pytest.mark.spec("CM-14-003")
 @pytest.mark.spec("CM-18-003")
-def test_a_declined_owner_records_nothing_until_re_invited(
+def test_a_declined_owner_is_not_agreed_by_the_seed(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """``AGREE`` is not legal from DECLINED, so the owner seed records
-    nothing: the case still activates, and the owner keeps its DECLINED row
-    (so it is not a signatory) until it is re-invited (CM-18-003)."""
+    """The owner seed is not an answer, so it never overrides a decline.
+
+    The case still activates, and the owner keeps its DECLINED row (so it is
+    not a signatory) until it accepts (CM-18-003)."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)

@@ -256,13 +256,13 @@ def test_propose_embargo_by_a_non_participant_records_no_consent(
 
 
 @pytest.mark.spec("CM-18-003")
-def test_propose_embargo_by_a_declined_participant_records_no_consent(
+def test_propose_embargo_by_a_declined_participant_agrees_to_it(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A DECLINED proposer holds no consent until re-invited (#4003).
+    """Proposing terms it had declined is the proposer changing its answer.
 
-    Marking its row AGREED would let the content gate admit it once the
-    owner activated the terms, while it had declined them.
+    Its row moves straight to AGREED (CM-18-003, MSM-07-005); no re-invite
+    comes first.
     """
     owner, dl = owner_and_dl
     proposer = _make_actor(dl, "Proposer")
@@ -277,7 +277,7 @@ def test_propose_embargo_by_a_declined_participant_records_no_consent(
     )
 
     assert result.em_after == EM.PROPOSED
-    assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "DECLINED"}
+    assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "AGREED"}
 
 
 # ---------------------------------------------------------------------------

@@ -24,17 +24,19 @@ TIMED_OUT – Invited, and the RSVP deadline passed with no answer (ADR-0118).
 Transitions
 -----------
 INVITE     : UNINVITED | DECLINED | TIMED_OUT → INVITED
-AGREE      : UNINVITED | INVITED | TIMED_OUT → AGREED
+AGREE      : UNINVITED | INVITED | DECLINED | TIMED_OUT → AGREED
 DECLINE    : UNINVITED | INVITED | AGREED | TIMED_OUT → DECLINED
 TIME_OUT   : INVITED → TIMED_OUT  (RSVP deadline passed, CM-28-014)
 CARRY_OVER : every state except AGREED → AGREED  (EP-05-001)
 
-``AGREED`` refuses ``INVITE`` and ``DECLINED`` refuses ``AGREE``: a
-participant that declined is invited again first, never flipped silently.
-``CARRY_OVER`` is the one way past that: the activation of a revision that ends
-no later than the embargo it replaces binds every participant that agreed to
-the replaced one, a ``DECLINED`` row for the revision included, because
-agreeing to N days is agreeing to every shorter period.  Rows for an entry in a
+``AGREED`` refuses ``INVITE``: an answer already given is not undone by
+asking again.  ``AGREE`` from ``DECLINED`` is a participant changing its
+answer: it has just said it accepts, so the row moves directly, with no
+re-invite first.  ``CARRY_OVER`` agrees for a participant without its asking:
+the activation of a revision that ends no later than the embargo it replaces
+binds every participant that agreed to the replaced one, a ``DECLINED`` row
+for the revision included, because agreeing to N days is agreeing to every
+shorter period.  Rows for an entry in a
 final register status accept no trigger at all; that rule needs the register,
 so :meth:`~vultron.core.models.case_participant.CaseParticipant.apply_pec_transition`
 applies it.  Whether repeating a trigger is idempotent is the caller's decision
@@ -95,6 +97,7 @@ _TRANSITIONS: dict[
     _T.AGREE: {
         _S.UNINVITED: _S.AGREED,
         _S.INVITED: _S.AGREED,
+        _S.DECLINED: _S.AGREED,
         _S.TIMED_OUT: _S.AGREED,
     },
     _T.DECLINE: {

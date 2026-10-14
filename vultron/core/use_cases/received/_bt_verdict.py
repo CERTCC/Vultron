@@ -66,6 +66,9 @@ from vultron.core.behaviors.case.nodes.post_close import (
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
+from vultron.core.behaviors.embargo.nodes.answer_repeat import (
+    EmbargoAnswerNotRecordedNode,
+)
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
@@ -244,6 +247,25 @@ def _redelivery_verdict(
     guard = find_node(tree, guard_type)
     if guard is not None and guard.is_redelivery:
         return HandlerResult.skipped(guard.feedback_message or fallback)
+    return verdict
+
+
+def embargo_answer_repeat_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a repeated answer to an embargo Invite as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.embargo.nodes.answer_repeat.EmbargoAnswerNotRecordedNode`
+    fails with ``is_repeat`` set when the sender's consent row already holds
+    the answer, so nothing is committed or announced.  That is the benign
+    no-op of a repeat, not a refusal (CM-13-005, HP-01-003).
+    """
+    guard = find_node(tree, EmbargoAnswerNotRecordedNode)
+    if guard is not None and guard.is_repeat:
+        return HandlerResult.skipped(
+            guard.feedback_message or "embargo answer repeated"
+        )
     return verdict
 
 
