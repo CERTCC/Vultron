@@ -144,6 +144,7 @@ def test_activity_addressed_to_returns_true_when_in_to():
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
+@pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_cc():
     """AC-2: actor named in cc → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
@@ -158,6 +159,7 @@ def test_activity_addressed_to_returns_true_when_in_bto():
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
+@pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_bcc():
     """AC-2: actor named in bcc → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))

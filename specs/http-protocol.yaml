@@ -12,12 +12,12 @@ groups:
   specs:
   - id: HTTP-01-001
     priority: MUST
-    kind: foundation
+    kind: protocol
     statement: Inbox endpoint MUST accept `application/activity+json` Content-Type
     rationale: >-
-      ActivityPub has a sender deliver to an inbox with an ActivityStreams media type
-      and has servers treat `application/activity+json` as equivalent to the JSON-LD
-      form (HTTP-01-002). Vultron inherits the rule rather than defining it.
+      ActivityPub only says a server SHOULD treat `application/activity+json` as
+      equivalent to the JSON-LD media type it names for delivery (HTTP-01-002).
+      Vultron makes that SHOULD a MUST, so the rule is Vultron's own, not inherited.
     verification: >-
       `test_inbox_accepts_both_activitystreams_media_types` in
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
@@ -25,8 +25,6 @@ groups:
     stories:
     - story_2022_002
     - story_2022_040
-    tags:
-    - activitypub
   - id: HTTP-01-002
     priority: MUST
     kind: foundation
@@ -55,8 +53,8 @@ groups:
       No check covers this yet: the inbox does not check `Content-Type`, so a body
       sent as `text/plain` is answered 422 by the framework's body parsing (#4666).
       `test_inbox_body_with_a_non_as2_media_type_answers_415` in
-      `test/adapters/driving/fastapi/routers/test_actors.py` pins the 415 as a strict
-      `xfail` for HTTP-03-008.
+      `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
+      until it does.
     stories:
     - story_2022_002
     - story_2022_039
@@ -83,7 +81,7 @@ groups:
       spec_id: IE-03-002
     - rel_type: depends_on
       spec_id: IE-03-003
-      note: split from this spec (MS-12-010); IE-03-003 holds the HTTP 413 half
+      note: the HTTP 413 answer to a body over the limit is IE-03-003's, so this spec keeps only the limit (MS-12-010)
     scope:
     - production
 - id: HTTP-03

@@ -17,14 +17,15 @@ groups:
     kind: foundation
     statement: All activities MUST have globally unique `id` field (URI)
     rationale: >-
-      ActivityStreams 2.0 defines `id` as the globally unique identifier of an object,
-      and an activity is an object. Duplicate detection (ID-02) relies on it.
+      ActivityPub requires every object, activities included, to carry a unique
+      global identifier; ActivityStreams 2.0 alone leaves `id` optional. Duplicate
+      detection (ID-02) relies on it.
     verification: >-
       `test_each_call_returns_unique_id` and `test_new_object_has_uri_form_id` in
       `test/wire/as2/vocab/test_base_utils.py` confirm that a new object, an activity
       included, gets an id in URI form that no other object shares.
     tags:
-    - as2
+    - activitypub
   - id: ID-01-002
     priority: MUST
     kind: architecture

@@ -320,8 +320,6 @@ groups:
       spec_id: CLP-15-007
     - rel_type: depends_on
       spec_id: CLP-07-011
-    - rel_type: depends_on
-      spec_id: CS-13-006
     lint_suppress:
     - missing_story_reference
   - id: CS-13-006
@@ -344,8 +342,9 @@ groups:
       same of a time this node mints. The CS-13-001 tests assert a naive value is
       normalized to UTC before it can reach the wire.
     relationships:
-    - rel_type: extends
+    - rel_type: constrains
       spec_id: CS-13-005
+      note: split from it (MS-12-010); CS-13-005 picks which offset, within this rule
     tags:
     - as2
 - id: CS-14

@@ -209,6 +209,7 @@ def test_oversized_inbox_body_answers_413(client_actors, created_actors):
     assert resp.status_code == status.HTTP_413_CONTENT_TOO_LARGE
 
 
+@pytest.mark.spec("HTTP-01-003")
 @pytest.mark.spec("HTTP-03-008")
 @pytest.mark.xfail(
     strict=True,
@@ -271,6 +272,8 @@ def test_get_actor_profile_returns_discovery_fields(
         assert isinstance(data["outbox"], str), "outbox must be a URL string"
 
 
+@pytest.mark.spec("AR-10-002")
+@pytest.mark.spec("HTTP-03-005")
 def test_get_actor_profile_not_found_returns_404(client_actors):
     resp = client_actors.get("/actors/nonexistent-actor-id/profile")
     assert resp.status_code == status.HTTP_404_NOT_FOUND
@@ -281,6 +284,7 @@ def test_get_actor_profile_not_found_returns_404(client_actors):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("IE-11-001")
 def test_post_inbox_returns_400_when_activity_addressed_to_other_actor(
     client_actors, created_actors
 ):

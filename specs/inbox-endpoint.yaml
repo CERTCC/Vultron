@@ -397,14 +397,14 @@ groups:
       trustworthy if the store's owner was the intended recipient of every
       Activity it processed. Which HTTP response carries the refusal is this
       codebase's choice, not a protocol rule: it answers HTTP 400 in place of the
-      202 (IE-07-002, `project`), and that answer is itself the signal to the
-      sender.
+      202 (IE-07-002, `project`), so the sender learns of the refusal from the
+      answer to its own delivery.
     verification: >-
       `test_post_inbox_returns_400_when_activity_addressed_to_other_actor` in
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
       Activity addressed only to another actor is refused (with this codebase's
-      HTTP 400). Integration tests in `test/demo/` confirm that no record is
-      written to the actor's store.
+      HTTP 400), synchronously, in place of the 202. Integration tests in
+      `test/demo/` confirm that no record is written to the actor's store.
     relationships:
     - rel_type: depends_on
       spec_id: IE-07-002
@@ -442,15 +442,15 @@ groups:
     - story_2022_043
   - id: IE-11-003
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: >-
       The inbox endpoint MUST consider all four addressing fields — to, cc,
       bto, bcc — when determining whether the receiving actor is named as a
       recipient. A match on any one field is sufficient.
     rationale: >-
-      Refusal is about provable exclusion (IE-11-001), and an AS2 sender may name
-      the recipient in any addressing field. Vultron itself sets only `to` (OX-08)
-      and never addresses a copy to its own sender (ADR-0109), but an inbound
+      ActivityStreams 2.0 makes every actor named in `to`, `cc`, `bto` or `bcc` a
+      recipient; this restates that rule for the IE-11-001 refusal. Vultron itself
+      sets only `to` (OX-08) and never addresses a copy to its own sender (ADR-0109), but an inbound
       Activity from another implementation that names this actor only in `cc`,
       `bto` or `bcc` has not excluded it, so checking only `to` would refuse it
       wrongly. What a handler then does with a `cc`-only address is HP-10's
@@ -467,3 +467,5 @@ groups:
     - story_2022_040
     - story_2022_042
     - story_2022_044
+    tags:
+    - as2

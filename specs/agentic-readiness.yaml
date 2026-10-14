@@ -120,9 +120,17 @@ groups:
     - story_2022_034
   - id: AR-10-002
     priority: MUST
-    kind: project
+    kind: foundation
     statement: The profile endpoint MUST return HTTP 404 when the actor is not found
-    verification: Integration tests confirm that `GET /actors/{unknown_id}/profile` returns HTTP 404.
+    rationale: >-
+      HTTP defines 404 Not Found as the answer to a request for a resource the server
+      does not have (HTTP-03-005). Vultron inherits the rule.
+    verification: >-
+      `test_get_actor_profile_not_found_returns_404` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that
+      `GET /actors/{unknown_id}/profile` returns HTTP 404.
+    tags:
+    - http
   - id: AR-10-003
     priority: MUST
     kind: protocol

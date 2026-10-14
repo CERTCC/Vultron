@@ -95,13 +95,15 @@ evident, ask; do not invent one.
 **An HTTP status code is `foundation` only when HTTP itself defines it for the
 condition** (maintainer ruling, 2026-10-14, #4529): 405 for a method the resource
 does not support, 413 for a body over the limit, 400 for a request that cannot be
-parsed (IE-07-001); 415, 404, 429 and 503 follow by the same rule (HTTP-03). Where HTTP leaves the choice open, the code is this codebase's and
-`project`: 422 for a schema failure, 400 for an activity addressed only to other
-actors, 400 for a body that cannot be decrypted (HTTP-03-009, IE-07-002,
-ENC-03-002). A protocol rule that names such a code keeps the receiver's behavior
-(refuse, store nothing) and cites the `project` spec for the code (IE-11-001). A
-limit is `project` even when exceeding it draws a `foundation` code: HTTP-02-001
-holds the 1 MB default, IE-03-003 the 413.
+parsed (IE-07-001); 415, 404, 429 and 503 follow by the same rule (HTTP-03).
+Where HTTP leaves the choice open, the code is this codebase's and `project`:
+422 for a schema failure, 400 for an activity addressed only to other actors,
+400 for a body that cannot be decrypted (HTTP-03-009, IE-07-002, ENC-03-002). A
+protocol rule that names such a code keeps the receiver's behavior (refuse,
+store nothing) and cites the `project` spec for the code (IE-11-001). A limit is
+`project` even when exceeding it draws a `foundation` code: HTTP-02-001 holds
+the 1 MB default, IE-03-003 the 413. A SHOULD in the standard that Vultron makes
+a MUST is Vultron's own rule and stays `protocol` (HTTP-01-001).
 
 #### Apply the decision tree, not the neighbouring entries
 
