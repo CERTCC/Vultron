@@ -1256,6 +1256,8 @@ class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
         self._offer_id = offer_id
         self._case: VulnerabilityCase | None = None
         """The case :meth:`_recorded_offer` last read."""
+        self._offer: RecordedOwnershipOffer | None = None
+        """The Offer :meth:`_recorded_offer` last read."""
 
     def _recorded_offer(
         self,
@@ -1297,6 +1299,7 @@ class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
                 f" '{self._case_id}' ({exc})"
             ) from exc
         self._case = case
+        self._offer = offer
         return manager_id, offer
 
 
@@ -1336,13 +1339,45 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
     offerer whose Offer an Accept closed no longer holds it, and is refused
     for that.
 
-    Spec: CM-21-015, PCR-03-001, HP-01-006.
+    A redelivery of the withdrawal the CASE_MANAGER already ledgered as
+    closing the Offer is a duplicate, not a new withdrawal: its standing was
+    established when it was admitted, and ownership may since have moved on
+    through a later Offer.  The role is not re-checked for it, so the
+    open-Offer guard reports it ``SKIPPED`` (HP-01-003).
+
+    Spec: CM-21-015, PCR-03-001, HP-01-003, HP-01-006.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
         SenderEntitlementKind.CASE_OWNER
     )
     _spec = "CM-21-015"
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str | None,
+        sender_actor_id: str,
+        reply_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the Undo names.
+            offer_id: The Offer the Undo names (``None`` refuses).
+            sender_actor_id: The Undo's sender.
+            reply_id: The Undo's own id, so a redelivery of the withdrawal
+                that closed the Offer is recognised.
+            name: Optional node name.
+        """
+        super().__init__(
+            case_id=case_id,
+            offer_id=offer_id,
+            sender_actor_id=sender_actor_id,
+            name=name,
+        )
+        self._reply_id = reply_id
 
     def _recorded_request(self) -> RecordedRequest:
         manager_id, offer = self._recorded_offer()
@@ -1355,6 +1390,9 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
 
     def _confirm_standing(self, request: RecordedRequest) -> None:
         assert self.datalayer is not None and self._case is not None
+        assert self._offer is not None
+        if self._offer.answer_id == self._reply_id:
+            return  # the admitted withdrawal, redelivered (HP-01-003)
         sender = self.sender_actor_id
         if not _holds_case_owner_role(self.datalayer, self._case, sender):
             raise NoStandingError(

@@ -168,8 +168,9 @@ forwarded Offer has `actor=case_actor_id`, `attributed_to=` the original offerer
 
 Pass `case_id` to `create_receive_activity_tree`, the use case's `sender_rule` with
 a `SenderCheckContext` naming the `OwnershipOfferRequest`, the open-Offer guard as
-its precondition guard (`_reply_guards`), and put ONLY `AcceptRecordedOwnershipOfferNode` in
-`manager_effects` (RSH-08-003: the change is the CASE_MANAGER's to write). The
+its precondition guard (`_reply_guards`), and put ONLY
+`AcceptRecordedOwnershipOfferNode` in `manager_effects` (RSH-08-003: the change is
+the CASE_MANAGER's to write). The
 node reads the new owner from the recorded Offer, never from the sender id. The
 factory already injects the guarded commit; a second `CommitCaseLedgerEntryNode`
 is an unguarded second writer that forks the hash chain (CLP-09-001).

@@ -34,6 +34,9 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
+    OfferParty,
+)
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
     OwnershipOfferOpenNode,
 )
@@ -239,4 +242,29 @@ def test_accept_ownership_transfer_no_double_commit(
         f"Expected exactly 1 CommitCaseLedgerEntryNode.update call for "
         f"CaseActor; got {mock_commit.call_count}. "
         f"A count > 1 means the double-write bug (ISSUE-2252) is back."
+    )
+
+
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_open_offer_guard_raises_when_the_offer_is_not_recorded(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """The sender check runs first and finds the Offer, so the open-Offer
+    guard not finding it is a local anomaly: an internal error, never a
+    refusal of the sender."""
+    _seed_case(bt_scenario)
+    guard = OwnershipOfferOpenNode(
+        case_id=CASE_ID,
+        offer_id=OFFER_ID,
+        reply_id="https://example.org/activities/accept-2252",
+        sender_id=TRANSFEREE_ID,
+        party=OfferParty.TRANSFEREE,
+    )
+
+    result = bt_scenario.run(guard, actor_id=CASE_ACTOR_ID)
+
+    bt_scenario.assert_failure(
+        result,
+        reason="the Offer the sender check found is gone",
+        allow_internal=True,
     )

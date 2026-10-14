@@ -83,7 +83,7 @@ def _reply_guards(
     context = SenderCheckContext(
         sender_id=sender_id,
         case_id=case_id,
-        request=OwnershipOfferRequest(offer_id=offer_id),
+        request=OwnershipOfferRequest(offer_id=offer_id, reply_id=reply_id),
         case_manager_required=True,
     )
     guards = [
@@ -91,6 +91,7 @@ def _reply_guards(
             case_id=case_id,
             offer_id=offer_id,
             reply_id=reply_id,
+            sender_id=sender_id,
             party=party,
             now=now,
         )

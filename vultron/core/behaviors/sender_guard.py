@@ -118,9 +118,12 @@ class OwnershipOfferRequest:
     Attributes:
         offer_id: The Offer the reply names; ``None`` when it names none,
             which refuses.
+        reply_id: The reply's own id, so the offerer check recognises a
+            redelivery of the withdrawal that closed the Offer (HP-01-003).
     """
 
     offer_id: str | None
+    reply_id: str
 
 
 #: The record that holds the request a ``NAMED_ACTOR`` sender answers.
@@ -221,6 +224,7 @@ def _kind_node(
                 case_id=_case_of(ctx, "an ownership-transfer Offer"),
                 offer_id=ctx.request.offer_id,
                 sender_actor_id=ctx.sender_id,
+                reply_id=ctx.request.reply_id,
             )
         return SenderIsCaseOwnerNode(
             sender_actor_id=ctx.sender_id, case_id=ctx.case_id

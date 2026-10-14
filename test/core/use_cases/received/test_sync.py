@@ -823,6 +823,7 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert self._IMPOSTER_URI in result.reason
+        assert "SYNC-13-006" in result.reason
         assert dl.read(first_entry.id_) is None
 
     @pytest.mark.spec("HP-01-003")
@@ -851,3 +852,4 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert self._IMPOSTER_URI in result.reason
+        assert "does not accept an announcement" in result.reason

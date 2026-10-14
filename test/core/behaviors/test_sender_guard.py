@@ -257,6 +257,7 @@ def test_invitee_without_an_invite_id_is_a_wiring_error() -> None:
 
 REPORT_ID = "https://example.org/reports/sender-rule"
 OFFER_ID = "https://example.org/activities/offer-sender-rule"
+REPLY_ID = "https://example.org/activities/reply-sender-rule"
 
 
 @pytest.mark.spec("HP-01-009")
@@ -274,7 +275,7 @@ OFFER_ID = "https://example.org/activities/offer-sender-rule"
             SenderIsOfferAddresseeNode,
         ),
         (
-            OwnershipOfferRequest(offer_id=OFFER_ID),
+            OwnershipOfferRequest(offer_id=OFFER_ID, reply_id=REPLY_ID),
             CASE_ID,
             SenderIsOwnershipTransfereeNode,
         ),
@@ -316,7 +317,9 @@ def test_an_ownership_offer_check_without_a_case_is_a_wiring_error() -> None:
             SenderRule.before_case(Kind.NAMED_ACTOR),
             SenderCheckContext(
                 sender_id=VENDOR,
-                request=OwnershipOfferRequest(offer_id=OFFER_ID),
+                request=OwnershipOfferRequest(
+                    offer_id=OFFER_ID, reply_id=REPLY_ID
+                ),
             ),
         )
 
@@ -425,7 +428,9 @@ def test_case_owner_against_an_ownership_offer_is_the_offerer_check() -> None:
         SenderCheckContext(
             sender_id=OWNER,
             case_id=CASE_ID,
-            request=OwnershipOfferRequest(offer_id=OFFER_ID),
+            request=OwnershipOfferRequest(
+                offer_id=OFFER_ID, reply_id=REPLY_ID
+            ),
         ),
     )
     assert isinstance(guard, SenderIsOwnershipOffererNode)

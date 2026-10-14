@@ -49,7 +49,7 @@ from vultron.core.participants.ownership_offer import (
     open_ownership_offer,
     recorded_ownership_offer,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 
 class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
@@ -186,6 +186,7 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         case_id: str,
         offer_id: str | None,
         reply_id: str,
+        sender_id: str,
         party: OfferParty,
         now: datetime | None = None,
         name: str | None = None,
@@ -196,6 +197,8 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
             case_id: The case the reply names.
             offer_id: The Offer the reply names.
             reply_id: The reply's own id, so a redelivery is recognised.
+            sender_id: The reply's sender, named in a refusal; the sender
+                check has already established its standing.
             party: The party whose reply it is; it picks the requirements a
                 refusal cites.
             now: The instant the deadline is compared against: the one the
@@ -207,6 +210,7 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         self._case_id = case_id
         self._offer_id = offer_id
         self._reply_id = reply_id
+        self._sender_id = sender_id
         self._party = party
         self._now = now
         self.is_redelivery = False
@@ -225,7 +229,7 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         return self._refuse(
             f"Ownership-transfer Offer '{offer.offer_id}' for case"
             f" '{self._case_id}' expired at its end_time {deadline}; reply"
-            f" '{self._reply_id}' came too late",
+            f" '{self._reply_id}' from '{self._sender_id}' came too late",
             _LATE_SPEC[self._party],
         )
 
@@ -251,6 +255,12 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         )
 
     def update(self) -> Status:
+        """Check the Offer is open; see the class docstring.
+
+        Raises:
+            VultronBTInternalError: The Offer the sender check found is not
+                recorded, a local anomaly rather than the sender's refusal.
+        """
         self.is_redelivery = False
         if (f := self._require_datalayer()) is not None:
             return f
@@ -261,10 +271,12 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
             offer = self._recorded_offer(case)
         except VultronNotFoundError as exc:
             # The sender check ran first and found this Offer, so its absence
-            # now is a local anomaly, not the sender's refusal.
-            self.feedback_message = str(exc)
-            self.logger.error("%s: %s", self.name, exc)  # noqa: TRY400
-            return Status.FAILURE
+            # now is a local anomaly, not the sender's refusal: raise, so the
+            # bridge flags an internal error instead of a REFUSED verdict.
+            raise VultronBTInternalError(
+                f"{self.name}: the Offer the sender check found is gone"
+                f" ({exc})"
+            ) from exc
         if offer.answer_id == self._reply_id:
             self.is_redelivery = True
             self.feedback_message = (
@@ -292,6 +304,7 @@ def case_manager_ownership_offer_open_guard(
     case_id: str,
     offer_id: str | None,
     reply_id: str,
+    sender_id: str,
     party: OfferParty,
     now: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -312,6 +325,7 @@ def case_manager_ownership_offer_open_guard(
                 case_id=case_id,
                 offer_id=offer_id,
                 reply_id=reply_id,
+                sender_id=sender_id,
                 party=party,
                 now=now,
             )

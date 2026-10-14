@@ -50,7 +50,10 @@ an Offer can also close without an answer (#4490):
     itself is an unchecked claim, ignored as the Offer handler ignores it when
     forwarding (`RecordedOwnershipOffer.offerer_id`). The offerer must still hold
     `CASE_OWNER`; that is standing too, so an offerer whose Offer an Accept closed
-    is refused for it before the Offer's state is read (#4437).
+    is refused for it before the Offer's state is read (#4437). A redelivery of the
+    Undo that closed the Offer is a duplicate, so the role is not re-checked for
+    it: it stays `SKIPPED` even after a later Offer moved ownership on
+    (HP-01-003).
   - **Closed and redelivered.** The reply trees share the open-Offer guard
     (`OwnershipOfferOpenNode`, `case/nodes/ownership_offer_guard.py`), which runs
     right after the sender check: a withdrawal of a closed Offer is `REFUSED` and a

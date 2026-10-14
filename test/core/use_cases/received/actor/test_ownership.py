@@ -1966,6 +1966,40 @@ class TestWithdrawalOfOwnershipTransfer:
         assert _event_types(dl) == entries_after_first
         assert dl.outbox_list() == outbox_after_first
 
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CM-21-015")
+    def test_redelivered_withdrawal_is_skipped_after_ownership_moved_on(
+        self, make_payload
+    ):
+        """A redelivered Undo is a duplicate, not a new withdrawal: it is
+        ``SKIPPED`` even once a later Offer has moved ownership away from the
+        offerer, so the offerer's lost CASE_OWNER role does not refuse it."""
+        case_id = "https://example.org/cases/case_ot_undo_again_moved"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, first_offer = deliver(_COORDINATOR_ID, f"{case_id}/offer-1")
+        undo = undo_case_ownership_transfer_activity(
+            first_offer, actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
+        )
+        assert (
+            _undo(dl, make_payload, first_offer, undo=undo).disposition
+            is HandlerDisposition.APPLIED
+        )
+        _, second_offer = deliver(_COORDINATOR_ID, f"{case_id}/offer-2")
+        assert (
+            _accept(dl, make_payload, second_offer).disposition
+            is HandlerDisposition.APPLIED
+        )
+        assert _owner(dl, case_id) == _COORDINATOR_ID
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        again = _undo(dl, make_payload, first_offer, undo=undo)
+
+        assert again.disposition is HandlerDisposition.SKIPPED
+        assert _event_types(dl) == entries_before
+        assert dl.outbox_list() == outbox_before
+        assert _owner(dl, case_id) == _COORDINATOR_ID
+
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.parametrize("answer", ["accept", "reject"])
     def test_withdrawal_of_an_answered_offer_is_refused(
@@ -2251,4 +2285,5 @@ class TestStandingIsCheckedBeforeTheOfferState:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "too late" in result.reason
+        assert f"from '{party}' came too late" in result.reason
         assert _owner(dl, case_id) == _VENDOR_ID
