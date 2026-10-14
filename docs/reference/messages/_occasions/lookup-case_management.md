@@ -20,6 +20,5 @@
 | a Participant asked by a Full-Case Invite closes the case | `Reject(Invite(Actor)[target=VulnerabilityCase])` | the invitee | — | [Reject Full-Case Invite](../case_management.md#reject-full-case-invite) |
 | the Case Manager has admitted a new Participant to the case | `Announce(VulnerabilityCase)` | not yet checked | — | [Announce vulnerability case](../case_management.md#announce-vulnerability-case) |
 | a Participant ends its participation in the case | `Leave(VulnerabilityCase)` | not yet checked | — | [Close case](../case_management.md#close-case) |
-| a Participant is about to add an actor's participant record to the case | `Create(CaseParticipant)[context=VulnerabilityCase]` | not yet checked | — | [Create case participant](../case_management.md#create-case-participant) |
 | the Case Owner reinstates a removed Participant | `Add(CaseParticipant)[target=VulnerabilityCase]` | the case owner | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
 | the Case Owner removes a Participant from active participation | `Remove(CaseParticipant)[target=VulnerabilityCase]` | the case owner | — | [Remove case participant from case](../case_management.md#remove-case-participant-from-case) |

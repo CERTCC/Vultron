@@ -13,14 +13,13 @@ revision-negotiation shorthands onto their initial-negotiation counterparts:
 `EV` is sent as `EP`, `EJ` as `ER`, and `EC` as `EA`, discriminated by EM state
 context rather than by a payload field (MSM-02).
 
+An embargo proposal carries its `EmbargoEvent` inline on the `Invite` that proposes it.
+This implementation does not support a separate `Create(Event)` ahead of the `Invite`: an inbox refuses one as an unrecognized activity and changes nothing.
+Whether the protocol should support that separate `Create` is an [open question](../../topics/future_work/open_questions.md).
+
 ## Occasions
 
 {% include-markdown "./_occasions/lookup-em.md" %}
-
-{% include-markdown "./_occasions/sections/create-embargo-event.md" %}
-
-- **Triggering transition:** none (object construction).
-- **Context:** the case, or the report before a case exists (VAM-05-001).
 
 {% include-markdown "./_occasions/sections/embargo-proposal.md" %}
 

@@ -2,7 +2,7 @@
 
 One module per verb family (CS-18-001):
 
-- :mod:`.create_add_remove` — ``Create`` and ``Remove`` of an
+- :mod:`.remove` — ``Remove`` of an
   ``EmbargoEvent``;
 - :mod:`.announce` — ``Announce(EmbargoEvent)``;
 - :mod:`.invite` — ``Invite(EmbargoEvent)`` and the resolution of its
@@ -23,10 +23,6 @@ from vultron.core.use_cases.received.embargo.accept import (
 from vultron.core.use_cases.received.embargo.announce import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
 )
-from vultron.core.use_cases.received.embargo.create_add_remove import (
-    CreateEmbargoEventReceivedUseCase,
-    RemoveEmbargoEventFromCaseReceivedUseCase,
-)
 from vultron.core.use_cases.received.embargo.invite import (
     InviteToEmbargoOnCaseReceivedUseCase,
     resolve_invitee_id,
@@ -39,12 +35,14 @@ from vultron.core.use_cases.received.embargo.owner_decision import (
 from vultron.core.use_cases.received.embargo.reject import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
+from vultron.core.use_cases.received.embargo.remove import (
+    RemoveEmbargoEventFromCaseReceivedUseCase,
+)
 
 __all__ = [
     "AcceptInviteToEmbargoOnCaseReceivedUseCase",
     "ActivateEmbargoOnCaseReceivedUseCase",
     "AnnounceEmbargoEventToCaseReceivedUseCase",
-    "CreateEmbargoEventReceivedUseCase",
     "InviteToEmbargoOnCaseReceivedUseCase",
     "RejectEmbargoProposalOnCaseReceivedUseCase",
     "RejectInviteToEmbargoOnCaseReceivedUseCase",

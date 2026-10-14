@@ -19,9 +19,10 @@ Demonstrates status updates and notes workflows via the Vultron API.
 This demo script showcases the following workflows:
 
 1. Notes workflow: vendor creates a note on a case → adds it to the case
-2. Case status workflow: vendor creates a as_CaseStatus → adds it to the case
-3. Participant status workflow: vendor creates a as_ParticipantStatus for a
-   participant → adds it to that participant
+2. Case status workflow: vendor adds a new as_CaseStatus, carried inline, to
+   the case
+3. Participant status workflow: vendor adds a new as_ParticipantStatus,
+   carried inline, to a participant
 
 Each demo starts from an initialized case with a single FINDER
 participant, seated through its stub Invite, so the status update workflows can be demonstrated in isolation.
@@ -67,8 +68,6 @@ from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    create_case_status_activity,
-    create_status_for_participant_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -196,11 +195,13 @@ def demo_status_workflow(
 ) -> None:
     """
     Demonstrate the status updates workflow:
-    1. Create a as_CaseStatus
-    2. Add the as_CaseStatus to the case
-    3. Create a as_ParticipantStatus
-    4. Add the as_ParticipantStatus to the participant
-    5. Verify side effects
+    1. Add a new as_CaseStatus, carried inline, to the case
+    2. Add a new as_ParticipantStatus, carried inline, to the participant
+    3. Verify side effects
+
+    Each status travels inline on the ``Add`` that attaches it.  This
+    implementation does not support a separate ``Create(CaseStatus)`` or
+    ``Create(ParticipantStatus)`` ahead of the ``Add`` (#4598).
     """
     logger.info("=" * 80)
     logger.info("DEMO: Status Updates Workflow")
@@ -208,21 +209,14 @@ def demo_status_workflow(
 
     case, participant = _setup_initialized_case(client, finder, vendor)
 
+    # Bound before the step so Step 2 can read it (#2308 ratchet).
     case_status = None
-    with demo_step("Step 1: Vendor creates as_CaseStatus"):
+    with demo_step("Step 1: Vendor adds a new as_CaseStatus to case"):
         case_status = as_CaseStatus(
             context=case.id_,
             em=EmDimension(state=EM.NONE),
             pxa=PxaDimension(state=CS_pxa.pxa),
         )
-        create_status_activity = create_case_status_activity(
-            case_status, actor=vendor.id_, context=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_status_activity)
-        with demo_check("as_CaseStatus stored in data layer"):
-            verify_object_stored(client, case_status.id_)
-
-    with demo_step("Step 2: Vendor adds as_CaseStatus to case"):
         add_status_activity = add_status_to_case_activity(
             case_status, actor=vendor.id_, target=case.id_
         )
@@ -241,8 +235,9 @@ def demo_status_workflow(
                         "after AddStatusToCaseActivity"
                     )
 
-    participant_status = None
-    with demo_step("Step 3: Vendor creates as_ParticipantStatus"):
+    with demo_step(
+        "Step 2: Vendor adds a new as_ParticipantStatus to participant"
+    ):
         participant_status = as_ParticipantStatus(
             context=participant.id_,
             rm=RmDimension(state=RM.RECEIVED),
@@ -250,14 +245,6 @@ def demo_status_workflow(
             cvd_role=[CVDRole.FINDER],
             case_status=case_status,
         )
-        create_pstatus_activity = create_status_for_participant_activity(
-            participant_status, actor=vendor.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_pstatus_activity)
-        with demo_check("as_ParticipantStatus stored in data layer"):
-            verify_object_stored(client, participant_status.id_)
-
-    with demo_step("Step 4: Vendor adds as_ParticipantStatus to participant"):
         add_pstatus_activity = add_status_to_participant_activity(
             participant_status, actor=vendor.id_, target=participant.id_
         )

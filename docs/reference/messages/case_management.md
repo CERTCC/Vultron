@@ -176,11 +176,6 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Triggering transition:** RM: A → C.
 - **Example artifact:** [close_case.json](../examples/close_case.json).
 
-{% include-markdown "./_occasions/sections/create-case-participant.md" %}
-
-- **Triggering transition:** none — object construction.
-- **Example artifact:** [create_participant.json](../examples/create_participant.json).
-
 {% include-markdown "./_occasions/sections/add-case-participant-to-case.md" %}
 
 - **Reinstatement:** it clears the participant's removal fact, so it is entitled to case content again; it does not ask the participant to accept again.
@@ -231,3 +226,15 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
 - **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.
 - **Example artifact:** [update_case.json](../examples/update_case.json), the snapshot shape as the case actor would author it.
+
+## Create Case Participant { #create-case-participant }
+
+`Create(CaseParticipant)` is not an occasion: this implementation does not support it as a message an actor sends.
+
+- **Protocol role:** it is the snapshot shape of the CASE_MANAGER's `create_case_participant` ledger entry.
+  The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  Replicas copy the record from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
+- **On receipt:** an inbox refuses a direct `Create(CaseParticipant)` as an unrecognized activity and changes nothing.
+- **Triggering transition:** none — object construction.
+- **Example artifact:** [create_participant.json](../examples/create_participant.json), the snapshot shape as the case actor authors it.

@@ -209,11 +209,6 @@ def format_pattern(pattern: ActivityPattern) -> str:
     if pattern.context_ is not None:
         if isinstance(pattern.context_, ActivityPattern):
             qualifiers.append(f"context={format_pattern(pattern.context_)}")
-        elif isinstance(pattern.context_, tuple):
-            # A tuple admits any of several subjects (VAM-05-001); render the
-            # alternatives, not the enum reprs.
-            alternatives = "|".join(str(t) for t in pattern.context_)
-            qualifiers.append(f"context={alternatives}")
         else:
             qualifiers.append(f"context={pattern.context_}")
 

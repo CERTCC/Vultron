@@ -43,6 +43,7 @@ from vultron.core.behaviors.inbox import (
     process_payload,
 )
 from vultron.core.dispatcher import DirectActivityDispatcher
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.errors import UnroutableActivityError
@@ -317,5 +318,122 @@ def test_received_update_vulnerability_case_is_refused_unchanged(dl):
     stored = dl.read(case_id)
     assert stored is not None
     assert stored.name == "original name"
+    assert dl.outbox_list() == []
+    assert dl.list_objects("CaseLedgerEntry") == []
+
+
+_RETIRED_CASE_ID = "https://example.org/cases/c-chain-create"
+
+
+def _retired_create_activities() -> list[tuple[str, Any]]:
+    """The four received ``Create(X)`` routes #4598 removed, one each.
+
+    Each built with its own wire factory or class, addressed to the receiver
+    and naming the case the way the removed pattern required.
+    """
+    from vultron.wire.as2.factories import (
+        create_case_status_activity,
+        create_participant_activity,
+        create_status_for_participant_activity,
+    )
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.case_status import (
+        as_CaseStatus,
+        as_ParticipantStatus,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    participant_id = f"{_RETIRED_CASE_ID}/participants/sender"
+    return [
+        (
+            "case-status",
+            create_case_status_activity(
+                as_CaseStatus(context=_RETIRED_CASE_ID),
+                context=_RETIRED_CASE_ID,
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+        ),
+        (
+            "participant-status",
+            create_status_for_participant_activity(
+                as_ParticipantStatus(context=participant_id),
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+        ),
+        (
+            "embargo-event",
+            as_Create(
+                object_=as_EmbargoEvent(
+                    context=_RETIRED_CASE_ID, end_time=days_from_now_utc(45)
+                ),
+                context=_RETIRED_CASE_ID,
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+        ),
+        (
+            "case-participant",
+            create_participant_activity(
+                as_CaseParticipant(
+                    id_=participant_id,
+                    attributed_to=_SENDER_ID,
+                    context=_RETIRED_CASE_ID,
+                ),
+                context=_RETIRED_CASE_ID,
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+        ),
+    ]
+
+
+@pytest.mark.spec("CLP-07-013", "CLP-02-013")
+@pytest.mark.parametrize(
+    "activity",
+    [activity for _, activity in _retired_create_activities()],
+    ids=[name for name, _ in _retired_create_activities()],
+)
+def test_received_create_of_a_case_record_is_refused_unstored(dl, activity):
+    """#4598: this implementation does not support these received ``Create``s.
+
+    Each once stored its object with no ledger entry, which CLP-07-013 rules
+    out.  The wire classes and factories stay (a CASE_MANAGER-authored entry
+    may carry ``Create(CaseParticipant)``), but no pattern routes one that
+    arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and
+    the inbox refuses it, leaving the case, the ledger and the outbox as they
+    were.  (Ingress still pre-stores the inline object before routing, for
+    every activity type; #3763 owns that.)
+    """
+    from vultron.semantic_registry import (
+        find_matching_semantics,
+        use_case_map,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    dl.create(as_VulnerabilityCase(id_=_RETIRED_CASE_ID, name="unchanged"))
+    case_before = dl.read(_RETIRED_CASE_ID)
+    assert find_matching_semantics(activity) is MessageSemantics.UNKNOWN
+    activity_body = activity.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+
+    outcome = _process(
+        dl,
+        activity_body,
+        DirectActivityDispatcher(use_case_map=use_case_map()),
+    )
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert outcome.failure_reason == "unrecognized activity semantics"
+    assert dl.read(_RETIRED_CASE_ID) == case_before
     assert dl.outbox_list() == []
     assert dl.list_objects("CaseLedgerEntry") == []
