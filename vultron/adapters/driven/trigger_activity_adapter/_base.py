@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from vultron.adapters.driven.db_record import _AS_LIST_REF_FIELDS
 from vultron.adapters.outbox_sealed_body import (
     outbound_activity_id,
+    read_sealed_body,
     seal_outbound_body,
 )
 from vultron.core.models.base import CoreObject
@@ -250,6 +251,36 @@ def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
     """
     body = seal_outbound_body(dl, activity)  # refuses an activity with no id_
     return outbound_activity_id(activity), body
+
+
+def _addressing(
+    actor: str, to: list[str] | None, id_: str | None
+) -> dict[str, Any]:
+    """Factory keywords for *actor*, *to* and, when given, a caller's *id_*.
+
+    A caller passes *id_* to give the activity a retry-stable id
+    (ID-04-004); absent, the factory mints one.
+    """
+    extra: dict[str, Any] = {"actor": actor, "to": to}
+    if id_ is not None:
+        extra["id_"] = id_
+    return extra
+
+
+def _already_sealed(
+    dl: CaseOutboxPersistence, activity_id: str | None
+) -> tuple[str, str] | None:
+    """``(id, body)`` of an activity already built under *activity_id*, if any.
+
+    A retry that rebuilds an activity under the id its first attempt used
+    gets that attempt's body back (ID-04-004, OX-06-002).  A method that
+    stores side records while it builds checks this first, so the retry
+    leaves no second copy of them behind.
+    """
+    if activity_id is None:
+        return None
+    sealed = read_sealed_body(dl, activity_id)
+    return (activity_id, sealed.body) if sealed is not None else None
 
 
 def _seal_record(

@@ -591,12 +591,12 @@ class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
         )
 
 
-class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
+class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
     """AC-3 (#3821): the emitting tree's commit is the Invite's only commit.
 
-    The CASE_MANAGER builds the Invite, commits it, then appends it to its
-    outbox, and the Invite carries no ``cc:`` copy back to the manager
-    (CM-17-006, ADR-0109).
+    The CASE_MANAGER builds the Invite, appends it to its outbox, then
+    commits it, and the Invite carries no ``cc:`` copy back to the manager
+    (CM-17-006, ADR-0109, ADR-0119).
     """
 
     @pytest.fixture
@@ -604,7 +604,7 @@ class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
         return store_for(ACTOR_ID)
 
     @pytest.mark.spec("CM-17-006")
-    def test_invite_has_no_cc_and_is_committed_before_the_outbox_append(
+    def test_invite_has_no_cc_and_is_appended_to_the_outbox_before_the_commit(
         self, dl, monkeypatch
     ):
         from vultron.adapters.driven.trigger_activity_adapter import (
@@ -664,8 +664,8 @@ class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
         entries = _invite_entries()
         assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
         assert "cc" not in entries[0].payload_snapshot
-        # The one append saw the entry already committed.
-        assert ledger_at_append == [[invite_id]]
+        # The one append came before the entry was committed (ADR-0119).
+        assert ledger_at_append == [[]]
 
 
 class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:

@@ -188,8 +188,11 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
+
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -779,6 +782,7 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
@@ -786,6 +790,7 @@ class TriggerActivityPort(Protocol):
         ``case_id``, ``role``, ``target_actor_id``, and ``vendor_id``)
         before building the Accept so that ``Accept.object_`` is a typed
         ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
 
         Returns ``(activity_id, activity_dict)``.
         """

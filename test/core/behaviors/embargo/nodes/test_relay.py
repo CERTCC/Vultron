@@ -19,7 +19,7 @@ The CASE_MANAGER relays a proposal to every participant except the proposer,
 committing each emission and applying the invitee's consent ``INVITE`` where
 CM-18-003 allows it (EP-09-002, EP-09-004, ADR-0113).  These tests pin the
 leaves: the read-only EM guard, the recipient roster, and the per-recipient
-factory → commit → outbox → consent chain — including that a failure anywhere
+factory → outbox → commit → consent chain — including that a failure anywhere
 in that chain fails the node rather than queuing a partial relay (BT-14-001).
 """
 
@@ -366,6 +366,8 @@ class TestRelayEmbargoInviteToEachNode:
         scenario: BTTestScenario,
         recipients: list[str],
         actor_config: ActorConfig | None = None,
+        answers: str | None = None,
+        withdraw_unrecorded: bool = False,
     ) -> BTExecutionResult:
         return scenario.run(
             RelayEmbargoInviteToEachNode(
@@ -373,6 +375,8 @@ class TestRelayEmbargoInviteToEachNode:
                 embargo_id=EMBARGO_ID,
                 proposer_id=PROPOSER,
                 actor_config=actor_config,
+                answers=answers,
+                withdraw_unrecorded=withdraw_unrecorded,
             ),
             embargo_invite_recipients=recipients,
         )
@@ -500,6 +504,107 @@ class TestRelayEmbargoInviteToEachNode:
         event_types = _ledger_event_types(bt_scenario)
         assert event_types.count(EMBARGO_INVITE_EVENT_TYPE) == 2
         assert EMBARGO_INVITE_EVENT_TYPE == "invite_to_embargo_on_case"
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("EP-09-002")
+    @pytest.mark.spec("SYNC-09-002")
+    def test_each_invite_is_queued_before_it_is_committed(
+        self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from test.support.ledger import record_sends_and_commits
+
+        _seed_case(
+            bt_scenario,
+            relayed=True,
+            participants={OTHER_A: None, OTHER_B: None},
+        )
+        events = record_sends_and_commits(monkeypatch, MANAGER)
+
+        bt_scenario.assert_success(
+            self._relay(bt_scenario, [OTHER_A, OTHER_B])
+        )
+
+        invite_ids = [a.id_ for a in _queued_invites(bt_scenario)]
+        assert len(invite_ids) == 2
+        for invite_id in invite_ids:
+            assert events.index(("queued", invite_id)) < events.index(
+                (EMBARGO_INVITE_EVENT_TYPE, invite_id)
+            )
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("SYNC-09-002")
+    @pytest.mark.parametrize("withdraw_unrecorded", [True, False])
+    def test_an_invite_whose_commit_fails_is_withdrawn_only_when_asked(
+        self,
+        bt_scenario: BTTestScenario,
+        monkeypatch: pytest.MonkeyPatch,
+        withdraw_unrecorded: bool,
+    ) -> None:
+        """A relay no retry rebuilds withdraws its unrecorded Invite.
+
+        The manager's own proposal asks for it; a received relay keeps the
+        Invite pending, for the redelivery that rebuilds it to record.
+        """
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
+        failed = fail_commits(
+            monkeypatch,
+            commit_tree,
+            when=lambda kw: kw["event_type"] == EMBARGO_INVITE_EVENT_TYPE,
+        )
+
+        result = self._relay(
+            bt_scenario,
+            [OTHER_A],
+            answers=EMBARGO_ID,
+            withdraw_unrecorded=withdraw_unrecorded,
+        )
+
+        assert result.internal_error, result
+        (invite_id,) = failed
+        pending = [a.id_ for a in _queued_invites(bt_scenario)]
+        assert pending == ([] if withdraw_unrecorded else [invite_id])
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("OX-06-002")
+    def test_a_rerun_for_the_same_request_sends_and_records_each_invite_once(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """*answers* derives each Invite's id, so a rerun rebuilds them."""
+        from vultron.core.models.activity_ids import derived_activity_id
+
+        _seed_case(
+            bt_scenario,
+            relayed=True,
+            participants={OTHER_A: None, OTHER_B: None},
+        )
+        request = "https://example.org/activities/proposal-under-relay"
+
+        for _ in range(2):
+            bt_scenario.assert_success(
+                self._relay(bt_scenario, [OTHER_A, OTHER_B], answers=request)
+            )
+
+        expected = {
+            derived_activity_id(
+                EMBARGO_INVITE_EVENT_TYPE,
+                MANAGER,
+                CASE_ID,
+                request,
+                EMBARGO_ID,
+                recipient,
+            )
+            for recipient in (OTHER_A, OTHER_B)
+        }
+        assert {a.id_ for a in _queued_invites(bt_scenario)} == expected
+        assert len(_queued_invites(bt_scenario)) == 2
+        assert (
+            _ledger_event_types(bt_scenario).count(EMBARGO_INVITE_EVENT_TYPE)
+            == 2
+        )
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CM-23-014")

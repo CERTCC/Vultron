@@ -57,9 +57,9 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
     is irrevocable (CP-05-005), so a later "decline" must never reach the wire.
 
     "Answered" is deliberately wider than "an Accept was sent". ``main_flow``
-    creates the case and commits its ledger entries *before* it emits the
-    ``Accept``, so a delivery that fails in between leaves a case with no stored
-    ``Accept``. An Accept-only guard cannot see that, and a later declining
+    creates the case *before* it emits the ``Accept`` (its ledger entries are
+    committed after it, CP-09-009), so a delivery that fails in between leaves
+    a case with no stored ``Accept``. An Accept-only guard cannot see that, and a later declining
     delivery would then Reject a case this store had already half-built — and,
     because the decline record blocks the accept arm from then on, that case
     could never be completed.

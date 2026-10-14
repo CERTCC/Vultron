@@ -786,10 +786,14 @@ groups:
       receipt and is not agreement to the delivered content; the two layers stay
       separate.
     verification: >-
-      A committed entry is present in the canonical ledger before any delivery attempt
-      for its activity is made.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`
+      asserts the Invite's entry is committed in the same tree run that queues it, right
+      after the outbox write, with no wait for delivery: the outbox write, and so the first
+      delivery attempt, may come before the commit (SYNC-09-002), but the commit never waits
+      for the attempt.
     adr:
     - ADR-0080
+    - ADR-0119
     lint_suppress:
     - missing_story_reference
   - id: OX-14-003

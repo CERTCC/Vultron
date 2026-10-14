@@ -130,8 +130,8 @@ def _resolve_ledger_entry_id(activity_id: str, dl: DataLayer) -> str | None:
     type is ``"CaseLedgerEntry"``.  Returns ``None`` for all other activity
     types so non-ledger activities dead-letter unchanged (OX-14-001).
 
-    The CaseLedgerEntry is always committed before its fan-out activity is
-    queued (emit-after-commit invariant, OX-14-002), so the entry is always
+    The CaseLedgerEntry is always committed before its
+    ``Announce(CaseLedgerEntry)`` fan-out is queued (SYNC-09-002), so the entry is always
     present when this function runs.
     """
     try:
