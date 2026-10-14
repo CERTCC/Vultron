@@ -123,10 +123,14 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 - **End-time termination is one idempotent path (EMB-13-003).**
   `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers
   an already-`EXITED` case as done and otherwise runs `terminate_embargo_bt`
-  with `END_TIME_REACHED`. The CASE_MANAGER's lazy check runs it from the
-  dispatcher before each activity for a case (`upkeep_port_factory`); a
-  Sentinel reaches it through the terminate trigger with
-  `reason=END_TIME_REACHED`. `termination_timing_violations()` refuses an
+  with `END_TIME_REACHED`. The CASE_MANAGER's lazy check is a `CaseUpkeep`
+  hook (`end_time_case_upkeep`) that the composition roots install on the
+  inbox and trigger dispatchers, so it runs before each activity or trigger
+  for a case; the dispatchers know only the hook's shape. A Sentinel reaches
+  the path through the terminate trigger with `reason=END_TIME_REACHED`. That
+  trigger's registry row sets `runs_case_upkeep=False`: it takes the end-time
+  path itself once the end time has passed, an `EARLY` request included, so
+  the lazy check never pre-empts the answer it owes. `termination_timing_violations()` refuses an
   `END_TIME_REACHED` claimed before the end time — in the trigger's
   `_prepare`, the lifecycle, the received tree's guard
   (`TerminationIsTimelyNode`, before the commit) and replica replay.

@@ -21,7 +21,9 @@ end time, such as a Sentinel monitoring embargo timers sends: it runs the
 same idempotent path as the CASE_MANAGER's lazy check
 (:func:`~vultron.core.behaviors.embargo.end_time_tree.end_embargo_at_end_time_bt`),
 is refused before the end time, and is answered as already done — no
-activity — once the embargo has ended (ADR-0122).
+activity — once the embargo has ended (ADR-0122).  An ``EARLY`` request made
+once the end time has passed takes that path too, so the embargo is recorded
+as ending at its end time (EMB-13-003).
 """
 
 import json
@@ -39,6 +41,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.services.embargo_lifecycle import (
+    embargo_end_time_passed,
     termination_timing_violations,
 )
 from vultron.core.states.embargo_register import TerminationReason
@@ -78,6 +81,20 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         if embargo_id is not None:
             _coerce_embargo_event(dl.read(embargo_id), embargo_id)
         self._embargo_id = embargo_id or ""
+
+        # Once the end time has passed, the embargo ends with
+        # END_TIME_REACHED whatever was asked (EMB-13-003): this trigger runs
+        # the end-time path itself, so its row opts out of the lazy check.
+        if self._reason == TerminationReason.EARLY and embargo_end_time_passed(
+            dl, self._case, self._now
+        ):
+            logger.info(
+                "Actor '%s': embargo on case '%s' has reached its end time —"
+                " ending it with END_TIME_REACHED, not EARLY",
+                self._actor_id,
+                self._case.id_,
+            )
+            self._reason = TerminationReason.END_TIME_REACHED
 
         # An end-time request before the end time is refused on every actor,
         # so a participant never asks the CASE_MANAGER for one (ADR-0122).

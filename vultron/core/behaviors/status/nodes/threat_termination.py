@@ -320,13 +320,15 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
         # case's PXA at the write (the DataLayer-fallback callers).
         threat = resolve_pxa_threat_state(_status_of(status_obj))
         signals = (
-            threat_signals_of(threat) if isinstance(threat, CS_pxa) else []
+            threat_signals_of(threat) or None
+            if isinstance(threat, CS_pxa)
+            else None
         )
         terminate_subtree = (
             pxa_embargo_teardown_bt(
                 case_id=case_id,
                 result_out=result_out,
-                signals=signals or None,
+                signals=signals,
             )
             if case_id is not None
             else py_trees.behaviours.Success(name="TerminateEmbargoSkipped")

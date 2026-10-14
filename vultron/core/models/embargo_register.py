@@ -446,11 +446,7 @@ def rejection_changes(embargo_id: str) -> list[RegisterChange]:
 def termination_changes(
     entries: Sequence[EmbargoRegisterEntry], termination: EmbargoTermination
 ) -> list[RegisterChange]:
-    """The step that ends the embargo in force and cancels every proposal.
-
-    The ``ACTIVE`` entry is ``TERMINATED`` recording *termination*, and every
-    ``PROPOSED`` entry is ``CANCELLED`` in the same step (EP-08-004).
-    """
+    """End the embargo in force with *termination*; cancel proposals (EP-08-004)."""
     return [
         *(
             RegisterChange(

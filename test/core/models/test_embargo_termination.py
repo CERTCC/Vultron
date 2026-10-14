@@ -1,13 +1,11 @@
 """The what and the why of an embargo termination (ADR-0122, #4293)."""
 
 from datetime import timedelta
-from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
 
 from test.support.embargo_register import activate, propose, terminate
-from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import (
@@ -23,8 +21,6 @@ from vultron.core.models.embargo_termination import (
     end_time_violations,
     threat_signals_of,
 )
-from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
@@ -225,73 +221,6 @@ def test_an_early_termination_has_no_time_rule() -> None:
         )
         == []
     )
-
-
-# ---------------------------------------------------------------------------
-# The dispatcher runs the lazy check (AC-3)
-# ---------------------------------------------------------------------------
-
-
-class _UseCase:
-    calls: list[str] = []
-
-    def __init__(self, dl, event) -> None:
-        self._event = event
-
-    def execute(self) -> HandlerResult:
-        _UseCase.calls.append("use_case")
-        return HandlerResult.applied()
-
-
-def _event(case_id: str | None):
-    event = MagicMock()
-    event.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-    event.actor_id = None  # skips the join-backfill gate
-    event.case_id = case_id
-    event.receiving_actor_id = "https://example.org/actors/manager"
-    return event
-
-
-@pytest.mark.spec("EMB-13-003")
-def test_dispatcher_runs_the_lazy_check_before_the_use_case(
-    monkeypatch,
-) -> None:
-    calls: list[tuple[str, str]] = []
-    _UseCase.calls = []
-
-    def fake_check(**kwargs) -> None:
-        calls.append((kwargs["case_id"], kwargs["actor_id"]))
-        _UseCase.calls.append("check")
-
-    monkeypatch.setattr(
-        "vultron.core.dispatcher.end_embargo_if_end_time_passed", fake_check
-    )
-    dispatcher = DirectActivityDispatcher(
-        use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: _UseCase},
-        upkeep_port_factory=lambda dl: {},
-    )
-
-    dispatcher.dispatch(_event("https://example.org/cases/c"), MagicMock())
-
-    assert calls == [
-        ("https://example.org/cases/c", "https://example.org/actors/manager")
-    ]
-    assert _UseCase.calls == ["check", "use_case"]
-
-
-def test_dispatcher_without_upkeep_ports_runs_no_check(monkeypatch) -> None:
-    called = []
-    monkeypatch.setattr(
-        "vultron.core.dispatcher.end_embargo_if_end_time_passed",
-        lambda **kw: called.append(kw),
-    )
-    dispatcher = DirectActivityDispatcher(
-        use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: _UseCase}
-    )
-
-    dispatcher.dispatch(_event("https://example.org/cases/c"), MagicMock())
-
-    assert called == []
 
 
 @pytest.mark.parametrize(

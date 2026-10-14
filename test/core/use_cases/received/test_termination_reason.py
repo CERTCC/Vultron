@@ -15,7 +15,13 @@ from py_trees.common import Status
 
 from test.support.embargo_register import activate
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.embargo.end_time_tree import (
+    end_embargo_if_end_time_passed,
+)
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import now_utc
@@ -259,3 +265,40 @@ def test_replica_replay_refuses_an_entry_without_a_reason() -> None:
 
     assert status == Status.FAILURE
     assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.ACTIVE
+
+
+@pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("EMB-07-003")
+def test_an_owner_remove_after_the_end_time_termination_changes_nothing(
+    make_payload,
+) -> None:
+    """The lazy check ended the embargo first; the case owner's later
+    ``Remove`` is admitted and ledgered, and leaves the recorded
+    termination as it was."""
+    dl, case, embargo = _case_with_embargo(
+        "https://example.org/cases/tr-late-owner", ended=True
+    )
+    end_embargo_if_end_time_passed(
+        datalayer=dl,
+        case_id=case.id_,
+        actor_id=OWNER,
+        now=now_utc(),
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    )
+    before = {e.id_ for e in _ledger(dl, case.id_)}
+    assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.EXITED
+    activity = remove_embargo_from_case_activity(
+        embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
+    )
+
+    result = _receive(dl, make_payload(activity, receiving_actor_id=OWNER))
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    ended = cast(VulnerabilityCase, dl.read(case.id_))
+    assert ended.em_state is EM.EXITED
+    assert ended.embargo_termination == EmbargoTermination.end_time_reached()
+    # Admitted at the case layer, so ledgered (CLP-02-013), with no effect.
+    (added,) = [e for e in _ledger(dl, case.id_) if e.id_ not in before]
+    assert added.log_object_id == activity.id_

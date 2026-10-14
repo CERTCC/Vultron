@@ -282,9 +282,7 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
     # Capture which port_factories map was supplied to get_dispatcher
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -317,8 +315,8 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
 @pytest.mark.spec("EMB-13-003")
 def test_make_dispatcher_gives_the_lazy_end_time_check_its_ports(monkeypatch):
     """The CASE_MANAGER's lazy end-time check commits and announces a
-    termination, so the dispatcher's upkeep factory supplies the trigger,
-    sync and wire-render ports (ADR-0122)."""
+    termination, so the inbox dispatcher's case-upkeep hook hands it the
+    trigger, sync and wire-render ports (ADR-0122)."""
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
@@ -330,22 +328,33 @@ def test_make_dispatcher_gives_the_lazy_end_time_check_its_ports(monkeypatch):
     )
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
-        captured["upkeep_port_factory"] = upkeep_port_factory
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+        captured["case_upkeep"] = case_upkeep
         return Mock()
 
+    checks: list[dict] = []
     monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        "vultron.core.behaviors.embargo.end_time_tree"
+        ".end_embargo_if_end_time_passed",
+        lambda **kwargs: checks.append(kwargs),
+    )
 
     ih.make_dispatcher()
 
-    factory = captured["upkeep_port_factory"]
-    assert factory is not None
-    ports = factory(real_dl)
-    assert isinstance(ports["trigger_activity"], TriggerActivityAdapter)
-    assert isinstance(ports["sync_port"], SyncActivityAdapter)
-    assert isinstance(ports["wire_render_port"], As2WireRenderAdapter)
+    (hook,) = captured["case_upkeep"]
+    hook(
+        real_dl,
+        case_id="https://test.example/cases/c",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+        activity_id="https://test.example/activities/a",
+    )
+    (check,) = checks
+    assert check["case_id"] == "https://test.example/cases/c"
+    assert check["activity_id"] == "https://test.example/activities/a"
+    assert isinstance(check["trigger_activity"], TriggerActivityAdapter)
+    assert isinstance(check["sync_port"], SyncActivityAdapter)
+    assert isinstance(check["wire_render_port"], As2WireRenderAdapter)
 
 
 def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
@@ -389,7 +398,7 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     monkeypatch.setattr(
         ih,
         "get_dispatcher",
-        lambda use_case_map, port_factories=None, upkeep_port_factory=None: (
+        lambda use_case_map, port_factories=None, case_upkeep=(): (
             mock_dispatcher
         ),
     )
@@ -827,9 +836,7 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -881,9 +888,7 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -929,9 +934,7 @@ def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(
 
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -964,9 +967,7 @@ def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -1006,9 +1007,7 @@ def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -1109,9 +1108,7 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -1163,9 +1160,7 @@ def test_make_dispatcher_embargo_invite_gets_actor_config(monkeypatch, sem):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(
-        use_case_map, port_factories=None, upkeep_port_factory=None
-    ):
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
         captured["port_factories"] = port_factories
         return Mock()
 

@@ -32,6 +32,7 @@ from vultron.core.models.embargo_termination import (
     TerminationRequest,
     ThreatSignalTermination,
     end_time_violations,
+    has_reached_end_time,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle.pec_activation import (
@@ -92,6 +93,22 @@ def termination_timing_violations(
     if embargo is None:
         return []
     return end_time_violations(termination, end_time=embargo.end_time, at=at)
+
+
+def embargo_end_time_passed(
+    store: CasePersistence, case: VulnerabilityCase, at: datetime
+) -> bool:
+    """Whether *case*'s embargo in force has reached its end time at *at*.
+
+    ``False`` when no embargo is in force.  The embargo is read by
+    :func:`embargo_in_force`; the rule is
+    :func:`~vultron.core.models.embargo_termination.has_reached_end_time`.
+
+    Raises:
+        VultronNotFoundError: the embargo in force cannot be read.
+    """
+    embargo = embargo_in_force(store, case)
+    return embargo is not None and has_reached_end_time(embargo.end_time, at)
 
 
 class _ActivationOperationsMixin(_PecActivationMixin):

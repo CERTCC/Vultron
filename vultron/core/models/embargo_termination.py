@@ -215,6 +215,15 @@ class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
 TerminationRequest = EmbargoTermination | ThreatSignalTermination
 
 
+def has_reached_end_time(end_time: datetime, at: datetime) -> bool:
+    """Whether an embargo ending at *end_time* has reached it at *at*.
+
+    The one end-time rule: an embargo reaches its end time at that instant,
+    not after it, so *at* equal to *end_time* counts (ADR-0122).
+    """
+    return at >= end_time
+
+
 def end_time_violations(
     termination: EmbargoTermination,
     *,
@@ -233,7 +242,7 @@ def end_time_violations(
         return [
             "an END_TIME_REACHED termination needs the time it was claimed at"
         ]
-    if at < end_time:
+    if not has_reached_end_time(end_time, at):
         return [
             f"END_TIME_REACHED claimed at {at.isoformat()}, before the"
             f" embargo's end time {end_time.isoformat()}"
@@ -250,5 +259,6 @@ __all__ = [
     "ThreatSignalTermination",
     "TerminationRequest",
     "end_time_violations",
+    "has_reached_end_time",
     "threat_signals_of",
 ]

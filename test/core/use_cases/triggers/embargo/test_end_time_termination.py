@@ -11,6 +11,7 @@ arrives second commits nothing.
 import threading
 from datetime import datetime, timedelta
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 from py_trees.common import Status
@@ -23,35 +24,48 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.end_time_tree import (
     end_embargo_if_end_time_passed,
+    end_time_case_upkeep,
 )
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    ThreatTerminationBranchNode,
+)
+from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     FinderParticipant,
     VendorParticipant,
 )
+from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     ThreatSignal,
     ThreatSignalTermination,
 )
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.use_case_result import ActivityResult, HandlerResult
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     TerminationReason,
 )
+from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
+    AddParticipantStatusTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
+from vultron.trigger_registry import entries
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 S = EmbargoRegisterStatus
@@ -263,22 +277,26 @@ def test_lazy_check_after_the_sentinel_commits_nothing() -> None:
 
 @pytest.mark.spec("EMB-13-003")
 def test_racing_lazy_check_and_sentinel_commit_one_termination() -> None:
-    """Started together, exactly one of the two commits the termination."""
+    """Started together, exactly one of the two commits the termination,
+    and the other is answered as already done."""
     world = _World(end_time=now_utc() - timedelta(minutes=5))
     start = threading.Barrier(2)
     errors: list[BaseException] = []
+    results: dict[str, object] = {}
 
-    def run(step) -> None:
+    def run(name: str, step) -> None:
         start.wait()
         try:
-            step()
+            results[name] = step()
         except BaseException as exc:  # noqa: BLE001 — reported below
             errors.append(exc)
 
     threads = [
-        threading.Thread(target=run, args=(world.sentinel_request,)),
         threading.Thread(
-            target=run, args=(lambda: world.lazy_check(now_utc()),)
+            target=run, args=("sentinel", world.sentinel_request)
+        ),
+        threading.Thread(
+            target=run, args=("lazy", lambda: world.lazy_check(now_utc()))
         ),
     ]
     for thread in threads:
@@ -287,6 +305,83 @@ def test_racing_lazy_check_and_sentinel_commit_one_termination() -> None:
         thread.join(timeout=60)
 
     assert errors == []
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+    (teardown,) = world.teardown_entries()
+    sentinel = cast(ActivityResult, results["sentinel"])
+    lazy = cast(BTExecutionResult, results["lazy"])
+    # The lazy check never fails; the Sentinel either committed the one
+    # termination or was answered as already done, with no activity.
+    assert lazy.status == Status.SUCCESS
+    if sentinel.activity is not None:
+        assert sentinel.activity["id"] == teardown.payload_snapshot["id"]
+
+
+@pytest.mark.spec("EMB-13-003")
+def test_an_early_request_after_the_end_time_ends_it_at_its_end_time() -> None:
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+
+    result = world.sentinel_request(reason=TerminationReason.EARLY)
+
+    assert result.activity is not None
+    assert result.activity["content"] == "END_TIME_REACHED"
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+
+
+@pytest.mark.spec("EMB-13-003")
+def test_a_case_trigger_after_the_end_time_runs_the_lazy_check_first() -> None:
+    """A threat status the manager triggers after the end time finds the
+    embargo already ended at its end time, not ended early."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+    ports = world.ports()
+    dispatcher = RegistryTriggerDispatcher(
+        entries(),
+        **ports,
+        case_upkeep=(end_time_case_upkeep(lambda _dl: ports),),
+    )
+
+    dispatcher.trigger(
+        AddParticipantStatusTriggerRequest(
+            actor_id=world.manager.id_,
+            case_id=world.case_id,
+            pxa_state=CS_pxa.Pxa,
+        ),
+        world.dl,
+    )
+
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+
+
+@pytest.mark.spec("EMB-13-003")
+def test_an_inbound_activity_after_the_end_time_sees_the_embargo_ended() -> (
+    None
+):
+    """The inbox dispatcher's lazy check commits the termination before the
+    use case for the activity runs."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+    seen: list[EM] = []
+
+    class _UseCase:
+        def __init__(self, dl, event) -> None:
+            pass
+
+        def execute(self) -> HandlerResult:
+            seen.append(world.case().em_state)
+            return HandlerResult.applied()
+
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: _UseCase},
+        case_upkeep=(end_time_case_upkeep(lambda _dl: world.ports()),),
+    )
+    event = MagicMock()
+    event.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
+    event.actor_id = None  # skips the join-backfill gate
+    event.case_id = world.case_id
+    event.activity_id = f"{world.case_id}/activities/note"
+    event.receiving_actor_id = world.manager.id_
+
+    dispatcher.dispatch(event, world.dl)
+
+    assert seen == [EM.EXITED]
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
 
 
@@ -326,6 +421,31 @@ def test_a_threat_termination_records_its_signals_and_runs_the_cascade() -> (
 
     assert result.status == Status.SUCCESS, result.feedback_message
     # The wire carries the what (EARLY); the entry records the why too.
+    _assert_full_cascade(
+        world, EmbargoTermination.threat([ThreatSignal.P, ThreatSignal.X])
+    )
+
+
+@pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("RSH-03-001")
+def test_a_threat_status_records_the_signals_it_carries() -> None:
+    """The cascade a received threat status starts records ``EARLY`` on the
+    wire and ``THREAT_SIGNAL`` with the status's signals on the entry."""
+    world = _World(end_time=days_from_now_utc(10))
+    status = as_CaseStatus(
+        context=world.case_id, pxa=PxaDimension(state=CS_pxa.PXa)
+    )
+
+    result = BTBridge(datalayer=world.dl, **world.ports()).execute_with_setup(
+        tree=ThreatTerminationBranchNode(
+            status_obj=status,
+            case_id=world.case_id,
+            sender_actor_id=world.finder.id_,
+        ),
+        actor_id=world.manager.id_,
+    )
+
+    assert result.status == Status.SUCCESS, result.feedback_message
     _assert_full_cascade(
         world, EmbargoTermination.threat([ThreatSignal.P, ThreatSignal.X])
     )

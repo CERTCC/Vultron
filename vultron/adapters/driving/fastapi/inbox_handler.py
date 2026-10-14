@@ -58,6 +58,7 @@ from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config import get_config
+from vultron.core.behaviors.embargo.end_time_tree import end_time_case_upkeep
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
@@ -179,12 +180,16 @@ def make_dispatcher() -> ActivityDispatcher:
     }
     # The CASE_MANAGER's lazy end-time check runs before each activity it
     # handles for a case, and needs the ports a termination commits and
-    # announces with (ADR-0122).
+    # announces with (ADR-0122, EMB-13-003).
     d = get_dispatcher(
         use_case_map=use_cases,
         port_factories=port_factories,
-        upkeep_port_factory=inbox_port_factories.with_received_baseline_ports(
-            _trigger_activity_port_factory
+        case_upkeep=(
+            end_time_case_upkeep(
+                inbox_port_factories.with_received_baseline_ports(
+                    _trigger_activity_port_factory
+                )
+            ),
         ),
     )
     logger.debug("Created inbox dispatcher: %s", type(d).__name__)

@@ -1305,8 +1305,10 @@ groups:
       When the end time of the embargo in force has passed, the CASE_MANAGER
       MUST end it with the reason `END_TIME_REACHED`, through one idempotent
       termination path reached in either of two ways: its own lazy check when
-      it next handles the case, or an outside request to end the embargo at
-      its end time, such as from a Sentinel monitoring embargo timers. Both
+      it next handles the case, whether for an inbound activity or one of its
+      own triggers, or an outside request to end the embargo at its end time,
+      such as from a Sentinel monitoring embargo timers. A request to end the
+      embargo early made after its end time takes the same path. Both
       commit the CASE_MANAGER's `Remove(EmbargoEvent)` with `content`
       `END_TIME_REACHED` and run the full termination cascade. Whichever
       arrives after the embargo has ended MUST commit nothing and MUST be
@@ -1327,10 +1329,12 @@ groups:
       (ADR-0122).
     verification: >-
       `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
-      covers the lazy check, the outside request, the order of the two and a
-      race between them; `test/core/use_cases/received/test_termination_reason.py`
+      covers the lazy check, the outside request, the order of the two, a
+      race between them, an early request after the end time, and the lazy
+      check run by the inbox and trigger dispatchers before the activity or
+      trigger; `test/core/use_cases/received/test_termination_reason.py`
       covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
-      at a replica.
+      at a replica, and a case owner's `Remove` after the termination.
     testable: true
     lint_suppress:
     - testable_without_steps

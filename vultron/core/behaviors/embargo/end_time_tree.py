@@ -17,8 +17,10 @@ An embargo reaches its end time through either of two requests, which share
 one idempotent termination path, :func:`end_embargo_at_end_time_bt`:
 
 - the CASE_MANAGER's **lazy check** when it next handles the case
-  (:func:`end_embargo_if_end_time_passed`, run by the dispatcher before each
-  activity it handles for a case) — no scheduler is needed; and
+  (:func:`end_embargo_if_end_time_passed`, installed as a dispatcher
+  :class:`~vultron.core.ports.dispatcher.CaseUpkeep` hook by
+  :func:`end_time_case_upkeep`, so it runs before each activity or trigger
+  the actor handles for a case) — no scheduler is needed; and
 - an **outside request**, such as a Sentinel monitoring embargo timers,
   through the terminate-embargo trigger with ``reason=END_TIME_REACHED``.
 
@@ -38,8 +40,9 @@ answered as already done, so it never reaches the register (invariant 4)::
 """
 
 import logging
+from collections.abc import Callable, Mapping
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -54,9 +57,15 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    has_reached_end_time,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.dispatcher import CaseUpkeep
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -147,7 +156,7 @@ class EmbargoEndTimePassedNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
         embargo_id = embargo.id_
-        if self._now < embargo.end_time:
+        if not has_reached_end_time(embargo.end_time, self._now):
             self.feedback_message = (
                 f"Embargo '{embargo_id}' on case '{self.case_id}' ends at"
                 f" {embargo.end_time.isoformat()}"
@@ -236,6 +245,7 @@ def end_embargo_if_end_time_passed(
     trigger_activity: TriggerActivityPort | None,
     sync_port: SyncActivityPort | None,
     wire_render_port: WireRenderPort | None,
+    activity_id: str | None = None,
 ) -> BTExecutionResult:
     """Run the CASE_MANAGER's lazy end-time check for *case_id* as *actor_id*.
 
@@ -244,6 +254,7 @@ def end_embargo_if_end_time_passed(
     passed (ADR-0122).  A non-manager, or a case the actor does not hold,
     does nothing.  Returns the bridge's result; a failed termination leaves
     the case as it was and is retried the next time the case is handled.
+    *activity_id* names the inbound activity being handled, for the log.
     """
     result_out: dict[str, object] = {}
     bridge = BTBridge(
@@ -258,12 +269,51 @@ def end_embargo_if_end_time_passed(
     result = bridge.execute_with_setup(tree, actor_id=actor_id)
     if result.status != Status.SUCCESS:
         logger.warning(
-            "Lazy end-time check for case '%s' by actor '%s' failed: %s",
+            "Lazy end-time check for case '%s' by actor '%s' failed"
+            " (activity_id=%s): %s",
             case_id,
             actor_id,
+            activity_id,
             result.feedback_message,
         )
     return result
+
+
+def end_time_case_upkeep(
+    port_factory: Callable[[DataLayer], Mapping[str, Any]],
+) -> CaseUpkeep:
+    """The lazy end-time check as a dispatcher :class:`CaseUpkeep` hook.
+
+    *port_factory* supplies, for the store being handled, the ports the
+    termination's commit and announcement need (``trigger_activity``,
+    ``sync_port``, ``wire_render_port``).  The composition root installs the
+    hook on the inbox and trigger dispatchers, so the CASE_MANAGER ends an
+    embargo whose end time has passed the next time it handles the case
+    (ADR-0122, EMB-13-003).
+    """
+
+    def _upkeep(
+        dl: CaseOutboxPersistence,
+        *,
+        case_id: str,
+        actor_id: str,
+        activity_id: str | None,
+    ) -> None:
+        # The inbox's port factories are typed on the whole DataLayer; the
+        # store a dispatcher hands a hook is that DataLayer.
+        ports = port_factory(cast(DataLayer, dl))
+        end_embargo_if_end_time_passed(
+            datalayer=dl,
+            case_id=case_id,
+            actor_id=actor_id,
+            now=now_utc(),
+            trigger_activity=ports.get("trigger_activity"),
+            sync_port=ports.get("sync_port"),
+            wire_render_port=ports.get("wire_render_port"),
+            activity_id=activity_id,
+        )
+
+    return _upkeep
 
 
 __all__ = [
@@ -271,6 +321,7 @@ __all__ = [
     "EmbargoAlreadyEndedNode",
     "EmbargoEndTimePassedNode",
     "end_embargo_at_end_time_bt",
+    "end_time_case_upkeep",
     "end_embargo_if_end_time_passed",
     "end_embargo_if_end_time_passed_tree",
 ]
