@@ -213,7 +213,6 @@ class TestSenderIsActiveParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
         node = SenderIsActiveParticipantNode(
-            status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
@@ -225,7 +224,6 @@ class TestSenderIsActiveParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_sender_fails(self, populated_bridge):
         node = SenderIsActiveParticipantNode(
-            status_id=STATUS_ID,
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
         )
@@ -237,7 +235,6 @@ class TestSenderIsActiveParticipantNode:
     def test_missing_case_fails(self, bridge):
         """No case in DataLayer → FAILURE."""
         node = SenderIsActiveParticipantNode(
-            status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
         )
@@ -245,17 +242,16 @@ class TestSenderIsActiveParticipantNode:
         assert result.status == Status.FAILURE
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_no_case_id_falls_back_to_dl_lookup(self, populated_bridge):
-        """When case_id is None, node resolves case_id from status.context."""
+    def test_no_case_id_fails(self, populated_bridge):
+        """With no case to check the sender against, the guard fails."""
         node = SenderIsActiveParticipantNode(
-            status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=None,
         )
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------

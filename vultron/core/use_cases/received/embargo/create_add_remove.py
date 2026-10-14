@@ -91,8 +91,9 @@ class CreateEmbargoEventReceivedUseCase:
         ) is not None:
             return refusal
         # The store-only tree carries no sender guard, so it runs ahead of the
-        # write: the Case Owner at the CASE_MANAGER, the CASE_MANAGER at any
-        # other replica (EP-09-005, PCR-03-001, ADR-0115).
+        # write: the Case Owner or the CASE_MANAGER itself at the
+        # CASE_MANAGER, the CASE_MANAGER at any other replica (EP-09-005,
+        # PCR-03-001, ADR-0115).
         if (
             refusal := rule_refusal(
                 self._dl,

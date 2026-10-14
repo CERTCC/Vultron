@@ -154,7 +154,7 @@ def create_engage_case_tree(
             # After the snapshot steps, not in the factory's sender-guard
             # slot: an Engage may carry the sender's own participant inline.
             SenderIsActiveParticipantNode(
-                status_id="", sender_actor_id=actor_id, case_id=case_id
+                sender_actor_id=actor_id, case_id=case_id
             ),
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],

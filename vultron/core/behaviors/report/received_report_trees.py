@@ -320,7 +320,6 @@ def _report_verdict_stages(
         # first: an activity about a case this store does not hold is refused
         # as such (#2255), not as an unknown sender.
         SenderIsActiveParticipantNode(
-            status_id="",
             sender_actor_id=sender_actor_id,
             case_id=case_id,
         ),

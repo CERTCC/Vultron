@@ -92,7 +92,7 @@ def sender_refusal(
         sync_port: The handler's sync port, passed on as every received
             bridge is (SYNC-02-003); the guard commits nothing.
         activity: The received activity, placed on the blackboard for a guard
-            that reads its sender from there (``SenderIsCaseManagerNode``).
+            that reads it.
 
     Raises:
         VultronBTInternalError: The guard failed on an internal error.

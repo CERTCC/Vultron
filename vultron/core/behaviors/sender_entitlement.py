@@ -434,9 +434,9 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
     Returns ``FAILURE`` otherwise, halting the parent ``Sequence`` with a
     REFUSED outcome.
 
-    Falls back to a DataLayer lookup via ``status_id`` when ``case_id`` is
-    ``None``, preserving the DEMOMA-07-003 step-1 behaviour for the status
-    path.
+    With no ``case_id`` there is no case to check the sender against, so it
+    fails (DEMOMA-07-003 step 1); the status use case resolves the case from
+    the stored status before it builds its tree.
 
     With ``require_active=True`` the sender must also be an *active*
     participant (CM-10-004): joined, not removed, and a signatory to the
@@ -456,7 +456,6 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
 
     def __init__(
         self,
-        status_id: str,
         sender_actor_id: str,
         case_id: str | None,
         name: str | None = None,
@@ -469,33 +468,18 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
             participant_key="sender_participant",
             name=name or self.__class__.__name__,
         )
-        self.status_id = status_id
         self.sender_actor_id = sender_actor_id
-        self._case_id_hint = case_id
+        self._case_id_hint = case_id or None
         self._require_active = require_active
-
-    def _resolve_case_id(self) -> str | None:
-        if self._case_id_hint:
-            return self._case_id_hint
-        if not self.status_id:
-            return None
-        assert self.datalayer is not None
-        status_raw = self.datalayer.read(self.status_id)
-        if status_raw is None:
-            return None
-        context = getattr(status_raw, "context", None)
-        return str(context) if context else None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
 
-        case_id = self._resolve_case_id()
+        case_id = self._case_id_hint
         if case_id is None:
             self.feedback_message = (
-                f"Cannot determine case_id for status '{self.status_id}'"
-                if self.status_id
-                else f"No case in this store to check sender"
+                f"No case in this store to check sender"
                 f" '{self.sender_actor_id}' against"
             )
             self.logger.warning(
@@ -655,7 +639,8 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     back to it, came from itself is this check too: the identity compared is
     the one :func:`resolve_case_manager_id` resolves for the case (#4437).
 
-    Reads ``activity`` from the blackboard via INPUT_PORTS.
+    Reads ``activity`` from the blackboard via INPUT_PORTS; the sender is its
+    ``actor_id`` unless ``sender_actor_id`` names it.
 
     Merged from ``VerifySenderIsCaseActorNode`` (ADR-0115, AC-2).
 
@@ -678,6 +663,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         *,
         anchored: bool = False,
         required: bool = False,
+        sender_actor_id: str | None = None,
     ) -> None:
         """Create the guard.
 
@@ -691,11 +677,15 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 anchor (PCR-03-004).
             required: Refuse, rather than pass through, when this store holds
                 no case or the case names no CASE_MANAGER.
+            sender_actor_id: The sender to check.  ``None`` reads it from the
+                blackboard activity's ``actor_id``; the composed guard passes
+                the sender every other kind checks (HP-01-008).
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._anchored = anchored
         self._required = required
+        self._sender_actor_id = sender_actor_id
 
     def _recorded_anchor(self, case_id: str) -> str | None:
         """The CASE_MANAGER recorded when the receiver got the stub Invite."""
@@ -731,7 +721,9 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 )
                 return Status.FAILURE
             case_id = entry.case_id
-        sender_id = getattr(self.activity, "actor_id", None)
+        sender_id = self._sender_actor_id or getattr(
+            self.activity, "actor_id", None
+        )
 
         if not sender_id:
             self.logger.warning("%s: announce has no actor_id", self.name)

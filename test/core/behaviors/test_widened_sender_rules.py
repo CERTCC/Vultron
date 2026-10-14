@@ -125,12 +125,28 @@ def _store(receiver: str) -> BTTestScenario:
     return scenario
 
 
+def _store_without_manager(receiver: str) -> BTTestScenario:
+    """*receiver*'s store holding a case that names no CASE_MANAGER yet."""
+    scenario = BTTestScenario(actor_id=receiver)
+    case = as_VulnerabilityCase(id_=CASE_ID, name="Unmanaged case")
+    seed_case_owner_participant(scenario.dl, case, OWNER)
+    seed_case_participant(scenario.dl, case, VENDOR, [CVDRole.VENDOR])
+    seed_case_participant(scenario.dl, case, REPLICA)
+    scenario.dl.create(case)
+    scenario.dl.create(as_Note(id_=NOTE_ID, content="n", attributed_to=VENDOR))
+    return scenario
+
+
 def _admits(
-    rule: SenderRule, context: ContextFor, receiver: str, sender: str
+    rule: SenderRule,
+    context: ContextFor,
+    receiver: str,
+    sender: str,
+    store: Callable[[str], BTTestScenario] = _store,
 ) -> bool:
     guard = compose_sender_guard(rule, context(sender))
     assert guard is not None
-    result = _store(receiver).run(
+    result = store(receiver).run(
         guard, activity=SimpleNamespace(actor_id=sender)
     )
     assert not result.internal_error, result.feedback_message
@@ -354,3 +370,107 @@ def test_to_case_manager_states_the_case_manager_at_a_participant() -> None:
     assert rule.at_case_manager == {Kind.AUTHOR, Kind.CASE_OWNER}
     assert rule.at_participant == {Kind.CASE_MANAGER}
     assert rule.outside_case == frozenset()
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.parametrize(
+    ("sender", "admitted"),
+    [(MANAGER, True), (OWNER, False)],
+    ids=["case-manager", "case-owner"],
+)
+def test_receiver_side_is_the_exact_case_manager_id(
+    sender: str, admitted: bool
+) -> None:
+    """The receiver's side is read by exact id, as the effect gates read it.
+
+    A receiver whose id differs from the CASE_MANAGER's only by a trailing
+    slash is a participant here, so only the CASE_MANAGER is admitted.  The
+    trees' CASE_MANAGER-gated effects compare the same way, so an owner
+    admitted at that receiver would have reached no effect either.
+    """
+    rule = RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement
+    assert _admits(rule, _embargo, f"{MANAGER}/", sender) is admitted
+
+
+_EMBARGO_RULES = [
+    pytest.param(
+        InviteToEmbargoOnCaseReceivedUseCase.sender_entitlement, id="invite"
+    ),
+    pytest.param(
+        RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+        id="remove",
+    ),
+    pytest.param(
+        CreateEmbargoEventReceivedUseCase.sender_entitlement, id="create"
+    ),
+    pytest.param(
+        AnnounceEmbargoEventToCaseReceivedUseCase.sender_entitlement,
+        id="announce",
+    ),
+]
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.parametrize("rule", _EMBARGO_RULES)
+@pytest.mark.parametrize("sender", [MANAGER, OWNER], ids=["manager", "owner"])
+def test_embargo_rule_refuses_every_sender_where_the_case_names_no_manager(
+    rule: SenderRule, sender: str
+) -> None:
+    """A case with no CASE_MANAGER leaves no standing to check (ADR-0087)."""
+    assert not _admits(
+        rule, _embargo, REPLICA, sender, store=_store_without_manager
+    )
+
+
+_BOOTSTRAP_RULES = [
+    pytest.param(
+        RemoveNoteFromCaseReceivedUseCase.sender_entitlement,
+        _note,
+        id="remove-note",
+    ),
+    pytest.param(
+        AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
+        _plain,
+        id="add-participant",
+    ),
+    pytest.param(
+        RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement,
+        _plain,
+        id="remove-participant",
+    ),
+    pytest.param(
+        AddReportToCaseReceivedUseCase.sender_entitlement,
+        _plain,
+        id="add-report",
+    ),
+]
+
+
+@pytest.mark.spec("SYNC-15-001")
+@pytest.mark.parametrize(("rule", "context"), _BOOTSTRAP_RULES)
+def test_case_content_rule_passes_through_before_the_case_names_a_manager(
+    rule: SenderRule, context: ContextFor
+) -> None:
+    """With no CASE_MANAGER known yet the guard defers to the bootstrap path.
+
+    The CASE_MANAGER check passes through during the bootstrap window, as
+    the retired role-scoped guard did, so the tree's later guards decide.
+    """
+    assert _admits(
+        rule, context, REPLICA, STRANGER, store=_store_without_manager
+    )
+
+
+@pytest.mark.spec("HP-01-008")
+def test_participant_status_with_no_case_is_refused() -> None:
+    """The status rule states no side outside a case, so no sender passes."""
+    rule = AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+    guard = compose_sender_guard(
+        rule, SenderCheckContext(sender_id=VENDOR, case_id=None)
+    )
+    assert guard is not None
+    result = _store(MANAGER).run(
+        guard, activity=SimpleNamespace(actor_id=VENDOR)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE

@@ -234,7 +234,6 @@ def _kind_node(
     """The condition node that checks *kind* for the activity in *ctx*."""
     if kind is SenderEntitlementKind.ACTIVE_PARTICIPANT:
         return SenderIsActiveParticipantNode(
-            status_id="",
             sender_actor_id=ctx.sender_id,
             case_id=ctx.case_id,
             require_active=ctx.active_participant_required,
@@ -244,6 +243,7 @@ def _kind_node(
             case_id=ctx.case_id,
             anchored=ctx.case_manager_anchored,
             required=ctx.case_manager_required,
+            sender_actor_id=ctx.sender_id,
         )
     if kind is SenderEntitlementKind.CASE_OWNER:
         if isinstance(ctx.request, OwnershipOfferRequest):
