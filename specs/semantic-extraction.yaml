@@ -24,14 +24,35 @@ groups:
       type of the incoming activity.
   - id: SE-01-002
     priority: MUST
+    kind: foundation
+    statement: >-
+      A receiver MUST cope with an object given either inline or as a URI reference, as
+      ActivityStreams 2.0 allows.
+    verification: >-
+      In `test/adapters/driving/fastapi/test_ingress_received_evidence.py`,
+      `test_by_id_rehydration_carries_the_evidence_as_received` confirms that an `Offer`
+      whose `object` is a bare URI is parsed and its object resolved, and
+      `test_in_place_hydration_carries_the_evidence` confirms that an `Announce` carrying
+      its object inline is parsed as received.
+    tags:
+    - as2
+  - id: SE-01-005
+    priority: MUST
     kind: project
     statement: >-
-      The semantic extraction algorithm MUST handle both fully expanded objects and URI string
-      references defensively
+      The semantic extraction algorithm MUST rehydrate a URI string reference before pattern
+      matching, and MUST handle both fully expanded objects and unresolved URI strings
+      defensively.
+    rationale: >-
+      How this codebase meets SE-01-002. Split from SE-01-002 so it states only the rule
+      ActivityStreams sets (MS-12-010).
     verification: >-
       Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
       attempts to rehydrate bare URI string `object_` values before pattern matching,
       handling both expanded objects and unresolved URI strings defensively.
+    relationships:
+    - rel_type: implements
+      spec_id: SE-01-002
   - id: SE-01-003
     priority: MUST
     kind: project

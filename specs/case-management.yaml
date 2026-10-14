@@ -547,13 +547,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference, CaseActor,
+      VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference,
       CaseParticipant, and ParticipantStatus MUST be distinct, non-interchangeable object
       types, and a message MUST NOT carry one of them where another is expected.
+    rationale: >-
+      The CASE_MANAGER is not in this list: it is an ordinary actor designated for a case,
+      not an identity or a distinct object type (ADR-0088).
     verification: >-
       `test/core/models/test_distinct_domain_types.py` confirms that the serialized form of
-      each of the seven types validates as that type and is refused with a validation
-      error when parsed as any of the other six.
+      each of the six types validates as that type and is refused with a validation error
+      when parsed as any of the others.
     lint_suppress:
     - missing_story_reference
   - id: CM-05-013

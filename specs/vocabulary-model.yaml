@@ -509,6 +509,31 @@ groups:
       spec_id: VM-08-001
   - id: VM-08-003
     priority: MUST
+    kind: protocol
+    statement: >-
+      The copy of an activity recorded in the case ledger (the entry's `payloadSnapshot`)
+      MUST be identical to the activity delivered to participants.
+    rationale: >-
+      Ledger integrity requires that what is recorded and what is delivered are identical.
+      A participant that holds both the delivered activity and the ledger entry can check
+      this through the hash chain, so a ledger that records one form while recipients
+      receive another is visible to them.
+    verification: >-
+      `test_the_emitter_receives_the_blob_the_adapter_returned_to_core` in
+      `test/adapters/driving/fastapi/test_outbox_sealed_body_delivery.py` confirms that the
+      delivered body is the sealed body byte for byte, and
+      `test_a_replica_follows_the_managing_owners_termination_by_trigger` in
+      `test/core/use_cases/received/test_embargo_relay_replay.py` confirms that the
+      committed entry's `payloadSnapshot` equals that sealed body.
+    adr:
+    - ADR-0074
+    relationships:
+    - rel_type: refines
+      spec_id: VM-08-001
+    lint_suppress:
+    - missing_story_reference
+  - id: VM-08-004
+    priority: MUST
     kind: project
     statement: >-
       An emitted wire Activity blob MUST be produced by the factory as a complete, frozen object
@@ -516,9 +541,9 @@ groups:
       as both the delivery payload and `CaseLedgerEntry.payloadSnapshot`. No port or adapter
       MAY enrich, mutate, or re-derive the blob after it leaves the factory.
     rationale: >-
-      Ledger integrity requires that what is recorded and what is delivered are identical.
-      Adapter enrichment creates a gap where the ledger records one form and the recipient
-      receives another. The factory is solely responsible for completeness; ports relay only.
+      How this codebase meets VM-08-003: the factory is solely responsible for completeness,
+      and ports relay only. Split from VM-08-003 so it states only what participants can
+      observe (MS-12-010).
     verification: >-
       Inspection of outbound emit nodes confirms that `payload_snapshot` is set to the exact
       blob returned by the factory port, without further transformation. Outbox delivery
@@ -526,8 +551,8 @@ groups:
     adr:
     - ADR-0074
     relationships:
-    - rel_type: refines
-      spec_id: VM-08-001
+    - rel_type: implements
+      spec_id: VM-08-003
 - id: VM-09
   title: Unknown Message Handling
   specs:

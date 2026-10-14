@@ -72,14 +72,13 @@ groups:
     kind: protocol
     statement: >-
       When accepting an offered object, the `object` of the `Accept` activity MUST be the
-      Offer activity itself, not the underlying object being offered, and the Offer MUST be
-      carried inline as a full object, not as a bare ID.
+      Offer activity itself, carried inline or by reference, not the underlying object being
+      offered.
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
       `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that an
-      `Accept` given the offered object instead of the Offer raises a validation error,
-      `TestBareStringObjectRejected` confirms that a bare string ID raises one, and
-      `TestInlineTypedObjectAccepted` confirms that the inline Offer is accepted.
+      `Accept` given the offered object instead of the Offer raises a validation error, and
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of the Offer is accepted.
     stories:
     - story_2022_048
     - story_2022_054
@@ -87,12 +86,14 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST reject a bare string ID as the `object` of an `Accept` at
-      construction time; the Offer is passed as an inline typed activity object (for example
-      `RmSubmitReportActivity` or `EmProposeEmbargoActivity`).
+      This codebase MUST carry the Offer inline as the `object` of an `Accept`, and MUST
+      reject a bare string ID there at construction time; the Offer is passed as an inline
+      typed activity object (for example `RmSubmitReportActivity` or
+      `EmProposeEmbargoActivity`).
     rationale: >-
       How this codebase meets RF-02-004; split from it so RF-02-004 states only what other
-      participants observe (MS-12-010).
+      participants observe (MS-12-010). Carrying the Offer inline rather than by reference
+      is a shortcut of this prototype reference implementation, not a protocol rule.
     verification: >-
       Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`
       confirm that passing a bare string ID as the `object` of an `Accept` activity raises a
@@ -105,21 +106,39 @@ groups:
     kind: protocol
     statement: >-
       When accepting an Invite, the `object` of the `Accept` activity MUST be the Invite
-      activity itself, carried inline as a full object, not the case, embargo, or any other
+      activity itself, carried inline or by reference, not the case, embargo, or any other
       domain object.
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
-      `TestInlineTypedObjectAccepted` confirms that an `Accept` of an `Invite` carries the
-      full inline Invite, `TestBareStringObjectRejected` confirms that a bare string ID
-      raises a validation error, and
       `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that the case
-      or embargo in place of the Invite raises one.
+      or embargo in place of the Invite raises a validation error, and
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of the Invite is accepted.
     relationships:
     - rel_type: refines
       spec_id: RF-02-002
     stories:
     - story_2022_048
     - story_2022_054
+  - id: RF-02-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the Invite inline as the `object` of an `Accept` of an
+      Invite, as a full inline typed activity object (for example `RmInviteToCaseActivity`
+      or `EmInviteToEmbargoOnCaseActivity`), and MUST reject a bare string ID there at
+      construction time.
+    rationale: >-
+      How this codebase meets RF-02-005; split from it so RF-02-005 states only what other
+      participants observe (MS-12-010). Carrying the Invite inline rather than by reference
+      is a shortcut of this prototype reference implementation, not a protocol rule.
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of an `Invite` carries the
+      full inline Invite, and `TestBareStringObjectRejected` confirms that a bare string ID
+      raises a validation error.
+    relationships:
+    - rel_type: implements
+      spec_id: RF-02-005
 - id: RF-03
   title: Reject Response
   specs:
