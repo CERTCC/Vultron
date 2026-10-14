@@ -144,7 +144,7 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
 - Treat "sealed" as "built", not "sent". The sealed body is written before the queue
   append, so queue the same id and body again and let the receiver deduplicate
   (ID-04-005); skipping on "sealed" alone loses the response after a crash between the
-  two writes.
+  two writes. `requeue_if_sealed` in `vultron/adapters/outbox_sealed_body.py` does both.
 - Call `outbox_append` and read its result; never test `id in outbox_list()` first.
   The append itself leaves a pending id alone (OX-06-002), atomically, and returns
   `False`. It only sees what is pending: a delivered id is queued again.

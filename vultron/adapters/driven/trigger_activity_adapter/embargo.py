@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-from vultron.adapters.outbox_sealed_body import is_sealed
+from vultron.adapters.outbox_sealed_body import requeue_if_sealed
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import (
@@ -258,12 +258,7 @@ class _EmbargoMixin:
         deduplicates, so a failure between the two writes never loses the ER
         (ID-04-005).  A ``Reject`` still pending is left alone.
         """
-        reject_id = _reject_id(actor, proposal_id)
-        if not is_sealed(self._dl, reject_id):
-            return False
-        # One still pending is left alone by the outbox (OX-06-002).
-        self._dl.outbox_append(reject_id)
-        return True
+        return requeue_if_sealed(self._dl, _reject_id(actor, proposal_id))
 
     def announce_embargo(
         self,

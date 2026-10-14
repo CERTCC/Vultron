@@ -121,7 +121,7 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
         # The adapter builds, persists, and seals the Accept, so the body the
         # outbox delivers is the body the factory produced (VM-08-003).
         try:
-            activity_id, _blob = (
+            activity_id, blob = (
                 self.trigger_activity_factory.accept_case_proposal(
                     actor=self.actor_id,
                     proposal=self._proposal_dict,
@@ -142,7 +142,15 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
         # re-send, and the outbox does not queue it again (OX-06-002,
         # ID-04-004).  Route through the shared emit seam (OX-14-001,
         # ASK-04-008; ADR-0073: the queue lives in the owning actor's store).
-        if not self._emit_through_seam(activity_id, ""):
+        if self._emit_through_seam(activity_id, blob):
+            logger.info(
+                "%s: Queued Accept(CaseProposal) '%s' to outbox for report"
+                " receiver '%s'",
+                self.name,
+                activity_id,
+                self._proposer_uri,
+            )
+        else:
             logger.info(
                 "%s: Accept(CaseProposal) '%s' is still queued — not queueing"
                 " it again (CP-05-006)",
@@ -150,12 +158,6 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
                 activity_id,
             )
         self._set_output("accept_activity_id", activity_id)
-        logger.info(
-            "%s: Queued Accept(CaseProposal) '%s' to outbox for report receiver '%s'",
-            self.name,
-            activity_id,
-            self._proposer_uri,
-        )
         return Status.SUCCESS
 
 

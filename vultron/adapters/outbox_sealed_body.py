@@ -115,6 +115,29 @@ def is_sealed(dl: SealStore, activity_id: str) -> bool:
     return read_sealed_body(dl, activity_id) is not None
 
 
+class SealedQueue(SealStore, Protocol):
+    """A store that seals bodies and holds the outbox they are queued in."""
+
+    def outbox_append(self, activity_id: str) -> bool: ...
+
+
+def requeue_if_sealed(dl: SealedQueue, activity_id: str) -> bool:
+    """Queue *activity_id* again when its body is sealed; ``True`` if sealed.
+
+    The body is sealed before the activity is queued, so a sealed activity
+    that is no longer pending may have been delivered or may never have been
+    queued; the queue cannot say which.  It is queued again under the same id
+    and body, which the receiver deduplicates, so a failure between the two
+    writes never loses it (ID-04-005).  One still pending is left alone by
+    the outbox itself (OX-06-002).  ``False`` means nothing was built under
+    this id, so the caller builds it.
+    """
+    if not is_sealed(dl, activity_id):
+        return False
+    dl.outbox_append(activity_id)
+    return True
+
+
 def dump_outbound_body(activity: BaseModel) -> str:
     """Return the sealed JSON text for *activity*."""
     return activity.model_dump_json(**OUTBOUND_DUMP_KWARGS)

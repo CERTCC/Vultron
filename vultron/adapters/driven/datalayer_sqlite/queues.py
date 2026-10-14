@@ -36,8 +36,10 @@ within a shared one.
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
+from sqlalchemy import exists, insert, literal, select as sa_select
+from sqlalchemy.engine import CursorResult
 from sqlmodel import col, select
 
 from vultron.adapters.outbox_dead_letter import (
@@ -99,25 +101,28 @@ def _queue_append_unless_pending(
 ) -> bool:
     """Append *activity_id* to *queue* unless it is already there.
 
-    The check and the insert share one session, and ``dl._session()``
-    serializes sessions per engine, so two writers cannot both find the id
-    absent and both queue it.
+    One ``INSERT ... SELECT ... WHERE NOT EXISTS`` statement does the check
+    and the insert, and SQLite runs a single statement atomically, so two
+    writers cannot both find the id absent and both queue it — on a
+    file-backed store too, where sessions are not serialized.
 
     Returns:
         ``True`` when the id was queued, ``False`` when it was already pending.
     """
+    already_pending = exists().where(
+        col(QueueEntry.queue) == queue,
+        col(QueueEntry.activity_id) == activity_id,
+    )
+    stmt = insert(QueueEntry).from_select(
+        ["queue", "activity_id"],
+        sa_select(literal(queue), literal(activity_id)).where(
+            ~already_pending
+        ),
+    )
     with dl._session() as session:
-        pending = session.exec(
-            select(QueueEntry)
-            .where(QueueEntry.queue == queue)
-            .where(QueueEntry.activity_id == activity_id)
-            .limit(1)
-        ).first()
-        if pending is not None:
-            return False
-        session.add(QueueEntry(queue=queue, activity_id=activity_id))
+        result = cast(CursorResult[Any], session.execute(stmt))
         session.commit()
-    return True
+    return result.rowcount == 1
 
 
 def inbox_append(

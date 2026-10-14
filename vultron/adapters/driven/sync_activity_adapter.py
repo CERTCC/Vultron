@@ -34,7 +34,7 @@ See also:
 import logging
 
 from vultron.adapters.outbox_sealed_body import (
-    is_sealed,
+    requeue_if_sealed,
     seal_outbound_body,
 )
 from vultron.core.models.activity_ids import derived_activity_id
@@ -113,12 +113,7 @@ class SyncActivityAdapter:
         reject_id = derived_activity_id(
             "reject-log-entry", actor_id, entry.id_, tail_hash, *sorted(to)
         )
-        if is_sealed(self._dl, reject_id):
-            # Sealed before queued: a sealed Reject no longer pending was
-            # either delivered or never queued, so queue the same one again
-            # for the receiver to deduplicate (ID-04-005).  One still pending
-            # is left alone by the outbox itself (OX-06-002).
-            add_activity_to_outbox(actor_id, reject_id, self._dl)
+        if requeue_if_sealed(self._dl, reject_id):
             logger.info(
                 "sync adapter: Reject(CaseLedgerEntry) '%s' for entry '%s'"
                 " was already built; not building it again",

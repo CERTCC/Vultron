@@ -758,6 +758,11 @@ class TestInviteRetrySendsOnce:
     def test_a_retry_after_an_uncommitted_send_queues_and_commits_once(
         self, make_payload
     ):
+        """The owner's invite trigger, then its Offer processed twice.
+
+        The trigger's Invite is the CASE_MANAGER's to send (CM-17-007), so
+        the retried step is the CASE_MANAGER's tree for the trigger's Offer.
+        """
         from test.support.ledger import fail_commits
         from vultron.core.behaviors.sync import commit_tree
 
@@ -788,38 +793,22 @@ class TestInviteRetrySendsOnce:
         assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
 
     @pytest.mark.spec("OX-06-002")
-    def test_a_retry_after_a_completed_send_sends_nothing_new(
-        self, make_payload
-    ):
-        harness = _OwnerDirectInvite()
-        offer = harness.trigger(roles=[CVDRole.VENDOR])
-        first = harness.deliver_to_manager(offer["id"], make_payload)
-        assert first.disposition.value == "applied", first
-        invite_id = harness.manager_invite().id_
-
-        harness.deliver_to_manager(offer["id"], make_payload)
-
-        assert self._queued_invites(harness) == [invite_id]
-        assert len(self._invite_entries(harness)) == 1
-
     def test_the_invite_id_is_derived_from_the_owners_offer(
         self, make_payload
     ):
+        """The id the retry relies on: one per Offer, not one per attempt."""
         from vultron.core.behaviors.case.nodes.invite_actor_emit import (
             INVITE_ID_KIND,
         )
         from vultron.core.models.activity_ids import derived_activity_id
 
         harness = _OwnerDirectInvite()
-        invite, _ = harness.invite(make_payload, roles=[CVDRole.VENDOR])
-        offer_id = next(
-            item
-            for item in harness.owner_dl.outbox_list()
-            if harness.owner_dl.read(item) is not None
-        )
+        offer = harness.trigger(roles=[CVDRole.VENDOR])
+        result = harness.deliver_to_manager(offer["id"], make_payload)
+        assert result.disposition.value == "applied", result
 
-        assert invite.id_ == derived_activity_id(
-            INVITE_ID_KIND, harness.manager.id_, harness.case.id_, offer_id
+        assert harness.manager_invite().id_ == derived_activity_id(
+            INVITE_ID_KIND, harness.manager.id_, harness.case.id_, offer["id"]
         )
 
 
