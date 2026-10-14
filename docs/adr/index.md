@@ -213,7 +213,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0108 One Move, One Mover: Case State Flows Through the Case Manager and the Ledger, Whatever Message Carried It](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md)
 - [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md) — partially supersedes 0021-caseactor-inbox-routing-canonical-ledger.md, 0042-http-only-inter-actor-delivery.md, 0073-per-actor-storage-isolation.md
 - [ADR-0110 The Trigger Driving Port Is One `trigger()` Method over a Verb Registry, Returning a Typed Result Bound to the Request](0110-trigger-dispatcher-port-over-verb-registry.md)
-- [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md)
+- [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md) — partially superseded by 0135-compose-received-trees-never-chain-them.md
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)*
@@ -230,6 +230,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0132 The Report Receiver Introduces the CASE_MANAGER to the Reporter](0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md) *(provisional)* — partially supersedes 0041-caseactor-authoritative-case-initialization.md
 - [ADR-0133 The Report Receiver States Its Case Roles on the Case Proposal](0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md) *(provisional)*
 - [ADR-0134 Who Must Obey a Rule Decides Its Spec Kind](0134-who-must-obey-a-rule-decides-its-spec-kind.md) *(provisional)* — partially supersedes 0038-four-tier-specification-taxonomy.md
+- [ADR-0135 Compose Received Trees, Never Chain Them](0135-compose-received-trees-never-chain-them.md) *(provisional)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md
 
 ## Proposed ADRs
 
