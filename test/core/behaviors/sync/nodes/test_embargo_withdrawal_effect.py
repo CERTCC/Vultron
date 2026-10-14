@@ -197,3 +197,35 @@ def test_a_replica_without_the_case_skips_the_entry(datalayer, bridge) -> None:
     result, _ = _run(bridge, _leave_entry())
 
     assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("MSM-07-010", "SYNC-12-001")
+def test_a_replica_whose_row_diverges_is_warned_not_blocked(
+    datalayer, bridge, revising_replica, caplog
+) -> None:
+    """An INVITED row here, though the manager admitted the Leave from AGREED.
+
+    Not repaired and not failed (later entries must not stall), but logged at
+    WARNING so it is not mistaken for a repeat.
+    """
+    case = cast(VulnerabilityCase, datalayer.read(CASE_ID))
+    participant = cast(
+        CaseParticipant,
+        datalayer.read(case.actor_participant_index[PARTICIPANT_ACTOR_ID]),
+    )
+    participant.embargo_consents = [
+        EmbargoConsent(embargo_id=ACTIVE_EMBARGO_ID, state=ECS.INVITED),
+        EmbargoConsent(embargo_id=REVISION_ID, state=ECS.AGREED),
+    ]
+    datalayer.save(participant)
+
+    with caplog.at_level("WARNING"):
+        result, node = _run(bridge, _leave_entry())
+
+    assert result.status == Status.SUCCESS
+    assert "replica diverges" in node.feedback_message
+    assert any("replica diverges" in r.getMessage() for r in caplog.records)
+    assert _rows(datalayer, PARTICIPANT_ACTOR_ID) == {
+        ACTIVE_EMBARGO_ID: "INVITED",
+        REVISION_ID: "AGREED",
+    }

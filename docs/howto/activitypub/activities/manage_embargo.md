@@ -154,8 +154,8 @@ Because you are no longer bound by the embargo, the CASE_MANAGER stops sending y
 The trigger refuses the withdrawal in three cases:
 
 - No embargo is in force.
-- Your consent row for the embargo in force is not `AGREED`. To refuse terms you never agreed to, reject the Invite instead; see [How to Establish an Embargo](establish_embargo.md#answer-an-embargo-already-in-force).
-- You are the Case Owner. The Case Owner ends an embargo by terminating it, as in the previous section.
+- Your consent row for the embargo in force is not `AGREED`; to refuse terms you never agreed to, reject the Invite instead (see [How to Establish an Embargo](establish_embargo.md#answer-an-embargo-already-in-force)).
+- You are the Case Owner, which ends an embargo by terminating it, as in the previous section.
 
 !!! warning "A Reject never withdraws"
 

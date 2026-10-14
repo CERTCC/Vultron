@@ -62,6 +62,7 @@ Scaffold (#746); full operations (#747)
 from vultron.core.services.embargo_lifecycle.pec import (
     embargo_withdrawal_refusal,
     owner_declined_embargo,
+    participant_consent_row,
     reject_is_withdrawal_refusal,
 )
 from vultron.core.services.embargo_lifecycle.results import (
@@ -75,6 +76,7 @@ __all__ = [
     "EmbargoLifecycle",
     "embargo_withdrawal_refusal",
     "owner_declined_embargo",
+    "participant_consent_row",
     "reject_is_withdrawal_refusal",
     "EmbargoLifecycleResult",
     "ParticipantConsentChange",

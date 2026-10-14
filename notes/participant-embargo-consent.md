@@ -145,9 +145,10 @@ row it declines that row only and cascades to no revision. One predicate in
 `vultron/core/services/embargo_lifecycle/pec.py` decides each refusal, and the
 received guard, the trigger and the lifecycle write all call it, so they cannot
 drift: `reject_is_withdrawal_refusal` for the Reject, `embargo_withdrawal_refusal`
-for the Leave (not in force, not `AGREED`, or the case owner). Answering the embargo in force names its relayed
-`Invite(EmbargoEvent)`, never the full-case Invite, and never falls back to it
-when no Invite is named (EP-09-012, #4373; see § "Answering the Embargo in Force").
+for the Leave (not in force, not `AGREED`, or the case owner). Answering the
+embargo in force names its relayed `Invite(EmbargoEvent)`, never the full-case
+Invite, and never falls back to it when no Invite is named (EP-09-012, #4373;
+see § "Answering the Embargo in Force").
 
 Only the owner's decision changes the embargo on the case, through
 `Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009). Every

@@ -76,13 +76,17 @@ def owner_declined_embargo(
     )
 
 
-def _consent_row(
+def participant_consent_row(
     persistence: CasePersistence,
     case: VulnerabilityCase,
     actor_id: str,
     embargo_id: str,
 ) -> EmbargoConsentState | None:
-    """*actor_id*'s consent row for *embargo_id*, or ``None`` with no record."""
+    """*actor_id*'s consent row for *embargo_id*, or ``None`` with no record.
+
+    ``None`` means the actor has no participant record in *persistence* (a
+    partial replica, or an actor the case does not hold).
+    """
     participant_id = case.actor_participant_index.get(actor_id)
     participant = persistence.read(participant_id) if participant_id else None
     if not isinstance(participant, CaseParticipant):
@@ -125,7 +129,7 @@ def embargo_withdrawal_refusal(
             " ends an embargo by terminating it, not by withdrawing"
             " (MSM-07-010, CM-02-005)"
         )
-    row = _consent_row(persistence, case, actor_id, active_id)
+    row = participant_consent_row(persistence, case, actor_id, active_id)
     if row is None:
         return f"'{actor_id}' has no participant record on case '{case_id}'"
     if row != EmbargoConsentState.AGREED:
@@ -153,7 +157,7 @@ def reject_is_withdrawal_refusal(
     """
     if embargo_id != case.active_embargo_id:
         return None
-    row = _consent_row(persistence, case, actor_id, embargo_id)
+    row = participant_consent_row(persistence, case, actor_id, embargo_id)
     if row != EmbargoConsentState.AGREED:
         return None
     return (

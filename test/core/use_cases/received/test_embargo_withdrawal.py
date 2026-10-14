@@ -173,6 +173,18 @@ def _register(dl: SqliteDataLayer) -> list[tuple[str, str]]:
     return [(e.embargo_id, e.status.value) for e in _case(dl).embargo_register]
 
 
+def _announced_to(dl: SqliteDataLayer) -> set[str]:
+    """Every recipient of an ``Announce(CaseLedgerEntry)`` queued in *dl*."""
+    recipients: set[str] = set()
+    for activity_id in dl.outbox_list():
+        activity = dl.read(activity_id)
+        if getattr(activity, "type_", None) != "Announce":
+            continue
+        for recipient in getattr(activity, "to", None) or []:
+            recipients.add(str(getattr(recipient, "id_", recipient)))
+    return recipients
+
+
 def _ledger(dl: SqliteDataLayer) -> list[str]:
     return [
         str(entry.event_type)
@@ -199,6 +211,9 @@ def test_the_case_manager_applies_and_commits_a_withdrawal(make_payload):
     assert _case(dl).active_embargo_id == _ACTIVE
     assert _rows(dl, _OWNER)[_ACTIVE] == "AGREED"
     assert _ledger(dl) == [_WITHDRAW]
+    # The fan-out runs at the commit, before the effect makes the withdrawer
+    # inactive, so its own replica is sent the entry it replays (EP-09-007).
+    assert _FINDER in _announced_to(dl)
 
 
 @pytest.mark.spec("MSM-07-010", "CLP-10-009")

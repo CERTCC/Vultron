@@ -35,6 +35,9 @@ Each check calls the shared predicates in
 refusal also calls, so the guard and the write cannot drift.
 """
 
+from collections.abc import Callable
+from typing import ClassVar
+
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -49,30 +52,81 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     embargo_withdrawal_refusal,
+    participant_consent_row,
     reject_is_withdrawal_refusal,
 )
 from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
+    EmbargoConsentState as ECS,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
+#: A shared refusal predicate: ``(persistence, case, actor_id, embargo_id)``
+#: to the refusal reason, or ``None`` when the message is admitted.
+_RefusalPredicate = Callable[
+    [CasePersistence, VulnerabilityCase, str, str], "str | None"
+]
 
-class IsWithdrawableEmbargoNode(DataLayerConditionWithPorts):
+
+class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):
+    """Shared frame of the two read-only refusal guards in this module.
+
+    Reads the case and asks one shared predicate of
+    :mod:`vultron.core.services.embargo_lifecycle.pec` why *actor_id*'s
+    message about *embargo_id* is refused.  SUCCESS when it is not; FAILURE
+    otherwise, with the predicate's reason as the feedback message, so the
+    handler reports the refusal.  Read-only, so it sits ahead of the guarded
+    commit (CLP-10-009): a message the effect would refuse is never committed,
+    and no replica is sent an entry it cannot replay (SYNC-12-001).
+    """
+
+    _refusal: ClassVar[_RefusalPredicate]
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+        self.subject_actor_id = actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        refusal = type(self)._refusal(
+            self.datalayer, case, self.subject_actor_id, self.embargo_id
+        )
+        if refusal is None:
+            return Status.SUCCESS
+        self.feedback_message = refusal
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class IsWithdrawableEmbargoNode(_EmbargoRefusalGuardNode):
     """Guard that a ``Leave(EmbargoEvent)`` names a withdrawal the case admits.
 
-    SUCCESS when *embargo_id* is the embargo in force, *withdrawing_actor_id*
-    is not the case owner, and its row for that embargo is ``AGREED``
-    (MSM-07-010).  FAILURE otherwise, with the reason as the feedback
-    message, so the handler reports the refusal.  Read-only, so it sits
-    ahead of the guarded commit (CLP-10-009): a Leave the effect would refuse
-    is never committed, and no replica is sent an entry it cannot replay
-    (SYNC-12-001).
+    Refuses unless *embargo_id* is the embargo in force, the withdrawing
+    actor is not the case owner, and its row for that embargo is ``AGREED``
+    (MSM-07-010).
     """
+
+    _refusal = staticmethod(embargo_withdrawal_refusal)
 
     def __init__(
         self,
@@ -81,39 +135,19 @@ class IsWithdrawableEmbargoNode(DataLayerConditionWithPorts):
         withdrawing_actor_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.embargo_id = embargo_id
-        self.withdrawing_actor_id = withdrawing_actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        refusal = embargo_withdrawal_refusal(
-            self.datalayer, case, self.withdrawing_actor_id, self.embargo_id
-        )
-        if refusal is None:
-            return Status.SUCCESS
-        self.feedback_message = refusal
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        super().__init__(case_id, embargo_id, withdrawing_actor_id, name=name)
 
 
-class RejectIsNotWithdrawalNode(DataLayerConditionWithPorts):
+class RejectIsNotWithdrawalNode(_EmbargoRefusalGuardNode):
     """Guard that a ``Reject(Invite(EmbargoEvent))`` does not withdraw.
 
-    FAILURE, with the reason as the feedback message, when the Reject names
-    the embargo in force and *rejecting_actor_id*'s row for it is
-    ``AGREED``: that would be a withdrawal, and withdrawal is
-    ``Leave(EmbargoEvent)`` (MSM-07-004, MSM-07-010).  SUCCESS for every other
-    Reject.  Read-only, ahead of the guarded commit (CLP-10-009).
+    Refuses a Reject of the embargo in force from the rejecting actor's
+    ``AGREED`` row: that would be a withdrawal, and withdrawal is
+    ``Leave(EmbargoEvent)`` (MSM-07-004, MSM-07-010).  Every other Reject
+    passes.
     """
+
+    _refusal = staticmethod(reject_is_withdrawal_refusal)
 
     def __init__(
         self,
@@ -122,28 +156,7 @@ class RejectIsNotWithdrawalNode(DataLayerConditionWithPorts):
         rejecting_actor_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.embargo_id = embargo_id
-        self.rejecting_actor_id = rejecting_actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        refusal = reject_is_withdrawal_refusal(
-            self.datalayer, case, self.rejecting_actor_id, self.embargo_id
-        )
-        if refusal is None:
-            return Status.SUCCESS
-        self.feedback_message = refusal
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        super().__init__(case_id, embargo_id, rejecting_actor_id, name=name)
 
 
 class RecordParticipantWithdrawalNode(
@@ -268,28 +281,37 @@ class ApplyEmbargoWithdrawalFromLedgerNode(_EmbargoRelayEffectNode):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        participant_id = case.actor_participant_index.get(actor_id)
-        participant = (
-            self.datalayer.read(participant_id) if participant_id else None
+        row = participant_consent_row(
+            self.datalayer, case, actor_id, embargo_id
         )
-        if not isinstance(participant, CaseParticipant):
+        if row is None:
             self.feedback_message = (
                 f"no participant record for '{actor_id}' on case"
                 f" '{case.id_}' — skipping (partial replica)"
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
-        if (
-            embargo_id != case.active_embargo_id
-            or participant.consent_for(embargo_id)
-            != EmbargoConsentState.AGREED
-        ):
+        if embargo_id != case.active_embargo_id or row is ECS.DECLINED:
+            # A repeat of this entry, or a later teardown applied first.
             self.feedback_message = (
                 f"Withdrawal of '{actor_id}' from embargo '{embargo_id}' on"
                 f" case '{case.id_}' is already applied here — nothing to"
                 " replay"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+        if row is not ECS.AGREED:
+            # The CASE_MANAGER admitted the Leave from an AGREED row, so this
+            # replica's row diverges from it.  Not repaired here (#4294 makes
+            # replay a copy); logged so the divergence is not mistaken for a
+            # repeat, and not failed, so later entries are not blocked.
+            self.feedback_message = (
+                f"'{actor_id}' is {row.value} on embargo '{embargo_id}' of"
+                f" case '{case.id_}' here, but the CASE_MANAGER admitted its"
+                " withdrawal from an AGREED row — replica diverges; not"
+                " replayed"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
         return self._delegate(

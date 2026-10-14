@@ -106,6 +106,42 @@ def test_trigger_withdraw_embargo_from_an_invited_row_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
 
 
+def test_trigger_withdraw_embargo_with_no_embargo_in_force_returns_409(
+    client_triggers, actor, dl
+):
+    """EP-09-013: with no embargo in force there is nothing to withdraw from."""
+    case = VulnerabilityCase(name="NO-EMBARGO-CASE", attributed_to=_OWNER)
+    dl.create(case)
+    _add_case_manager(case, dl)
+    participant = as_CaseParticipant(
+        attributed_to=actor.id_, context=case.id_, case_roles=[CVDRole.FINDER]
+    )
+    case.add_participant(participant)
+    dl.create(participant)
+    dl.save(case)
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/withdraw-embargo",
+        json={"case_id": case.id_},
+    )
+
+    assert resp.status_code == status.HTTP_409_CONFLICT
+
+
+def test_trigger_withdraw_embargo_by_the_case_owner_returns_409(
+    client_triggers, actor, case_with_embargo
+):
+    """EP-09-013: the owner ends an embargo with terminate-embargo instead."""
+    case_obj, _ = case_with_embargo
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/withdraw-embargo",
+        json={"case_id": case_obj.id_},
+    )
+
+    assert resp.status_code == status.HTTP_409_CONFLICT
+
+
 def test_trigger_withdraw_embargo_missing_case_id_returns_422(
     client_triggers, actor
 ):
