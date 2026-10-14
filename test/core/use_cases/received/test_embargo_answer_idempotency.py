@@ -47,6 +47,9 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.use_cases.received._bt_verdict import find_node
+from vultron.core.use_cases.received.embargo.accept import (
+    AcceptInviteToEmbargoOnCaseReceivedUseCase,
+)
 from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
@@ -423,6 +426,7 @@ def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
         embargo_id=embargo_id,
         accepting_actor_id=BYSTANDER,
         invite_id=invite_id,
+        sender_rule=AcceptInviteToEmbargoOnCaseReceivedUseCase.sender_entitlement,
     )
 
     event = extract_event(

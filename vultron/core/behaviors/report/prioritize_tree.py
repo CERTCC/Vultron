@@ -95,7 +95,9 @@ from vultron.core.behaviors.report.rm_declaration_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 
@@ -183,6 +185,8 @@ def create_engage_case_tree(
 def create_defer_case_tree(
     case_id: str,
     actor_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for the defer_case workflow.
@@ -195,6 +199,8 @@ def create_defer_case_tree(
         case_id: ID of VulnerabilityCase being deferred
         actor_id: The sender, whose declared RM state (DEFERRED) is recorded
             (RSH-08-001)
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the defer_case behavior tree (Sequence)
@@ -202,9 +208,8 @@ def create_defer_case_tree(
     root = create_receive_activity_tree(
         name="DeferCaseBT",
         case_id=case_id,
-        sender_guard=SenderIsActiveParticipantNode(
-            status_id="", sender_actor_id=actor_id, case_id=case_id
-        ),
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(sender_id=actor_id, case_id=case_id),
         precondition_guards=[
             rm_declaration_guard(actor_id, RM.DEFERRED, case_id),
         ],

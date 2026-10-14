@@ -23,8 +23,8 @@ from vultron.core.behaviors.embargo.owner_decision_tree import (
     reject_embargo_proposal_on_case_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
 )
 from vultron.core.models.events.embargo import (
     ActivateEmbargoOnCaseReceivedEvent,
@@ -58,7 +58,7 @@ class _OwnerDecisionReceivedUseCase:
     inventory sees which received tree each one runs.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
     _label: ClassVar[str]
@@ -170,6 +170,7 @@ class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
             embargo_id=embargo_id,
             sender_actor_id=sender_actor_id,
             actor_config=self._actor_config,
+            sender_rule=self.sender_entitlement,
         )
 
 
@@ -212,6 +213,7 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
             embargo_id=embargo_id,
             sender_actor_id=sender_actor_id,
             actor_config=self._actor_config,
+            sender_rule=self.sender_entitlement,
         )
 
 

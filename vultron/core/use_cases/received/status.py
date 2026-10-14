@@ -62,6 +62,7 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
     exempt,
 )
 
@@ -272,7 +273,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         specs/behavior-tree-integration.yaml BT-06-001.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 

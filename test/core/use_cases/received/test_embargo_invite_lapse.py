@@ -985,6 +985,9 @@ class TestInviteeIsTheAddressee:
             rejecting_actor_id=_INVITEE,
             invite_id="https://example.org/cases/wiring/proposals/p1",
             embargo_id="https://example.org/cases/wiring/embargos/e1",
+            sender_rule=(
+                RejectInviteToEmbargoOnCaseReceivedUseCase.sender_entitlement
+            ),
         )
 
         recorders = [

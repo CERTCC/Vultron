@@ -40,16 +40,16 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderIsInviteeNode,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.INVITEE
     )
 
@@ -129,6 +129,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             rejecting_actor_id=rejecting_actor_id,
             invite_id=invite_id or "",
             embargo_id=embargo_id,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,

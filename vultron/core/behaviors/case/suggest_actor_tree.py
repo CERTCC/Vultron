@@ -76,15 +76,19 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
-    SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 logger = logging.getLogger(__name__)
 
 
 def create_receive_offer_case_participant_tree(
     case_id: str,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(CaseParticipant) on the Case Owner inbox.
 
@@ -99,6 +103,9 @@ def create_receive_offer_case_participant_tree(
 
     Args:
         case_id: ID of the VulnerabilityCase.
+        sender_id: Actor ID of the Offer's sender.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root ``ReceiveOfferCaseParticipantBT`` Sequence node.
@@ -106,7 +113,10 @@ def create_receive_offer_case_participant_tree(
     return create_receive_activity_tree(
         name="ReceiveOfferCaseParticipantBT",
         case_id=case_id,
-        sender_guard=SenderIsCaseManagerNode(case_id=case_id),
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
+        ),
         precondition_guards=[],
     )
 
@@ -412,6 +422,8 @@ def create_accept_actor_recommendation_received_tree(
     case_id: str,
     sender_id: str,
     roles: list[str] | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Accept(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
 
@@ -464,6 +476,8 @@ def create_accept_actor_recommendation_received_tree(
             ``Offer(CaseParticipant)``; passed directly to
             ``EmitInviteActorToCaseNode`` so the Invite carries the correct
             roles without relying on the blackboard.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root ``AcceptActorRecommendationBT`` Sequence node.
@@ -471,8 +485,9 @@ def create_accept_actor_recommendation_received_tree(
     return create_receive_activity_tree(
         name="AcceptActorRecommendationBT",
         case_id=case_id,
-        sender_guard=SenderIsCaseOwnerNode(
-            sender_actor_id=sender_id, case_id=case_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
         ),
         precondition_guards=[
             case_manager_admits_accepted_invitee_guard(
@@ -515,6 +530,8 @@ def create_reject_actor_recommendation_received_tree(
     recommended_id: str,
     case_id: str,
     sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Reject(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
 
@@ -543,6 +560,8 @@ def create_reject_actor_recommendation_received_tree(
             recorded ``Offer(CaseParticipant)``.
         case_id: ID of the VulnerabilityCase.
         sender_id: Actor ID of the Reject's sender, who must be the Case Owner.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root ``RejectActorRecommendationBT`` Sequence node.
@@ -550,8 +569,9 @@ def create_reject_actor_recommendation_received_tree(
     return create_receive_activity_tree(
         name="RejectActorRecommendationBT",
         case_id=case_id,
-        sender_guard=SenderIsCaseOwnerNode(
-            sender_actor_id=sender_id, case_id=case_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
         ),
         precondition_guards=[],
         manager_effects=[

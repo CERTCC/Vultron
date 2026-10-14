@@ -91,6 +91,9 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.offer_case_participant import (
+    AcceptOfferCaseParticipantReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
@@ -872,7 +875,13 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     if factory is create_recommend_actor_to_case_received_tree:
         kwargs["recommended_id"] = VENDOR
     else:
-        kwargs |= {"invitee_id": VENDOR, "sender_id": OWNER}
+        kwargs |= {
+            "invitee_id": VENDOR,
+            "sender_id": OWNER,
+            "sender_rule": (
+                AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
+            ),
+        }
     names = [node.name for node in factory(**kwargs).children]
 
     # The Accept tree's guard also refuses a joined or closed actor

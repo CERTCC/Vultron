@@ -70,7 +70,7 @@ Stored in `VulnerabilityCase.case_statuses`.
 
 | Field | Description |
 |---|---|
-| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0122) |
+| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a read-only copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0122). Assigning it, or its `state`, raises (SDO-03-006) |
 | `pxa` | `PxaDimension` — the Publication/eXploit/Active-attacks (PXA) state |
 | `context` | The URI of the case this status belongs to |
 | `attributed_to` | The actor who reported this status (optional) |
