@@ -238,6 +238,7 @@ def _constant_value(expr: ast.expr, module: ModuleType) -> str | None:
 
 def _subclasses(cls: type) -> Iterator[type]:
     yield cls
+    sub: type
     for sub in cls.__subclasses__():
         yield from _subclasses(sub)
 
