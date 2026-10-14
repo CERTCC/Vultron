@@ -63,6 +63,10 @@ Six triggers drive the machine.
 
 Equivalently, by trigger: invite is valid from Unbound, Lapsed, Declined and Expired; accept is valid from Unbound, Invited, Lapsed and Expired; decline is valid from Unbound, Invited, Lapsed, Signatory and Expired; revise is valid only from Signatory; expire is valid only from Invited; exit is valid from every state except Unbound (exited).
 
+A repeated answer is not a transition.
+When a participant sends the same answer to the same invitation again, accepting terms it has already accepted or declining terms it has already declined, the CASE_MANAGER changes nothing, records nothing in the case ledger and sends nothing, whatever the repeat's activity id (CM-13-005).
+A different answer is a new answer, and the table above applies to it.
+
 None of Lapsed, Declined and Expired is terminal.
 A participant in any of them can be invited again, which is what makes renegotiation possible.
 Unbound (exited) is terminal and accepts no trigger: an embargo that has entered Exited has no outgoing transition, so a participant whose embargo was terminated cannot be invited back into it.
