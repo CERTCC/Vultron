@@ -158,7 +158,7 @@ groups:
       spec_id: VP-15-003
   - id: ENC-03-002
     priority: MUST
-    kind: foundation
+    kind: project
     statement: >-
       If decryption fails, the inbox handler MUST return HTTP 400 with a structured error
       indicating decryption failure
@@ -171,8 +171,6 @@ groups:
       spec_id: EH-05-001
     - rel_type: depends_on
       spec_id: HTTP-03-001
-    tags:
-    - http
   - id: ENC-03-003
     priority: MUST_NOT
     kind: project

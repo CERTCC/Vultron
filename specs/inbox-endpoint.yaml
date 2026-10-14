@@ -158,7 +158,7 @@ groups:
     - story_2022_089
   - id: IE-04-002
     priority: MUST
-    kind: foundation
+    kind: project
     statement: The endpoint MUST return HTTP 422 for validation failures
     verification: >-
       Integration tests in `test/demo/` confirm that a schema-invalid activity
@@ -168,8 +168,6 @@ groups:
       spec_id: HTTP-03-001
     stories:
     - story_2022_089
-    tags:
-    - http
 - id: IE-05
   title: Response Timing
   specs:
@@ -275,20 +273,45 @@ groups:
     priority: MUST
     kind: foundation
     statement: >-
-      The endpoint MUST return HTTP 202 for successfully accepted activities,
-      HTTP 400 for malformed requests or Activities whose addressing provably
-      excludes the receiving actor (IE-11-001), HTTP 405 for non-POST methods,
-      HTTP 413 for oversized request bodies, and HTTP 422 for activities that
-      fail schema validation.
+      The endpoint MUST answer with the status code HTTP defines for each transport
+      failure: HTTP 400 for a malformed request, HTTP 405 for a method other than
+      POST, and HTTP 413 for a request body over the size limit.
     verification: >-
-      Integration tests in `test/demo/` confirm each response code: 202 for
-      accepted activities, 400 for mis-addressed activities, 405 for non-POST
-      requests, 413 for oversized bodies, and 422 for schema-invalid payloads.
+      `test_parse_activity_raises_400_when_type_missing` and
+      `test_parse_activity_raises_400_when_type_blank` in
+      `test/adapters/driving/fastapi/routers/actors/test_inbox.py` confirm that a
+      malformed body is answered with 400, and `test_non_post_on_inbox_path_returns_405`
+      in `test/adapters/driving/fastapi/routers/test_actors.py` confirms that every
+      method other than POST is answered with 405. No check covers 413 yet, because
+      the inbox enforces no body size limit (#4596).
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
     tags:
     - http
+  - id: IE-07-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The endpoint MUST return HTTP 202 for a successfully accepted activity, HTTP 400
+      for an activity whose addressing provably excludes the receiving actor
+      (IE-11-001), and HTTP 422 for an activity that fails schema validation.
+    rationale: >-
+      These codes are the reference implementation's choices, not protocol
+      requirements: the protocol does not yet say which HTTP responses a receiving
+      actor returns, so a peer cannot rely on them (see the open question on transport
+      status codes). Split from IE-07-001, which keeps the codes HTTP itself defines
+      (MS-12-010).
+    verification: >-
+      In `test/adapters/driving/fastapi/routers/test_actors.py`,
+      `test_post_activity_to_actor_inbox_accepted` confirms 202 for an accepted
+      activity, `test_post_inbox_returns_400_when_activity_addressed_to_other_actor`
+      confirms 400 for an activity addressed only to another actor, and
+      `test_post_non_activity_to_actor_inbox_returns_422` confirms 422 for a body that
+      is not a valid activity.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-07-001
 - id: IE-08
   title: Response Format
   specs:
