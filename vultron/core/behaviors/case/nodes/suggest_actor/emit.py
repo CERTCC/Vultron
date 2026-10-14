@@ -28,13 +28,11 @@ along that same "who is being addressed" seam: ``emit_response`` answers the
 ``accept_offer`` holds the Case Owner's own Accept response.
 """
 
-import json
 from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_owner_id,
     suggested_roles_key,
@@ -43,15 +41,18 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
-)
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
+
+#: Ledger ``event_type`` of the forwarded ``Offer(CaseParticipant)``, and the
+#: kind label of its derived id.
+OFFER_CASE_PARTICIPANT_EVENT_TYPE = "offer_case_participant"
 
 
 def _resolve_owner_recipient(
@@ -151,6 +152,8 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
     (namespaced per BTND-03-004); falls back to ``[CVDRole.VENDOR]`` when the
     key is absent.
 
+    The Offer is queued and then committed (ADR-0119, CM-16-010).
+
     Returns SUCCESS on success, FAILURE if any required dependency is missing.
     """
 
@@ -226,6 +229,9 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 )
                 self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
+            # The id is derived from the recommendation the Offer forwards,
+            # so a retry for the same recommendation rebuilds this Offer and
+            # the outbox does not queue it twice (OX-06-002).
             activity_id, activity_blob = factory.offer_actor_to_case(
                 recommender_id=self.recommender_id,
                 recommended_id=self.recommended_id,
@@ -234,28 +240,25 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 origin=self.recommendation_id,
                 to=[owner_id],
                 roles=roles,
+                id_=derived_activity_id(
+                    OFFER_CASE_PARTICIPANT_EVENT_TYPE,
+                    self.actor_id,
+                    self.case_id,
+                    self.recommendation_id,
+                ),
             )
-            # Exact blob as snapshot (VM-08-003): the factory sets context.
-            snapshot = json.loads(activity_blob)
-            commit_tree = create_commit_log_entry_tree(
-                case_id=self.case_id,
-                object_id=activity_id,
-                event_type="offer_case_participant",
-                payload_snapshot=snapshot,
-            )
-            result = BTBridge(
-                datalayer=cast(CaseOutboxPersistence, self.datalayer)
-            ).execute_with_setup(
-                tree=commit_tree,
-                actor_id=self.actor_id,
-            )
-            if result.status != Status.SUCCESS:
-                raise RuntimeError(  # noqa: TRY301  # ruff-baseline #3353
-                    f"ledger commit failed for "
-                    f"offer_case_participant/{self.recommended_id}"
-                )
-            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # Route through the shared emit seam (OX-14-001, ASK-04-008),
+            # then record the sent Offer (ADR-0119, CM-16-010).  The exact
+            # blob is the snapshot (VM-08-003): the factory sets context.
             self._emit_through_seam(activity_id, "")
+            commit_emitted_activity(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer),
+                actor_id=self.actor_id,
+                case_id=self.case_id,
+                activity_id=activity_id,
+                activity_blob=activity_blob,
+                event_type=OFFER_CASE_PARTICIPANT_EVENT_TYPE,
+            )
             self.logger.info(
                 "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
                 " for case '%s'",
