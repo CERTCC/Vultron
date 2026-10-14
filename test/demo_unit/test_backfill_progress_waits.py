@@ -110,7 +110,11 @@ class _Store:
         return get_datalayer_contents(datalayer=self.dl)
 
     def ledger_collection(self) -> dict[str, dict]:
-        return get_objects("CaseLedgerEntry", datalayer=self.dl)
+        # The route is unannotated; it serves DataLayer.by_type's mapping.
+        collection: dict[str, dict] = get_objects(
+            "CaseLedgerEntry", datalayer=self.dl
+        )
+        return collection
 
 
 def _backfill(
