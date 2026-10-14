@@ -215,12 +215,12 @@ class VultronOutboxObjectIntegrityError(VultronError):
     """Raised when an outbound activity's object_ is a bare string URI or
     Link reference instead of the required inline domain object.
 
-    Outbound initiating activities (Create, Offer, Invite, Announce, Add,
-    Remove, etc.) MUST carry a fully inline typed object so that recipients
-    can determine the semantic type — because the recipient has no access to
-    the sender's DataLayer.  See specs/actor-knowledge-model.yaml AKM-03-001
-    and specs/message-validation.yaml MV-09-002.  (MV-09-001 was removed; its
-    statement now lives in AKM-03-001 — see specs/README.md.)
+    This codebase carries the ``object`` of every outbound activity as a fully
+    inline typed object so that recipients can determine the semantic type
+    without dereferencing it, which this codebase does not yet do.  The
+    protocol allows the object inline or by reference (AKM-03-001, MV-09-001);
+    inlining is this codebase's rule (AKM-03-003), enforced at delivery
+    (AKM-03-002, MV-09-002).
     """
 
     def __init__(

@@ -62,13 +62,16 @@ pytest_plugins = ["pytester"]
 class SpecMarkedItem:
     """Minimal stand-in for a pytest ``Item`` carrying a ``spec`` marker."""
 
-    def __init__(self, spec_id=None):
-        self.spec_id = spec_id
+    def __init__(self, *spec_ids):
+        self.spec_ids = tuple(i for i in spec_ids if i is not None)
 
     def get_closest_marker(self, name):
-        if name == "spec" and self.spec_id is not None:
-            return pytest.mark.spec(self.spec_id).mark
-        return None
+        return next(iter(self.iter_markers(name)), None)
+
+    def iter_markers(self, name=None):
+        if name in (None, "spec") and self.spec_ids:
+            return iter([pytest.mark.spec(*self.spec_ids).mark])
+        return iter([])
 
     def add_marker(self, marker):  # pragma: no cover - no marker is added
         raise AssertionError("the spec gate must not add markers")
@@ -286,6 +289,11 @@ class TestHealthyCorpusStillValidates:
     def test_unknown_marker_id_is_reported_against_the_real_corpus(self):
         with pytest.warns(UnknownSpecIdWarning, match="BOGUS-99-999"):
             _run_gate([SpecMarkedItem("BOGUS-99-999")])
+
+    def test_every_id_of_a_multi_id_marker_is_checked(self):
+        """An unknown ID after a known one is still reported (#4649)."""
+        with pytest.warns(UnknownSpecIdWarning, match="BOGUS-99-998"):
+            _run_gate([SpecMarkedItem("SR-05-002", "BOGUS-99-998")])
 
     def test_known_marker_id_is_accepted_against_the_real_corpus(self):
         with _escalated(UnknownSpecIdWarning, SpecRegistryUnavailableWarning):

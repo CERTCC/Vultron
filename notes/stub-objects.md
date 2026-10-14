@@ -33,8 +33,9 @@ and explicit redaction, are not built: see
 An invitee must evaluate a case *before* accepting, and the case cannot be shared
 until they accept (MV-10-005). So the stub is transient: a placeholder that
 rehydrates into the full object once the invitee is admitted. Everywhere else,
-send the full inline object (AKM-03-001), or a bare URI or `Link` for an object
-the recipient already holds.
+this codebase sends the full inline object (AKM-03-003, a prototype shortcut;
+the protocol allows a fetchable reference, AKM-03-001), or a bare URI or `Link`
+for an object the recipient already holds.
 
 The stub has its own wire `type`, `VulnerabilityCaseStub`, ID `<case-id>/stub`,
 and a `caseId` field naming the case (CM-11-013). A receiver recognizes it by

@@ -186,7 +186,7 @@ def test_intake_archives_the_create_even_when_refused(dl, make_payload):
 
 
 def test_bare_participant_refusal_leaves_the_link_unbound(dl, make_payload):
-    """CBT-01-007: a bare-URI participant is refused before anything is written."""
+    """CBT-01-012: a bare-URI participant is refused before anything is written."""
     link = _link()
     dl.save(link)
     case = as_VulnerabilityCase.model_construct(
@@ -200,7 +200,7 @@ def test_bare_participant_refusal_leaves_the_link_unbound(dl, make_payload):
 
     assert result.status == Status.FAILURE
     assert route.name == "trusted"
-    assert "CBT-01-007" in BTBridge.get_failure_reason(tree)
+    assert "CBT-01-012" in BTBridge.get_failure_reason(tree)
     assert dl.read(_CASE_ID) is None
     unbound = dl.read(link.id_)
     assert isinstance(unbound, VultronReportCaseLink)

@@ -124,6 +124,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
 
 
 @pytest.mark.spec("CBT-05-008")
+@pytest.mark.spec("CBT-05-009")
 def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     """Bootstrap with a bare-URI participant is refused (CBT-05-008)."""
     _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt05008"

@@ -107,7 +107,7 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The DataLayer port contract, store scope, write/read shapes, and snapshots.
   **Load when**: working on a DataLayer adapter or deciding which store a write uses.
 - **`actor-knowledge-model.md`** · `guidance`
-  No cross-actor store access, full inline objects, and the actor-discovery seam.
+  No cross-actor store access, the inline-object shortcut, and the actor-discovery seam.
   **Load when**: an actor needs data another actor holds, or reviewing AKM work.
 - **`configuration.md`** · `guidance`
   YAML-backed Pydantic config: layering, key-presence checks, cache-safe tests.

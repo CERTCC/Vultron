@@ -245,7 +245,7 @@ def materialise_object_slots(
     attributes an activity to a case, which is not an actor at all.  A stub
     whose required field is invented is worse than an explicit failure,
     because it launders a missing object into a plausible-looking wrong one —
-    and a wrong ``actor`` is what semantic dispatch and the AKM-03-001 outbox
+    and a wrong ``actor`` is what semantic dispatch and the AKM-03-003 outbox
     gate both key on.  The resolved object carries its true actor; where it
     cannot be resolved, this function refuses.
 

@@ -580,7 +580,7 @@ groups:
     statement: >-
       `ACTIVATE_EMBARGO_ON_CASE` MUST be represented as
       `Accept(Event)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
-      itself, carried inline, and not the `Invite` that proposed it (ADR-0122).
+      itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
     rationale: >-
       The case owner's activation is a decision about the embargo for the case, so it accepts
       the embargo; an `Accept` of the `Invite` is each sender's own consent (VAM-05-006).
@@ -602,7 +602,7 @@ groups:
     statement: >-
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` MUST be represented as
       `Reject(Event)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
-      itself, carried inline, and not the `Invite` that proposed it (ADR-0122).
+      itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
     rationale: >-
       The case owner's rejection is a decision about the embargo for the case; a `Reject` of
       the `Invite` is each sender's own consent (VAM-05-007).
@@ -618,6 +618,33 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
+  - id: VAM-05-010
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the proposed `EmbargoEvent` inline as the object of the
+      `Accept(Event)[target=VulnerabilityCase]` of VAM-05-008 and of the
+      `Reject(Event)[target=VulnerabilityCase]` of VAM-05-009.
+    rationale: >-
+      How this codebase meets VAM-05-008 and VAM-05-009; split from them so they state only
+      what other participants observe (MS-12-010). This codebase matches the semantic on the
+      typed inline object and does not yet dereference (AKM-05-003), so the event travels
+      inline. That is a shortcut of this prototype reference implementation, not a protocol
+      rule.
+    verification: >-
+      Inspection of `_ActivateEmbargoActivity` and `_RejectEmbargoProposalActivity` in
+      `vultron/wire/as2/vocab/activities/embargo.py` confirms each types `object_` as
+      `as_EmbargoEvent`, not a reference union, so this codebase cannot build either with
+      a bare URI. Unit tests in `test/test_semantic_activity_patterns.py` confirm that
+      `Accept(EmbargoEvent, target=VulnerabilityCase)` and
+      `Reject(EmbargoEvent, target=VulnerabilityCase)`, each carrying the typed inline
+      `EmbargoEvent`, map to `ACTIVATE_EMBARGO_ON_CASE` and
+      `REJECT_EMBARGO_PROPOSAL_ON_CASE`.
+    relationships:
+    - rel_type: implements
+      spec_id: VAM-05-008
+    - rel_type: implements
+      spec_id: VAM-05-009
 - id: VAM-06
   title: Case Participant Management Messages
   specs:

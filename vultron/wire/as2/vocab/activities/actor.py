@@ -38,7 +38,7 @@ class _RecommendActorActivity(as_Offer):
     same reason as ``_RmInviteToCaseActivity``: the recommended actor is a peer,
     so under ADR-0073 the recommender's own store holds no record of it and a
     dehydrated id has nothing to be read back from. Delivery then refuses the
-    recommendation for carrying a bare string (AKM-03-001).
+    recommendation for carrying a bare string (AKM-03-003).
     """
 
     object_: as_Actor = Field(

@@ -107,6 +107,7 @@ def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
 class TestCreateCaseProposalReceivedUseCase:
     """Tests for CreateCaseProposalReceivedUseCase (CP-05-001 through CP-05-004)."""
 
+    @pytest.mark.spec("CP-05-009")
     def test_execute_creates_case_and_queues_activities(self, make_payload):
         """Happy path: case created + Accept + Create(VulnerabilityCase) queued."""
         dl = SqliteDataLayer(
@@ -146,7 +147,7 @@ class TestCreateCaseProposalReceivedUseCase:
         accepts = dl.list_objects("Accept")
         assert len(accepts) == 1, "Expected one Accept activity"
 
-        # The Accept must carry the full inline proposal (CP-05-003, AKM-03-001).
+        # The Accept must carry the full inline proposal (CP-05-003, CP-05-009).
         accept_obj = dl.read(accepts[0].id_)
         accept_object_ = getattr(accept_obj, "object_", None)
         assert accept_object_ is not None, (
@@ -155,7 +156,7 @@ class TestCreateCaseProposalReceivedUseCase:
         # After DataLayer round-trip the dict may be deserialized to an AS2 object;
         # the key invariant is that it is NOT a bare URI string.
         assert not isinstance(accept_object_, str), (
-            "Accept.object_ must not be a bare URI string — inline object required (CP-05-003)"
+            "Accept.object_ must not be a bare URI string — inline object required (CP-05-009)"
         )
         obj_type = getattr(accept_object_, "type_", None) or (
             accept_object_.get("type")

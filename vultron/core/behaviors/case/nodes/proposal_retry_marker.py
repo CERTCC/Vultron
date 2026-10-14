@@ -253,7 +253,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         case_dict = port.render(case_copy)
         case_dict.setdefault("type", "VulnerabilityCase")
         # Inline full VulnerabilityReport dicts after render so invited
-        # actors' _store_embedded_reports stores them (CBT-01-007, ISSUE-2134).
+        # actors' _store_embedded_reports stores them (CBT-01-012, ISSUE-2134).
         # Done post-render because VulnerabilityCase.vulnerability_reports is
         # typed list[str]; embedding objects directly triggers Pydantic warnings.
         inlined_reports: list[Any] = []
