@@ -268,9 +268,10 @@ def _resolve_embargo_id_from_proposal_id(
     case: VulnerabilityCase,
     proposal_id: str,
 ) -> str:
-    """Return the embargo ID for *proposal_id* from ``case.pending_embargo_proposal_index``.
+    """Return the embargo ID that *proposal_id* names in the proposal index.
 
-    The index maps embargo_id → proposal_id; this function inverts the lookup.
+    The index (``case.pending_embargo_proposal_index``) maps embargo_id →
+    proposal_id; this function inverts the lookup.
     Raises ``VultronValidationError`` when the proposal_id is not found.
     """
     for embargo_id, pid in case.pending_embargo_proposal_index.items():

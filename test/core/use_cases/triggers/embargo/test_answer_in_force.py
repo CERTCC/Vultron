@@ -286,8 +286,8 @@ def test_a_row_with_nothing_to_answer_is_not_found(
 ) -> None:
     """An ``UNINVITED``, ``AGREED``, ``DECLINED`` or missing row is not found.
 
-    An ``UNINVITED`` row was never asked.  Withdrawing from an ``AGREED`` row is ``Leave(EmbargoEvent)``, not an
-    answer (EP-09-013).
+    An ``UNINVITED`` row was never asked.  Withdrawing from an ``AGREED``
+    row is ``Leave(EmbargoEvent)``, not an answer (EP-09-013).
     """
     embargo_id = in_force.case.active_embargo_id
     assert embargo_id is not None
