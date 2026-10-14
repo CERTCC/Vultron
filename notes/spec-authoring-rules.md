@@ -4,8 +4,9 @@ status: active
 kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the five kinds and the MS-12
-  decision tree (who must obey a rule decides its kind, ADR-0134), splitting a
-  spec that mixes kinds, what a kind change moves, and the scoping of MS-12-006;
+  decision tree (who must obey a rule decides its kind, ADR-0134), the ruling
+  that inline-object requirements are `project`, splitting a spec that mixes
+  kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`; `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
@@ -18,8 +19,10 @@ related_specs:
   - specs/spec-registry.yaml
   - specs/testability.yaml
   - specs/architecture.yaml (ARCH-18-004)
+  - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
 related_notes:
   - notes/specs-vs-adrs.md
+  - notes/actor-knowledge-model.md
   - notes/documentation-strategy.md
   - notes/behavioral-conformance-specs.md
   - notes/testing-pitfalls.md
@@ -72,6 +75,19 @@ The tiers are glossed on `SpecKind` in `vultron/metadata/specs/schema.py`:
 **The ledger caveat.** The CASE_MANAGER role and case-ledger sync are
 `protocol`. Do not relabel them on the grounds that a federated Vultron would
 not need them; re-judge only if the protocol actually drops the CASE_MANAGER.
+
+**Inline-object requirements are `project` unless they serve a protocol
+purpose** (maintainer ruling, 2026-10-14, #4599). Forcing an object inline
+instead of by reference is a shortcut of this prototype, which does not yet
+dereference (AKM-05-003); it is not a Vultron rule. ActivityStreams allows either
+form, and a receiver coping with both is `foundation` (SE-01-002). Split a
+protocol spec that demands inline (MS-12-010): the original ID keeps which object
+the message carries, its type and its meaning, worded "carried inline or by
+reference"; the inline demand moves to a new `project` ID (RF-02-004 / RF-02-006).
+An inline rule stays `protocol` only when inlining serves a protocol purpose the
+prototype does not explain, and its rationale names that purpose: ledger snapshot
+content the hash chain must cover is one (CLP-07-006). If no such purpose is
+evident, ask; do not invent one.
 
 #### Apply the decision tree, not the neighbouring entries
 

@@ -506,7 +506,7 @@ class _ActorsMixin:
             **extra,
         )
         # Save the inline CaseParticipant so dl.read() can expand it during
-        # outbox delivery (AKM-03-001: dehydration stores object_ as a bare ID).
+        # outbox delivery (AKM-03-003: dehydration stores object_ as a bare ID).
         if isinstance(activity.object_, as_CaseParticipant):
             try:
                 self._dl.create(activity.object_)
@@ -714,7 +714,7 @@ class _ActorsMixin:
                 f"status '{status_id}' not found",
             )
         # No conversion step: ``as_ParticipantStatus`` *is* ``ParticipantStatus``
-        # (ADR-0099 detail 3), so the object read from the DataLayer is already the
+        # (ARCH-25-003, ADR-0099), so the object read from the DataLayer is already the
         # class the activity slot wants.  This previously called
         # ``as_ParticipantStatus.from_core(raw)`` to make nested fields survive a
         # boundary that no longer exists; once the pair collapsed, that call raised

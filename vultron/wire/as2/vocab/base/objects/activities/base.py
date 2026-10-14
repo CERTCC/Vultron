@@ -75,7 +75,7 @@ class as_Activity(as_Object):
     #: Keys, key order and values are the sender's; whitespace, number
     #: spelling and escapes are not kept, because the body arrives decoded.
     #: ``frozen=True`` covers this activity's own fields, but it does not reach
-    #: the nested objects: since ADR-0099 detail 3 most of those are mutable core
+    #: the nested objects: since ARCH-25-003 (ADR-0099) most of those are mutable core
     #: classes.  So the received evidence is kept here as an immutable ``str``,
     #: independent of the object graph, rather than being inferred from the
     #: graph's class configuration (ISSUE-3584).  ``None`` on an activity this

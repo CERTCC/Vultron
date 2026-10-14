@@ -181,6 +181,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         # outbox (matching send_announce_log_entry's explicit-actor queueing).
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
+    @pytest.mark.spec("SYNC-02-005")
     @pytest.mark.spec("CLP-02-002")
     @pytest.mark.spec("SYNC-02-004")
     def test_inline_case_ledger_entry_round_trip(self, first_entry):
@@ -361,6 +362,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert dl.read(genesis_entry.id_) is not None
         assert dl.read(second.id_) is not None
 
+    @pytest.mark.spec("SYNC-13-007")
     @pytest.mark.spec("SYNC-13-004")
     def test_semantic_type_is_correct(self, dl, first_entry):
         event = self._make_event(first_entry)

@@ -11,12 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Effect node: store the object a received ``Create(X)`` introduced.
+"""Effect node: store a received object the receiver's tree has admitted.
 
-A ``Create(X)`` message introduces an object the receiver did not hold.
 Intake archives the *activity* (CLP-10-017); this node writes the core record
-from the copy the event carries.  It runs as an effect, after intake, in the
-shared store-only tree (:func:`~vultron.core.behaviors.case.store_only_received_tree.create_store_only_received_tree`).
+from the copy the event carries.  Its users are pre-case intake (the report
+and the ``Offer`` of a submitted report) and the recorded ownership-transfer
+``Offer``.  It is not for a case record a ``Create(X)`` introduces: a change to
+the case file needs its own committed entry (CLP-07-013).
 
 The node reports what it did through :attr:`outcome` so the handler reports
 ``APPLIED`` / ``SKIPPED`` (HP-01-003) without inspecting the DataLayer

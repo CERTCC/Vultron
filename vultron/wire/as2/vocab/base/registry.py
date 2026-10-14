@@ -108,7 +108,7 @@ def find_in_vocabulary(
     ``VOCABULARY`` (keyed by full wire class name). By default that is all it
     checks, so the answer is always a class the *wire* registry holds: an
     ``as_Base`` subclass, or a core class registered in ``WIRE_TYPE_MAP`` as its
-    own wire form (ADR-0099 detail 3, e.g. ``VulnerabilityCase``). The
+    own wire form (ARCH-25-003, ADR-0099; e.g. ``VulnerabilityCase``). The
     discriminator is registry membership, not branch ancestry — an
     ``as_Base``-only rule would refuse the canonical case type.
 

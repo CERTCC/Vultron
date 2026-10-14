@@ -535,6 +535,8 @@ groups:
       (ADR-0124). One act can cause several changes, such as a stub Invite and the
       inert invitee's participant record it creates; recording only the act left
       replicas to rebuild the record with their own ids and clock times (#4425).
+      Full records are ledger content the hash chain must cover, not the inline-object
+      shortcut (CLP-07-006).
     verification: >-
       A rebuild-from-ledger test replays every demo and integration scenario's
       CASE_MANAGER ledger into an empty store and asserts the result equals the
@@ -638,6 +640,13 @@ groups:
       URI is not such a substitution — the entry is about that case and every replica holds it —
       and the commit boundary MUST accept it, at any nesting depth, while refusing every other
       bare string in an inline-object slot.
+    rationale: >-
+      A protocol rule, not this prototype's inline-object shortcut (AKM-03-003): the entry
+      hash covers the `payloadSnapshot` and nothing outside it. An object named by ID alone
+      escapes the hash chain every participant verifies, so its content could differ
+      between replicas or change after commit with nothing to catch it, and replay would
+      depend on a lookup rather than on the ledger alone (CM-23-016). An implementation
+      that dereferences inlines here too.
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that nested objects such as
       `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in

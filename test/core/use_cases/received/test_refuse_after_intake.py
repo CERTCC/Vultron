@@ -22,7 +22,7 @@ import pytest
 
 from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.use_cases.received import _store_only
+from vultron.core.use_cases.received import _intake_only
 
 
 @pytest.mark.spec("CLP-10-018")
@@ -32,10 +32,10 @@ def test_leader_skip_is_not_reported_as_a_refusal(monkeypatch):
         status=py_trees.common.Status.INVALID, leader_skipped=True
     )
     monkeypatch.setattr(
-        _store_only, "run_store_only", lambda *a, **k: (tree, skipped)
+        _intake_only, "run_intake_only", lambda *a, **k: (tree, skipped)
     )
 
-    result = _store_only.refuse_after_intake(
+    result = _intake_only.refuse_after_intake(
         MagicMock(),
         MagicMock(),
         "missing id",

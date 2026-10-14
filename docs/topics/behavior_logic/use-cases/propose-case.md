@@ -21,7 +21,7 @@ An actor that holds a report and wants it coordinated as a case sends `Create(as
 In the reference implementation this happens inside the `create_case` trigger path: the actor records a local case, publishes the case actor identity it will address, and emits the proposal.
 
 The proposal carries the report inline.
-A URI reference is not permitted, because the receiving service has no way to read anything out of the proposer's store (CP-01-004, AKM-03-001).
+The reference implementation does not permit a URI reference here, because the receiving service cannot yet fetch an object out of the proposer's store (CP-01-004, AKM-03-003).
 It also carries the provenance of the report — which `Offer(VulnerabilityReport)` delivered it and from whom — because the accepting service cannot reconstruct that and needs it for the first ledger entry (CP-01-007).
 
 The proposal is addressed to the service's container identity, never to an identity derived per case or per report (CP-04-003).
@@ -185,7 +185,7 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-04-003](../../../reference/specs/protocol.md#cp-04-003) | The proposal MUST be addressed to the service's container identity, not a per-case one |
 | [CP-05-002](../../../reference/specs/protocol.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
 | [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
-| [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal inline |
+| [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
 | [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | A failed `Create` MUST be retried without resending the `Accept` |
 | [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
 | [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |

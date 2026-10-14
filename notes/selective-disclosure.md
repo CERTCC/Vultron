@@ -22,7 +22,8 @@ relevant_packages:
 
 # Selective Disclosure and Redaction (Design Direction)
 
-Outbound initiating activities carry full inline typed objects (AKM-03-001).
+In this codebase outbound initiating activities carry full inline typed objects
+(AKM-03-003, a prototype shortcut; the protocol allows either form, AKM-03-001).
 That raises two concerns this plan addresses, beyond the one sanctioned
 `VulnerabilityCase` stub ([stub-objects.md](stub-objects.md)):
 

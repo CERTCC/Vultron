@@ -27,7 +27,7 @@ Four fields are required on every Activity:
 |---|---|
 | `type` | The Activity type — the verb, such as `Offer` or `Announce` |
 | `actor` | The Uniform Resource Identifier (URI) of the actor that performed the action |
-| `object` | The thing acted on, included inline ([§5.5 Serialization](layers.md#55-serialization)) |
+| `object` | The thing acted on, inline or by reference ([§5.5 Serialization](layers.md#55-serialization)) |
 | `id` | A URI uniquely identifying this Activity, used for deduplication ([§14.3 Replay and Idempotency](considerations.md#143-replay-and-idempotency)) |
 
 Vultron's own types are declared in the vocabulary namespace
@@ -272,15 +272,18 @@ That context document imports the ActivityStreams 2.0 namespace and declares eve
 Vultron type name, so an implementation cites only the Vultron URI and does not
 need to declare the ActivityStreams namespace separately.
 
-**Objects travel inline.** An actor MUST include the full object in every Activity
-it emits. An Activity MUST NOT reference an object belonging to another actor by ID
-alone.
+**Objects travel inline or by reference.**
+As ActivityStreams 2.0 allows, an Activity MAY carry an object inline or name it by URI, and a receiver MUST cope with either form ([SE-01-002](../specs/foundation.md#se-01-002)).
+An actor that names by reference an object its recipient cannot be expected to hold MUST use a reference the recipient can dereference ([AKM-02-002](../specs/protocol.md#akm-02-002), [§4.7 Knowledge Model and Actor Isolation](layers.md#47-knowledge-model-and-actor-isolation)).
+A production implementation MUST be able to fetch an object named by a URI it holds no record of ([AKM-05-004](../specs/protocol.md#akm-05-004)).
 
-This is what makes actor isolation work
-([§4.7 Knowledge Model and Actor Isolation](layers.md#47-knowledge-model-and-actor-isolation)). A message carrying only
-an identifier would require its recipient to fetch the referenced object from
-whoever holds it, which makes the recipient's knowledge depend on another actor
-being reachable, and makes a message unprocessable if it is not.
+One place requires the inline form.
+A case ledger entry's payload snapshot MUST carry the objects nested in it in full, because the entry hash covers the snapshot and nothing outside it ([CLP-07-006](../specs/protocol.md#clp-07-006)).
+An object named there by identifier alone would escape the hash chain every participant verifies.
+
+!!! note "The reference implementation inlines every object"
+    The reference implementation does not yet dereference, so it carries every object inline and refuses a bare URI where it needs the object ([AKM-03-003](../specs/project.md#akm-03-003)).
+    That is a shortcut of the prototype, not a Vultron rule.
 
 !!! note "Provisional namespace URI"
     The namespace is currently hosted on GitHub Pages. A permanent URI may be

@@ -76,12 +76,12 @@ Read it field by field.
 | `object` | The thing acted on: a Vultron object, or an earlier activity being answered | `Accept`, `Reject`, `TentativeReject`, and `Read` carry the activity they answer, not the object inside it |
 | `target` | Where the object goes | `Add` names the case here, as do `Remove(Note)` and `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
 | `origin` | Where the object comes from | `Remove(Event)`, which terminates an embargo, names the case here rather than in `target` |
-| `context` | The case an activity belongs to | `Create(CaseStatus)`, `Create(CaseParticipant)`, and `Invite(Event)` name the case here |
+| `context` | The case an activity belongs to | `Create(Note)` and `Invite(Event)` name the case here |
 | `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Add(Event)` with `inReplyTo` activates an agreed embargo; without it, it imposes one |
 | `to` | The recipient inboxes | A report is offered to each recipient separately; case traffic goes to the CASE_MANAGER |
 
 Whether the case sits in `target` or `context` is not a matter of style.
-A receiver tells activities apart by these fields, so a `Create(CaseStatus)` that names its case in `target` instead of `context` is not recognized as a status update.
+A receiver tells activities apart by these fields, so an `Add(CaseStatus)` that names its case in `context` instead of `target` is not recognized as a status update.
 Each guide states which field its activities use, and [Message Types](../../reference/messages/index.md) records the discriminator for every activity.
 
 ## The Vultron vocabulary

@@ -78,15 +78,6 @@ class _CreateParticipantActivity(as_Create):
         return self
 
 
-class _CreateStatusForParticipantActivity(as_Create):
-    """Create a new CaseStatus for a as_CaseParticipant"""
-
-    object_: as_ParticipantStatus = Field(
-        ..., validation_alias="object", serialization_alias="object"
-    )
-    target: as_CaseParticipantRef = None
-
-
 # add CaseStatus to as_CaseParticipant
 class _AddStatusToParticipantActivity(as_Add):
     """Add a CaseStatus to a as_CaseParticipant

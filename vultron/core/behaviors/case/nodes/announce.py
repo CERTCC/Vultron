@@ -48,7 +48,7 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 def _store_embedded_reports(case_obj, datalayer) -> None:
     """Persist full VulnerabilityReport objects embedded in *case_obj*.
 
-    Per CBT-01-007: receiving handlers store domain objects by iterating
+    Per CBT-01-012: receiving handlers store domain objects by iterating
     embedded collections.  Only full objects (not bare string refs) are
     saved; bare IDs are skipped since the object data is not available.
 

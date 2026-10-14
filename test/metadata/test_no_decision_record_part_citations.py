@@ -13,21 +13,24 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""No spec or note resolves its meaning by a numbered part of a decision record.
+"""No file resolves its meaning by a numbered part of a decision record.
 
-A citation such as "ADR-0099 detail 3", "ADR-0009 Rule 1" or "ADR-0125,
+A citation such as "ARCH-25-003 (ADR-0099)", "ADR-0009 Rule 1" or "ADR-0125,
 decision part 7" points into a record body, the only place that number is
 defined, so the reader has to load the body to know the rule. ADR-0127 takes
 record bodies out of routine agent context, and MS-11-007 forbids the citation
-shape in ``specs/`` and ``notes/``: state the rule in place, or cite the
-requirement that states it, with the record as provenance only.
+shape in ``specs/``, ``notes/``, ``vultron/``, and ``test/``: state the rule
+in place, or cite the requirement that states it, with the record as provenance
+only.
 
 One ``git grep`` call over the scan roots selects every line that holds a part
 word and a number (or a part word at the end of a line, whose number is on the
 next one), with a line of context either side. Python only joins each run of
 adjacent lines and applies :data:`CITATION_RE`, so a citation folded across a
 line break, as YAML and wrapped Markdown both do, is still found. Widening the
-scan is one entry in :data:`SCAN_ROOTS`.
+scan is one entry in :data:`SCAN_ROOTS`. This file itself is excluded from the
+scan because its own detector-case strings and docstring contain citation shapes
+by design.
 
 A bare "detail N" is caught on its own, because "(detail 2)" a sentence after
 the record was named is the same citation. The other part words in
@@ -48,11 +51,19 @@ import pytest
 _REPO_ROOT = Path(__file__).parents[2]
 
 #: Directories scanned, relative to the repository root.
-SCAN_ROOTS: tuple[str, ...] = ("specs", "notes")
+SCAN_ROOTS: tuple[str, ...] = ("specs", "notes", "vultron", "test")
 
-#: Whitespace (a line break included) or a hyphen, an optional "#", and one or
-#: two digits, so "details 2026" (a year) is not a part number.
-_NUMBER = r"(?:\s+|-)#?\d{1,2}\b"
+#: This file is excluded from the scan: its detector-case strings and
+#: docstring contain citation shapes by design.
+_EXCLUDE_SELF = (
+    ":(exclude)test/metadata/test_no_decision_record_part_citations.py"
+)
+
+#: Whitespace (a line break included, with the ``#`` or ``#:`` that continues
+#: a Python comment onto the next line) or a hyphen, an optional "#", and one or
+#: two digits, which may open a parenthesis ("invariant (1–3 of ADR-0122)"),
+#: so "details 2026" (a year) is not a part number.
+_NUMBER = r"(?:\s+(?:#:?\s+)?|-)[(#]?\d{1,2}\b"
 
 #: The words naming a numbered part of a record body ("Rule 1", "invariant 4"),
 #: each a pattern valid in both Python ``re`` and POSIX ERE.
@@ -89,7 +100,7 @@ CITATION_RE = re.compile(
 #: the joined lines.
 _CANDIDATE_ERE = (
     rf"\b({_PART_WORD})"
-    r"([[:space:]]*-?[[:space:]]*#?[0-9]{1,2}\b|[[:space:]]*$)"
+    r"([[:space:]]*-?[[:space:]]*[(#]?[0-9]{1,2}\b|[[:space:]]*$)"
     r"|§([[:space:]]*[0-9]|[[:space:]]*$)"
 )
 
@@ -139,6 +150,7 @@ def _candidate_lines() -> dict[str, dict[int, str]]:
         _CANDIDATE_ERE,
         "--",
         *SCAN_ROOTS,
+        _EXCLUDE_SELF,
     )
     # Exit 1 is "no line selected"; anything else above 0 is a git failure.
     assert found.returncode in (0, 1), found.stderr.decode()
@@ -175,7 +187,7 @@ def _hits() -> list[str]:
 
 
 @pytest.mark.spec("MS-11-007")
-def test_no_spec_or_note_names_a_numbered_decision_part() -> None:
+def test_no_file_names_a_numbered_decision_part() -> None:
     assert _scanned_file_count(), (
         f"the scan found no files under {SCAN_ROOTS}; the gate is vacuous"
     )
@@ -191,6 +203,9 @@ def test_no_spec_or_note_names_a_numbered_decision_part() -> None:
     [
         "an alias of the core class (ADR-0099 detail 3), not a subclass",
         "MUST NOT define a second actor class (ADR-0099 detail\n      3).",
+        "belongs in the alias (ADR-0099 detail\n    # 2), which is also",
+        "the cosmetic convenience ADR-0088\n#: §7 preserves",
+        "Every register invariant (1–3 of ADR-0122) that it breaks.",
         "on the core class (detail 2) and a bare state value (detail 5)",
         "**The rule (MV-11, ADR-0099 details 7 and 8 as amended).**",
         "| ADR-0099 Details 7–8 | The epic's closed children |",

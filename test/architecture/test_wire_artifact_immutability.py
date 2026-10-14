@@ -16,7 +16,7 @@
 
 VM-08-002 used to be held by ``frozen=True`` on ``as_Object``, and the gate
 checked exactly that flag.  Pydantic's ``frozen`` does not reach into nested
-models, though, and ADR-0099 detail 3 made every paired nested object a mutable
+models, though, and ARCH-25-003 (ADR-0099) made every paired nested object a mutable
 core class, so the flag vouched for the envelope while the case, report,
 participant and status inside it stayed writable.  The evidence is now the
 received body itself, sealed as JSON text at ``parse_activity`` before anything

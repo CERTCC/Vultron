@@ -211,12 +211,12 @@ class StoreProposalReportNode(DataLayerAction):
     (CP-01-004) — so it has to be written here.
 
     Prefers *inline_report*, the ``VulnerabilityReport`` the wire parser
-    validated on the proposal — under ADR-0099 detail 3 that object already
+    validated on the proposal — under ARCH-25-003 (ADR-0099) that object already
     *is* the core class, so the caller hands it down unchanged (ARCH-20-008).
     The fallback — rebuilding from the proposal's serialised ``object`` — can
     only be as good as that dict's spelling, and the dict the received-side use
     case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
-    the proposal inline on the wire (CP-05-003, AKM-03-001). In wire spelling the
+    the proposal inline on the wire (CP-05-009, AKM-03-003). In wire spelling the
     reporter is ``attributedTo``; before the core model carried the AS2 alias,
     validating that dict quietly produced a report with no reporter, and the
     complaint surfaced three nodes later as "has no attributed_to" (#2482). The

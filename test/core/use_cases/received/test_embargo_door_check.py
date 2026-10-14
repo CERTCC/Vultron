@@ -30,7 +30,6 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
     AnnounceEmbargoEventToCaseReceivedUseCase,
-    CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
@@ -47,7 +46,6 @@ _OTHER = "https://example.org/users/vendor-a"
 _BYSTANDER = "https://example.org/users/vendor-b"
 
 _USE_CASES = [
-    CreateEmbargoEventReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
     RejectEmbargoProposalOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,

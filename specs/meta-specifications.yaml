@@ -669,24 +669,27 @@ groups:
     priority: MUST_NOT
     kind: process
     statement: >-
-      A spec file or a `notes/` file MUST NOT resolve its meaning by naming a numbered part inside a decision record's
-      body: a record ID with a detail, rule, step, option, part, invariant or section (§) number, such as a record's "Rule N"
-      or "invariant N". It MUST state the rule where the reader already is, or cite the requirement
-      that states it, and cite the record only as provenance for why. A decision record citing a numbered part of
-      another record is out of scope: that is history citing history. Because a bare "detail N" a sentence after the
-      record was named is the same citation, any "detail" followed by a number counts; the other part words count only
-      with a record ID nearby, because a numbered step of a procedure is ordinary prose.
+      A spec file, a `notes/` file, or a code comment or docstring under `vultron/` or `test/` MUST NOT resolve its
+      meaning by naming a numbered part inside a decision record's body: a record ID with a detail, rule, step, option,
+      part, invariant or section (§) number, such as a record's "Rule N" or "invariant N". It MUST state the rule where
+      the reader already is, or cite the requirement that states it, and cite the record only as provenance for why.
+      A decision record citing a numbered part of another record is out of scope: that is history citing history.
+      Because a bare "detail N" a sentence after the record was named is the same citation, any "detail" followed by
+      a number counts; the other part words count only with a record ID nearby, because a numbered step of a procedure
+      is ordinary prose.
     rationale: >-
       A part number is defined nowhere but the record body, so a citation of one makes the body load-bearing and forces
       every reader to load it, which ADR-0127 removes from routine agent context. A rule stated in a requirement is
       checked by its verification clause; a rule left in a body ages with nothing to say it has. The shape is not
       specific to one word: a rule, option or decision-part number points into a body exactly as a detail number does.
+      Agents read code comments as often as spec files, so the citation shape is equally harmful there.
     verification: >-
-      `test_no_spec_or_note_names_a_numbered_decision_part` in `test/metadata/test_no_decision_record_part_citations.py`
-      selects candidate lines with one `git grep` over every tracked or untracked file under `specs/` and `notes/`,
-      whatever its suffix, and fails on a numbered-part citation, including one split across a line break; it fails
-      rather than skips when git is unavailable or the scan covers no files. Its detector cases show it catches each
-      citation shape that was converted and passes a requirement-ID citation and numbered-procedure text.
+      `test_no_file_names_a_numbered_decision_part` in `test/metadata/test_no_decision_record_part_citations.py`
+      selects candidate lines with one `git grep` over every tracked or untracked file under `specs/`, `notes/`,
+      `vultron/`, and `test/` (excluding the test file itself, whose detector-case strings contain citation shapes by
+      design), whatever its suffix, and fails on a numbered-part citation, including one split across a line break;
+      it fails rather than skips when git is unavailable or the scan covers no files. Its detector cases show it
+      catches each citation shape that was converted and passes a requirement-ID citation and numbered-procedure text.
     adr:
     - ADR-0127
     tags:

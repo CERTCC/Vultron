@@ -234,7 +234,7 @@ def test_each_in_repo_exception_skill_weighs_what_it_reads() -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        # The pre-ADR-0127 deepen-context Step 2 instruction.
+        # The deepen-context Step 2 instruction; ADR-0127 replaced it.
         "Read the full ADR file for any decision that is in scope",
         "read the full ADR, every spec whose rationale cites it",
         "load the governing specs, relevant plan files, docs/adr/, notes/",
@@ -266,9 +266,9 @@ def test_detector_catches_each_body_read_shape(text: str) -> None:
         "Read the ADR index (`docs/adr/index.md`) for titles.",
         "verify it follows `docs/adr/_adr-template.md`",
         "Retired ADRs live in `docs/adr/archived/`",
-        "PYTHONPATH= uv run spec-dump --adr ADR-0127 --text",
         "read the files it names in Step 1. They state the rule in full.",
         "Read the ADR's status from its index section.",
+        "PYTHONPATH= uv run spec-dump --adr ADR-0127 --text",
         "consult `notes/specs-vs-adrs.md` for the decision tree",
         "read it as a trend from ADR-0126 onward",
         "read against `notes/site-information-architecture.md` (ADR-0102)",

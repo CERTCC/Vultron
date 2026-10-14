@@ -38,9 +38,9 @@ groups:
     priority: MUST
     kind: project
     statement: '`as_CaseProposal` MUST include an `object_` field containing a fully inline `as_VulnerabilityReport` around
-      which the case is to be created. URI references to the report are NOT permitted (see AKM-03-001).'
+      which the case is to be created. URI references to the report are NOT permitted (see AKM-03-003).'
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
-      because the receiver may not have the referenced object and no dereferencing mechanism is currently specified (AKM-03-001).
+      because the receiver may not have the referenced object and this codebase does not yet dereference (AKM-05-003, AKM-03-003).
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
       `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
   - id: CP-01-005
@@ -119,15 +119,14 @@ groups:
     kind: protocol
     statement: >-
       The `actor` of `Create(as_CaseProposal)` MAY be the proposing actor's full actor profile inline,
-      or a reference to that profile which the CASE_MANAGER dereferences. The by-reference form is
-      available only where the CASE_MANAGER can dereference an object by an API call (AKM-05-003,
-      AKM-05-004); without that mechanism the profile MUST be inline, and a bare-URI `actor` is
-      refused (CP-01-010).
+      or a reference to that profile which the CASE_MANAGER dereferences by an API call (AKM-05-003,
+      AKM-05-004).
     rationale: >-
       The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo policy lives
       on its profile (EP-01-001), in its own store, which the CASE_MANAGER cannot read (PCR-01-003).
       That policy is the CASE_OWNER's actor default at case creation (EP-04-003), so it has to reach
       case creation; whether the profile travels inline or is fetched is an implementation choice.
+      This codebase requires the inline form (CP-01-010), a prototype shortcut, not a protocol rule.
     relationships:
     - rel_type: depends_on
       spec_id: EP-04-003
@@ -369,7 +368,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'When accepting a proposal, the case-actor service MUST send two activities in sequence: first `Accept(as_CaseProposal)`
-      (with the `as_CaseProposal` inline as `object_`), then `Create(VulnerabilityCase)` (with `actor` set to the case-actor
+      (with the `as_CaseProposal`, inline or by reference, as `object_`), then `Create(VulnerabilityCase)` (with `actor` set to the case-actor
       URI, `context` set to the URI of the new `VulnerabilityCase`, and `in_reply_to` set to the URI of the
       `Accept(CaseProposal)` activity).'
     rationale: '`Accept(CaseProposal)` acknowledges the report receiver''s proposal. `Create(VulnerabilityCase)` with `actor=case-actor`
@@ -385,15 +384,33 @@ groups:
   - id: CP-05-004
     priority: MUST
     kind: protocol
-    statement: When rejecting a proposal, the case-actor service MUST send `Reject(as_CaseProposal)` with the `as_CaseProposal`
-      embedded inline as `object_`.
+    statement: When rejecting a proposal, the case-actor service MUST send `Reject(as_CaseProposal)` with the `as_CaseProposal`,
+      inline or by reference, as `object_`.
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
-      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`, and adapter tests in
-      `test/adapters/driven/trigger_activity_adapter/test_cases.py` confirm the inline object survives the store round-trip
-      rather than dehydrating to a bare URI.
+      `Reject(as_CaseProposal)` with the proposal as `object_`.
     stories:
     - story_2022_006
     - story_2022_016
+  - id: CP-05-009
+    priority: MUST
+    kind: project
+    statement: This codebase MUST carry the `as_CaseProposal` inline as the `object_` of the `Accept(as_CaseProposal)`
+      of CP-05-003 and of the `Reject(as_CaseProposal)` of CP-05-004, and the inline object MUST survive the outbox
+      store round-trip rather than dehydrating to a bare URI.
+    rationale: How this codebase meets CP-05-003 and CP-05-004; split from them so they state only what other participants
+      observe (MS-12-010). Carrying the proposal inline rather than by reference is a shortcut of this prototype reference
+      implementation, which does not yet dereference (AKM-05-003), not a protocol rule.
+    verification: '`test/core/use_cases/received/test_case_proposal.py::TestCreateCaseProposalReceivedUseCase::test_execute_creates_case_and_queues_activities`
+      confirms the accept path emits `Accept(as_CaseProposal)` whose `object_` is the typed proposal, not a bare URI string;
+      unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
+      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`; and adapter tests in
+      `test/adapters/driven/trigger_activity_adapter/test_cases.py` confirm the inline object survives the store round-trip
+      rather than dehydrating to a bare URI.'
+    relationships:
+    - rel_type: implements
+      spec_id: CP-05-003
+    - rel_type: implements
+      spec_id: CP-05-004
   - id: CP-05-005
     priority: MUST
     kind: protocol
@@ -883,23 +900,37 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `Create(VulnerabilityCase)` activity emitted by the CASE_MANAGER MUST
-      embed participant objects inline (not as bare ID strings) so that the
-      report receiver's `CreateCaseReceivedUseCase` can seed its local
-      participant records without a DataLayer round-trip to the CASE_MANAGER.
-    rationale: >-
-      `store_embedded_participants` and `EnsureReporterParticipantAtAcceptedNode`
-      parse embedded participant objects.  Bare IDs produce empty participant
-      records on the receiver's replica, causing role-guard failures for
-      operations that require `CASE_OWNER` or `CASE_MANAGER` checks.
+      The `Create(VulnerabilityCase)` activity emitted by the CASE_MANAGER
+      MUST carry the case's participant records, inline or by reference, so
+      that the report receiver can seed its replica's participants (CP-09-002).
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
-      embeds participant objects inline; `test_owner_participant_created` verifies the owner's `CaseParticipant` is present.
+      carries the case's participant objects; `test_owner_participant_created` verifies the owner's `CaseParticipant` is present.
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
     stories:
     - story_2022_013
     - story_2022_045
+  - id: CP-09-010
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST embed the participant objects of the CASE_MANAGER's
+      `Create(VulnerabilityCase)` inline, not as bare ID strings, so that the
+      report receiver's `CreateCaseReceivedUseCase` can seed its local
+      participant records without a DataLayer round-trip to the CASE_MANAGER.
+    rationale: >-
+      How this codebase meets CP-09-004 (split per MS-12-010). Embedding the
+      participants inline is a shortcut of this prototype, which does not yet
+      dereference (AKM-05-003), not a protocol rule. `store_embedded_participants`
+      parses embedded participant objects. Bare IDs produce empty participant records on the receiver's
+      replica, causing role-guard failures for operations that require
+      `CASE_OWNER` or `CASE_MANAGER` checks.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
+      embeds participant objects inline.
+    relationships:
+    - rel_type: implements
+      spec_id: CP-09-004
   - id: CP-09-005
     priority: MUST_NOT
     kind: project
