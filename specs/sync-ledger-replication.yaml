@@ -191,9 +191,11 @@ groups:
       (AKM-05-003). An entry fetched by reference validates the same way, so carrying it
       inline is a shortcut of this prototype reference implementation, not a protocol rule.
     verification: >-
-      Integration tests in `test/demo/` confirm that Announce(CaseLedgerEntry) embeds
-      the full inline CaseLedgerEntry with entry_hash and prev_log_hash and
-      contains no URI-only reference.
+      `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py::test_handle_outbox_item_preserves_inline_case_ledger_entry_fields`
+      confirms the delivered Announce(CaseLedgerEntry) carries the full inline entry,
+      with entry_hash and prev_log_hash, rather than a URI-only reference;
+      `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_inline_case_ledger_entry_round_trip`
+      confirms parsing keeps the inline entry's fields.
     relationships:
     - rel_type: implements
       spec_id: SYNC-02-004
@@ -845,9 +847,9 @@ groups:
       this codebase carrying the entry inline (SYNC-02-005), a shortcut of this prototype
       reference implementation, not a protocol rule.
     verification: >-
-      Integration tests in `test/demo/` confirm that an inbound Announce(CaseLedgerEntry)
-      is routed to ANNOUNCE_CASE_LEDGER_ENTRY using the typed inline object alone, without
-      a DataLayer lookup on first delivery.
+      `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_semantic_type_is_correct` confirms an inbound
+      Announce(CaseLedgerEntry) carrying the typed inline entry is classified as
+      ANNOUNCE_CASE_LEDGER_ENTRY from the parsed activity alone, with nothing stored.
     relationships:
     - rel_type: implements
       spec_id: SYNC-13-004

@@ -121,7 +121,7 @@ def _case_for_wire(
 
     Every activity that puts a case on the wire goes through here, because a
     reference in the case is one the *receiver* cannot dereference: it may not
-    hold the object, and this codebase does not yet dereference (AKM-03-003,
+    hold the object, and this codebase does not yet dereference (AKM-02-004,
     the same rule as CP-01-004). Sending an id alone therefore hands the
     recipient a case pointing at an object it can never read. Three fields
     carry references the recipient needs:
@@ -230,7 +230,7 @@ def _carried_list(
                 logger.warning(
                     "_case_for_wire: case '%s' names %s '%s' which is absent"
                     " from the sending actor's own store, so it cannot be"
-                    " carried inline (AKM-03-003, CBT-01-012)",
+                    " carried inline (AKM-02-004, CBT-01-012)",
                     case_id,
                     field_name,
                     item,

@@ -327,7 +327,7 @@ def case_with_manager_in_cm_store(
         },
     )
     # The CASE_MANAGER holds every report its case names: the engage broadcast
-    # embeds them, and an Announce that cannot is refused (CBT-01-012).
+    # embeds them, and an Announce that cannot is refused (AKM-02-004).
     case_manager_datalayer.create(report)
     case_manager_datalayer.create(case)
     return case

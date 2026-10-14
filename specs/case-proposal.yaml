@@ -400,10 +400,12 @@ groups:
     rationale: How this codebase meets CP-05-003 and CP-05-004; split from them so they state only what other participants
       observe (MS-12-010). Carrying the proposal inline rather than by reference is a shortcut of this prototype reference
       implementation, which does not yet dereference (AKM-05-003), not a protocol rule.
-    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
-      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`, and adapter tests in
+    verification: '`test/core/use_cases/received/test_case_proposal.py::TestCreateCaseProposalReceivedUseCase::test_execute_creates_case_and_queues_activities`
+      confirms the accept path emits `Accept(as_CaseProposal)` whose `object_` is the typed proposal, not a bare URI string;
+      unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
+      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`; and adapter tests in
       `test/adapters/driven/trigger_activity_adapter/test_cases.py` confirm the inline object survives the store round-trip
-      rather than dehydrating to a bare URI.
+      rather than dehydrating to a bare URI.'
     relationships:
     - rel_type: implements
       spec_id: CP-05-003

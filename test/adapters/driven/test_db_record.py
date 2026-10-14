@@ -613,8 +613,9 @@ def test_case_declares_active_embargo_as_an_inline_required_ref():
     assert "embargo_register" in as_VulnerabilityCase.inline_required_refs
 
 
+@pytest.mark.spec("AKM-02-004")
 def test_case_active_embargo_survives_storage_as_an_inline_object():
-    """AKM-03-003: storing a case MUST NOT collapse its embargo to an id.
+    """AKM-02-004: storing a case MUST NOT collapse its embargo to an id.
 
     A recipient cannot dereference a URI it does not hold and no dereferencing
     mechanism is specified, so a bare id hands every replica a case pointing at
@@ -628,7 +629,7 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
     (entry,) = record.data_["embargo_register"]
     stored = entry["embargo"]
     assert not isinstance(stored, str), (
-        "AKM-03-003 requires the embargo inline; storage reduced it to"
+        "AKM-02-004 requires the embargo inline; storage reduced it to"
         f" {stored!r}, which the receiver cannot resolve"
     )
     # data_ carries wire-facing identity keys (ARCH-23-005)

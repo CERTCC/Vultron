@@ -1355,7 +1355,7 @@ def reject_case_proposal_activity(
 
     The case-actor service sends this when it declines the report receiver's proposal
     (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the report receiver
-    has full proposal context without an additional round-trip.
+    has full proposal context without an additional round-trip (CP-05-009).
 
     Args:
         actor_id: URI of the case-actor service that is rejecting the proposal.

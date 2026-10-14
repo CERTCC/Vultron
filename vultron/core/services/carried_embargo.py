@@ -18,7 +18,7 @@ A case that names an embargo its store cannot read breaks the invariant the
 EP-05-001 comparison rests on, so every path that saves a received case —
 the announce seed, the create/engage replica stores, and the inbox pre-store
 — calls :func:`store_carried_embargo` *first*.  It stores the
-``EmbargoEvent`` the sender carried inline (``_case_for_wire``, AKM-03-003)
+``EmbargoEvent`` the sender carried inline (``_case_for_wire``, AKM-02-004)
 and refuses a bare reference the store lacks, rather than letting the case
 land pointing at nothing.
 

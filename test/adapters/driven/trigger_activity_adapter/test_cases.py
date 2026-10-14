@@ -410,8 +410,8 @@ class TestAnnounceVulnerabilityCase:
 
 
 class TestCaseOnTheWireCarriesItsParticipants:
-    """CBT-05-005 / CBT-01-012: a case put on the wire carries its participants
-    (and reports) inline, not as ids.
+    """CBT-05-005 / CBT-01-012 / AKM-02-004: a case put on the wire carries
+    its participants (and reports) inline, not as ids.
 
     The recipient of a bootstrap ``Create`` or ``Announce`` stores each embedded
     participant as its own record; with ids alone it has no participant at
@@ -606,7 +606,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
 
 class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
-    """CBT-01-012: the Announce embeds each report the case names, or is not
+    """AKM-02-004: the Announce embeds each report the case names, or is not
     sent.  The sealed body is delivered as built, so a bare reference here
     would reach a recipient that cannot resolve it."""
 

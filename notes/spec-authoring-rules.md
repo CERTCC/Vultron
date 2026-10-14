@@ -22,6 +22,7 @@ related_specs:
   - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
 related_notes:
   - notes/specs-vs-adrs.md
+  - notes/actor-knowledge-model.md
   - notes/documentation-strategy.md
   - notes/behavioral-conformance-specs.md
   - notes/testing-pitfalls.md

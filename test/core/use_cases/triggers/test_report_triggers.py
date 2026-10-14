@@ -961,6 +961,7 @@ class TestSubmitReportProposedEmbargo:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
+    @pytest.mark.spec("EP-04-014")
     @pytest.mark.spec("EP-04-004")
     @pytest.mark.spec("EP-04-009")
     def test_the_offer_carries_the_stored_terms_about_the_report(self):

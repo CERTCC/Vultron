@@ -25,7 +25,7 @@ Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
 Spec coverage:
 - OX-03-001: Activities in the outbox are delivered to recipient inboxes.
 - VM-08-003: the delivered payload is the sealed blob, unchanged.
-- SYNC-02-004: an Announce(CaseLedgerEntry) keeps its inline entry on the wire.
+- SYNC-02-005: an Announce(CaseLedgerEntry) keeps its inline entry on the wire.
 """
 
 import asyncio

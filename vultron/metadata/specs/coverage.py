@@ -40,10 +40,17 @@ from vultron.metadata.specs.registry import (
 )
 from vultron.metadata.specs.schema import IMPLEMENTER_KINDS, SpecKind
 
-SPEC_MARKER_RE = re.compile(r"@pytest\.mark\.spec\(([^)]*)\)")
-"""One ``@pytest.mark.spec(...)`` marker; group 1 is its argument list."""
+SPEC_MARKER_RE = re.compile(r"(?<![\w.])pytest\.mark\.spec\(([^)]*)\)")
+"""One ``pytest.mark.spec(...)`` marker; group 1 is its argument list.
+
+Matches the decorator form and the ``pytestmark = pytest.mark.spec(...)``
+(or list) form alike.
+"""
 
 _QUOTED_ID_RE = re.compile(r'["\']([^"\']+)["\']')
+
+_KEYWORD_ARG_RE = re.compile(r"""\b\w+\s*=\s*(["'])[^"']*\1""")
+"""A ``name="value"`` keyword argument, whose value is not a spec ID."""
 
 
 @dataclass
@@ -67,13 +74,15 @@ def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
 
     Each item of *sources* is one file's text. A plain regex pass; no AST.
     A marker naming several IDs, ``@pytest.mark.spec("A", "B")``, covers
-    each of them.
+    each of them; a keyword argument's string value is not an ID.
     """
     return frozenset(
         spec_id.group(1)
         for source in sources
         for marker in SPEC_MARKER_RE.finditer(source)
-        for spec_id in _QUOTED_ID_RE.finditer(marker.group(1))
+        for spec_id in _QUOTED_ID_RE.finditer(
+            _KEYWORD_ARG_RE.sub("", marker.group(1))
+        )
     )
 
 

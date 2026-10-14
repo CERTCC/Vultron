@@ -425,9 +425,11 @@ groups:
       inline. That is a shortcut of this prototype reference implementation, not a protocol
       rule.
     verification: >-
-      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms that an
-      `Offer(VulnerabilityReport)` carrying an inline proposed `EmbargoEvent` is extracted
-      with the proposal intact.
+      `test/core/use_cases/triggers/test_report_triggers.py::TestSubmitReportProposedEmbargo::test_the_offer_carries_the_stored_terms_about_the_report`
+      confirms the emitted `Offer(VulnerabilityReport)` carries `proposedEmbargo` as an
+      inline `EmbargoEvent` object with its type, id and context, not a URI string;
+      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms such an Offer is
+      extracted with the proposal intact.
     relationships:
     - rel_type: implements
       spec_id: EP-04-004

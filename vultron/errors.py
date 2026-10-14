@@ -220,7 +220,7 @@ class VultronOutboxObjectIntegrityError(VultronError):
     without dereferencing it, which this codebase does not yet do.  The
     protocol allows the object inline or by reference (AKM-03-001, MV-09-001);
     inlining is this codebase's rule (AKM-03-003), enforced at delivery
-    (MV-09-002).
+    (AKM-03-002, MV-09-002).
     """
 
     def __init__(

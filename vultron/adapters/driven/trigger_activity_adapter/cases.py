@@ -242,7 +242,7 @@ class _CasesMixin:
         Per MV-10-003: the case owner sends this after an ``Accept(Invite)``
         is received and the invitee's embargo consent has been verified.
 
-        Per CBT-01-012: all nested domain objects are embedded as full inline
+        Per AKM-02-004: all nested domain objects are embedded as full inline
         objects — bare URI string references MUST NOT be used.  Each report
         listed in ``case.vulnerability_reports`` is read from the DataLayer
         and embedded as a full ``as_VulnerabilityReport`` object so that
@@ -259,7 +259,7 @@ class _CasesMixin:
             )
             # ``_to_wire`` raises ``VultronNotFoundError`` for a report the
             # store does not hold: an Announce that cannot embed every report
-            # it names (CBT-01-012) is not sent at all, since the sealed body
+            # it names (AKM-02-004) is not sent at all, since the sealed body
             # would carry a reference the recipient cannot resolve.
             embedded_reports.append(
                 _to_wire(self._dl.read(report_id), as_VulnerabilityReport)

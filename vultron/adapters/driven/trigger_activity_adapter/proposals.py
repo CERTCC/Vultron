@@ -191,7 +191,7 @@ class _ProposalsMixin:
 
         Rebuilds the ``as_CaseProposal`` from the wire dict the inbound
         ``Create`` carried, so the Reject embeds the proposal inline exactly as
-        the report receiver sent it (CP-05-004, AKM-03-003).
+        the report receiver sent it (CP-05-004, CP-05-009).
 
         The proposal is persisted alongside the activity for the same reason
         ``create_case_proposal`` persists it: storage dehydrates an inline

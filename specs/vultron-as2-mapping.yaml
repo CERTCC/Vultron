@@ -663,7 +663,10 @@ groups:
       inline. That is a shortcut of this prototype reference implementation, not a protocol
       rule.
     verification: >-
-      Unit tests in `test/test_semantic_activity_patterns.py` confirm that
+      Inspection of `_ActivateEmbargoActivity` and `_RejectEmbargoProposalActivity` in
+      `vultron/wire/as2/vocab/activities/embargo.py` confirms each types `object_` as
+      `as_EmbargoEvent`, not a reference union, so this codebase cannot build either with
+      a bare URI. Unit tests in `test/test_semantic_activity_patterns.py` confirm that
       `Accept(EmbargoEvent, target=VulnerabilityCase)` and
       `Reject(EmbargoEvent, target=VulnerabilityCase)`, each carrying the typed inline
       `EmbargoEvent`, map to `ACTIVATE_EMBARGO_ON_CASE` and

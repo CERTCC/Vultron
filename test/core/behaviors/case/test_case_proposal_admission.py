@@ -22,7 +22,7 @@ when it declines. These tests pin five properties:
 - The DETERMINISTIC default admits, so the pre-existing accept path is unchanged
   (BT-23-001, BT-23-011).
 - A declining backend emits a Reject addressed to the vendor with the proposal
-  inline (CP-05-004, AKM-03-003).
+  inline (CP-05-004, CP-05-009).
 - A decline writes **no** case state. The decline arm runs ahead of every effect,
   so there is no half-built case paired with a "declined" response (CLP-10-009).
 - **A refusal is terminal.** A decline whose Reject cannot be emitted fails the
@@ -289,6 +289,7 @@ class TestDeclineEmitsReject:
         assert reject.to == [_VENDOR_URI]
         assert reject.actor == _CASE_ACTOR_URI
 
+    @pytest.mark.spec("CP-05-009")
     def test_reject_carries_the_proposal_inline(self, dl):
         """AKM-03-003: the vendor cannot dereference a URI in our store.
 

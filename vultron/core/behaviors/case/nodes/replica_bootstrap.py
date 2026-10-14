@@ -193,7 +193,7 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
         self.feedback_message = (
             f"Bootstrap Create(VulnerabilityCase) for case '{self.case_id}'"
             f" contains {len(bare)} bare-URI participant reference(s);"
-            f" inline typed objects required (CBT-01-012, CBT-05-008)"
+            f" inline typed objects required (CBT-01-012, CBT-05-009, CBT-05-008)"
         )
         logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
