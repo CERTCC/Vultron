@@ -46,7 +46,7 @@ class TestCaseStatusContextField(unittest.TestCase):
         This asserted the opposite — that ``context=None`` was valid — because the
         deleted wire class was deliberately lenient (ARCH-12-002 made the wire
         branch accept anything so a malformed peer message could still be parsed
-        and reported). ADR-0099 detail 3 leaves only the core class, which is
+        and reported). ARCH-25-003 (ADR-0099) leaves only the core class, which is
         fail-fast (ARCH-10-001): ``context`` names the case the status belongs to,
         and a status belonging to no case cannot be acted on.
         """
@@ -109,7 +109,7 @@ class TestAs2RoundTripPreservesPublished(unittest.TestCase):
     """An AS2 round-trip must not regenerate published (regression: #2511).
 
     This tested ``as_CaseStatus.from_core(core)``. There is no ``from_core`` after
-    ADR-0099 detail 3 — the wire class *is* the core class — so the projection this
+    ARCH-25-003 (ADR-0099) — the wire class *is* the core class — so the projection this
     guarded cannot regenerate anything.
 
     The risk #2511 describes survives the collapse in a different place: a

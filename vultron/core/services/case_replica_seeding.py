@@ -96,7 +96,7 @@ def store_embedded_participants(
     Idempotent: ``dl.save()`` upserts so repeated calls are safe.
 
     Each embedded participant is checked to be a core :class:`CaseParticipant`
-    first (see :func:`_project_to_core_participant`) — under ADR-0099 detail 3
+    first (see :func:`_project_to_core_participant`) — under ARCH-25-003 (ADR-0099)
     a received snapshot deserialises straight into core objects, and both the
     regression check below and every later reader of the stored row require
     that canonical shape (issue #2232).  Bare ID strings carry no ``id_`` and
@@ -195,7 +195,7 @@ def _project_to_core_participant(
     """Return *participant_ref* as a canonical core participant, or ``None``.
 
     This is the wire→core ingress boundary for embedded participants.  Under
-    ADR-0099 detail 3 a received ``VulnerabilityCase`` snapshot deserialises
+    ARCH-25-003 (ADR-0099) a received ``VulnerabilityCase`` snapshot deserialises
     its ``case_participants`` straight into core :class:`CaseParticipant`
     objects — ``as_CaseParticipant`` is an alias of that class — so a
     participant either *is* the canonical core object already or cannot be

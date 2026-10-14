@@ -69,7 +69,7 @@ def test_core_object_default_instance():
 def test_core_object_context_is_emitted_on_the_as2_path_only():
     """@context appears on the AS2 dump and not on the persistence dump.
 
-    ADR-0099 detail 1 gives one class two serializations, chosen by destination:
+    ARCH-25-001 (ADR-0099) gives one class two serializations, chosen by destination:
     ``by_alias=True`` is inter-actor delivery (camelCase plus ``@context``), a
     plain dump is persistence (Python field names, no ``@context``).  ``context_``
     stays ``exclude=True`` so a stored row never carries it, which is what lets
@@ -272,13 +272,13 @@ def test_registry_robust_under_future_annotations(
     assert CORE_VOCABULARY["FutureAnnotConcrete"] is mod.FutureAnnotConcrete
 
 
-# --- ADR-0099 detail 4: AS2-shaped stubs sit on the one AS2 root -----------
+# --- ARCH-25-004 (ADR-0099): AS2-shaped stubs sit on the one AS2 root -----------
 
 
 def test_as2_shaped_vultron_stubs_are_core_objects():
     """``VultronNote`` and the ``VultronActivity`` family carry AS2 object
     fields, so they extend ``CoreObject`` — the one AS2 object root — rather
-    than the retired middle level (ADR-0099 detail 4)."""
+    than the retired middle level (ARCH-25-004, ADR-0099)."""
     for cls in (VultronNote, VultronActivity):
         assert issubclass(cls, CoreObject)
 
@@ -465,7 +465,7 @@ def test_core_object_strips_computed_field_input(isolated_core_registries):
     assert _Derived.model_validate(obj.model_dump(mode="json")) == obj
 
     # Including the camelCase spelling, which is the AS2 wire form every core
-    # class emits (ADR-0099 detail 2).
+    # class emits (ARCH-25-002, ADR-0099).
     assert (
         _Derived.model_validate(
             obj.model_dump(mode="json", by_alias=True)
@@ -566,7 +566,7 @@ def test_every_core_vocabulary_entry_spells_the_as2_envelope_in_camel_case():
     """Each ``CORE_VOCABULARY`` entry dumps the shared AS2 envelope fields in
     AS2 camelCase, not snake_case (#3578 AC-5).
 
-    Before the alias generator reached every core object (ADR-0099 detail 2),
+    Before the alias generator reached every core object (ARCH-25-002, ADR-0099),
     ten classes — ``CaseParticipant``, ``CaseActor`` and ``CaseReference``
     among them — dumped ``media_type`` / ``start_time`` / ``end_time`` /
     ``attributed_to`` verbatim.

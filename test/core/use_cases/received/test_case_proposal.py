@@ -1036,7 +1036,7 @@ class TestCaseProposalDisposition:
 class TestCoreInlineReport:
     """``_core_inline_report`` hands the parsed report down unchanged.
 
-    Under ADR-0099 detail 3 the ``as_VulnerabilityReport`` the wire parser
+    Under ARCH-25-003 (ADR-0099) the ``as_VulnerabilityReport`` the wire parser
     validated *is* the core ``VulnerabilityReport``, so there is no projection
     step and none is duck-typed (#3840).  Anything else in the slot yields
     ``None`` so ``StoreProposalReportNode`` rebuilds from the proposal dict.

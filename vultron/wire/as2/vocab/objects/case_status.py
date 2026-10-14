@@ -2,13 +2,13 @@
 """
 Wire-layer aliases for CaseStatus and ParticipantStatus.
 
-Per ADR-0099 detail 3: the core class is the canonical form.
+Per ARCH-25-003 (ADR-0099): the core class is the canonical form.
 The as_-prefixed names are retained for backward compatibility.
 
 These were the last two of the 27 paired classes, held back by #3487 because they
 "differ by field *name*" — flat ``em_state``/``rm_state`` against nested
 ``em``/``rm`` dimensions — rather than merely by spelling.  That difference had
-already dissolved before the pair was collapsed: ADR-0099 detail 5 makes a
+already dissolved before the pair was collapsed: ARCH-25-005 (ADR-0099) makes a
 dimension serialize as a bare state value, and the core fields carry the
 ``emState``/``rmState`` aliases, so both classes already emitted byte-identical
 AS2.  What remained was two projections translating between forms that had become

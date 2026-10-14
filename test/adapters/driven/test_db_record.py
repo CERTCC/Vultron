@@ -463,7 +463,7 @@ def test_object_to_record_normalizes_migrated_wire_type(
 def test_embargo_event_with_context_is_valid():
     """EmbargoEvent with context can be persisted.
 
-    After ADR-0099 detail 3, as_EmbargoEvent is an alias for the core
+    After ARCH-25-003 (ADR-0099), as_EmbargoEvent is an alias for the core
     EmbargoEvent class. EmbargoEvent.context is required (NonEmptyString).
     """
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -638,7 +638,7 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
 def test_case_carries_the_embargo_as_an_inline_object():
     """A case constructed with an inline EmbargoEvent keeps it as an object.
 
-    After ADR-0099 detail 3, as_VulnerabilityCase is an alias for the core
+    After ARCH-25-003 (ADR-0099), as_VulnerabilityCase is an alias for the core
     VulnerabilityCase; there is no to_core() projection step.  The active_embargo
     field retains whatever type was set at construction — if an EmbargoEvent
     object was provided, it stays an object.

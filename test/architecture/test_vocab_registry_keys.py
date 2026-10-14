@@ -64,7 +64,7 @@ _MIN_REGISTERED_TYPES = 50
 #: The only ``type`` values two unflagged classes may share (VM-01-008): the
 #: Vultron actor subtypes deliberately shadow their base AS2 actor classes so an
 #: inbound actor keeps its extension fields. Maps each value to the class that
-#: MUST win the key.  Under ADR-0099 detail 3 the winners are the core actor
+#: MUST win the key.  Under ARCH-25-003 (ADR-0099) the winners are the core actor
 #: classes themselves; ``as_VultronPerson`` and friends are aliases of them.
 #: A pinned exemption set (ARCH-18-005), not a ratchet: the exception is
 #: enumerated by design and has no empty end state.

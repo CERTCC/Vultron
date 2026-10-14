@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``EmbargoEvent`` — the core embargo object (ADR-0099 detail 3).
+"""``EmbargoEvent`` — the core embargo object (ARCH-25-003, ADR-0099).
 
 Covers the fail-fast field contract (``context`` and ``end_time`` required,
 no default duration — EP-04-010, #3404) and the UTC contract on its time

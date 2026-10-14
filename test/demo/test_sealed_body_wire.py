@@ -31,10 +31,11 @@ CaseActor; the CaseActor emits the Invite (ADR-0109).  Then:
 What this deliberately does not assert is the ledger entry a *receiver*
 commits for the same Invite: the received-side snapshot is still rebuilt from
 the receiver's object graph (``build_activity_payload_snapshot`` inlines the
-stub into the full stored case), which is ADR-0107 step 5 (#3742), not this
-change.  Nor the invitee's stored ``Invite.target``: the receiver's record is
-dehydrated on write and the invitee holds no case to rehydrate it from, so the
-wire body is the only faithful probe of what arrived.
+stub into the full stored case).  Recording the received body verbatim
+instead (CLP-07-011) is #3742, not this change.  Nor the invitee's stored
+``Invite.target``: the receiver's record is dehydrated on write and the
+invitee holds no case to rehydrate it from, so the wire body is the only
+faithful probe of what arrived.
 """
 
 import json

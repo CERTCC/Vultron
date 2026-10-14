@@ -59,7 +59,7 @@ class VultronActivity(CoreObject):
     target: Any | None = None
     origin: NonEmptyString | None = None
     # AS2 Activity fields no Vultron activity uses yet.  They stay declared
-    # (ADR-0099 detail 8): ``CoreObject`` forbids extras, and a stored wire
+    # (ARCH-25-008, ADR-0099): ``CoreObject`` forbids extras, and a stored wire
     # activity dumps them, even when null.
     instrument: Any | None = None
     result: Any | None = None
