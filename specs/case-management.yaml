@@ -4140,9 +4140,12 @@ groups:
     statement: >-
       The CASE_MANAGER MUST refuse every activity for a case from a sender whose
       closure that case's ledger records (its status entry with rm_state=RM.CLOSED),
-      with no ledger entry committed and nothing sent, with two exceptions. First, it
-      MUST answer that sender's `Reject(CaseLedgerEntry)` with a replay of only the
-      entries that record its own closure (CM-23-004). Second, a repeated
+      with no ledger entry committed and nothing sent except the refusal notice
+      CLP-05-001 permits, with two exceptions. First, it MUST answer that sender's
+      `Reject(CaseLedgerEntry)` with a replay of only the entries that record its own
+      closure (CM-23-004); the guard for that resync request stays the active check
+      of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`
+      standing defined below. Second, a repeated
       Leave(VulnerabilityCase) from that sender MUST be reported `SKIPPED`, with no
       ledger entry committed and nothing sent, whatever its activity id: its effect is
       already in place (ID-05-003). The `ACTIVE_PARTICIPANT` sender standing
@@ -4162,7 +4165,8 @@ groups:
       a status update from a closed sender and asserts `REFUSED` with no ledger entry
       and no outbound activity. A test drives a closed sender's
       `Reject(CaseLedgerEntry)` and asserts the replay stops at its own closure
-      entries. A test drives a second Leave with a new activity id from a closed
+      entries, and a unit test asserts the `Reject(CaseLedgerEntry)` use case does
+      not declare the `ACTIVE_PARTICIPANT` standing. A test drives a second Leave with a new activity id from a closed
       sender and asserts `SKIPPED` with no ledger entry.
     relationships:
     - rel_type: refines
@@ -4171,6 +4175,8 @@ groups:
       spec_id: HP-01-006
     - rel_type: refines
       spec_id: CM-10-004
+    - rel_type: refines
+      spec_id: SYNC-03-005
     adr:
     - ADR-0085
     - ADR-0114
