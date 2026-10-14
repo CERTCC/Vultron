@@ -63,20 +63,24 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
 2. **Compose, never chain.** Door checks, refusals and alternative branches become nodes, guards, refusal effects and selectors inside the one tree, built by its factory.
    Python control flow in a use case does not choose between trees or run one after another.
 3. **A clock-decision stage.** The received tree gains a stage between the door guards and the precondition guards.
-   The order is: intake, then door guards (post-close boundary, sender guard), then clock decisions, then precondition guards, then the guarded commit, then effects (CLP-10-010).
-   This partially supersedes ADR-0111's "nothing is committed before the guards": the CASE_MANAGER's own clock decisions are the one exception.
+   The order is: intake, then door guards (post-close boundary, addressee check, sender guard), then clock decisions, then precondition guards, then the guarded commit, then effects (CLP-10-010).
+   This partially supersedes ADR-0111 detail 1, whose four stages put no commit ahead of the guarded commit: the CASE_MANAGER's own clock decisions are the one exception.
 4. **The stage is narrow.** A clock decision runs only at the CASE_MANAGER and commits only its own entry and the change that entry records.
    It decides from the CASE_MANAGER's clock, its local policy and the case's ledger and file.
    The received activity may prompt it, but is never its evidence.
-   One with nothing to record succeeds, and one whose commit fails does not end the tree, because the guards still refuse what the unrecorded decision forbids (CLP-10-023).
-5. **A drained entry is its own delivery.** When a committed ledger entry has a buffered successor, the receiver hands the successor back to its own inbox processing, under the receiving actor, as a delivery of its own (SYNC-14-009).
-   It does not run the successor's tree inline, and it does not nest a bridge run inside a node.
+   The entry may still carry the activity's claimed `published` time as received, because that time records when the activity claims to have been sent and decides nothing.
+   One with nothing to record succeeds.
+   One whose commit the ledger refuses logs a warning and does not end the tree, because the guards still refuse what the unrecorded decision forbids (CLP-10-025).
+   An internal error still ends the tree as an internal error (ADR-0095).
+5. **A drained entry is its own delivery.** When a commit or a case seed makes a buffered ledger entry appliable, the receiver hands the entry back to its own inbox processing, under the receiving actor, as a delivery of its own (SYNC-14-009).
+   The buffer holds the entry, not the Announce that carried it, so the hand-back wraps it in an Announce attributed to the case's CASE_MANAGER.
+   It does not run the entry's tree inline, and it does not nest a bridge run inside a node.
 
 ### Consequences
 
 - Good, because every received delivery is one tree that the ordering, intake, gate and mutation ratchets can inspect whole.
 - Good, because the expiry, the late-Accept routing and the refusals become visible tree structure instead of Python branches.
-- Good, because the drain loses its actor fallback: the inbox always runs as the receiving actor.
+- Good, because the drain no longer attributes an entry to a sender it guessed (the case id when no CASE_MANAGER is found): a handed-back entry comes from the CASE_MANAGER and runs the same inbox path as any delivery.
 - Bad, because about fifteen handlers must be migrated, and the shared factory grows a stage.
 - Bad, because the hand-back needs a new driven port and an adapter for the actor's own inbox.
 - Neutral, because the gap buffer stays in memory, so a restart loses parked entries exactly as it does today.
@@ -111,6 +115,6 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
 - [ADR-0022](0022-single-bt-execution-for-received-side-case-actor-routing.md) set the one-tree contract this record extends to helpers.
 - [ADR-0111](0111-intake-is-the-first-received-side-stage.md) set the four stages; this record adds the clock-decision stage between its door guards and precondition guards.
 
-Generated spec requirements: `case-ledger-processing.yaml` CLP-10-005, CLP-10-006 and CLP-10-010 (amended), CLP-10-023; `sync-ledger-replication.yaml` SYNC-14-009.
+Generated spec requirements: `case-ledger-processing.yaml` CLP-10-005, CLP-10-006 and CLP-10-010 (amended), CLP-10-025; `sync-ledger-replication.yaml` SYNC-14-009.
 
 Source: ISSUE-4585.

@@ -48,7 +48,7 @@ code.
 
 Where: specs/case-ledger-processing.yaml (CLP-10-005, CLP-10-010)
 
-**Resolved**: 2026-10-14 — the concern was wider than the two expiry trees: about 15 received handlers chained trees through helpers. Decision: compose, never chain (ADR-0135); one tree per delivery counted through helpers; a CASE_MANAGER clock-decision stage between the door guards and the precondition guards (CLP-10-023); drained gap-buffer entries handed back to the actor's own inbox (SYNC-14-009). The issue's option 1 (a named carve-out) was rejected because it re-legalizes the Python-chosen cascade ADR-0022 rejected. Implementation tracked in #4641, #4642, #4643, #4644, #4645 under Epic #4638.
+**Resolved**: 2026-10-14 — the concern was wider than the two expiry trees: about 15 received handlers chained trees through helpers. Decision: compose, never chain (ADR-0135); one tree per delivery counted through helpers; a CASE_MANAGER clock-decision stage between the door guards and the precondition guards (CLP-10-025); drained gap-buffer entries handed back to the actor's own inbox (SYNC-14-009). The issue's option 1 (a named carve-out) was rejected because it re-legalizes the Python-chosen cascade ADR-0022 rejected. Implementation tracked in #4641, #4642, #4643, #4644, #4645 under Epic #4638.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/4636>.
 Spec: `specs/case-ledger-processing.yaml`, `specs/sync-ledger-replication.yaml`.

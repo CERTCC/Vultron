@@ -19,6 +19,7 @@ related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/case-management.yaml
   - specs/case-proposal.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/call-out-configuration.md
@@ -227,7 +228,7 @@ cascade: add the node to the tree instead.
 Two shapes look like a second tree and are not:
 
 - **A CASE_MANAGER clock decision** (an expiry) is a stage of the one tree,
-  between the door guards and the precondition guards (CLP-10-023).
+  between the door guards and the precondition guards (CLP-10-025).
 - **A drained gap-buffer entry** is another delivery: hand it back to the
   receiving actor's inbox, never run its tree inline or from a node — a bridge
   run nested in a node hides the inner tree's internal error (SYNC-14-009).
@@ -236,8 +237,8 @@ Two shapes look like a second tree and are not:
 
 A received-side tree composed via `create_receive_activity_tree`
 (`vultron/core/behaviors/case/receive_activity_tree.py`) runs its stages in a
-fixed order (CLP-10-006, CLP-10-010): intake and the door guards, clock
-decisions, guards, commit, effects.
+fixed order (CLP-10-006, CLP-10-010): intake, door guards, clock decisions,
+guards, commit, effects.
 
 1. **Intake** — `IntakeReceivedActivityNode` (`case/nodes/intake.py`) archives
    the received activity exactly as received, idempotently, as a
@@ -251,6 +252,8 @@ decisions, guards, commit, effects.
    is a message shaped like that object; the record core keeps is written by an
    effect node after the guards, because a stored case row *is* the replica
    (PCR-03-004, CBT-01-005).
+2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
+   addressee check (HP-01-005) and the sender guard (HP-01-006).
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
    (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
@@ -259,24 +262,27 @@ decisions, guards, commit, effects.
    keep applying the closure fan-out. The handler verdict comes from
    `post_close_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. The one-node
-   pre-tree runs in `_sender_preflight.py` (`post_close_refusal_before_tree`,
-   `sender_refusal`, `repeat_answer_skip`) are the chained shape CLP-10-005
+   pre-tree runs in `_sender_preflight.py` (`door_refusal`, which runs
+   `post_close_refusal_before_tree`, `unaddressed_copy_refusal` and
+   `sender_refusal` in that order, and `repeat_answer_skip`) are the chained
+   shape CLP-10-005
    forbids; compose their guard into the tree, never add a caller. A tree
    opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
    nodes that answer the refusal; only the close-case tree passes one
    (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other
-   late activity is dropped with no reply (ADR-0131, CM-23-017). The sender
-   guard follows; these two are the door guards.
-2. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock
-   or policy before judging the activity, today an expiry (CLP-10-023). It runs
+   late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
+   check and the sender guard follow.
+3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock
+   or policy before judging the activity, today an expiry (CLP-10-025). It runs
    after the door guards, so an unentitled sender never makes it write, and
    before the guards, because it is ledgered even when the activity is then
    admitted (a new ownership Offer after the open one expired, CM-21-014). It
    runs only at the CASE_MANAGER, commits only its own entry, reads only the
-   clock, policy and the case's ledger and file, and never ends the tree. The
+   clock, policy and the case's ledger and file. A commit the ledger refuses
+   logs a warning and does not end the tree; an internal error does. The
    two expiry trees run from helpers (`_expire_overdue_offer`,
    `_run_expiry_tree`) are the sites it replaces.
-3. **Guards** — read-only precondition checks that return FAILURE to refuse and
+4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).
    A tree that owes that answer passes it as `refusal_effects` (CLP-10-022): the
@@ -288,11 +294,11 @@ decisions, guards, commit, effects.
    effect must be `EmitCapable` and hold no `StateWriteCapable` node. Do not
    hand-build a `Selector[guard, emit]`: the emit would run ahead of the commit
    on an accepted delivery.
-4. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
+5. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
    postmark on the envelope (ADR-0107, CLP-07-011); it never rebuilds the
    assertion from processed state. Every commit goes through
    `CommitCaseLedgerEntryNode`; a received `execute()` never commits (BT-06-006).
-5. **Effects** — apply the accepted assertion to the local replica and enqueue
+6. **Effects** — apply the accepted assertion to the local replica and enqueue
    cascades. `replica_effects` run on every replica; `manager_effects` run only
    at the CASE_MANAGER, inside the gate the factory adds (BT-17-008; see
    `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From

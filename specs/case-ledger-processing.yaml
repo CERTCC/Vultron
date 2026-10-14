@@ -1032,22 +1032,23 @@ groups:
   - id: CLP-10-005
     priority: MUST
     kind: project
-    statement: 'A received-side use case MUST run exactly one BT per inbox delivery.
-      Its `execute()` method MUST do exactly three things: build one BT via a tree-factory
-      function in `vultron/core/behaviors/`, call `BTBridge.execute_with_setup()` exactly
-      once with `actor_id=resolve_receiving_actor_id(self._dl, request.receiving_actor_id)`
-      to run it, and handle the result (log/extract output per the existing Procedural
-      Glue Exception). A call that `execute()` reaches through any function or method
-      defined under `vultron/core/use_cases/`, resolved transitively, counts as a call
-      by `execute()`. Work that needs more than one tree, including a door check, a
-      clock decision (CLP-10-023), a refusal, or an alternative branch, MUST be composed
-      into the one tree by its factory; Python control flow in the use case MUST NOT
-      choose between trees or run one after another. `execute()` MUST NOT perform any
-      other domain-significant work — no direct DataLayer mutation, no second `execute_with_setup()`
-      call, and no direct import or call of `create_guarded_commit_case_ledger_entry_tree`
-      (or any other guarded-commit factory). A buffered ledger entry drained after
-      its predecessor commits is its own delivery (SYNC-14-009), never a second run
-      in this one.'
+    statement: 'A received-side use case MUST run exactly one BT per inbox delivery. Its
+      `execute()` method MUST do exactly three things: build one BT via a tree-factory
+      function in `vultron/core/behaviors/`, call `BTBridge.execute_with_setup()`
+      exactly once with `actor_id=resolve_receiving_actor_id(self._dl,
+      request.receiving_actor_id)` to run it, and handle the result (log/extract output
+      per the existing Procedural Glue Exception). A call that `execute()` reaches
+      through any function or method defined under `vultron/core/use_cases/`, resolved
+      transitively, counts as a call by `execute()`. Work that needs more than one tree,
+      including a door check, a clock decision (CLP-10-025), a refusal, or an
+      alternative branch, MUST be composed into the one tree by its factory; Python
+      control flow in the use case MUST NOT choose between trees or run one after
+      another. `execute()` MUST NOT perform any other domain-significant work — no
+      direct DataLayer mutation, no second `execute_with_setup()` call, and no direct
+      import or call of `create_guarded_commit_case_ledger_entry_tree` (or any other
+      guarded-commit factory). A buffered ledger entry that a commit or a case seed
+      makes appliable is its own delivery (SYNC-14-009), never a second run in this
+      one.'
     rationale: 'CLP-10-002/CLP-10-003 (ADR-0021) correctly require a pre-flight guard
       before committing, and correctly require the guard to compare against `receiving_actor_id`.
       An audit (issue #1036, broadened to also resolve issue #1047) found three distinct
@@ -1119,14 +1120,14 @@ groups:
     statement: In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree (composed via `create_guarded_commit_case_ledger_entry_tree`), the commit
       subtree MUST appear after the intake node, after the clock-decision stage
-      (CLP-10-023), and after all pure precondition-guard nodes, and before any
+      (CLP-10-025), and after all pure precondition-guard nodes, and before any
       protocol-effect nodes. The intake node is the single shared
       node that archives the received activity as received (CLP-10-017). A
       precondition-guard node is one that only reads state and returns
       FAILURE on mismatch, making no writes. A protocol-effect node is any other node
       that writes to the DataLayer, mutates actor or participant state, or enqueues an
       outbox item; the intake node is not a protocol-effect node, and neither is a
-      clock decision (CLP-10-023), which commits its own entry. A refusal effect
+      clock decision (CLP-10-025), which commits its own entry. A refusal effect
       (CLP-10-022) is a protocol-effect node that runs only when a precondition
       guard has refused, so the tree fails before the commit; it never runs on a
       delivery the guards accept, and so never precedes a commit.
@@ -1153,9 +1154,10 @@ groups:
     priority: MUST
     kind: project
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
-      subtree, the ordering MUST be: (1) intake, (2) door guards: the post-close
-      write boundary (CM-23-013) and the sender guard (HP-01-006), (3) clock decisions
-      (CLP-10-023), (4) precondition guards, (5) commit, (6) all protocol effects.
+      subtree, the ordering MUST be: (1) intake, (2) door guards, in order: the
+      post-close write boundary (CM-23-013), the addressee check (HP-01-005) and
+      the sender guard (HP-01-006), (3) clock decisions
+      (CLP-10-025), (4) precondition guards, (5) commit, (6) all protocol effects.
       Clock decisions are the only commits before stage (5). Refusal effects
       (CLP-10-022) belong to stage (4): they run only after a precondition guard
       refuses, and the tree then ends without reaching (5) or (6).'
@@ -1595,7 +1597,7 @@ groups:
       spec_id: CLP-10-010
     adr:
     - ADR-0111
-  - id: CLP-10-023
+  - id: CLP-10-025
     priority: MUST
     kind: project
     statement: >-
@@ -1609,10 +1611,15 @@ groups:
       entry and the case-file change that entry records. It MUST decide from the
       CASE_MANAGER's clock, its local policy and the case's ledger and file; the
       received activity MAY prompt the decision and name what it concerns, but
-      MUST NOT be its evidence. A clock decision with nothing to record (no
-      deadline has passed) MUST succeed so the tree continues. A clock decision
-      whose commit fails MUST NOT end the tree: the precondition guards still
-      refuse what the unrecorded decision forbids (CM-21-016, CM-21-014).
+      MUST NOT be its evidence; the entry MAY carry the activity's claimed
+      `published` time as received (CLP-15-003), which records when the
+      activity claims to have been sent and decides nothing. A clock decision
+      with nothing to record (no deadline has passed) MUST succeed so the tree
+      continues. A clock decision whose commit the ledger refuses MUST log the
+      refusal at WARNING and MUST NOT end the tree: the precondition guards
+      still refuse what the unrecorded decision forbids (CM-21-016, CM-21-014).
+      An internal error in a clock decision MUST end the tree as an internal
+      error (ADR-0095), never be absorbed as a refusal.
     rationale: >-
       An expiry must be ledgered even when the activity that revealed it is then
       admitted, so it cannot be a refusal effect, and it must not wait for the
@@ -1623,10 +1630,15 @@ groups:
     verification: >-
       `test/core/behaviors/case/test_receive_activity_tree.py` asserts the
       factory places the clock decisions after the sender guard and before the
-      precondition guards, gates them on the CASE_MANAGER, and continues the
-      tree when a decision records nothing or its commit fails;
-      `test_receive_side_bt_commit_ordering.py` accepts a commit ahead of the
-      guards only inside the clock-decision stage.
+      precondition guards, gates them on the CASE_MANAGER, continues the tree
+      when a decision records nothing or its commit is refused, and ends it on
+      an internal error; `test_receive_side_bt_commit_ordering.py` accepts a
+      commit ahead of the guards only inside the clock-decision stage, and
+      there only from the stage's own commit node, so a stage that committed
+      the activity's own effects fails it;
+      `test/core/use_cases/received/actor/test_ownership_deadline.py` asserts
+      that an expiry verdict does not change when only the received activity's
+      claimed `published` time changes.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-010
