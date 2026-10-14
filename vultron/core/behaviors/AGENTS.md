@@ -191,19 +191,6 @@ MUST discover its roster reflectively via `test/core/behaviors/port_contract.py`
 
 ---
 
-## `setup_ports()` Takes the Port-Wiring Logger
-
-Every `setup_ports(...)` call passes `logger=port_wiring_logger()` (from
-`node_logger.py`). Without it, py_trees writes one DEBUG line per port to the
-node's own logger on every tree build. Those lines restate the node's declared
-ports, and they were over half of each container's DEBUG output in the CI
-demos. `test/architecture/test_setup_ports_use_port_wiring_logger.py` fails a
-call that omits the logger. See `notes/structured-logging.md` § "Static wiring
-stays out of DEBUG too".
-*Source: ISSUE-4600*
-
----
-
 ## See Also
 
 - `notes/bt-integration.md` — architecture decisions, actor isolation,

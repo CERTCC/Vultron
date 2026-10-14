@@ -17,6 +17,7 @@ related_notes:
   - notes/lint-tooling.md
   - notes/devcontainer-tooling.md
   - notes/demo-ci-diagnostics.md
+  - notes/bt-pitfalls.md
 ---
 
 # Structured Logging — Narrative Standard and Infrastructure Demotion Guide
