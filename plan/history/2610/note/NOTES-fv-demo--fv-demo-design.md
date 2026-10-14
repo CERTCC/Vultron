@@ -1,37 +1,25 @@
 ---
-title: FV Demo Design
-status: active
-kind: guidance
-description: >
-  Authoritative design note for the FV (Finder + Vendor) CVD demo.
-  Covers the complete workflow from report submission through case closure,
-  the Case Actor handoff mechanism, the CASE_MANAGER role, milestone
-  verifications, and the puppeteering-only trigger constraint.
-related_specs:
-  - specs/multi-actor-demo.yaml
-  - specs/case-bootstrap-trust.yaml
-  - specs/participant-case-replica.yaml
-  - specs/participant-role-management.yaml
-  - specs/sync-ledger-replication.yaml
-  - specs/event-driven-control-flow.yaml
-  - specs/embargo-default-semantics.yaml
-  - specs/case-management.yaml
-related_notes:
-  - notes/demo-interactive-ui.md
-  - notes/case-bootstrap-trust.md
-  - notes/case-proposal.md
-  - notes/participant-case-replica.md
-  - notes/participant-role-management.md
-  - notes/event-driven-control-flow.md
-  - notes/embargo-default-semantics.md
-  - notes/sync-ledger-replication.md
-  - notes/participant-embargo-consent.md
-  - notes/demo-scenario-authoring.md
-relevant_packages:
-  - vultron/demo/scenario
-  - vultron/adapters/driving/fastapi/routers
-  - vultron/core/use_cases/triggers
-  - vultron/core/behaviors/case
+source: NOTES-fv-demo--fv-demo-design
+timestamp: '2026-10-12T23:54:38.429260+00:00'
+title: FV demo design note (reference moved to docs; file deleted)
+type: note
+---
+
+Archived from `notes/fv-demo.md` by #4497 (notes sweep); the file is deleted. It was
+reference material, not guidance, and it had drifted from the code: it placed the
+Case Actor in the vendor container, and named a `demo_triggers.py` module and a
+"new" `SvcAddParticipantStatusUseCase` that do not exist. Superseding pointers:
+
+- Message-level trace, actors and topology: `docs/reference/fv-demo-protocol.md`.
+- Scenario narrative: `docs/topics/scenarios/fv.md`; run steps:
+  `docs/tutorials/fv-demo.md`.
+- Workflow and checkpoints (both DataLayers checked): `specs/multi-actor-demo.yaml`
+  (DEMOMA-05, DEMOMA-06, DEMOMA-08 and the FV scenario group); code:
+  `vultron/demo/scenario/fv_demo.py`.
+- Puppeteering constraint: `notes/demo-scenario-authoring.md` and
+  `vultron/demo/AGENTS.md`.
+- CASE_MANAGER role delegation: ADR-0039, `OFFER_CASE_PARTICIPANT_ROLE`.
+
 ---
 
 # FV Demo Design

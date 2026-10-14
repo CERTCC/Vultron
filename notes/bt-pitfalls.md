@@ -139,6 +139,16 @@ first mutation (BT-19-001). Worked example: `vultron/core/behaviors/note/AGENTS.
 
 ---
 
+## An Idempotency `Selector(…, Success)` Masks a Real Downstream FAILURE
+
+The skip-if-done idiom `Selector(Sequence(guard, work), Success)` returns SUCCESS
+whatever `work` does. Where `work` can genuinely fail (case creation, a commit)
+and that FAILURE must reach the caller, put the gate in front instead:
+`Sequence(gate, existing_selector)`. The gate still short-circuits, and a real
+failure is no longer swallowed.
+
+---
+
 ## No-Op Path Must Clear Output Blackboard Keys
 
 `Blackboard.storage` is process-global, and the bridge restores only the keys in

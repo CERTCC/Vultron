@@ -29,6 +29,7 @@ related_notes:
   - notes/bt-pitfalls.md
   - notes/case-communication-model.md
   - notes/participant-case-replica.md
+  - notes/demo-ci-diagnostics.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2

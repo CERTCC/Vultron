@@ -20,6 +20,7 @@ related_notes:
   - notes/core-wire-rendering-port.md
   - notes/documentation-strategy.md
   - notes/datalayer-design.md
+  - notes/demo-scenario-registry.md
 relevant_packages:
   - vultron/wire/as2/vocab
   - vultron/adapters/driven/wire_render
