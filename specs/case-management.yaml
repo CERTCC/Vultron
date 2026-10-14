@@ -1926,9 +1926,9 @@ groups:
     kind: project
     statement: 'ActorConfig MUST expose an `auto_create_case` boolean field with a default value of `True`.'
     rationale: Receivers that acknowledge a report (send Read(Offer(Report)), VAM-02-003) before deciding to accept or reject
-      it require the ability to delay case creation. The default (True) keeps a case started at every `Offer(Report)` receipt,
-      at RM.RECEIVED (CM-22-001; CM-12-001 where the receiver is the CASE_MANAGER), for all existing actors and
-      demos.
+      it require the ability to delay case creation. The default (True) starts a case at every `Offer(Report)` receipt
+      (RM.RECEIVED) for all existing actors and demos; the receiver proposes it and the CASE_MANAGER creates it
+      (CM-22-001), or the receiver creates it itself when it is the CASE_MANAGER (CM-12-001).
     verification: Inspection of `vultron/core/` confirms that `ActorConfig` declares an
       `auto_create_case` boolean field defaulting to `True`.
     relationships:
