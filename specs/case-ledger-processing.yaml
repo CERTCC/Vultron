@@ -382,11 +382,14 @@ groups:
   - id: CLP-05-003
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
-    statement: Implementations MUST NOT write local-only tracking markers or
-      duplicate-detection markers as `CaseLedgerEntry` objects of any kind; such
-      markers belong in ephemeral per-actor stores (e.g., `PendingAssertionStore`),
-      not in the canonical ledger.
+    verification: >-
+      Inspection confirms local tracking and duplicate-detection markers are held in
+      per-actor stores such as `PendingAssertionStore` and that no code path constructs
+      a `CaseLedgerEntry` for one.
+    statement: >-
+      Implementations MUST NOT record local-only tracking markers or duplicate-detection
+      markers as `CaseLedgerEntry` objects of any kind; such markers belong in ephemeral
+      per-actor state, not in the canonical ledger.
 - id: CLP-06
   title: Pending Assertion Suppression
   specs:
@@ -400,8 +403,10 @@ groups:
     - ADR-0018
   - id: CLP-06-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms no participant-membership or case-state reconstruction path
+      reads the pending-assertion store; reconstruction reads the canonical ledger only.
     statement: Pending assertion state MUST NOT be treated as canonical case history
       and MUST NOT be used as the authoritative source for participant membership
       or case state reconstruction
@@ -409,47 +414,43 @@ groups:
     - ADR-0018
   - id: CLP-06-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Implementations that provide pending assertion suppression MUST support
       a configurable timeout; the default timeout SHOULD be 180 seconds
     verification: A unit test confirms that the pending assertion suppression store's
       timeout defaults to 180 seconds and that a constructor argument overrides the
       default to any positive value.
-    lint_suppress:
-    - missing_story_reference
     adr:
     - ADR-0018
   - id: CLP-06-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: When a pending assertion reaches timeout without matching canonical
       confirmation, it MUST transition to a timed-out state and the system MUST emit
       an error log
     verification: A unit test confirms that when a pending assertion's suppression
       window elapses without a matching canonical confirmation, the entry transitions
       to a timed-out state and the system emits an error-level log message.
-    lint_suppress:
-    - missing_story_reference
     adr:
     - ADR-0018
   - id: CLP-06-005
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms the pending-assertion timeout path only marks the entry timed
+      out and logs, and never queues a fresh assertion emission.
     statement: Pending assertion timeout handling MUST NOT automatically retry assertion
       emission; follow-up emission decisions MUST be made by subsequent behavior evaluation
     adr:
     - ADR-0018
   - id: CLP-06-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A pending assertion entry MUST be cleared when a matching canonical
       `CaseLedgerEntry(recorded|rejected)` is observed
     verification: A unit test confirms that when a `CaseLedgerEntry` with either `disposition="recorded"`
       or `disposition="rejected"` arrives matching a pending assertion, that assertion
       entry is immediately removed from the pending store.
-    lint_suppress:
-    - missing_story_reference
     adr:
     - ADR-0018
 - id: CLP-07
@@ -603,11 +604,14 @@ groups:
   - id: CLP-07-004
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
-    statement: The canonical case ledger MUST NOT contain runtime diagnostics, demo
-      checkpoints, synthetic verification markers, troubleshooting events, or any
-      per-actor observability content; such content belongs in the per-actor process
-      log governed by `specs/structured-logging.yaml`
+    verification: >-
+      Inspection confirms no code path commits a `CaseLedgerEntry` for a diagnostic,
+      demo checkpoint, verification marker or other per-actor observability event; such
+      events go to the process log.
+    statement: >-
+      The canonical case ledger MUST NOT contain runtime diagnostics, demo checkpoints,
+      synthetic verification markers, troubleshooting events, or any per-actor observability
+      content; such content belongs in each actor's own logs.
   - id: CLP-07-005
     priority: SHOULD
     kind: protocol
@@ -847,7 +851,7 @@ groups:
     - story_2022_046
   - id: CLP-09-002
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: The canonical commit operation MUST NOT be invoked directly (bare,
       unguarded) from any production call site outside the guarded-commit composition
       itself.
@@ -992,10 +996,10 @@ groups:
   - id: CLP-10-004
     priority: MUST_NOT
     kind: protocol
-    statement: The `announce_case_ledger_entry` event type MUST NOT appear in `EXPECTED_EVENT_TYPES`
-      for the case-actor canonical log; `Announce(CaseLedgerEntry)` is the replication
-      envelope that carries canonical entries to participants and cannot itself be
-      a `payloadSnapshot` inside a canonical entry
+    statement: >-
+      An `Announce(CaseLedgerEntry)` replication envelope MUST NOT itself be recorded as the
+      `payloadSnapshot` of a canonical ledger entry; it is the envelope that carries
+      canonical entries to participants, not a ledger event.
     rationale: 'Including `announce_case_ledger_entry` in `EXPECTED_EVENT_TYPES` creates
       a circular requirement: the CASE_MANAGER would need to commit a ledger entry whose
       payload is the `Announce` activity used to broadcast ledger entries, which is
@@ -1003,9 +1007,28 @@ groups:
       wire envelope is a transport artifact, not a protocol-significant domain event;
       it belongs to the SYNC replication layer (SYNC-02-002), not the canonical ledger
       content layer.'
-    verification: '`test_invariant_5_expected_event_types_present` (after parameterization)
-      does not include `announce_case_ledger_entry` as a required event type for the
-      case-actor replica.'
+    verification: >-
+      `test_exemptions_name_routed_use_cases_that_do_not_commit` in
+      `test/architecture/test_ledger_commit_coverage.py` confirms that the received use
+      case for `announce_case_ledger_entry` is exempt as a replica applying an entry and
+      reaches no ledger commit, so an `Announce(CaseLedgerEntry)` is never committed as a
+      canonical entry's `payloadSnapshot`.
+  - id: CLP-10-023
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The `announce_case_ledger_entry` event type MUST NOT appear in `EXPECTED_EVENT_TYPES`
+      for the case-actor canonical log.
+    rationale: >-
+      How this codebase meets CLP-10-004; split from it so CLP-10-004 states only what other
+      participants observe (MS-12-010).
+    verification: >-
+      `test_invariant_5_expected_event_types_present` (after parameterization) does not
+      include `announce_case_ledger_entry` as a required event type for the case-actor
+      replica.
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-10-004
   - id: CLP-10-005
     priority: MUST
     kind: project
@@ -1279,16 +1302,14 @@ groups:
     - ADR-0109
   - id: CLP-10-015
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
-      When a received-side use case must identify a *subject* that the incoming
-      message names — the invitee of an embargo invitation, the actor whose
-      consent an accept/reject records, or the target of any participant-scoped
-      action — it MUST read that identity from the received activity, not from
-      `resolve_receiving_actor_id()`. `resolve_receiving_actor_id()` is
-      legitimate only as the `actor_id` passed to `execute_with_setup()`
-      (CLP-10-005) — i.e. *whose store is running the tree* — never as a stand-in
-      for *whom the message is about*.
+      When a receiver must identify a *subject* that an incoming message names (the invitee
+      of an embargo invitation, the actor whose consent an accept or reject records, or the
+      target of any participant-scoped action), it MUST take that identity from the received
+      activity, never from its own identity as the receiving actor. The two coincide in the
+      ordinary single-recipient case and diverge whenever a message is relayed on a
+      participant's behalf.
     rationale: >-
       The receiving actor and the message subject coincide in the ordinary
       single-recipient case, which is why substituting one for the other went
@@ -1309,6 +1330,29 @@ groups:
       spec_id: CLP-10-005
     tags:
     - protocol
+    adr:
+    - ADR-0022
+    stories:
+    - story_2022_088
+  - id: CLP-10-024
+    priority: MUST
+    kind: project
+    statement: >-
+      A received-side use case MUST NOT use `resolve_receiving_actor_id()` as the subject a
+      received message names. `resolve_receiving_actor_id()` is legitimate only as the
+      `actor_id` passed to `execute_with_setup()` (CLP-10-005), that is, whose store runs
+      the tree.
+    rationale: >-
+      How this codebase meets CLP-10-015; split from it so CLP-10-015 states only what other
+      participants observe (MS-12-010).
+    verification: >-
+      `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm that the resolved
+      invitee is taken from the activity's addressees and not from the receiving actor when
+      the two differ.
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-10-015
     adr:
     - ADR-0022
   - id: CLP-10-016
@@ -1562,8 +1606,10 @@ groups:
     - story_2022_088
   - id: CLP-11-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms `find_protocol_pair()` and `PendingAssertionStore` remain
+      separate, with neither delegating to nor wrapping the other.
     statement: '`find_protocol_pair()` (durable, DataLayer-backed) and `PendingAssertionStore`
       (ephemeral, in-memory suppression) MUST NOT be unified. They serve distinct
       purposes: `find_protocol_pair` determines canonical open/closed state from the
@@ -1580,7 +1626,7 @@ groups:
     - ADR-0080
   - id: CLP-11-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`ProtocolPair` MUST be the shared value type for both `find_protocol_pair()`
       and `PendingAssertionStore`. Named reply-type constants (`OFFER_CASE_PARTICIPANT_REPLY_TYPES`,
       `INVITE_ACTOR_TO_CASE_REPLY_TYPES`) MUST be used when constructing or querying
@@ -1588,8 +1634,6 @@ groups:
     verification: Static analysis (grep) confirms that all call sites constructing
       or querying a `ProtocolPair` use the named constants `OFFER_CASE_PARTICIPANT_REPLY_TYPES`
       or `INVITE_ACTOR_TO_CASE_REPLY_TYPES` rather than inline event-type strings.
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-11-004
     priority: SHOULD
     kind: protocol

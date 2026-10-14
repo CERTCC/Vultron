@@ -530,7 +530,7 @@ groups:
       spec_id: VAM-04-003
   - id: MSM-04-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthands `GK` (General Acknowledgement) and `GE` (General Error) MUST NOT be assigned dedicated
       `MessageSemantics` dispatch values; the purposes they name are served by the mechanisms specified in MSM-05.
     rationale: Recording these as plain absences invites the reading that the behaviour is unimplemented. It is implemented,
@@ -543,8 +543,6 @@ groups:
       spec_id: MSM-05-001
     - rel_type: refines
       spec_id: MSM-05-002
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-05
   title: Fault and Acknowledgement Mechanism Evolution
   description: 'Normative record of how the formal protocol''s per-model error and acknowledgement shorthands (RE, EE, CE, GE
@@ -625,9 +623,11 @@ groups:
   - id: MSM-05-003
     priority: MUST_NOT
     kind: protocol
-    statement: Implementations MUST NOT infer error semantics from the `as:Reject` verb alone, because `as:Reject` also
-      carries legitimate protocol rejections including `close_report`, `reject_invite_to_embargo_on_case`,
-      `reject_invite_actor_to_case`, `reject_case_proposal`, and `reject_case_ownership_transfer`.
+    statement: >-
+      Implementations MUST NOT infer error semantics from the `as:Reject` verb alone,
+      because `as:Reject` also carries legitimate protocol rejections, including closing a
+      report and declining an embargo invitation, a case invitation, a case proposal or a
+      case-ownership transfer.
     rationale: '`as:Reject` is overloaded across error reporting and ordinary protocol refusal. A receiver that treats every
       `as:Reject` as a fault will misclassify routine protocol traffic as errors.'
     verification: >-

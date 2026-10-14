@@ -15,13 +15,11 @@ groups:
   specs:
   - id: VAM-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Every `MessageSemantics` enum value except the `UNKNOWN` and `UNKNOWN_UNRESOLVABLE_OBJECT` sentinels MUST have
       exactly one entry in `SEMANTIC_REGISTRY` carrying a non-`None` `pattern` that defines its AS2 wire representation
     verification: A unit test confirms that every `MessageSemantics` value except `UNKNOWN` and
       `UNKNOWN_UNRESOLVABLE_OBJECT` has a non-None `pattern` in `SEMANTIC_REGISTRY`.
-    lint_suppress:
-    - missing_story_reference
   - id: VAM-01-002
     priority: MUST
     kind: project
@@ -49,23 +47,23 @@ groups:
       more-specific one in the same activity-type group.
   - id: VAM-01-004
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms semantic extraction rehydrates an activity before pattern
+      matching and that no pattern discriminates on an unhydrated string field.
     statement: An AS2 activity MUST be rehydrated (URI string references expanded to full objects via the DataLayer) before
       pattern matching; pattern matching MUST NOT rely on unhydrated string fields for type discrimination
   - id: VAM-01-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: When a pattern specifies a nested activity as the `object` field, the outer activity's `object` MUST be a fully
       rehydrated AS2 activity object matching the inner `ActivityPattern`
     verification: A unit test confirms that `ActivityPattern.match()` recurses into a nested `ActivityPattern`
       for the `object_` field, requiring the outer activity's rehydrated `object_` to satisfy the inner
       pattern's type and field constraints.
-    lint_suppress:
-    - missing_story_reference
   - id: VAM-01-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Pattern matching MUST be conservative when a non-`object_` field is a non-rehydratable URI string: such a
       field MUST be treated as matching any expected type rather than failing the match'
     rationale: Peripheral reference fields (`actor`, `target`, `context`, etc.) do not drive semantic dispatch; conservatively
@@ -73,11 +71,9 @@ groups:
     verification: A unit test confirms that a URI string in a non-`object_` field (e.g., `actor`) does not cause
       `ActivityPattern.match()` to return `False`, preserving pattern matches when peripheral references are
       not rehydratable.
-    lint_suppress:
-    - missing_story_reference
   - id: VAM-01-009
     priority: MUST
-    kind: protocol
+    kind: project
     statement: If the `object_` field of an activity remains a bare string URI after rehydration (i.e., the DataLayer does
       not have a record for that URI), `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN`
     rationale: Semantic dispatch depends on the object type. A bare string in `object_` makes the object type unknowable;
@@ -85,8 +81,6 @@ groups:
     verification: A unit test confirms that `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` when
       the activity's `object_` remains a bare string URI after rehydration because the DataLayer has no record
       for that URI.
-    lint_suppress:
-    - missing_story_reference
   - id: VAM-01-007
     priority: MUST
     kind: project
@@ -800,15 +794,13 @@ groups:
   specs:
   - id: VAM-09-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: An inbound AS2 activity that does not match any registered pattern MUST be assigned `MessageSemantics.UNKNOWN`
     verification: A unit test confirms that when the `SEMANTIC_REGISTRY` loop exhausts all entries without a
       match, `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` as the fallback value.
-    lint_suppress:
-    - missing_story_reference
   - id: VAM-09-002
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: '`MessageSemantics.UNKNOWN` MUST NOT have a matchable pattern: its `SEMANTIC_REGISTRY` entry MUST carry
       `pattern=None`, and the fallback is implemented by `find_matching_semantics()` returning `UNKNOWN` when the pattern
       loop exhausts all entries without a match'

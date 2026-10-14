@@ -192,6 +192,8 @@ _GENERIC_TRANSITIVE_CLASSES = (
 
 
 @pytest.mark.spec("MV-09-001")
+@pytest.mark.spec("RF-02-004")
+@pytest.mark.spec("RF-02-005")
 class TestBareStringObjectRejected(unittest.TestCase):
     """Bare string IDs must be rejected at construction time (INLINE-OBJ-B)."""
 
@@ -605,3 +607,23 @@ class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@pytest.mark.spec("RF-02-004")
+@pytest.mark.spec("RF-02-005")
+@pytest.mark.parametrize(
+    ("accept_cls", "offered_object"),
+    [
+        (_AcceptActorRecommendationActivity, _ACTOR),
+        (_AcceptCaseOwnershipTransferActivity, _CASE),
+        (_RmAcceptInviteToCaseActivity, _CASE),
+        (_EmAcceptEmbargoActivity, _EMBARGO),
+        (_RmValidateReportActivity, _REPORT),
+    ],
+)
+def test_accept_refuses_the_offered_object_in_place_of_the_offer(
+    accept_cls, offered_object
+):
+    """An Accept carries the Offer or Invite itself, not what it offered."""
+    with pytest.raises(ValidationError):
+        accept_cls(actor=_ACTOR.id_, object_=offered_object)

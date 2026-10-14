@@ -19,19 +19,25 @@ groups:
   specs:
   - id: AKM-01-001
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms each actor's DataLayer is constructed per actor and that no
+      code path hands one actor's DataLayer instance to another actor's use cases or
+      behavior trees.
     statement: >-
       Each Actor's DataLayer is private to that Actor and MUST NOT be accessible to any other
       Actor.
   - id: AKM-01-002
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      Inspection confirms co-located actors exchange case traffic only through inbox
+      POSTs and outbox delivery, with no direct read or write of a peer actor's
+      DataLayer and no in-process call into a peer's use cases.
     statement: >-
       Actors that are co-located on the same server or within the same process MUST still
-      interact via the wire protocol and MUST NOT communicate via direct DataLayer access
-      or in-process calls bypassing the inbox/outbox API.
+      exchange protocol messages through each other's inboxes, and MUST NOT communicate by
+      reading or writing each other's local state or by calling into each other directly.
 - id: AKM-02
   title: Knowledge Boundaries
   specs:
@@ -47,10 +53,13 @@ groups:
   - id: AKM-02-002
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      Inspection of the outbound activity factories confirms each embeds inline the
+      objects a recipient cannot be expected to hold already, and uses a bare reference
+      only for an object the recipient already has, such as the case it participates in.
     statement: >-
-      Actors MUST NOT use object references in place of full inline objects when the recipient
-      cannot be expected to have the referenced object in its own DataLayer.
+      Actors MUST NOT use an object reference in place of the full inline object when the
+      recipient cannot be expected to hold the referenced object already.
   - id: AKM-02-003
     priority: MUST
     kind: protocol
@@ -88,14 +97,12 @@ groups:
     - story_2022_053
   - id: AKM-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The outbox handler MUST enforce object integrity at delivery time as a last-resort runtime
       guard.
     verification: A unit test confirms that the outbox handler rejects an activity whose `object` field is a bare URI
       reference rather than a fully inline typed domain object.
-    lint_suppress:
-    - missing_story_reference
 - id: AKM-04
   title: 'Future: Known-Object Tracking'
   specs:
@@ -112,13 +119,17 @@ groups:
   specs:
   - id: AKM-05-001
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: foundation
+    verification: >-
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase::test_invite_proceeds_when_invitee_not_in_dl`
+      confirms an invite is addressed to a peer with no local `CoreActor` record.
     statement: >-
-      The absence of a local `CoreActor` record for a peer MUST NOT prevent an actor from
-      addressing an outbound activity to that peer. A deliverable http(s) URI is sufficient
-      for addressing; having a fully resolved actor record is an enrichment concern (directory
+      The absence of a local record of a peer actor MUST NOT prevent an actor from
+      addressing an outbound activity to that peer. The peer's deliverable http(s) URI is
+      sufficient for addressing; a fully resolved actor record is an enrichment (directory
       service), not a precondition for protocol participation.
+    tags:
+    - activitypub
   - id: AKM-05-002
     priority: SHOULD
     kind: architecture
