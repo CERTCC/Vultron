@@ -72,6 +72,8 @@ Four more acronyms occur across the entries below:
 
 {% include-markdown "../../reference/vultron-spec/_oq-negative-ack.md" %}
 
+{% include-markdown "../../reference/vultron-spec/_oq-transport-status-codes.md" %}
+
 ---
 
 ## Security
