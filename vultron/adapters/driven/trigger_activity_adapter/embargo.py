@@ -19,7 +19,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
+from vultron.adapters.outbox_sealed_body import is_sealed
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -260,8 +261,8 @@ class _EmbargoMixin:
         reject_id = _reject_id(actor, proposal_id)
         if not is_sealed(self._dl, reject_id):
             return False
-        if reject_id not in self._dl.outbox_list():
-            self._dl.outbox_append(reject_id)
+        # One still pending is left alone by the outbox (OX-06-002).
+        self._dl.outbox_append(reject_id)
         return True
 
     def announce_embargo(

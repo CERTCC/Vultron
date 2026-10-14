@@ -366,8 +366,10 @@ def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
 
 def add_activity_to_outbox(
     actor_id: str, activity_id: str, dl: CaseOutboxPersistence
-) -> None:
+) -> bool:
     """Append an activity ID to an actor's outbox and queue it for delivery.
+
+    An id already pending is not queued again (OX-06-002, ADR-0119).
 
     Appends to *dl*'s own outbox.  This previously used
     ``record_outbox_item(actor_id, …)`` to enqueue against *actor_id*
@@ -379,10 +381,16 @@ def add_activity_to_outbox(
             the debug log; *dl* determines the queue.
         activity_id: The ID of the activity to queue for delivery.
         dl: The DataLayer to use for persistence.
+
+    Returns:
+        ``True`` when the activity was queued, ``False`` when it was already
+        pending.
     """
-    dl.outbox_append(activity_id)
+    queued = dl.outbox_append(activity_id)
     logger.debug(
-        "Queued activity '%s' in delivery queue for actor '%s'",
+        "%s activity '%s' in delivery queue for actor '%s'",
+        "Queued" if queued else "Already pending:",
         _log_label(activity_id),
         _log_label(actor_id),
     )
+    return queued

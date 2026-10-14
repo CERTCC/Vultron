@@ -15,7 +15,8 @@
 
 import logging
 
-from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
+from vultron.adapters.outbox_sealed_body import is_sealed
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories.fault import create_processing_fault_activity
@@ -68,8 +69,8 @@ class _FaultMixin:
             "processing-fault", actor, failed_activity_id, failure_class
         )
         if is_sealed(self._dl, fault_id):
-            if fault_id not in self._dl.outbox_list():
-                self._dl.outbox_append(fault_id)
+            # One still pending is left alone by the outbox (OX-06-002).
+            self._dl.outbox_append(fault_id)
             logger.info(
                 "ProcessingFault %s for failed activity %s was already"
                 " emitted; not building it again",

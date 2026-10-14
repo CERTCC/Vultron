@@ -276,6 +276,9 @@ def create_recommend_actor_to_case_received_tree(
                 # there is one live stub per invitee.
                 replaces_previous_stub=True,
                 actor_config=actor_config,
+                # A retry for the same Offer rebuilds the same Invite
+                # (OX-06-002).
+                answers=recommendation_id,
             ),
         ],
     )
@@ -323,6 +326,9 @@ def create_recommend_actor_to_case_received_tree(
                 attributed_to=recommender_id,
                 recommendation_id=recommendation_id,
                 actor_config=actor_config,
+                # A retry for the same Offer rebuilds the same Invite
+                # (OX-06-002).
+                answers=recommendation_id,
             ),
             # AC-1: record the inert participant at invite-send time
             # (ADR-0114, CM-11-006).
@@ -490,6 +496,9 @@ def create_accept_actor_recommendation_received_tree(
                 invitee_id=invitee_id,
                 case_id=case_id,
                 roles=roles,
+                # One recommendation is accepted once; a retry of this
+                # tree rebuilds the same Invite (OX-06-002).
+                answers=recommendation_id,
             ),
             # AC-1: record the inert participant at invite-send time
             # (ADR-0114, CM-11-006). Roles from the stored Offer are

@@ -94,6 +94,32 @@ def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
         session.commit()
 
 
+def _queue_append_unless_pending(
+    dl: "SqliteDataLayer", queue: str, activity_id: str
+) -> bool:
+    """Append *activity_id* to *queue* unless it is already there.
+
+    The check and the insert share one session, and ``dl._session()``
+    serializes sessions per engine, so two writers cannot both find the id
+    absent and both queue it.
+
+    Returns:
+        ``True`` when the id was queued, ``False`` when it was already pending.
+    """
+    with dl._session() as session:
+        pending = session.exec(
+            select(QueueEntry)
+            .where(QueueEntry.queue == queue)
+            .where(QueueEntry.activity_id == activity_id)
+            .limit(1)
+        ).first()
+        if pending is not None:
+            return False
+        session.add(QueueEntry(queue=queue, activity_id=activity_id))
+        session.commit()
+    return True
+
+
 def inbox_append(
     dl: "SqliteDataLayer",
     activity_id: str,
@@ -134,14 +160,30 @@ def inbox_pop(dl: "SqliteDataLayer") -> str | None:
 def outbox_append(
     dl: "SqliteDataLayer",
     activity_id: str,
-) -> None:
-    """Append an activity ID to this actor's outbox queue.
+) -> bool:
+    """Append an activity ID to this actor's outbox queue unless it is pending.
+
+    The outbox-id idempotency check (OX-06-002, ADR-0119): an id already
+    waiting in this outbox is not queued a second time, so it is delivered
+    once per queueing.  An id no longer pending is queued again; delivery
+    popped it, and the receiver deduplicates a redelivery by id (ID-02-001).
+    The enqueue callback runs only when a row was added.
 
     Args:
         dl: The SqliteDataLayer instance.
         activity_id: ID of the activity to enqueue.
+
+    Returns:
+        ``True`` when the id was queued, ``False`` when it was already pending.
     """
-    _queue_append(dl, "outbox", activity_id)
+    if not _queue_append_unless_pending(dl, "outbox", activity_id):
+        logger.debug(
+            "outbox_append: activity '%s' already pending for actor '%s'"
+            " — not queued again (OX-06-002)",
+            activity_id,
+            dl._actor_id,
+        )
+        return False
     if dl._enqueue_callback is not None:
         try:
             dl._enqueue_callback(dl._actor_id)
@@ -150,6 +192,7 @@ def outbox_append(
                 "outbox_append: enqueue_callback raised for actor '%s'",
                 dl._actor_id,
             )
+    return True
 
 
 def outbox_list(dl: "SqliteDataLayer") -> list[str]:
