@@ -25,6 +25,7 @@ no commit stage.
 
 from typing import cast
 
+import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -302,6 +303,13 @@ def test_add_case_participant_tree_commits():
     ]
 
 
+def _assert_no_commit_stage(tree: py_trees.behaviour.Behaviour) -> None:
+    """Neither the guarded commit subtree nor a bare commit node is present."""
+    nodes = list(tree.iterate())
+    assert "GuardedCommitCaseLedgerEntryBT" not in [n.name for n in nodes]
+    assert not any(isinstance(n, CommitCaseLedgerEntryNode) for n in nodes)
+
+
 @pytest.mark.spec("CLP-10-013")
 def test_announce_case_tree_has_no_commit_stage():
     """``Announce(VulnerabilityCase)`` is the documented exemption.
@@ -321,9 +329,7 @@ def test_announce_case_tree_has_no_commit_stage():
         case_id=CASE_ID, case_obj=case, request=event
     )
 
-    assert "GuardedCommitCaseLedgerEntryBT" not in [
-        node.name for node in tree.iterate()
-    ]
+    _assert_no_commit_stage(tree)
 
 
 @pytest.mark.spec("CLP-10-013")
@@ -339,6 +345,4 @@ def test_bootstrap_create_case_tree_has_no_commit_stage():
 
     tree = create_create_case_received_tree(case, CASE_ID, MANAGER_ID)
 
-    nodes = list(tree.iterate())
-    assert "GuardedCommitCaseLedgerEntryBT" not in [n.name for n in nodes]
-    assert not any(isinstance(n, CommitCaseLedgerEntryNode) for n in nodes)
+    _assert_no_commit_stage(tree)

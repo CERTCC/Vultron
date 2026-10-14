@@ -168,7 +168,7 @@ that are not case events, and `test/architecture/test_ledger_commit_coverage.py`
 those grounds or an open tracking issue. Read that list instead of opening a
 design question. A handler only a participant runs, receiving what the
 CASE_MANAGER sent, has nothing to commit there: the entry, if the activity is a
-case event, is the CASE_MANAGER's at sending (CLP-09-001).
+case event, is the CASE_MANAGER's at sending (CLP-09-001, CLP-09-003).
 
 ## `pending_assertions`: Local Decision-Suppression Memory
 

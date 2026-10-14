@@ -43,7 +43,7 @@ class NotACaseEvent(StrEnum):
     REPLICA_APPLY = "a replica applying an entry, not asserting one"
     LEDGER_MECHANICS = "an activity about the ledger itself"
     NOT_LEDGERED_BY_CLP_10_013 = "left unledgered by CLP-10-013 (ADR-0111)"
-    SENT_BY_CASE_MANAGER = "sent only by the CASE_MANAGER, which ledgers it, if at all, at sending"
+    SENT_BY_CASE_MANAGER = "CASE_MANAGER-sent; ledgered, if at all, at sending"
     PROCESSING_FAULT = "a NACK about message handling (ADR-0080)"
     UNMATCHED = "no pattern matches or the object is unresolvable"
 
@@ -65,6 +65,10 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "unknown_unresolvable_object": NotACaseEvent.UNMATCHED,
     # Received only by a participant, which never commits (CLP-09-001).
     "create_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    # Only the CASE_MANAGER is meant to answer a role-delegation offer
+    # (ADR-0039), but the receipt has no sender check yet: until #4522
+    # declares a CASE_MANAGER sender rule, an Accept from a target that does
+    # not hold CASE_MANAGER is stored here with no entry.
     "accept_case_participant_role": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
