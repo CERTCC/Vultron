@@ -33,7 +33,7 @@ entries last (CP-09-009):
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
-The top-level tree is a Selector with four branches, tried in order:
+The top-level tree is a Selector with five branches, tried in order:
 
 * **Accept in flight** — ``CheckMarkerExistsNode``: if a
   ``PendingCreateCaseActivity`` marker already exists for this proposal_id,
@@ -45,6 +45,13 @@ The top-level tree is a Selector with four branches, tried in order:
   ``Reject`` was queued, because the record is written *before* the emit, and it
   reads that from ``reject_activity_id`` on the record rather than from the
   outbox — a delivered ``Reject`` has already left the outbox.
+
+* **Closed case** — ``DeclineClosedCaseProposalArm``: the proposal resolves to
+  a fully closed case (the owner's own case for the report, or the case this
+  proposal's stored ``Accept`` names), so record the decline and emit
+  ``Reject(as_CaseProposal)``.  Nothing is written for the case (CP-05-006,
+  CP-05-008, CM-23-013).  The factory's post-close guard cannot do this: the
+  proposal names a report, not a case.
 
 * **Decline** — ``DeclineProposalArm``: the ``EvaluateCaseProposal`` call-out
   point refused, so record the decline and emit ``Reject(as_CaseProposal)``.
@@ -70,7 +77,7 @@ reporting SUCCESS.  A refusal gate whose failure direction is "admit" is worse
 than no gate, so the decline record is persisted first and the accept arm is
 gated on its absence: the tree fails instead of admitting.
 
-Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-006.
+Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-006, CP-05-008.
 Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``,
 ``docs/adr/0025-call-out-point-abstraction-layer.md``.
 """
@@ -113,6 +120,7 @@ from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckDeclineRecordExistsNode,
     CheckNoDeclineRecordNode,
     CheckProposalAlreadyAnsweredNode,
+    CheckProposalCaseFullyClosedNode,
     CheckRejectAlreadyAnsweredNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
@@ -160,6 +168,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+CLOSED_CASE_DECLINE_REASON = (
+    "The case for this proposal is fully closed; nothing more will be done"
+    " for this proposal."
+)
+"""The ``Reject`` summary for a proposal whose case is fully closed.
+
+It declines the delivery only: an ``Accept`` already sent for the proposal
+stands (CP-05-005, CP-05-006).
+"""
+
 
 def create_case_proposal_received_tree(
     report_id: str | None,
@@ -173,10 +191,10 @@ def create_case_proposal_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
-    The tree is a Sequence of intake (CLP-10-017) and a four-branch Selector:
+    The tree is a Sequence of intake (CLP-10-017) and a five-branch Selector:
     the CP-05-005 in-flight guard, the
-    CP-05-006 already-declined answer, the CP-05-002 admission decision, and the
-    accept flow.
+    CP-05-006 already-declined answer, the closed-case decline, the CP-05-002
+    admission decision, and the accept flow.
 
     **Branch 1 — AC-3 guard** (``CheckMarkerExistsNode``):
       If a ``PendingCreateCaseActivity`` marker already exists for this
@@ -195,7 +213,24 @@ def create_case_proposal_received_tree(
       ``Reject`` on delivery, so an outbox-keyed answer would re-emit forever
       after the refusal was successfully delivered.
 
-    **Branch 3 — decline** (``DeclineProposalArm``, CP-05-002, CP-05-004):
+    **Branch 3 — closed case** (``DeclineClosedCaseProposalArm``, CP-05-006,
+    CP-05-008, CM-23-013):
+      ``CheckProposalCaseFullyClosedNode`` finds that the proposal resolves to
+      a fully closed case: the proposer's own case for *report_id* (a new
+      proposal id from the owner), or the case the proposal's stored
+      ``Accept`` names (a redelivery of the original proposal).  The arm
+      records the decline, with ``CLOSED_CASE_DECLINE_REASON``, and emits
+      ``Reject(as_CaseProposal)``.  It writes nothing for the case: no
+      ``CaseLedgerEntry`` and no case or participant change.  The decline
+      record is keyed on the proposal, so CM-23-013 does not bar it.  The
+      ``Reject`` declines only this delivery and does not revoke a stored
+      ``Accept`` (CP-05-005).  It follows the decline arm's refusal rules: the
+      closure check raises on a store error, and the record is written before
+      the emit, so a failed ``Reject`` cannot fall through into an accept
+      that reuses the closed case.  The admission call-out point is not
+      consulted.
+
+    **Branch 4 — decline** (``DeclineProposalArm``, CP-05-002, CP-05-004):
       Runs the ``EvaluateCaseProposal`` admission call-out point and, when it
       refuses, records the decline and emits ``Reject(as_CaseProposal)``.  Four
       properties are load-bearing:
@@ -212,14 +247,14 @@ def create_case_proposal_received_tree(
       * Its guards are keyed on the **proposal**, never the report.  ``report_id``
         comes from the report the sender embedded, so a report-keyed guard is one
         a sender can satisfy on purpose and thereby skip the gate entirely.
-      * The decline record is written **before** the emit, so branch 4's guard
+      * The decline record is written **before** the emit, so branch 5's guard
         can stop a failed emit from becoming an accept.
       * Everything in this arm ahead of the record **raises** instead of
         returning FAILURE when it cannot do its job.  A Selector falls through
         on FAILURE, so for a node in a refusal arm "I could not tell" and "no"
         both mean *admit*; only ``BTBridge`` failing the whole tree is safe.
 
-    **Branch 4 — accept** (``AcceptProposalArm``): ``CheckNoDeclineRecordNode``
+    **Branch 5 — accept** (``AcceptProposalArm``): ``CheckNoDeclineRecordNode``
     followed by the normal / duplicate flow (Sequence):
       First ``RecordProposalAdmissionNode`` stamps the proposal-keyed admission
       record, before any case exists.  Then a sub-Selector resolves which
@@ -228,6 +263,7 @@ def create_case_proposal_received_tree(
       * ``LoadExistingCaseNode`` (AC-1/AC-2): if *proposer_uri* already owns a
         case for *report_id*, write its ID to the blackboard and succeed
         (CP-05-008); another proposer's case for the report is not reused.
+        A fully closed case never reaches this node: branch 3 declines it.
       * ``CreateCaseFromProposalNode`` (normal path): create a new case,
         attributed to *proposer_uri*, which becomes the CASE_OWNER
         (CP-09-001).
@@ -276,7 +312,7 @@ def create_case_proposal_received_tree(
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
     delivery independently.
 
-    Spec: CP-05-001 through CP-05-006.
+    Spec: CP-05-001 through CP-05-006, CP-05-008.
     Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
 
     Args:
@@ -458,6 +494,38 @@ def create_case_proposal_received_tree(
         ],
     )
 
+    # CP-05-006 / CP-05-008 / CM-23-013: a proposal that resolves to a fully
+    # closed case — the owner's new proposal, or a redelivery of the original
+    # one — is declined, and nothing is written for the case.  Ahead of the
+    # admission decision: closure decides, so the call-out point is not
+    # consulted, and ahead of the accept arm, which would reuse the closed
+    # case.  It is the same refusal shape as the decline arm below: the
+    # proposal-keyed decline record is written before the emit, so a failed
+    # Reject stops at the accept arm's CheckNoDeclineRecordNode, and a later
+    # delivery is answered from the record by the resend arm above.
+    closed_case_arm = py_trees.composites.Sequence(
+        name="DeclineClosedCaseProposalArm",
+        memory=False,
+        children=[
+            CheckNoDeclineRecordNode(proposal_id=proposal_id),
+            CheckProposalCaseFullyClosedNode(
+                proposal_id=proposal_id,
+                proposer_uri=proposer_uri,
+                report_id=report_id,
+            ),
+            RecordProposalDeclineNode(
+                proposal_id=proposal_id,
+                proposer_uri=proposer_uri,
+                reason=CLOSED_CASE_DECLINE_REASON,
+            ),
+            EmitRejectCaseProposalNode(
+                proposal_id=proposal_id,
+                proposer_uri=proposer_uri,
+                proposal_dict=proposal_dict,
+            ),
+        ],
+    )
+
     # CP-05-002 / CP-05-004 admission decision.  `Inverter` converts the
     # call-out point's "declined" FAILURE into the SUCCESS this arm needs to
     # proceed, so the Evaluator keeps the BT-18-007 contract (a refusal is a
@@ -531,6 +599,7 @@ def create_case_proposal_received_tree(
                 children=[
                     CheckMarkerExistsNode(proposal_id=proposal_id),
                     resend_decline_arm,
+                    closed_case_arm,
                     decline_arm,
                     accept_arm,
                 ],

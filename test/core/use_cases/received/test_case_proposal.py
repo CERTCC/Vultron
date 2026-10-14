@@ -27,6 +27,7 @@ from types import SimpleNamespace
 import py_trees
 import pytest
 
+from test.support.ledger import commit_case_fully_closed
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -879,6 +880,25 @@ class TestCaseProposalDisposition:
         result = _run_create_proposal(dl, proposal, make_payload, **kwargs)
         assert result.disposition == HandlerDisposition.SKIPPED
         assert result.reason and "declined" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("CM-23-013")
+    def test_proposal_for_a_fully_closed_case_is_refused(self, make_payload):
+        """A redelivery after close is declined; the next one is a duplicate."""
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+        _run_create_proposal(dl, proposal, make_payload)
+        (case,) = list(dl.list_objects("VulnerabilityCase"))
+        commit_case_fully_closed(dl, case.id_, _VENDOR_URI)
+
+        result = _run_create_proposal(dl, proposal, make_payload)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "fully closed" in result.reason
+        assert case.id_ in result.reason
+        again = _run_create_proposal(dl, proposal, make_payload)
+        assert again.disposition == HandlerDisposition.SKIPPED
 
     @pytest.mark.spec("HP-01-003")
     def test_decline_without_emit_port_is_refused(self, make_payload):

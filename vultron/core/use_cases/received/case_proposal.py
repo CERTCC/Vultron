@@ -57,6 +57,7 @@ from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
 )
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckDeclineRecordExistsNode,
+    CheckProposalCaseFullyClosedNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     CheckMarkerExistsNode,
@@ -130,7 +131,11 @@ class CreateCaseProposalReceivedUseCase:
     BT-15-001 audit: all DataLayer mutations and outbox enqueues are
     delegated to leaf nodes of the BT tree.
 
-    Spec: CP-05-001 through CP-05-004.
+    A proposal that resolves to a fully closed case is declined with
+    ``Reject(as_CaseProposal)`` and reported ``REFUSED`` (CP-05-006,
+    CP-05-008, CM-23-013).
+
+    Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008.
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
@@ -313,7 +318,7 @@ class CreateCaseProposalReceivedUseCase:
     def _classify_success(tree: Any, proposal_id: str) -> HandlerResult:
         """Say which arm of the idempotency Selector answered (#2255).
 
-        The tree succeeds on all four arms, but only the accept arm applied
+        The tree succeeds on all five arms, but only the accept arm applied
         the proposal.  A Selector leaves the arms it tried ahead of the winner
         FAILED and the ones after it INVALID, so the first guard that
         succeeded names the arm.
@@ -329,6 +334,15 @@ class CreateCaseProposalReceivedUseCase:
             # benign no-op, not a new refusal.
             return HandlerResult.skipped(
                 f"proposal '{proposal_id}' was previously declined"
+            )
+        closed = find_node(tree, CheckProposalCaseFullyClosedNode)
+        if closed is not None and closed.closed_case_id is not None:
+            # CP-05-006, CP-05-008: the proposal's case is fully closed, so the
+            # CASE_MANAGER declined it and wrote nothing for the case
+            # (CM-23-013).
+            return HandlerResult.refused(
+                f"proposal '{proposal_id}' resolves to case"
+                f" '{closed.closed_case_id}', which is fully closed (CM-23-013)"
             )
         if node_succeeded(tree, RecordProposalDeclineNode):
             # CP-05-002, CP-05-004: the admission policy said no.

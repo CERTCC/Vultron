@@ -29,7 +29,8 @@ never on the report. ``report_id`` arrives from the report the sender embedded i
 its own proposal, so a report-keyed guard can be skipped by naming a report the
 service has already seen.
 
-Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004, CP-05-005, CP-05-006.
+Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004, CP-05-005, CP-05-006,
+CP-05-008.
 """
 
 import logging
@@ -37,6 +38,12 @@ from typing import Any, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.post_close import (
+    case_is_fully_closed,
+)
+from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
+    find_proposer_case,
+)
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
@@ -152,6 +159,121 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
                 self._proposal_id,
             )
             return Status.SUCCESS
+        return Status.FAILURE
+
+
+class CheckProposalCaseFullyClosedNode(DataLayerAction):
+    """Return SUCCESS if this proposal resolves to a fully closed case.
+
+    A ``Create(as_CaseProposal)`` names a report, not a case, so the factory's
+    post-close guard (``CaseOpenToExternalWritesNode``) cannot see which case
+    it would touch.  This node answers that question for the proposal tree.
+    When the case is fully closed (its ledger holds ``case_fully_closed``), the
+    proposal is declined with ``Reject(as_CaseProposal)`` and nothing is
+    written for the case (CP-05-006, CP-05-008, CM-23-013).
+
+    A proposal resolves to a case in one of two ways, and both are checked:
+
+    - **The proposer's own case for the report**, the case
+      ``LoadExistingCaseNode`` would reuse (CP-05-008).  This covers a new
+      proposal id from the case's owner.
+    - **The case this proposal's stored ``Accept`` names** (its ``result``).
+      This covers a redelivery of the original proposal (CP-05-006), also
+      after an ownership transfer, when the proposer is no longer the owner
+      and the owner lookup finds nothing.  The ``Accept`` scan runs only when
+      the proposal began the accept path or the store holds a case for the
+      report, as in ``CheckProposalAlreadyAnsweredNode``.
+
+    A different proposer's case for the same report is never this proposal's
+    case: that proposer gets a separate case (CP-05-008), so another party's
+    closed case does not decline it.
+
+    **Store errors are not caught here**, and a missing DataLayer raises.  The
+    node sits on a refusal arm, so FAILURE ("not closed") runs the accept arm
+    against a case that may be closed.  Only a whole-tree failure is safe.  See
+    ``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails Toward
+    'Admit'".
+
+    Attributes:
+        closed_case_id: The fully closed case the proposal resolved to, set
+            when the node returns SUCCESS; ``None`` otherwise.  The use case
+            reads it to name the case in its ``REFUSED`` reason.
+    """
+
+    def __init__(
+        self,
+        proposal_id: str,
+        proposer_uri: str,
+        report_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._proposal_id = proposal_id
+        self._proposer_uri = proposer_uri
+        self._report_id = report_id
+        self.closed_case_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.closed_case_id = None
+
+    def _candidate_case_ids(self, datalayer: CasePersistence) -> list[str]:
+        """Case ids this proposal resolves to, the owner's case first."""
+        candidates: list[str] = []
+        if self._report_id is not None:
+            own = find_proposer_case(
+                datalayer, self._report_id, self._proposer_uri
+            )
+            if own is not None:
+                candidates.append(str(own.id_))
+
+        if self._may_have_been_accepted(datalayer):
+            accept = find_activity_for_proposal(
+                datalayer, self._proposal_id, "Accept"
+            )
+            result = getattr(accept, "result", None)
+            accepted_case_id = getattr(result, "id_", result)
+            if isinstance(accepted_case_id, str) and accepted_case_id:
+                candidates.append(accepted_case_id)
+        return candidates
+
+    def _may_have_been_accepted(self, datalayer: CasePersistence) -> bool:
+        """Whether the ``Accept`` scan can find anything for this proposal.
+
+        The scan rehydrates every stored ``Accept``, so a first-time proposal
+        for a report with no case skips it.
+        """
+        admission_id = CaseProposalAdmissionRecord.build_id(self._proposal_id)
+        if datalayer.read(admission_id) is not None:
+            return True
+        if self._report_id is None:
+            return True
+        return datalayer.find_case_by_report_id(self._report_id) is not None
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            raise RuntimeError(
+                f"{self.name}: no DataLayer, so it cannot tell whether"
+                f" proposal '{self._proposal_id}' resolves to a fully closed"
+                f" case; failing the tree rather than admitting"
+            )
+        datalayer = cast(CasePersistence, self.datalayer)
+        for case_id in self._candidate_case_ids(datalayer):
+            if case_is_fully_closed(datalayer, case_id):
+                self.closed_case_id = case_id
+                self.feedback_message = (
+                    f"proposal '{self._proposal_id}' resolves to case"
+                    f" '{case_id}', which is fully closed (CM-23-013)"
+                )
+                logger.info(
+                    "%s: declining proposal '%s' from actor_id=%s: case '%s'"
+                    " is fully closed (CP-05-006, CP-05-008, CM-23-013)",
+                    self.name,
+                    self._proposal_id,
+                    self._proposer_uri,
+                    case_id,
+                )
+                return Status.SUCCESS
         return Status.FAILURE
 
 
@@ -287,6 +409,7 @@ def find_activity_for_proposal(
 
 __all__ = [
     "CheckProposalAlreadyAnsweredNode",
+    "CheckProposalCaseFullyClosedNode",
     "CheckDeclineRecordExistsNode",
     "CheckNoDeclineRecordNode",
     "CheckRejectAlreadyAnsweredNode",
