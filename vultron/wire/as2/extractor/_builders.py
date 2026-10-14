@@ -339,11 +339,9 @@ def _build_case_object(obj: object) -> dict[str, Any]:
         # The reports the case answers, by id (the case holds ids only).  A
         # report receiver relays the case to the reporter, and that
         # introduction must name the submitted report (CBT-01-001, CBT-01-005).
-        vulnerability_reports: list[str | VulnerabilityReport] = [
-            report_id
-            for ref in getattr(obj, "vulnerability_reports", None) or []
-            if (report_id := _get_id(ref))
-        ]
+        vulnerability_reports: list[str | VulnerabilityReport] = list(
+            _get_id_list(getattr(obj, "vulnerability_reports", None)) or []
+        )
         raw_statuses = getattr(obj, "case_statuses", []) or []
         case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:

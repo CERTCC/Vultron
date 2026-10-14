@@ -266,22 +266,36 @@ def _owned_case(
     return case
 
 
+def _owner_store() -> SqliteDataLayer:
+    """The owner's store, holding the report the reporter sent it."""
+    owner_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
+    owner_dl.create(
+        VulnerabilityReport(id_=_REPORT_ID, attributed_to=_REPORTER)
+    )
+    return owner_dl
+
+
 def _run_at_owner(
     case: as_VulnerabilityCase,
     sender: str = _CREATOR,
     owner_dl: SqliteDataLayer | None = None,
+    *,
+    pending_link: bool = True,
 ) -> tuple[SqliteDataLayer, Status]:
-    """Run the bootstrap tree at the owner, which expects *sender*'s Create."""
+    """Run the bootstrap tree at the owner, which expects *sender*'s Create.
+
+    With *pending_link* the owner's link is reset to pending first, so the
+    tree takes the trusted route; without it a link the first run bound
+    stays bound, so the tree takes the redelivery route.
+    """
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
 
     if owner_dl is None:
-        owner_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
-        owner_dl.create(
-            VulnerabilityReport(id_=_REPORT_ID, attributed_to=_REPORTER)
-        )
-    owner_dl.save(_link(creator=sender))
+        owner_dl = _owner_store()
+    if pending_link:
+        owner_dl.save(_link(creator=sender))
     activity = create_case_activity(case, actor=sender, to=[_OWNER])
     event = cast(CreateCaseReceivedEvent, extract_event(activity))
     tree = create_create_case_received_tree(event.case, _CASE_ID, sender)
@@ -443,6 +457,35 @@ def test_owner_introduces_the_reporter_once():
     assert status == Status.SUCCESS
     assert [i.id_ for i in _introductions(owner_dl)] == [first.id_]
     assert owner_dl.outbox_list() == [first.id_]
+
+
+@pytest.mark.spec("CBT-01-001")
+def test_redelivery_retries_an_introduction_that_failed_to_queue(monkeypatch):
+    """A first delivery that stored but could not queue the introduction.
+
+    The CASE_MANAGER's redelivery of its Create takes the redelivery route,
+    which queues the stored introduction: the reporter still gets exactly
+    one, under the first attempt's id.
+    """
+    case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
+    owner_dl = _owner_store()
+    queue = owner_dl.outbox_append
+
+    def _outbox_down(activity_id: str) -> bool:
+        raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(owner_dl, "outbox_append", _outbox_down)
+    _, status = _run_at_owner(case, owner_dl=owner_dl)
+    assert status == Status.FAILURE
+    [stored] = _introductions(owner_dl)
+    assert owner_dl.outbox_list() == []
+
+    monkeypatch.setattr(owner_dl, "outbox_append", queue)
+    _, status = _run_at_owner(case, owner_dl=owner_dl, pending_link=False)
+
+    assert status == Status.SUCCESS
+    assert [i.id_ for i in _introductions(owner_dl)] == [stored.id_]
+    assert owner_dl.outbox_list() == [stored.id_]
 
 
 @pytest.mark.spec("CBT-01-005")

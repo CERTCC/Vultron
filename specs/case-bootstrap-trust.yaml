@@ -414,8 +414,8 @@ groups:
     kind: protocol
     statement: Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is rejected when the sender does not match the
       actor that received the report or when the case does not reference the known submitted report.
-    verification: '`test/core/use_cases/received/case/test_create.py` confirms that a `Create(VulnerabilityCase)` from a
-      sender other than the actor that received the report is rejected, and
+    verification: '`TestBootstrapCreateRejectedBadSender` in `test/core/use_cases/received/case/test_create.py` confirms
+      that a `Create(VulnerabilityCase)` from a sender other than the actor that received the report is rejected, and
       `test_bootstrap_not_naming_the_submitted_report_is_refused` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms that one not referencing the known submitted
       report is rejected.'
