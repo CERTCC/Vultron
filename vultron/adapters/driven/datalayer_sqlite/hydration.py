@@ -128,9 +128,8 @@ def core_class_for_row_type(type_: str) -> type[BaseModel]:
     - A core *activity* (``VultronOffer`` stores as ``"Offer"``). Persisted
       activities stay on the wire path, which the DL-05-004 ratchet exempts;
       moving them is the activity read-back migration (#1506), not this lookup.
-    - A class whose ``type`` value another core class also presents
-      (``VultronService`` and ``CaseActor`` both store as ``"Service"``). The
-      row cannot say which it was, so neither is guessed.
+    - A class whose ``type`` value another core class also presents. The row
+      cannot say which it was, so neither is guessed.
 
     Raises:
         KeyError: If no core class reconstructs rows of *type_*.

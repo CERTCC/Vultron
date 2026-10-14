@@ -30,8 +30,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
@@ -60,13 +60,15 @@ def _make_embargo_case(
     case_id: str,
     author_id: str,
     case_actor_id: str,
-) -> tuple[SqliteDataLayer, CaseActor, as_VulnerabilityCase, as_EmbargoEvent]:
+) -> tuple[
+    SqliteDataLayer, VultronService, as_VulnerabilityCase, as_EmbargoEvent
+]:
     """Return (dl, case_actor, case, embargo) ready for routing tests."""
     # The case actor holds the canonical ledger these routing tests assert on,
     # and it is the receiving actor for the on-path cases, so this is its store.
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
 
-    case_actor = CaseActor(
+    case_actor = VultronService(
         id_=case_actor_id,
         name=f"CaseActor for {case_id}",
         attributed_to=author_id,
@@ -400,7 +402,7 @@ class TestRemoveEmbargoRoutingGuard:
         self,
     ) -> tuple[
         SqliteDataLayer,
-        CaseActor,
+        VultronService,
         as_VulnerabilityCase,
         as_EmbargoEvent,
     ]:

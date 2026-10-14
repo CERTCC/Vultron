@@ -28,8 +28,8 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
     _CheckReportPhaseRMStateBase,
 )
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -64,7 +64,7 @@ def test_check_rm_state_received_or_invalid_success_when_valid_flag() -> None:
 @pytest.mark.spec("BT-03-001")
 def test_check_rm_state_valid_when_valid(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateValid returns SUCCESS when report is VALID."""
@@ -81,7 +81,7 @@ def test_check_rm_state_valid_when_valid(
 @pytest.mark.spec("BT-03-001")
 def test_check_rm_state_valid_when_received(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateValid returns FAILURE when report is RECEIVED."""
@@ -98,7 +98,7 @@ def test_check_rm_state_valid_when_received(
 @pytest.mark.spec("BT-03-001")
 def test_check_rm_state_valid_when_no_status(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateValid returns FAILURE when no status exists."""
@@ -111,7 +111,7 @@ def test_check_rm_state_valid_when_no_status(
 @pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_received(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when RECEIVED."""
@@ -129,7 +129,7 @@ def test_check_rm_state_received_or_invalid_when_received(
 @pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_invalid(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when INVALID."""
@@ -147,7 +147,7 @@ def test_check_rm_state_received_or_invalid_when_invalid(
 @pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_valid(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateReceivedOrInvalid returns FAILURE when VALID."""
@@ -165,7 +165,7 @@ def test_check_rm_state_received_or_invalid_when_valid(
 @pytest.mark.spec("BT-03-001")
 def test_check_rm_state_received_or_invalid_when_no_status(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when no status exists."""
@@ -178,7 +178,7 @@ def test_check_rm_state_received_or_invalid_when_no_status(
 
 def test_ensure_embargo_exists_when_case_has_active_embargo(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """EnsureEmbargoExists returns SUCCESS when the linked case has embargo."""
@@ -202,7 +202,7 @@ def test_ensure_embargo_exists_when_case_has_active_embargo(
 
 def test_ensure_embargo_exists_fails_without_case_id(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """EnsureEmbargoExists returns FAILURE with no ``/case_id`` published.
@@ -221,7 +221,7 @@ def test_ensure_embargo_exists_fails_without_case_id(
 
 def test_ensure_embargo_exists_fails_without_active_embargo(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """EnsureEmbargoExists returns FAILURE when linked case has no embargo."""
@@ -243,7 +243,7 @@ def test_ensure_embargo_exists_fails_without_active_embargo(
 @pytest.mark.spec("RMB-09-001")
 def test_evaluate_report_credibility(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """EvaluateReportCredibility always returns SUCCESS."""
@@ -257,7 +257,7 @@ def test_evaluate_report_credibility(
 @pytest.mark.spec("RMB-09-001")
 def test_evaluate_report_validity(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """EvaluateReportValidity always returns SUCCESS."""
@@ -271,7 +271,7 @@ def test_evaluate_report_validity(
 @pytest.mark.spec("RMB-10-001")
 def test_evaluate_case_priority(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
 ) -> None:
     """EvaluateCasePriority always returns SUCCESS."""
     case = VulnerabilityCase(

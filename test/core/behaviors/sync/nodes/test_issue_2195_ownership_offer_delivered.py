@@ -59,7 +59,7 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -100,7 +100,7 @@ def bridge(datalayer):
 @pytest.fixture
 def case_actor(datalayer):
     """The CaseActor that signs the replicated Announce(CaseLedgerEntry)s."""
-    actor = CaseActor(
+    actor = VultronService(
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,

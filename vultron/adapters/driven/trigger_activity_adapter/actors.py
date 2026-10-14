@@ -216,7 +216,9 @@ class _ActorsMixin:
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
-            logger.warning(
+            # A retry of the emit for the same request rebuilds the Invite
+            # under its derived id (OX-06-002): expected, not a fault.
+            logger.info(
                 "invite_actor_to_case: activity '%s' already exists"
                 " — skipping",
                 activity.id_,

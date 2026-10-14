@@ -32,7 +32,7 @@ announced case carries its participants and reports inline (CBT-01-007).
 
 import logging
 
-from vultron.adapters.outbox_sealed_body import derived_activity_id
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus

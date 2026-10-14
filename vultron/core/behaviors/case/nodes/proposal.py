@@ -161,10 +161,9 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction, EmitCapable):
     activity was authored when the marker was written, and this node only
     re-queues it in the store it already belongs to.
 
-    Idempotent (AC-4): ``outbox_append`` does not enforce uniqueness, so an
-    activity already present is left alone rather than queued twice — which
-    would cause double delivery.  Returns SUCCESS when the activity is in the
-    outbox, whether this node put it there or found it.
+    Idempotent (AC-4): ``outbox_append`` leaves an activity already pending
+    alone rather than queuing it twice (OX-06-002).  Returns SUCCESS when the
+    activity is in the outbox, whether this node put it there or found it.
     """
 
     def __init__(
@@ -205,29 +204,7 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction, EmitCapable):
         assert self.datalayer is not None
         outbox = cast(CaseOutboxPersistence, self.datalayer)
         try:
-            already_queued = self.activity_id in outbox.outbox_list()
-        except Exception as exc:  # noqa: BLE001 - recovery must not crash boot
-            self.feedback_message = f"could not read outbox: {exc}"
-            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "%s: could not read outbox for actor '%s': %s",
-                self.name,
-                self.marker.case_actor_id,
-                exc,
-            )
-            return Status.FAILURE
-
-        if already_queued:
-            self.logger.debug(
-                "%s: Create(VulnerabilityCase) '%s' already queued for actor"
-                " '%s'; not duplicating.",
-                self.name,
-                self.activity_id,
-                self.marker.case_actor_id,
-            )
-            return None
-
-        try:
-            outbox.outbox_append(self.activity_id)
+            queued = outbox.outbox_append(self.activity_id)
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"could not enqueue: {exc}"
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
@@ -239,14 +216,23 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction, EmitCapable):
                 exc,
             )
             return Status.FAILURE
+        if not queued:
+            self.logger.debug(
+                "%s: Create(VulnerabilityCase) '%s' already queued for actor"
+                " '%s'; not duplicating.",
+                self.name,
+                self.activity_id,
+                self.marker.case_actor_id,
+            )
         return None
 
     def _discard_marker(self) -> None:
         """Delete the discharged marker, best-effort.
 
         The obligation is discharged once the activity is queued.  A surviving
-        marker is re-scanned next startup and skipped by ``_ensure_queued``'s
-        idempotency check, so failing to delete it is a warning, not an error.
+        marker is re-scanned next startup and skipped by the outbox-id
+        idempotency check (OX-06-002), so failing to delete it is a warning,
+        not an error.
         """
         assert self.datalayer is not None
         if self.datalayer.delete("PendingCreateCaseActivity", self.marker.id_):

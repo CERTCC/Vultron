@@ -90,7 +90,7 @@ The semantic extractor is the single place where AS2 structure becomes domain in
 
 The core layer decides what to do.
 The behavior dispatcher (`vultron/core/dispatcher.py`) maps the extracted semantics to a use case through a table lookup, and the use case runs the appropriate behavior tree.
-Routing all inbound case activity through the [CASE_MANAGER](case_lifecycle/case_manager_and_ledger.md) — in the prototype, the [Case Actor](case_lifecycle/case_model.md#caseactor) — is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
+Routing all inbound case activity through the [CASE_MANAGER](case_lifecycle/case_manager_and_ledger.md) — in the prototype, the [Case Actor](case_lifecycle/case_model.md#case-actor) — is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
 The design that moves this orchestration into a core module behind a typed `process_payload` seam is recorded in [ADR-0020](../adr/0020-inbox-bt-orchestration.md).
 
 For the protocol-level view of what these messages mean to a participant, see [Protocol Event Flow](protocol_flow.md).
@@ -111,6 +111,8 @@ The outbox retries with backoff, classifies `4xx` responses as terminal, and mov
 When the exhausted activity is an `Announce(CaseLedgerEntry)`, the dead-letter record also carries the URI of the canonical ledger entry being replicated, so replica divergence is observable without log access (OX-14-001, OX-14-003).
 Delivery is also ordered per recipient: one drain runs per actor outbox at a time, rows addressed to the same recipient are delivered in the order they were enqueued with at most one in flight, and a row that fails is re-queued ahead of the rows behind it for that recipient, while rows for other recipients proceed ([ADR-0112](../adr/0112-per-recipient-ordered-outbox-delivery.md)).
 This is what keeps a ledger fan-out from reaching a replica out of order and turning the receiver's gap recovery into the normal path.
+An outbox holds at most one pending row per activity id, so queuing an id that is already waiting adds nothing (OX-06-002).
+A retry that rebuilds an activity under the id its first attempt used therefore sends it once.
 An outbound activity always carries a non-empty `to:` field (OX-08-001) and full inline objects, because a recipient can only act on what it has received — it cannot read the sender's store (see the [Actor Knowledge Model](actor-knowledge-model.md)).
 
 ---

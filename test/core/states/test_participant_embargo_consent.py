@@ -21,6 +21,7 @@ LEGAL: dict[tuple[S, T], S] = {
     (S.UNINVITED, T.AGREE): S.AGREED,
     (S.INVITED, T.AGREE): S.AGREED,
     (S.TIMED_OUT, T.AGREE): S.AGREED,
+    (S.DECLINED, T.AGREE): S.AGREED,
     (S.UNINVITED, T.DECLINE): S.DECLINED,
     (S.INVITED, T.DECLINE): S.DECLINED,
     (S.AGREED, T.DECLINE): S.DECLINED,
@@ -108,10 +109,9 @@ class TestTransitionTable:
         assert "invite" in str(exc.value).lower()
 
     @pytest.mark.spec("CM-18-003")
-    def test_declined_is_not_agreed_without_a_new_invite(self) -> None:
-        assert not consent_trigger_is_legal(S.DECLINED, T.AGREE)
-        reinvited = consent_after(S.DECLINED, T.INVITE)
-        assert consent_after(reinvited, T.AGREE) is S.AGREED
+    def test_a_declined_row_agrees_directly(self) -> None:
+        """An Accept after a Reject changes the answer; no re-invite comes first."""
+        assert consent_after(S.DECLINED, T.AGREE) is S.AGREED
 
     @pytest.mark.spec("CM-18-003")
     def test_carry_over_lifts_a_declined_row(self) -> None:

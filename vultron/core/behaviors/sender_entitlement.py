@@ -27,10 +27,12 @@ Entitlement kinds
 - ``CASE_OWNER`` — sender must hold ``CVDRole.CASE_OWNER``
 - ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004
   (full active-participant predicate tracked by #2257)
-- ``NAMED_ACTOR`` — sender must match a specific named actor ID (e.g. a
-  blackboard-resolved CaseActor identity)
+- ``NAMED_ACTOR`` — sender must be the addressee of the request it answers, as
+  this store recorded it: the one addressee kind (HP-01-009, ADR-0129)
 - ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
   it answers (EP-09-010, CM-11-017)
+- ``AUTHOR`` — sender must be the author of the object being changed, and an
+  active participant (HP-01-009, CM-30-001)
 - ``ANY_ACTOR`` — any actor may send it, whatever its standing in any case: a new
   report, which precedes any case (HP-01-010, HP-01-011).
   It is a declared rule, not an exemption, and has no condition node: there is
@@ -64,9 +66,12 @@ Nodes
 - ``SenderIsActiveLedgerParticipantNode`` — guards that the sender is an active
   participant of the case named by a ledger activity on the blackboard
 - ``SenderIsCaseManagerNode`` — guards that the sender is the case's
-  CASE_MANAGER; merged from ``VerifySenderIsCaseActorNode``
-- ``SenderIsNamedActorNode`` — guards that the sender matches a named actor;
-  merged from ``VerifySenderIsOwnIdNode``
+  CASE_MANAGER; merged from ``VerifySenderIsCaseActorNode`` and, as the check
+  that the CASE_MANAGER's own announcement came from itself, from
+  ``SenderIsNamedActorNode`` (#4437)
+- ``SenderIsRequestAddresseeNode`` — the shared base of the addressee checks:
+  each subclass reads one kind of recorded request, and the base compares the
+  sender with its addressees and words the refusal (``NAMED_ACTOR``; HP-01-009)
 - ``SenderIsProposalAddresseeNode`` — guards that the sender is the actor the
   vendor addressed a CaseProposal to, as recorded on the report case link
   (``NAMED_ACTOR`` kind; CP-06-005)
@@ -79,16 +84,18 @@ Nodes
   CASE_MANAGER (EP-09-003, EP-09-010, PCR-03-001, PCR-08)
 - ``SenderIsInviteeNode`` — guards that the sender is the sole ``to``
   recipient of the recorded Invite it answers (EP-09-010)
-- ``SenderIsOwnershipTransfereeNode`` — guards an answer to an
-  ownership-transfer Offer: at the CASE_MANAGER the sender must be the
-  transferee of the open Offer it recorded; at any other replica it must be
-  the CASE_MANAGER (``NAMED_ACTOR`` kind; CM-21-011, CM-21-013, PCR-03-001)
-- ``SenderIsOwnershipOffererNode`` — guards a withdrawal of an
-  ownership-transfer Offer: at the CASE_MANAGER the sender must be the Case
-  Owner that made the open Offer it recorded; at any other replica it must be
-  the CASE_MANAGER (``CASE_OWNER`` kind; CM-21-015, PCR-03-001)
+- ``SenderIsOwnershipTransfereeNode`` — guards that the sender of an answer
+  to an ownership-transfer Offer is the transferee of the Offer the
+  CASE_MANAGER recorded (``NAMED_ACTOR`` kind; CM-21-011, CM-21-013)
+- ``SenderIsOwnershipOffererNode`` — guards that the sender of a withdrawal
+  is the Case Owner that made the Offer the CASE_MANAGER recorded
+  (``CASE_OWNER`` kind; CM-21-015).  Whether that Offer is still open is a
+  precondition guard after the sender check
+  (``vultron.core.behaviors.case.nodes.ownership_offer_guard``)
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
   merged from ``CheckIsCaseOwnerNode``
+- ``SenderIsNoteAuthorNode`` — guards that the sender is the note's author and
+  an active participant (``AUTHOR`` kind; CM-30-001)
 - ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
   leaves empty (HP-01-008)
 - ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
@@ -104,7 +111,6 @@ Spec: HP-01-006, HP-01-007, CM-10-004, PCR-03-001.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum, auto
 from typing import Any, ClassVar
 
@@ -115,7 +121,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
-from vultron.core.models._helpers import _as_id, now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -186,10 +192,23 @@ class SenderEntitlementKind(Enum):
     """Sender must be an active participant per CM-10-004."""
 
     NAMED_ACTOR = auto()
-    """Sender must match a specific named actor ID."""
+    """Sender must be the addressee of the request it answers (HP-01-009).
+
+    The one addressee kind, whatever the request: the receiver checks the
+    sender against the addressee it recorded for the request (the case
+    proposal's report case link, the report Offer's record, the ledgered
+    ownership-transfer Offer), never against the copy the reply embeds.
+    """
 
     INVITEE = auto()
     """Sender must be the sole ``to`` recipient of the recorded Invite."""
+
+    AUTHOR = auto()
+    """Sender must be the author of the object being changed (HP-01-009).
+
+    The author is the object's ``attributed_to`` as this store recorded it,
+    and must still be an active participant of the case (CM-10-004).
+    """
 
     ANY_ACTOR = auto()
     """Any actor may send it; no standing is required (HP-01-010).
@@ -380,7 +399,14 @@ class SenderEntitlementConditionNode(DataLayerConditionWithPorts):
     in the codebase; the architecture ratchet fails on any subclass defined
     outside this module (HP-01-007).
     This class adds no new behaviour — it is a marker for the ratchet.
+
+    Each concrete subclass names the one kind it is a guard of in
+    :attr:`guards_kind` (HP-01-009).
     """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = None
+    """The kind this node is a guard of; ``None`` for a node that checks no
+    one kind (the empty side and the any-of refusal the factory composes)."""
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +416,10 @@ class SenderEntitlementConditionNode(DataLayerConditionWithPorts):
 
 class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
     """Guard: sender must be a known case participant.
+
+    Not a :class:`SenderEntitlementConditionNode`: it reuses the participant
+    lookup of :class:`FindParticipantByActorIdNode`, so it names its kind
+    itself.
 
     Returns ``SUCCESS`` when the sender's actor ID is registered in
     ``case.actor_participant_index``.
@@ -404,6 +434,10 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
 
     Spec: CM-10-004, HP-01-006, DEMOMA-07-003.
     """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
 
     def __init__(
         self,
@@ -497,6 +531,10 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     Spec: SYNC-03-005, CM-10-004, HP-01-006.
     """
 
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
+
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=True),
@@ -565,12 +603,27 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     and a sender with no anchor to match is refused.  The full-case Invite
     uses it: its sender is the one actor the stub Invite introduced.
 
+    With ``required=True`` there is no pass-through either: a case this store
+    does not hold, or one that names no CASE_MANAGER, leaves nothing to
+    establish the sender's standing against, so the sender is refused
+    (Regime 1, ADR-0087).  A reply to an ownership-transfer Offer uses it at a
+    replica, which takes the ownership change from the CASE_MANAGER alone
+    (PCR-03-001).
+
+    The check that the CASE_MANAGER's own ``Announce(CaseLedgerEntry)``, echoed
+    back to it, came from itself is this check too: the identity compared is
+    the one :func:`resolve_case_manager_id` resolves for the case (#4437).
+
     Reads ``activity`` from the blackboard via INPUT_PORTS.
 
     Merged from ``VerifySenderIsCaseActorNode`` (ADR-0115, AC-2).
 
     Spec: CLP-01-003, SYNC-13-006, HP-01-006.
     """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.CASE_MANAGER
+    )
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
@@ -583,6 +636,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         name: str | None = None,
         *,
         anchored: bool = False,
+        required: bool = False,
     ) -> None:
         """Create the guard.
 
@@ -594,10 +648,13 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             anchored: Refuse, rather than pass through, when the replica names
                 no CASE_MANAGER and the receiver recorded no matching trust
                 anchor (PCR-03-004).
+            required: Refuse, rather than pass through, when this store holds
+                no case or the case names no CASE_MANAGER.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._anchored = anchored
+        self._required = required
 
     def _recorded_anchor(self, case_id: str) -> str | None:
         """The CASE_MANAGER recorded when the receiver got the stub Invite."""
@@ -658,6 +715,19 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 self.logger.warning("%s: %s", self.name, self.feedback_message)
                 return Status.FAILURE
 
+        if case_actor_id is None and self._required:
+            held = (
+                f"this store holds no case '{case_id}'"
+                if case is None
+                else f"case '{case_id}' names no CASE_MANAGER"
+            )
+            self.feedback_message = (
+                f"Sender '{sender_id}' has no standing: {held} — REFUSED"
+                " (PCR-03-001, HP-01-006)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         if case_actor_id is None:
             self.logger.debug(
                 "%s: no CaseActor known for case '%s'"
@@ -667,7 +737,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             )
             return Status.SUCCESS
 
-        if sender_id == case_actor_id:
+        if same_actor_id(sender_id, case_actor_id):
             self.logger.debug(
                 "%s: sender '%s' matches CaseActor for case '%s'",
                 self.name,
@@ -691,70 +761,138 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
 
 
 # ---------------------------------------------------------------------------
-# Condition node: NAMED_ACTOR
+# Condition nodes: NAMED_ACTOR (the addressee of a recorded request)
 # ---------------------------------------------------------------------------
 
 
-class SenderIsNamedActorNode(SenderEntitlementConditionNode):
-    """Guard: sender must match a specific named actor ID.
+@dataclass(frozen=True)
+class RecordedRequest:
+    """The request a reply answers, as this store recorded it.
 
-    Reads ``activity`` and ``case_actor_id`` from the blackboard and returns
-    ``SUCCESS`` only when ``activity.actor_id == case_actor_id``.
-
-    Used in the sync reject path to verify that the actor who sent the
-    ``Reject(CaseLedgerEntry)`` is indeed the local CaseActor identity.
-
-    Merged from ``VerifySenderIsOwnIdNode`` (ADR-0115, AC-2).
-
-    Spec: HP-01-006.
+    Attributes:
+        description: The request as a refusal names it, e.g.
+            ``"Offer 'https://…'"``.
+        position: The entitled sender as a refusal names it, e.g.
+            ``"an addressee"`` or ``"the transferee"``.
+        addressees: The actors entitled to answer it.
     """
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerConditionWithPorts.INPUT_PORTS,
-        "activity": PortInformation(data_type=object, required=True),
-        "case_actor_id": PortInformation(data_type=str, required=True),
-    }
+    description: str
+    position: str
+    addressees: tuple[str, ...]
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity", "case_actor_id": "/case_actor_id"}
 
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-        self.case_actor_id = self.get_input("case_actor_id")
+@dataclass(frozen=True)
+class NothingToProtect:
+    """This store made no such request, so there is no standing to check.
 
-    def update(self) -> Status:
-        sender_id = getattr(self.activity, "actor_id", None)
-        case_actor_id = self.case_actor_id
-        if sender_id == case_actor_id:
-            return Status.SUCCESS
+    Attributes:
+        reason: Why, for the debug log.
+    """
 
-        self.feedback_message = (
-            f"Sender '{sender_id}' is not the named actor"
-            f" '{case_actor_id}' — REFUSED (HP-01-006)"
-        )
-        self.logger.warning(
-            "%s: rejected spoofed sender '%s' for CaseActor '%s'",
-            self.name,
-            sender_id,
-            case_actor_id,
-        )
+    reason: str
+
+
+class NoStandingError(VultronError):
+    """The sender's standing cannot be established; the message says why."""
+
+
+class SenderIsRequestAddresseeNode(SenderEntitlementConditionNode):
+    """Guard: sender must be an addressee of the request it answers.
+
+    The one guard shape of the ``NAMED_ACTOR`` kind (HP-01-009, ADR-0129).
+    Each subclass reads one kind of record this store holds for the request
+    (:meth:`_recorded_request`); this base compares the sender with the
+    record's addressees and words the refusal, so every addressee check
+    compares and refuses the same way.  The record is this store's own,
+    never the copy of the request the reply embeds, which the sender wrote.
+
+    - A record that names the sender: ``SUCCESS``.
+    - A record that does not, or names no one: ``FAILURE``, naming the
+      request and its addressees.
+    - No record the sender could stand on (:class:`NoStandingError`):
+      ``FAILURE`` with that reason.
+    - :class:`NothingToProtect`: ``SUCCESS``; a subclass returns it only
+      where an unrecorded request has nothing to protect.
+
+    Spec: HP-01-006, HP-01-009.
+    """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.NAMED_ACTOR
+    )
+
+    _spec: ClassVar[str]
+    """The requirement a refusal cites; each subclass names its own."""
+
+    def __init__(
+        self,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.sender_actor_id = sender_actor_id
+
+    def _recorded_request(self) -> RecordedRequest | NothingToProtect:
+        """The request as this store recorded it.
+
+        Raises:
+            NoStandingError: This store holds no record the sender's
+                standing could rest on.
+        """
+        raise NotImplementedError
+
+    def _confirm_standing(self, request: RecordedRequest) -> None:
+        """Check any standing the sender needs beyond being the addressee.
+
+        Runs once the sender is known to be an addressee of *request*.
+
+        Raises:
+            NoStandingError: The sender lacks that standing.
+        """
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED ({self._spec}, HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
+    def _confirm_addressee(self, request: RecordedRequest) -> None:
+        """The one comparison every addressee check makes.
 
-# ---------------------------------------------------------------------------
-# Condition node: NAMED_ACTOR (recorded proposal addressee)
-# ---------------------------------------------------------------------------
+        Raises:
+            NoStandingError: The sender is not among *request*'s addressees.
+        """
+        sender = self.sender_actor_id
+        if is_addressed_to(sender, request.addressees):
+            return
+        shown = ", ".join(f"'{a}'" for a in request.addressees) or "nobody"
+        raise NoStandingError(
+            f"Sender '{sender}' is not {request.position} of"
+            f" {request.description} ({shown})"
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        try:
+            request = self._recorded_request()
+            if isinstance(request, NothingToProtect):
+                self.logger.debug(
+                    "%s: %s — nothing to protect", self.name, request.reason
+                )
+                return Status.SUCCESS
+            self._confirm_addressee(request)
+            self._confirm_standing(request)
+        except NoStandingError as exc:
+            return self._refuse(str(exc))
+        return Status.SUCCESS
 
 
-class SenderIsProposalAddresseeNode(SenderEntitlementConditionNode):
+class SenderIsProposalAddresseeNode(SenderIsRequestAddresseeNode):
     """Guard: sender must be the actor the CaseProposal was addressed to.
 
     The vendor records the addressee on its ``VultronReportCaseLink``
     (``case_creator_id``) when it proposes the case.
-    This guard reads that record and returns ``SUCCESS`` only when the sender
-    is that actor.
 
     - No link for the report (a relay, or a proposal this actor never made):
       ``SUCCESS``, because there is nothing to protect and the effect node
@@ -766,53 +904,35 @@ class SenderIsProposalAddresseeNode(SenderEntitlementConditionNode):
     Spec: CP-06-005, HP-01-006.
     """
 
+    _spec = "CP-06-005"
+
     def __init__(
         self,
         report_id: str,
         sender_actor_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(sender_actor_id=sender_actor_id, name=name)
         self.report_id = report_id
-        self.sender_actor_id = sender_actor_id
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
+    def _recorded_request(self) -> RecordedRequest | NothingToProtect:
         assert self.datalayer is not None
-
         link = self.datalayer.read(
             VultronReportCaseLink.build_id(self.report_id)
         )
         if not isinstance(link, VultronReportCaseLink):
-            self.logger.debug(
-                "%s: no report case link for '%s' — nothing to protect",
-                self.name,
-                self.report_id,
+            return NothingToProtect(
+                f"no report case link for '{self.report_id}'"
             )
-            return Status.SUCCESS
-
         addressee = link.case_creator_id
-        if addressee is not None and same_actor_id(
-            self.sender_actor_id, addressee
-        ):
-            return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Sender '{self.sender_actor_id}' is not the actor the"
-            f" CaseProposal for report '{self.report_id}' was addressed to"
-            f" ('{addressee}') — REFUSED (CP-06-005, HP-01-006)"
+        return RecordedRequest(
+            description=f"the CaseProposal for report '{self.report_id}'",
+            position="the addressee",
+            addressees=(addressee,) if addressee is not None else (),
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
 
 
-# ---------------------------------------------------------------------------
-# Condition node: NAMED_ACTOR (recorded Offer(Report) addressee)
-# ---------------------------------------------------------------------------
-
-
-class SenderIsOfferAddresseeNode(SenderEntitlementConditionNode):
+class SenderIsOfferAddresseeNode(SenderIsRequestAddresseeNode):
     """Guard: sender must be an actor the ``Offer(VulnerabilityReport)`` was
     addressed to.
 
@@ -820,18 +940,15 @@ class SenderIsOfferAddresseeNode(SenderEntitlementConditionNode):
     received the report submission, to the reporter (RMB-08-003).  The
     reporter holds the Offer it sent, so this guard reads this store's
     :class:`~vultron.core.models.offer_record.VultronOfferRecord` for the
-    acknowledged Offer and returns ``SUCCESS`` only when the sender is one of
-    its ``offer_to`` recipients.  The record is this store's own, never the
-    copy the acknowledgement embeds, which the sender wrote.
+    acknowledged Offer and admits only one of its ``offer_to`` recipients.
 
     A store that holds no record of the Offer has nothing to establish the
     sender's standing against, so the sender is refused.
 
-    The addressee of the request is the entitled sender, so the kind is
-    ``NAMED_ACTOR`` (ADR-0129).
-
     Spec: RMB-08-004, HP-01-006.
     """
+
+    _spec = "RMB-08-004"
 
     def __init__(
         self,
@@ -847,38 +964,28 @@ class SenderIsOfferAddresseeNode(SenderEntitlementConditionNode):
             sender_actor_id: The acknowledgement's sender.
             name: Optional node name.
         """
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(sender_actor_id=sender_actor_id, name=name)
         self.offer_id = offer_id
-        self.sender_actor_id = sender_actor_id
 
-    def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED (RMB-08-004, HP-01-006)"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
+    def _recorded_request(self) -> RecordedRequest:
         assert self.datalayer is not None
-
         if self.offer_id is None:
-            return self._refuse(
+            raise NoStandingError(
                 f"Acknowledgement from '{self.sender_actor_id}' names no Offer"
             )
         record = self.datalayer.read(
             VultronOfferRecord.build_id(self.offer_id)
         )
         if not isinstance(record, VultronOfferRecord):
-            return self._refuse(
+            raise NoStandingError(
                 f"No record of Offer '{self.offer_id}' in this store, so"
                 f" sender '{self.sender_actor_id}' cannot be shown to be its"
                 " addressee"
             )
-        if is_addressed_to(self.sender_actor_id, record.offer_to):
-            return Status.SUCCESS
-        return self._refuse(
-            f"Sender '{self.sender_actor_id}' is not an addressee of Offer"
-            f" '{self.offer_id}' ({record.offer_to})"
+        return RecordedRequest(
+            description=f"Offer '{self.offer_id}'",
+            position="an addressee",
+            addressees=tuple(record.offer_to),
         )
 
 
@@ -1016,6 +1123,10 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
     Spec: EP-09-010, CM-11-017, HP-01-006.
     """
 
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.INVITEE
+    )
+
     def __init__(
         self,
         invite_id: str | None,
@@ -1098,58 +1209,37 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
 # ---------------------------------------------------------------------------
 
 
-class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
-    """Guard: sender may reply to this ownership-transfer Offer at this receiver.
+class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
+    """Guard: sender is the party to a recorded ownership-transfer Offer that
+    its reply needs.
 
     Shared by the transferee's answer (:class:`SenderIsOwnershipTransfereeNode`)
     and the offerer's withdrawal (:class:`SenderIsOwnershipOffererNode`).  The
-    entitlement depends on who receives the reply (CM-21-011, CM-21-013,
-    CM-21-015, PCR-03-001):
+    receive-tree factory composes it on the CASE_MANAGER's side of the
+    declared rule; a replica takes the ownership change from the CASE_MANAGER
+    alone, which the rule's participant side checks (PCR-03-001).
 
-    - At the **CASE_MANAGER** the sender must be the party to an
-      ownership-transfer Offer the CASE_MANAGER recorded for the case that
-      the subclass names (:meth:`_party_refusal`), and the Offer must still be
-      open: no answer, withdrawal or expiry is ledgered for it (CM-21-014),
-      and its ``end_time``, if any, has not passed (CM-21-016).  The Offer is
-      read from this store's ledger, never from the copy the reply embeds,
-      which the sender wrote.
-    - A **redelivery** of the reply that already closed the Offer is not a
-      refusal (HP-01-003), but it must change nothing: by then ownership may
-      have moved on through a later Offer, and re-applying the old reply
-      would hand it back with no ledger entry.  The guard sets
-      :attr:`is_redelivery` and fails, so nothing downstream runs, and the
-      handler reports the run as ``SKIPPED``.
-    - At **any other replica** the sender must be the CASE_MANAGER: a
-      participant takes case state from it alone.
+    It checks standing only: the sender is the party the subclass names to an
+    ownership-transfer Offer the CASE_MANAGER recorded for the case.  The
+    Offer is read from this store's ledger, never from the copy the reply
+    embeds, which the sender wrote.  Whether the Offer is still open, and
+    whether the reply is a redelivery of the one that closed it, is the
+    precondition guard that runs right after the sender check
+    (:class:`~vultron.core.behaviors.case.nodes.ownership_offer_guard.OwnershipOfferOpenNode`),
+    so a sender with no standing is refused before any offer-state check.
 
     A case this store does not hold, or one that names no CASE_MANAGER,
     leaves nothing to establish the sender's standing against, so the sender
     is refused.
 
-    The deadline is read here as well as by the CASE_MANAGER's expiry step,
-    which runs first and ledgers the expiry
-    (:func:`~vultron.core.behaviors.case.ownership_expiry_tree.create_ownership_offer_expiry_tree`):
-    a reply after ``end_time`` is refused even when that record could not be
-    committed, so the deadline binds whatever the ledger holds.  A replica
-    never reads it: it learns an expiry only from the entry (CM-21-017).
-
-    Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, PCR-03-001,
-    HP-01-006.
+    Spec: CM-21-011, CM-21-013, CM-21-015, PCR-03-001, HP-01-006.
     """
-
-    _spec: ClassVar[str]
-    """The requirement a refusal cites; each subclass names its own."""
-
-    _late_spec: ClassVar[str]
-    """The requirements a refusal after the Offer's deadline cites."""
 
     def __init__(
         self,
         case_id: str,
         offer_id: str | None,
         sender_actor_id: str,
-        reply_id: str,
-        now: datetime | None = None,
         name: str | None = None,
     ) -> None:
         """Create the guard.
@@ -1157,225 +1247,158 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
         Args:
             case_id: The case the reply names.
             offer_id: The Offer the reply names (``None`` when it names
-                none, which refuses at the CASE_MANAGER).
+                none, which refuses).
             sender_actor_id: The reply's sender.
-            reply_id: The reply's own id, so a redelivery is recognised.
-            now: The instant the Offer's deadline is compared against: the
-                one the CASE_MANAGER's expiry step used.  ``None`` reads the
-                clock when the guard runs.
             name: Optional node name.
         """
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(sender_actor_id=sender_actor_id, name=name)
         self._case_id = case_id
         self._offer_id = offer_id
-        self._sender_actor_id = sender_actor_id
-        self._reply_id = reply_id
-        self._now = now
-        self.is_redelivery = False
-        """``True`` when the last run found the reply already ledgered as
-        the one that closed the Offer: a benign no-op, not a refusal."""
+        self._case: VulnerabilityCase | None = None
+        """The case :meth:`_recorded_offer` last read."""
+        self._offer: RecordedOwnershipOffer | None = None
+        """The Offer :meth:`_recorded_offer` last read."""
 
-    def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED ({self._spec}, HP-01-006)"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-    def _refuse_late(self, offer: RecordedOwnershipOffer) -> Status:
-        """Refuse a reply to *offer* that came after its deadline.
-
-        The deadline is binding (CM-21-016): nothing the reply asks for is
-        done and it is not ledgered.  Each subclass cites the rule that
-        refuses its reply (:attr:`_late_spec`).
-        """
-        deadline = (
-            offer.end_time.isoformat() if offer.end_time is not None else "?"
-        )
-        self.feedback_message = (
-            f"Ownership-transfer Offer '{offer.offer_id}' for case"
-            f" '{self._case_id}' expired at its end_time {deadline}; reply"
-            f" '{self._reply_id}' from '{self._sender_actor_id}' came too late"
-            f" — REFUSED ({self._late_spec}, HP-01-006)"
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-    def _party_refusal(
-        self, offer: RecordedOwnershipOffer, manager_id: str
-    ) -> str | None:
-        """Why the sender is not the party to *offer* this reply needs.
-
-        *manager_id* is the case's CASE_MANAGER, which recorded *offer*.
-        Returns ``None`` when the sender is that party.
-        """
-        raise NotImplementedError
-
-    def _standing_refusal(
-        self, case: VulnerabilityCase, offer: RecordedOwnershipOffer
-    ) -> str | None:
-        """Why the party may not reply to the *open* Offer now, if at all.
-
-        Checked last, once the Offer is known to be open, so a reply to a
-        closed Offer is refused as closed.  ``None`` by default.
-        """
-        return None
-
-    def _check_open_offer(
+    def _recorded_offer(
         self,
-        case: VulnerabilityCase,
-        offer: RecordedOwnershipOffer,
-        manager_id: str,
-    ) -> Status:
-        """The CASE_MANAGER arm: the sender is the right party to *offer*,
-        which nothing has closed yet."""
-        if (why := self._party_refusal(offer, manager_id)) is not None:
-            return self._refuse(why)
-        if offer.answer_id == self._reply_id:
-            self.is_redelivery = True
-            self.feedback_message = (
-                f"Reply '{self._reply_id}' already closed ownership-transfer"
-                f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
-                " (HP-01-003)"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        if offer.is_answered_other_than(self._reply_id):
-            if offer.closed_by_expiry:
-                return self._refuse_late(offer)
-            return self._refuse(
-                f"Ownership-transfer Offer '{offer.offer_id}' for case"
-                f" '{self._case_id}' was already closed by"
-                f" '{offer.answer_id}' ({offer.closed_by_event_type})"
-            )
-        if offer.is_past_deadline(self._now or now_utc()):
-            return self._refuse_late(offer)
-        if (why := self._standing_refusal(case, offer)) is not None:
-            return self._refuse(why)
-        return Status.SUCCESS
+    ) -> tuple[str, RecordedOwnershipOffer]:
+        """The case's CASE_MANAGER and the Offer the reply names.
 
-    def update(self) -> Status:
-        self.is_redelivery = False
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None and self.actor_id is not None
-
-        sender = self._sender_actor_id
+        Raises:
+            NoStandingError: This store holds no such case, the case names no
+                CASE_MANAGER, or the CASE_MANAGER recorded no such Offer.
+        """
+        assert self.datalayer is not None
+        sender = self.sender_actor_id
         case = self.datalayer.read_case(self._case_id)
         if case is None:
             # The sender's case, not ours: nothing to establish its standing
             # against, which is a refusal and not a local anomaly.
-            return self._refuse(
+            raise NoStandingError(
                 f"Sender '{sender}' has no standing: this store holds no"
                 f" case '{self._case_id}'"
             )
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
-            return self._refuse(
+            raise NoStandingError(
                 f"Sender '{sender}' has no standing: case '{self._case_id}'"
                 " names no CASE_MANAGER"
             )
-        if same_actor_id(self.actor_id, manager_id):
-            if self._offer_id is None:
-                return self._refuse(
-                    f"Sender '{sender}' names no ownership-transfer Offer"
-                )
-            try:
-                offer = recorded_ownership_offer(
-                    self.datalayer, self._case_id, self._offer_id, manager_id
-                )
-            except VultronNotFoundError as exc:
-                return self._refuse(
-                    f"Sender '{sender}' names Offer '{self._offer_id}',"
-                    f" which this CASE_MANAGER never recorded for case"
-                    f" '{self._case_id}' ({exc})"
-                )
-            return self._check_open_offer(case, offer, manager_id)
-        if same_actor_id(sender, manager_id):
-            return Status.SUCCESS
-        return self._refuse(
-            f"Sender '{sender}' is not the CASE_MANAGER of case"
-            f" '{self._case_id}', the only actor a participant takes an"
-            " ownership change from (PCR-03-001)"
-        )
+        if self._offer_id is None:
+            raise NoStandingError(
+                f"Sender '{sender}' names no ownership-transfer Offer"
+            )
+        try:
+            offer = recorded_ownership_offer(
+                self.datalayer, self._case_id, self._offer_id, manager_id
+            )
+        except VultronNotFoundError as exc:
+            raise NoStandingError(
+                f"Sender '{sender}' names Offer '{self._offer_id}', which"
+                f" this CASE_MANAGER never recorded for case"
+                f" '{self._case_id}' ({exc})"
+            ) from exc
+        self._case = case
+        self._offer = offer
+        return manager_id, offer
 
 
 class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
-    """Guard: sender may answer this ownership-transfer Offer to this receiver.
-
-    At the CASE_MANAGER the sender must be the transferee named in an open
-    ownership-transfer Offer the CASE_MANAGER recorded for the case
-    (CM-21-011, CM-21-013); everything else is the shared rule of
-    :class:`SenderIsOwnershipOfferPartyNode`.
+    """Guard: sender is the transferee of the ownership-transfer Offer it
+    answers.
 
     The transferee is the addressee of the request, so the kind is
-    ``NAMED_ACTOR`` (ADR-0129).
+    ``NAMED_ACTOR`` (ADR-0129); see :class:`SenderIsOwnershipOfferPartyNode`.
 
-    Spec: CM-21-011, CM-21-013, CM-21-014, PCR-03-001, HP-01-006.
+    Spec: CM-21-011, CM-21-013, HP-01-006.
     """
 
     _spec = "CM-21-011"
-    _late_spec = "CM-21-016"
 
-    def _party_refusal(
-        self, offer: RecordedOwnershipOffer, manager_id: str
-    ) -> str | None:
-        sender = self._sender_actor_id
-        if same_actor_id(sender, offer.transferee_id):
-            return None
-        return (
-            f"Sender '{sender}' is not the transferee"
-            f" '{offer.transferee_id}' of ownership-transfer Offer"
-            f" '{offer.offer_id}'"
+    def _recorded_request(self) -> RecordedRequest:
+        _manager_id, offer = self._recorded_offer()
+        return RecordedRequest(
+            description=f"ownership-transfer Offer '{offer.offer_id}'",
+            position="the transferee",
+            addressees=(offer.transferee_id,),
         )
 
 
 class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
-    """Guard: sender may withdraw this ownership-transfer Offer at this receiver.
+    """Guard: sender is the Case Owner that made the ownership-transfer Offer
+    it withdraws.
 
-    At the CASE_MANAGER the sender must be the Case Owner that made an open
-    ownership-transfer Offer the CASE_MANAGER recorded for the case
-    (CM-21-015): the participant the recorded Offer speaks for — its
+    The offerer is the participant the recorded Offer speaks for — its
     ``attributedTo`` only when the CASE_MANAGER sent it on that participant's
-    behalf, else its ``actor`` (CM-24-002) — and holding
-    ``CVDRole.CASE_OWNER`` now.  Everything else is the shared rule of
-    :class:`SenderIsOwnershipOfferPartyNode`, so a withdrawal of an Offer
-    already answered or withdrawn is refused and a redelivered withdrawal is
-    recognised.
+    behalf, else its ``actor`` (CM-24-002).  The kind is ``CASE_OWNER``,
+    checked against the recorded Offer; see
+    :class:`SenderIsOwnershipOfferPartyNode`.
 
-    The kind is ``CASE_OWNER``.
+    The offerer must also hold ``CVDRole.CASE_OWNER`` now (CM-21-015): that is
+    standing too, so it is checked here, before the Offer's state.  An
+    offerer whose Offer an Accept closed no longer holds it, and is refused
+    for that.
 
-    Spec: CM-21-015, CM-21-014, PCR-03-001, HP-01-006.
+    A redelivery of the withdrawal the CASE_MANAGER already ledgered as
+    closing the Offer is a duplicate, not a new withdrawal: its standing was
+    established when it was admitted, and ownership may since have moved on
+    through a later Offer.  The role is not re-checked for it, so the
+    open-Offer guard reports it ``SKIPPED`` (HP-01-003).
+
+    Spec: CM-21-015, PCR-03-001, HP-01-003, HP-01-006.
     """
 
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.CASE_OWNER
+    )
     _spec = "CM-21-015"
-    # An expired Offer is closed (CM-21-017), and a closed one cannot be
-    # withdrawn (CM-21-015).
-    _late_spec = "CM-21-015, CM-21-017"
 
-    def _party_refusal(
-        self, offer: RecordedOwnershipOffer, manager_id: str
-    ) -> str | None:
-        sender = self._sender_actor_id
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str | None,
+        sender_actor_id: str,
+        reply_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the Undo names.
+            offer_id: The Offer the Undo names (``None`` refuses).
+            sender_actor_id: The Undo's sender.
+            reply_id: The Undo's own id, so a redelivery of the withdrawal
+                that closed the Offer is recognised.
+            name: Optional node name.
+        """
+        super().__init__(
+            case_id=case_id,
+            offer_id=offer_id,
+            sender_actor_id=sender_actor_id,
+            name=name,
+        )
+        self._reply_id = reply_id
+
+    def _recorded_request(self) -> RecordedRequest:
+        manager_id, offer = self._recorded_offer()
         offerer_id = offer.offerer_id(manager_id)
-        if offerer_id is not None and same_actor_id(sender, offerer_id):
-            return None
-        return (
-            f"Sender '{sender}' is not the offerer"
-            f" '{offerer_id}' of ownership-transfer Offer"
-            f" '{offer.offer_id}'"
+        return RecordedRequest(
+            description=f"ownership-transfer Offer '{offer.offer_id}'",
+            position="the offerer",
+            addressees=(offerer_id,) if offerer_id is not None else (),
         )
 
-    def _standing_refusal(
-        self, case: VulnerabilityCase, offer: RecordedOwnershipOffer
-    ) -> str | None:
-        assert self.datalayer is not None
-        sender = self._sender_actor_id
-        if not _holds_case_owner_role(self.datalayer, case, sender):
-            return (
-                f"Sender '{sender}' made ownership-transfer Offer"
-                f" '{offer.offer_id}' but does not hold CASE_OWNER on case"
-                f" '{self._case_id}'"
+    def _confirm_standing(self, request: RecordedRequest) -> None:
+        assert self.datalayer is not None and self._case is not None
+        assert self._offer is not None
+        if self._offer.answer_id == self._reply_id:
+            return  # the admitted withdrawal, redelivered (HP-01-003)
+        sender = self.sender_actor_id
+        if not _holds_case_owner_role(self.datalayer, self._case, sender):
+            raise NoStandingError(
+                f"Sender '{sender}' made {request.description} but does not"
+                f" hold CASE_OWNER on case '{self._case_id}'"
             )
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -1472,6 +1495,10 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
     Spec: RSH-01-002, HP-01-006.
     """
 
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.CASE_OWNER
+    )
+
     def __init__(
         self,
         sender_actor_id: str,
@@ -1548,6 +1575,10 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
     Spec: CM-30-001, CM-10-004, HP-01-006.
     """
 
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.AUTHOR
+    )
+
     def __init__(
         self,
         note_id: str,
@@ -1607,7 +1638,14 @@ __all__ = [
     "SenderIsActiveParticipantNode",
     "SenderIsActiveLedgerParticipantNode",
     "SenderIsCaseManagerNode",
-    "SenderIsNamedActorNode",
+    "RecordedRequest",
+    "NothingToProtect",
+    "NoStandingError",
+    "SenderIsRequestAddresseeNode",
+    "SenderIsProposalAddresseeNode",
+    "SenderIsOwnershipOfferPartyNode",
+    "SenderIsOwnershipTransfereeNode",
+    "SenderIsOwnershipOffererNode",
     "SenderMayAssertEmbargoNode",
     "SenderIsInviteeNode",
     "SenderIsOfferAddresseeNode",

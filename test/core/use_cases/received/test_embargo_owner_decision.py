@@ -246,10 +246,15 @@ def test_an_activation_with_pxa_set_is_refused_uncommitted(make_payload):
 
 @pytest.mark.spec("CM-18-003")
 @pytest.mark.spec("CLP-10-009")
-def test_an_activation_the_owner_declined_is_refused_uncommitted(
+def test_an_activation_the_owner_declined_changes_its_answer(
     make_payload,
 ):
-    """An owner that declined the proposal is invited again first (ADR-0122)."""
+    """An owner that declined the proposal and then activates it changed its answer.
+
+    The activation goes through with one ledger entry: the owner's row moves
+    straight to AGREED and the embargo is in force, with no re-invite first
+    (MSM-07-008, maintainer ruling 2026-10-14).
+    """
     dl, _case_obj, embargo = _store()
     owner = _owner(dl)
     owner.apply_pec_transition(
@@ -267,11 +272,11 @@ def test_an_activation_the_owner_declined_is_refused_uncommitted(
         embargo,
     )
 
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert "declined" in (result.reason or "")
-    assert _case(dl).em_state == EM.PROPOSED
-    assert _owner(dl).consent_for(embargo.id_) == EmbargoConsentState.DECLINED
-    assert _ledger(dl) == []
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _case(dl).em_state == EM.ACTIVE
+    assert _case(dl).active_embargo_id == embargo.id_
+    assert _owner(dl).consent_for(embargo.id_) == EmbargoConsentState.AGREED
+    assert _ledger(dl) == ["activate_embargo_on_case"]
 
 
 @pytest.mark.spec("BT-17-001")

@@ -544,11 +544,11 @@ groups:
     kind: protocol
     statement: >-
       The system MUST distinguish the following domain objects as separate, non-interchangeable
-      types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference, CaseActor,
+      types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference,
       CaseParticipant, and ParticipantStatus. Each of these types MUST NOT be substituted for
       another at any API boundary, persistence layer, or wire message.
     verification: Static analysis (mypy) confirms that `VulnerabilityReport`,
-      `VulnerabilityCase`, `VulnerabilityRecord`, `CaseReference`, `CaseActor`,
+      `VulnerabilityCase`, `VulnerabilityRecord`, `CaseReference`,
       `CaseParticipant`, and `ParticipantStatus` are declared as distinct non-interchangeable
       types.
     lint_suppress:
@@ -2593,16 +2593,20 @@ groups:
     statement: >-
       The consent row machine MUST implement exactly the following valid triggers, each applied to
       the row for one embargo: INVITE (from `UNINVITED`, `DECLINED` or `TIMED_OUT`, to `INVITED`),
-      AGREE (from `UNINVITED`, `INVITED` or `TIMED_OUT`, to `AGREED`), DECLINE (from `UNINVITED`,
+      AGREE (from `UNINVITED`, `INVITED`, `DECLINED` or `TIMED_OUT`, to `AGREED`), DECLINE (from
+      `UNINVITED`,
       `INVITED`, `AGREED` or `TIMED_OUT`, to `DECLINED`), TIME_OUT (from `INVITED` only, to
       `TIMED_OUT`) and CARRY_OVER (from every state except `AGREED`, to `AGREED`). No other trigger
       is valid from any state, and a row for an entry in a final register status (`SUPERSEDED`,
       `REJECTED`, `CANCELLED`, `TERMINATED`) accepts no trigger at all.
     rationale: >-
       `DECLINED` and `TIMED_OUT` are not terminal: a participant who declined or let an invitation
-      time out can be re-invited (e.g., when embargo terms change). `AGREED` is not re-invitable and
-      `DECLINED` does not agree directly, so a consent already given is not silently undone and a
-      refusal is not silently reversed. Per ADR-0048, `AGREE` and `DECLINE` are valid directly from
+      time out can be re-invited (e.g., when embargo terms change). `AGREED` is not re-invitable, so
+      a consent already given is not undone by asking again. `AGREE` is valid from `DECLINED`
+      because an Accept after a decline is the participant changing its answer: it has just said
+      it accepts, so its row moves directly, with no re-invite step (#4597). Only the
+      participant's own answer moves a `DECLINED` row this way; seeding (CM-14-003, CM-14-005) and
+      the Accept of the full-case Invite never override a decline. Per ADR-0048, `AGREE` and `DECLINE` are valid directly from
       `UNINVITED`, because consent is not always mediated by an invitation: a Finder who sets the
       embargo on their own case has no inviter; participants added during case initialization
       already have an embargo in scope (ADR-0041); and the reporter's consent is implicit in

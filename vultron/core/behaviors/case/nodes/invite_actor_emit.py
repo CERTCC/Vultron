@@ -40,9 +40,13 @@ from vultron.core.behaviors.embargo.rsvp_stamp import stamp_rsvp_deadline
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import now_utc
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.enums.roles import serialize_roles
+
+#: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
+INVITE_ID_KIND = "invite-actor-to-case"
 
 
 def emit_stub_invite(
@@ -56,6 +60,7 @@ def emit_stub_invite(
     attributed_to: str | None = None,
     in_reply_to: str | None = None,
     actor_config: ActorConfig | None = None,
+    activity_id: str | None = None,
 ) -> tuple[str, str]:
     """Build a stub Invite carrying a reply deadline, and commit it.
 
@@ -63,6 +68,10 @@ def emit_stub_invite(
     CASE_MANAGER stamps the deadline (CM-11-014, CM-28-012), the stub carries
     the terms of the embargo active now (CM-17-002), and the sealed blob is
     committed as the canonical entry before the caller queues it (CM-17-006).
+    *activity_id*, when given, is the Invite's id; absent, the factory mints
+    one.  An Invite built under an id the store already holds is the earlier
+    attempt's Invite: the factory hands back the body sealed then, and the
+    commit and the outbox each record it once (OX-06-002).
     Returns ``(activity_id, activity_blob)``.
     """
     # CM-17-002: pass the full case object so the adapter+factory can
@@ -97,6 +106,7 @@ def emit_stub_invite(
         case_id=case_id,
         actor=authorship.actor if authorship else actor_id,
         to=[invitee_id],
+        id_=activity_id,
         attributed_to=authorship.attributed_to if authorship else None,
         roles=roles,
         target=case,
@@ -130,6 +140,13 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
     an outbox item (CM-17-006).  An optional ``attributed_to`` carries the
     participant who asked for the invitation (PCR-08-007).
 
+    ``answers`` names the request this Invite answers — the ``Offer(Actor,
+    Case)`` that asked for it.  Given, the Invite's id is derived from the
+    CASE_MANAGER and that request, so a retry of the tree for the same request
+    rebuilds the same Invite, and the outbox, finding it already pending,
+    does not queue it twice (OX-06-002, ID-04-004, ADR-0119).  Absent, the
+    factory mints a fresh id.
+
     Roles are resolved via ``_read_suggested_roles()``, which uses two paths:
 
     1. **Injected roles** (``roles`` constructor parameter): used when the
@@ -161,9 +178,11 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         in_reply_to: str | None = None,
         replaces_previous_stub: bool = False,
         actor_config: ActorConfig | None = None,
+        answers: str | None = None,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self.invitee_id = invitee_id
+        self._answers = answers
         self.case_id = case_id
         self.attributed_to = attributed_to
         self._in_reply_to = in_reply_to
@@ -241,6 +260,16 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
             attributed_to=self.attributed_to,
             in_reply_to=self._in_reply_to_id(),
             actor_config=self._actor_config,
+            activity_id=self._invite_id(),
+        )
+
+    def _invite_id(self) -> str | None:
+        """The Invite's id, derived from the request it answers, if one is named."""
+        if self._answers is None:
+            return None
+        assert self.actor_id is not None
+        return derived_activity_id(
+            INVITE_ID_KIND, self.actor_id, self.case_id, self._answers
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

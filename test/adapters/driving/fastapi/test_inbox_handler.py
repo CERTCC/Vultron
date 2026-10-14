@@ -1195,7 +1195,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
     from vultron.config.actor import ActorConfig
     from vultron.core.models.activity import VultronActivity
-    from vultron.core.models.case_actor import CaseActor
+    from vultron.core.models.actor import VultronService
     from vultron.core.models.events.report import SubmitReportReceivedEvent
     from vultron.core.models.report import VulnerabilityReport
 
@@ -1219,7 +1219,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    dl.save(CaseActor(id_=VENDOR_ID))
+    dl.save(VultronService(id_=VENDOR_ID))
 
     report = VulnerabilityReport(id_=REPORT_ID)
     activity = VultronActivity(

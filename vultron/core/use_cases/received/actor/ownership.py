@@ -58,6 +58,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
+    any_of,
     exempt,
 )
 
@@ -411,10 +412,12 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     and is ``SKIPPED`` (HP-01-003).
     """
 
-    # The transferee is the addressee of the Offer (ADR-0129); the guard is
-    # two-sided: the CASE_MANAGER at a replica (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.NAMED_ACTOR
+    # The transferee is the addressee of the Offer (ADR-0129), checked at the
+    # CASE_MANAGER against the Offer it recorded; a replica takes the change
+    # from the CASE_MANAGER alone (PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR),
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
     )
 
     def __init__(
@@ -442,6 +445,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             sender_id=request.actor_id,
             answer_id=request.activity_id,
             now=now,
+            sender_rule=self.sender_entitlement,
         )
         return _run_ownership_answer(
             dl=self._dl,
@@ -473,8 +477,9 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     """
 
     # The same two-sided transferee rule as the Accept (ADR-0129).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.NAMED_ACTOR
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR),
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
     )
 
     def __init__(
@@ -501,6 +506,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             sender_id=request.actor_id,
             answer_id=request.activity_id,
             now=now,
+            sender_rule=self.sender_entitlement,
         )
         return _run_ownership_answer(
             dl=self._dl,
@@ -532,9 +538,12 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     the Undo that already closed the Offer is ``SKIPPED`` (HP-01-003).
     """
 
-    # The offerer, which must still be the Case Owner (CM-21-015).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.CASE_OWNER
+    # The offerer, which must still be the Case Owner (CM-21-015), checked at
+    # the CASE_MANAGER against the Offer it recorded; a replica takes the
+    # withdrawal from the CASE_MANAGER alone (PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER),
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
     )
 
     def __init__(
@@ -561,6 +570,7 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             sender_id=request.actor_id,
             undo_id=request.activity_id,
             now=now,
+            sender_rule=self.sender_entitlement,
         )
         return _run_ownership_answer(
             dl=self._dl,

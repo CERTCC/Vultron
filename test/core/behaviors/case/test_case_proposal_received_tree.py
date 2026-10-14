@@ -1396,12 +1396,16 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
 
     @pytest.mark.parametrize(
         ("decliner", "expected"),
-        [(_VENDOR_URI, "FAILURE"), (_CASE_ACTOR_URI, "SUCCESS")],
+        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "SUCCESS")],
     )
-    def test_only_the_owners_decline_blocks_its_activation(
+    def test_no_decline_blocks_the_owners_activation(
         self, make_payload, decliner, expected
     ):
-        """owner_decision.py reads the owner's row, not the case actor's."""
+        """Neither the owner's decline nor the case actor's blocks activation.
+
+        An owner that declined and then activates has changed its answer
+        (MSM-07-008, maintainer ruling 2026-10-14).
+        """
         from test.core.behaviors.bt_harness import BTTestScenario
         from vultron.core.behaviors.embargo.nodes import (
             OwnerMayActivateEmbargoNode,

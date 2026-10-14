@@ -1877,23 +1877,20 @@ class TestLateAcceptHandling:
         "start, triggers",
         [
             (EmbargoConsentState.TIMED_OUT, [PEC_Trigger.AGREE]),
-            (
-                EmbargoConsentState.DECLINED,
-                [PEC_Trigger.INVITE, PEC_Trigger.AGREE],
-            ),
+            (EmbargoConsentState.DECLINED, [PEC_Trigger.AGREE]),
         ],
-        ids=["timed-out-agrees-directly", "declined-is-invited-first"],
+        ids=["timed-out-agrees-directly", "declined-agrees-directly"],
     )
     def test_late_accept_reaches_signatory_by_the_legal_path(
         self, make_payload, monkeypatch, start, triggers
     ):
         """A late Accept of the current embargo reaches AGREED by a legal path.
 
-        ``AGREE`` is legal from ``TIMED_OUT`` (ADR-0118), so that row agrees
-        directly.  ``AGREE`` refuses ``DECLINED`` (CM-18-003), so a declined
-        participant is invited again first (``DECLINED → INVITED → AGREED``,
-        EMB-17-002).  Neither row keeps a deadline once it leaves ``INVITED``;
-        the row state itself closes the invitation.
+        ``AGREE`` is legal from ``TIMED_OUT`` (ADR-0118) and from
+        ``DECLINED`` (CM-18-003), so either row agrees directly: a declined
+        participant that accepts has changed its answer, and is not invited
+        again first (EMB-17-002).  Neither row keeps a deadline once it
+        leaves ``INVITED``; the row state itself closes the invitation.
         """
         from vultron.core.models.case_participant import (
             CaseParticipant as _CoreParticipant,

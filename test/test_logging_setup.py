@@ -24,8 +24,10 @@ import logging
 
 import pytest
 
+from vultron.core.behaviors.node_logger import PORT_WIRING_LOGGER_NAME
 from vultron.logging_setup import (
     NOISY_INFO_LOGGERS,
+    STATIC_WIRING_LOGGERS,
     restore_third_party_log_levels,
     suppress_third_party_info_noise,
 )
@@ -35,7 +37,8 @@ from vultron.logging_setup import (
 def _restore_logger_levels():
     """Restore the noisy loggers' levels so tests do not leak configuration."""
     saved = {
-        name: logging.getLogger(name).level for name in NOISY_INFO_LOGGERS
+        name: logging.getLogger(name).level
+        for name in (*NOISY_INFO_LOGGERS, *STATIC_WIRING_LOGGERS)
     }
     yield
     for name, level in saved.items():
@@ -197,3 +200,39 @@ def test_demo_cli_wires_up_suppression(monkeypatch):
 
     assert calls, "demo CLI main() must suppress third-party INFO noise"
     assert calls == [logging.INFO]
+
+
+def test_port_wiring_is_a_static_wiring_logger():
+    assert PORT_WIRING_LOGGER_NAME in STATIC_WIRING_LOGGERS
+
+
+@pytest.mark.parametrize(
+    ("app_level", "expected"),
+    [
+        (logging.DEBUG, logging.INFO),
+        (logging.INFO, logging.INFO),
+        (logging.WARNING, logging.WARNING),
+    ],
+)
+def test_static_wiring_loggers_stay_quiet_at_debug(app_level, expected):
+    """Wiring that restates code stays out of a DEBUG log (#4600).
+
+    It is pinned to INFO, never below, and never above the app level, so an
+    app at WARNING does not gain INFO records from it.
+    """
+    suppress_third_party_info_noise(app_level)
+
+    for name in STATIC_WIRING_LOGGERS:
+        wiring_logger = logging.getLogger(name)
+        assert wiring_logger.level == expected
+        assert not wiring_logger.isEnabledFor(logging.DEBUG)
+
+
+def test_restore_returns_static_wiring_loggers_to_their_prior_level():
+    wiring_logger = logging.getLogger(STATIC_WIRING_LOGGERS[0])
+    wiring_logger.setLevel(logging.NOTSET)
+
+    suppress_third_party_info_noise(logging.DEBUG)
+    restore_third_party_log_levels()
+
+    assert wiring_logger.level == logging.NOTSET

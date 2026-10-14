@@ -40,13 +40,13 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.factories import announce_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -109,7 +109,7 @@ def seeded_dl(dl):
     case.actor_participant_index[_CASE_ACTOR_ID] = case_actor_participant.id_
     case.actor_participant_index[_PEER_ID] = peer_participant.id_
 
-    case_actor_svc = as_CaseActor(
+    case_actor_svc = VultronService(
         id_=f"{_CASE_ACTOR_ID}/case-actor",
         attributed_to=_CASE_ACTOR_ID,
         context=_CASE_ID,

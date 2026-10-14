@@ -53,6 +53,9 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received.actor.ownership import (
+    AcceptCaseOwnershipTransferReceivedUseCase,
+)
 
 _EXPIRED = OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE
 
@@ -156,7 +159,7 @@ class TestLateAnswerIsRefused:
     def test_late_accept_is_refused_even_without_an_expiry_record(
         self, make_payload
     ):
-        """The sender guard reads the deadline itself, so a lost expiry
+        """The open-Offer guard reads the deadline itself, so a lost expiry
         record cannot let a late answer through."""
         from vultron.core.behaviors.case.ownership_transfer_tree import (
             create_accept_ownership_transfer_tree,
@@ -181,6 +184,9 @@ class TestLateAnswerIsRefused:
             answer_id=accept.id_,
             # Two hours on: past the deadline, but no expiry was ledgered.
             now=now_utc() + timedelta(hours=2),
+            sender_rule=(
+                AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement
+            ),
         )
         result = BTBridge(
             datalayer=dl,

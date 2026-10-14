@@ -627,14 +627,14 @@ def test_activation_of_a_non_embargo_record_writes_nothing(
 @pytest.mark.parametrize(
     "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
 )
-def test_activate_embargo_is_refused_when_the_owner_declined_it(
+def test_activate_embargo_by_an_owner_that_declined_it_changes_its_answer(
     owner_and_dl: tuple[as_Service, SqliteDataLayer], mode: TransitionMode
 ) -> None:
-    """The activation is the owner's agreement, which a DECLINED row refuses.
+    """The activation is the owner's agreement, and it changes a decline.
 
-    The owner is invited again before it activates (ADR-0122).  Refused in
-    both modes and before any write, so a replica replaying such an entry
-    refuses it as the CASE_MANAGER would have.
+    The owner's row moves straight from DECLINED to AGREED, with no re-invite
+    first, in both modes, so a replica replaying the entry agrees with the
+    CASE_MANAGER (CM-18-003, MSM-07-008).
     """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
@@ -644,19 +644,22 @@ def test_activate_embargo_is_refused_when_the_owner_declined_it(
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, embargo.id_, ECS.DECLINED)
 
-    with pytest.raises(VultronInvalidStateTransitionError, match="declined"):
-        EmbargoLifecycle(persistence=dl).activate_embargo(
-            case_id=case.id_,
-            embargo_id=embargo.id_,
-            actor_id=owner.id_,
-            transition_mode=mode,
-        )
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=mode,
+    )
 
-    untouched = cast(VulnerabilityCase, dl.read(case.id_))
-    assert untouched.em_state == EM.PROPOSED
-    assert untouched.active_embargo_id is None
-    assert untouched.proposed_embargo_ids == [embargo.id_]
-    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "DECLINED"}
+    activated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert activated.em_state == EM.ACTIVE
+    assert activated.active_embargo_id == embargo.id_
+    assert activated.proposed_embargo_ids == []
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
+    assert (owner_p.id_, "DECLINED", "AGREED") in {
+        (c.participant_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    }
 
 
 @pytest.mark.spec("CM-18-001", "EP-09-007")

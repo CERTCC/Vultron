@@ -377,9 +377,9 @@ class TestEngageCaseLedgerCommit:
     @classmethod
     def _seed(cls, dl: SqliteDataLayer) -> SqliteDataLayer:
         """*dl*'s replica of the case: vendor participant plus the CM."""
-        from vultron.core.models.case_actor import CaseActor
+        from vultron.core.models.actor import VultronService
 
-        dl.create(CaseActor(id_=cls._SENDER_ID, name="Vendor"))
+        dl.create(VultronService(id_=cls._SENDER_ID, name="Vendor"))
 
         vendor_p = CaseParticipant(
             id_=cls._VENDOR_PARTICIPANT_ID,
@@ -400,7 +400,7 @@ class TestEngageCaseLedgerCommit:
         )
         dl.create(vendor_p)
 
-        dl.create(CaseActor(id_=cls._CASE_MANAGER_ID, name="Coordinator"))
+        dl.create(VultronService(id_=cls._CASE_MANAGER_ID, name="Coordinator"))
 
         cm_p = CaseParticipant(
             id_=cls._CM_PARTICIPANT_ID,
@@ -652,9 +652,9 @@ class TestDeferCaseLedgerCommit:
 
     @pytest.fixture
     def seeded_dl(self, dl):
-        from vultron.core.models.case_actor import CaseActor
+        from vultron.core.models.actor import VultronService
 
-        dl.create(CaseActor(id_=self._SENDER_ID, name="Vendor"))
+        dl.create(VultronService(id_=self._SENDER_ID, name="Vendor"))
         vendor_p = CaseParticipant(
             id_=self._VENDOR_PARTICIPANT_ID,
             attributed_to=self._SENDER_ID,
@@ -673,7 +673,9 @@ class TestDeferCaseLedgerCommit:
             ],
         )
         dl.create(vendor_p)
-        dl.create(CaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator"))
+        dl.create(
+            VultronService(id_=self._CASE_MANAGER_ID, name="Coordinator")
+        )
         cm_p = CaseParticipant(
             id_=self._CM_PARTICIPANT_ID,
             attributed_to=self._CASE_MANAGER_ID,

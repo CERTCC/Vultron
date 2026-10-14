@@ -73,7 +73,7 @@ from vultron.core.behaviors.call_out.bundles.publication import (
     PublicationCallOutBundle,
 )
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
@@ -120,7 +120,8 @@ class _ShouldPublishArtifactGate(BehaviourWithPorts):
     def setup(self, **kwargs: Any) -> None:
         """Wire input port to the shared intent-decision blackboard key."""
         self.setup_ports(
-            port_remappings={INTENT_DECISION_KEY: f"/{INTENT_DECISION_KEY}"}
+            port_remappings={INTENT_DECISION_KEY: f"/{INTENT_DECISION_KEY}"},
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:

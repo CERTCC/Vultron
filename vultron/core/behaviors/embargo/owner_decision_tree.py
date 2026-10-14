@@ -74,7 +74,7 @@ def activate_embargo_on_case_tree(
         ├─ IntakeReceivedActivityNode
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
-        ├─ OwnerMayActivateEmbargoNode       # P/X/A clear, owner not DECLINED
+        ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
            ├─ CaptureActiveEmbargoNode       # snapshot signatories before

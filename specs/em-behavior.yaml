@@ -2051,8 +2051,8 @@ groups:
       When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
       Accept and mark the participant's consent row for it AGREED, exactly as it would for an
       on-time Accept. A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`,
-      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → AGREED`), because
-      AGREE is not legal from DECLINED (CM-18-003).
+      ADR-0118), and so does one at DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
+      has changed its answer, so it is not re-invited first.
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
