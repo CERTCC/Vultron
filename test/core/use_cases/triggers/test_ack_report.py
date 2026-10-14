@@ -13,8 +13,8 @@
 """``execute()``-path tests for ``SvcAckReportUseCase`` (ack-report).
 
 RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to, to
-the reporter, and only before a case exists for the report; it is never sent
-to the CASE_MANAGER (RMB-08-003).
+the reporter, whether or not a case exists for the report; it is never sent to
+the CASE_MANAGER (RMB-08-003).
 """
 
 from collections.abc import Iterator
@@ -33,7 +33,6 @@ from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.use_cases.triggers.report import SvcAckReportUseCase
 from vultron.core.use_cases.triggers.requests import AckReportTriggerRequest
 from vultron.errors import (
-    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -124,14 +123,22 @@ def test_ack_is_sent_to_the_reporter_alone(env: _Fixture):
 
 
 @pytest.mark.spec("RMB-08-003")
-def test_ack_is_refused_once_a_case_exists(env: _Fixture):
+@pytest.mark.spec("PCR-08-001")
+def test_ack_still_goes_to_the_reporter_alone_once_a_case_exists(
+    env: _Fixture,
+):
+    """RK answers the reporter's Offer outside the case (PCR-08-001 exception)."""
     env.add_case()
     before = set(env.dl.outbox_list())
 
-    with pytest.raises(VultronInvalidStateTransitionError, match="RMB-08-003"):
-        env.run()
+    env.run()
 
-    assert set(env.dl.outbox_list()) == before
+    queued = set(env.dl.outbox_list()) - before
+    assert len(queued) == 1
+    read = env.dl.read(queued.pop())
+    assert isinstance(read, as_Read)
+    assert read.to == [FINDER_ID]
+    assert CASE_ACTOR_ID not in (read.cc or [])
 
 
 @pytest.mark.spec("RMB-08-003")

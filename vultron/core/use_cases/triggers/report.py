@@ -62,7 +62,6 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import (
     VultronAlreadyExistsError,
-    VultronConflictError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -124,10 +123,11 @@ class SvcAckReportUseCase(SvcActivityTriggerBase):
     """Acknowledge a report Offer by emitting RK to the reporter.
 
     RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
-    to the reporter, and only before a case exists for the report: once a
-    case exists the report is no longer acknowledged, and nobody sends RK to
-    the CASE_MANAGER (RMB-08-003).  A trigger that cannot meet that rule is
-    refused before anything is emitted.
+    to the reporter, at any time after the report arrived, whether or not a
+    case exists: it answers the reporter's Offer outside the case, so it is
+    the stated exception to PCR-08-001.  Nobody sends it to the CASE_MANAGER
+    (RMB-08-003).  An actor the Offer was not sent to is refused before
+    anything is emitted.
     """
 
     def _prepare(self) -> None:
@@ -138,12 +138,6 @@ class SvcAckReportUseCase(SvcActivityTriggerBase):
             request.offer_id, self._dl
         )
         _require_offer_addressed_to(self._actor_id, self._offer, "ack-report")
-        if self._dl.find_case_by_report_id(self._report.id_) is not None:
-            raise VultronConflictError(
-                f"ack-report refused: report '{self._report.id_}' already has"
-                " a case, and a report is not acknowledged once its case"
-                " exists (RMB-08-003)."
-            )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_ack_report_trigger_tree(

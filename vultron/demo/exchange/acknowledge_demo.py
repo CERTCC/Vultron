@@ -24,7 +24,8 @@ This demo script showcases the RmReadReportActivity (as:Read) acknowledgement me
 
 The finder submits through its ``submit-report`` trigger, so it holds the
 Offer and admits the ack only from the Offer's addressee, the vendor
-(RMB-08-004).  The ack goes to the finder alone, never to the CASE_MANAGER
+(RMB-08-004).  The vendor sends the ack through its ``ack-report`` trigger,
+which addresses the finder alone, never the CASE_MANAGER, case or no case
 (RMB-08-003).
 
 The acknowledge workflow corresponds to:
@@ -51,6 +52,8 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.polling import wait_for_object_stored
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_activity_in_inbox,
@@ -67,7 +70,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.wire.as2.factories import (
     rm_invalidate_report_activity,
-    rm_read_report_activity,
     rm_validate_report_activity,
 )
 
@@ -102,22 +104,20 @@ def _vendor_acknowledges_to_finder(
 ) -> None:
     """The vendor, the Offer's addressee, sends RK to the finder.
 
-    RK goes from the actor the Offer was addressed to, to the reporter, and
-    never to the CASE_MANAGER (RMB-08-003).  Like every step of this exchange
-    demo, the RK is posted to the finder's inbox directly rather than through
-    the vendor's ``ack-report`` trigger: that trigger is refused once a case
-    exists for the report, and under the default ``auto_create_case=True``
-    the vendor already holds one by now (CM-15-001).
+    The vendor's ``ack-report`` trigger emits the ``Read(Offer)`` to the
+    reporter alone, never to the CASE_MANAGER (RMB-08-003), whether or not a
+    case exists yet, and its outbox delivers it.  The finder admits it
+    because the vendor is an addressee of the Offer the finder recorded
+    (RMB-08-004).
     """
-    ack = rm_read_report_activity(
-        offer, actor=vendor.id_, to=[finder.id_], content=content
+    result = ActorSession(client=client, actor=vendor).ack_report(
+        offer_id=offer.id_, note=content
     )
-    post_to_inbox_and_wait(client, finder.id_, ack)
+    ack_id = (result.activity or {}).get("id")
     with demo_check("RmReadReportActivity in finder's inbox"):
-        if not verify_activity_in_inbox(client, finder.id_, ack.id_):
-            raise ValueError(
-                "RmReadReportActivity not found in finder's inbox."
-            )
+        if not isinstance(ack_id, str):
+            raise TypeError("ack-report returned no activity id.")
+        wait_for_object_stored(client, ack_id, actor_id=finder.id_)
 
 
 def demo_acknowledge_only(

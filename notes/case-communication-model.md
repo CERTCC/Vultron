@@ -21,6 +21,7 @@ related_specs:
   - specs/protocol-asks.yaml
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
+  - specs/rm-behavior.yaml
 related_notes:
   - notes/sync-ledger-replication.md
   - notes/case-ledger-authority.md
@@ -87,6 +88,9 @@ CASE_MANAGER cannot validate or order it.
 Never address `to:` from the roster (`case.actor_participant_index` or similar). From a
 participant it bypasses the CASE_MANAGER (PCR-08-001); from the CASE_MANAGER it reaches
 inert participants (CM-10-004, ADR-0114). A participant sends to the CASE_MANAGER only.
+The one stated exception is RK: an addressee of the report's `Offer` sends it to the
+reporter directly, case or no case, because it answers that Offer outside the case
+(PCR-08-001, RMB-08-003, #4560).
 The CASE_MANAGER picks broadcast recipients from
 `vultron/core/participants/recipients.py` (CM-10-007): `case_content_recipients()` for
 content (active participants not at RM.CLOSED), `ledger_entry_recipients()` for

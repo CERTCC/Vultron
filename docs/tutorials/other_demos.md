@@ -349,7 +349,7 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 
 This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
 The finder submits through its `submit-report` trigger, so it holds the Offer and accepts the acknowledgment because the vendor is the Offer's addressee.
-The acknowledgment goes to the finder alone, never to the CASE_MANAGER.
+The vendor sends the acknowledgment through its `ack-report` trigger, which addresses the finder alone and never the CASE_MANAGER, even though a case already exists.
 Three paths are demonstrated:
 
 1. **Acknowledge only** — the vendor sends the acknowledgment to the finder.

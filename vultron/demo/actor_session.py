@@ -255,6 +255,15 @@ class ActorSession:
             )
         return self._post("submit-report", body)
 
+    def ack_report(
+        self, *, offer_id: str, note: str | None = None
+    ) -> WireTriggerResult:
+        """Acknowledge the offered report to its reporter (ack-report, RK)."""
+        body: dict[str, Any] = {"offer_id": offer_id}
+        if note is not None:
+            body["note"] = note
+        return self._post("ack-report", body)
+
     def validate_report(
         self, *, offer_id: str, note: str | None = None
     ) -> WireTriggerResult:

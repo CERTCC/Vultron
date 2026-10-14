@@ -204,9 +204,9 @@ groups:
     statement: >-
       Every activity the CASE_MANAGER admits at the case layer is a case event and
       MUST be ledgered (CLP-02-001), except the following, which are not case events:
-      activities processed before a case exists (report submission and its
-      acknowledgement, RK, which is never sent once a case exists (RMB-08-003),
-      and case proposal intake); a replica's receipt of
+      activities processed before a case exists (report submission, case proposal
+      intake); RK, which answers the reporter's Offer outside the case and is never
+      sent to the CASE_MANAGER (RMB-08-003); a replica's receipt of
       `Announce(CaseLedgerEntry)`, which applies an
       entry rather than asserting one; activities about the ledger itself, namely the
       CASE_MANAGER's refusal notice (CLP-05-001) and a replica's

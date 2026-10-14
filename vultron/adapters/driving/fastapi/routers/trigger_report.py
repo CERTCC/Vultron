@@ -59,10 +59,9 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "Triggers the ack-report behavior for the given actor. "
         "Emits a Read(Offer(VulnerabilityReport)) activity (RK) to the "
         "reporter and returns it in the response body (TRIG-04-001). "
-        "Only an actor the Offer was addressed to may acknowledge it, and "
-        "only before a case exists for the report: returns HTTP 409 once a "
-        "case exists, since RK is never sent to the CASE_MANAGER "
-        "(RMB-08-003)."
+        "Only an actor the Offer was addressed to may acknowledge it; it may "
+        "do so whether or not a case exists, and RK is never sent to the "
+        "CASE_MANAGER (RMB-08-003)."
     ),
     operation_id="actors_trigger_ack_report",
     response_model=ActivityResult,
