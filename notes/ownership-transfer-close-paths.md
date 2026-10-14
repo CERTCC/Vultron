@@ -48,9 +48,9 @@ an Offer can also close without an answer (#4490):
     `attributedTo` only when the CASE_MANAGER is its `actor` (the delegated shape,
     CM-24-002), else its `actor`. An `attributedTo` on an Offer a participant sent
     itself is an unchecked claim, ignored as the Offer handler ignores it when
-    forwarding (`RecordedOwnershipOffer.offerer_id`). That the offerer still holds
-    `CASE_OWNER` is read last, by the open-Offer guard, so the offerer of an Offer
-    an Accept already closed is refused as closed.
+    forwarding (`RecordedOwnershipOffer.offerer_id`). The offerer must still hold
+    `CASE_OWNER`; that is standing too, so an offerer whose Offer an Accept closed
+    is refused for it before the Offer's state is read (#4437).
   - **Closed and redelivered.** The reply trees share the open-Offer guard
     (`OwnershipOfferOpenNode`, `case/nodes/ownership_offer_guard.py`), which runs
     right after the sender check: a withdrawal of a closed Offer is `REFUSED` and a

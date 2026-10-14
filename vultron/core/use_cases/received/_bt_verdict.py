@@ -78,7 +78,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronBTInternalError
+from vultron.errors import VultronBTInternalError, VultronWiringError
 
 _N = TypeVar("_N", bound=py_trees.behaviour.Behaviour)
 
@@ -116,6 +116,24 @@ def find_named(
         if node.name == name:
             return node
     return None
+
+
+def named_node_status(
+    tree: py_trees.behaviour.Behaviour | _HasRoot, name: str
+) -> Status:
+    """The last status of the node called *name* in *tree*.
+
+    For nodes that share a class and differ only by their place in the tree,
+    such as the two CASE_MANAGER sender checks of the announce tree.
+
+    Raises:
+        VultronWiringError: *tree* has no node called *name*, so the caller's
+            verdict would silently skip the branch it reads.
+    """
+    node = find_named(tree, name)
+    if node is None:
+        raise VultronWiringError(f"no node called {name!r} in the tree")
+    return node.status
 
 
 def _any_with_status(

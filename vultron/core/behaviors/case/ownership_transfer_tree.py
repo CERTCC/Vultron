@@ -91,7 +91,6 @@ def _reply_guards(
             case_id=case_id,
             offer_id=offer_id,
             reply_id=reply_id,
-            sender_id=sender_id,
             party=party,
             now=now,
         )

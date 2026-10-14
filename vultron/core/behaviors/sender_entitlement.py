@@ -365,14 +365,10 @@ def is_case_owner(case: object | None, actor_id: str) -> bool:
     return owner_id is not None and owner_id == actor_id
 
 
-def holds_case_owner_role(
+def _holds_case_owner_role(
     datalayer: CasePersistence, case: VulnerabilityCase, actor_id: str
 ) -> bool:
-    """Return ``True`` when *actor_id*'s participant record holds CASE_OWNER.
-
-    The one CASE_OWNER predicate (HP-01-007): the ownership-withdrawal
-    open-Offer guard reads it too, once the Offer is known to be open.
-    """
+    """Return ``True`` when *actor_id*'s participant record holds CASE_OWNER."""
     participant_id = next(
         (
             pid
@@ -741,7 +737,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             )
             return Status.SUCCESS
 
-        if sender_id == case_actor_id:
+        if same_actor_id(sender_id, case_actor_id):
             self.logger.debug(
                 "%s: sender '%s' matches CaseActor for case '%s'",
                 self.name,
@@ -1089,7 +1085,7 @@ class SenderMayAssertEmbargoNode(SenderEntitlementConditionNode):
             return Status.SUCCESS
         if (
             self._manager_arm is SenderEntitlementKind.CASE_OWNER
-            and holds_case_owner_role(self.datalayer, case, sender)
+            and _holds_case_owner_role(self.datalayer, case, sender)
         ):
             return Status.SUCCESS
         if self._manager_arm is SenderEntitlementKind.ACTIVE_PARTICIPANT:
@@ -1258,11 +1254,13 @@ class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
         super().__init__(sender_actor_id=sender_actor_id, name=name)
         self._case_id = case_id
         self._offer_id = offer_id
+        self._case: VulnerabilityCase | None = None
+        """The case :meth:`_recorded_offer` last read."""
 
     def _recorded_offer(
         self,
-    ) -> tuple[VulnerabilityCase, str, RecordedOwnershipOffer]:
-        """The case, its CASE_MANAGER and the Offer the reply names.
+    ) -> tuple[str, RecordedOwnershipOffer]:
+        """The case's CASE_MANAGER and the Offer the reply names.
 
         Raises:
             NoStandingError: This store holds no such case, the case names no
@@ -1298,7 +1296,8 @@ class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
                 f" this CASE_MANAGER never recorded for case"
                 f" '{self._case_id}' ({exc})"
             ) from exc
-        return case, manager_id, offer
+        self._case = case
+        return manager_id, offer
 
 
 class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
@@ -1314,7 +1313,7 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
     _spec = "CM-21-011"
 
     def _recorded_request(self) -> RecordedRequest:
-        _case, _manager_id, offer = self._recorded_offer()
+        _manager_id, offer = self._recorded_offer()
         return RecordedRequest(
             description=f"ownership-transfer Offer '{offer.offer_id}'",
             position="the transferee",
@@ -1332,9 +1331,10 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
     checked against the recorded Offer; see
     :class:`SenderIsOwnershipOfferPartyNode`.
 
-    That the offerer still holds ``CVDRole.CASE_OWNER`` (CM-21-015) is read
-    by the open-Offer guard after it, once the Offer is known to be open, so
-    the offerer of an Offer an Accept already closed is refused as closed.
+    The offerer must also hold ``CVDRole.CASE_OWNER`` now (CM-21-015): that is
+    standing too, so it is checked here, before the Offer's state.  An
+    offerer whose Offer an Accept closed no longer holds it, and is refused
+    for that.
 
     Spec: CM-21-015, PCR-03-001, HP-01-006.
     """
@@ -1345,13 +1345,22 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
     _spec = "CM-21-015"
 
     def _recorded_request(self) -> RecordedRequest:
-        _case, manager_id, offer = self._recorded_offer()
+        manager_id, offer = self._recorded_offer()
         offerer_id = offer.offerer_id(manager_id)
         return RecordedRequest(
             description=f"ownership-transfer Offer '{offer.offer_id}'",
             position="the offerer",
             addressees=(offerer_id,) if offerer_id is not None else (),
         )
+
+    def _confirm_standing(self, request: RecordedRequest) -> None:
+        assert self.datalayer is not None and self._case is not None
+        sender = self.sender_actor_id
+        if not _holds_case_owner_role(self.datalayer, self._case, sender):
+            raise NoStandingError(
+                f"Sender '{sender}' made {request.description} but does not"
+                f" hold CASE_OWNER on case '{self._case_id}'"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1490,7 +1499,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
         if failure is not None:
             return failure  # Regime 1: CASE_OWNER role gate needs the case
 
-        if holds_case_owner_role(self.datalayer, case, self._sender_actor_id):
+        if _holds_case_owner_role(self.datalayer, case, self._sender_actor_id):
             self.logger.debug(
                 "%s: sender '%s' IS CASE_OWNER for case '%s'",
                 self.name,
@@ -1585,7 +1594,6 @@ __all__ = [
     "exempt",
     # Helper predicate
     "is_case_owner",
-    "holds_case_owner_role",
     # Base / marker class
     "SenderEntitlementConditionNode",
     # Condition nodes

@@ -1989,7 +1989,16 @@ class TestWithdrawalOfOwnershipTransfer:
         late = _undo(dl, make_payload, offer)
 
         assert late.disposition is HandlerDisposition.REFUSED
-        assert late.reason is not None and "already closed" in late.reason
+        # After a Reject the offerer is still the Case Owner and learns the
+        # Offer is closed; after an Accept it no longer holds CASE_OWNER, so
+        # it is refused for standing before the Offer's state is read
+        # (decision 2 of #4437).
+        expected = (
+            "does not hold CASE_OWNER"
+            if answer == "accept"
+            else "already closed"
+        )
+        assert late.reason is not None and expected in late.reason
         assert _event_types(dl) == entries_before
         assert dl.outbox_list() == outbox_before
 
@@ -2137,10 +2146,14 @@ _STRANGER_ID = "https://example.org/users/stranger"
 
 
 def _closed_offer(make_payload, case_id: str):
-    """A CASE_MANAGER store whose one Offer the transferee's Accept closed."""
+    """A CASE_MANAGER store whose one Offer the transferee's Reject closed.
+
+    A Reject leaves the offerer the Case Owner, so each party still has
+    standing to reply.
+    """
     dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
     _, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
-    assert _accept(dl, make_payload, offer).disposition is (
+    assert _reject(dl, make_payload, offer).disposition is (
         HandlerDisposition.APPLIED
     )
     return dl, offer

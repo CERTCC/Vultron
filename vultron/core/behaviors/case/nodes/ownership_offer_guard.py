@@ -40,7 +40,6 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.behaviors.sender_entitlement import holds_case_owner_role
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -169,9 +168,6 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
     - A reply to an Offer an answer, withdrawal or expiry already closed is
       refused (CM-21-014).
     - A reply after the Offer's ``end_time`` is refused (CM-21-016).
-    - A withdrawal of the still-open Offer by an offerer that no longer holds
-      ``CVDRole.CASE_OWNER`` is refused (CM-21-015).  It is read last, so
-      the offerer of an Offer already closed is refused as closed.
 
     The deadline is read here as well as by the CASE_MANAGER's expiry step,
     which runs first and ledgers the expiry
@@ -190,7 +186,6 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         case_id: str,
         offer_id: str | None,
         reply_id: str,
-        sender_id: str,
         party: OfferParty,
         now: datetime | None = None,
         name: str | None = None,
@@ -201,10 +196,8 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
             case_id: The case the reply names.
             offer_id: The Offer the reply names.
             reply_id: The reply's own id, so a redelivery is recognised.
-            sender_id: The reply's sender, which the sender check found to be
-                the Offer's party.
             party: The party whose reply it is; it picks the requirements a
-                refusal cites, and an offerer must still hold CASE_OWNER.
+                refusal cites.
             now: The instant the deadline is compared against: the one the
                 CASE_MANAGER's expiry step used.  ``None`` reads the clock
                 when the guard runs.
@@ -214,7 +207,6 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         self._case_id = case_id
         self._offer_id = offer_id
         self._reply_id = reply_id
-        self._sender_id = sender_id
         self._party = party
         self._now = now
         self.is_redelivery = False
@@ -293,16 +285,6 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
             )
         if offer.is_past_deadline(self._now or now_utc()):
             return self._refuse_late(offer)
-        assert self.datalayer is not None
-        if self._party is OfferParty.OFFERER and not holds_case_owner_role(
-            self.datalayer, case, self._sender_id
-        ):
-            return self._refuse(
-                f"Sender '{self._sender_id}' made ownership-transfer Offer"
-                f" '{offer.offer_id}' but does not hold CASE_OWNER on case"
-                f" '{self._case_id}'",
-                "CM-21-015, HP-01-006",
-            )
         return Status.SUCCESS
 
 
@@ -310,7 +292,6 @@ def case_manager_ownership_offer_open_guard(
     case_id: str,
     offer_id: str | None,
     reply_id: str,
-    sender_id: str,
     party: OfferParty,
     now: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -331,7 +312,6 @@ def case_manager_ownership_offer_open_guard(
                 case_id=case_id,
                 offer_id=offer_id,
                 reply_id=reply_id,
-                sender_id=sender_id,
                 party=party,
                 now=now,
             )
