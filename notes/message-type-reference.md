@@ -17,6 +17,7 @@ related_specs:
   - specs/received-status-handling.yaml
   - specs/rm-behavior.yaml
   - specs/participant-case-replica.yaml
+  - specs/vultron-protocol-spec.yaml
 related_notes:
   - notes/message-occasion-table.md
   - notes/activitystreams-semantics.md
@@ -122,6 +123,9 @@ acknowledgement is cumulative via the hash chain
   the CASE_MANAGER and never ledgered, so PCR-08-001 states it as an exception.
   The reporter checks the sender against its own record of the Offer, so the
   declared kind is `NAMED_ACTOR` and "Sent by" carries the addressee wording.
+  No other `R*` message, `RE` included, is acknowledged with `RK`: once a case
+  exists, the CASE_MANAGER's ledger entry is the acknowledgment (VP-03-009,
+  VP-03-011, narrowing the formal protocol).
 
 ## Keep the three quadrants apart
 

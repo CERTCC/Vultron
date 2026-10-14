@@ -113,6 +113,7 @@ def env() -> Iterator[_Fixture]:
 
 @pytest.mark.spec("RMB-08-003")
 @pytest.mark.spec("TRIG-02-001")
+@pytest.mark.spec("VP-03-009")
 def test_ack_is_sent_to_the_reporter_alone(env: _Fixture):
     before = set(env.dl.outbox_list())
 
