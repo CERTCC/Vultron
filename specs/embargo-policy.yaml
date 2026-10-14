@@ -564,9 +564,8 @@ groups:
       whose context genuinely is a case, and are unaffected by this widening.
     verification: >-
       `test/wire/as2/test_report_offer_proposed_embargo.py` confirms an `EmbargoEvent` constructed with
-      a report URI context validates and travels on the Offer; `CreateEmbargoEventPattern` admits both
-      subjects (VAM-05-001). No consumer of `EmbargoEvent.context` casts it to a case: the field is read
-      as an identifier only.
+      a report URI context validates and travels on the Offer. No consumer of `EmbargoEvent.context`
+      casts it to a case: the field is read as an identifier only.
     adr:
     - ADR-0096
     stories:

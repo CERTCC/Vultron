@@ -341,20 +341,6 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
         self.assertIn(obj.em_state, EM)
         self.assertIn(obj.pxa_state, CS_pxa)
 
-    def test_create_case_status(self):
-        activity = examples.create_case_status()
-        self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
-        case = examples.case()
-        status = examples.case_status()
-
-        self.assertIsInstance(activity, as_Create)
-        self.assertEqual(activity.type_, "Create")
-
-        self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.context, case.id_)
-        self.assertEqual(activity.object_, status)
-
     def test_add_case_status_to_case(self):
         activity = examples.add_status_to_case()
         self.assertIsInstance(activity, as_Activity)

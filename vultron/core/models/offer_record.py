@@ -98,6 +98,6 @@ class VultronOfferRecord(CoreRecord):
 #: definition.  These two are snapshot-only extension properties with no core
 #: model of their own to carry a field alias, so they are derived here from this
 #: record's field names — core code names the core field and never types the
-#: camelCase (ADR-0099 detail 2).
+#: camelCase (ARCH-25-002, ADR-0099).
 SNAPSHOT_OFFER_ID_KEY = wire_key("offer_id", VultronOfferRecord)
 SNAPSHOT_OFFER_ACTOR_ID_KEY = wire_key("offer_actor_id", VultronOfferRecord)

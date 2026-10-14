@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for as_EmbargoEvent / EmbargoEvent — ADR-0099 detail 3 identity."""
+"""Tests for as_EmbargoEvent / EmbargoEvent — ARCH-25-003 (ADR-0099) identity."""
 
 import json
 from datetime import UTC, datetime
@@ -27,7 +27,7 @@ _START = datetime(2099, 1, 1, tzinfo=UTC)
 
 
 class TestWireEmbargoEventBasics:
-    """Wire as_EmbargoEvent IS the core EmbargoEvent (ADR-0099 detail 3)."""
+    """Wire as_EmbargoEvent IS the core EmbargoEvent (ARCH-25-003, ADR-0099)."""
 
     def test_wire_is_core_identity(self):
         assert WireEmbargoEvent is CoreEmbargoEvent

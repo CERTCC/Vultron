@@ -54,7 +54,6 @@ class MessageSemantics(StrEnum):
     REJECT_INVITE_ACTOR_TO_FULL_CASE = auto()
     ANNOUNCE_VULNERABILITY_CASE = auto()
 
-    CREATE_EMBARGO_EVENT = auto()
     REMOVE_EMBARGO_EVENT_FROM_CASE = auto()
     ANNOUNCE_EMBARGO_EVENT_TO_CASE = auto()
     INVITE_TO_EMBARGO_ON_CASE = auto()
@@ -68,7 +67,6 @@ class MessageSemantics(StrEnum):
     ANNOUNCE_CASE_LEDGER_ENTRY = auto()
     REJECT_CASE_LEDGER_ENTRY = auto()
 
-    CREATE_CASE_PARTICIPANT = auto()
     ADD_CASE_PARTICIPANT_TO_CASE = auto()
     REMOVE_CASE_PARTICIPANT_FROM_CASE = auto()
 
@@ -76,10 +74,8 @@ class MessageSemantics(StrEnum):
     ADD_NOTE_TO_CASE = auto()
     REMOVE_NOTE_FROM_CASE = auto()
 
-    CREATE_CASE_STATUS = auto()
     ADD_CASE_STATUS_TO_CASE = auto()
 
-    CREATE_PARTICIPANT_STATUS = auto()
     ADD_PARTICIPANT_STATUS_TO_PARTICIPANT = auto()
 
     # reserved for activities that don't fit any of the above semantics, but we want to be able to dispatch on them anyway

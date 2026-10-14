@@ -122,16 +122,6 @@ class _CreateCaseActivity(as_Create):
     )
 
 
-class _CreateCaseStatusActivity(as_Create):
-    """Create a CaseStatus.
-    object_: as_CaseStatus
-    """
-
-    object_: as_CaseStatus = Field(
-        ..., validation_alias="object", serialization_alias="object"
-    )
-
-
 # Add a Note to a VulnerabilityCase
 class _AddNoteToCaseActivity(as_Add):
     """Add a Note to a VulnerabilityCase.

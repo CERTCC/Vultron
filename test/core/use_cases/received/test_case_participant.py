@@ -29,7 +29,6 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
-    CreateCaseParticipantReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
 )
 
@@ -209,42 +208,6 @@ class TestCaseParticipantUseCases:
         # The refusal came before the real tree could be built, but the
         # delivery is still archived (CLP-10-018).
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
-
-    @pytest.mark.spec("HP-01-003")
-    def test_create_participant_redelivery_is_skipped(self, make_payload):
-        from vultron.wire.as2.factories import create_participant_activity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        participant = as_CaseParticipant(
-            id_="https://example.org/cases/caseCP/participants/coord",
-            attributed_to="https://example.org/users/coordinator",
-            context="https://example.org/cases/caseCP",
-        )
-        event = make_payload(
-            create_participant_activity(
-                participant,
-                target="https://example.org/cases/caseCP",
-                actor="https://example.org/users/coordinator",
-                context=as_VulnerabilityCase(
-                    id_="https://example.org/cases/caseCP", name="CP"
-                ),
-            )
-        )
-
-        first = CreateCaseParticipantReceivedUseCase(dl, event).execute()
-        again = CreateCaseParticipantReceivedUseCase(dl, event).execute()
-
-        assert first.disposition == HandlerDisposition.APPLIED
-        assert again.disposition == HandlerDisposition.SKIPPED
 
     @pytest.mark.spec("CM-19-002")
     def test_remove_case_participant_keeps_index(self, make_payload):

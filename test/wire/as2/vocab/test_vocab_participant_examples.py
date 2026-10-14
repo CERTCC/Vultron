@@ -58,14 +58,15 @@ class TestVocabParticipantExamples(unittest.TestCase):
     def test_create_participant(self):
         activity = examples.create_participant()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
+        case_actor = examples.case_actor()
         case = examples.case()
         coordinator = examples.coordinator()
 
         self.assertIsInstance(activity, as_Create)
         self.assertEqual(activity.type_, "Create")
 
-        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.actor, case_actor.id_)
+        self.assertIsNone(activity.content)
         self.assertEqual(activity.context, case.id_)
         participant = cast(as_CaseParticipant, activity.object_)
         self.assertEqual(participant.attributed_to, coordinator.id_)
@@ -87,17 +88,6 @@ class TestVocabParticipantExamples(unittest.TestCase):
             self.assertIsInstance(obj.case_status, as_CaseStatus)
             self.assertIn(obj.case_status.em_state, EM)
             self.assertIn(obj.case_status.pxa_state, CS_pxa)
-
-    def test_create_participant_status(self):
-        activity = examples.create_participant_status()
-        self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
-
-        self.assertIsInstance(activity, as_Create)
-        self.assertEqual(activity.type_, "Create")
-
-        self.assertEqual(activity.actor, vendor.id_)
-        self.assertIsInstance(activity.object_, as_ParticipantStatus)
 
     def test_add_status_to_participant(self):
         activity = examples.add_status_to_participant()

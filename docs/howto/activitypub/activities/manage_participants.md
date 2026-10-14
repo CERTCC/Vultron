@@ -41,9 +41,6 @@ flowchart TB
     subgraph as:Reject
         RmRejectInviteToCase["Reject Invite to Case<br/>Reject(Invite(Actor))"]
     end
-    subgraph as:Create
-        CreateParticipantStatus["Create Participant Status<br/>Create(ParticipantStatus)"]
-    end
     subgraph as:Add
         AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
         AddParticipantToCase["Reinstate Case Participant<br/>Add(CaseParticipant)"]
@@ -58,8 +55,7 @@ flowchart TB
     a -->|n| RmRejectInviteToCase
     RmAcceptInviteToCase --> s{Status?}
 
-    CreateParticipantStatus --> AddStatusToParticipant
-    s -->|y| CreateParticipantStatus
+    s -->|y| AddStatusToParticipant
     s -->|n| r{Remove?}
     AddStatusToParticipant --> r
     r -->|y| RemoveParticipantFromCase
@@ -128,10 +124,11 @@ Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemen
 Which one you are sending is determined by the field you set, not by a different activity.
 See [How to Post a Status Update or a Case Note](status_updates.md) for the field that selects each.
 
-1. Send `Create(ParticipantStatus)`, carrying the participant's `rm_state` and, for a Vendor or Deployer, its `vf_state` and `d_state`.
-2. Send `Add(ParticipantStatus)`, targeting the participant record.
+Send `Add(ParticipantStatus)`, targeting the participant record, with the new status inline as its `object`.
+The status carries the participant's `rm_state` and, for a Vendor or Deployer, its `vf_state` and `d_state`.
+This implementation does not support a separate `Create(ParticipantStatus)` ahead of the `Add`.
 
-If the status is known when you seat the participant, carry it inline on the `CaseParticipant` object instead of sending this pair.
+If the status is known when you seat the participant, carry it inline on the `CaseParticipant` object instead of sending the `Add`.
 Status is self-declaratory: send your own, and expect each participant to send its own (PRM-06-001, ADR-0121).
 
 ---

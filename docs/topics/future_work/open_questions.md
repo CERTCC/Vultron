@@ -36,6 +36,8 @@ Four more acronyms occur across the entries below:
 
 {% include-markdown "./_oq-vocabulary-governance.md" %}
 
+{% include-markdown "./_oq-create-then-add.md" %}
+
 ---
 
 ## Cases and participants

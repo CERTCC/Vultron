@@ -196,7 +196,7 @@ class StoreProposalReportNode(DataLayerAction):
     (CP-01-004) — so it has to be written here.
 
     Prefers *inline_report*, the ``VulnerabilityReport`` the wire parser
-    validated on the proposal — under ADR-0099 detail 3 that object already
+    validated on the proposal — under ARCH-25-003 (ADR-0099) that object already
     *is* the core class, so the caller hands it down unchanged (ARCH-20-008).
     The fallback — rebuilding from the proposal's serialised ``object`` — can
     only be as good as that dict's spelling, and the dict the received-side use

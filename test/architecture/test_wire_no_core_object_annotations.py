@@ -16,7 +16,7 @@
 
 Spec: ARCH-23-006
 
-Under ADR-0099 detail 3, the 27 paired ``as_*`` domain classes are deleted; message-shape
+Under ARCH-25-003 (ADR-0099), the 27 paired ``as_*`` domain classes are deleted; message-shape
 classes now name core classes directly (``object_: VulnerabilityReport``,
 ``target: VulnerabilityCase``). This inverts the previous prohibition on core types in wire
 annotations.
@@ -59,17 +59,17 @@ def test_promoted_core_classes_are_exactly_as2_representable() -> None:
 
     **This replaces the rule it used to enforce**, rather than relaxing it.
     ARCH-23-006 forbade a core type appearing in a wire field annotation. Under
-    ADR-0099 that is the intended shape: detail 3 says the message-shape slots
+    ADR-0099 that is the intended shape: ARCH-25-003 says the message-shape slots
     name the core class, so the old assertion now fails on every activity by
     design. Keeping it alive behind a growing allowlist — which is what the
     as-delivered change did, at 59 entries — records violations without checking
     anything.
 
-    Detail 3 states the invariant that takes its place, and it is a real
+    ARCH-25-003 states the invariant that takes its place, and it is a real
     constraint rather than a weaker one: a core class that can appear in a
-    message slot "MUST be exactly AS2-representable. Every field it carries must
-    have a valid AS2 property spelling, and it MUST NOT carry a field that cannot
-    go on the wire."
+    message slot "MUST be exactly AS2-representable: every field it carries has
+    a valid AS2 property spelling, and it carries no field that cannot go on the
+    wire (ARCH-23-006)."
 
     So this asserts the delivery payload of every promoted class is spelled in
     AS2: camelCase or a reserved AS2 name, never a Python field name. That is the
@@ -113,7 +113,7 @@ def test_promoted_core_classes_are_exactly_as2_representable() -> None:
     assert examined, "no promoted classes were examined — the test is vacuous"
     assert not offenders, (
         "these promoted classes put Python field names on the wire instead of "
-        "AS2 property names (ADR-0099 detail 3):\n"
+        "AS2 property names (ARCH-25-003, ADR-0099):\n"
         + "\n".join(f"  {o}" for o in sorted(offenders))
         + "\n\nGive the field an AS2 spelling."
     )

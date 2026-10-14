@@ -239,9 +239,9 @@ def em_move_violations(
 ) -> list[str]:
     """The EM move from *before* to *after*, if *em_trigger* does not allow it.
 
-    Both registers must keep invariants 1–3, so EM derives from each
-    (ADR-0122); the move must then be in the EM transition table
-    (ADR-0130, EMB-18-006).  An empty list means the move is legal.
+    Both registers must pass :func:`register_invariant_violations`, so EM
+    derives from each (ADR-0122); the move must then be in the EM transition
+    table (ADR-0130, EMB-18-006).  An empty list means the move is legal.
     """
     source = derive_em(entry.status for entry in before)
     dest = derive_em(entry.status for entry in after)
@@ -325,12 +325,13 @@ def apply_register_step(
     for its entry, ``SUPERSEDE`` needs an ``ACTIVATE`` in the same step,
     ``CANCEL`` needs a ``TERMINATE`` in the same step or, when
     *threat_signal* is set, no ``ACTIVE`` entry before it, and once an entry
-    is ``TERMINATED`` no step changes anything (invariant 4), and the step
-    names exactly one EM trigger.  The result must then keep invariants 1–3,
-    and EM derived before and after must be one of that trigger's moves in
-    the EM transition table (ADR-0130, EMB-18-006).  Every node — the
-    CASE_MANAGER and each replica — applies a step only through this
-    function, so all of them make the same checks.  An activated entry
+    is ``TERMINATED`` no step changes anything, and the step names exactly
+    one EM trigger.  The result must then pass
+    :func:`register_invariant_violations`, and EM derived before and after
+    must be one of that trigger's moves in the EM transition table
+    (ADR-0130, EMB-18-006).  Every node — the CASE_MANAGER and each replica —
+    applies a step only through this function, so all of them make the same
+    checks.  An activated entry
     records the entry it superseded in ``replaces``.  New entries are
     appended; none is removed.
 

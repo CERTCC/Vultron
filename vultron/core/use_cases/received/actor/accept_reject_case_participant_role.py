@@ -28,7 +28,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     intake_verdict,
 )
-from vultron.core.use_cases.received._store_only import run_store_only
+from vultron.core.use_cases.received._intake_only import run_intake_only
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        tree, result = run_store_only(
+        tree, result = run_intake_only(
             self._dl,
             request,
             name="AcceptCaseParticipantRoleReceivedBT",
@@ -104,7 +104,7 @@ class RejectCaseParticipantRoleReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        tree, result = run_store_only(
+        tree, result = run_intake_only(
             self._dl,
             request,
             name="RejectCaseParticipantRoleReceivedBT",

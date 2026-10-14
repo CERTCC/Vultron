@@ -105,7 +105,7 @@ STORED_REPORT_RESPONSE: dict[str, dict[str, Any]] = {
         "content": REPORT_CONTENT,
         # The submitted report carries ``attributed_to`` as a single-element
         # list (AS2 permits an array).  The inbound report now parses straight
-        # into the core class (ADR-0099 detail 3), which reduces it to the
+        # into the core class (ARCH-25-003, ADR-0099), which reduces it to the
         # scalar it stores, so the listing shows the scalar too.
         "attributedTo": FINDER_ID,
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
