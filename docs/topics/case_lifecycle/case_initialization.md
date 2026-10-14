@@ -55,7 +55,7 @@ Each commit fans its entry out to the case's other participants, and a participa
 When the CASE_MANAGER accepts a proposal, the proposer is already a participant, so the entries are committed after the `Create(VulnerabilityCase)` is queued.
 When an actor creates a case for itself, it is the case's only participant, so the entries go to nobody and are committed before the `Create` is queued.
 
-Every entry is required.
+Every entry is required ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
 The first entry that fails to commit stops the sequence, so no later entry is committed out of order, and the creation is reported as failed.
 When an actor creates a case for itself and the genesis entry fails, nothing about the case has been committed or sent, so the case is removed.
 
