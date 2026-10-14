@@ -149,6 +149,10 @@ The `Create` sets `context` to the new case's URI and `in_reply_to` to the `Acce
 
 On a declined proposal the proposer receives `Reject(as_CaseProposal)` and nothing else.
 
+The authority sends nothing to the reporter (CBT-01-010).
+The proposer, which received the report, sends the reporter its own `Create(VulnerabilityCase)` with the same case inline, naming the authority as `CASE_MANAGER` (CBT-01-001, [ADR-0132](../../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
+The reporter trusts that message because it comes from the actor the reporter sent its report to.
+
 No other actor learns anything yet.
 At this point the case has three Participants — the authority, the owner, and the reporter — and no one has been invited.
 Bringing in a vendor or a coordinator is a separate flow.

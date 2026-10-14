@@ -28,7 +28,8 @@ Structure (after intake, which the shared factory supplies first)::
        │  ├─ HoldCarriedEmbargoNode
        │  ├─ SeedCaseReplicaNode
        │  ├─ BindReportCaseLinkNode
-       │  └─ StoreEmbeddedParticipantsNode
+       │  ├─ StoreEmbeddedParticipantsNode
+       │  └─ IntroduceCaseManagerToReporterNode   # CBT-01-001, ADR-0132
        ├─ RedeliveredBootstrap (Sequence)   # already accepted: nothing to do
        │  ├─ BootstrapRouteIs_redelivery
        │  └─ AcceptRedeliveredBootstrap
@@ -39,6 +40,11 @@ Structure (after intake, which the shared factory supplies first)::
        │  ├─ SeedCaseReplicaNode
        │  └─ StoreEmbeddedParticipantsNode
        └─ RefuseBootstrapNode               # carries the chosen route's reason
+
+On the trusted route the receiver may be the report receiver, which then
+introduces the CASE_MANAGER to the reporter with its own
+``Create(VulnerabilityCase)`` (ADR-0132); the same node does nothing at the
+reporter, which receives that introduction on the same route.
 
 The route is chosen once by the classifier, not by re-testing a condition on
 each arm, because the trusted arm's own write changes what a re-test would see.
@@ -70,11 +76,15 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     CheckSenderIsSnapshotManagerNode,
     CheckTrustedCreatorNode,
     ClassifyBootstrapRouteNode,
+    IntroduceCaseManagerToReporterNode,
     RefuseBootstrapNode,
     SeedCaseReplicaNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+)
+from vultron.core.behaviors.replica_emit_exemptions import (
+    REPORTER_INTRODUCTION,
 )
 
 
@@ -104,6 +114,7 @@ def create_create_case_received_tree(
             SeedCaseReplicaNode(route, case_obj, case_id),
             BindReportCaseLinkNode(route, case_obj, case_id),
             StoreEmbeddedParticipantsNode(case_obj, case_id),
+            IntroduceCaseManagerToReporterNode(case_id),
         ],
     )
     redelivered = py_trees.composites.Sequence(
@@ -148,4 +159,5 @@ def create_create_case_received_tree(
             ClassifyBootstrapRouteNode(route, sender_id, case_id),
             choose,
         ],
+        replica_emit_exemption=REPORTER_INTRODUCTION,
     )

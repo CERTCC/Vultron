@@ -156,19 +156,23 @@ def link_report_case_links(dl: CasePersistence, case) -> None:
 
 
 def find_pending_report_case_link(
-    dl: CasePersistence, creator_id: str
+    dl: CasePersistence, creator_id: str | None = None
 ) -> VultronReportCaseLink | None:
     """Return a pending ``ReportCaseLink`` expecting a bootstrap from *creator_id*.
 
     Scans all ``ReportCaseLink`` records and returns the first that has
     ``case_creator_id == creator_id`` and ``case_id is None`` (i.e. awaiting
-    bootstrap).  Using the sender identity rather than the case's
+    bootstrap).  With *creator_id* ``None``, returns the first pending link
+    that names any expected sender: the receiver's own anchor (CBT-01-011).  Using the sender identity rather than the case's
     ``vulnerability_reports`` list makes the lookup independent of whether the
     case snapshot embeds the report.
     """
     for obj in dl.list_objects("ReportCaseLink"):
-        if isinstance(obj, VultronReportCaseLink) and (
-            obj.case_creator_id == creator_id and obj.case_id is None
+        if (
+            isinstance(obj, VultronReportCaseLink)
+            and obj.case_id is None
+            and obj.case_creator_id is not None
+            and (creator_id is None or obj.case_creator_id == creator_id)
         ):
             return obj
     return None

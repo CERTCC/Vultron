@@ -272,6 +272,11 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             f"{_C}/receive_report_case_tree.py",
             "create_receive_report_case_tree",
         ),
+        (
+            "REPORTER_INTRODUCTION",
+            f"{_C}/create_case_received_tree.py",
+            "create_create_case_received_tree",
+        ),
     }
 )
 

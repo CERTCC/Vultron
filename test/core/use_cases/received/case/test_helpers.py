@@ -168,15 +168,10 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
 
 # ---------------------------------------------------------------------------
 # CBT-01-011: a bootstrap from an actor no local anchor names is refused, even
-# when its snapshot names the sender CASE_MANAGER. Tracked by #4511 (ADR-0132).
+# when its snapshot names the sender CASE_MANAGER (ADR-0132).
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="CBT-01-011: the `direct` bootstrap route still trusts a sender "
-    "its own snapshot names CASE_MANAGER. Tracked by #4511.",
-)
 @pytest.mark.spec("CBT-01-011")
 def test_bootstrap_from_an_actor_no_anchor_names_is_refused(make_payload):
     """A snapshot that names its sender CASE_MANAGER does not make it trusted."""

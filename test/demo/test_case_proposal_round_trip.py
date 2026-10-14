@@ -72,6 +72,7 @@ BackgroundTask execution model.
 
 import importlib
 import logging
+from typing import cast
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -80,8 +81,21 @@ from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.actor import (
+    AnnounceVulnerabilityCaseReceivedEvent,
+)
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received.actor.announce import (
+    AnnounceVulnerabilityCaseReceivedUseCase,
+)
 from vultron.demo.utils import case_actor_id_for_report
-from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import (
+    announce_vulnerability_case_activity,
+    rm_submit_report_activity,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -405,20 +419,75 @@ class TestCaseProposalRoundTrip:
         ]
         assert not refusals, refusals
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CBT-01-001: the CASE_MANAGER still sends the reporter's "
-        "Create(VulnerabilityCase), not the report receiver. Tracked by #4511.",
-    )
+    def _submit_report_through_the_reporter(self, two_app_setup, label):
+        """Run the round trip from the reporter's own ``submit-report`` trigger.
+
+        The trigger is how the reporter writes its trust anchor: the pending
+        ``ReportCaseLink`` naming the actor it sent the report to
+        (CBT-01-005).  Posting the Offer straight to the vendor would leave
+        the reporter nothing to check the introduction against.
+        """
+        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_actor_id = _create_actor(
+            vendor_tc, f"{_VENDOR_BASE}/api/v2", _VENDOR_SLUG, "Vendor CP"
+        )
+        reporter_actor_id = _create_actor(
+            reporter_tc,
+            f"{_REPORTER_BASE}/api/v2",
+            _REPORTER_SLUG,
+            "Reporter CP",
+        )
+        _register_peer(
+            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
+        )
+        _register_peer(
+            reporter_tc, _REPORTER_SLUG, vendor_actor_id, "Vendor CP"
+        )
+        # One CaseActor per container (#1872), so it is provisioned before
+        # the report id exists.
+        case_actor_id = case_actor_id_for_report("")
+        _create_actor(
+            vendor_tc,
+            f"{_VENDOR_BASE}/api/v2",
+            _actor_slug(case_actor_id),
+            "Case Actor CP",
+        )
+        resp = reporter_tc.post(
+            f"/api/v2/actors/{_REPORTER_SLUG}/trigger/submit-report",
+            json={
+                "report_name": label,
+                "report_content": "Checking the reporter's introduction.",
+                "recipient_id": vendor_actor_id,
+            },
+        )
+        assert resp.status_code == 202, resp.text
+        return (
+            vendor_iso,
+            reporter_iso,
+            vendor_actor_id,
+            reporter_actor_id,
+            case_actor_id,
+        )
+
     @pytest.mark.spec("CBT-01-001")
-    def test_report_receiver_sends_the_reporter_the_case(
-        self, two_app_setup, caplog
-    ):
-        """The reporter's bootstrap Create comes from the report receiver."""
-        _vendor_iso, reporter_iso, vendor_actor_id, _reporter_actor_id = (
-            self._submit_report(
-                two_app_setup, caplog, "CBT-01-001 receiver introduces report"
-            )
+    @pytest.mark.spec("CBT-01-006")
+    @pytest.mark.spec("CBT-05-005")
+    def test_report_receiver_sends_the_reporter_the_case(self, two_app_setup):
+        """The reporter's bootstrap Create comes from the report receiver.
+
+        It arrives on the trusted route: the reporter binds its own link to
+        the case, records the receiver as the introducer and the
+        CASE_MANAGER the introduction names (CBT-01-006), and stores the
+        embedded participants (CBT-05-005).
+        """
+        (
+            _vendor_iso,
+            reporter_iso,
+            vendor_actor_id,
+            reporter_actor_id,
+            case_actor_id,
+        ) = self._submit_report_through_the_reporter(
+            two_app_setup, "CBT-01-001 receiver introduces report"
         )
 
         senders = {
@@ -426,6 +495,70 @@ class TestCaseProposalRoundTrip:
             for create in reporter_iso.dl.list_objects("Create")
         }
         assert senders == {vendor_actor_id}
+
+        [link] = [
+            link
+            for link in reporter_iso.dl.list_objects("ReportCaseLink")
+            if isinstance(link, VultronReportCaseLink)
+        ]
+        assert link.case_creator_id == vendor_actor_id
+        assert link.case_manager_id == case_actor_id
+        assert link.case_id is not None
+        replica = reporter_iso.dl.read(link.case_id)
+        assert isinstance(replica, VulnerabilityCase)
+        assert _as_id(replica.attributed_to) == vendor_actor_id
+        assert reporter_actor_id in replica.actor_participant_index
+        assert isinstance(
+            reporter_iso.dl.read(
+                replica.actor_participant_index[reporter_actor_id]
+            ),
+            CaseParticipant,
+        )
+
+    @pytest.mark.spec("CBT-05-001")
+    @pytest.mark.spec("CBT-05-005")
+    def test_reporter_accepts_the_case_managers_announce_after_the_introduction(
+        self, two_app_setup
+    ):
+        """After the introduction, the CASE_MANAGER's Announce is accepted.
+
+        The introduction named the CASE_MANAGER, so its later
+        ``Announce(VulnerabilityCase)`` is trusted; the same Announce from an
+        actor the introduction did not name is refused (CBT-02-003).
+        """
+        (
+            _vendor_iso,
+            reporter_iso,
+            _vendor_actor_id,
+            reporter_actor_id,
+            case_actor_id,
+        ) = self._submit_report_through_the_reporter(
+            two_app_setup, "CBT-05-001 announce after introduction"
+        )
+        [link] = reporter_iso.dl.list_objects("ReportCaseLink")
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.case_id is not None
+        replica = reporter_iso.dl.read(link.case_id)
+        assert isinstance(replica, VulnerabilityCase)
+
+        def _announce_from(sender: str):
+            activity = announce_vulnerability_case_activity(
+                replica, actor=sender, to=[reporter_actor_id]
+            )
+            event = cast(
+                AnnounceVulnerabilityCaseReceivedEvent, extract_event(activity)
+            ).model_copy(update={"receiving_actor_id": reporter_actor_id})
+            return AnnounceVulnerabilityCaseReceivedUseCase(
+                reporter_iso.dl, event
+            ).execute()
+
+        accepted = _announce_from(case_actor_id)
+        assert accepted.disposition is not HandlerDisposition.REFUSED, (
+            accepted.reason
+        )
+
+        impostor = _announce_from(f"{_VENDOR_BASE}/api/v2/actors/impostor")
+        assert impostor.disposition is HandlerDisposition.REFUSED
 
 
 # ---------------------------------------------------------------------------
