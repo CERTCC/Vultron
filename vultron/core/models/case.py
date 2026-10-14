@@ -131,7 +131,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     )
     # DL-08-001: the register's entries carry the embargo object when a sender
     # carried it, so recipients can read the terms back without a dereference
-    # mechanism (AKM-03-001).
+    # mechanism (AKM-02-004).
     inline_required_refs: ClassVar[frozenset[str]] = frozenset(
         {"embargo_register"}
     )

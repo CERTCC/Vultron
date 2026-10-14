@@ -2368,6 +2368,7 @@ class TestCM18007InitLedgerEntries:
         )
 
 
+@pytest.mark.spec("CP-09-010")
 @pytest.mark.spec("CP-09-004")
 class TestADR0041InlineParticipantsPayload:
     """ADR-0041 AC-5: Create(VulnerabilityCase) embeds inline participant objects."""
@@ -3336,7 +3337,7 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
 
     It was lost to a spelling mismatch. The tree received the proposal as a
     ``by_alias=True`` wire dump — needed because the ``Accept`` must carry the
-    proposal inline (CP-05-003, AKM-03-001) — in which the reporter is spelled
+    proposal inline (CP-05-003, CP-05-009) — in which the reporter is spelled
     ``attributedTo``. Rebuilding the report by validating that dict against the
     *core* model, which declares ``attributed_to`` and sets
     ``extra="ignore"``, dropped the key silently and reported "has no

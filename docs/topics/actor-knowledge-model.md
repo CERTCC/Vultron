@@ -46,34 +46,35 @@ This has a concrete corollary for activity construction.
 
 ---
 
-## The full-inline-object rule
+## A recipient must be able to obtain what a message names
 
 When an actor sends an activity, the recipient will try to understand it.
 To understand it, the recipient needs the objects the activity refers to.
 
-If the sender puts only a URI in the activity's `object` field, the
-recipient cannot resolve it. The recipient has no access to the sender's
-data store, so it cannot fetch the object from there. If it has never
-received that object before, the URI is meaningless.
+ActivityStreams 2.0 lets an activity carry an object inline or name it by URI, and a receiver copes with either form (SE-01-002).
+A URI helps the recipient only if it already holds the object or can fetch it.
+The recipient has no access to the sender's data store, so fetching means asking the actor that holds the object through an API call, which is object dereference (AKM-05-003).
 
-This is why the protocol requires full inline objects in outbound activities
-(AKM-02-001, AKM-02-002):
+So the protocol rule is about whether the recipient can obtain the object, not about which form carries it (AKM-02-002):
 
-> **Every outbound activity must carry its `object` field as a fully
-> inline typed object, not as a bare URI.**
+> **An object the recipient cannot be expected to hold travels inline, or by a reference the recipient can dereference.**
 
-The recipient receives the full object alongside the activity that references
-it, so no external lookup is needed.
+Every outbound initiating activity — `Create`, `Offer`, `Invite`, `Announce`, `Add`, `Remove`, `Update`, `Join`, `Ignore`, `Leave` — carries the domain object it acts on as its `object`, in either form (AKM-03-001).
+A production implementation must support dereference (AKM-05-004).
 
-### The one approved exception
+### Where the protocol requires one form
 
-The `target` field of an `Invite` activity in selective-disclosure scenarios is permitted to carry a case stub rather than the full case object.
+The `target` field carries a case by reference only: the case URI when the recipient already holds the case, or a case stub for an actor that does not yet hold it (AKM-02-003).
 The [protocol specification §11.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n) defines what a case stub carries.
-This is the only approved exception to the full-inline-object rule (AKM-02-003).
 
-All other outbound initiating activities — `Create`, `Offer`, `Invite`,
-`Announce`, `Add`, `Remove`, `Update`, `Join`, `Ignore`, `Leave` — must carry
-a fully inline typed object (AKM-03-001).
+A case ledger entry's payload snapshot carries the objects nested in it in full (CLP-07-006).
+The entry hash covers the snapshot and nothing outside it, so an object named there by URI alone would escape the hash chain every participant verifies.
+
+### What the reference implementation does
+
+The reference implementation does not yet dereference.
+It therefore carries every outbound `object` inline and refuses a bare URI where it needs the object (AKM-02-004, AKM-03-003).
+That is a shortcut of the prototype, not a Vultron rule; an implementation that dereferences may send references wherever the protocol allows them.
 
 ---
 
@@ -100,21 +101,14 @@ shortcutting it convenient.
 
 The practical test for any outbound activity is:
 
-> *Can the recipient understand this activity using only what it has already
-> received from me, plus what is inline in this message?*
+> *Can the recipient understand this activity using only what it has already received from me, what is inline in this message, and what it can dereference?*
 
-If the answer is no — because the activity contains a bare URI that the
-recipient has never seen — the activity will fail at the recipient.
-The recipient will not be able to pattern-match it, will not be able to
-extract meaningful state, and will likely treat it as an unknown or
-malformed message.
+If the answer is no — because the activity names by URI an object the recipient has never seen and cannot fetch — the activity will fail at the recipient.
+The recipient will not be able to pattern-match it, will not be able to extract meaningful state, and will likely treat it as an unknown or malformed message.
 
-Building an implementation that passes this test requires constructing
-activities with full objects at the point of creation, not after the fact.
-The failure mode — a bare URI where an object is expected — is silent in
-many frameworks: the activity serializes, is transmitted, and arrives
-looking syntactically valid. The failure only appears when the recipient
-tries to act on it.
+The failure mode is silent in many frameworks: the activity serializes, is transmitted, and arrives looking syntactically valid.
+The failure only appears when the recipient tries to act on it.
+An implementation that cannot dereference, like the reference implementation, avoids it by constructing activities with full objects at the point of creation.
 
 ---
 
@@ -137,8 +131,10 @@ profile is an enrichment step, not a precondition for protocol participation.
 |---|---|
 | Private data store | Each actor's data store is private. No other actor can access it. |
 | Bounded knowledge | What an actor knows is limited to what it has received. |
-| Full inline objects | Outbound activities must carry fully inline objects, not bare URIs. |
-| One exception | The `target` field of `Invite` may carry a case stub in selective-disclosure scenarios. |
+| Obtainable objects | An object the recipient cannot hold already travels inline, or by a reference it can dereference. |
+| Case in `target` | A case in `target` is its URI or a case stub, never the full case. |
+| Ledger snapshots | A ledger entry's payload snapshot carries its nested objects in full. |
+| Reference implementation | Inlines every outbound object, because it does not yet dereference. |
 | Co-located actors | Co-location does not relax the isolation rule. Use the wire protocol. |
 | Addressing | A URI is sufficient to address a peer. A local actor record is enrichment only. |
 

@@ -174,9 +174,10 @@ def pytest_collection_modifyitems(session, config, items):
     if not registry.files:
         return
     for item in items:
-        marker = item.get_closest_marker("spec")
-        if marker and marker.args and isinstance(marker.args[0], str):
-            warn_unknown_spec_id(marker.args[0], registry)
+        for marker in item.iter_markers("spec"):
+            for spec_id in marker.args:
+                if isinstance(spec_id, str):
+                    warn_unknown_spec_id(spec_id, registry)
 
 
 @pytest.fixture(scope="session", autouse=True)

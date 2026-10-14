@@ -158,6 +158,43 @@ def test_collect_marked_ids_multiple_markers(test_dir_full_coverage):
     assert {"CVG-01-001", "CVG-01-002"} <= ids
 
 
+def test_collect_marked_ids_reads_every_id_of_a_multi_id_marker(tmp_path):
+    """A marker naming several IDs covers each of them, not only the first."""
+    (tmp_path / "test_multi.py").write_text(
+        "@pytest.mark.spec(\"CVG-01-001\", 'CVG-01-002')\n"
+        "@pytest.mark.spec(\n"
+        '    "CVG-01-003",\n'
+        '    "CVG-01-004",\n'
+        ")\n"
+        "def test_multi(): pass\n"
+    )
+    ids = collect_marked_ids(tmp_path)
+    assert {"CVG-01-001", "CVG-01-002", "CVG-01-003", "CVG-01-004"} <= ids
+
+
+def test_collect_marked_ids_reads_pytestmark_assignments(tmp_path):
+    """Module- and class-level ``pytestmark`` markers count like decorators."""
+    (tmp_path / "test_pytestmark.py").write_text(
+        'pytestmark = [pytest.mark.spec("CVG-01-001"), '
+        'pytest.mark.spec("CVG-01-002")]\n'
+        "class TestX:\n"
+        '    pytestmark = pytest.mark.spec("CVG-01-003")\n'
+    )
+    ids = collect_marked_ids(tmp_path)
+    assert {"CVG-01-001", "CVG-01-002", "CVG-01-003"} <= ids
+
+
+def test_collect_marked_ids_ignores_keyword_argument_values(tmp_path):
+    """A keyword argument's string value is not a spec ID."""
+    (tmp_path / "test_kwarg.py").write_text(
+        '@pytest.mark.spec("CVG-01-001", reason="not-an-id")\n'
+        "def test_k(): pass\n"
+    )
+    ids = collect_marked_ids(tmp_path)
+    assert "CVG-01-001" in ids
+    assert "not-an-id" not in ids
+
+
 # ---------------------------------------------------------------------------
 # compute_implementer_coverage
 # ---------------------------------------------------------------------------

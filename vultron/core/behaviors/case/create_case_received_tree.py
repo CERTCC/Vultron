@@ -49,7 +49,7 @@ No ledger commit (``case_id=None``): the replica this seeds is a *copy* of a
 case someone else holds, and the assertions about that case reach this actor as
 ledger entries.  The bootstrap is the receiver learning that the case exists.
 
-Per specs/case-bootstrap-trust.yaml CBT-01-003 through CBT-01-007 and
+Per specs/case-bootstrap-trust.yaml CBT-01-003 through CBT-01-007, CBT-01-012 and
 specs/case-ledger-processing.yaml CLP-10-005, CLP-10-007, CLP-10-017.
 """
 

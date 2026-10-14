@@ -224,9 +224,8 @@ version does not require it to.
 
 ### 4.7 Knowledge Model and Actor Isolation
 
-Each participant knows only what it has been told. This subsection states what
-follows from that, and it is the reason the wire format carries the inline-object
-constraint of [§5.5 Serialization](layers.md#55-serialization).
+Each participant knows only what it has been told.
+This subsection states what follows from that, including why a recipient must be able to obtain every object a message names ([§5.5 Serialization](layers.md#55-serialization)).
 
 **What a participant knows versus what is true.** A participant's replica reflects
 the messages it has received. Two participants in the same case may hold different
@@ -240,6 +239,11 @@ another actor's state directly. Everything it knows about another participant MU
 be derived from a message that participant sent, or from the canonical ledger. This
 is what makes a participant's knowledge independent of any other participant being
 reachable.
+
+**A recipient can obtain what a message names.**
+A participant MUST NOT assume a recipient holds an object it was never sent ([AKM-02-001](../specs/protocol.md#akm-02-001)).
+An object the recipient cannot be expected to hold is carried inline, or by a reference the recipient can dereference ([AKM-02-002](../specs/protocol.md#akm-02-002)).
+Either form satisfies the protocol.
 
 !!! info "See also"
     - [Actor Knowledge Model](../../topics/actor-knowledge-model.md)

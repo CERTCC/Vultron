@@ -115,7 +115,7 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts, EmitCapable):
         except VultronError as exc:
             # The adapter refuses to build an Announce it cannot complete —
             # e.g. a report the case names that this store does not hold
-            # (CBT-01-007).  That is a reported outcome of this node, not a
+            # (AKM-02-004).  That is a reported outcome of this node, not a
             # fault in the service (BT-HELPER-01).
             self.feedback_message = (
                 f"{self.name}: could not broadcast case '{self.case_id}':"

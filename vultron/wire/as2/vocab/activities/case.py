@@ -220,7 +220,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     - ``object_`` is minted inline by ``offer_case_participant_role_activity``
       and never persisted as a record of its own, so its id resolves to nothing
       (DL-08-001).  Since ``Offer`` is an initiating type, the outbox gate then
-      refuses the whole activity for carrying a bare string (AKM-03-001).
+      refuses the whole activity for carrying a bare string (AKM-03-003).
     - ``target`` is the *peer* receiving the role.  Under ADR-0073 a peer's
       record lives in the store of whichever actor knows it, which is not the
       sender's (DL-08-003) — the same reason ``_RmInviteToCaseActivity``
@@ -346,7 +346,7 @@ class _RmInviteToCaseActivity(as_Invite):
     store of whichever actor knows it, and the sender here is the Case Actor,
     which does not. Dehydrating the invitee to its id therefore had nothing to
     read it back from, so the stored Invite came back carrying a bare string and
-    outbox delivery refused it (AKM-03-001) after exhausting its retries. The
+    outbox delivery refused it (AKM-03-003) after exhausting its retries. The
     invitation never arrived, and the invitee's ``reject-case-invite`` then
     answered 404 for an invite it had never been told about (#2548, fcv-reject).
     """

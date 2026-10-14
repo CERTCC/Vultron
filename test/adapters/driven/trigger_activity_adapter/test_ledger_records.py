@@ -257,6 +257,7 @@ def test_participant_status_carries_no_consent_keys(adapter, recipes):
     )
 
 
+@pytest.mark.spec("AKM-02-004")
 @pytest.mark.spec("CBT-01-007")
 def test_an_announced_case_carries_its_participants_and_reports(
     adapter, recipes

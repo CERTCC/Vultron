@@ -119,7 +119,7 @@ def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
 # 1. Technical: Activities may not have independent DataLayer records (e.g. a
 #    reconstituted Offer in the validate-report path, a CaseLedgerEntry inside
 #    an Announce envelope), so dehydrating them would make rehydration
-#    impossible on read-back and cause AKM-03-001 outbox-gate failures.
+#    impossible on read-back and cause AKM-03-003 outbox-gate failures.
 #
 # 2. Semantic (more important): a received Activity is an artifact; its inline
 #    sub-fields are a snapshot of state at receipt time.  An
@@ -281,7 +281,7 @@ def _dehydrate_data(
             # reconstituted Offer in validate-report, or a CaseLedgerEntry
             # inside an Announce envelope), so collapsing them to a bare ID
             # would make rehydration impossible on outbox read-back, causing
-            # AKM-03-001 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
+            # AKM-03-003 gate failures.  See _KEEP_INLINE_NESTED_TYPES.
             if value.get("type_") in _KEEP_INLINE_NESTED_TYPES:
                 result[key] = value
                 continue
