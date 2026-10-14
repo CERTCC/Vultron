@@ -148,8 +148,8 @@ _DECLARED_EXCLUSIONS: dict[str, tuple[int, str]] = {
         " Status.FAILURE rather than escaping process_payload().",
     ),
     "vultron/core/behaviors/case/nodes/proposal.py": (
-        2,
-        "boot-recovery persistence: an outbox read/enqueue failure while"
+        1,
+        "boot-recovery persistence: an outbox enqueue failure while"
         " re-queuing a Create(VulnerabilityCase) obligation must fail the node,"
         " not crash server startup.",
     ),

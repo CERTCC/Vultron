@@ -6,8 +6,9 @@ description: >
   Rules for outbox delivery reliability: per-pass caps and the queue tail,
   per-recipient lanes under a per-actor drain lock, batch interruption, store
   sessions under concurrent delivery, retry budgets that must stay finite,
-  immediate dead-lettering of a refused sealed body (OX-13-013), and
-  request-derived ids for responses.
+  immediate dead-lettering of a refused sealed body (OX-13-013),
+  request-derived ids for responses, and the outbox-id idempotency check
+  (OX-06-002).
 related_specs:
   - specs/outbox.yaml
   - specs/sync-ledger-replication.yaml
@@ -16,6 +17,7 @@ related_issues:
   - https://github.com/CERTCC/Vultron/issues/3602
   - https://github.com/CERTCC/Vultron/issues/3878
   - https://github.com/CERTCC/Vultron/issues/4215
+  - https://github.com/CERTCC/Vultron/issues/4158
 related_notes:
   - notes/outbox.md
   - notes/sync-ledger-replication.md
@@ -30,6 +32,8 @@ relevant_packages:
   - vultron/adapters/driven/datalayer_sqlite/engine.py
   - vultron/adapters/driving/fastapi/main.py
   - vultron/adapters/driving/fastapi/routers/trigger_actor.py
+  - vultron/adapters/driven/datalayer_sqlite/queues.py
+  - vultron/core/models/activity_ids.py
 ---
 
 # Outbox Delivery Reliability
@@ -131,14 +135,22 @@ An outbound activity answering one inbound activity (a `ProcessingFault` NACK,
 emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
 
 - Derive the id with `derived_activity_id(kind, actor, <what it answers>, ...)` in
-  `vultron/adapters/outbox_sealed_body.py`, kind label first so two kinds of response
-  to one activity never collide.
+  `vultron/core/models/activity_ids.py`, kind label first so two kinds of response
+  to one activity never collide. Core derives too: the stub Invite answering an
+  owner's `Offer(Actor, Case)` takes its id from that Offer.
 - Ask "was this already sent?" with `is_sealed(dl, id)`: the sealed body outlives the
   outbox entry, so it still answers after delivery popped the queue (see
   `notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").
 - Treat "sealed" as "built", not "sent". The sealed body is written before the queue
-  append, so if the id is not pending, queue the same id and body again and let the
-  receiver deduplicate (ID-04-005); skipping on "sealed" alone loses the response after
-  a crash between the two writes.
+  append, so queue the same id and body again and let the receiver deduplicate
+  (ID-04-005); skipping on "sealed" alone loses the response after a crash between the
+  two writes. `requeue_if_sealed` in `vultron/adapters/outbox_sealed_body.py` does both.
+- Call `outbox_append` and read its result; never test `id in outbox_list()` first.
+  The append itself leaves a pending id alone (OX-06-002), atomically, and returns
+  `False`. It only sees what is pending: a delivered id is queued again.
+- A rebuilt activity carries its first attempt's sealed body, so its first
+  `published`. `CreateLogEntryNode` therefore reuses an equivalent recorded entry
+  before the claimed-timestamp guard runs; checking first would refuse a late retry
+  as stale (CLP-14-008) for an act the ledger already holds.
 - A spec that answers a duplicate request by re-sending the stored response (CP-05-006)
   is the same rule: reuse the id and sealed body, re-queue only when not pending.

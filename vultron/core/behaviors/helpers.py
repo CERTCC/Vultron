@@ -799,11 +799,14 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
         post-emit side-effects.  The default implementation is a no-op.
         """
 
-    def _emit_through_seam(self, activity_id: str, activity_blob: str) -> None:
+    def _emit_through_seam(self, activity_id: str, activity_blob: str) -> bool:
         """Route activity emission through the shared outbox-enqueue seam.
 
         Appends *activity_id* to the actor's outbox and populates
-        ``_captured["activity"]`` when a capture dict is present.
+        ``_captured["activity"]`` when a capture dict is present.  An id
+        already pending is not queued again (OX-06-002): a retry that rebuilt
+        the activity under its first attempt's id sends it once.  Returns
+        ``True`` when this call queued it, ``False`` when it was pending.
 
         Cross-cutting hooks for outstanding-ask registration (ASK-04-008)
         and undelivered-activity correlation (OX-14-001) belong here.
@@ -817,9 +820,19 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
         # this store is already the executing actor's own, so naming the
         # actor again is both redundant and a way to get it wrong (ADR-0073,
         # see `CaseOutboxPersistence`).
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
+        queued = cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+            activity_id
+        )
+        if not queued:
+            self.logger.info(
+                "%s: activity '%s' is already pending in the outbox — not"
+                " queued again (OX-06-002)",
+                self.name,
+                activity_id,
+            )
         if self._captured is not None:
             self._captured["activity"] = json.loads(activity_blob)
+        return queued
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -1324,12 +1337,13 @@ class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
 
             case_id = self.case_id
 
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+            queued = cast(CaseOutboxPersistence, self.datalayer).outbox_append(
                 activity_id
             )
             self.logger.info(
-                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
+                "%s Create(Case '%s') activity '%s' in actor '%s' outbox"
                 " (case creation notification)",
+                "Queued" if queued else "Left already-pending (OX-06-002)",
                 case_id,
                 activity_id,
                 self.actor_id,

@@ -270,6 +270,33 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             case_id=self.case_id, dl=self.datalayer
         )
 
+        # An entry already recorded for this act was validated when it was
+        # recorded, so reuse it before the claimed-timestamp guard runs: a
+        # retry that rebuilds an activity under its first id carries the
+        # first attempt's ``published`` (OX-06-002, ID-04-005), which may by
+        # now fall outside the staleness window (CLP-14-008).
+        existing = _find_equivalent_recorded_entry(
+            case_id=self.case_id,
+            object_id=self.object_id,
+            event_type=self.event_type,
+            payload_snapshot=self.payload_snapshot,
+            dl=self.datalayer,
+            entries=recorded or None,
+        )
+        if existing is not None:
+            entry = existing
+            self._set_output("log_entry", entry)
+            self._set_output("log_entry_preexisting", True)
+            self.logger.info(
+                "%s: reusing existing log entry case_id=%s event_type=%s "
+                "log_index=%d",
+                self.name,
+                entry.case_id,
+                entry.event_type,
+                entry.log_index,
+            )
+            return Status.SUCCESS
+
         # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.
         # ``read_case`` returning ``None`` is expected, not an error: the
         # genesis ``create_case`` entry is committed alongside case creation,
@@ -297,28 +324,6 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             staleness_window=ledger_cfg.staleness_window,
             skew_tolerance=ledger_cfg.clock_skew_tolerance,
         )
-
-        existing = _find_equivalent_recorded_entry(
-            case_id=self.case_id,
-            object_id=self.object_id,
-            event_type=self.event_type,
-            payload_snapshot=self.payload_snapshot,
-            dl=self.datalayer,
-            entries=recorded or None,
-        )
-        if existing is not None:
-            entry = existing
-            self._set_output("log_entry", entry)
-            self._set_output("log_entry_preexisting", True)
-            self.logger.info(
-                "%s: reusing existing log entry case_id=%s event_type=%s "
-                "log_index=%d",
-                self.name,
-                entry.case_id,
-                entry.event_type,
-                entry.log_index,
-            )
-            return Status.SUCCESS
 
         tail_hash = self.tail_hash
         tail_index = self.tail_index
