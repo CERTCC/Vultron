@@ -34,9 +34,6 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.config.app import get_config
-from vultron.core.behaviors.case.case_actor_identity import (
-    case_actor_identity,
-)
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -215,11 +212,11 @@ def test_seeded_case_actor_is_a_plain_service_not_a_per_case_object(
     carries neither a ``context`` naming the case nor an ``attributed_to``.
     """
     owner, dl = owner_and_dl
-    _seed(owner, dl)
-    case_actor_id = case_actor_identity() or case_actor_identity(
-        str(get_config().server.base_url)
-    )
-    assert case_actor_id is not None
+    embargo = _seed(owner, dl)
+    stored = cast(VulnerabilityCase, dl.read(embargo.context))
+    seated = set(stored.actor_participant_index) - {owner.id_}
+    assert len(seated) == 1, seated
+    (case_actor_id,) = seated
 
     case_actor = dl.clone_for_actor(case_actor_id).read(case_actor_id)
 

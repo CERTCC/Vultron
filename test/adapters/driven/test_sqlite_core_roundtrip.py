@@ -566,7 +566,9 @@ def test_a_legacy_case_actor_row_reads_back_as_vultron_service(dl):
 
     ``CaseActor`` stored no ``inbox`` and kept ``outbox`` as an id-less
     tracking list, so the endpoints are derived from the id instead, and a
-    store written before the class was deleted stays readable.
+    store written before the class was deleted stays readable.  The list is
+    non-empty and the old serializer's null fields are present, as in a real
+    stored row.
     """
     actor_id = "https://test.example/api/v2/actors/case-actor"
     _insert_raw_row(
@@ -579,7 +581,10 @@ def test_a_legacy_case_actor_row_reads_back_as_vultron_service(dl):
             "name": "CaseActor",
             "context": "https://test.example/cases/legacy",
             "attributed_to": actor_id,
-            "outbox": {"items": []},
+            "preview": None,
+            "media_type": None,
+            "to": None,
+            "outbox": {"items": ["https://test.example/activities/1"]},
         },
     )
 
