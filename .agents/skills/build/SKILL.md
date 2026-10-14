@@ -48,6 +48,9 @@ Invoke the `orient-agent` skill.
      Do not ask whether to take only the first, and do not drop members —
      bundling exists to get more than one issue done in a PR.
    - If the user passed one explicit issue number, use that issue.
+   - `--epic-run <Epic>` means this build is part of that Epic's epic run
+     (`work-epic-tasks` always passes it). Keep it for the hold gate in step 5
+     and the claim in step 7.
    - If no explicit issue was passed, auto-select from the top-priority
      unblocked Now-Epic flow below.
 
@@ -115,6 +118,13 @@ Invoke the `orient-agent` skill.
    - Query each member's `issueType`. If a member is not a `Task` or `Feature`,
      stop and name the skill it belongs to (`bugfix` for a Bug; `plan-issue`
      for an Idea, Concern, or Epic). Do not silently work or drop it.
+   - **Epic-run hold** (PAD-19-003). For each member, run
+     `bash .agents/skills/shared/epic-hold.sh <N> [<EPIC_RUN>]`. Exit 3 means
+     its Epic is claimed by an epic run, which owns its Tasks and Features
+     even in a later wave. Stop and ask the user before working it. The run
+     itself passes `--epic-run <Epic>`, which clears the hold for that Epic
+     only. Auto-selection never reaches this case: `bundle-fit` already holds
+     those candidates back as "not workable yet".
 
 6. **Pre-claim AC verification gate** — fetch the issue body and verify
    each acceptance criterion against `origin/main` HEAD before claiming:
@@ -157,10 +167,13 @@ Invoke the `orient-agent` skill.
    first member:
 
    ```bash
-   bash .agents/skills/shared/claim-issue.sh <N> task <slug> [<OTHER_MEMBERS>...]
+   bash .agents/skills/shared/claim-issue.sh [--epic-run <Epic>] <N> task <slug> [<OTHER_MEMBERS>...]
    ```
 
-   Abort immediately if this exits non-zero.
+   GitHub creates the branch, linked to the issue, and that branch is the
+   lock (PAD-04-001). The script then assigns you, comments, and sets
+   `Status = In Progress`. Abort immediately if it exits non-zero: exit 1 means
+   already claimed or failed, and exit 3 means held by an epic run (step 5).
 
 8. Fetch each issue's body and comments (including any comments not yet
    loaded in step 6). Use the full content as implementation context
