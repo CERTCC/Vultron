@@ -78,9 +78,11 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     CheckSenderIsSnapshotManagerNode,
     CheckTrustedCreatorNode,
     ClassifyBootstrapRouteNode,
-    IntroduceCaseManagerToReporterNode,
     RefuseBootstrapNode,
     SeedCaseReplicaNode,
+)
+from vultron.core.behaviors.case.nodes.reporter_introduction import (
+    IntroduceCaseManagerToReporterNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
