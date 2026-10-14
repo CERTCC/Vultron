@@ -10,6 +10,11 @@ related_notes:
   - notes/architecture-adapters.md
   - notes/domain-validation.md
   - notes/use-case-protocol.md
+  - notes/activity-factories.md
+  - notes/datalayer-design.md
+  - notes/inbox-orchestration.md
+  - notes/inbox-pipeline.md
+  - notes/predicates-rule-layer.md
 relevant_packages:
   - vultron/core
   - vultron/wire/as2

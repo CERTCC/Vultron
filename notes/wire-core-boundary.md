@@ -28,6 +28,8 @@ related_notes:
   - notes/status-dimension-objects.md
   - notes/case-joining.md
   - notes/selective-disclosure.md
+  - notes/architecture-ratchet-corpus.md
+  - notes/stub-objects.md
 relevant_packages:
   - vultron/core/models
   - vultron/wire/as2/vocab

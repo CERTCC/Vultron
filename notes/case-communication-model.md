@@ -40,6 +40,7 @@ related_notes:
   - notes/message-type-reference.md
   - notes/case-proposal.md
   - notes/ownership-transfer.md
+  - notes/triggers-test-coverage.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received

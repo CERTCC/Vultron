@@ -15,9 +15,9 @@
 
 """Walk a class's subclass tree.
 
-One implementation for the architecture ratchets that enumerate every
-subclass of a root (CS-22-001), so each walk visits a class once however many
-paths reach it.
+One implementation for every enumeration of a root's subclasses — the
+architecture ratchets and the JSON-LD context generator (CS-22-001) — so each
+walk visits a class once however many paths reach it.
 """
 
 

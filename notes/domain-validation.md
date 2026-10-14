@@ -34,6 +34,7 @@ related_notes:
   - notes/lifecycle-staged-types.md
   - notes/status-dimension-objects.md
   - notes/testing-pitfalls.md
+  - notes/predicates-rule-layer.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries

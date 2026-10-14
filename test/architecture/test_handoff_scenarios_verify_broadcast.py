@@ -27,8 +27,9 @@ topology, same protocol hop — did not, and every test stayed green.  A ratchet
 over "all scenarios defining this phase" also covers handoff scenarios that do
 not exist yet.
 
-Related: AGENTS.md § "Fix One, Miss the Siblings: Scan Peer Files Before Closing
-a Bug"; ``notes/ownership-transfer.md``; CM-21-007; EDF-06-002.
+Related: ``notes/git-workflow-pitfalls.md`` § "Fix One, Miss the Siblings: Scan
+Peer Files Before Closing a Bug"; ``notes/ownership-transfer.md``; CM-21-007;
+EDF-06-002.
 """
 
 import ast

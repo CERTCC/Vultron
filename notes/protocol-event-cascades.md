@@ -18,6 +18,7 @@ related_notes:
   - notes/case-joining.md
   - notes/case-state-model.md
   - notes/triggerable-behaviors.md
+  - notes/ownership-transfer.md
 relevant_packages:
   - vultron/core/use_cases
   - vultron/core/behaviors

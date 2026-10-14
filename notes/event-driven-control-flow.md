@@ -21,6 +21,7 @@ related_notes:
   - notes/ownership-transfer.md
   - notes/use-case-behavior-trees.md
   - notes/demo-future-ideas.md
+  - notes/case-communication-model.md
 relevant_packages:
   - vultron/core
   - vultron/demo
@@ -79,6 +80,17 @@ nobody "fixes" them into meaningless causal gates (EDF-06-006). Processing a
 delivery leaves no completion record, so a "processed" gate is always inferred
 from a downstream effect. When a precondition has no observable predicate, record
 the gap instead of adding a `sleep` (EDF-06-007).
+
+### A wait behind a backlog follows the backlog
+
+When the awaited effect is queued behind a variable amount of work — a late
+joiner's full-case Invite behind the join backfill (CM-11-010) — no fixed
+budget bounds it: the backlog's length times its per-item cost under CI load
+is unknown in advance (#4424). Gate on the backlog draining instead: a
+`ProgressDeadline` (`helpers/polling.py`) restarts its stall budget on each
+new high of a progress reading and stops at a ceiling, so the wait fails only
+when the backlog stops advancing. Read the progress from the same poll that
+looks for the effect, and name the last reading in the timeout message.
 
 ### Which side owns a race
 
