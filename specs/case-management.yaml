@@ -4238,6 +4238,12 @@ groups:
       (CM-23-011) and cannot be misread. Dropping is the default because it is what an
       exited process does, and CM-23-013 already tells participants not to rely on a
       reply.
+    note: >-
+      A late activity here is one for the case, as in CM-23-013. A
+      `Create(CaseProposal)` names a report, not a case, so it is not one: its answer
+      after close is set by CP-05-006 and CP-05-008, which decline it with
+      `Reject(CaseProposal)` under both settings (ADR-0131). That `Reject` is a
+      decision on the proposal, so it cannot be misread.
     verification: >-
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseWriteBoundary`
       drives a late Leave under both settings (one Reject under `reject`, none under

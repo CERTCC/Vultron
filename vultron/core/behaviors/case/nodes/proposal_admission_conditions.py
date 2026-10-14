@@ -34,6 +34,7 @@ CP-05-008.
 """
 
 import logging
+from collections.abc import Iterator
 from typing import Any, cast
 
 from py_trees.common import Status
@@ -136,22 +137,12 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        # Negative prefilter only: no case for this report means nothing was
-        # answered, so the Accept scan below can be skipped.  A case that *does*
-        # exist proves nothing on its own — it may belong to another proposal
-        # naming the same report — so the positive answer still comes from the
-        # proposal-keyed scan.
-        if self._report_id is not None:
-            existing = cast(
-                CasePersistence, self.datalayer
-            ).find_case_by_report_id(self._report_id)
-            if existing is None:
-                return Status.FAILURE
+        datalayer = cast(CasePersistence, self.datalayer)
+        if not accept_scan_can_match(datalayer, self._report_id):
+            return Status.FAILURE
 
         if (
-            find_activity_for_proposal(
-                self.datalayer, self._proposal_id, "Accept"
-            )
+            find_activity_for_proposal(datalayer, self._proposal_id, "Accept")
             is not None
         ):
             logger.info(
@@ -218,21 +209,25 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
         super().initialise()
         self.closed_case_id = None
 
-    def _candidate_case_ids(self, datalayer: CasePersistence) -> list[str]:
-        """Case ids this proposal resolves to, the owner's case first."""
-        candidates: list[str] = []
+    def _candidate_case_ids(self, datalayer: CasePersistence) -> Iterator[str]:
+        """Yield the case ids this proposal resolves to, the owner's case first.
+
+        Lazy, so the ``Accept`` scan runs only when the owner's case is absent
+        or open.
+        """
+        own_id: str | None = None
         if self._report_id is not None:
             own = find_proposer_case(
                 datalayer, self._report_id, self._proposer_uri
             )
             if own is not None:
-                candidates.append(str(own.id_))
+                own_id = str(own.id_)
+                yield own_id
 
         if self._may_have_been_accepted(datalayer):
             accepted = accepted_case_id(datalayer, self._proposal_id)
-            if accepted is not None:
-                candidates.append(accepted)
-        return candidates
+            if accepted is not None and accepted != own_id:
+                yield accepted
 
     def _may_have_been_accepted(self, datalayer: CasePersistence) -> bool:
         """Whether the ``Accept`` scan can find anything for this proposal.
@@ -243,9 +238,7 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
         admission_id = CaseProposalAdmissionRecord.build_id(self._proposal_id)
         if datalayer.read(admission_id) is not None:
             return True
-        if self._report_id is None:
-            return True
-        return datalayer.find_case_by_report_id(self._report_id) is not None
+        return accept_scan_can_match(datalayer, self._report_id)
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -392,8 +385,25 @@ def activity_names_proposal(activity: Any, proposal_id: str) -> bool:
     return isinstance(obj, dict) and obj.get("id") == proposal_id
 
 
+def accept_scan_can_match(
+    datalayer: CasePersistence, report_id: str | None
+) -> bool:
+    """Whether a scan of the stored ``Accept`` activities can find a match.
+
+    A negative prefilter only.  The scan rehydrates every ``Accept`` row, and
+    no case for the report means no proposal for it was accepted, so the scan
+    is skipped.  A case that *does* exist proves nothing on its own: it may
+    belong to another proposal that names the same report, so a positive
+    answer still comes from the proposal-keyed scan.  With no *report_id*
+    nothing can be ruled out.  Store errors propagate.
+    """
+    if report_id is None:
+        return True
+    return datalayer.find_case_by_report_id(report_id) is not None
+
+
 def find_activity_for_proposal(
-    datalayer: Any, proposal_id: str, activity_type: str
+    datalayer: CasePersistence, proposal_id: str, activity_type: str
 ) -> Any | None:
     """Return a stored *activity_type* activity whose object is *proposal_id*."""
     for activity in datalayer.list_objects(activity_type) or []:
@@ -404,16 +414,23 @@ def find_activity_for_proposal(
     return None
 
 
-def accepted_case_id(datalayer: Any, proposal_id: str) -> str | None:
+def accepted_case_id(
+    datalayer: CasePersistence, proposal_id: str
+) -> str | None:
     """Return the case the stored ``Accept`` for *proposal_id* names.
 
     The ``Accept``'s ``result`` is the case the proposal produced or reused
-    (CP-05-006, CP-05-008).  It round-trips as the case id or as a rehydrated
-    object.  Returns ``None`` when no ``Accept`` is stored or it names no case.
+    (CP-05-006, CP-05-008).  Like ``object_`` in
+    :func:`activity_names_proposal`, it round-trips as the bare case id, as a
+    rehydrated object, or as a plain dict, so all three shapes are read.
+    Returns ``None`` when no ``Accept`` is stored or it names no case.
     """
     accept = find_activity_for_proposal(datalayer, proposal_id, "Accept")
     result = getattr(accept, "result", None)
-    case_id = getattr(result, "id_", result)
+    if isinstance(result, dict):
+        case_id = result.get("id")
+    else:
+        case_id = getattr(result, "id_", result)
     return case_id if isinstance(case_id, str) and case_id else None
 
 
@@ -423,6 +440,7 @@ __all__ = [
     "CheckDeclineRecordExistsNode",
     "CheckNoDeclineRecordNode",
     "CheckRejectAlreadyAnsweredNode",
+    "accept_scan_can_match",
     "accepted_case_id",
     "activity_names_proposal",
     "find_activity_for_proposal",

@@ -35,6 +35,9 @@ when it declines. These tests pin five properties:
   (CP-05-005, CP-05-006), declined, or has a retry marker in flight.
 """
 
+from types import SimpleNamespace
+from typing import cast
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -58,8 +61,11 @@ from vultron.core.behaviors.case.case_proposal_received_tree import (
     CLOSED_CASE_DECLINE_REASON,
     create_case_proposal_received_tree,
 )
+from vultron.core.behaviors.case.nodes import proposal_admission_conditions
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalCaseFullyClosedNode,
+    accept_scan_can_match,
+    accepted_case_id,
     activity_names_proposal,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
@@ -77,6 +83,7 @@ from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
@@ -1354,3 +1361,118 @@ def test_another_proposer_for_a_closed_cases_report_gets_its_own_case(dl):
     assert committed_event_types(dl, str(closed.id_)) == closed_ledger, (
         "the closed case gains nothing"
     )
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CM-23-013")
+def test_a_legacy_redelivery_with_no_report_id_is_declined(dl):
+    """With no report id and no admission record, the Accept scan still runs.
+
+    A store written before the admission record existed holds only the
+    ``Accept``, and a redelivery that names no report gives the owner lookup
+    nothing to go on.  The ``Accept``'s ``result`` is then the only way to find
+    the closed case.
+    """
+    case = _accepted_then_closed(dl)
+    assert dl.delete(
+        "CaseProposalAdmissionRecord",
+        CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI),
+    )
+    ledger_before = _ledger_count(dl)
+
+    status = _run_tree(dl, report_id=None)
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Reject"]
+    assert [c.id_ for c in _cases(dl)] == [case.id_]
+    assert _ledger_count(dl) == ledger_before
+
+
+@pytest.mark.spec("CP-05-008")
+def test_the_accept_scan_is_skipped_when_the_owners_case_is_closed(
+    dl, monkeypatch
+):
+    """The owner's closed case decides; the ``Accept`` rows are not scanned."""
+    _accepted_then_closed(dl)
+
+    def _no_scan(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the Accept scan ran after the owner's case")
+
+    monkeypatch.setattr(
+        proposal_admission_conditions, "accepted_case_id", _no_scan
+    )
+
+    status = _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Reject"]
+
+
+class _AcceptStore:
+    """A store stub that holds one ``Accept`` for the proposal."""
+
+    def __init__(self, result: object) -> None:
+        self._accept = SimpleNamespace(
+            type_="Accept", object_=_PROPOSAL_URI, result=result
+        )
+
+    def list_objects(self, type_key: str) -> list[object]:
+        return [self._accept] if type_key == "Accept" else []
+
+
+_CASE_ID = "https://case-actor.example.org/cases/c-001"
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (_CASE_ID, _CASE_ID),
+        (SimpleNamespace(id_=_CASE_ID), _CASE_ID),
+        ({"id": _CASE_ID}, _CASE_ID),
+        (None, None),
+        ("", None),
+        ({"type": "VulnerabilityCase"}, None),
+        (SimpleNamespace(id_=None), None),
+    ],
+    ids=[
+        "bare-id",
+        "object",
+        "dict",
+        "no-result",
+        "empty-id",
+        "dict-without-id",
+        "object-without-id",
+    ],
+)
+def test_accepted_case_id_reads_every_result_shape(result, expected):
+    store = cast(CasePersistence, _AcceptStore(result))
+
+    assert accepted_case_id(store, _PROPOSAL_URI) == expected
+
+
+def test_accepted_case_id_is_none_without_a_stored_accept():
+    store = cast(CasePersistence, _AcceptStore(_CASE_ID))
+
+    assert accepted_case_id(store, _SECOND_PROPOSAL_URI) is None
+
+
+@pytest.mark.parametrize(
+    ("report_id", "case_exists", "expected"),
+    [
+        (None, False, True),
+        (_REPORT_URI, False, False),
+        (_REPORT_URI, True, True),
+    ],
+    ids=["no-report-id", "no-case-for-report", "case-for-report"],
+)
+def test_accept_scan_can_match_is_a_negative_prefilter(
+    report_id, case_exists, expected
+):
+    found = SimpleNamespace(id_=_CASE_ID) if case_exists else None
+    store = cast(
+        CasePersistence,
+        SimpleNamespace(find_case_by_report_id=lambda _report_id: found),
+    )
+
+    assert accept_scan_can_match(store, report_id) is expected
