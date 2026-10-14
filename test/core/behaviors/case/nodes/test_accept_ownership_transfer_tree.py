@@ -34,6 +34,9 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    OwnershipOfferOpenNode,
+)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
 )
@@ -41,6 +44,7 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseManagerNode,
     SenderIsOwnershipTransfereeNode,
 )
 from vultron.core.models.activity import VultronActivity
@@ -48,6 +52,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
+)
+from vultron.core.use_cases.received.actor.ownership import (
+    AcceptCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 
@@ -114,6 +121,7 @@ def _accept_tree():
         offer_id=OFFER_ID,
         sender_id=TRANSFEREE_ID,
         answer_id=OFFER_ID,
+        sender_rule=AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement,
     )
 
 
@@ -122,12 +130,25 @@ def _sender_admitted():
     """Admit the sender and name the transferee as the recorded Offer would.
 
     These tests are about the commit gate, not the Offer lookup; the sender
-    guard and the lookup are tested through the use case in
+    guard, the open-Offer guard and the lookup are tested through the use case in
     ``test/core/use_cases/received/actor/test_ownership.py``.
     """
     with (
         patch.object(
             SenderIsOwnershipTransfereeNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        # The replica's side of the rule: the sender is the CASE_MANAGER.
+        patch.object(
+            SenderIsCaseManagerNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        patch.object(
+            OwnershipOfferOpenNode,
             "update",
             autospec=True,
             return_value=Status.SUCCESS,
