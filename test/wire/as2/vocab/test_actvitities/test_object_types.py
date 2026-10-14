@@ -14,12 +14,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """Regression tests for INLINE-OBJ-A: narrow object_ types in initiating
-activity classes (AKM-03-001).
+activity classes (AKM-03-003).
 
 Each initiating activity class must reject a bare string URI or an as_Link
 as object_ and accept only the correct inline domain object type.
 
-Spec: specs/actor-knowledge-model.yaml AKM-03-001
+Spec: specs/actor-knowledge-model.yaml AKM-03-001, AKM-03-003
 """
 
 import asyncio

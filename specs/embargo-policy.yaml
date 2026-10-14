@@ -378,8 +378,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A sender MUST be able to propose embargo terms when submitting a report, by embedding a
-      proposed `EmbargoEvent` in the `Offer(VulnerabilityReport)` activity. The proposed
+      A sender MUST be able to propose embargo terms when submitting a report, by carrying a
+      proposed `EmbargoEvent`, inline or by reference, as the `proposedEmbargo` of the
+      `Offer(VulnerabilityReport)` activity. The proposed
       `EmbargoEvent` carries the report URI as its `context` (EP-04-009), and the
       CASE_MANAGER MUST rewrite that context to the case URI at case creation.
     rationale: >-
@@ -389,7 +390,7 @@ groups:
       `proposedEmbargo`; the report receiver's `CaseProposal` carries the Offer whole (CP-01-008); the
       case-actor's `CreateEmbargoEventNode` keeps the Reporter's event and rewrites its context.
     note: >-
-      Embedding the proposal on the report offer was chosen over two alternatives. An
+      Carrying the proposal on the report offer was chosen over two alternatives. An
       activity-level `end_time` on the `Offer` would add a third meaning to a field CM-28-001
       already names a critical naming hazard. Inlining the sender's own `EmbargoPolicy` states
       a standing preference, not terms for this report — "I generally prefer 30 days" is not
@@ -411,6 +412,27 @@ groups:
     - ADR-0096
     stories:
     - story_2022_014
+  - id: EP-04-014
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the proposed `EmbargoEvent` of EP-04-004 inline as the
+      `proposedEmbargo` of the `Offer(VulnerabilityReport)`, not by reference.
+    rationale: >-
+      How this codebase meets EP-04-004; split from it so EP-04-004 states only what other
+      participants observe (MS-12-010). The CASE_MANAGER has never seen the Reporter's
+      event, and this codebase does not yet dereference (AKM-05-003), so the event travels
+      inline. That is a shortcut of this prototype reference implementation, not a protocol
+      rule.
+    verification: >-
+      `test/core/use_cases/triggers/test_report_triggers.py::TestSubmitReportProposedEmbargo::test_the_offer_carries_the_stored_terms_about_the_report`
+      confirms the emitted `Offer(VulnerabilityReport)` carries `proposedEmbargo` as an
+      inline `EmbargoEvent` object with its type, id and context, not a URI string;
+      `test/wire/as2/test_report_offer_proposed_embargo.py` confirms such an Offer is
+      extracted with the proposal intact.
+    relationships:
+    - rel_type: implements
+      spec_id: EP-04-004
   - id: EP-04-005
     priority: MUST
     kind: protocol

@@ -371,7 +371,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         offer = _build_offer_activity(origin=origin, roles=[CVDRole.VENDOR])
         # Store the CaseParticipant object so the IRI follow-up in the use
-        # case (AKM-03-001) succeeds and returns the roles.
+        # case (AKM-03-003) succeeds and returns the roles.
         # dl.save() is used instead of dl.create() because _record_offer
         # (called by _seed_dl_for_case_actor) may have already stored these
         # records; save() overwrites without raising VultronAlreadyExistsError.

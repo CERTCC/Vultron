@@ -348,7 +348,7 @@ A peer uses that declaration to recognize a Vultron activity.
 ## Further reading
 
 - [Glossary](../../reference/glossary.md) — definitions for CASE_MANAGER, case ledger, Case Ledger Entry, Participant Case Replica, and the other terms on this page
-- [Actor Knowledge Model](../actor-knowledge-model.md) — the limits of the knowledge of an actor, and why each outbound activity holds full inline objects
+- [Actor Knowledge Model](../actor-knowledge-model.md) — the limits of the knowledge of an actor, and how a recipient obtains the objects a message names
 - [Case Ledger Synchronization](../case_lifecycle/case_ledger_sync.md) — replication in the current single-deployment implementation
 - [Ownership Transfer](../case_lifecycle/ownership_transfer.md) — the transfer sequence in the current implementation
 - [Open questions](open_questions.md) — each open question on this page, collected

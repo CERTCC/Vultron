@@ -122,7 +122,7 @@ def _case_for_wire(
 
     Every activity that puts a case on the wire goes through here, because a
     reference in the case is one the *receiver* cannot dereference: it may not
-    hold the object, and no dereferencing mechanism is specified (AKM-03-001,
+    hold the object, and this codebase does not yet dereference (AKM-02-004,
     the same rule as CP-01-004). Sending an id alone therefore hands the
     recipient a case pointing at an object it can never read. Three fields
     carry references the recipient needs:
@@ -135,7 +135,7 @@ def _case_for_wire(
       already removed.
     - ``case_participants``: the recipient of a bootstrap ``Create`` or
       ``Announce`` stores each embedded participant as its own record
-      (CBT-05-005, CBT-01-007). With ids alone it has no participant at
+      (CBT-05-005, CBT-01-012). With ids alone it has no participant at
       ``RM.RECEIVED`` to move to ``VALID`` and no CASE_MANAGER participant to
       route its reply to. The outbox used to expand these at delivery time
       (``dl.hydrate()``); the sealed body is delivered as built (VM-08-003), so
@@ -152,7 +152,7 @@ def _case_for_wire(
     is left as the id with a WARNING: this function's job is to carry what is
     there, and a sender-side gap is the business of whoever wrote the
     dangling reference. ``announce_vulnerability_case`` then refuses to send
-    a case whose report is missing (CBT-01-007). An unreadable active embargo
+    a case whose report is missing (CBT-01-012). An unreadable active embargo
     is the exception: it raises (EMB-18-003, :func:`_carried_embargo`).
     """
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
@@ -172,7 +172,7 @@ def _case_for_wire(
 #: Case list fields whose bare ids are carried as objects by ``_case_for_wire``.
 #: ``_AS_LIST_REF_FIELDS`` is the DataLayer's own list of list-reference fields
 #: (the ones its retired delivery-time ``hydrate()`` expanded); the reports are
-#: added because a recipient seeding a case needs them too (CBT-01-007).
+#: added because a recipient seeding a case needs them too (CBT-01-012).
 _CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
     "vulnerability_reports"
 }
@@ -231,7 +231,7 @@ def _carried_list(
                 logger.warning(
                     "_case_for_wire: case '%s' names %s '%s' which is absent"
                     " from the sending actor's own store, so it cannot be"
-                    " carried inline (AKM-03-001, CBT-01-007)",
+                    " carried inline (AKM-02-004, CBT-01-012)",
                     case_id,
                     field_name,
                     item,

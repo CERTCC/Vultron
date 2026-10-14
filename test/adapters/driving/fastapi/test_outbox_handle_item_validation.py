@@ -87,6 +87,7 @@ def _deliver(sealed: SealedOutboundBody, emitter) -> None:
 @pytest.mark.parametrize(
     "activity_type", sorted(_INLINE_OBJECT_ACTIVITY_TYPES)
 )
+@pytest.mark.spec("AKM-03-003")
 def test_handle_outbox_item_refuses_a_bare_object_for_inline_types(
     activity_type,
 ):
@@ -141,7 +142,7 @@ def test_handle_outbox_item_refuses_a_link_object():
 
 
 def test_handle_outbox_item_allows_a_bare_object_for_non_initiating_types():
-    """The guard is scoped to AKM-03-001's initiating types."""
+    """The guard (AKM-03-002) is scoped to AKM-03-001's initiating types."""
     sealed = _sealed(
         "urn:test:act-read",
         {

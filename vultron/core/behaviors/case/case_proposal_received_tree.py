@@ -292,7 +292,7 @@ def create_case_proposal_received_tree(
             the nodes that run before the case exists name it the proposer.
         proposal_dict: The proposal's AS2 rendering (from ``WireRenderPort``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
-            satisfying CP-05-003 and the AKM-03-001 outbox requirement. Falls back
+            satisfying CP-05-009 and the AKM-03-003 outbox requirement. Falls back
             to bare URI when ``None``. It is also where the report's offer
             provenance arrives (``offerId``/``offerActorId``, CP-01-007), which
             the ``add_report_to_case`` ledger entry needs and this CaseActor

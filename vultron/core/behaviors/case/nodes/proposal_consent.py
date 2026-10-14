@@ -59,7 +59,7 @@ def _seed_participant_as_signatory(
     nothing to sign and nothing is written (ADR-0122).
     """
     # `active_embargo_id`, not the field: it may hold the whole EmbargoEvent
-    # when a received case carried one (AKM-03-001), and the rows hold ids.
+    # when a received case carried one (AKM-02-004), and the rows hold ids.
     embargo_id = stored_case.active_embargo_id
     if not embargo_id:
         return

@@ -4,8 +4,9 @@ status: active
 kind: guidance
 description: >
   Rules for enforcing the Actor Knowledge Model: no cross-actor DataLayer
-  access, full inline objects in outbound activities, the outbox last-resort
-  guard, and the use-case-level actor-discovery seam (AKM-05).
+  access, this codebase's full-inline-object rule for outbound activities (a
+  prototype shortcut, not a protocol rule), the outbox last-resort guard, and
+  the use-case-level actor-discovery seam (AKM-05).
 related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/testability.yaml
@@ -15,6 +16,7 @@ relevant_packages:
   - vultron/adapters/driving/fastapi
 related_notes:
   - notes/case-bootstrap-trust.md
+  - notes/spec-authoring-rules.md
 ---
 
 # Actor Knowledge Model — Implementation Notes
@@ -28,15 +30,25 @@ channel, no shared memory, and no DataLayer access across Actor boundaries, even
 for co-located actors. Do not describe isolation as "avoiding a round-trip to the
 sender's DataLayer": that framing implies the access is possible but skipped.
 
-Corollary: **an outbound activity that carries a bare object URI cannot be
-resolved by its recipient.** Rehydration from the recipient's own store fails and
-pattern matching falls through to `MessageSemantics.UNKNOWN`.
+Corollary: **a bare object URI is resolvable only if the recipient holds the
+object or can dereference it.** The protocol allows an object inline or by a
+reference the recipient can fetch (AKM-02-002, AKM-03-001). This codebase does
+not yet dereference (AKM-05-003), so a bare URI for an object the recipient lacks
+fails: rehydration from the recipient's own store fails and pattern matching
+falls through to `MessageSemantics.UNKNOWN`.
 
-## Outbound Activities Carry Full Inline Objects
+## This Codebase Carries Full Inline Objects
+
+Inlining is a prototype shortcut, not a Vultron rule (maintainer ruling
+2026-10-14, #4599; see `notes/spec-authoring-rules.md`). The project specs are
+AKM-02-004 (inline every object the recipient cannot hold), AKM-03-003 (inline
+every activity `object`) and AKM-02-005 (`target` reduces a case to its URI).
+Ledger snapshot content is the exception that stays inline under the protocol
+too, because the hash chain must cover it (CLP-07-006).
 
 - Pass the domain object, not its `.id_`, as `object_` and as `target` (e.g. the
-  full `VulnerabilityCase` as the `target` of an `Add`). The one approved
-  exception is the stub object in `Invite.target`.
+  full `VulnerabilityCase` as the `target` of an `Add`); the factory reduces a
+  case in `target` to its URI, or keeps a case stub (AKM-02-003, AKM-02-005).
 - `actor` is an ID reference, and must be the sender's own ID.
 - When in doubt, include the full object. Tracking what a peer has already seen,
   to skip redundant transmission, is a `PROD_ONLY` MAY, not prototype work.
