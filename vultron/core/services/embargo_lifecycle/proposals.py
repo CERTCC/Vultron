@@ -192,6 +192,23 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             participant_changes=[],
         )
 
+    def check_abandonable(
+        self, *, case_id: str, embargo_ids: list[str]
+    ) -> None:
+        """Raise unless a ``STRICT`` abandonment of *embargo_ids* would apply.
+
+        Writes nothing.  A caller that commits the abandonment's entries
+        before it writes the abandonment checks here first, so no entry is
+        committed for an abandonment the case then refuses (CLP-07-013).
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronValidationError: An id is not an open proposal of the
+                case, or *embargo_ids* is empty.
+            VultronInvalidStateTransitionError: An embargo is in force.
+        """
+        _assert_abandonable(self._read_case(case_id), embargo_ids)
+
     def abandon_embargo_proposals(
         self,
         *,

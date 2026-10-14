@@ -51,8 +51,13 @@ These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013)
 A case with no linked report has no `add_report_to_case` entry.
 Participants are taken in roster order, so a case created from a proposal has entries for the CASE_MANAGER, the Case Owner and the reporter, and a case an actor creates for itself has one, for the creator.
 
-The entries are committed after the `Create(VulnerabilityCase)` is queued.
-Each commit fans its entry out to the case's participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
+Each commit fans its entry out to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
+When the CASE_MANAGER accepts a proposal, the proposer is already a participant, so the entries are committed after the `Create(VulnerabilityCase)` is queued.
+When an actor creates a case for itself, it is the case's only participant, so the entries go to nobody and are committed before the `Create` is queued.
+
+Every entry is required.
+The first entry that fails to commit stops the sequence, so no later entry is committed out of order, and the creation is reported as failed.
+When an actor creates a case for itself and the genesis entry fails, nothing about the case has been committed or sent, so the case is removed.
 
 ---
 

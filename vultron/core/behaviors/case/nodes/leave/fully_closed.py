@@ -56,8 +56,8 @@ class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
     """
 
     #: A gapped local prefix must not block case closure (CM-23-002,
-    #: SYNC-10-001/002): the RM closure entries before this one are
-    #: best-effort for the same reason (``CommitRMClosureEntriesNode``).
+    #: SYNC-10-001/002): the RM closure entries before this one skip the
+    #: check for the same reason (``CommitRMClosureEntriesNode``).
     _CHECK_LEDGER_FRESHNESS = False
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

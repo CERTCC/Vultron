@@ -187,8 +187,9 @@ catch-up fetch or deferral, refuse instead.
   can only expire, so `ExpirePendingInvitesOnCloseNode` runs between the
   CASE_MANAGER's `RM.CLOSED` entry and `case_fully_closed`, reusing the
   late-Accept expiry subtree for each pending invitation. Its `published` is the
-  CASE_MANAGER's clock, because the invitee sent nothing. Recording is
-  best-effort: a failure must not cost the case its `case_fully_closed`.
+  CASE_MANAGER's clock, because the invitee sent nothing. Each expiry commits
+  before it writes the consent row, so a refused one writes nothing; it is
+  logged and the close goes on.
 
 ## Refusing an Invite at P/X/A (EMB-01-002)
 
@@ -373,9 +374,10 @@ same reason `PxaEmInvariantDiagnosticNode` posts no CSB-18 Note for such a
 status.
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
-CASE_MANAGER cancels them all (`abandon_embargo_proposals`, STRICT) and commits
-one `Reject(Invite(EmbargoEvent))` per proposal under
-`reject_invite_to_embargo_on_case_abandoned`, addressed to nobody; replicas drop
+CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under
+`reject_invite_to_embargo_on_case_abandoned`, addressed to nobody, and cancels
+each proposal (`abandon_embargo_proposals`, STRICT) only after its entry commits,
+so a failed commit leaves that proposal open (CLP-07-013, #4442). Replicas drop
 them through the `EmbargoAbandonment` slot without repeating the owner check.
 
 **A non-manager sends no ER for the abandonment (EMB-16-002).** Its ER would read

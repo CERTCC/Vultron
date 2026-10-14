@@ -217,6 +217,7 @@ def create_close_case_received_tree(
                 │       │                                           #   committed from its sealed blob;
                 │       │                                           # step 4: fan-out (skips RM.CLOSED)
                 │       └── NonOwnerLeaveFallbackSeq (Sequence)  # Non-owner (CM-23-003)
+                │           ├── Inverter(SenderIsCaseOwnerNode)   # a failed owner arm fails here
                 │           ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
                 │           └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-001)
                 └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
@@ -328,15 +329,11 @@ def create_close_case_received_tree(
         # ``case_fully_closed`` records the case's closure, not the
         # CASE_MANAGER's own RM steps.
         #
-        # Every record node is best-effort — it warns and returns SUCCESS
-        # rather than failing. That is load-bearing *here*, not merely
-        # defensive: this Sequence runs the entries before
-        # ``case_fully_closed``, so a FAILURE would skip steps 3 and 4, and the
-        # Selector below would then read the failed owner arm as "the sender
-        # is not the Case Owner" and report SUCCESS down the non-owner path —
-        # a half-closed case with no diagnostic. Do not "harden" the node into
-        # failing without first making this arm's failure propagate past that
-        # Selector.
+        # Every record node fails closed: a step whose entry does not commit
+        # is withdrawn and the node fails (CLP-07-013), so this Sequence stops
+        # before ``case_fully_closed``.  The non-owner arm below re-checks the
+        # sender's role, so the Selector reports that failure rather than
+        # reading it as "the sender is not the Case Owner".
         owner_leave_children.extend(
             _close_and_record(
                 case_id, receiving_actor_id, "CaseActor", case_manager=True
@@ -345,7 +342,8 @@ def create_close_case_received_tree(
         # CM-23-014: after close a pending Invite can only expire, so expire
         # each one now, while its entry can still precede case_fully_closed,
         # rather than leave the CASE_MANAGER waiting on its RSVP deadline.
-        # Best-effort for the same reason as the entries above.
+        # Best-effort: a refused expiry commit writes nothing (the commit
+        # precedes the consent write), so it does not stop the closure.
         owner_leave_children.append(
             ExpirePendingInvitesOnCloseNode(
                 case_id=case_id, name="ExpirePendingInvitesOnClose"
@@ -366,9 +364,22 @@ def create_close_case_received_tree(
                 name="NonOwnerLeaveFallbackSeq",
                 memory=False,
                 # CM-23-003: only the leaver closes, each step on the ledger.
-                children=_close_and_record(
-                    case_id, sender_actor_id, "LeavingParticipant"
-                ),
+                # The role is checked again, so a Case Owner whose closure
+                # failed part-way fails here too instead of being closed as
+                # an ordinary leaver (CLP-07-013, #4442).
+                children=[
+                    py_trees.decorators.Inverter(
+                        name="SenderIsNotCaseOwner",
+                        child=SenderIsCaseOwnerNode(
+                            sender_actor_id=sender_actor_id,
+                            case_id=case_id,
+                            name="CheckIsCaseOwnerForNonOwnerLeave",
+                        ),
+                    ),
+                    *_close_and_record(
+                        case_id, sender_actor_id, "LeavingParticipant"
+                    ),
+                ],
             ),
         ],
     )

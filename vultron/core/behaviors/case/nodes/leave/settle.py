@@ -130,12 +130,12 @@ class ExpirePendingInvitesOnCloseNode(
     embargo.  The snapshot is attributed to the invitee (CM-28-009), but the
     invitee sent nothing, so ``published`` is the CASE_MANAGER's own clock.
 
-    **Recording is best-effort**, for the reason
-    :meth:`~vultron.core.behaviors.case.nodes.leave.record.CommitRMClosureEntriesNode._best_effort`
-    gives: a FAILURE here would skip ``case_fully_closed``, and the enclosing
-    Selector would read it as a non-owner Leave.  A commit the nested tree
-    refuses is logged as a WARNING and the next invitation is tried.  An
-    internal error is not a refusal and is raised (ADR-0095, #4113).
+    **An expiry is best-effort.**  Each nested tree commits before it writes
+    the consent row, so a refused commit writes nothing and the case file
+    holds no change the ledger lacks (CLP-07-013).  A pending Invite left
+    unexpired does not justify keeping the case open, so a refusal is logged
+    as a WARNING and the next invitation is tried.  An internal error is not
+    a refusal and is raised (ADR-0095, #4113).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

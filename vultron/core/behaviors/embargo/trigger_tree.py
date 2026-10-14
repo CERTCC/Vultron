@@ -59,7 +59,6 @@ from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     ActivateEmbargoLifecycleNode,
     CollectEmbargoInviteRecipientsNode,
-    CommitEmbargoAbandonmentNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoTeardownNode,
     EmbargoActivityBuilder,
@@ -467,11 +466,12 @@ def reject_proposed_embargo_bt(
     3. As the CASE_MANAGER (EP-09-008): ``ReadOpenEmbargoProposalsNode``
        maps each open proposal to the readable Invite its ER answers
        (FAILURE before anything moves when one has none),
-       ``AbandonEmbargoProposalsLifecycleNode`` drives ``PROPOSED → NONE``,
-       then one ER per proposal is committed as an
-       ``EMBARGO_ABANDONMENT_EVENT_TYPE`` entry the ``EmbargoAbandonment``
-       slot replays (EP-09-007), addressed to nobody (CLP-10-001), then the
-       ``Add(CaseStatus)`` declaration.
+       ``AbandonEmbargoProposalsLifecycleNode`` then, per proposal, commits
+       one ER as an ``EMBARGO_ABANDONMENT_EVENT_TYPE`` entry the
+       ``EmbargoAbandonment`` slot replays (EP-09-007), addressed to nobody
+       (CLP-10-001), and only then cancels that proposal, so EM reaches
+       ``NONE`` with the last one and a proposal whose entry does not commit
+       stays open (CLP-07-013); then the ``Add(CaseStatus)`` declaration.
     4. As any other participant: no EM write and no ask (EMB-16-002,
        #4148).  The manager has the P/X/A signal from the status
        declaration and abandons on its own detection; an ER sent on the
@@ -495,7 +495,6 @@ def reject_proposed_embargo_bt(
                     AbandonEmbargoProposalsLifecycleNode(
                         case_id=case_id, result_out=result_out
                     ),
-                    CommitEmbargoAbandonmentNode(case_id=case_id),
                     _make_emit_node(case_id),
                 ],
                 otherwise=[LeaveAbandonmentToCaseManagerNode(case_id=case_id)],

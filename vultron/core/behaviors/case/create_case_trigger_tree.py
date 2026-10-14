@@ -209,11 +209,13 @@ def create_case_trigger_bt(
     the genesis ``create_case`` entry, then one entry for each record the
     tree wrote (CLP-07-013).  ``CommitNativeLedgerEntriesNode`` is the same
     node the case-proposal tree composes, so a case created either way is
-    committed as the same entry sequence.  It runs last, after the
-    ``Create`` is queued, for the reason it does on the proposal path: a
-    recipient must hold the case before the first entry's fan-out reaches it
-    (CP-09-009).  The ports those commits need are checked first, so a
-    composition fault refuses before the case is written.
+    committed as the same entry sequence.  It runs before the ``Create`` is
+    queued: the creator is the new case's only participant, so the entries
+    fan out to nobody and cannot overtake the ``Create`` (CP-09-009).  A
+    genesis entry that fails to commit therefore withdraws the case before
+    anything about it is sent, and a later entry that fails stops the tree
+    before the ``Create`` is queued.  The ports those commits need are
+    checked first, so a composition fault refuses before the case is written.
     """
     children: list[py_trees.behaviour.Behaviour] = [
         RequireWireRenderPortNode(),
@@ -230,11 +232,15 @@ def create_case_trigger_bt(
             result_out=result_out,
         ),
     ]
+    children.append(
+        CommitNativeLedgerEntriesNode(
+            owner_uri=actor_id,
+            report_id=report_id,
+            withdraw_case_on_genesis_failure=True,
+        )
+    )
     if queue_for_delivery:
         children.append(UpdateActorOutbox())
-    children.append(
-        CommitNativeLedgerEntriesNode(owner_uri=actor_id, report_id=report_id)
-    )
     return py_trees.composites.Sequence(
         name="CreateCaseTriggerBT",
         memory=False,

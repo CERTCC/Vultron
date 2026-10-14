@@ -36,6 +36,7 @@ import py_trees
 import pytest
 
 from test.support.embargo_register import register
+from test.support.ledger import committed_event_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -2702,7 +2703,9 @@ class TestARedeliveryAnnouncesTheCaseOnce:
 class TestADR0041GenesisCommitFailure:
     """The genesis create_case commit failure must not be masked."""
 
-    def test_genesis_create_case_failure_aborts(self, make_payload):
+    def test_genesis_create_case_failure_aborts(
+        self, make_payload, monkeypatch
+    ):
         """A failed genesis create_case commit returns FAILURE (not SUCCESS).
 
         The genesis entry is the root of the CaseActor's hash chain; a
@@ -2715,10 +2718,7 @@ class TestADR0041GenesisCommitFailure:
 
         from vultron.core.behaviors.case.nodes import (
             CommitNativeLedgerEntriesNode,
-        )
-
-        node = CommitNativeLedgerEntriesNode(
-            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+            proposal_ledger,
         )
 
         dl = SqliteDataLayer(
@@ -2726,32 +2726,66 @@ class TestADR0041GenesisCommitFailure:
             actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
-        # Build a real case so the node reaches the commit step.
+        # Build a real case, committing nothing, so the node reaches the
+        # genesis commit with every commit still failing.
+        fail_commits(monkeypatch, proposal_ledger)
         _run_full_bt(make_payload, dl)
         case = next(iter(dl.list_objects("VulnerabilityCase")))
 
-        # Wire up the node against the real DL + case, forcing every commit
-        # (including genesis create_case) to report failure.
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
 
-        class _BB:
-            def get(self, _key):
-                return case.id_
-
-        node.blackboard = _BB()  # type: ignore[assignment]
-
-        with patch.object(
-            CommitNativeLedgerEntriesNode,
-            "_commit_one",
-            return_value=False,
-        ):
-            result = node.update()
-
-        assert result == Status.FAILURE, (
+        assert node.update() == Status.FAILURE, (
             "genesis create_case commit failure must propagate as FAILURE,"
             " not be masked as best-effort SUCCESS"
         )
+        assert "genesis create_case ledger commit failed" in (
+            node.feedback_message
+        )
+        assert dl.read_case(case.id_) is not None, (
+            "the proposal path queued its Create already, so it keeps the case"
+        )
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_failed_later_entry_fails_and_stops_the_sequence(
+        self, make_payload, monkeypatch
+    ):
+        """After genesis every entry is required too (#4442).
+
+        The first entry that fails to commit stops the sequence, so no later
+        entry is committed out of order, and the handler does not report the
+        creation as applied.
+        """
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        attempted = fail_commits(monkeypatch, proposal_ledger, allowed=1)
+
+        result = CreateCaseProposalReceivedUseCase(
+            dl,
+            _make_full_event(make_payload),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is not HandlerDisposition.APPLIED
+        assert "creation entries stop there" in (result.reason or "")
+        case = next(iter(dl.list_objects("VulnerabilityCase")))
+        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert len(attempted) == 2, "nothing is tried after the failed entry"
 
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""
@@ -4204,9 +4238,7 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
-    from vultron.core.behaviors.case.nodes import (
-        CommitNativeLedgerEntriesNode,
-    )
+    from vultron.core.behaviors.case.nodes import proposal_ledger
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
@@ -4214,9 +4246,8 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     _seed_report(dl)
     event = _make_full_event(make_payload)
-    with patch.object(
-        CommitNativeLedgerEntriesNode, "_commit_one", return_value=False
-    ):
+    with pytest.MonkeyPatch.context() as patch_ctx:
+        fail_commits(patch_ctx, proposal_ledger)
         result = CreateCaseProposalReceivedUseCase(
             dl,
             event,

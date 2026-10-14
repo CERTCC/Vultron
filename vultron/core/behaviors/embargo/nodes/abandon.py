@@ -25,12 +25,14 @@ BT-17-001):
   proposal to the Invite that proposed it before anything moves.  The ER the
   wire carries is a ``Reject`` of that Invite (MSM-02-006), so a proposal
   with no indexed Invite cannot be answered and the tree fails closed.
-  :class:`AbandonEmbargoProposalsLifecycleNode` then writes the abandonment
-  through ``EmbargoLifecycle``, and :class:`CommitEmbargoAbandonmentNode`
-  commits one ER per proposal as a ledger entry of its own event type,
-  addressed to nobody: the manager never mails itself (CLP-10-001,
-  ADR-0109), and every replica learns the decision from the entry
-  (EP-09-009).
+  :class:`AbandonEmbargoProposalsLifecycleNode` then answers them one at a
+  time: it commits the ER for a proposal as a ledger entry of its own event
+  type, and only then cancels that proposal through ``EmbargoLifecycle``.
+  The abandonment is a decision the CASE_MANAGER takes from local policy, so
+  its entry comes before the change it records, and a proposal whose entry
+  does not commit stays open (CLP-07-013).  Each ER is addressed to nobody:
+  the manager never mails itself (CLP-10-001, ADR-0109), and every replica
+  learns the decision from the entry (EP-09-009).
 - Any other participant sends nothing (EMB-16-002, #4148):
   :class:`LeaveAbandonmentToCaseManagerNode` succeeds without a write or an
   ask.  Only the case owner, or the CASE_MANAGER it delegates to, decides
@@ -52,9 +54,6 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case_manager_commit import (
-    _CommitCaseManagerActivityBase,
-)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
@@ -64,20 +63,23 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
     _EmbargoRelayEffectNode,
 )
 from vultron.core.behaviors.helpers import (
+    TRIGGER_FACTORY_UNAVAILABLE,
     DataLayerActionWithPorts,
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     EMBARGO_ABANDONMENT_EVENT_TYPE,
 )
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronWiringError
 
 #: Blackboard key of the proposals to abandon, ``{embargo_id: invite_id}``.
 ABANDONED_PROPOSALS_KEY = "abandoned_proposals"
@@ -169,9 +171,24 @@ class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
 class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
     """The CASE_MANAGER's ``STRICT`` abandonment of every open proposal.
 
-    Calls ``EmbargoLifecycle.abandon_embargo_proposals`` (EMB-18-001), which
-    drives ``PROPOSED → NONE`` and changes no consent.  Sits inside the
-    CASE_MANAGER gate (EP-09-008).
+    For each proposal, in record order, it commits the CASE_MANAGER's ER — one
+    ``Reject(Invite(EmbargoEvent))`` (MSM-02-006) under
+    :data:`EMBARGO_ABANDONMENT_EVENT_TYPE`, addressed to nobody — and then
+    cancels that proposal through ``EmbargoLifecycle.abandon_embargo_proposals``
+    (EMB-18-001), which changes no consent.  EM reaches ``NONE`` with the
+    last one, exactly as a replica replaying the entries does (EP-09-007).
+
+    **Commit, then write** (CLP-07-013).  The abandonment is a decision taken
+    from local policy, so each proposal's entry is committed before the case
+    file changes, and a proposal whose entry does not commit is not
+    cancelled.  The abandonment is checked as a whole before the first commit,
+    so no entry is committed for one the case would then refuse.  A failed
+    commit is not a refusal: :func:`~vultron.core.behaviors.sync.commit_tree
+    .commit_emitted_activity` raises and the exception escapes to ``BTBridge``
+    (BT-14-001).  Every proposal answered before it stays answered, each with
+    its entry.
+
+    Sits inside the CASE_MANAGER gate (EP-09-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -199,60 +216,65 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
     def _case_id(self) -> str:
         return self._case_id_value
 
+    def update(self) -> Status:
+        if self.trigger_activity_factory is None:
+            # A composition fault, not a refusal (ARCH-15-001), raised before
+            # anything is committed or written.  Checked here rather than in
+            # _transition, whose VultronError handler would report it as a
+            # refused abandonment.
+            raise VultronWiringError(
+                f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to build the"
+                f" abandonment ERs of case '{self._case_id_value}'"
+            )
+        return super().update()
+
     def _transition(
         self,
         lifecycle: EmbargoLifecycle,
         actor_id: str,
     ) -> EmbargoLifecycleResult:
-        return lifecycle.abandon_embargo_proposals(
-            case_id=self._case_id_value,
-            embargo_ids=list(self._proposals),
-            actor_id=actor_id,
-            transition_mode=TransitionMode.STRICT,
-        )
-
-
-class CommitEmbargoAbandonmentNode(_CommitCaseManagerActivityBase):
-    """Commit the CASE_MANAGER's ER for each abandoned proposal.
-
-    One ``Reject(Invite(EmbargoEvent))`` per proposal (MSM-02-006), each
-    committed under :data:`EMBARGO_ABANDONMENT_EVENT_TYPE` and addressed to
-    nobody: the announced entry tells every replica (EP-09-009), and the
-    manager never addresses itself (CLP-10-001).
-    """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        **_PROPOSALS_PORT,
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return dict(_PROPOSALS_REMAP)
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(
-            case_id=case_id,
-            event_type=EMBARGO_ABANDONMENT_EVENT_TYPE,
-            notify_participants=False,
-            name=name,
-        )
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._proposals = _read_proposals(self)
-
-    def _build_all(self, to: list[str] | None) -> list[tuple[str, str]]:
         assert self.trigger_activity_factory is not None
-        return [
-            self.trigger_activity_factory.reject_embargo(
+        lifecycle.check_abandonable(
+            case_id=self._case_id_value, embargo_ids=list(self._proposals)
+        )
+        dl = cast(CaseOutboxPersistence, self.datalayer)
+        results: list[EmbargoLifecycleResult] = []
+        for embargo_id, invite_id in self._proposals.items():
+            activity_id, blob = self.trigger_activity_factory.reject_embargo(
                 proposal_id=invite_id,
-                case_id=self._case_id,
-                actor=cast(str, self.actor_id),
-                to=to,
+                case_id=self._case_id_value,
+                actor=actor_id,
+                to=None,
             )
-            for invite_id in self._proposals.values()
-        ]
+            commit_emitted_activity(
+                datalayer=dl,
+                actor_id=actor_id,
+                case_id=self._case_id_value,
+                activity_id=activity_id,
+                activity_blob=blob,
+                event_type=EMBARGO_ABANDONMENT_EVENT_TYPE,
+            )
+            results.append(
+                lifecycle.abandon_embargo_proposals(
+                    case_id=self._case_id_value,
+                    embargo_ids=[embargo_id],
+                    actor_id=actor_id,
+                    transition_mode=TransitionMode.STRICT,
+                )
+            )
+        self.feedback_message = (
+            f"CASE_MANAGER committed and applied {len(results)}"
+            f" '{EMBARGO_ABANDONMENT_EVENT_TYPE}' entr(y/ies) on case"
+            f" '{self._case_id_value}'"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return EmbargoLifecycleResult(
+            em_before=results[0].em_before,
+            em_after=results[-1].em_after,
+            case_changed=any(r.case_changed for r in results),
+            case_embargo_changed=False,
+            participant_changes=[],
+        )
 
 
 class LeaveAbandonmentToCaseManagerNode(DataLayerActionWithPorts):
@@ -345,7 +367,6 @@ __all__ = [
     "ABANDONED_PROPOSALS_KEY",
     "AbandonEmbargoProposalsLifecycleNode",
     "ApplyEmbargoAbandonmentFromLedgerNode",
-    "CommitEmbargoAbandonmentNode",
     "LeaveAbandonmentToCaseManagerNode",
     "ReadOpenEmbargoProposalsNode",
 ]

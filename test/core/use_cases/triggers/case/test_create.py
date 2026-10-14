@@ -23,7 +23,11 @@ Spec: specs/triggerable-behaviors.yaml TRIG-09.
 
 import pytest
 
-from test.support.ledger import creation_entry_sequence, ledger_entries
+from test.support.ledger import (
+    creation_entry_sequence,
+    fail_commits,
+    ledger_entries,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -561,34 +565,53 @@ class TestCreateCaseTriggerLedger:
         assert self.dl.outbox_list() == []
 
     @pytest.mark.spec("CLP-07-013")
-    def test_a_failed_genesis_commit_fails_the_trigger(self, monkeypatch):
-        """The genesis entry roots the hash chain; its failure is not masked.
+    def test_a_failed_genesis_commit_withdraws_the_case(self, monkeypatch):
+        """AC-3: a case whose genesis does not commit is not kept (#4442).
 
-        The trigger raises rather than reporting a created case whose ledger
-        has no root.  The commit runs after the ``Create`` is queued
-        (CP-09-009), so the failure is surfaced, not prevented: the case and
-        its queued ``Create`` remain, and the error names the case so the
-        caller can find it rather than retry into a second one.
+        The trigger commits before it queues the ``Create``, so nothing about
+        the case was committed or sent: the case and the creator's
+        participant record are removed and the trigger raises.  The report
+        it was created from was not the creation's write and stays.
         """
-        from vultron.core.behaviors.case.nodes import (
-            CommitNativeLedgerEntriesNode,
-        )
+        from vultron.core.behaviors.case.nodes import proposal_ledger
 
-        monkeypatch.setattr(
-            CommitNativeLedgerEntriesNode,
-            "_commit_one",
-            lambda self, *args, **kwargs: False,
-        )
+        fail_commits(monkeypatch, proposal_ledger)
 
         with pytest.raises(
             VultronValidationError, match="genesis create_case ledger commit"
         ) as raised:
             self._create(to=[_RECIPIENT])
 
+        assert "withdrawn" in str(raised.value)
+        assert self.dl.list_objects("VulnerabilityCase") == []
+        assert self.dl.list_objects("CaseParticipant") == []
+        assert self.dl.list_objects("CaseLedgerEntry") == []
+        assert self.dl.outbox_list() == []
+        assert self.dl.read(self.report.id_) is not None
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_failed_later_entry_fails_before_the_create_is_queued(
+        self, monkeypatch
+    ):
+        """After genesis the first failed entry stops the trigger (#4442).
+
+        No later entry is committed out of order, and the ``Create`` is not
+        sent for a case whose ledger is incomplete.
+        """
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        fail_commits(monkeypatch, proposal_ledger, allowed=1)
+
+        with pytest.raises(
+            VultronValidationError, match="creation entries stop there"
+        ):
+            self._create(to=[_RECIPIENT])
+
         (case,) = self.dl.list_objects("VulnerabilityCase")
-        assert case.id_ in str(raised.value)
-        (activity_id,) = self.dl.outbox_list()
-        assert getattr(self.dl.read(activity_id), "type_", None) == "Create"
+        assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
+            "create_case"
+        ]
+        assert self.dl.outbox_list() == []
 
 
 @pytest.mark.spec("CLP-07-013")
