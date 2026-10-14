@@ -182,9 +182,10 @@ def _seed_late_joiner_case() -> dict[str, Any]:
             ),
             actor=kwargs["actor"],
             to=kwargs.get("to"),
-            id_=f"{case.id_}/invitations/full-case-1",
+            id_=kwargs.get("id_") or f"{case.id_}/invitations/full-case-1",
         )
-        dl.create(activity)
+        if dl.read(activity.id_) is None:  # a rebuild keeps the first Invite
+            dl.create(activity)
         return activity.id_, _outbound_blob(activity)
 
     trigger_activity = with_ledger_records(MagicMock(), dl)
@@ -1251,6 +1252,114 @@ class TestInviteActorUseCases:
         assert state.join_backfill_target_index == 2
         assert state.join_backfill_last_sent_index == 2
         assert state.join_backfill_complete is True
+
+    @pytest.mark.spec("SYNC-09-002")
+    @pytest.mark.spec("CLP-07-013")
+    def test_the_full_case_invite_is_recorded_after_the_accepts_entries(
+        self, make_payload, monkeypatch
+    ):
+        """A consequent send follows the act's entries and is its own act (AC-5).
+
+        The invitee's ``Accept`` is the act: its entry comes first, then the
+        consequence entries the CASE_MANAGER writes for it (the vendor's VF
+        status).  The full-case Invite is sent because of the act, so it comes
+        after all of them, and as a send it is queued before its own entry is
+        committed (ADR-0119).
+        """
+        from test.support.ledger import record_sends_and_commits
+
+        lj = _seed_late_joiner_case()
+        dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
+        events = record_sends_and_commits(monkeypatch, lj["case_actor_id"])
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(accept),
+            sync_port=MagicMock(),
+            trigger_activity=lj["trigger_activity"],
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        commits = [kind for kind, _ in events if kind != "queued"]
+        assert commits == [
+            "accept_invite_actor_to_case",
+            "add_participant_status_to_participant",
+            "invite_actor_to_full_case",
+        ]
+        (full_case_invite_id,) = [
+            object_id
+            for kind, object_id in events
+            if kind == "invite_actor_to_full_case"
+        ]
+        consequence = events.index(
+            next(e for e in events if e[0] == commits[1])
+        )
+        queued = events.index(("queued", full_case_invite_id))
+        recorded = events.index(
+            ("invite_actor_to_full_case", full_case_invite_id)
+        )
+        assert consequence < queued < recorded
+
+    @pytest.mark.spec("CM-11-010")
+    @pytest.mark.spec("OX-06-002")
+    def test_a_full_case_invite_whose_commit_failed_is_sent_once_on_retry(
+        self, make_payload
+    ):
+        """The full-case Invite's id is one per case and invitee (ADR-0119).
+
+        The first run queues the Invite and its commit fails.  Running the
+        emit again rebuilds the Invite under the same id: the outbox does not
+        queue it twice (OX-06-002), and the commit records it once.
+        """
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes.full_case_invite import (
+            EmitInviteActorToFullCaseNode,
+        )
+        from vultron.core.behaviors.sync import commit_tree
+
+        lj = _seed_late_joiner_case()
+        dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
+        case_id = lj["case"].id_
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        with pytest.MonkeyPatch.context() as mp:
+            failed = fail_commits(
+                mp,
+                commit_tree,
+                when=lambda kw: (
+                    kw["event_type"] == "invite_actor_to_full_case"
+                ),
+            )
+            AcceptInviteActorToCaseReceivedUseCase(
+                dl,
+                make_payload(accept),
+                sync_port=MagicMock(),
+                trigger_activity=lj["trigger_activity"],
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+        (invite_id,) = failed
+        assert dl.outbox_list().count(invite_id) == 1
+
+        result = BTBridge(
+            datalayer=dl,
+            trigger_activity=lj["trigger_activity"],
+            sync_port=MagicMock(),
+        ).execute_with_setup(
+            tree=EmitInviteActorToFullCaseNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            actor_id=lj["case_actor_id"],
+        )
+
+        assert result.status.name == "SUCCESS", result
+        assert dl.outbox_list().count(invite_id) == 1
+        recorded = [
+            e.log_object_id
+            for e in dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "event_type", None) == "invite_actor_to_full_case"
+        ]
+        assert recorded == [invite_id]
 
     @pytest.mark.spec("CM-17-009")
     def test_accept_invite_seeds_the_case_before_any_ledger_entry_reaches_the_invitee(

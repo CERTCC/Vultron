@@ -43,13 +43,21 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.enums.roles import serialize_roles
 
 #: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
 INVITE_ID_KIND = "invite-actor-to-case"
 
+#: Kind label of a replacement stub Invite's id, derived from the Invite it
+#: replaces (CM-11-016).
+REISSUED_INVITE_ID_KIND = "reissue-invite-actor-to-case"
 
-def emit_stub_invite(
+#: Ledger ``event_type`` of a stub Invite's entry.
+INVITE_EVENT_TYPE = "invite_actor_to_case"
+
+
+def build_stub_invite(
     *,
     datalayer: CaseOutboxPersistence,
     factory: TriggerActivityPort,
@@ -62,16 +70,16 @@ def emit_stub_invite(
     actor_config: ActorConfig | None = None,
     activity_id: str | None = None,
 ) -> tuple[str, str]:
-    """Build a stub Invite carrying a reply deadline, and commit it.
+    """Build a stub Invite carrying a reply deadline.
 
-    The one emission every stub Invite takes, first or replacement: the
-    CASE_MANAGER stamps the deadline (CM-11-014, CM-28-012), the stub carries
-    the terms of the embargo active now (CM-17-002), and the sealed blob is
-    committed as the canonical entry before the caller queues it (CM-17-006).
-    *activity_id*, when given, is the Invite's id; absent, the factory mints
-    one.  An Invite built under an id the store already holds is the earlier
-    attempt's Invite: the factory hands back the body sealed then, and the
-    commit and the outbox each record it once (OX-06-002).
+    The one build every stub Invite takes, first or replacement: the
+    CASE_MANAGER stamps the deadline (CM-11-014, CM-28-012) and the stub
+    carries the terms of the embargo active now (CM-17-002).  The caller
+    queues it and then commits it with :func:`commit_stub_invite` (CM-17-006,
+    ADR-0119).  *activity_id*, when given, is the Invite's id; absent, the
+    factory mints one.  An Invite built under an id the store already holds
+    is the earlier attempt's Invite: the factory hands back the body sealed
+    then, and the outbox and the commit each record it once (OX-06-002).
     Returns ``(activity_id, activity_blob)``.
     """
     # CM-17-002: pass the full case object so the adapter+factory can
@@ -114,31 +122,45 @@ def emit_stub_invite(
         published=stamp.published,
         in_reply_to=in_reply_to,
     )
-    # The recorded snapshot is the exact blob the port returned: the factory
-    # owns its completeness (``context``, inline objects), and this same text
-    # is what the outbox delivers (VM-08-003).
+    return activity_id, activity_blob
+
+
+def commit_stub_invite(
+    *,
+    datalayer: CaseOutboxPersistence,
+    actor_id: str,
+    case_id: str,
+    activity_id: str,
+    activity_blob: str,
+) -> None:
+    """Commit the stub Invite just queued as its one canonical entry.
+
+    The recorded snapshot is the exact blob the port returned: the factory
+    owns its completeness (``context``, inline objects), and this same text
+    is what the outbox delivers (VM-08-003).  Raises ``RuntimeError`` when
+    the commit does not succeed.
+    """
     commit_emitted_activity(
         datalayer=datalayer,
         actor_id=actor_id,
         case_id=case_id,
         activity_id=activity_id,
         activity_blob=activity_blob,
-        event_type="invite_actor_to_case",
+        event_type=INVITE_EVENT_TYPE,
     )
-    return activity_id, activity_blob
 
 
 class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
-    """Create Invite(Actor, CaseStub), commit it, and queue it in this actor's outbox.
+    """Create Invite(Actor, CaseStub), queue it in this actor's outbox, and commit it.
 
     Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
     the CASE_MANAGER and the store is its own (BT-05-006, CM-24-004).  The
     Invite is addressed ``to=[invitee_id]`` and to no one else: the
     CASE_MANAGER never addresses a copy to itself (CLP-10-001, ADR-0109).
-    Build → commit → outbox append is the order, so the in-tree commit is the
-    only ledger entry the Invite ever gets and a failed commit cannot orphan
-    an outbox item (CM-17-006).  An optional ``attributed_to`` carries the
-    participant who asked for the invitation (PCR-08-007).
+    Build → outbox append → commit is the order: the entry records an Invite
+    already sent (ADR-0119), and the in-tree commit is the only ledger entry
+    the Invite ever gets (CM-17-006).  An optional ``attributed_to`` carries
+    the participant who asked for the invitation (PCR-08-007).
 
     ``answers`` names the request this Invite answers — the ``Offer(Actor,
     Case)`` that asked for it.  Given, the Invite's id is derived from the
@@ -241,7 +263,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         return earlier[-1].invite_id if earlier else None
 
     def _call_factory(self) -> tuple[str, str]:
-        """Build Invite(Actor, CaseStub) activity and commit the ledger correlation marker."""
+        """Build the Invite(Actor, CaseStub) activity."""
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
             raise ValueError(
@@ -250,7 +272,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
             )
         assert self.datalayer is not None and self.actor_id is not None
         assert self.trigger_activity_factory is not None
-        return emit_stub_invite(
+        return build_stub_invite(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
             factory=self.trigger_activity_factory,
             actor_id=self.actor_id,
@@ -261,6 +283,16 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
             in_reply_to=self._in_reply_to_id(),
             actor_config=self._actor_config,
             activity_id=self._invite_id(),
+        )
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        assert self.datalayer is not None and self.actor_id is not None
+        commit_stub_invite(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
         )
 
     def _invite_id(self) -> str | None:
@@ -298,6 +330,13 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
     embargo and is a no-op after one that did not (a revision *proposal* changes
     no active embargo).  CASE_MANAGER only: place it inside the role gate.
 
+    Each replacement is queued, then committed (ADR-0119), under an id
+    derived from the stub it replaces.  A replacement whose commit failed is
+    stored and sent but not yet in the ledger, and it is the invitee's newest
+    stub, so nothing is stale for that invitee any more: the next run of the
+    node finds it and records it, rebuilding it under the same id so the
+    outbox does not queue it twice (OX-06-002).
+
     Succeeds with nothing emitted when no stub is stale.
     """
 
@@ -322,7 +361,8 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
         stale_stubs = outstanding_stale_stubs(
             dl, case, self.actor_id, now_utc()
         )
-        if not stale_stubs:
+        unrecorded = self._unrecorded_replacements()
+        if not stale_stubs and not unrecorded:
             return Status.SUCCESS
         # Only a re-issue needs the emit port: a change that leaves no stub
         # stale must not fail a tree that was composed without one.
@@ -330,16 +370,65 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
             self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
+        for replaced in unrecorded:
+            self._reissue(replaced)
         for stale in stale_stubs:
             self._reissue(stale)
         return Status.SUCCESS
 
+    def _unrecorded_replacements(self) -> list[RecordedStubInvite]:
+        """The stubs whose replacement this node sent but did not commit.
+
+        A replacement is told apart from any other stub by its id, which only
+        this node derives from the stub replaced; one with no ledger entry was
+        queued by a run whose commit failed.
+        """
+        assert self.datalayer is not None and self.actor_id is not None
+        stubs = recorded_stub_invites(
+            self.datalayer, self.case_id, self.actor_id
+        )
+        by_id = {stub.invite_id: stub for stub in stubs}
+        recorded = {
+            entry.log_object_id
+            for entry in recorded_entries_for_case(
+                case_id=self.case_id, dl=self.datalayer
+            )
+        }
+        found: list[RecordedStubInvite] = []
+        for stub in stubs:
+            replaced = by_id.get(stub.in_reply_to or "")
+            if (
+                replaced is not None
+                and stub.invite_id not in recorded
+                and stub.invite_id == self._replacement_id(replaced)
+            ):
+                found.append(replaced)
+        return found
+
+    def _replacement_id(self, stale: RecordedStubInvite) -> str:
+        """The id of the replacement for *stale*, derived from it."""
+        assert self.actor_id is not None
+        return derived_activity_id(
+            REISSUED_INVITE_ID_KIND,
+            self.actor_id,
+            self.case_id,
+            stale.invite_id,
+        )
+
     def _reissue(self, stale: RecordedStubInvite) -> None:
-        """Send the replacement for *stale*, naming it, and queue it."""
+        """Send the replacement for *stale*, naming it: queue, then commit.
+
+        The replacement's id is derived from the Invite it replaces, so a
+        retry after a queued replacement whose commit failed — *stale* is
+        still the invitee's newest recorded stub — rebuilds the same
+        replacement, and the outbox does not queue it twice (OX-06-002,
+        ADR-0119).
+        """
         assert self.actor_id is not None
         assert self.trigger_activity_factory is not None
-        activity_id, activity_blob = emit_stub_invite(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+        dl = cast(CaseOutboxPersistence, self.datalayer)
+        activity_id, activity_blob = build_stub_invite(
+            datalayer=dl,
             factory=self.trigger_activity_factory,
             actor_id=self.actor_id,
             case_id=self.case_id,
@@ -348,8 +437,16 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
             attributed_to=stale.attributed_to,
             in_reply_to=stale.invite_id,
             actor_config=self._actor_config,
+            activity_id=self._replacement_id(stale),
         )
         self._emit_through_seam(activity_id, activity_blob)
+        commit_stub_invite(
+            datalayer=dl,
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+        )
         self.logger.info(
             "Actor '%s' re-issued stub Invite '%s' to '%s' as '%s' after"
             " an embargo change on case '%s' (CM-11-016)",
@@ -363,6 +460,8 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
 
 __all__ = [
     "EmitInviteActorToCaseNode",
+    "INVITE_EVENT_TYPE",
     "ReissueStubInvitesNode",
-    "emit_stub_invite",
+    "build_stub_invite",
+    "commit_stub_invite",
 ]

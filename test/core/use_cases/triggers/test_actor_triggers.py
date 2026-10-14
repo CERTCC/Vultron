@@ -769,9 +769,8 @@ class TestInviteRetrySendsOnce:
         harness = _OwnerDirectInvite()
         offer = harness.trigger(roles=[CVDRole.VENDOR])
 
-        # The first attempt builds and seals the Invite, but its commit
-        # fails.  Under ADR-0119's order the Invite was queued before that
-        # commit, so it is queued here by hand: the crash-window state.
+        # The first attempt builds, seals and queues the Invite, but its
+        # commit fails: the Invite is sent and not yet recorded (ADR-0119).
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
                 mp,
@@ -783,7 +782,7 @@ class TestInviteRetrySendsOnce:
         assert len(failed) == 1, "the first attempt never built the Invite"
         invite_id = failed[0]
         assert self._invite_entries(harness) == []
-        assert harness.manager_dl.outbox_append(invite_id) is True
+        assert self._queued_invites(harness) == [invite_id]
 
         retry = harness.deliver_to_manager(offer["id"], make_payload)
 
@@ -810,6 +809,50 @@ class TestInviteRetrySendsOnce:
         assert harness.manager_invite().id_ == derived_activity_id(
             INVITE_ID_KIND, harness.manager.id_, harness.case.id_, offer["id"]
         )
+
+
+class TestStubInviteIsRecordedAfterItIsSent:
+    """A stub Invite reaches the outbox before the entry recording it (AC-5).
+
+    A ledger entry records a completed act, and a send is complete once the
+    activity is in the sender's outbox (ADR-0119).  The invitee's inert
+    participant record is a consequence of the Invite with no send of its
+    own, so its entry follows the Invite's at once (CLP-07-013).
+    """
+
+    @pytest.mark.spec("SYNC-09-002")
+    @pytest.mark.spec("SBT-04-004")
+    @pytest.mark.spec("CM-17-006")
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("OX-14-002")
+    def test_invite_queued_then_its_entry_then_the_participant_entry(
+        self, make_payload, monkeypatch
+    ):
+        from test.support.ledger import record_sends_and_commits
+
+        harness = _OwnerDirectInvite()
+        offer = harness.trigger(roles=[CVDRole.VENDOR])
+        events = record_sends_and_commits(monkeypatch, harness.manager.id_)
+
+        result = harness.deliver_to_manager(offer["id"], make_payload)
+
+        assert result.disposition.value == "applied", result
+        invite_id = harness.manager_invite().id_
+        steps = [
+            step
+            for step in events
+            if step == ("queued", invite_id)
+            or step[0] in ("invite_actor_to_case", "create_case_participant")
+        ]
+        assert [kind for kind, _ in steps] == [
+            "queued",
+            "invite_actor_to_case",
+            "create_case_participant",
+        ]
+        assert steps[1] == ("invite_actor_to_case", invite_id)
+        # Committed with the Invite still pending: the commit waited for the
+        # outbox write, not for delivery (OX-14-002).
+        assert invite_id in harness.manager_dl.outbox_list()
 
 
 class TestSvcSuggestActorToCaseUseCase:
