@@ -21,6 +21,7 @@ related_notes:
   - notes/ownership-transfer.md
   - notes/use-case-behavior-trees.md
   - notes/demo-future-ideas.md
+  - notes/case-communication-model.md
 relevant_packages:
   - vultron/core
   - vultron/demo

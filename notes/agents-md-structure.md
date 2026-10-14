@@ -3,14 +3,13 @@ title: "AGENTS.md Structure: Routing Policy and Per-Directory Files"
 status: active
 kind: guidance
 description: >
-  Policy for deciding what belongs in root AGENTS.md vs. per-directory
-  AGENTS.md files vs. notes/ files. Establishes the routing decision tree
-  that keeps root AGENTS.md under 400 lines and agent guidance close to
-  where it is needed.
+  Where new agent guidance goes: root AGENTS.md, a per-directory AGENTS.md, or
+  a notes/ file. Sets the size budgets the ratchet test enforces and the
+  trim-as-you-add rule for the root pitfall index.
 related_notes:
   - notes/agentic-workflow.md
-  - notes/spec-registry.md
   - notes/parallel-development.md
+  - notes/site-information-architecture.md
 related_specs:
   - specs/project-documentation.yaml
   - specs/meta-specifications.yaml
@@ -18,129 +17,72 @@ related_specs:
 
 # AGENTS.md Structure: Routing Policy and Per-Directory Files
 
-## Why This Matters
-
-`AGENTS.md` at the repository root is the entry point for every AI coding
-agent. It is also the highest-churn guidance file (87+ changes in 90 days at
-the time this note was written). When AGENTS.md grows without bound it:
-
-1. Takes longer to load into agent context windows.
-2. Gets outdated faster because every subsystem's changes accumulate in one
-   file.
-3. Buries the most relevant guidance under unrelated content.
-
-The fix is to keep root AGENTS.md as a **navigation hub** and push
-domain-specific guidance into per-directory `AGENTS.md` files or into
-`notes/` design notes.
+Root `AGENTS.md` is loaded by `orient-agent` at the start of every workflow
+skill. Past the point where an agent reliably reads it end to end, extra
+pitfalls stop protecting against the mistakes they describe. Keep root a
+navigation hub and push domain guidance next to the code it governs.
 
 ---
 
 ## Routing Decision Tree
 
-Use the following decision tree to decide where new content belongs:
-
 ```text
 Is this guidance about a specific subdirectory of the codebase?
-  YES → Per-directory AGENTS.md (see below)
-  NO  → Is this a durable design decision or architectural rationale?
-          YES → notes/<topic>.md  (referenced from AGENTS.md)
-          NO  → Is this a project-wide convention or commit-workflow rule?
-                  YES → Root AGENTS.md (keep it short)
-                  NO  → It probably belongs in a spec or ADR
+  YES → that directory's AGENTS.md
+  NO  → Is it a rule for changing the project, with a reason?
+          YES → notes/<topic>.md, linked from the nearest AGENTS.md
+          NO  → Is it a project-wide convention or commit-workflow rule?
+                  YES → root AGENTS.md (keep it short)
+                  NO  → it probably belongs in a spec or ADR
 ```
 
-### Root AGENTS.md — keep to project-wide, cross-cutting content
+### Root AGENTS.md — project-wide, cross-cutting content
 
-- Technology stack constraints and setup commands
-- Cross-cutting naming conventions (not layer-specific ones)
-- The commit workflow (format → lint → test → commit)
-- Skill interaction rules (ask\_user policy)
-- Governance note
-- **Short pitfall entries** that apply everywhere, with `see notes/X.md`
-  pointers for the full write-up
-- A `> **Topic** has moved to <dir>/AGENTS.md` stub when content migrates
+Technology stack and setup commands, cross-cutting naming conventions, the
+commit workflow, skill interaction rules, the governance note, and the pitfall
+index: one row per symptom area, pointing at the note that holds the write-up.
 
-Target: **≤ 400 lines**. If root AGENTS.md exceeds 400 lines, run the
-`condense-agents-md` skill.
+### Size budgets
 
-Both targets are enforced by
-`test/metadata/test_agents_md_size_ratchet.py`, so an overage fails CI
-instead of accumulating unnoticed — root reached 1166 lines, 2.9x its target,
-while the targets were advisory only (ISSUE-2954). Two per-directory files
-predate the ratchet and carry recorded ceilings in its `KNOWN_OVERAGE` map;
-those may only be lowered, and a ceiling above the file's current size fails
-too. Condense the file rather than raising a ceiling.
+Root is budgeted at **400 lines** and each per-directory `AGENTS.md` at **200**.
+`test/metadata/test_agents_md_size_ratchet.py` enforces both. Files that
+predate the ratchet carry a ceiling in its `KNOWN_OVERAGE` map; a ceiling may
+only be lowered. Condense the file with the `condense-agents-md` skill rather
+than raising a ceiling (ISSUE-2954).
 
-**Root runs close to its target, so assume no headroom.** Adding a pitfall to
-the root index means *trimming as you add*: extend an existing row's cell, or
-fold two rows together, rather than appending a line. A new symptom area that
-genuinely needs its own row must pay for it by condensing another. This is
-deliberate — the target is a budget, and a budget with slack is the state root
-was in when it grew to nearly three times its target (ISSUE-2954). Read the
-current count from the file rather than from this note; a number written here
-would be a snapshot guaranteed to drift (MS-16-001).
+**Root runs close to its budget, so assume no headroom.** Adding to the root
+pitfall index means trimming as you add: extend an existing row's cell or fold
+two rows together. A new symptom area that needs its own row pays for it by
+condensing another. Read the current count from the file, not from a note
+(MS-16-001).
 
 ### Per-directory AGENTS.md — subsystem-specific rules
 
-Create an `AGENTS.md` in any directory whose conventions, pitfalls, or
-patterns are specific enough that agents working elsewhere would never need
-them. Canonical locations and the content they own:
-
-| Directory | Content it owns |
-|-----------|-----------------|
-| `vultron/core/` | Domain model invariants, BT integration rules, use-case protocol |
-| `vultron/wire/as2/` | ActivityStreams wire conventions, extractor ordering, pattern naming |
-| `vultron/adapters/` | Hexagonal-layer boundary rules, FastAPI adapter conventions |
-| `test/` | Test data quality rules, fixture isolation, parallelism notes |
-| `specs/` | Spec-authoring workflow, field-value enums, lint traps, the coverage gate |
-| `vultron/metadata/` | Metadata-loader failure attribution, spec-first lint suppressions |
-
-Each per-directory file SHOULD start with:
+Create an `AGENTS.md` in any directory whose conventions or pitfalls are
+specific enough that agents working elsewhere would never need them. Start it
+with a back-reference to root:
 
 ```markdown
 # AGENTS.md — <Directory Name>
 
 > For project-wide conventions, see the root [AGENTS.md](../../AGENTS.md).
-
-## <Subsystem> Conventions
-
-...
 ```
 
-### notes/<topic>.md — durable design decisions
+### notes/<topic>.md — rules with their reasons
 
-Use `notes/` for content that explains **why** a decision was made, not just
-**what** the rule is. Notes files are the right home for:
-
-- Pitfall write-ups with context, root cause, and example code
-- Architecture decision rationales that didn't warrant a full ADR
-- Design patterns and their tradeoffs
-
-Every note must have valid YAML frontmatter (`title`, `status`). Reference
-the note from the nearest AGENTS.md with a one-line summary and a link.
+A note holds guidance too long for an index row, or a plan for work not yet
+done. Write it per
+[`notes-writing-guide.md`](../.agents/skills/shared/notes-writing-guide.md):
+one `kind`, each item a rule, its reason and one citation. Link it from the
+nearest `AGENTS.md` with a one-line summary.
 
 ---
 
-## Migration Pattern
+## Moving Content Out of Root
 
-When root AGENTS.md exceeds 400 lines or when a pitfall clearly belongs in
-a per-directory file:
+When root nears its budget, or a pitfall clearly belongs to one directory, run
+the `condense-agents-md` skill. Leave a one-line stub where the content was:
 
-1. Run the `condense-agents-md` skill — it automates the extraction.
-2. Replace the moved content with a stub:
-
-   ```markdown
-   > **Topic** has moved to [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
-   ```
-
-3. Ensure the per-directory file is created with proper headings and a
-   back-reference to root AGENTS.md.
-
----
-
-## Related notes
-
-- `notes/agentic-workflow.md` — the four-skill pipeline (ingest-idea, learn,
-  update-plan, build)
-- `notes/parallel-development.md` — worktree slots and concurrent agent work
-- `notes/spec-registry.md` — how spec prefixes are registered and discovered
+```markdown
+> **Topic** has moved to [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
+```

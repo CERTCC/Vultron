@@ -1,251 +1,56 @@
 ---
-title: "History Management: Chunked Per-Entry Files"
+title: "History Management: Writing and Reading plan/history/"
 status: active
 kind: guidance
 description: >
-  Design decisions and implementation guidance for the chunked history file
-  system. Replaces the monolithic append-only plan/*HISTORY.md pattern with
-  per-entry write-once files under plan/history/, managed by the
-  append-history CLI tool.
+  Rules for agents writing to and reading the project history: write only
+  through append-history, which entries become GitHub comments, why the monthly
+  README is never committed, when to read plan/history/ at all, and how stale
+  notes sections are archived.
 related_specs:
   - specs/history-management.yaml
+  - specs/project-documentation.yaml
 related_notes:
-  - notes/append-only-file-handling.md
-  - notes/plan-history-management.md
-  - notes/plan-organization.md
+  - notes/agentic-workflow.md
 ---
 
-# History Management: Chunked Per-Entry Files
+# History Management: Writing and Reading plan/history/
 
-## Overview
-
-This note captures the design decisions behind `specs/history-management.yaml`
-(IDEA-26042702) and provides implementation guidance for the `append-history`
-tool and the migration from monolithic `plan/*HISTORY.md` files.
+The requirements are `specs/history-management.yaml` (HM-01 through HM-08); the
+tool is `vultron/metadata/history/`.
 
 ---
 
-## Decision Table
+## Write Only Through `append-history`
 
-| Question | Decision | Rationale |
-|---|---|---|
-| Which history files are in scope? | All `*HISTORY.md` files, including any future additions | Uniform treatment avoids per-file special cases |
-| Where do history files live? | `plan/history/` subdirectory for `learning`/`priority`; GitHub issue comments for `implementation`/`idea` when source resolves to an issue number | Co-locates completion narrative with the original problem statement; eliminates file bloat (~100–200 files/month) |
-| Chunking granularity? | Monthly (YYMM suffix in directory name) for file-mode entries | Recent history is most relevant; monthly chunks keep the current month manageable |
-| File structure per entry? | Individual write-once files: `plan/history/YYMM/<type>/<entry-id>.md` (file mode only) | Clean git diffs (new file added, not existing file edited); enables YAML frontmatter per entry |
-| GitHub comment mode? | `append-history implementation` / `append-history idea` with `--source ISSUE-N` posts a comment on issue N; falls back to file mode for non-ISSUE-N source values | Allows gradual migration; pre-issue-number legacy sources continue writing files |
-| Month-level navigation? | Auto-generated `plan/history/YYMM/README.md` rebuilt by the tool on every append; **gitignored** — use `uv run show-history [--month YYMM \| --all]` to view | Eliminates PR merge conflicts caused by parallel branches each regenerating the same file |
-| Top-level static README? | Yes — `plan/history/README.md` explains legacy files and the transition date | Documents the migration boundary for future readers |
-| Legacy file migration? | Move monolithic files to `plan/history/` top level as static archives | Cannot be split retroactively without manual effort; grandfathered content preserved |
-| Existing chunked files (pre-Aug 2026)? | Leave as-is — immutable historical records (HM-01-005) | Backfilling ~800 files would require significant API volume; pre-Aug 2026 files are infrequently accessed |
-| Aug 2026+ backfill? | Separate issue — post each 2608+ implementation/idea file as a comment, then remove the file | Scoped to recent history where co-location benefit is highest; tracked as a distinct task |
-| Tool interface? | `uv run append-history <type>` — `--title` and `--source` required; body via stdin or `--file <path>` | Frontmatter is built by the tool; agents provide only body content and named params |
-| Date determination? | Use current system clock (UTC) by default; allow a backfill-only override for migration tooling | Normal agents avoid month-selection decisions, while legacy backfill still needs historical placement |
-| Timestamp field? | `timestamp: datetime (UTC ISO 8601)` replaces legacy `date: date`; legacy entries are converted automatically by model validator | Enables sub-day ordering and reliable sorting in README tables |
-| Future-date rejection? | Enforced in CLI write path only (60-second tolerance); reading existing entries is never blocked | Some entries have source-assertion dates in the future; the model must remain readable |
-| README sorting? | Sort by `timestamp` descending; add "Time (UTC)" column (HH:MM) alongside "Date" column | Timestamp-level sort enables more precise ordering within a month |
-| Type validation? | `HistoryEntryType` StrEnum in `vultron/metadata/history/types.py` | Adding a new type requires only one line change |
-| Module location? | `vultron/metadata/history/` — sibling of `vultron/metadata/specs/` | Both are project-management metadata tools; co-location signals intent |
-| Agent context boundary? | `plan/history/` is explicitly excluded from default "read plan context" | Prevents agents from spending context tokens on historical archive during orientation |
-| Skill updates? | `build`, `ingest-idea`, `learn` skills must use `append-history` for writes; `archive-history` must skip commit/push when output is a GitHub comment | Skills that directly append to history files must be updated to use the tool |
+Never write a file under `plan/history/` by hand. Run
+`uv run append-history <type> --title <title> --source <id>` with the body on
+stdin or `--file <path>`; the tool builds the frontmatter, stamps the UTC time
+and picks the `YYMM` directory (HM-07-004). Entries are write-once (HM-01-005).
+
+An `implementation` or `idea` entry whose `--source` is `ISSUE-<n>` is posted
+as a comment on issue *n* instead of written to a file, and the tool prints the
+comment URL. `archive-history` then skips its git steps (HM-08).
+
+The monthly `plan/history/YYMM/README.md` is a gitignored local cache that the
+tool rebuilds on every append, so parallel branches never conflict on it. Do
+not stage it; view the index with `uv run show-history [--month YYMM | --all]`.
 
 ---
 
-## Directory Layout
+## Read `plan/history/` Only When You Need It
 
-```text
-plan/
-  history/
-    README.md                         ← static: explains legacy files + migration date
-    IMPLEMENTATION_HISTORY.md         ← legacy archive (moved here, not split)
-    IDEA-HISTORY.md                   ← legacy archive (moved here, not split)
-    PRIORITY_HISTORY.md               ← legacy archive (moved here, not split)
-    2604/
-      README.md                       ← gitignored local cache (show-history)
-      idea/
-        IDEA-26042702.md              ← chunked history entry
-      implementation/
-        TASK-BTND5.md
-      priority/
-        PRIORITY-26042601.md
-    2605/
-      README.md                       ← gitignored local cache
-      implementation/
-        TASK-CC.md
-```
-
----
-
-## Entry File Format
-
-Each entry file has a YAML frontmatter block followed by a Markdown body:
-
-```markdown
----
-title: "Chunked history files (IDEA-26042702)"
-type: idea
-timestamp: '2026-04-28T00:00:00+00:00'
-source: IDEA-26042702
----
-
-## IDEA-26042702 "History" files should be chunked by time…
-
-<full original idea text>
-
-**Processed**: 2026-04-28 — design decisions captured in
-`specs/history-management.yaml` (HM-01 through HM-05) and
-`notes/history-management.md`.
-```
-
----
-
-## GitHub Comment Output Mode
-
-HM-08-001 through HM-08-006 specify this mode, and it is built:
-`_post_github_comment` in `vultron/metadata/history/cli.py` posts an
-`implementation` or `idea` entry whose `--source` names an issue, and the
-`archive-history` skill skips its git steps when the output is a URL.
-
-### Backfill of existing files
-
-Files written before August 2026 are left as-is (HM-01-005 immutability rule).
-A separate backfill task covers the 2608 directory and forward: for each
-`implementation`/`idea` file whose filename is `ISSUE-N.md`, post the body as a
-comment on issue N and delete the file.
-
----
-
-## `append-history` Tool
-
-### Location
-
-```text
-vultron/metadata/history/
-  __init__.py
-  types.py          ← HistoryEntryType StrEnum
-  models.py         ← Pydantic frontmatter models (HM-02-001, HM-06)
-  cli.py            ← main() entry point
-  incoming.py       ← plan/incoming/learnings/*.md frontmatter validator
-  readme_gen.py     ← README.md regeneration + format_month_index logic
-  show_history_cli.py ← show-history entry point (stdout display)
-  backfill_implementation.py ← legacy implementation-entry backfill manifest
-```
-
-### pyproject.toml registration
-
-```toml
-[project.scripts]
-append-history = "vultron.metadata.history.cli:main"
-show-history = "vultron.metadata.history.show_history_cli:main"
-```
-
-### CLI Signature
-
-```text
-append-history <type> --title <title> --source <source> [--file <path>]
-```
-
-- `<type>`: one of `idea`, `implementation`, `priority` (or any future
-  `HistoryEntryType` value)
-- `--title`: required; short human-readable title for the entry
-- `--source`: required; the ID or label this entry archives (e.g., `IDEA-26043001`)
-- Body text is read from stdin by default; `--file <path>` reads from a file
-- The tool builds the frontmatter block; agents supply only body content and
-  named parameters
-- A backfill-only `--timestamp` override exists for migration tooling but is
-  kept out of normal skill-facing usage guidance
-
-### Usage Examples
-
-```bash
-# From stdin (most common agent use case)
-cat /tmp/body.md | uv run append-history idea \
-    --title "Short title" \
-    --source "IDEA-26042702"
-
-# From file
-uv run append-history implementation \
-    --title "TASK-FOO completed" \
-    --source "TASK-FOO" \
-    --file /tmp/task-summary.md
-
-# Inline (short entries)
-echo "Summary text..." | uv run append-history implementation \
-    --title "TASK-FOO completed" \
-    --source "TASK-FOO"
-```
-
-### Behaviour Sequence
-
-1. Parse `<type>` against `HistoryEntryType`; exit 1 on unknown type.
-2. Read `--title` and `--source` from CLI arguments (required).
-3. Read body text from stdin or `--file <path>`; exit 1 if body is empty.
-4. Check the current timestamp is not more than 60 seconds in the future;
-   exit 1 if it is.
-5. Build frontmatter from `title`, `type`, `source`, and current UTC timestamp.
-6. Determine current month: `datetime.datetime.now(UTC).strftime("%y%m")` → `YYMM`.
-   A backfill-only `--timestamp` override may supply a historical datetime.
-7. Write combined frontmatter + body to
-   `plan/history/YYMM/<type>/<entry-id>.md`.
-8. Regenerate `plan/history/YYMM/README.md` locally (gitignored; not staged).
-9. Print the written file path to stdout.
-
----
-
-## README Generation
-
-The `plan/history/YYMM/README.md` is a **gitignored local cache** — it is
-regenerated by `append-history` on every call but is never committed to the
-repository.  This eliminates PR merge conflicts when multiple branches each
-append history entries to the same month.
-
-Use `uv run show-history` to view the index on demand:
-
-```bash
-uv run show-history              # current month
-uv run show-history --month 2604 # April 2026
-uv run show-history --all        # all months, newest first
-```
-
-The index is a summary table:
-
-```markdown
-# History: April 2026
-
-| Date | Time (UTC) | Type | Source | Title |
-|------|------------|------|--------|-------|
-| 2026-04-28 | 12:30 | idea | IDEA-26042702 | "History" files should be chunked… |
-| 2026-04-27 | 09:15 | implementation | TASK-BTND5 | Generalize Participant BT Nodes |
-```
-
-Sorted by `timestamp` descending.  Generated by scanning only
-`plan/history/YYMM/<type>/` subdirectories (``idea/``, ``implementation/``,
-``learning/``, ``priority/``).  Other subdirectories such as ``report/`` are
-intentionally skipped.
-
----
-
-## Agent Context Boundary
-
-During the standard orientation phase (`study-project-docs` Step 2), agents
-read `plan/*.md`. The `plan/history/` subdirectory is **explicitly excluded**
-from this step.
-
-Agents SHOULD read `plan/history/` only when:
-
-- Investigating a regression introduced in a recently completed task.
-- Extracting lessons from prior implementation work (the `learn` skill).
-- Auditing what was shipped in a given time window.
-
-When accessing historical entries, use `uv run show-history --month YYMM`
-to get the index (the `README.md` is a gitignored local cache; use the
-command for reproducible access), then open only the specific entry files
-needed.
+Orientation reads `plan/*.md` and never `plan/history/`, so the archive costs no
+context in an ordinary session. Read it only to investigate a regression from a
+recent task, to extract lessons (`learn`), or to audit what shipped in a window.
+Get the index from `show-history`, then open only the entries you need.
 
 ---
 
 ## Superseded Notes Sections Are Archived via `append-history note`
 
 Stale sections (or whole files) go to `plan/history/YYMM/note/` with source ID
-`NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
-See PD-03-002, PD-03-004.
+`NOTES-<file-stem>--<section-slug>`. The body states the reason and the
+superseding pointer, then `---`, then the removed text verbatim (PD-03-005).
+When every section of a file is archived, delete the file and its
+`notes/README.md` entry (PD-03-004).

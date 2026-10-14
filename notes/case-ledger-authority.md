@@ -36,6 +36,7 @@ related_notes:
   - notes/outbox-delivery-reliability.md
   - notes/participant-case-replica.md
   - notes/demo-ci-diagnostics.md
+  - notes/rfc-review-rubric.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models

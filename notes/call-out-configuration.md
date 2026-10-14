@@ -26,6 +26,7 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/protocol-asks.md
   - notes/cvd-recipe-injects.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron/core/behaviors/call_out
   - vultron/demo/fuzzer

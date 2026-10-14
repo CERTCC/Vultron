@@ -13,6 +13,7 @@ related_specs:
 related_notes:
   - notes/domain-validation.md
   - notes/case-state-model.md
+  - notes/status-dimension-objects.md
 relevant_packages:
   - vultron/core/models
   - vultron/core/states

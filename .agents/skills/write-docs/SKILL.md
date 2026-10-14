@@ -58,7 +58,7 @@ register; read a specific page only when this page must align closely with it.
 
 ## Phase 2 — Classify the quadrant
 
-Apply the Diátaxis compass (`notes/diataxis-framework.md` §6):
+Apply the Diátaxis compass (`notes/diataxis-framework.md` § "The Diátaxis compass"):
 
 - Action + acquisition → **tutorial**
 - Action + application → **how-to**
@@ -221,9 +221,9 @@ confirm it.** The recipe:
    generated listing. The blurb beside a new page's link is its `description:`
    frontmatter, so write one. A new `index.md` that opens a nav group must
    declare `contents: generated | routing | rendered` or `docs-site --check`
-   fails; a `routing` index must link every member of its section. The
-   decision table is `notes/site-information-architecture.md`
-   § "Sub-section index decisions".
+   fails; a `routing` index must link every member of its section. Each
+   index's decision is its own `contents:` value, and
+   `test/metadata/docs/test_site_sync.py` pins the generated set.
 2. **Group** — the page's `stakeholder_type` picks the group within the section:
    the group whose other pages address the same reader, or the routing page
    (`docs/start/*.md`, `docs/research/index.md`) that carries that type's path.

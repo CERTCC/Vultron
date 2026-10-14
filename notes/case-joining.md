@@ -30,6 +30,8 @@ related_notes:
   - notes/case-state-model.md
   - notes/participant-case-replica.md
   - notes/demo-ci-scenario-coverage.md
+  - notes/activitystreams-semantics.md
+  - notes/protocol-event-cascades.md
 relevant_packages:
   - vultron/core/participants/recipients.py
   - vultron/core/participants/stub_reply.py
