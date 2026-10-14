@@ -33,9 +33,9 @@ this ratchet reads both:
   ``CreateNotePattern(activity_=TAtype.CREATE)``.
 
 Both are needed because the docs draw names from both systems.  ``CreateNote``
-and ``CreateParticipantStatus`` are registry patterns with no dedicated class;
-``CreateStatusForParticipant`` is a class whose pattern carries a different
-name.  A class-only map makes the first kind invisible, which is how
+is a registry pattern with no dedicated class; ``AddStatusToParticipant`` is a
+class whose pattern carries a different name
+(``AddParticipantStatusToParticipant``).  A class-only map makes the first kind invisible, which is how
 ``CreateStatus`` — a name belonging to neither system — survived review.  The
 two sources agree wherever they overlap, and a disagreement is itself a finding.
 

@@ -29,7 +29,7 @@ Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemen
 Which one you are sending is determined by the field you set, not by a different activity.
 
 In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
-Do not send a separate `Create(ParticipantStatus)` first: this implementation does not support it, and an inbox refuses it as an unrecognized activity.
+This implementation does not support a separate `Create(ParticipantStatus)` before it, and an inbox refuses one as an unrecognized activity.
 
 ### Report that a vendor now knows
 
@@ -65,7 +65,7 @@ Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all imp
 All three set `pxa_state`; which one you are sending is determined by which letter in it changes case.
 
 In every case, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxa_state`, inline as its `object`.
-Do not send a separate `Create(CaseStatus)` first: this implementation does not support it, and an inbox refuses it as an unrecognized activity.
+This implementation does not support a separate `Create(CaseStatus)` before it, and an inbox refuses one as an unrecognized activity.
 
 ### Report that the vulnerability is public
 
