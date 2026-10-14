@@ -21,10 +21,16 @@ appear at INFO (SL-04-007).  This module centralises the suppression so that
 both the FastAPI server (:func:`vultron.adapters.driving.fastapi.app.configure_logging`)
 and the demo CLI apply the same policy.
 
+The same entry points also keep Vultron's own static-wiring loggers at INFO when
+the application runs at DEBUG: their DEBUG output restates code, not run-time
+state (:data:`STATIC_WIRING_LOGGERS`).
+
 See ``notes/structured-logging.md``.
 """
 
 import logging
+
+from vultron.core.behaviors.node_logger import PORT_WIRING_LOGGER_NAME
 
 #: Loggers whose INFO output is library internals rather than protocol story.
 #:
@@ -34,6 +40,16 @@ import logging
 #: emits itself already carry that information (SL-04-006).
 NOISY_INFO_LOGGERS: tuple[str, ...] = ("transitions",)
 
+#: Loggers whose DEBUG output restates code rather than run-time state, kept at
+#: INFO even when the application runs at DEBUG.
+#:
+#: The port-wiring logger receives py_trees' one-line-per-port registration
+#: record from every typed-ports node on every tree build: over half of each
+#: container's DEBUG output in the CI demos, identical on every build of the
+#: same node class (#4600).  To see the wiring, set it to DEBUG after the entry
+#: point has run: this pinning overwrites any earlier level.
+STATIC_WIRING_LOGGERS: tuple[str, ...] = (PORT_WIRING_LOGGER_NAME,)
+
 
 #: Levels captured the first time :func:`suppress_third_party_info_noise` runs,
 #: so :func:`restore_third_party_log_levels` can undo the global mutation.
@@ -42,6 +58,9 @@ _SAVED_LEVELS: dict[str, int] = {}
 
 def suppress_third_party_info_noise(app_log_level: int) -> None:
     """Raise noisy third-party loggers above INFO (SL-04-007).
+
+    Also pins :data:`STATIC_WIRING_LOGGERS` at INFO (or at *app_log_level* when
+    that is higher), so a DEBUG run keeps run-time state and drops wiring.
 
     When *app_log_level* is above ``DEBUG`` the noisy loggers are pinned to
     ``WARNING`` so their INFO chatter is dropped.  When the application is
@@ -61,10 +80,18 @@ def suppress_third_party_info_noise(app_log_level: int) -> None:
     library_level = (
         logging.DEBUG if app_log_level <= logging.DEBUG else logging.WARNING
     )
-    for name in NOISY_INFO_LOGGERS:
-        library_logger = logging.getLogger(name)
-        _SAVED_LEVELS.setdefault(name, library_logger.level)
-        library_logger.setLevel(library_level)
+    _set_levels(NOISY_INFO_LOGGERS, library_level)
+    # Never below INFO, and never above the app level: an app at WARNING must
+    # not gain INFO records from a logger pinned here.
+    _set_levels(STATIC_WIRING_LOGGERS, max(app_log_level, logging.INFO))
+
+
+def _set_levels(names: tuple[str, ...], level: int) -> None:
+    """Set each named logger to *level*, saving its prior level once."""
+    for name in names:
+        named_logger = logging.getLogger(name)
+        _SAVED_LEVELS.setdefault(name, named_logger.level)
+        named_logger.setLevel(level)
 
 
 def restore_third_party_log_levels() -> None:

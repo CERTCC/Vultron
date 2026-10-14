@@ -262,7 +262,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | `activate_embargo`: B `ACTIVE`, A `SUPERSEDED`, owner `AGREE`, `CARRY_OVER` to a shorter B |
 | `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | `reject_embargo_proposal`: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent |
 | `invite_to_embargo_on_case_expired` | `InviteExpiry` | invitee PEC `TIME_OUT` on that invitation's row; no deadline re-evaluated (CM-28-014) |
-| `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → INVITED → AGREED` (EMB-17-001) |
+| `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → AGREED` (EMB-17-001, EMB-17-002) |
 | `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |
 | `invite_to_embargo_on_case_reinvite` (no `attributedTo`) | `EmbargoReinvite` | invitee PEC `INVITE` and the `endTime` deadline; no EM change (EMB-17-003) |
 | `remove_embargo_event_from_case` | teardown | unchanged |

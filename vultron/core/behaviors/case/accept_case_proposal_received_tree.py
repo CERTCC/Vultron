@@ -30,8 +30,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsProposalAddresseeNode,
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    CaseProposalRequest,
+    SenderCheckContext,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
@@ -111,6 +113,8 @@ class RecordCaseActorAcceptanceNode(DataLayerAction):
 def create_accept_case_proposal_received_tree(
     report_id: str,
     case_actor_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing ``Accept(as_CaseProposal)``.
 
@@ -122,6 +126,9 @@ def create_accept_case_proposal_received_tree(
         report_id: URI of the VulnerabilityReport linked to the proposal.
         case_actor_id: URI of the case-actor service that accepted the
             proposal (the ``actor`` of the inbound ``Accept`` activity).
+        sender_rule: The use case's declared sender rule; the factory
+            composes the guard from it, checking the sender against the
+            addressee the report case link records (CP-06-005, HP-01-008).
 
     Returns:
         A py_trees Sequence behaviour (sender guard, then the record)
@@ -130,8 +137,10 @@ def create_accept_case_proposal_received_tree(
     return create_receive_activity_tree(
         name="AcceptCaseProposalReceivedBT",
         case_id=None,
-        sender_guard=SenderIsProposalAddresseeNode(
-            report_id=report_id, sender_actor_id=case_actor_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=case_actor_id,
+            request=CaseProposalRequest(report_id=report_id),
         ),
         precondition_guards=[],
         replica_effects=[

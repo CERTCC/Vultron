@@ -37,8 +37,8 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
     CheckCaseExistsForReport,
 )
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 from vultron.enums.roles import CVDRole
@@ -54,8 +54,8 @@ def actor_id() -> str:
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario, actor_id: str) -> CaseActor:
-    obj = CaseActor(id_=actor_id, name="Vendor Co")
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
+    obj = VultronService(id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
@@ -110,7 +110,7 @@ class TestCheckCaseExistsForReport:
     def test_returns_failure_when_no_case_for_report(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         report: VulnerabilityReport,
     ) -> None:
@@ -123,7 +123,7 @@ class TestCheckCaseExistsForReport:
     def test_returns_failure_when_case_has_no_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
         report: VulnerabilityReport,
@@ -138,7 +138,7 @@ class TestCheckCaseExistsForReport:
     def test_returns_success_when_case_has_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
         report: VulnerabilityReport,

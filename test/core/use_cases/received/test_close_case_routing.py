@@ -25,7 +25,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.use_cases.received.case.lifecycle import (
@@ -64,7 +64,7 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant."""
     dl = _make_dl()
 
-    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(

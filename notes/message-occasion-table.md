@@ -78,9 +78,13 @@ lookup table is mostly links.
 - **One addressee kind, worded from the exchange.** The actor a request was
   addressed to (other than an Invite) is one kind; its wording takes the request
   from the answered activity's object type ("the addressee of the case
-  proposal"). It is today's `NAMED_ACTOR` as the case-proposal answers use it; the
-  sync check that a ledger `Reject` comes from the local CaseActor is CASE_MANAGER
-  standing and moves to that kind. The invitee stays its own kind: it is checked
+  proposal"). It is `NAMED_ACTOR`; each use case's `SenderCheckContext` names the
+  record holding its request (the case-proposal link, the report Offer, the
+  ledgered ownership Offer), and each record has one small check on a shared base
+  (#4437). The sync check that the CASE_MANAGER's own `Announce(CaseLedgerEntry)`,
+  echoed back, came from itself is CASE_MANAGER standing and uses that kind's
+  node. A `Reject(CaseLedgerEntry)` is a participant's, so it stays
+  `ACTIVE_PARTICIPANT` (SYNC-03-005). The invitee stays its own kind: it is checked
   against the `to` of the recorded Invite (EP-09-010, CM-11-017).
 - **A declaration is the full rule, per addressee side** (HP-01-008). Today some
   declarations are a floor with the rest in the tree (`Remove(Note)` declares an

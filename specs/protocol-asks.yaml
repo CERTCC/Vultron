@@ -154,9 +154,9 @@ groups:
   - id: ASK-02-004
     priority: MUST_NOT
     kind: protocol
-    statement: >
-      A gated interaction tree MUST NOT read authorization state from an
-      outstanding-ask register; it MUST read it from the case ledger.
+    statement: >-
+      An actor MUST NOT decide whether a gated action is authorized from its record of
+      outstanding asks; it MUST decide it from the case ledger.
     rationale: >
       The register is a working set that may be rebuilt or corrupted; making it
       authoritative for authorization would let a forged entry permit an action.

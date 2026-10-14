@@ -28,6 +28,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 # Path to the compose file under test.
@@ -217,4 +218,86 @@ class TestDedicatedCaseActorTopology:
         assert (
             _env(runner)["VULTRON_CASE_ACTOR_BASE_URL"]
             == _DEDICATED_CASE_ACTOR_URL
+        )
+
+
+_DURATION_RE = re.compile(r"(?:\d+(?:\.\d+)?(?:ms|s|m|h))+")
+
+
+def _seconds(value: str) -> float:
+    """Parse a Compose duration such as ``"2s"`` or ``"1m30s"`` into seconds."""
+    assert _DURATION_RE.fullmatch(value), f"unparseable duration {value!r}"
+    units = {"ms": 0.001, "s": 1, "m": 60, "h": 3600}
+    return sum(
+        float(amount) * units[unit]
+        for amount, unit in re.findall(r"(\d+(?:\.\d+)?)(ms|s|m|h)", value)
+    )
+
+
+#: The slowest cold start seen in CI: about 31 s importing the app under the
+#: reloader, after the ``uv`` build step (#4621).
+_SLOWEST_OBSERVED_COLD_START_SECONDS = 31.0
+
+#: Every compose file that starts an actor, with the actor services in it.
+_ACTOR_COMPOSE_FILES: dict[str, tuple[str, ...]] = {
+    "docker-compose-multi-actor.yml": (
+        "finder",
+        "vendor",
+        "coordinator",
+        "case-actor",
+        "actor5",
+        "actor6",
+    ),
+    "docker-compose.yml": ("api-dev",),
+}
+
+_ACTOR_HEALTHCHECKS: list[tuple[str, str]] = [
+    (compose_file, service)
+    for compose_file, services in _ACTOR_COMPOSE_FILES.items()
+    for service in services
+]
+
+
+def _healthcheck(compose_file: str, service: str) -> dict[str, Any]:
+    with (_REPO_ROOT / "docker" / compose_file).open() as fh:
+        svc = yaml.safe_load(fh)["services"][service]
+    assert "healthcheck" in svc, (
+        f"{compose_file}: {service} has no healthcheck"
+    )
+    check: dict[str, Any] = svc["healthcheck"]
+    return check
+
+
+@pytest.mark.parametrize(("compose_file", "service"), _ACTOR_HEALTHCHECKS)
+class TestActorHealthcheckStartupBudget:
+    """An actor that is slow to start must not abort the demo (#4621).
+
+    ``demo-runner`` waits on ``service_healthy`` (DEMOMA-02-002), so a
+    healthcheck budget a slow runner outlasts fails the job before the demo
+    starts.  Probes inside ``start_period`` do not count toward ``retries``
+    and the first success marks the container healthy, so a long start period
+    costs a fast runner nothing — provided the probes inside it stay frequent.
+    Docker probes every ``start_interval`` (default 5 s) during the start
+    period and every ``interval`` after it, so both are pinned.
+    """
+
+    def test_start_period_covers_a_slow_cold_start_with_margin(
+        self, compose_file: str, service: str
+    ):
+        check = _healthcheck(compose_file, service)
+        start_period = _seconds(check["start_period"])
+        assert start_period >= 2 * _SLOWEST_OBSERVED_COLD_START_SECONDS, (
+            f"{compose_file}: {service}: start_period {check['start_period']}"
+            f" is under twice the slowest observed cold start"
+            f" ({_SLOWEST_OBSERVED_COLD_START_SECONDS:.0f} s)"
+        )
+
+    @pytest.mark.parametrize("field", ["start_interval", "interval"])
+    def test_probes_stay_frequent_so_a_fast_start_is_not_delayed(
+        self, compose_file: str, service: str, field: str
+    ):
+        check = _healthcheck(compose_file, service)
+        assert field in check, f"{compose_file}: {service}: no {field}"
+        assert _seconds(check[field]) <= 2, (
+            f"{compose_file}: {service}: {field} {check[field]} is over 2 s"
         )

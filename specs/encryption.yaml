@@ -158,7 +158,7 @@ groups:
       spec_id: VP-15-003
   - id: ENC-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       If decryption fails, the inbox handler MUST return HTTP 400 with a structured error
       indicating decryption failure
@@ -171,12 +171,12 @@ groups:
       spec_id: EH-05-001
     - rel_type: depends_on
       spec_id: HTTP-03-001
-    lint_suppress:
-    - missing_story_reference
   - id: ENC-03-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms decryption runs as its own stage ahead of parsing and that the
+      semantic extraction code contains no decryption logic.
     statement: >-
       The decryption layer MUST be separate from semantic extraction logic; the two concerns
       MUST NOT be mixed

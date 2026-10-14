@@ -44,7 +44,6 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     TransitionMode,
-    owner_declined_embargo,
 )
 
 
@@ -85,9 +84,10 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
     """Guard: nothing refuses the owner's activation of this proposal.
 
     FAILURE when CS is public, exploited or attacked (EMB-02-002: no embargo
-    is activated then) or when the owner's row for the proposal is
-    ``DECLINED`` (ADR-0122: the owner is invited again before it can
-    activate what it declined).  Read-only and ahead of the commit, so a
+    is activated then).  An owner whose row for the proposal is ``DECLINED``
+    is not refused: activating is the owner changing its answer, and its row
+    moves straight to ``AGREED`` (MSM-07-008).  Read-only and ahead of the
+    commit, so a
     refused activation is never ledgered: a replica replays the entry in
     ``OBSERVED`` mode, which does not re-check P/X/A (CLP-10-009,
     SYNC-12-001).
@@ -112,12 +112,6 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
                 f"case '{self._case_id}' is public, exploited or attacked:"
                 f" embargo '{self._embargo_id}' is not activated (EMB-02-002)"
             )
-        elif owner_declined_embargo(self.datalayer, case, self._embargo_id):
-            self.feedback_message = (
-                f"the case owner declined embargo '{self._embargo_id}' on"
-                f" case '{self._case_id}': it is invited again before it can"
-                " activate it (ADR-0122)"
-            )
         else:
             return Status.SUCCESS
         self.logger.warning("%s: %s", self.name, self.feedback_message)
@@ -130,7 +124,7 @@ class ActivateEmbargoLifecycleNode(_EmbargoLifecycleNode):
     ``EmbargoLifecycle.activate_embargo``: ``ACTIVATE`` the proposal,
     ``SUPERSEDE`` any embargo in force, record the owner's agreement and
     carry signatories over to a revision that ends no later (EP-05-001).
-    Refused with P/X/A set (EMB-02-002) or when the owner had declined it.
+    Refused with P/X/A set (EMB-02-002).
     """
 
     def __init__(

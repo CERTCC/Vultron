@@ -19,6 +19,7 @@ related_specs:
   - specs/participant-case-replica.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/structured-logging.md
   - notes/sync-ledger-replication.md
   - notes/call-out-configuration.md
   - notes/bt-canonical-reference.md
@@ -299,6 +300,15 @@ via `TransitionCStoFixDeployed` is valid only from `VFd` — see
 ADR-0044/BTND-03-011 means that point, not "before any tick". A missing-port test
 must call `node.initialise()` inside `pytest.raises(NoDataAvailable)`; asserting on
 `setup_ports()` passes vacuously.
+
+Every `setup_ports(...)` call passes `logger=port_wiring_logger()` (from
+`vultron/core/behaviors/node_logger.py`). Without it, py_trees writes one DEBUG
+line per port to the node's own logger on every tree build. Those lines restate
+the node's declared ports, and they were over half of each container's DEBUG
+output in the CI demos (#4600).
+`test/architecture/test_setup_ports_use_port_wiring_logger.py` fails a call that
+omits the logger; see `notes/structured-logging.md` § "Static wiring stays out of
+DEBUG too".
 
 `get_input()` also raises `TypeError` when the value is not the port's declared
 `data_type`, and `_try_get_input()` does not catch it: the whole tree fails via

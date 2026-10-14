@@ -84,10 +84,9 @@ BLANK_SENTINEL_FIELDS: frozenset[str] = frozenset(
 def core_model_classes() -> dict[str, type[BaseModel]]:
     """Every ``BaseModel`` subclass defined under ``vultron.core.models``.
 
-    Scans the modules rather than the registries: ``VultronOutbox`` and
-    ``HashChainLedgerRecord`` are plain ``BaseModel``s that register nowhere,
-    and ARCH-21-001 defines a core model as any ``BaseModel`` subclass in the
-    package.
+    Scans the modules rather than the registries: ``HashChainLedgerRecord`` is
+    a plain ``BaseModel`` that registers nowhere, and ARCH-21-001 defines a core
+    model as any ``BaseModel`` subclass in the package.
     """
     import_all_core_models()
     found: dict[str, type[BaseModel]] = {}

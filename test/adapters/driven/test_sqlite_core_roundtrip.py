@@ -24,8 +24,10 @@ AC-3: AS2 Activity types (no core counterpart) still reconstruct via wire path.
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 import pytest
+from pydantic import Field
 from sqlmodel import Session
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -35,6 +37,7 @@ from vultron.adapters.driven.datalayer_sqlite.hydration import (
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
 from vultron.adapters.driven.db_record import Record
 from vultron.core.models.actor import VultronOrganization, VultronService
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -239,14 +242,29 @@ def test_stored_wire_note_reads_back_as_core_note(dl):
 
 
 @pytest.mark.spec("DL-05-006")
-def test_shared_type_value_resolves_to_no_core_class():
+def test_shared_type_value_resolves_to_no_core_class(isolated_core_registries):
     """A ``type`` value two core classes present is not guessed.
 
-    ``VultronService`` and ``CaseActor`` both store as ``"Service"``; letting
-    registration order pick one would read a row back as the wrong class.
+    Letting registration order pick one would read a row back as the wrong
+    class, which is what the deleted ``CaseActor`` beside ``VultronService``
+    did to ``CORE_TYPE_MAP["Service"]`` (#4612).
     """
+
+    class _SecondService(CoreObject):
+        type_: Literal["Service"] = Field(
+            default="Service",
+            validation_alias="type",
+            serialization_alias="type",
+        )
+
     with pytest.raises(KeyError):
         core_class_for_row_type("Service")
+
+
+@pytest.mark.spec("DL-05-006")
+def test_service_type_value_resolves_to_vultron_service():
+    """``"Service"`` names one core class, so a stored service is not refused."""
+    assert core_class_for_row_type("Service") is VultronService
 
 
 @pytest.mark.spec("DL-05-006")
@@ -535,3 +553,43 @@ def test_a_legacy_url_string_policy_row_reads_absent_naming_the_reset(
 
     assert "must be reset" in caplog.text
     assert actor_id in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# ARCH-12-006: a row stored by the deleted CaseActor class still reads (#4612)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("ARCH-12-006")
+def test_a_legacy_case_actor_row_reads_back_as_vultron_service(dl):
+    """The old ``CaseActor`` shape reads back as a ``VultronService``.
+
+    ``CaseActor`` stored no ``inbox`` and kept ``outbox`` as an id-less
+    tracking list, so the endpoints are derived from the id instead, and a
+    store written before the class was deleted stays readable.  The list is
+    non-empty and the old serializer's null fields are present, as in a real
+    stored row.
+    """
+    actor_id = "https://test.example/api/v2/actors/case-actor"
+    _insert_raw_row(
+        dl,
+        actor_id,
+        "Service",
+        {
+            "id": actor_id,
+            "type": "Service",
+            "name": "CaseActor",
+            "context": "https://test.example/cases/legacy",
+            "attributed_to": actor_id,
+            "preview": None,
+            "media_type": None,
+            "to": None,
+            "outbox": {"items": ["https://test.example/activities/1"]},
+        },
+    )
+
+    result = dl.read(actor_id)
+
+    assert type(result) is VultronService
+    assert result.inbox == f"{actor_id}/inbox"
+    assert result.outbox == f"{actor_id}/outbox"

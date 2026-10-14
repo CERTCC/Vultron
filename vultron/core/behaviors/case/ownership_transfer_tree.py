@@ -38,8 +38,12 @@ from datetime import datetime
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
+    OfferParty,
+)
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
     case_manager_admits_ownership_offer_guard,
+    case_manager_ownership_offer_open_guard,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
@@ -51,12 +55,48 @@ from vultron.core.behaviors.case.nodes.store_received_object import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsOwnershipOffererNode,
-    SenderIsOwnershipTransfereeNode,
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    OwnershipOfferRequest,
+    SenderCheckContext,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _reply_guards(
+    case_id: str,
+    offer_id: str | None,
+    sender_id: str,
+    reply_id: str,
+    party: OfferParty,
+    now: datetime | None,
+) -> tuple[SenderCheckContext, list[py_trees.behaviour.Behaviour]]:
+    """The sender context and precondition guards of a reply to an Offer.
+
+    The sender check reads the Offer the CASE_MANAGER recorded, so a sender
+    that is not its party is refused first; at a replica the sender must be
+    the CASE_MANAGER, and a case this store does not hold refuses
+    (PCR-03-001).  The open-Offer check runs right after it, at the
+    CASE_MANAGER only (CM-21-014, CM-21-016, HP-01-003).
+    """
+    context = SenderCheckContext(
+        sender_id=sender_id,
+        case_id=case_id,
+        request=OwnershipOfferRequest(offer_id=offer_id, reply_id=reply_id),
+        case_manager_required=True,
+    )
+    guards = [
+        case_manager_ownership_offer_open_guard(
+            case_id=case_id,
+            offer_id=offer_id,
+            reply_id=reply_id,
+            sender_id=sender_id,
+            party=party,
+            now=now,
+        )
+    ]
+    return context, guards
 
 
 def create_accept_ownership_transfer_tree(
@@ -65,6 +105,8 @@ def create_accept_ownership_transfer_tree(
     sender_id: str,
     answer_id: str,
     now: datetime | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AcceptCaseOwnershipTransferReceivedUseCase``.
 
@@ -80,27 +122,28 @@ def create_accept_ownership_transfer_tree(
         offer_id: The Offer the Accept names (the recorded Offer or the
             CASE_MANAGER's forward of it).
         sender_id: The Accept's sender.  The sender guard checks it: at the
-            CASE_MANAGER it must be the transferee of the open Offer it
-            recorded; at a replica it must be the CASE_MANAGER.
+            CASE_MANAGER it must be the transferee of the Offer it recorded,
+            which the open-Offer guard then requires to be open; at a
+            replica it must be the CASE_MANAGER.
         answer_id: The Accept's own id, so a redelivery is recognised.
         now: The instant the Offer's ``end_time`` is compared against; an
             Accept at or after it is refused (CM-21-016).  ``None`` reads the
             clock when the guard runs.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
+    sender_context, precondition_guards = _reply_guards(
+        case_id, offer_id, sender_id, answer_id, OfferParty.TRANSFEREE, now
+    )
     tree = create_receive_activity_tree(
         name="AcceptOwnershipTransferBT",
         case_id=case_id,
-        sender_guard=SenderIsOwnershipTransfereeNode(
-            case_id=case_id,
-            offer_id=offer_id,
-            sender_actor_id=sender_id,
-            reply_id=answer_id,
-            now=now,
-        ),
-        precondition_guards=[],
+        sender_rule=sender_rule,
+        sender_context=sender_context,
+        precondition_guards=precondition_guards,
         # A receiver that does not hold the case is simply not its
         # CASE_MANAGER (ADR-0087 Regime 3), for both the guarded commit and
         # the gated effect: read the absence as "not the CASE_MANAGER" at
@@ -133,6 +176,8 @@ def create_reject_ownership_transfer_tree(
     sender_id: str,
     answer_id: str,
     now: datetime | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``RejectCaseOwnershipTransferReceivedUseCase``.
 
@@ -149,23 +194,23 @@ def create_reject_ownership_transfer_tree(
         sender_id: The Reject's sender, checked as for the Accept.
         answer_id: The Reject's own id, so a redelivery is recognised.
         now: As for the Accept: a Reject after the deadline is refused.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
+    sender_context, precondition_guards = _reply_guards(
+        case_id, offer_id, sender_id, answer_id, OfferParty.TRANSFEREE, now
+    )
     tree = create_receive_activity_tree(
         name="RejectOwnershipTransferBT",
         case_id=case_id,
-        # The Accept's sender rule (CM-21-013): the same guard, so a closed
-        # Offer refuses either answer and a redelivery is recognised.
-        sender_guard=SenderIsOwnershipTransfereeNode(
-            case_id=case_id,
-            offer_id=offer_id,
-            sender_actor_id=sender_id,
-            reply_id=answer_id,
-            now=now,
-        ),
-        precondition_guards=[],
+        # The Accept's sender rule (CM-21-013) and open-Offer guard, so a
+        # closed Offer refuses either answer and a redelivery is recognised.
+        sender_rule=sender_rule,
+        sender_context=sender_context,
+        precondition_guards=precondition_guards,
         # As for the Accept: a receiver not holding the case is not its
         # CASE_MANAGER (ADR-0087 Regime 3).
         case_may_be_absent=True,
@@ -184,6 +229,8 @@ def create_undo_ownership_transfer_tree(
     sender_id: str,
     undo_id: str,
     now: datetime | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``UndoCaseOwnershipTransferReceivedUseCase``.
 
@@ -201,21 +248,21 @@ def create_undo_ownership_transfer_tree(
             offerer, still the Case Owner; at a replica, the CASE_MANAGER.
         undo_id: The Undo's own id, so a redelivery is recognised.
         now: As for the Accept: an expired Offer cannot be withdrawn.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
+    sender_context, precondition_guards = _reply_guards(
+        case_id, offer_id, sender_id, undo_id, OfferParty.OFFERER, now
+    )
     tree = create_receive_activity_tree(
         name="UndoOwnershipTransferBT",
         case_id=case_id,
-        sender_guard=SenderIsOwnershipOffererNode(
-            case_id=case_id,
-            offer_id=offer_id,
-            sender_actor_id=sender_id,
-            reply_id=undo_id,
-            now=now,
-        ),
-        precondition_guards=[],
+        sender_rule=sender_rule,
+        sender_context=sender_context,
+        precondition_guards=precondition_guards,
         # As for the Reject: no effect follows the commit, and a receiver
         # not holding the case is not its CASE_MANAGER (ADR-0087 Regime 3).
         case_may_be_absent=True,

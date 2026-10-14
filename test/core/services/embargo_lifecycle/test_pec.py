@@ -372,10 +372,10 @@ def test_revision_comparison_fails_closed_on_an_unreadable_embargo(
 
 
 @pytest.mark.spec("CM-18-003")
-def test_record_actor_acceptance_for_a_declined_actor_records_nothing(
+def test_record_actor_acceptance_for_a_declined_actor_changes_its_answer(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A DECLINED row holds no consent until re-invited (#4003)."""
+    """A DECLINED row agrees directly, with no re-invite first (CM-18-003)."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo_id = "https://example.org/embargoes/e1"
@@ -386,8 +386,10 @@ def test_record_actor_acceptance_for_a_declined_actor_records_nothing(
 
     changes = lifecycle._record_actor_acceptance(case, owner.id_, embargo_id)
 
-    assert changes == []
-    assert _consent_of(dl, owner_p.id_, embargo_id) == "DECLINED"
+    assert [(c.consent_before, c.consent_after) for c in changes] == [
+        ("DECLINED", "AGREED")
+    ]
+    assert _consent_of(dl, owner_p.id_, embargo_id) == "AGREED"
 
 
 @pytest.mark.spec("MSM-07-004")

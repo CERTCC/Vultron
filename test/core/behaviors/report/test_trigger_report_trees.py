@@ -33,8 +33,8 @@ from vultron.core.behaviors.report.trigger_report_trees import (
     create_reject_report_trigger_tree,
 )
 from vultron.core.models.activity import VultronOffer
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
@@ -66,8 +66,8 @@ def scenario() -> BTTestScenario:
 
 
 @pytest.fixture
-def actor(scenario: BTTestScenario) -> CaseActor:
-    obj = CaseActor(id_=ACTOR_ID, name="Vendor Co")
+def actor(scenario: BTTestScenario) -> VultronService:
+    obj = VultronService(id_=ACTOR_ID, name="Vendor Co")
     scenario.dl.create(obj)
     return obj
 
@@ -81,7 +81,9 @@ def report(scenario: BTTestScenario) -> VulnerabilityReport:
 
 @pytest.fixture
 def offer(
-    scenario: BTTestScenario, report: VulnerabilityReport, actor: CaseActor
+    scenario: BTTestScenario,
+    report: VulnerabilityReport,
+    actor: VultronService,
 ) -> VultronOffer:
     obj = VultronOffer(actor=REPORTER_ID, object_=report.id_, target=ACTOR_ID)
     scenario.dl.create(obj)
@@ -144,7 +146,7 @@ def case_with_owner(
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    manager_actor = CaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
+    manager_actor = VultronService(id_=CASE_MANAGER_ID, name="Case Manager")
     manager_participant = CaseParticipant(
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -169,7 +171,7 @@ def case_with_non_owner(
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.VENDOR],
     )
-    manager_actor = CaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
+    manager_actor = VultronService(id_=CASE_MANAGER_ID, name="Case Manager")
     manager_participant = CaseParticipant(
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],

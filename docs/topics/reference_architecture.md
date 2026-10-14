@@ -90,7 +90,7 @@ The semantic extractor is the single place where AS2 structure becomes domain in
 
 The core layer decides what to do.
 The behavior dispatcher (`vultron/core/dispatcher.py`) maps the extracted semantics to a use case through a table lookup, and the use case runs the appropriate behavior tree.
-Routing all inbound case activity through the [CASE_MANAGER](case_lifecycle/case_manager_and_ledger.md) — in the prototype, the [Case Actor](case_lifecycle/case_model.md#caseactor) — is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
+Routing all inbound case activity through the [CASE_MANAGER](case_lifecycle/case_manager_and_ledger.md) — in the prototype, the [Case Actor](case_lifecycle/case_model.md#case-actor) — is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
 The design that moves this orchestration into a core module behind a typed `process_payload` seam is recorded in [ADR-0020](../adr/0020-inbox-bt-orchestration.md).
 
 For the protocol-level view of what these messages mean to a participant, see [Protocol Event Flow](protocol_flow.md).
