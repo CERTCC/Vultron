@@ -27,7 +27,7 @@ as the entry it already holds.
 Each object is carried as the CASE_MANAGER holds it: the participant or status
 the caller has just written, or the case as stored.  A replica stores what the
 entry carries (ADR-0124).  The demo verb's ``Announce`` is the exception: an
-announced case carries its participants and reports inline (CBT-01-007).
+announced case carries its participants and reports inline (CBT-01-012).
 """
 
 import logging

@@ -20,7 +20,7 @@ activity.  For each, the adapter must:
 
 - seal the body it returns to core (or, for id-only methods, seal a body for
   the id it returns), so the outbox has something to relay;
-- put a fully inline ``object`` on every initiating activity (AKM-03-001) —
+- put a fully inline ``object`` on every initiating activity (AKM-03-003) —
   the outbox no longer expands a bare reference at delivery time, so a factory
   that emitted one would now be refused rather than repaired;
 - address the recipients it was given;
@@ -73,7 +73,7 @@ _CASE_ACTOR = "https://example.org/actors/case-actor"
 #: Ledger records that carry the case as stored, its participants and reports
 #: by id: each of those has an entry of its own, so a replica copying the
 #: record holds the case as the CASE_MANAGER does (ADR-0124).  A record is no
-#: message, so it seeds no recipient (CBT-01-007 does not apply).
+#: message, so it seeds no recipient (CBT-01-012 does not apply).
 _CASE_AS_STORED = frozenset({"record_case_created"})
 
 #: Port methods that build a domain *object*, not an outbound activity.
@@ -96,7 +96,7 @@ class _World:
         )
         dl.create(self.participant)
         # The case names its participant and report by id, as a stored case
-        # does; a case put on the wire must carry them inline (CBT-01-007).
+        # does; a case put on the wire must carry them inline (CBT-01-012).
         self.case = as_VulnerabilityCase(
             id_=self.case_id,
             name="CVE-2026-1",
@@ -212,7 +212,7 @@ class _World:
     def prepared_create_case(self) -> dict[str, Any]:
         # Mirrors ``WriteCreateCaseMarkerNode._build_case_object``: the
         # marker's payload carries the participants and reports as objects
-        # (ADR-0041 AC-5, CBT-01-007); the adapter re-sends it unchanged
+        # (ADR-0041 AC-5, CBT-01-012); the adapter re-sends it unchanged
         # (CP-05-005), so the audit hands it the shape production does.
         stored = self.dl.read(self.case_id, raise_on_missing=True)
         assert stored is not None
@@ -616,14 +616,14 @@ def test_the_activity_is_sealed_complete(world, method):
         obj = body.get("object")
         assert isinstance(obj, dict) and obj.get("type"), (
             f"{method} emitted {body['type']} with a non-inline object"
-            f" {obj!r} (AKM-03-001)"
+            f" {obj!r} (AKM-03-003)"
         )
     # MV-10-001 now lives in the factory: nothing downstream collapses a case
     # in ``target`` or ``context`` any more, so a case there is either its
     # URI or the selective-disclosure stub — never the full object.  Checked
     # at every depth: an Accept embeds the Offer or Invite it answers, and a
     # read-back-rehydrated embedded activity is where a full case leaked.
-    # CBT-01-007: a case carried as the ``object`` carries its participants and
+    # CBT-01-012: a case carried as the ``object`` carries its participants and
     # reports as objects — the recipient seeds its replica from them, and the
     # outbox no longer expands ids at delivery time.
     obj = body.get("object")
@@ -636,7 +636,7 @@ def test_the_activity_is_sealed_complete(world, method):
             bare = [x for x in obj.get(field, []) if not isinstance(x, dict)]
             assert not bare, (
                 f"{method} put a VulnerabilityCase in object whose {field}"
-                f" holds bare ids {bare} (CBT-01-007)"
+                f" holds bare ids {bare} (CBT-01-012)"
             )
     leaks = _full_case_paths(body)
     assert not leaks, (

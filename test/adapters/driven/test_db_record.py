@@ -614,7 +614,7 @@ def test_case_declares_active_embargo_as_an_inline_required_ref():
 
 
 def test_case_active_embargo_survives_storage_as_an_inline_object():
-    """AKM-03-001: storing a case MUST NOT collapse its embargo to an id.
+    """AKM-03-003: storing a case MUST NOT collapse its embargo to an id.
 
     A recipient cannot dereference a URI it does not hold and no dereferencing
     mechanism is specified, so a bare id hands every replica a case pointing at
@@ -628,7 +628,7 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
     (entry,) = record.data_["embargo_register"]
     stored = entry["embargo"]
     assert not isinstance(stored, str), (
-        "AKM-03-001 requires the embargo inline; storage reduced it to"
+        "AKM-03-003 requires the embargo inline; storage reduced it to"
         f" {stored!r}, which the receiver cannot resolve"
     )
     # data_ carries wire-facing identity keys (ARCH-23-005)
@@ -724,7 +724,7 @@ def test_invite_keeps_the_invited_peer_inline():
     of whichever actor knows it — which for an Invite emitted by the Case Actor
     is not the Case Actor's store. Dehydrating it therefore had nothing to read
     back from, so the stored Invite returned a bare string and outbox delivery
-    refused it for AKM-03-001 after exhausting its retries. The invitation never
+    refused it for AKM-03-003 after exhausting its retries. The invitation never
     arrived and the invitee's ``reject-case-invite`` answered 404 for an invite
     it had never been told about (#2548, fcv-reject).
     """
@@ -749,7 +749,7 @@ def test_invited_peer_round_trips_as_an_object():
     restored = getattr(back, "object_", None)
 
     assert not isinstance(restored, str), (
-        "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+        "a bare string object_ is exactly what the AKM-03-003 gate rejects"
     )
     assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
 
@@ -853,7 +853,7 @@ def test_recommended_peer_round_trips_as_an_object():
     restored = getattr(back, "object_", None)
 
     assert not isinstance(restored, str), (
-        "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+        "a bare string object_ is exactly what the AKM-03-003 gate rejects"
     )
     assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
 

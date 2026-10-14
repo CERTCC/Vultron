@@ -204,10 +204,7 @@ individually, not broadcast. (SYNC-02-003)
 
 A receiver MUST treat an inbound `Announce(CaseLedgerEntry)` as the announcement of a ledger entry on first delivery, without needing any stored record of the entry (SYNC-13-004).
 The reference implementation resolves the log-entry semantic from the typed inline object obtained during parsing, without a DataLayer round-trip (SYNC-13-007).
-Message ingress
-MUST NOT use the canonical ledger store as a scratch or lookup cache for
-routing, rehydration, or classification of an inbound announce. (SYNC-13-003,
-SYNC-13-004)
+Message ingress MUST NOT use the canonical ledger store as a scratch or lookup cache for routing, rehydration, or classification of an inbound announce. (SYNC-13-003, SYNC-13-007)
 
 ---
 

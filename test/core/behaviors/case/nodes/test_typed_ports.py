@@ -175,7 +175,7 @@ class TestBroadcastCaseUpdateNodePorts:
         """An ``Announce`` the adapter refuses is this node's FAILURE.
 
         The adapter will not build an ``Announce(VulnerabilityCase)`` that
-        cannot embed every report the case names (CBT-01-007).  That refusal
+        cannot embed every report the case names (CBT-01-012).  That refusal
         is a reported outcome of the node, not an exception escaping
         ``update()`` as an internal error of the whole tree (BT-HELPER-01).
         """

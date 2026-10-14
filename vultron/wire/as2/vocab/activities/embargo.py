@@ -109,7 +109,7 @@ class _ActivateEmbargoActivity(as_Accept):
     for the case, distinct from ``Accept(Invite(EmbargoEvent))``, which is
     always the sender's own consent.  Only the case owner sends it.
     object_: the as_EmbargoEvent being activated (inline, so a recipient
-        reads the terms without a dereference, AKM-03-001)
+        reads the terms without a dereference, AKM-03-003)
     target: the VulnerabilityCase the embargo was proposed for
     """
 
@@ -125,7 +125,7 @@ class _RejectEmbargoProposalActivity(as_Reject):
     ``Reject(EmbargoEvent, target=VulnerabilityCase)``: the owner's decision
     for the case, distinct from ``Reject(Invite(EmbargoEvent))``, which is
     always the sender's own consent.  Only the case owner sends it.
-    object_: the as_EmbargoEvent being rejected (inline, AKM-03-001)
+    object_: the as_EmbargoEvent being rejected (inline, AKM-03-003)
     target: the VulnerabilityCase the embargo was proposed for
     """
 

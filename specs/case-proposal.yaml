@@ -38,9 +38,9 @@ groups:
     priority: MUST
     kind: project
     statement: '`as_CaseProposal` MUST include an `object_` field containing a fully inline `as_VulnerabilityReport` around
-      which the case is to be created. URI references to the report are NOT permitted (see AKM-03-001).'
+      which the case is to be created. URI references to the report are NOT permitted (see AKM-03-003).'
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
-      because the receiver may not have the referenced object and no dereferencing mechanism is currently specified (AKM-03-001).
+      because the receiver may not have the referenced object and this codebase does not yet dereference (AKM-05-003, AKM-03-003).
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
       `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
   - id: CP-01-005

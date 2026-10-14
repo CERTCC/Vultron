@@ -40,7 +40,10 @@ from vultron.metadata.specs.registry import (
 )
 from vultron.metadata.specs.schema import IMPLEMENTER_KINDS, SpecKind
 
-SPEC_MARKER_RE = re.compile(r'@pytest\.mark\.spec\(["\']([^"\']+)["\']\)')
+SPEC_MARKER_RE = re.compile(r"@pytest\.mark\.spec\(([^)]*)\)")
+"""One ``@pytest.mark.spec(...)`` marker; group 1 is its argument list."""
+
+_QUOTED_ID_RE = re.compile(r'["\']([^"\']+)["\']')
 
 
 @dataclass
@@ -63,11 +66,14 @@ def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
     """Spec IDs referenced by ``@pytest.mark.spec`` markers in *sources*.
 
     Each item of *sources* is one file's text. A plain regex pass; no AST.
+    A marker naming several IDs, ``@pytest.mark.spec("A", "B")``, covers
+    each of them.
     """
     return frozenset(
-        m.group(1)
+        spec_id.group(1)
         for source in sources
-        for m in SPEC_MARKER_RE.finditer(source)
+        for marker in SPEC_MARKER_RE.finditer(source)
+        for spec_id in _QUOTED_ID_RE.finditer(marker.group(1))
     )
 
 

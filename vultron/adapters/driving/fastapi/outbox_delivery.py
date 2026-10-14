@@ -50,7 +50,7 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 #: Activity types whose ``object`` MUST be a fully inline typed object
-#: (AKM-03-001).  ``Accept`` is held to the same standard because every
+#: (AKM-03-003).  ``Accept`` is held to the same standard because every
 #: Vultron ``Accept`` embeds the activity it answers (#2194).
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
     {
@@ -172,7 +172,7 @@ def _validate_inline_object(
             f"Outbound {activity_type} activity '{activity_id}' has an"
             f" inline object that is a bare string or Link"
             f" ({activity_object!r}). Outbound initiating activities must"
-            " carry fully inline typed objects (AKM-03-001).",
+            " carry fully inline typed objects (AKM-03-003).",
             activity_id=activity_id,
             activity_type=activity_type,
         )

@@ -224,9 +224,8 @@ version does not require it to.
 
 ### 4.7 Knowledge Model and Actor Isolation
 
-Each participant knows only what it has been told. This subsection states what
-follows from that, including why a recipient must be able to obtain every object a
-message names ([§5.5 Serialization](layers.md#55-serialization)).
+Each participant knows only what it has been told.
+This subsection states what follows from that, including why a recipient must be able to obtain every object a message names ([§5.5 Serialization](layers.md#55-serialization)).
 
 **What a participant knows versus what is true.** A participant's replica reflects
 the messages it has received. Two participants in the same case may hold different

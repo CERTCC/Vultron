@@ -237,7 +237,7 @@ class CreateCaseProposalReceivedUseCase:
         )
 
         # Render the proposal as a plain AS2 dict so the Accept can carry it
-        # inline (CP-05-003, AKM-03-001).  The subject handed to the port is the
+        # inline (CP-05-003, AKM-03-003).  The subject handed to the port is the
         # core-branch ``VultronActivity`` the extractor built; its ``object`` is
         # the as_CaseProposal as it arrived.  Core renders nothing itself
         # (ARCH-20-001): the port is the only route to the AS2 shape, so a

@@ -66,7 +66,7 @@ class as_CaseProposal(as_VultronObject):
             the proposal (CP-01-003).
         object_: Required inline ``as_VulnerabilityReport`` around which the
             case is to be created.  URI-only references are not permitted
-            (CP-01-004, AKM-03-001).
+            (CP-01-004, AKM-03-003).
         target: Required URI of the prospective case-actor service to
             which the proposal is addressed (CP-01-005).
         summary: Optional human-readable description of the proposal
@@ -86,7 +86,7 @@ class as_CaseProposal(as_VultronObject):
             these plus ``CASE_OWNER``.  Never ``CASE_MANAGER`` (CP-01-012).
     """
 
-    # CP-01-004 / AKM-03-001: the report is carried, not referenced. Declared
+    # CP-01-004 / AKM-03-003: the report is carried, not referenced. Declared
     # here so persistence keeps it inline; see as_VultronObject's docstring.
     inline_required_refs: ClassVar[frozenset[str]] = frozenset(
         {"object_", "in_reply_to"}
@@ -119,7 +119,7 @@ class as_CaseProposal(as_VultronObject):
         ...,
         validation_alias="object",
         serialization_alias="object",
-        description="Inline as_VulnerabilityReport; URI-only refs not permitted (AKM-03-001).",
+        description="Inline as_VulnerabilityReport; URI-only refs not permitted (AKM-03-003).",
     )
 
     # CP-01-005: URI of the prospective case-actor service.

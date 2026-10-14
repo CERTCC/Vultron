@@ -141,7 +141,7 @@ def test_handle_outbox_item_refuses_a_link_object():
 
 
 def test_handle_outbox_item_allows_a_bare_object_for_non_initiating_types():
-    """The guard is scoped to AKM-03-001's initiating types."""
+    """The guard is scoped to AKM-03-003's initiating types."""
     sealed = _sealed(
         "urn:test:act-read",
         {
