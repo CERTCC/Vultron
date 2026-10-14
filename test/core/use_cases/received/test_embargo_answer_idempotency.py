@@ -26,8 +26,13 @@ import json
 from typing import Any, cast
 
 import pytest
+from py_trees.common import Status
 
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.answer_trees import (
+    accept_invite_to_embargo_tree,
+)
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
 )
@@ -41,11 +46,14 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.use_cases.received._bt_verdict import find_node
 from vultron.errors import VultronWiringError
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_reject_embargo_activity,
 )
+from vultron.wire.as2.parser import parse_activity
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 from .test_embargo_relay_replay import _owner_answers, _propose
@@ -67,10 +75,16 @@ def _invited(net: LedgerNetwork, actor: str, suffix: str) -> tuple[str, str]:
     return embargo_id, invites[-1].id_
 
 
-def _answer(
-    net: LedgerNetwork, actor: str, invite_id: str, *, accept: bool, tag: str
-) -> HandlerResult:
-    """*actor* answers *invite_id* under a fresh activity id; the manager receives it."""
+def _answer_body(
+    net: LedgerNetwork,
+    actor: str,
+    invite_id: str,
+    *,
+    accept: bool,
+    tag: str,
+    receiver: str = MANAGER,
+) -> dict[str, Any]:
+    """*actor*'s answer to *invite_id* under a fresh id, addressed to *receiver*."""
     proposal = cast(Any, net.stores[actor].read(invite_id))
     build = (
         em_accept_embargo_activity if accept else em_reject_embargo_activity
@@ -79,13 +93,26 @@ def _answer(
         proposal,
         context=net.case_id,
         actor=actor,
-        to=[MANAGER],
+        to=sorted({MANAGER, receiver}),
         id_=f"{actor}/answers/{tag}",
     )
-    return cast(
-        HandlerResult,
-        net.receive(MANAGER, json.loads(dump_outbound_body(activity))),
+    return cast(dict[str, Any], json.loads(dump_outbound_body(activity)))
+
+
+def _answer(
+    net: LedgerNetwork,
+    actor: str,
+    invite_id: str,
+    *,
+    accept: bool,
+    tag: str,
+    receiver: str = MANAGER,
+) -> HandlerResult:
+    """*actor* answers *invite_id* under a fresh activity id; *receiver* gets it."""
+    body = _answer_body(
+        net, actor, invite_id, accept=accept, tag=tag, receiver=receiver
     )
+    return cast(HandlerResult, net.receive(receiver, body))
 
 
 def _entries(net: LedgerNetwork) -> list[str]:
@@ -96,9 +123,11 @@ def _entries(net: LedgerNetwork) -> list[str]:
     ]
 
 
-def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
-    case = net.case(MANAGER)
-    participant = net.stores[MANAGER].read(case.actor_participant_index[actor])
+def _consent(
+    net: LedgerNetwork, actor: str, embargo_id: str, *, store: str = MANAGER
+) -> str:
+    case = net.case(store)
+    participant = net.stores[store].read(case.actor_participant_index[actor])
     assert isinstance(participant, CaseParticipant)
     return participant.consent_for(embargo_id)
 
@@ -246,22 +275,167 @@ def test_the_repeat_guard_takes_only_an_answer_state():
 
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.spec("CM-18-003")
-def test_an_accept_after_a_reject_is_not_treated_as_a_repeat():
-    """Reject → Accept by one actor is not swallowed by the repeat guard.
+@pytest.mark.spec("EMB-17-002")
+@pytest.mark.parametrize(
+    "activated", [False, True], ids=["proposed", "active"]
+)
+def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
+    """Reject → Accept by one actor changes the recorded answer to ``AGREED``.
 
-    It is processed as an answer, so the CASE_MANAGER ledgers it.  The row
-    stays ``DECLINED``: ``AGREE`` is not a legal PEC transition from
-    ``DECLINED`` (CM-18-003), so an actor that declined agrees through a
-    fresh re-invite (EMB-17).  That consent rule is unchanged here (#4597).
+    The participant has just said it accepts, so its row moves straight from
+    ``DECLINED`` to ``AGREED`` (CM-18-003): there is no re-invite step, real
+    or bookkeeping.  One ledger entry records the change and no Invite is
+    sent.  On the embargo in force the Accept follows a withdrawal, so the
+    Accept is a late answer the CASE_MANAGER honours (EMB-17-002).
     """
-    net = LedgerNetwork("https://example.org/cases/answer-reject-then-accept")
+    net = LedgerNetwork(
+        "https://example.org/cases/answer-reject-then-accept"
+        f"-{'active' if activated else 'proposed'}"
+    )
     embargo_id, invite_id = _invited(net, BYSTANDER, "change-ra")
+    if activated:
+        agreed = _answer(net, BYSTANDER, invite_id, accept=True, tag="0")
+        assert agreed.disposition is HandlerDisposition.APPLIED
+        _owner_answers(net, embargo_id)
+        assert net.case(MANAGER).active_embargo_id == embargo_id
     rejected = _answer(net, BYSTANDER, invite_id, accept=False, tag="1")
     assert rejected.disposition is HandlerDisposition.APPLIED
-    committed = _entries(net).count(ACCEPT_EVENT)
+    assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
+    entries = _entries(net)
+    invites = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
 
     accepted = _answer(net, BYSTANDER, invite_id, accept=True, tag="2")
 
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
-    assert _entries(net).count(ACCEPT_EVENT) == committed + 1
-    assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
+    assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.AGREED
+    assert len(_entries(net)) == len(entries) + 1
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Invite") == invites
+
+
+@pytest.mark.spec("CM-13-005")
+@pytest.mark.spec("EMB-17-003")
+def test_an_accept_after_a_reject_of_replaced_terms_is_invited_to_the_current():
+    """A changed answer to terms no longer current is not recorded on them.
+
+    The bystander withdraws from embargo B, and B is then replaced by C.  Its
+    Accept of B's Invite is an Accept of stale terms: B's row stays
+    ``DECLINED``, and the CASE_MANAGER invites it to C instead (EMB-17-003).
+    """
+    net = LedgerNetwork("https://example.org/cases/answer-ra-replaced")
+    stale_id, invite_id = _invited(net, BYSTANDER, "change-stale")
+    agreed = _answer(net, BYSTANDER, invite_id, accept=True, tag="0")
+    assert agreed.disposition is HandlerDisposition.APPLIED
+    _owner_answers(net, stale_id)
+    rejected = _answer(net, BYSTANDER, invite_id, accept=False, tag="1")
+    assert rejected.disposition is HandlerDisposition.APPLIED
+    current_id = _propose(net, "change-current", 120)
+    _owner_answers(net, current_id)
+    assert net.case(MANAGER).active_embargo_id == current_id
+    invites = len(net.queued(MANAGER, to=BYSTANDER, type_="Invite"))
+
+    accepted = _answer(net, BYSTANDER, invite_id, accept=True, tag="2")
+
+    assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
+    assert _consent(net, BYSTANDER, stale_id) == EmbargoConsentState.DECLINED
+    assert _consent(net, BYSTANDER, current_id) == EmbargoConsentState.INVITED
+    fresh = net.queued(MANAGER, to=BYSTANDER, type_="Invite")[invites:]
+    assert [cast(Any, i).object_.id_ for i in fresh] == [current_id]
+
+
+@pytest.mark.spec("CM-13-005")
+@pytest.mark.spec("HP-01-005")
+def test_a_repeat_at_a_replica_is_refused_not_skipped():
+    """Only the CASE_MANAGER treats a repeat as a no-op.
+
+    A replica that holds the recorded answer still refuses the copy, because
+    it holds no role to act on it (HP-01-005), so the repeat guard does not
+    turn the refusal into a ``SKIPPED``.
+    """
+    net = LedgerNetwork("https://example.org/cases/answer-repeat-replica")
+    embargo_id, invite_id = _invited(net, BYSTANDER, "repeat-replica")
+    first = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
+    assert first.disposition is HandlerDisposition.APPLIED, first.reason
+    net.deliver(MANAGER, to=OWNER, type_="Announce")
+    assert (
+        _consent(net, BYSTANDER, embargo_id, store=OWNER)
+        == EmbargoConsentState.AGREED
+    )
+
+    again = _answer(
+        net, BYSTANDER, invite_id, accept=True, tag="2", receiver=OWNER
+    )
+
+    assert again.disposition is HandlerDisposition.REFUSED, again.reason
+
+
+def _guard(
+    net: LedgerNetwork,
+    actor: str,
+    embargo_id: str,
+    answer: EmbargoConsentState,
+) -> tuple[EmbargoAnswerNotRecordedNode, Status]:
+    node = EmbargoAnswerNotRecordedNode(
+        case_id=net.case_id,
+        embargo_id=embargo_id,
+        answering_actor_id=actor,
+        answer=answer,
+    )
+    result = BTBridge(datalayer=net.stores[MANAGER]).execute_with_setup(
+        tree=node, actor_id=MANAGER
+    )
+    return node, result.status
+
+
+@pytest.mark.spec("CM-13-005")
+@pytest.mark.parametrize(
+    "answer",
+    [EmbargoConsentState.AGREED, EmbargoConsentState.DECLINED],
+    ids=["accept", "reject"],
+)
+def test_the_repeat_guard_admits_an_answer_with_no_recorded_one(
+    answer: EmbargoConsentState,
+):
+    """No participant record, or no row for the embargo, is not a repeat."""
+    net = LedgerNetwork(f"https://example.org/cases/answer-guard-{answer}")
+    embargo_id, _invite_id = _invited(net, BYSTANDER, "guard")
+
+    stranger, stranger_status = _guard(
+        net, "https://example.org/actors/stranger", embargo_id, answer
+    )
+    unknown, unknown_status = _guard(
+        net, BYSTANDER, f"{net.case_id}/embargo_events/unknown", answer
+    )
+
+    assert stranger_status is Status.SUCCESS and not stranger.is_repeat
+    assert unknown_status is Status.SUCCESS and not unknown.is_repeat
+
+
+@pytest.mark.spec("CM-13-005")
+def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
+    """The in-tree guard catches a repeat even without the handler preflight."""
+    net = LedgerNetwork("https://example.org/cases/answer-guard-tree")
+    embargo_id, invite_id = _invited(net, BYSTANDER, "guard-tree")
+    first = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
+    assert first.disposition is HandlerDisposition.APPLIED, first.reason
+    entries = _entries(net)
+    tree = accept_invite_to_embargo_tree(
+        case_id=net.case_id,
+        embargo_id=embargo_id,
+        accepting_actor_id=BYSTANDER,
+        invite_id=invite_id,
+    )
+
+    event = extract_event(
+        parse_activity(
+            _answer_body(net, BYSTANDER, invite_id, accept=True, tag="2")
+        )
+    ).model_copy(update={"receiving_actor_id": MANAGER})
+
+    result = BTBridge(datalayer=net.stores[MANAGER]).execute_with_setup(
+        tree=tree, actor_id=MANAGER, activity=event
+    )
+
+    assert result.status is Status.FAILURE
+    guard = find_node(tree, EmbargoAnswerNotRecordedNode)
+    assert guard is not None and guard.is_repeat
+    assert _entries(net) == entries

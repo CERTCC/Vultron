@@ -46,6 +46,23 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
+def find_actor_participant(
+    persistence: CasePersistence, case: VulnerabilityCase, actor_id: str
+) -> tuple[str, CaseParticipant] | None:
+    """*actor_id*'s ``(participant_id, record)`` on *case*, or ``None``.
+
+    The one actor-to-participant lookup (CM-19-003): the case's
+    ``actor_participant_index``, then the stored record.  ``None`` when the
+    actor is not on the roster or its record is not in *persistence*;
+    callers decide whether that is skipped, warned about or refused.
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    participant = persistence.read(participant_id) if participant_id else None
+    if not participant_id or not isinstance(participant, CaseParticipant):
+        return None
+    return participant_id, participant
+
+
 def owner_declined_embargo(
     persistence: CasePersistence,
     case: VulnerabilityCase,
@@ -53,9 +70,10 @@ def owner_declined_embargo(
 ) -> bool:
     """True when the case owner's consent row for *embargo_id* is ``DECLINED``.
 
-    Activation records the owner's ``AGREE``, which ``DECLINED`` refuses
-    (CM-18-003), so an owner that declined the proposal as a participant is
-    invited again before it can activate it (ADR-0122).  A case with no owner,
+    An owner that declined the proposal as a participant is invited again
+    before it can activate it (ADR-0122, MSM-07).  The rule is the owner's,
+    not the consent row's: ``AGREE`` itself is legal from ``DECLINED``
+    (CM-18-003).  A case with no owner,
     or an owner with no participant record in *persistence*, has no declined
     row, so the activation is not refused on this ground; nor has an owner
     whose case does not hold the embargo yet (a replica that has not
@@ -66,13 +84,10 @@ def owner_declined_embargo(
     owner_id = _as_id(case.attributed_to)
     if owner_id is None or case.embargo_register_entry(embargo_id) is None:
         return False
-    participant_id = case.actor_participant_index.get(owner_id)
-    if not participant_id:
-        return False
-    participant = persistence.read(participant_id)
+    resolved = find_actor_participant(persistence, case, owner_id)
     return (
-        isinstance(participant, CaseParticipant)
-        and participant.consent_for(embargo_id) == EmbargoConsentState.DECLINED
+        resolved is not None
+        and resolved[1].consent_for(embargo_id) == EmbargoConsentState.DECLINED
     )
 
 
@@ -102,13 +117,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         The one participant lookup the lifecycle operations share; callers
         decide whether an absent record is skipped, warned about or refused.
         """
-        participant_id = case.actor_participant_index.get(actor_id)
-        participant = (
-            self._persistence.read(participant_id) if participant_id else None
-        )
-        if not participant_id or not isinstance(participant, CaseParticipant):
-            return None
-        return participant_id, participant
+        return find_actor_participant(self._persistence, case, actor_id)
 
     def _participant_for_actor(
         self, case: VulnerabilityCase, actor_id: str, purpose: str
@@ -187,14 +196,13 @@ class _PecEffectsMixin(_ActivationArmMixin):
         (ADR-0122).
 
         Idempotent (CM-13-005): an ``AGREED`` row changes nothing and reports
-        nothing.  A ``DECLINED`` row records nothing: ``AGREE`` is not legal
-        from it (CM-18-003), and agreeing here would let the content gate
-        (CM-10-004) admit an actor that has declined; it is invited again
-        first.  A row whose embargo is in a final register status —
-        superseded, rejected, cancelled or terminated — is frozen and records
-        nothing either, and nothing is recorded for an embargo the register
-        does not hold: a row for an embargo the case never saw would be a row
-        with no entry (ADR-0122).
+        nothing.  A ``DECLINED`` row moves to ``AGREED``: the actor has changed
+        its answer, and has just said it accepts, so it is not invited again
+        first (CM-18-003).  A row whose embargo is in a final register status
+        — superseded, rejected, cancelled or terminated — can no longer change
+        and records nothing, and nothing is recorded for an embargo the
+        register does not hold: a row for an embargo the case never saw would
+        be a row with no entry (ADR-0122).
         """
         resolved = self._participant_for_actor(case, actor_id, "acceptance")
         if resolved is None:

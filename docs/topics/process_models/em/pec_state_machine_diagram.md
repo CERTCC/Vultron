@@ -17,6 +17,7 @@ stateDiagram-v2
     LAPSED --> SIGNATORY: EA — accept
     LAPSED --> DECLINED: ER — decline
     DECLINED --> INVITED: EP — re-invite
+    DECLINED --> SIGNATORY: EA — accept (changed answer)
     EXPIRED --> INVITED: EP — re-invite
     EXPIRED --> SIGNATORY: EA — late accept
     EXPIRED --> DECLINED: ER — decline

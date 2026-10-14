@@ -1,13 +1,17 @@
 ---
 status: accepted-provisional
+status_override: >-
+  Revision 6 edited in place in epoch 2, not superseded, by the maintainer's standing choice to
+  revise ADRs only this repository depends on in place; it records the maintainer's 2026-10-14
+  ruling (Issue #4597, PR #4601) that an Accept after a Reject changes the answer directly.
 date: 2026-10-06
 created: 2026-10-06
-updated: 2026-10-09
-revision: 5
+updated: 2026-10-14
+revision: 6
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; Claude Opus 5.5; Issue #4178, Concern #4284, Concern #3884,
-  Issue #4153, Concern #4322, PR #4002, PR #4267, PR #4372; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
+  Issue #4153, Concern #4322, Issue #4597, PR #4002, PR #4267, PR #4372, PR #4601; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
   ADR-0113, ADR-0118, ADR-0124, ADR-0130; specs/case-management.yaml CM-10, CM-18;
   specs/message-semantics-mapping.yaml MSM-07; specs/embargo-policy.yaml EP-05,
   EP-08, EP-09; specs/em-behavior.yaml EMB-11, EMB-16, EMB-17
@@ -146,12 +150,14 @@ A participant that joins late stays `UNINVITED` on entries that are no longer in
 | Trigger | From | To |
 |---|---|---|
 | `INVITE` | `UNINVITED`, `DECLINED`, `TIMED_OUT` | `INVITED` |
-| `AGREE` | `UNINVITED`, `INVITED`, `TIMED_OUT` | `AGREED` |
+| `AGREE` | `UNINVITED`, `INVITED`, `DECLINED`, `TIMED_OUT` | `AGREED` |
 | `DECLINE` | `UNINVITED`, `INVITED`, `AGREED`, `TIMED_OUT` | `DECLINED` |
 | `TIME_OUT` | `INVITED` | `TIMED_OUT` |
 | `CARRY_OVER` | every state except `AGREED` | `AGREED` |
 
-`AGREED` refuses `INVITE`, and `DECLINED` refuses `AGREE`: a participant that declined is invited again first.
+`AGREED` refuses `INVITE`: asking again does not undo an answer.
+`AGREE` from `DECLINED` is a participant changing its answer: it has just said it accepts, so its row moves directly, with no re-invite first.
+Only the participant's own answer moves a `DECLINED` row that way; seeding and the Accept of the full-case Invite are not answers it gave, and leave the row declined.
 `CARRY_OVER` is caused only by the activation of a revision that ends no later than the embargo it replaces, and applies only to participants whose row for the replaced embargo is `AGREED`.
 It lifts a `DECLINED` row too: a participant that agreed to N days is bound for every shorter period (EP-05-001), and declining a shorter revision objects to losing time, not to keeping the embargo.
 The decline itself stays in the ledger.
@@ -196,7 +202,7 @@ The CASE_MANAGER works out the changes when it decides on the message, and commi
 | a committed case status entry setting `P`, `X` or `A` | with an `ACTIVE` entry, `TERMINATE` (reason: threat signal) and `CANCEL` of each `PROPOSED` entry; with none, `CANCEL` of each `PROPOSED` entry | — |
 | an invitation's RSVP deadline passing, committed as an entry (CM-28-009) | — | `TIME_OUT` on the invitee's row for that invitation's embargo |
 
-An owner whose row for the proposal is `DECLINED` cannot activate it: `AGREE` refuses `DECLINED`, so the CASE_MANAGER refuses the activation, and the owner is invited again first.
+An owner whose row for the proposal is `DECLINED` cannot activate it: the CASE_MANAGER refuses the activation, and the owner is invited again first.
 The RSVP deadline belongs to one invitation (CM-28-001, CM-28-012), so its deadline is stored on that invitation's `INVITED` row, and a deadline passing times out only that row, never the participant's other `INVITED` rows.
 
 The two-audience rule (MSM-07-003, MSM-07-004) is retired: the owner's decision for the case has its own activities, and `Accept`/`Reject(Invite(EmbargoEvent))` is always the sender's own consent.

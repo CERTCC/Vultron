@@ -92,9 +92,10 @@ class _PecActivationMixin(_PecEffectsMixin):
     ) -> None:
         """Refuse an activation the case owner has declined (ADR-0122).
 
-        Activation records the owner's ``AGREE``, which ``DECLINED`` refuses
-        (CM-18-003): an owner that declined the proposal as a participant is
-        invited again before it can activate it.  Called before anything is
+        An owner that declined the proposal as a participant is invited
+        again before it can activate it (MSM-07).  That is the owner's rule,
+        not the consent row's: ``AGREE`` itself is legal from ``DECLINED``
+        (CM-18-003).  Called before anything is
         written, in either mode, so replay refuses what the CASE_MANAGER
         would have refused.
 
@@ -106,7 +107,7 @@ class _PecActivationMixin(_PecEffectsMixin):
             raise VultronInvalidStateTransitionError(
                 f"Case owner '{_as_id(case.attributed_to)}' declined embargo"
                 f" '{embargo_id}' on case '{_as_id(case)}': it is invited"
-                " again before it can activate it (CM-18-003)."
+                " again before it can activate it (ADR-0122)."
             )
 
     def _consent_at_activation(

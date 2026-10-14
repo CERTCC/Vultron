@@ -40,7 +40,9 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.services.embargo_lifecycle.pec import (
+    find_actor_participant,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -104,17 +106,12 @@ class EmbargoAnswerNotRecordedNode(DataLayerConditionWithPorts):
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
             return None
-        participant_id = case.actor_participant_index.get(
-            self.answering_actor_id
+        resolved = find_actor_participant(
+            self.datalayer, case, self.answering_actor_id
         )
-        participant = (
-            self.datalayer.read(participant_id) if participant_id else None
-        )
-        if not isinstance(participant, CaseParticipant) or (
-            participant.missing_rows([self.embargo_id])
-        ):
+        if resolved is None or resolved[1].missing_rows([self.embargo_id]):
             return None
-        return participant.consent_for(self.embargo_id)
+        return resolved[1].consent_for(self.embargo_id)
 
     def update(self) -> Status:
         self.is_repeat = False

@@ -130,9 +130,10 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   trees check this and P/X/A with read-only guards ahead of the commit
   (`OwnerMayActivateEmbargoNode`), because replay runs `OBSERVED` and does not
   re-check.
-- A repeat of a recorded Reject is `SKIPPED` (the node marks it with
-  `ALREADY_DECLINED_PREFIX`); a `DECLINED` actor's Reject of an unknown
-  embargo stays `REFUSED` (HP-01-003).
+- A repeat of a recorded Accept or Reject is `SKIPPED` before the commit
+  (`EmbargoAnswerNotRecordedNode`, CM-13-005); a `DECLINED` actor's Reject of
+  an unknown embargo stays `REFUSED` (HP-01-003). An Accept after a Reject is
+  a change of answer and moves the row straight to `AGREED` (CM-18-003).
 
 ## TransitionMode and the P/X/A Guards
 

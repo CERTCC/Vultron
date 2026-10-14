@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
 )
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
+    EmbargoAnswerNotRecordedNode,
     case_manager_admits_embargo_answer_guard,
 )
 from vultron.core.models.events.base import VultronEvent
@@ -55,6 +56,7 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.use_cases._helpers import unaddressed_copy_refusal
 from vultron.core.use_cases.received._bt_verdict import (
     embargo_answer_repeat_verdict,
+    find_node,
     post_close_refusal,
     verdict_from_bt,
 )
@@ -162,12 +164,13 @@ def repeat_answer_skip(
     result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
         tree=tree, actor_id=receiving_actor_id
     )
-    verdict = embargo_answer_repeat_verdict(
-        tree, verdict_from_bt(tree, result, label="EmbargoAnswerRepeatGuard")
-    )
-    if verdict.disposition is HandlerDisposition.SKIPPED:
-        return verdict
-    return None
+    # Raises on an internal error; any other outcome but a repeat — a store
+    # that is not the replication leader, say — is the handler's to report.
+    verdict = verdict_from_bt(tree, result, label="EmbargoAnswerRepeatGuard")
+    guard = find_node(tree, EmbargoAnswerNotRecordedNode)
+    if guard is None or not guard.is_repeat:
+        return None
+    return embargo_answer_repeat_verdict(tree, verdict)
 
 
 def door_refusal(
