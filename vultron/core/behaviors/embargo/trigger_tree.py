@@ -242,6 +242,9 @@ def _propose_arms(
                 case_id=case_id,
                 embargo_id=embargo.id_,
                 proposer_id=actor_id,
+                # The manager's own proposal is the request each relayed
+                # Invite answers, so a retry rebuilds the same Invites.
+                answers=embargo.id_,
             ),
             IndexOwnEmbargoProposalNode(
                 case_id=case_id,

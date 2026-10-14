@@ -313,6 +313,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
             case_id=case_id,
             sender_id=self._request.actor_id,
             claimed_actor_id=self._claimed_actor_id(),
+            activity_id=self._request.activity_id,
         )
 
 

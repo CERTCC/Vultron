@@ -281,14 +281,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 and accepting_actor_id
             ):
                 # The CASE_MANAGER-gated tree stamps a fresh deadline the
-                # manager records (ASK-03-004, CM-28-012, CM-28-013), commits
-                # the re-invite and only then queues it (CLP-10-006,
-                # BT-17-001); the lapsed deadline would lapse it again.
+                # manager records (ASK-03-004, CM-28-012, CM-28-013), queues
+                # the re-invite and then commits it (ADR-0119, BT-17-001);
+                # the lapsed deadline would lapse it again.
                 reinvite_tree = create_reinvite_stale_accepter_tree(
                     case_id=case_id,
                     embargo_id=active_embargo_id,
                     invitee_id=accepting_actor_id,
                     actor_config=self._actor_config,
+                    answers=self._request.activity_id,
                 )
                 result = BTBridge(
                     datalayer=self._dl,

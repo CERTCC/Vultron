@@ -366,6 +366,7 @@ class TestRelayEmbargoInviteToEachNode:
         scenario: BTTestScenario,
         recipients: list[str],
         actor_config: ActorConfig | None = None,
+        answers: str | None = None,
     ) -> BTExecutionResult:
         return scenario.run(
             RelayEmbargoInviteToEachNode(
@@ -373,6 +374,7 @@ class TestRelayEmbargoInviteToEachNode:
                 embargo_id=EMBARGO_ID,
                 proposer_id=PROPOSER,
                 actor_config=actor_config,
+                answers=answers,
             ),
             embargo_invite_recipients=recipients,
         )
@@ -500,6 +502,70 @@ class TestRelayEmbargoInviteToEachNode:
         event_types = _ledger_event_types(bt_scenario)
         assert event_types.count(EMBARGO_INVITE_EVENT_TYPE) == 2
         assert EMBARGO_INVITE_EVENT_TYPE == "invite_to_embargo_on_case"
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("EP-09-002")
+    @pytest.mark.spec("SYNC-09-002")
+    def test_each_invite_is_queued_before_it_is_committed(
+        self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from test.support.ledger import record_sends_and_commits
+
+        _seed_case(
+            bt_scenario,
+            relayed=True,
+            participants={OTHER_A: None, OTHER_B: None},
+        )
+        events = record_sends_and_commits(monkeypatch, MANAGER)
+
+        bt_scenario.assert_success(
+            self._relay(bt_scenario, [OTHER_A, OTHER_B])
+        )
+
+        invite_ids = [a.id_ for a in _queued_invites(bt_scenario)]
+        assert len(invite_ids) == 2
+        for invite_id in invite_ids:
+            assert events.index(("queued", invite_id)) < events.index(
+                (EMBARGO_INVITE_EVENT_TYPE, invite_id)
+            )
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("OX-06-002")
+    def test_a_rerun_for_the_same_request_sends_and_records_each_invite_once(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """*answers* derives each Invite's id, so a rerun rebuilds them."""
+        from vultron.core.models.activity_ids import derived_activity_id
+
+        _seed_case(
+            bt_scenario,
+            relayed=True,
+            participants={OTHER_A: None, OTHER_B: None},
+        )
+        request = "https://example.org/activities/proposal-under-relay"
+
+        for _ in range(2):
+            bt_scenario.assert_success(
+                self._relay(bt_scenario, [OTHER_A, OTHER_B], answers=request)
+            )
+
+        expected = {
+            derived_activity_id(
+                EMBARGO_INVITE_EVENT_TYPE,
+                MANAGER,
+                CASE_ID,
+                request,
+                EMBARGO_ID,
+                recipient,
+            )
+            for recipient in (OTHER_A, OTHER_B)
+        }
+        assert {a.id_ for a in _queued_invites(bt_scenario)} == expected
+        assert len(_queued_invites(bt_scenario)) == 2
+        assert (
+            _ledger_event_types(bt_scenario).count(EMBARGO_INVITE_EVENT_TYPE)
+            == 2
+        )
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CM-23-014")
