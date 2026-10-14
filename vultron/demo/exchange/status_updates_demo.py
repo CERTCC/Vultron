@@ -19,9 +19,9 @@ Demonstrates status updates and notes workflows via the Vultron API.
 This demo script showcases the following workflows:
 
 1. Notes workflow: vendor creates a note on a case → adds it to the case
-2. Case status workflow: vendor adds a new as_CaseStatus, carried inline, to
+2. Case status workflow: vendor adds a new CaseStatus, carried inline, to
    the case
-3. Participant status workflow: vendor adds a new as_ParticipantStatus,
+3. Participant status workflow: vendor adds a new ParticipantStatus,
    carried inline, to a participant
 
 Each demo starts from an initialized case with a single FINDER
@@ -195,8 +195,8 @@ def demo_status_workflow(
 ) -> None:
     """
     Demonstrate the status updates workflow:
-    1. Add a new as_CaseStatus, carried inline, to the case
-    2. Add a new as_ParticipantStatus, carried inline, to the participant
+    1. Add a new CaseStatus, carried inline, to the case
+    2. Add a new ParticipantStatus, carried inline, to the participant
     3. Verify side effects
 
     Each status travels inline on the ``Add`` that attaches it.  This
@@ -211,7 +211,7 @@ def demo_status_workflow(
 
     # Bound before the step so Step 2 can read it (#2308 ratchet).
     case_status = None
-    with demo_step("Step 1: Vendor adds a new as_CaseStatus to case"):
+    with demo_step("Step 1: Vendor adds a new CaseStatus to case"):
         case_status = as_CaseStatus(
             context=case.id_,
             em=EmDimension(state=EM.NONE),
@@ -236,7 +236,7 @@ def demo_status_workflow(
                     )
 
     with demo_step(
-        "Step 2: Vendor adds a new as_ParticipantStatus to participant"
+        "Step 2: Vendor adds a new ParticipantStatus to participant"
     ):
         participant_status = as_ParticipantStatus(
             context=participant.id_,

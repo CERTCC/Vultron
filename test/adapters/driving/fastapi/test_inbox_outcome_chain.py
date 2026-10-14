@@ -325,17 +325,14 @@ def test_received_update_vulnerability_case_is_refused_unchanged(dl):
 _RETIRED_CASE_ID = "https://example.org/cases/c-chain-create"
 
 
-def _retired_create_activities() -> list[tuple[str, Any]]:
+def _retired_create_activities() -> list[Any]:
     """The four received ``Create(X)`` routes #4598 removed, one each.
 
-    Each built with its own wire factory or class, addressed to the receiver
-    and naming the case the way the removed pattern required.
+    Each addressed to the receiver and naming the case the way the removed
+    pattern required.  ``Create(CaseParticipant)`` is built with the factory
+    the CASE_MANAGER's ledger entry still uses.
     """
-    from vultron.wire.as2.factories import (
-        create_case_status_activity,
-        create_participant_activity,
-        create_status_for_participant_activity,
-    )
+    from vultron.wire.as2.factories import create_participant_activity
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -350,25 +347,24 @@ def _retired_create_activities() -> list[tuple[str, Any]]:
 
     participant_id = f"{_RETIRED_CASE_ID}/participants/sender"
     return [
-        (
-            "case-status",
-            create_case_status_activity(
-                as_CaseStatus(context=_RETIRED_CASE_ID),
+        pytest.param(
+            as_Create(
+                object_=as_CaseStatus(context=_RETIRED_CASE_ID),
                 context=_RETIRED_CASE_ID,
                 actor=_SENDER_ID,
                 to=[_RECEIVER_ID],
             ),
+            id="case-status",
         ),
-        (
-            "participant-status",
-            create_status_for_participant_activity(
-                as_ParticipantStatus(context=participant_id),
+        pytest.param(
+            as_Create(
+                object_=as_ParticipantStatus(context=participant_id),
                 actor=_SENDER_ID,
                 to=[_RECEIVER_ID],
             ),
+            id="participant-status",
         ),
-        (
-            "embargo-event",
+        pytest.param(
             as_Create(
                 object_=as_EmbargoEvent(
                     context=_RETIRED_CASE_ID, end_time=days_from_now_utc(45)
@@ -377,9 +373,9 @@ def _retired_create_activities() -> list[tuple[str, Any]]:
                 actor=_SENDER_ID,
                 to=[_RECEIVER_ID],
             ),
+            id="embargo-event",
         ),
-        (
-            "case-participant",
+        pytest.param(
             create_participant_activity(
                 as_CaseParticipant(
                     id_=participant_id,
@@ -390,22 +386,21 @@ def _retired_create_activities() -> list[tuple[str, Any]]:
                 actor=_SENDER_ID,
                 to=[_RECEIVER_ID],
             ),
+            id="case-participant",
         ),
     ]
 
 
 @pytest.mark.spec("CLP-07-013", "CLP-02-013")
-@pytest.mark.parametrize(
-    "activity",
-    [activity for _, activity in _retired_create_activities()],
-    ids=[name for name, _ in _retired_create_activities()],
-)
-def test_received_create_of_a_case_record_is_refused_unstored(dl, activity):
+@pytest.mark.parametrize("activity", _retired_create_activities())
+def test_received_create_of_a_case_record_is_refused_case_unchanged(
+    dl, activity
+):
     """#4598: this implementation does not support these received ``Create``s.
 
     Each once stored its object with no ledger entry, which CLP-07-013 rules
-    out.  The wire classes and factories stay (a CASE_MANAGER-authored entry
-    may carry ``Create(CaseParticipant)``), but no pattern routes one that
+    out.  The wire classes stay (a CASE_MANAGER-authored entry carries
+    ``Create(CaseParticipant)``), but no pattern routes one that
     arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and
     the inbox refuses it, leaving the case, the ledger and the outbox as they
     were.  (Ingress still pre-stores the inline object before routing, for

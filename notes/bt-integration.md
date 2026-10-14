@@ -317,7 +317,7 @@ inner factory per arm that commits; the inner intake finds the archive and
 writes nothing. Intake archives nothing when the event carries no activity, so
 a semantic-registry entry must set `include_activity=True`. A handler that
 turns a delivery away before it can build its tree uses `refuse_after_intake`
-(`use_cases/received/_store_only.py`).
+(`use_cases/received/_intake_only.py`).
 
 **The factory commits only when given a `case_id`**, and CLP-10-013 requires a
 commit exactly when the received `(type, object)` pair is a canonical payload
@@ -327,8 +327,9 @@ refuse its own commit. The `Announce(VulnerabilityCase)` tree passes
 receive it, so the gate could only skip. `Update(VulnerabilityCase)` has no
 received tree; an inbound one resolves to `UNKNOWN` and is refused (#4443).
 Nor do `Create(CaseStatus)`, `Create(ParticipantStatus)`, `Create(Event)` or a
-direct `Create(CaseParticipant)`: each stored a case record with no entry, so
-this implementation does not support them (#4598, open question #4635).
+direct `Create(CaseParticipant)`: storing the record they carry would change
+the case file with no entry (CLP-07-013), so this implementation does not
+support them (#4598; open question #4635).
 Every other tree whose activity is canonical passes `case_id`, with its
 refusing nodes in `precondition_guards`, so a refused activity leaves no entry.
 

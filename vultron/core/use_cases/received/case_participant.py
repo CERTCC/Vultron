@@ -53,7 +53,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._store_only import (
+from vultron.core.use_cases.received._intake_only import (
     refuse_after_intake,
 )
 from vultron.errors import VultronBTInternalError

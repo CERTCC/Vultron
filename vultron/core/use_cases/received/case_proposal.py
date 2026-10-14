@@ -89,10 +89,10 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_succeeded,
     verdict_from_bt,
 )
+from vultron.core.use_cases.received._intake_only import refuse_after_intake
 from vultron.core.use_cases.received._sender_embargo_proposal import (
     sender_embargo_proposal_inputs,
 )
-from vultron.core.use_cases.received._store_only import refuse_after_intake
 
 logger = logging.getLogger(__name__)
 

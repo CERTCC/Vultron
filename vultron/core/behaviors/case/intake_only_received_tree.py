@@ -38,7 +38,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 
 
-def create_store_only_received_tree(
+def create_intake_only_received_tree(
     name: str,
 ) -> py_trees.composites.Sequence:
     """Build the intake-only tree.

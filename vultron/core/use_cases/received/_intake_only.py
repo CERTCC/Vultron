@@ -13,18 +13,18 @@
 
 """Run the shared intake-only tree for a received handler (#3871, CLP-10-005).
 
-A handler whose whole job is to archive what arrived calls :func:`run_store_only`
+A handler whose whole job is to archive what arrived calls :func:`run_intake_only`
 from ``execute()`` and maps the run through
 :func:`~vultron.core.use_cases.received._bt_verdict.intake_verdict`.  The tree is
-:func:`~vultron.core.behaviors.case.store_only_received_tree.create_store_only_received_tree`;
+:func:`~vultron.core.behaviors.case.intake_only_received_tree.create_intake_only_received_tree`;
 its docstring records why it commits nothing.
 """
 
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.case.store_only_received_tree import (
-    create_store_only_received_tree,
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_intake_only_received_tree,
 )
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import (
@@ -40,7 +40,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 
 
-def run_store_only(
+def run_intake_only(
     dl: CasePersistence,
     request: VultronEvent,
     *,
@@ -49,7 +49,7 @@ def run_store_only(
     wire_render_port: WireRenderPort | None,
 ) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
     """Build the intake-only tree and run it once as the receiving actor."""
-    tree = create_store_only_received_tree(name)
+    tree = create_intake_only_received_tree(name)
     result = BTBridge(
         datalayer=dl,
         wire_render_port=wire_render_port,
@@ -82,7 +82,7 @@ def refuse_after_intake(
         VultronBTInternalError: Intake itself failed (a local fault, not the
             sender's).
     """
-    tree, result = run_store_only(
+    tree, result = run_intake_only(
         dl,
         request,
         name=name,

@@ -9,8 +9,8 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.store_only_received_tree import (
-    create_store_only_received_tree,
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_intake_only_received_tree,
 )
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -23,7 +23,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 _RECEIVER = "https://example.org/actors/receiver"
 _SENDER = "https://example.org/actors/sender"
-_CASE_ID = "https://example.org/cases/store-only"
+_CASE_ID = "https://example.org/cases/intake-only"
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def dl() -> SqliteDataLayer:
 def _create_note():
     note = as_Note(
         id_=f"{_CASE_ID}/notes/n1",
-        name="store-only",
+        name="intake-only",
         content="a note",
         context=_CASE_ID,
     )
@@ -53,7 +53,7 @@ def test_archives_the_activity_and_stores_nothing_else(dl):
     """
     note, activity, event = _create_note()
 
-    tree = create_store_only_received_tree("StoreOnlyTest")
+    tree = create_intake_only_received_tree("IntakeOnlyTest")
     result = BTBridge(datalayer=dl).execute_with_setup(
         tree=tree, actor_id=_RECEIVER, activity=event
     )

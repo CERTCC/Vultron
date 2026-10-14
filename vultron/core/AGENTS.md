@@ -42,7 +42,7 @@ class CreateReportReceivedUseCase:
 - Report a `HandlerDisposition`, never `InboxOutcome` (HP-01-004); write with
   `dl.save()`/`dl.create()`, never hand-built records (HP-08-001); both ratcheted
   in `test/architecture/`
-- Intake-only received handlers call `run_store_only` (`received/_store_only.py`);
+- Intake-only received handlers call `run_intake_only` (`received/_intake_only.py`);
   verdict via `intake_verdict`; pre-tree refusal: `refuse_after_intake`
 - Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
 - Dispatcher raises `VultronApiHandlerNotFoundError` for unknown semantic types;

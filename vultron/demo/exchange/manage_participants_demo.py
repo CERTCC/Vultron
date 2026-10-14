@@ -224,7 +224,7 @@ def demo_manage_participants_accept(
                 )
 
     with demo_step(
-        "Step 4: Coordinator adds a as_ParticipantStatus to their participant"
+        "Step 4: Coordinator adds an as_ParticipantStatus to their participant"
     ):
         # The Add carries the new status inline: this implementation does not
         # support a separate Create(ParticipantStatus) (#4598).

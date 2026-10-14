@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 _RECEIVER = "https://example.org/actors/receiver"
 _SENDER = "https://example.org/actors/sender"
-_CASE_ID = "https://example.org/cases/store-only"
+_CASE_ID = "https://example.org/cases/intake-only"
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def dl() -> SqliteDataLayer:
 def _create_note():
     note = as_Note(
         id_=f"{_CASE_ID}/notes/n1",
-        name="store-only",
+        name="intake-only",
         content="a note",
         context=_CASE_ID,
     )
