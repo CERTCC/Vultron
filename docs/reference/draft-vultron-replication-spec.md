@@ -516,7 +516,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-08-004 | §6.5 | Monotonic visibility: participants MUST NOT regress position |
 | SYNC-08-005 | §5.1 | Reject-on-divergence MUST trigger resynchronisation |
 | SYNC-09-001 | §7.1 | Entry MUST be durably written before being treated as committed |
-| SYNC-09-002 | §7.2 | External messages MUST only be emitted after ledger commit |
+| SYNC-09-002 | §7.2 | A sent message MUST be committed only after its outbox write |
 | SYNC-09-003 | §7.4 | BT execution MUST be gated on replication leadership |
 | SYNC-10-001 | §6.6 | After restart, actor MUST re-establish freshness before new actions |
 | SYNC-10-002 | §6.6 | While catching up, actor MUST block protocol-significant actions |
