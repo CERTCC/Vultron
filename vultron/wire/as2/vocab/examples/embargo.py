@@ -21,12 +21,14 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Create,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -34,6 +36,8 @@ from vultron.wire.as2.vocab.examples._base import (
     EXAMPLE_TIMESTAMP,
     _example_stamp,
     case,
+    case_actor,
+    finder,
     vendor,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -179,6 +183,21 @@ def reject_embargo_proposal() -> as_Reject:
         context=_case.id_,
     )
     return activity
+
+
+def withdraw_from_embargo() -> as_Leave:
+    """A signatory withdraws from the embargo in force (MSM-07-010).
+
+    The finder, a signatory with no ``Invite(EmbargoEvent)`` of its own,
+    sends the ``Leave`` to the CASE_MANAGER (EP-09-013, PCR-08).
+    """
+    _case = case()
+    return withdraw_from_embargo_activity(
+        embargo_event(),
+        actor=finder().id_,
+        context=_case.id_,
+        to=case_actor().id_,
+    )
 
 
 def announce_embargo() -> as_Announce:

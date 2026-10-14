@@ -38,12 +38,14 @@ from vultron.wire.as2.factories import (
     ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Ignore,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -422,6 +424,30 @@ def test_owner_decision_target_is_the_case(factory, verb, sample_embargo):
 def test_owner_decision_invalid_raises(factory, verb):
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         factory(embargo="not-an-embargo")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# withdraw_from_embargo_activity — a signatory's withdrawal from the embargo
+# in force, Leave(EmbargoEvent)[context=Case] (MSM-07-010)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("MSM-07-010")
+def test_withdraw_from_embargo_is_a_leave_of_the_embargo(sample_embargo):
+    result = withdraw_from_embargo_activity(
+        embargo=sample_embargo, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Leave)
+    assert result.object_ == sample_embargo
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_withdraw_from_embargo_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        withdraw_from_embargo_activity(embargo="not-an-embargo")  # type: ignore[arg-type]
     assert exc_info.value.__cause__ is not None
 
 

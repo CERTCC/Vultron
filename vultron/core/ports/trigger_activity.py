@@ -921,6 +921,21 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def withdraw_from_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Leave(EmbargoEvent)[context=case]`` activity.
+
+        A signatory's withdrawal from the embargo in force (MSM-07-010,
+        ADR-0122), distinct from :meth:`reject_embargo`, which answers an
+        Invite and never withdraws.  Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
         """Whether *actor* already rejected the Invite *proposal_id*.
 

@@ -114,6 +114,10 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         {"type": "Reject", "actor": REPLICA, "object": {"object": EMBARGO}},
     ),
+    "a signatory's withdrawal from the embargo in force": (
+        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
+        {"type": "Leave", "actor": REPLICA, "object": EMBARGO},
+    ),
     "the manager's abandonment of an Invite": (
         EMBARGO_ABANDONMENT_EVENT_TYPE,
         {"type": "Reject", "actor": MANAGER, "object": {"object": EMBARGO}},

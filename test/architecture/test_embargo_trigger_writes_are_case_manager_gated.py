@@ -86,6 +86,14 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
             activity_builder=_builder,
         )
     ),
+    "withdraw_embargo_trigger_bt": lambda: (
+        trigger_tree.withdraw_embargo_trigger_bt(
+            case_id=_CASE,
+            embargo_id="urn:uuid:e",
+            result_out={},
+            activity_builder=_builder,
+        )
+    ),
     "activate_embargo_trigger_bt": lambda: (
         trigger_tree.activate_embargo_trigger_bt(
             case_id=_CASE,

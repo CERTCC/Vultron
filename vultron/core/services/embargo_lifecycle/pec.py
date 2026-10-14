@@ -76,6 +76,93 @@ def owner_declined_embargo(
     )
 
 
+def _consent_row(
+    persistence: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str,
+    embargo_id: str,
+) -> EmbargoConsentState | None:
+    """*actor_id*'s consent row for *embargo_id*, or ``None`` with no record."""
+    participant_id = case.actor_participant_index.get(actor_id)
+    participant = persistence.read(participant_id) if participant_id else None
+    if not isinstance(participant, CaseParticipant):
+        return None
+    return participant.consent_for(embargo_id)
+
+
+def embargo_withdrawal_refusal(
+    persistence: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str,
+    embargo_id: str | None,
+) -> str | None:
+    """Why *actor_id* cannot withdraw from *embargo_id*, or ``None`` if it can.
+
+    Withdrawal is ``Leave(EmbargoEvent)`` (MSM-07-010, EP-09-013): only a
+    participant whose row for the embargo *in force* is ``AGREED`` leaves
+    it, and the case owner never does — it ends an embargo by terminating it
+    (CM-02-005).  *embargo_id* ``None`` asks about the embargo in force, the
+    trigger's question; the received side passes the embargo the Leave
+    names.  Shared by the received-side guard, the trigger and the
+    lifecycle's own check, so the three cannot drift.
+    """
+    case_id = _as_id(case)
+    active_id = case.active_embargo_id
+    if active_id is None:
+        return (
+            f"No embargo is in force on case '{case_id}', so there is"
+            " nothing to withdraw from (MSM-07-010)"
+        )
+    if embargo_id is not None and embargo_id != active_id:
+        return (
+            f"Embargo '{embargo_id}' is not the embargo in force on case"
+            f" '{case_id}': only the active embargo can be withdrawn from"
+            " (MSM-07-010)"
+        )
+    if _as_id(case.attributed_to) == actor_id:
+        return (
+            f"'{actor_id}' is the case owner of '{case_id}': the case owner"
+            " ends an embargo by terminating it, not by withdrawing"
+            " (MSM-07-010, CM-02-005)"
+        )
+    row = _consent_row(persistence, case, actor_id, active_id)
+    if row is None:
+        return f"'{actor_id}' has no participant record on case '{case_id}'"
+    if row != EmbargoConsentState.AGREED:
+        return (
+            f"'{actor_id}' is {row.value} on embargo '{active_id}' of case"
+            f" '{case_id}', not AGREED: only a signatory withdraws"
+            " (MSM-07-010, EP-09-013)"
+        )
+    return None
+
+
+def reject_is_withdrawal_refusal(
+    persistence: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str,
+    embargo_id: str,
+) -> str | None:
+    """Why a Reject of *embargo_id* by *actor_id* is refused, or ``None``.
+
+    A ``Reject(Invite(EmbargoEvent))`` of the embargo *in force* from an
+    ``AGREED`` row would be a withdrawal, and withdrawal is
+    ``Leave(EmbargoEvent)`` (MSM-07-004, MSM-07-010), so it is refused.  A
+    Reject of the embargo in force from any other row, or of a proposal,
+    is an answer and is not refused here.
+    """
+    if embargo_id != case.active_embargo_id:
+        return None
+    row = _consent_row(persistence, case, actor_id, embargo_id)
+    if row != EmbargoConsentState.AGREED:
+        return None
+    return (
+        f"'{actor_id}' is AGREED on the embargo in force '{embargo_id}' of"
+        f" case '{_as_id(case)}': a Reject does not withdraw from it;"
+        " withdrawal is Leave(EmbargoEvent) (MSM-07-004, MSM-07-010)"
+    )
+
+
 def _consent_change(
     participant_id: str,
     embargo_id: str,
@@ -232,25 +319,25 @@ class _PecEffectsMixin(_ActivationArmMixin):
         *,
         withdrawal: bool,
     ) -> list[ParticipantConsentChange]:
-        """Record *actor_id*'s rejection of *embargo_id* (MSM-07-004).
+        """Decline *actor_id*'s row for *embargo_id*, and with *withdrawal* more.
 
         Marks the row for *embargo_id* ``DECLINED`` — a ``TIMED_OUT`` one
-        included, since a late explicit Reject is an answer (ADR-0118).  The
-        same write serves both kinds of Reject: refusing a *proposed* embargo
-        leaves the actor's row for the embargo in force untouched, so a
-        signatory stays a signatory to it (refusing proposed terms is not
-        withdrawing from the embargo in force), while a Reject of the *active*
-        embargo is a withdrawal from it (ADR-0093) and the active row is the
-        one that becomes ``DECLINED``.
+        included, since a late explicit Reject is an answer (ADR-0118).  A
+        Reject (*withdrawal* unset) declines that row only: refusing a
+        *proposed* embargo leaves the actor's row for the embargo in force
+        untouched, so a signatory stays a signatory to it, and a Reject of the
+        embargo in force answers it from a row that never agreed
+        (MSM-07-004).
 
-        With *withdrawal* set, every open proposal the actor had agreed to is
-        declined too: a case has one active embargo, so every open proposal is
-        a revision of it (ADR-0113), and an actor that has left the embargo
-        has left its revisions — otherwise a ``DECLINED`` actor could still
-        hold an ``AGREED`` row for a revision that later activates and be
-        admitted by the content gate (CM-10-004) while having withdrawn.  Only
-        rows it had *agreed* to are declined: a revision it was merely invited
-        to stays answerable.
+        With *withdrawal* set — ``Leave(EmbargoEvent)`` from an ``AGREED``
+        row for the embargo in force (MSM-07-010) — every open proposal the
+        actor had agreed to is declined too: a case has one active embargo,
+        so every open proposal is a revision of it (EP-08-004), and an actor
+        that has left the embargo has left its revisions — otherwise a
+        ``DECLINED`` actor could still hold an ``AGREED`` row for a revision
+        that later activates and be admitted by the content gate (CM-10-004)
+        while having withdrawn.  Only rows it had *agreed* to are declined: a
+        revision it was merely invited to stays answerable.
 
         Idempotent (CM-13-005): an already-``DECLINED`` row changes nothing
         and reports nothing.  A row whose entry is final is frozen, so nothing
@@ -287,11 +374,11 @@ class _PecEffectsMixin(_ActivationArmMixin):
     def _assert_rejectable(case: VulnerabilityCase, embargo_id: str) -> bool:
         """Classify the embargo a Reject names; True when it is the active one.
 
-        A Reject names either the case's active embargo (consent withdrawal)
-        or one of its open proposals (refusal of those terms).  Anything else
-        is a protocol error, not a consent change (ADR-0093).  Call this
-        *before* the owner's decision prunes the proposal, or an open
-        proposal is misread as unknown.
+        A Reject names either the case's active embargo (an answer from a
+        row that has not agreed to it) or one of its open proposals (refusal
+        of those terms).  Anything else is a protocol error, not a consent
+        change (ADR-0093).  Call this *before* the owner's decision prunes
+        the proposal, or an open proposal is misread as unknown.
 
         Raises:
             VultronValidationError: If *embargo_id* is neither the active
@@ -311,24 +398,53 @@ class _PecEffectsMixin(_ActivationArmMixin):
         case: VulnerabilityCase,
         actor_id: str,
         embargo_id: str,
-        *,
-        is_active: bool,
     ) -> list[ParticipantConsentChange]:
         """The whole MSM-07-004 consent effect of *actor_id* rejecting *embargo_id*.
 
-        *is_active* is :meth:`_assert_rejectable`'s classification, taken by
-        the caller before any write: the Reject withdraws from the active
-        embargo or refuses proposed terms.  A ``Reject(Invite(EmbargoEvent))``
-        is always the sender's own consent, the case owner's included
-        (ADR-0122): the owner's decision for the case is a separate
-        ``Reject(EmbargoEvent, target=Case)`` that writes no consent.  With
-        *no* embargo in force a Reject of one proposal declines that
-        proposal's row only, since it is not a withdrawal from anything
-        (CM-18-001).
+        A ``Reject(Invite(EmbargoEvent))`` is always the sender's own consent,
+        the case owner's included (ADR-0122): the owner's decision for the
+        case is a separate ``Reject(EmbargoEvent, target=Case)`` that writes
+        no consent.  It declines the named embargo's row only, whether that
+        embargo is in force or proposed, and with *no* embargo in force a
+        Reject of one proposal declines that proposal's row only (CM-18-001).
+        It never withdraws: a Reject of the embargo in force from an
+        ``AGREED`` row is refused (:func:`reject_is_withdrawal_refusal`);
+        withdrawal is ``Leave(EmbargoEvent)`` (MSM-07-010).
+
+        Raises:
+            VultronValidationError: The Reject would withdraw *actor_id*
+                from the embargo in force.
         """
+        refusal = reject_is_withdrawal_refusal(
+            self._persistence, case, actor_id, embargo_id
+        )
+        if refusal is not None:
+            raise VultronValidationError(refusal)
         return self._record_actor_rejection(
-            case,
-            actor_id,
-            embargo_id,
-            withdrawal=is_active,
+            case, actor_id, embargo_id, withdrawal=False
+        )
+
+    def _withdrawal_consent(
+        self,
+        case: VulnerabilityCase,
+        actor_id: str,
+        embargo_id: str,
+    ) -> list[ParticipantConsentChange]:
+        """The whole MSM-07-010 consent effect of *actor_id* leaving *embargo_id*.
+
+        Declines the actor's ``AGREED`` row for the embargo in force and every
+        open proposal's row it had agreed to; no register entry moves.
+
+        Raises:
+            VultronValidationError: *embargo_id* is not the embargo in force,
+                the actor's row for it is not ``AGREED``, or the actor is the
+                case owner (:func:`embargo_withdrawal_refusal`).
+        """
+        refusal = embargo_withdrawal_refusal(
+            self._persistence, case, actor_id, embargo_id
+        )
+        if refusal is not None:
+            raise VultronValidationError(refusal)
+        return self._record_actor_rejection(
+            case, actor_id, embargo_id, withdrawal=True
         )

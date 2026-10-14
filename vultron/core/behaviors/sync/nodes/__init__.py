@@ -88,6 +88,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
+    IsWithdrawFromEmbargoEventNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
@@ -179,6 +180,7 @@ __all__ = [
     "IsEmbargoInviteRelayEventNode",
     "IsAcceptEmbargoInviteEventNode",
     "IsRejectEmbargoInviteEventNode",
+    "IsWithdrawFromEmbargoEventNode",
     "IsEmbargoAbandonmentEventNode",
     "IsHonourLateAcceptEventNode",
     "IsInviteExpiryEventNode",

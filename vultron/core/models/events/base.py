@@ -62,6 +62,7 @@ class MessageSemantics(StrEnum):
     REJECT_INVITE_TO_EMBARGO_ON_CASE = auto()
     ACTIVATE_EMBARGO_ON_CASE = auto()
     REJECT_EMBARGO_PROPOSAL_ON_CASE = auto()
+    WITHDRAW_FROM_EMBARGO_ON_CASE = auto()
 
     CLOSE_CASE = auto()
 

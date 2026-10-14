@@ -655,6 +655,30 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
+  - id: VAM-05-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `WITHDRAW_FROM_EMBARGO_ON_CASE` MUST be represented as
+      `Leave(Event)[context=VulnerabilityCase]`, whose object is the embargo in force,
+      carried inline, and not an `Invite` (ADR-0122).
+    rationale: >-
+      Withdrawal answers no Invite, so it names the embargo itself; it is told apart from
+      `Leave(VulnerabilityCase)`, which leaves the case, by its object (MSM-07-010).
+    verification: A unit test in `test/test_semantic_activity_patterns.py` confirms that
+      `Leave(EmbargoEvent)[context=VulnerabilityCase]` maps to
+      `WITHDRAW_FROM_EMBARGO_ON_CASE` and `Leave(VulnerabilityCase)` still maps to
+      `CLOSE_CASE`, and inspection of `_instances.py` confirms
+      `WithdrawFromEmbargoOnCasePattern` uses `TAtype.LEAVE`, `AOtype.EVENT`, and
+      `context_=VULNERABILITY_CASE`.
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-07-010
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+    - story_2022_080
 - id: VAM-06
   title: Case Participant Management Messages
   specs:

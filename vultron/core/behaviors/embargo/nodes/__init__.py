@@ -141,6 +141,13 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
 )
+from vultron.core.behaviors.embargo.nodes.withdrawal import (
+    ApplyEmbargoWithdrawalFromLedgerNode,
+    IsWithdrawableEmbargoNode,
+    RecordParticipantWithdrawalNode,
+    RejectIsNotWithdrawalNode,
+    WithdrawEmbargoLifecycleNode,
+)
 
 __all__ = [
     # Invite answer (EP-09-003)
@@ -243,4 +250,10 @@ __all__ = [
     "SetEmbargoActiveNode",
     "TeardownAskPendingNode",
     "ask_case_manager_to_terminate_once",
+    # Withdrawal from the embargo in force (MSM-07-010)
+    "ApplyEmbargoWithdrawalFromLedgerNode",
+    "IsWithdrawableEmbargoNode",
+    "RecordParticipantWithdrawalNode",
+    "RejectIsNotWithdrawalNode",
+    "WithdrawEmbargoLifecycleNode",
 ]

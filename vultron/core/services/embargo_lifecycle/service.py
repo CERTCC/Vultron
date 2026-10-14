@@ -64,6 +64,7 @@ class EmbargoLifecycle(
         - :meth:`initialize_creation_embargo` (STRICT only; one write, EP-04-002)
         - :meth:`record_participant_consent` (no EM transition; no mode param)
         - :meth:`record_embargo_rejection` (no EM transition; no mode param)
+        - :meth:`record_embargo_withdrawal` (no EM transition; no mode param)
         - :meth:`record_embargo_invite` (no EM transition; no mode param)
         - :meth:`detect_and_apply_expiry` (no EM transition; no mode param)
         - :meth:`assert_embargo_eligible` (guard only; no mode param)

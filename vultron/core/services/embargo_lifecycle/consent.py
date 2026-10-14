@@ -14,7 +14,8 @@
 """Operations that leave the EM state alone.
 
 Per-participant consent bookkeeping (``record_participant_consent``,
-``record_embargo_rejection``, ``record_embargo_invite``), lazy RSVP-deadline enforcement
+``record_embargo_rejection``, ``record_embargo_withdrawal``,
+``record_embargo_invite``), lazy RSVP-deadline enforcement
 (``assess_invite_expiry``, ``record_invite_expiry``,
 ``detect_and_apply_expiry``, EMB-17) and the public eligibility check
 callers use before creating anything (``assert_embargo_eligible``,
@@ -178,13 +179,14 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         The effect of a ``Reject(Invite(EmbargoEvent))``, which is always the
         sender's own consent, the case owner's included (ADR-0122).  Applies
-        the MSM-07-004 rule by which embargo the Reject names (ADR-0093): the
-        case's *active* embargo is consent withdrawal — the actor's row for
-        it becomes ``DECLINED``, a signatory's included; a *proposed* embargo
-        is a refusal of those terms — only that embargo's row becomes
-        ``DECLINED``, and the actor's row for the embargo in force is
-        untouched.  The owner's decision on a proposal is
-        :meth:`reject_embargo_proposal`.
+        the MSM-07-004 rule: the actor's row for the named embargo becomes
+        ``DECLINED`` and nothing else moves.  Refusing a *proposed* embargo
+        leaves the actor's row for the embargo in force untouched; a Reject
+        of the embargo *in force* answers it from a row that has not agreed
+        to it.  A Reject of the embargo in force from an ``AGREED`` row is not
+        a withdrawal and is refused: withdrawal is
+        :meth:`record_embargo_withdrawal` (MSM-07-010).  The owner's decision
+        on a proposal is :meth:`reject_embargo_proposal`.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` that owns the participant.
@@ -194,24 +196,73 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         Returns:
             :class:`EmbargoLifecycleResult` with ``em_before == em_after`` and
             ``case_changed == False``; ``participant_changes`` carries the
-            actor's row changes, if any.
+            actor's row change, if any.
 
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronValidationError: If *embargo_id* is neither the active
-                embargo nor an open proposal of the case.
+                embargo nor an open proposal of the case, or the Reject names
+                the embargo in force and the actor's row for it is
+                ``AGREED``.
         """
         case = self._read_case(case_id)
         em_state = case.em_state
-        is_active = self._assert_rejectable(case, embargo_id)
+        self._assert_rejectable(case, embargo_id)
         participant_changes = self._rejection_consent(
-            case, actor_id, embargo_id, is_active=is_active
+            case, actor_id, embargo_id
         )
         logger.info(
             "Recorded rejection of embargo '%s' by actor '%s' on case '%s'"
             " (%d consent row change(s))",
             embargo_id,
             actor_id,
+            case_id,
+            len(participant_changes),
+        )
+        return _unchanged(em_state, participant_changes=participant_changes)
+
+    def record_embargo_withdrawal(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+        embargo_id: str,
+    ) -> EmbargoLifecycleResult:
+        """Record *actor_id*'s withdrawal from the embargo in force, moving no EM.
+
+        The effect of a ``Leave(EmbargoEvent)`` (MSM-07-010, ADR-0122): the
+        actor's ``AGREED`` row for the active embargo becomes ``DECLINED``,
+        and so does every open proposal's row it had agreed to, since each
+        open proposal is a revision of the embargo it left (EP-08-004).  No
+        register entry moves, so the embargo stays in force for everyone
+        else; the actor is no longer bound by it (VP-13-017).
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` that owns the participant.
+            actor_id: ID of the withdrawing actor.
+            embargo_id: ID of the ``EmbargoEvent`` the Leave names.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` with ``em_before == em_after`` and
+            ``case_changed == False``; ``participant_changes`` carries every
+            row the withdrawal declined.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronValidationError: If *embargo_id* is not the embargo in
+                force, the actor has no participant record or its row for the
+                embargo is not ``AGREED``, or the actor is the case owner.
+        """
+        case = self._read_case(case_id)
+        em_state = case.em_state
+        participant_changes = self._withdrawal_consent(
+            case, actor_id, embargo_id
+        )
+        logger.info(
+            "Recorded withdrawal of actor '%s' from embargo '%s' on case '%s'"
+            " (%d consent row change(s), MSM-07-010)",
+            actor_id,
+            embargo_id,
             case_id,
             len(participant_changes),
         )

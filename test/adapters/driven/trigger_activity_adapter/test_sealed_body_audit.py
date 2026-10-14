@@ -391,6 +391,12 @@ RECIPES: dict[str, Recipe] = {
         actor=_ACTOR,
         to=[_PEER],
     ),
+    "withdraw_from_embargo": lambda w: w.adapter.withdraw_from_embargo(
+        embargo_id=str(w.embargo.id_),
+        case_id=w.case_id,
+        actor=_ACTOR,
+        to=[_PEER],
+    ),
     # actors
     "invite_actor_to_case": lambda w: w.adapter.invite_actor_to_case(
         invitee_id=_PEER,

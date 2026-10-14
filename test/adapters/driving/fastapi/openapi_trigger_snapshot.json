@@ -1077,6 +1077,20 @@
         ],
         "title": "WithdrawCaseOwnershipTransferRequest",
         "type": "object"
+      },
+      "WithdrawEmbargoRequest": {
+        "description": "Request body for the withdraw-embargo trigger endpoint (EP-09-013).\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nNames no Invite: the embargo withdrawn from is the case's embargo in\nforce, which the actor must have agreed to (MSM-07-010).",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id"
+        ],
+        "title": "WithdrawEmbargoRequest",
+        "type": "object"
       }
     }
   },
@@ -3252,6 +3266,59 @@
           }
         },
         "summary": "Withdraw an open case ownership transfer offer.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/withdraw-embargo": {
+      "post": {
+        "description": "Triggers the withdraw-embargo behavior for the given actor. A participant whose consent to the active embargo is AGREED leaves it by sending Leave(EmbargoEvent) to the CASE_MANAGER; no Invite is named. The participant's consent to the embargo in force, and to any open revision it agreed to, becomes DECLINED; the embargo stays in force for everyone else and the case's EM state does not move (EP-09-013, MSM-07-010). Returns HTTP 409 when no embargo is in force, when the actor's consent to it is not AGREED, or when the actor is the case owner, which ends an embargo with terminate-embargo instead. Returns the resulting activity in the response body (TRIG-04-001).",
+        "operationId": "actors_trigger_withdraw_embargo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawEmbargoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger withdrawal from the embargo in force.",
         "tags": [
           "Triggers"
         ]

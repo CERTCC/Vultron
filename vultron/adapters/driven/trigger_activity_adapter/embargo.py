@@ -34,6 +34,7 @@ from vultron.wire.as2.factories import (
     ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -242,6 +243,36 @@ class _EmbargoMixin:
         except VultronAlreadyExistsError:
             logger.warning(
                 "reject_embargo_proposal: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def withdraw_from_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Leave(as_EmbargoEvent)[context=case]``.
+
+        A signatory's withdrawal from the embargo in force (MSM-07-010).  The
+        case is the activity's ``context``, which is also where the snapshot
+        the CASE_MANAGER commits carries the case URI (VM-08-003).
+        """
+        embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
+        activity = withdraw_from_embargo_activity(
+            embargo=embargo,
+            context=case_id,
+            actor=actor,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "withdraw_from_embargo: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )

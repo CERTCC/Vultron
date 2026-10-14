@@ -23,6 +23,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
     as_Ignore,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -133,6 +134,24 @@ class _RejectEmbargoProposalActivity(as_Reject):
         default=..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+
+
+class _WithdrawFromEmbargoActivity(as_Leave):
+    """A signatory withdraws from the embargo in force (MSM-07-010).
+
+    ``Leave(EmbargoEvent)[context=VulnerabilityCase]``: the sender ends its
+    own consent to the case's active embargo, which stays in force for
+    everyone else (ADR-0122).  It answers no Invite, so it covers every
+    signatory, including one made by seeding or by joining.  The case owner
+    does not send it: it ends an embargo by terminating it.
+    object_: the as_EmbargoEvent in force (inline, AKM-03-001)
+    context: the VulnerabilityCase the embargo is on
+    """
+
+    object_: as_EmbargoEvent = Field(
+        default=..., validation_alias="object", serialization_alias="object"
+    )
+    context: as_VulnerabilityCaseRef = None
 
 
 class _AnnounceEmbargoActivity(as_Announce):

@@ -584,6 +584,19 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: reject_embargo_proposal
+  - anchor: embargo-withdrawal
+    heading: Withdraw from embargo
+    when: a Participant bound by the active embargo stops complying with it
+    send: Leave(Event)[context=VulnerabilityCase]
+    sent_by: an active participant
+    semantics: withdraw_from_embargo_on_case
+    status: none
+    description: Ends the sender's own consent to the embargo in force, and to any revision
+      it had agreed to. The embargo stays in force for every other participant.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: withdraw_from_embargo
 - page: cs
   title: Case status
   mechanics: false

@@ -40,6 +40,9 @@ from vultron.core.predicates.addressing import (
     distinct_recipients,
     normalise_actor_id,
 )
+from vultron.core.services.embargo_lifecycle import (
+    embargo_withdrawal_refusal,
+)
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
 )
@@ -50,7 +53,11 @@ from vultron.core.use_cases._helpers import (
     read_received_activity,
     resolve_case_participant_id_for_actor,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +269,45 @@ def _resolve_invite_to_embargo_in_force(
         state.value,
     )
     return EmbargoAnswerTarget(invite_id, embargo_id)
+
+
+def resolve_embargo_to_withdraw(
+    case: VulnerabilityCase,
+    actor_id: str,
+    dl: CasePersistence,
+) -> str:
+    """Return the embargo the withdraw-embargo trigger leaves (EP-09-013).
+
+    Withdrawing is not answering, so no Invite is resolved: the embargo is
+    the case's active embargo, which every participant holds whether it
+    became a signatory by an Invite, by seeding (CM-14-005) or by joining
+    (CM-11-001).  The refusals are those the CASE_MANAGER applies to the
+    ``Leave(EmbargoEvent)`` it receives (MSM-07-010), checked by the same
+    predicate, so the trigger never sends a Leave the manager will refuse.
+    The case is read from the actor's own replica.
+
+    Raises:
+        VultronInvalidStateTransitionError: No embargo is in force, the
+            actor's row for it is not ``AGREED``, the actor is the case owner,
+            or the actor has no participant record on the case.
+    """
+    refusal = embargo_withdrawal_refusal(dl, case, actor_id, None)
+    if refusal is not None:
+        raise VultronInvalidStateTransitionError(refusal)
+    embargo_id = case.active_embargo_id
+    if embargo_id is None:  # the refusal covers it; narrows the type
+        raise VultronInvalidStateTransitionError(
+            f"No embargo is in force on case '{case.id_}'"
+        )
+    _coerce_embargo_event(dl.read(embargo_id), embargo_id)
+    logger.debug(
+        "Actor '%s' withdraws from the embargo in force '%s' on case '%s'"
+        " (EP-09-013)",
+        actor_id,
+        embargo_id,
+        case.id_,
+    )
+    return embargo_id
 
 
 def _resolve_embargo_id_from_proposal_id(

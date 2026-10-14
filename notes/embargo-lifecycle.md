@@ -285,10 +285,11 @@ rest as revisions (`docs/topics/process_models/em/defaults.md`).
   (VP-04-002), each is a revision of it, and the register refuses `TERMINATED`
   beside `PROPOSED`.
 - **A Reject names the active embargo or an open proposal — nothing else.**
-  `record_embargo_rejection` treats the active one as consent withdrawal and an
-  open one as refusal of its terms; anything else raises
-  `VultronValidationError` (ADR-0093). Test seeding that hands the service an
-  unknown embargo is a test bug.
+  `record_embargo_rejection` declines the named row; anything else raises
+  `VultronValidationError` (ADR-0093). A Reject of the active embargo from an
+  `AGREED` row raises too: withdrawal is `record_embargo_withdrawal`, the
+  effect of `Leave(EmbargoEvent)` (MSM-07-010). Test seeding that hands the
+  service an unknown embargo is a test bug.
 
 There is no multi-candidate poll (ADR-0100): offer alternatives as several
 `Invite`s. Re-proposing the remainder as revisions is deliberately manual
