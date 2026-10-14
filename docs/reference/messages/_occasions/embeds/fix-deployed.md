@@ -7,7 +7,7 @@
     - **When…** a Deployer has deployed the fix
     - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
     - **Sent by:** an active participant (usually: deployer)
-    - **Distinguished by:** `d_state` = `D`
+    - **Distinguished by:** `dState` = `D`
     - **Reference:** [Fix Deployed (CD)](../../cs.md#fix-deployed)
 
     ??? example "Example activity"

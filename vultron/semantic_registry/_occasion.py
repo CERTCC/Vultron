@@ -33,8 +33,13 @@ from enum import Enum, StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from pydantic.fields import FieldInfo
 
+from vultron.core.models.dimensions import (
+    DIMENSION_STATE_FIELD,
+    dimension_state,
+    is_dimension_model,
+)
+from vultron.core.models.wire_keys import wire_key
 from vultron.enums.roles import CVDRole
 from vultron.primitives import NonEmptyString
 
@@ -200,29 +205,24 @@ def _field_annotation(object_type: type, field_name: str) -> object:
     model_fields = getattr(object_type, "model_fields", {})
     if field_name in model_fields:
         annotation = model_fields[field_name].annotation
-        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-            state = annotation.model_fields.get("state")
-            if state is not None:
-                return state.annotation
+        if is_dimension_model(annotation):
+            return annotation.model_fields[DIMENSION_STATE_FIELD].annotation
         return annotation
     raise ValueError(
         f"{object_type.__name__} has no typed field {field_name!r}"
     )
 
 
-def wire_spelling(object_type: type, field_name: str) -> str:
+def wire_spelling(object_type: type[BaseModel], field_name: str) -> str:
     """Return how *field_name* on *object_type* is spelled on the wire.
 
-    A declared Pydantic field with a serialization alias travels under that
-    alias (``CaseStatus.pxa`` as ``pxaState``); anything else under its name.
+    A declared field travels under its own AS2 spelling (``CaseStatus.pxa``
+    as ``pxaState``); a read property under its name camel-cased
+    (``ParticipantStatus.vf_state`` as ``vfState``), the same rule
+    :func:`~vultron.core.models.wire_keys.wire_key` applies.
     """
-    model_fields: dict[str, FieldInfo] = getattr(
-        object_type, "model_fields", {}
-    )
-    info = model_fields.get(field_name)
-    if info is not None and info.serialization_alias is not None:
-        return info.serialization_alias
-    return field_name
+    declared = field_name in object_type.model_fields
+    return wire_key(field_name, object_type if declared else None)
 
 
 _FROZEN = ConfigDict(frozen=True, strict=True, arbitrary_types_allowed=True)
@@ -270,8 +270,8 @@ class FieldValue(BaseModel):
         travels as (ADR-0099 detail 5), so it compares to :attr:`value`.
         """
         held = getattr(carrier, self.field)
-        if isinstance(held, BaseModel) and "state" in type(held).model_fields:
-            return dict(held)["state"]
+        if is_dimension_model(type(held)):
+            return dimension_state(carrier, self.field)
         return held
 
 

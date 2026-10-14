@@ -379,3 +379,34 @@ class DDimension(_ScalarDimension):
 
     def is_fix_deployed(self) -> bool:
         return self.state in D_FIX_DEPLOYED
+
+
+#: The field every status dimension object holds its state in.
+DIMENSION_STATE_FIELD = "state"
+
+
+def is_dimension_model(annotation: object) -> bool:
+    """Return whether *annotation* is a status dimension model class.
+
+    A dimension is a Pydantic model with a ``state`` field; it travels as
+    its bare state value (ADR-0099 detail 5).
+    """
+    return (
+        isinstance(annotation, type)
+        and issubclass(annotation, BaseModel)
+        and DIMENSION_STATE_FIELD in annotation.model_fields
+    )
+
+
+def dimension_state(status: object, dimension: str) -> object | None:
+    """Return the state of *status*'s *dimension* object, or ``None``.
+
+    A tolerant read for untyped or partially-known objects (an embedded
+    status that may be a bare reference, or a mock in a demo poll): an
+    object that carries no such dimension, or a ``None`` dimension, has no
+    state to report, which is a legitimate answer rather than an error.
+    Typed code reads ``status.pxa.state`` directly.
+    """
+    return getattr(
+        getattr(status, dimension, None), DIMENSION_STATE_FIELD, None
+    )

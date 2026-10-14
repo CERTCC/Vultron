@@ -454,6 +454,19 @@ def test_append_case_status_sets_the_pxa_dimension(
     assert case.current_status.em.state is before.em.state
 
 
+def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
+    """The case context and bumped timestamps are assigned last."""
+    case = _case()
+    before = case.current_status
+    stale = now_utc() - timedelta(days=1)
+    case.append_case_status(published=stale, updated=stale, pxa=CS_pxa.Pxa)
+    after = case.current_status
+    assert after is not before
+    assert after.context == case.id_
+    assert after.published is not None and after.published > stale
+    assert after.updated == after.published
+
+
 def test_construction_stamps_the_register_em_onto_the_status() -> None:
     """A received or stored case's status copy never disagrees (ADR-0122)."""
     case = _case(

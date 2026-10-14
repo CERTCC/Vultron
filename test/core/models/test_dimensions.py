@@ -76,12 +76,14 @@ class TestEmDimension:
         with pytest.raises(ValidationError):
             status.em.state = EM.ACTIVE  # type: ignore[misc]
 
-    @pytest.mark.parametrize("flat", ["em_state", "pxa_state"])
-    def test_flat_assignment_raises(self, flat):
-        """The flat spelling ``status.em_state = X`` raises (SDO-03-006)."""
+    @pytest.mark.parametrize(
+        "flat, value", [("em_state", EM.ACTIVE), ("pxa_state", CS_pxa.PXA)]
+    )
+    def test_flat_assignment_raises(self, flat, value):
+        """A flat spelling such as ``status.em_state = X`` raises (SDO-03-006)."""
         status = CaseStatus(context="urn:case:1")
         with pytest.raises(ValidationError, match="no attribute"):
-            setattr(status, flat, EM.ACTIVE)
+            setattr(status, flat, value)
         assert status.em.state == EM.NONE
         assert status.pxa.state == CS_pxa.pxa
 

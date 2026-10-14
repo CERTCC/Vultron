@@ -23,9 +23,7 @@ import time
 from collections.abc import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
-from vultron.core.behaviors.status.nodes.threat_termination import (
-    read_pxa_state,
-)
+from vultron.core.models.dimensions import dimension_state
 from vultron.core.models.pending_case_inbox import (
     VultronPendingCaseInbox,
 )
@@ -2154,7 +2152,7 @@ def wait_for_participant_pxa_state(
             latest = participant.participant_status
             if latest is not None:
                 cs = getattr(latest, "case_status", None)
-                pxa = read_pxa_state(cs)
+                pxa = dimension_state(cs, "pxa")
                 logger.debug(
                     "wait_for_participant_pxa_state poll #%d: "
                     "actor=%r case=%r pxa=%r expected=%r",
@@ -2173,7 +2171,7 @@ def wait_for_participant_pxa_state(
         participant.participant_status if participant is not None else None
     )
     cs = getattr(latest, "case_status", None) if latest is not None else None
-    pxa = read_pxa_state(cs)
+    pxa = dimension_state(cs, "pxa")
     raise AssertionError(
         f"Timed out waiting for actor '{actor_id}' pxa_state to be in "
         f"{expected_states!r}; current={pxa!r}"

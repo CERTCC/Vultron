@@ -235,10 +235,10 @@ def test_field_value_reads_a_dimension_field_as_its_state():
     [
         (CaseStatus, "pxa", "pxaState"),
         (CaseStatus, "em", "emState"),
-        (ParticipantStatus, "vf_state", "vf_state"),
+        (ParticipantStatus, "vf_state", "vfState"),
     ],
 )
-def test_wire_spelling_names_a_field_by_its_serialization_alias(
+def test_wire_spelling_names_a_field_by_its_as2_spelling(
     object_type: type, field_name: str, spelling: str
 ):
     assert wire_spelling(object_type, field_name) == spelling

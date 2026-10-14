@@ -41,6 +41,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import dimension_state
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
@@ -56,8 +57,7 @@ def read_pxa_state(case_status: object) -> object | None:
     Reads ``case_status.pxa.state``; an object with no ``pxa`` attribute,
     or a ``None`` ``pxa``, yields None.
     """
-    pxa = getattr(case_status, "pxa", None)
-    return None if pxa is None else pxa.state
+    return dimension_state(case_status, "pxa")
 
 
 def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:

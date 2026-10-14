@@ -23,9 +23,7 @@ import logging
 import httpx2 as httpx
 
 from vultron.adapters.utils import parse_id
-from vultron.core.behaviors.status.nodes.threat_termination import (
-    read_pxa_state,
-)
+from vultron.core.models.dimensions import dimension_state
 from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import (
     CS_d,
@@ -365,7 +363,7 @@ def _assert_participant_pxa_only(
             f"M6 {label}: participant {actor_id!r} has no statuses"
         )
     cs = getattr(latest, "case_status", None)
-    pxa = read_pxa_state(cs)
+    pxa = dimension_state(cs, "pxa")
     if pxa not in public_aware:
         raise AssertionError(
             f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"
@@ -401,7 +399,7 @@ def _assert_participant_vf_pxa(
             f"M6 {label}: vf_state is not VF (fix ready), found {latest.vf_state!r}"
         )
     cs = getattr(latest, "case_status", None)
-    pxa = read_pxa_state(cs)
+    pxa = dimension_state(cs, "pxa")
     if pxa not in public_aware:
         raise AssertionError(
             f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"

@@ -494,12 +494,17 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         if latest is not None and latest >= now:
             now = latest + timedelta(microseconds=1)
 
-        status = current.model_copy(
-            update={"context": self.id_, "published": now, "updated": now}
-        )
+        status = current.model_copy()
         # ``model_copy`` does not validate its update, so the overrides are
-        # assigned one by one under ``validate_assignment`` instead.
-        for name, value in updates.items():
+        # assigned one by one under ``validate_assignment`` instead, and the
+        # case context and bumped timestamps are assigned last so that they
+        # always win.
+        for name, value in {
+            **updates,
+            "context": self.id_,
+            "published": now,
+            "updated": now,
+        }.items():
             setattr(status, name, value)
         self.add_case_status(status)
 
