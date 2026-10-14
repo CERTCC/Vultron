@@ -397,3 +397,41 @@ class TestEpicClaim:
             f"issue comment {EPIC}" in c and "3 merged, 1 parked" in c
             for c in calls
         )
+
+
+def _skill_steps() -> dict[str, str]:
+    """``work-epic-tasks`` SKILL.md split into its ``### N.`` workflow steps."""
+    text = (REPO_ROOT / ".agents/skills/work-epic-tasks/SKILL.md").read_text()
+    steps: dict[str, str] = {}
+    for chunk in text.split("\n### ")[1:]:
+        number, _, body = chunk.partition(".")
+        steps[number.strip()] = body
+    return steps
+
+
+class TestWorkEpicTasksSkill:
+    """The epic run calls the claim scripts at the step its spec names."""
+
+    @pytest.mark.spec("PAD-19-001")
+    def test_the_epic_is_claimed_at_approval_before_execute(self):
+        steps = _skill_steps()
+        assert "claim-epic.sh" in steps["3"]
+        assert "before any build starts" in steps["3"]
+        assert "claim-epic.sh" not in steps["4"]
+
+    @pytest.mark.spec("PAD-19-003")
+    def test_every_build_names_the_epic_run(self):
+        assert "build <N> --epic-run <EPIC>" in _skill_steps()["4"]
+
+    @pytest.mark.spec("PAD-19-004")
+    def test_the_epic_is_released_first_on_every_stop(self):
+        report = _skill_steps()["6"]
+        assert "release-epic.sh" in report
+        assert "**every** stop" in report
+        assert report.index("release-epic.sh") < report.index("List completed")
+
+    @pytest.mark.spec("PAD-19-006")
+    def test_a_planned_bug_taken_elsewhere_is_dropped_and_reported(self):
+        steps = _skill_steps()
+        assert "taken elsewhere" in steps["4"]
+        assert "taken elsewhere" in steps["6"]

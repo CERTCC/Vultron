@@ -1411,6 +1411,8 @@ groups:
           `test/metadata/test_claim_scripts.py::TestEpicClaim`: `claim-epic.sh`
           assigns and comments without setting `Status` or creating a branch,
           and refuses an assigned, closed, or non-Epic issue.
+          `TestWorkEpicTasksSkill` pins that `work-epic-tasks` calls it at step 3
+          (approval), before step 4 starts any build.
       - id: PAD-19-002
         priority: MUST
         kind: process
@@ -1444,7 +1446,8 @@ groups:
         verification: >-
           `test/metadata/test_claim_scripts.py`: `claim-issue.sh` exits 3 for a
           held Task, and claims it when `--epic-run` names its Epic but not
-          another one.
+          another one; `TestWorkEpicTasksSkill` pins that `work-epic-tasks`
+          step 4 starts every build as `build <N> --epic-run <EPIC>`.
         relationships:
         - rel_type: refines
           spec_id: PAD-19-002
@@ -1462,6 +1465,8 @@ groups:
           `test/metadata/test_claim_scripts.py::TestEpicClaim`:
           `release-epic.sh` removes the assignee and posts the summary, and
           still posts it when the Epic was already unassigned.
+          `TestWorkEpicTasksSkill` pins that `work-epic-tasks` step 6 runs it
+          first, on every stop.
       - id: PAD-19-005
         priority: MUST
         kind: process
@@ -1492,5 +1497,6 @@ groups:
           Holding Bugs would stop other agents fixing them for the whole run.
           Dropping one that was taken is cheaper than coordinating over it.
         verification: >-
-          Inspection: `work-epic-tasks` step 4 checks each Bug before spawning
-          `bugfix`, and its report has a "taken elsewhere" section.
+          `test/metadata/test_claim_scripts.py::TestWorkEpicTasksSkill`:
+          `work-epic-tasks` step 4 drops a Bug taken elsewhere and step 6
+          reports it.

@@ -7,6 +7,7 @@ them is pinned here so it keeps its triggers and its failure notification.
 from __future__ import annotations
 
 import importlib.util
+import json
 from types import ModuleType
 
 import pytest
@@ -143,6 +144,125 @@ def test_an_epic_run_owns_descendants_down_to_a_nested_epic(
     sweeper = object.__new__(_sweeper.Sweeper)
     sweeper.repo = "o/r"
     assert sweeper._owned_by_run(1) == {2, 3}
+
+
+def _issue(
+    number: int,
+    issue_type: str = "Task",
+    *,
+    assigned: bool = True,
+    labels: tuple[str, ...] = (),
+) -> dict:
+    return {
+        "number": number,
+        "type": {"name": issue_type},
+        "assignees": [{"login": "me"}] if assigned else [],
+        "labels": [{"name": n} for n in labels],
+    }
+
+
+class _FakeGitHub:
+    """Routes the sweeper's ``_paginated`` and ``_gh`` calls; records writes."""
+
+    def __init__(
+        self,
+        issues: list[dict],
+        branches: dict[str, str],
+        *,
+        open_pr_heads: tuple[str, ...] = (),
+        sub_issues: dict[int, list[dict]] | None = None,
+        assigned_at: str = OLD,
+    ) -> None:
+        self.issues = issues
+        self.branches = branches  # branch name -> last commit date
+        self.open_pr_heads = open_pr_heads
+        self.sub_issues = sub_issues or {}
+        self.assigned_at = assigned_at
+        self.writes: list[tuple[str, ...]] = []
+
+    def paginated(self, endpoint: str) -> list[dict]:
+        if endpoint.startswith("repos/o/r/issues?"):
+            return self.issues
+        if "matching-refs" in endpoint:
+            return [
+                {"ref": f"refs/heads/{b}", "object": {"sha": f"sha{i}"}}
+                for i, b in enumerate(self.branches)
+            ]
+        if endpoint.endswith("/events?per_page=100"):
+            return [{"event": "assigned", "created_at": self.assigned_at}]
+        number = int(endpoint.split("/issues/")[1].split("/", maxsplit=1)[0])
+        return self.sub_issues.get(number, [])
+
+    def gh(self, *args: str) -> str:
+        if args[:2] == ("pr", "list"):
+            return json.dumps(
+                [
+                    {"headRefName": h, "closingIssuesReferences": []}
+                    for h in self.open_pr_heads
+                ]
+            )
+        if args[0] == "api":
+            index = int(args[1].rsplit("/sha", 1)[1])
+            return list(self.branches.values())[index]
+        self.writes.append(args[:3])
+        return ""
+
+
+def _sweep(monkeypatch: pytest.MonkeyPatch, fake: _FakeGitHub) -> _FakeGitHub:
+    monkeypatch.setattr(_sweeper, "_paginated", fake.paginated)
+    monkeypatch.setattr(_sweeper, "_gh", fake.gh)
+    sweeper = _sweeper.Sweeper("o/r", CUTOFF, dry_run=False)
+    sweeper.sweep_issue_claims()
+    sweeper.sweep_epic_claims()
+    return fake
+
+
+@pytest.mark.spec("PAD-10-002")
+def test_an_orphaned_issue_claim_is_labelled_and_commented(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _sweep(monkeypatch, _FakeGitHub([_issue(7)], {"bug/7-x": OLD}))
+    assert fake.writes == [
+        ("issue", "edit", "7"),
+        ("issue", "comment", "7"),
+    ]
+
+
+@pytest.mark.spec("PAD-10-001")
+@pytest.mark.parametrize(
+    ("issue", "kw"),
+    [
+        (_issue(7, assigned=False), {}),
+        (_issue(7, labels=("stale-claim",)), {}),
+        (_issue(7), {"open_pr_heads": ("bug/7-x",)}),
+        (_issue(8), {}),  # the branch names an issue that is not open
+    ],
+)
+def test_live_or_ineligible_issue_claims_are_left_alone(
+    monkeypatch: pytest.MonkeyPatch, issue: dict, kw: dict
+) -> None:
+    issues = [issue] if issue["number"] == 7 else []
+    fake = _sweep(monkeypatch, _FakeGitHub(issues, {"bug/7-x": OLD}, **kw))
+    assert fake.writes == []
+
+
+@pytest.mark.spec("PAD-19-005")
+def test_an_abandoned_epic_run_is_flagged_and_a_live_one_is_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic, child = _issue(1, "Epic"), _issue(2, assigned=False)
+    subs = {1: [{"number": 2, "type": {"name": "Task"}}]}
+    stale = _sweep(
+        monkeypatch,
+        _FakeGitHub([epic, child], {"task/2-x": OLD}, sub_issues=subs),
+    )
+    assert stale.writes == [("issue", "edit", "1"), ("issue", "comment", "1")]
+
+    live = _sweep(
+        monkeypatch,
+        _FakeGitHub([epic, child], {"task/2-x": NEW}, sub_issues=subs),
+    )
+    assert live.writes == []
 
 
 def test_workflow_triggers_and_permissions() -> None:
