@@ -89,18 +89,24 @@ CASE_MANAGER inbox receives Accept
 
 ### The Accept's sender check (CM-21-011)
 
-`SenderIsOwnershipTransfereeNode` (`NAMED_ACTOR` kind, ADR-0129) is two-sided:
+The declared rule is two-sided: `NAMED_ACTOR` at the CASE_MANAGER, `CASE_MANAGER`
+at a participant (ADR-0129). The factory composes the guard from it; the
+open-Offer guard runs right after it, so a sender with no standing is refused
+before the Offer's state is read (#4437).
 
-- **At the CASE_MANAGER** the Accept's object must resolve through
-  `recorded_ownership_offer()` (`vultron/core/participants/ownership_offer.py`)
-  to a ledgered `offer_case_ownership_transfer` entry whose `target` is the
-  sender, with no other answer recorded after it (`find_protocol_pair()`, which
-  counts only replies after the latest matching request). A second, different
-  Accept is refused.
+- **At the CASE_MANAGER** the addressee check `SenderIsOwnershipTransfereeNode`
+  resolves the Accept's object through `recorded_ownership_offer()`
+  (`vultron/core/participants/ownership_offer.py`) to a ledgered
+  `offer_case_ownership_transfer` entry whose `target` is the sender. Then
+  `OwnershipOfferOpenNode` requires no other answer recorded after it
+  (`find_protocol_pair()`, which counts only replies after the latest matching
+  request) and its deadline not passed. A second, different Accept is refused.
 - **A redelivery changes nothing.** Re-running an old Accept could hand back
-  ownership that a later Offer moved on, with no ledger entry; the guard sets
-  `is_redelivery` and the run reports `SKIPPED` (HP-01-003).
-- **At any other replica** the sender must be the CASE_MANAGER (PCR-03-001).
+  ownership that a later Offer moved on, with no ledger entry; the open-Offer
+  guard sets `is_redelivery` and the run reports `SKIPPED` (HP-01-003).
+- **At any other replica** the sender must be the CASE_MANAGER, and a case the
+  replica does not hold refuses (`SenderCheckContext.case_manager_required`,
+  PCR-03-001).
 - **The transferee answers the forward, not the recorded Offer.** The forward
   (CM-21-005) has its own id and is not ledgered, so it carries `inReplyTo` set to
   the recorded Offer's id, and `recorded_ownership_offer()` follows that link,
@@ -163,9 +169,11 @@ forwarded Offer has `actor=case_actor_id`, `attributed_to=` the original offerer
 
 ### `create_accept_ownership_transfer_tree()`
 
-Pass `case_id` to `create_receive_activity_tree`, `SenderIsOwnershipTransfereeNode`
-as its `sender_guard`, and put ONLY `AcceptRecordedOwnershipOfferNode` in
-`manager_effects` (RSH-08-003: the change is the CASE_MANAGER's to write). The
+Pass `case_id` to `create_receive_activity_tree`, the use case's `sender_rule` with
+a `SenderCheckContext` naming the `OwnershipOfferRequest`, the open-Offer guard as
+its precondition guard (`_reply_guards`), and put ONLY
+`AcceptRecordedOwnershipOfferNode` in `manager_effects` (RSH-08-003: the change is
+the CASE_MANAGER's to write). The
 node reads the new owner from the recorded Offer, never from the sender id. The
 factory already injects the guarded commit; a second `CommitCaseLedgerEntryNode`
 is an unguarded second writer that forks the hash chain (CLP-09-001).

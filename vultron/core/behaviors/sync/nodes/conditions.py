@@ -15,9 +15,8 @@
 """Condition nodes for SYNC log-replication workflows.
 
 Note: ``VerifySenderIsCaseActorNode`` and ``VerifySenderIsOwnIdNode`` have
-been consolidated into ``SenderIsCaseManagerNode`` and
-``SenderIsNamedActorNode`` respectively in
-``vultron.core.behaviors.sender_entitlement`` (ADR-0115, AC-2).
+both been consolidated into ``SenderIsCaseManagerNode`` in
+``vultron.core.behaviors.sender_entitlement`` (ADR-0115, #4437).
 """
 
 from __future__ import annotations

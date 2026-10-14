@@ -449,7 +449,9 @@ class AckReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        tree = create_ack_report_received_tree(request)
+        tree = create_ack_report_received_tree(
+            request, sender_rule=self.sender_entitlement
+        )
         bridge = BTBridge(
             datalayer=self._dl,
             wire_render_port=self._wire_render_port,

@@ -50,7 +50,10 @@ from vultron.semantic_registry._occasion import (
     Occasion,
     ProtocolShorthand,
 )
-from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+from vultron.wire.as2.enums import (
+    as_ObjectType,
+    as_TransitiveActivityType as TAtype,
+)
 from vultron.wire.as2.extractor import ActivityPattern
 
 
@@ -208,7 +211,10 @@ def test_sent_by_words_each_kind(kind: SenderEntitlementKind, wording: str):
 @pytest.mark.spec("MSM-08-005")
 def test_every_kind_has_a_wording():
     """A new kind without a wording would make ``sent_by`` raise KeyError."""
-    worded = set(SENT_BY_WORDING) | {SenderEntitlementKind.NAMED_ACTOR}
+    worded = set(SENT_BY_WORDING) | {
+        SenderEntitlementKind.NAMED_ACTOR,
+        SenderEntitlementKind.AUTHOR,
+    }
     assert worded == set(SenderEntitlementKind)
 
 
@@ -230,6 +236,23 @@ def test_sent_by_words_the_addressee_from_the_answered_request():
     assert (
         sent_by(entry, entry.occasions[0])
         == "the addressee of the case proposal"
+    )
+
+
+@pytest.mark.spec("MSM-08-005")
+def test_sent_by_words_the_author_from_the_changed_object():
+    pattern = ActivityPattern(
+        activity_=TAtype.REMOVE, object_=as_ObjectType.NOTE
+    )
+    entry = _entry(
+        entitlement=SenderRule.in_case(
+            SenderEntitlementKind.AUTHOR, SenderEntitlementKind.CASE_OWNER
+        ),
+        pattern=pattern,
+    )
+    assert (
+        sent_by(entry, entry.occasions[0])
+        == "the case owner or the author of the note"
     )
 
 
@@ -336,6 +359,8 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
         words = [
             f"the addressee of the {answered_request(entry)}"
             if kind is SenderEntitlementKind.NAMED_ACTOR
+            else f"the author of the {answered_request(entry)}"
+            if kind is SenderEntitlementKind.AUTHOR
             else SENT_BY_WORDING[kind]
             for kind in SenderEntitlementKind
             if kind in side
