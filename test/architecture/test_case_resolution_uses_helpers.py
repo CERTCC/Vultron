@@ -180,8 +180,8 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             "EmitOfferCaseOwnershipTransferNode._call_factory",
         ),
         (
-            f"{_NODES}/ownership_transfer.py",
-            "EmitAcceptCaseOwnershipTransferNode._call_factory",
+            f"{_NODES}/ownership_offer_reply_emit.py",
+            "_EmitOwnershipAnswerNode._call_factory",
         ),
         # R3 — the genesis ``create_case`` entry is committed alongside case
         # creation, so the case is not readable yet on that one commit. Absence
@@ -242,13 +242,14 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             "vultron/core/behaviors/sender_entitlement.py",
             "SenderIsCaseManagerNode.update",
         ),
-        # lenient — sender-verification gate: an ownership-transfer answer
-        # for a case this store does not hold names nothing to check the
-        # sender's standing against. That is a refusal of the sender, logged
-        # at warning, not a Regime 1 local anomaly logged at error (CM-21-011).
+        # lenient — sender-verification gate: a reply to an ownership-transfer
+        # Offer for a case this store does not hold names nothing to check
+        # the sender's standing against. That is a refusal of the sender,
+        # logged at warning, not a Regime 1 local anomaly logged at error
+        # (CM-21-011, CM-21-015).
         (
             "vultron/core/behaviors/sender_entitlement.py",
-            "SenderIsOwnershipTransfereeNode.update",
+            "SenderIsOwnershipOfferPartyNode.update",
         ),
         # LEN — post-RM-close PEC step in Reject-Invite effects. By the time
         # this read_case fires the participant's RM transition has already

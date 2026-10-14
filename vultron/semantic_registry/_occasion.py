@@ -56,7 +56,7 @@ class MessagePage(StrEnum):
 
 
 class HowToGuide(StrEnum):
-    """The how-to guides an occasion links to, as ``docs/``-relative paths."""
+    """The how-to guides an occasion declares, as ``docs/``-relative paths."""
 
     REPORT_VULNERABILITY = (
         "howto/activitypub/activities/report_vulnerability.md"
@@ -297,7 +297,10 @@ class Occasion(BaseModel):
             occasion's example (MSM-08-003).
         distinguisher: What tells this occasion apart from the entry's other
             occasions, when it has any.
-        howto: The how-to guide whose steps send it.
+        howto: The how-to guide whose steps send it.  The guide must embed
+            the occasion where a step sends it, or ``msm-occasions`` fails;
+            the section's "Seen in" lists that guide and every other page
+            that embeds the occasion (#4432).
         shorthand: The formal protocol message it carries, if any.
         usual_senders: The CVD roles that usually send it, beside the rule a
             receiver applies (MSM-08-005).

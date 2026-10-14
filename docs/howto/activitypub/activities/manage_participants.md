@@ -98,12 +98,23 @@ This full-case Invite carries the CASE_MANAGER's ledger position in the standard
 The `target` stays the plain case URI.
 That position is the floor: the participant's reply must reach it.
 
+{% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-full-case.md" %}
+
 1. Wait until your copy of the ledger has caught up to the Invite's position.
    The trigger fails closed with `409` until it has, so retry once replication catches up.
 2. Trigger one reply, naming the Invite in `invite_id`:
     - `POST /actors/{actor_id}/trigger/accept-full-case-invite` sends `Accept`, and the CASE_MANAGER records Report Valid (`RECEIVED` to `VALID`).
+
+        {% include-markdown "../../../reference/messages/_occasions/embeds/accept-full-case-invite.md" %}
+
     - `POST /actors/{actor_id}/trigger/tentative-reject-full-case-invite` sends `TentativeReject`, and the CASE_MANAGER records Report Invalid (`RECEIVED` to `INVALID`).
+
+        {% include-markdown "../../../reference/messages/_occasions/embeds/tentatively-reject-full-case-invite.md" %}
+
     - `POST /actors/{actor_id}/trigger/reject-full-case-invite` sends `Reject`, and the CASE_MANAGER records Report Closed (`RECEIVED` to `CLOSED`).
+
+        {% include-markdown "../../../reference/messages/_occasions/embeds/reject-full-case-invite.md" %}
+
 3. The reply carries your own ledger position in `content`.
    The CASE_MANAGER refuses, and writes nothing for, a reply that is behind the Invite's position or names a ledger entry it does not hold.
 
@@ -131,6 +142,8 @@ Only the Case Owner removes a participant.
 Send `Remove(CaseParticipant)` to the CASE_MANAGER, with the participant as its `object` and the case as its `target`.
 If you are both the Case Owner and the CASE_MANAGER, send it to your own inbox.
 
+{% include-markdown "../../../reference/messages/_occasions/embeds/remove-case-participant-from-case.md" %}
+
 !!! warning "Name the case in `target`, not `origin`"
 
     `origin` reads like the right field for a removal, and it is not one the receiver looks at: dispatch discriminates on `target`, so a `Remove` that names the case only in `origin` matches no pattern and the participant is never removed (#3438).
@@ -145,7 +158,7 @@ It then sends the removed participant a direct `Remove(CaseParticipant)` naming 
 The removed participant receives no later ledger entries, and no Invite of any kind.
 The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one; reinstate the participant instead.
 A removed signatory stays bound by the embargo it accepted.
-When that embargo is terminated, or replaced by a revision that ends no later, the CASE_MANAGER sends the removed participant the change directly, outside the ledger (see [ET — Embargo Termination](../../../reference/messages/em.md#et-embargo-termination)).
+When that embargo is terminated, or replaced by a revision that ends no later, the CASE_MANAGER sends the removed participant the change directly, outside the ledger (see [Embargo Termination (ET)](../../../reference/messages/em.md#embargo-termination)).
 See [Participant Removal](../../../reference/vultron-spec/interactions.md#114-participant-removal-n).
 
 Removal is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.
@@ -158,6 +171,8 @@ See [How to Advance a Case Through Report Management](manage_case.md).
 Only the Case Owner reinstates a removed participant.
 Send `Add(CaseParticipant)` to the CASE_MANAGER, with the removed participant as its `object` and the case as its `target`.
 If you are both the Case Owner and the CASE_MANAGER, send it to your own inbox.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/add-case-participant-to-case.md" %}
 
 Reinstatement clears the removal fact.
 The participant does not accept again: it never withdrew, so it keeps its roles, its status history and its embargo consent.

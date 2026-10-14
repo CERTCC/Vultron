@@ -35,7 +35,7 @@
         "type": "object"
       },
       "AcceptCaseOwnershipTransferRequest": {
-        "description": "Request body for the accept-case-ownership-transfer trigger endpoint.\n\nEmits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back\nto the offering actor (TRIG-11-002).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the accept-case-ownership-transfer trigger endpoint.\n\nEmits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor,\naddressed to the case's CASE_MANAGER (TRIG-11-002, CM-21-006).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "offer_id": {
             "title": "Offer Id",
@@ -71,6 +71,31 @@
           "case_id"
         ],
         "title": "AcceptEmbargoRequest",
+        "type": "object"
+      },
+      "AckReportRequest": {
+        "description": "Request body for the ack-report trigger endpoint.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "offer_id": {
+            "title": "Offer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offer_id"
+        ],
+        "title": "AckReportRequest",
         "type": "object"
       },
       "ActivityResult": {
@@ -549,7 +574,7 @@
         "type": "object"
       },
       "OfferCaseOwnershipTransferRequest": {
-        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the\nrequesting actor to the specified transferee (TRIG-11-001).\n\nTRIG-03-001: Must include case_id and transferee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the\nrequesting actor to the specified transferee (TRIG-11-001).\n\nTRIG-03-001: Must include case_id and transferee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTRIG-11-007: Optional end_time, timezone-aware and in the future, is the\ndeadline to answer the Offer (CM-21-016); it is held in UTC.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -565,6 +590,18 @@
               }
             ],
             "title": "Content"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
           },
           "transferee_id": {
             "title": "Transferee Id",
@@ -695,6 +732,20 @@
           "invite_id"
         ],
         "title": "RejectCaseInviteRequest",
+        "type": "object"
+      },
+      "RejectCaseOwnershipTransferRequest": {
+        "description": "Request body for the reject-case-ownership-transfer trigger endpoint.\n\nEmits ``Reject(Offer(VulnerabilityCase))`` from the requesting actor,\naddressed to the case's CASE_MANAGER (TRIG-11-005, CM-21-010).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "properties": {
+          "offer_id": {
+            "title": "Offer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offer_id"
+        ],
+        "title": "RejectCaseOwnershipTransferRequest",
         "type": "object"
       },
       "RejectEmbargoRequest": {
@@ -1011,6 +1062,20 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WithdrawCaseOwnershipTransferRequest": {
+        "description": "Request body for the withdraw-case-ownership-transfer trigger endpoint.\n\nEmits ``Undo(Offer(VulnerabilityCase))`` from the requesting actor \u2014 the\nCase Owner that made the Offer \u2014 addressed to the case's CASE_MANAGER\n(TRIG-11-006, CM-21-015).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "properties": {
+          "offer_id": {
+            "title": "Offer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offer_id"
+        ],
+        "title": "WithdrawCaseOwnershipTransferRequest",
         "type": "object"
       }
     }
@@ -1710,7 +1775,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/accept-case-ownership-transfer": {
       "post": {
-        "description": "Emits an Accept(Offer(VulnerabilityCase)) from the accepting actor back to the offering actor.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-002).",
+        "description": "Emits an Accept(Offer(VulnerabilityCase)) from the accepting actor to the case's CASE_MANAGER.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-002, CM-21-006).",
         "operationId": "actors_trigger_accept_case_ownership_transfer",
         "parameters": [
           {
@@ -1862,6 +1927,59 @@
           }
         },
         "summary": "Judge the case valid: Accept(full-case Invite), RV.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/ack-report": {
+      "post": {
+        "description": "Triggers the ack-report behavior for the given actor. Emits a Read(Offer(VulnerabilityReport)) activity (RK) to the reporter and returns it in the response body (TRIG-04-001). Only an actor the Offer was addressed to may acknowledge it; it may do so whether or not a case exists, and RK is never sent to the CASE_MANAGER (RMB-08-003).",
+        "operationId": "actors_trigger_ack_report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AckReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger report acknowledgement.",
         "tags": [
           "Triggers"
         ]
@@ -2609,6 +2727,59 @@
         ]
       }
     },
+    "/api/v2/actors/{actor_id}/trigger/reject-case-ownership-transfer": {
+      "post": {
+        "description": "Emits a Reject(Offer(VulnerabilityCase)) from the declining actor to the case's CASE_MANAGER, which ledgers and broadcasts the decline.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-005, CM-21-010, CM-21-012).",
+        "operationId": "actors_trigger_reject_case_ownership_transfer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectCaseOwnershipTransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decline a case ownership transfer offer.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
     "/api/v2/actors/{actor_id}/trigger/reject-embargo": {
       "post": {
         "description": "Triggers the reject-embargo behavior for the given actor. A participant rejects the current (or specified) embargo proposal with Reject(Invite(EmbargoEvent)), which records its own refusal and moves no EM state. The case owner's reject is its decision for the case, Reject(EmbargoEvent, target=Case), which rejects the proposal (EM state PROPOSED \u2192 NONE or REVISE \u2192 ACTIVE, or unchanged while another proposal is open). Returns the resulting activity in the response body (TRIG-04-001).",
@@ -3028,6 +3199,59 @@
           }
         },
         "summary": "Trigger report validation.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/withdraw-case-ownership-transfer": {
+      "post": {
+        "description": "Emits an Undo(Offer(VulnerabilityCase)) from the offering Case Owner to the case's CASE_MANAGER, which ledgers and broadcasts the withdrawal if the offer is still open.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-006, CM-21-015).",
+        "operationId": "actors_trigger_withdraw_case_ownership_transfer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawCaseOwnershipTransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Withdraw an open case ownership transfer offer.",
         "tags": [
           "Triggers"
         ]

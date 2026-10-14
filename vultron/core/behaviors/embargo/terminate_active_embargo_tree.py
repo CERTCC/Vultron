@@ -35,8 +35,8 @@ References
 ----------
 - Spec: ``specs/em-behavior.yaml`` EMB-14-001, EMB-14-002, EMB-14-003
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
-- Notes: ``notes/bt-fuzzer-nodes-embargo.md`` § EmbargoExitPolicyGuard,
-  EmbargoExitOverride
+- Catalog: ``docs/developer/reference/bt-fuzzer/embargo.md``
+  § EmbargoExitPolicyGuard, EmbargoExitOverride
 """
 
 import logging

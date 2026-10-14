@@ -9,8 +9,7 @@ Agent guidance for case-management BT nodes and subtrees in this package.
 
 ## Guarded Commit: Role-Gated Canonical Writes
 
-(ISSUE-1021, 2026-06-17; see `specs/case-ledger-processing.yaml` CLP-09 and
-`notes/case-ledger-authority.md` § "Commit Authorization and Coverage")
+(see `specs/case-ledger-processing.yaml` CLP-09-001/003/004)
 
 Any canonical-write node (e.g., `CommitCaseLedgerEntryNode`) that may be
 reached from more than one actor context MUST be wrapped in a role-gated
@@ -173,8 +172,8 @@ write boundary before any `dl.create()` / `dl.save()` call:
   through multiple VFD steps between status messages; strict adjacency applies
   only to local write nodes (CSB-16-001, AC-3).
 - **Architecture ratchet** (`test/architecture/test_vfd_rm_pxa_write_sites.py`):
-  AST-audits every `VfdDimension`/`RmDimension`/`PxaDimension` constructor
-  call in `vultron/core/behaviors/`.
+  AST-audits every `VfDimension`/`DDimension`/`RmDimension`/`PxaDimension`
+  constructor call in `vultron/core/behaviors/`.
 
 When writing or reviewing guard nodes that precede `CreateParticipantStatusNode`:
 the write node is a second line of defence, but upstream guards still matter —

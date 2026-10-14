@@ -51,6 +51,7 @@ import pkgutil
 
 import pytest
 
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import as_Base
 
 
@@ -66,21 +67,13 @@ def _import_tree(package: str) -> None:
             continue
 
 
-def _all_subclasses(cls: type) -> set[type]:
-    found: set[type] = set()
-    for sub in cls.__subclasses__():
-        found.add(sub)
-        found |= _all_subclasses(sub)
-    return found
-
-
 @pytest.fixture(scope="module")
 def wire_classes() -> dict[str, type]:
     """Every ``as_Base`` subclass whose *module* is under ``vultron.wire``."""
     _import_tree("vultron.wire.as2.vocab")
     return {
         cls.__name__: cls
-        for cls in _all_subclasses(as_Base)
+        for cls in all_subclasses(as_Base)
         if cls.__module__.startswith("vultron.wire")
     }
 

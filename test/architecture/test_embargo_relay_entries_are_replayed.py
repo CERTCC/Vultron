@@ -54,7 +54,6 @@ from vultron.core.models.rsvp_deadline import (
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
     INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_NOOP_EVENT_TYPE,
-    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 
@@ -150,9 +149,13 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
     "noop late accept": (
         INVITE_EXPIRED_NOOP_EVENT_TYPE,
         {
-            "type": INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
-            "actor": REPLICA,
-            "object": {"type": "Invite", "object": EMBARGO},
+            "type": "Ignore",
+            "actor": MANAGER,
+            "object": {
+                "type": "Accept",
+                "actor": REPLICA,
+                "object": {"type": "Invite", "object": EMBARGO},
+            },
         },
     ),
 }

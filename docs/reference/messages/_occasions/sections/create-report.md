@@ -7,7 +7,8 @@ Mints the vulnerability report object. It precedes the Offer that submits the re
 - **When…** a Reporter has written up a vulnerability and is about to submit the report
 - **Send:** `Create(VulnerabilityReport)`
 - **Sent by:** any actor (usually: finder, reporter)
-- **How-to:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
+- **Seen in:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

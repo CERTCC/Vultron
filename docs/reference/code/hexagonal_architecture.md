@@ -86,3 +86,23 @@ driving_ports --> core
 core --> driven_ports
 driven_ports --> driven_adapters
 ```
+
+## Use cases and behavior trees
+
+Inside the core, every request takes the same path.
+
+| Layer | Where it lives | What it does |
+|---|---|---|
+| Driving adapter | `vultron/adapters/driving/` | Accepts an inbox POST or a trigger request and hands it to core. |
+| Dispatcher | `vultron/core/dispatcher.py`, `vultron/core/trigger_dispatcher.py` | Looks up the use case for the message semantics or the trigger verb. |
+| Use case | `vultron/core/use_cases/` | Sets up the blackboard, runs one behavior tree, and turns the outcome into a result. |
+| Behavior tree | `vultron/core/behaviors/` | Checks preconditions, decides what to do, changes state, and emits activities. |
+| Domain model | `vultron/core/models/`, `vultron/core/states/` | Holds the case state and validates it. |
+
+A use case stands for one actor goal, such as validating a report or inviting a participant.
+It is thin glue: it builds the tree, runs it through `BTBridge.execute_with_setup()`, reads the result, and returns.
+It does not write to the DataLayer itself; every write happens in a tree node (CLP-10-020).
+
+The decisions that follow from the goal belong in the tree.
+Is the case open, is the sender entitled to ask, is this a duplicate, who must be told: each of these is a node.
+Keeping them in the tree means the tree shows the whole process, and analysis tools can read it without reading the code (BT-06-001).

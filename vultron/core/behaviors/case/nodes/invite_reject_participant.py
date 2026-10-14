@@ -74,7 +74,7 @@ def _commit_latest_status(
             case_id=case_id,
             participant=participant,
             status=participant.participant_statuses[-1],
-            wire_render_port=node._require_wire_render_port(),
+            trigger_activity=node._require_trigger_activity_port(),
         )
     except RuntimeError as exc:
         node.feedback_message = f"{node.name}: {exc}"

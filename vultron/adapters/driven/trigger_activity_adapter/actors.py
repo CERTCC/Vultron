@@ -62,13 +62,18 @@ from vultron.wire.as2.factories.case import (
     accept_case_participant_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
+    undo_case_ownership_transfer_activity,
     validate_held_case_invite,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
     as_Invite,
     as_Offer,
+    as_Reject,
+    as_Undo,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -837,12 +842,14 @@ class _ActorsMixin:
         content: str | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        end_time: datetime | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
         Emits the offer from ``actor`` to ``transferee_id``.  The case is read
         from the DataLayer and passed inline so the recipient can distinguish
-        this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).
+        this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).  *end_time*, when
+        given, is the Offer's deadline to answer (TRIG-11-007, CM-21-016).
         """
         case = _case_for_wire(self._dl, case_id)
         extra: dict[str, Any] = {
@@ -853,6 +860,8 @@ class _ActorsMixin:
             extra["content"] = content
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+        if end_time is not None:
+            extra["end_time"] = end_time
         activity = offer_case_ownership_transfer_activity(
             case=case,
             target=transferee_id,
@@ -876,16 +885,73 @@ class _ActorsMixin:
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership transfer.
 
-        Reads the stored offer from the DataLayer, derives the ``to:`` field
-        from the offer's ``actor`` when not supplied, and persists the Accept
-        (TRIG-11-002).
+        See :meth:`_ownership_answer` (TRIG-11-002).
+        """
+        return self._ownership_answer(
+            accept_case_ownership_transfer_activity,
+            "accept_case_ownership_transfer",
+            offer_id=offer_id,
+            actor=actor,
+            to=to,
+        )
+
+    def reject_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer(VulnerabilityCase))`` ownership transfer.
+
+        See :meth:`_ownership_answer` (TRIG-11-005).
+        """
+        return self._ownership_answer(
+            reject_case_ownership_transfer_activity,
+            "reject_case_ownership_transfer",
+            offer_id=offer_id,
+            actor=actor,
+            to=to,
+        )
+
+    def withdraw_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Undo(Offer(VulnerabilityCase))`` withdrawal.
+
+        See :meth:`_ownership_answer` (TRIG-11-006, CM-21-015).
+        """
+        return self._ownership_answer(
+            undo_case_ownership_transfer_activity,
+            "withdraw_case_ownership_transfer",
+            offer_id=offer_id,
+            actor=actor,
+            to=to,
+        )
+
+    def _ownership_answer(
+        self,
+        factory: Callable[..., as_Accept | as_Reject | as_Undo],
+        label: str,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None,
+    ) -> tuple[str, str]:
+        """Build, persist and seal a reply to an ownership-transfer Offer.
+
+        The reply is the transferee's answer (Accept or Reject) or the
+        offerer's withdrawal (Undo).  Reads the stored offer from the
+        DataLayer, derives the ``to:`` field from the offer's ``actor`` when
+        not supplied, and persists the reply that *factory* builds from it.
 
         On a replica whose only source for the Offer was the replicated
         ``offer_case_ownership_transfer`` ledger entry, what is stored at
         ``offer_id`` is a core ``VultronOwnershipTransferOfferRecord`` rather
         than the wire activity — the SYNC path cannot construct wire objects
         (ARCH-03-001).  Rebuild the wire Offer from that record here, where wire
-        imports are allowed, so both delivery paths converge on the same Accept
+        imports are allowed, so both delivery paths converge on the same answer
         (#2225, ADR-0035 DL-06-002).
         """
         raw = self._dl.read(offer_id)
@@ -895,18 +961,21 @@ class _ActorsMixin:
             raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)
         if to is None:
+            # Last resort, used only when the emit node found no local case
+            # or CASE_MANAGER to address.  For the CASE_MANAGER's forward the
+            # Offer's actor is the CASE_MANAGER (CM-21-006, CM-21-010); for an
+            # Offer rebuilt from a replicated ledger record it is the record's
+            # sender of record, which need not be.
             offer_actor_id = _as_id(getattr(offer, "actor", None))
             if offer_actor_id:
                 to = [offer_actor_id]
-        activity = accept_case_ownership_transfer_activity(
-            offer=offer, actor=actor, to=to
-        )
+        activity = factory(offer=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
             logger.warning(
-                "accept_case_ownership_transfer: activity '%s' already exists"
-                " — skipping",
+                "%s: activity '%s' already exists — skipping",
+                label,
                 activity.id_,
             )
         return _seal(self._dl, activity)

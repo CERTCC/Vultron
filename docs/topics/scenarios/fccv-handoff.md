@@ -157,7 +157,8 @@ recorded.
 
 ### 10. Participants exchange notes
 
-All participants communicate via `add_note_to_case` entries.
+All participants communicate through case notes.
+Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 

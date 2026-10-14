@@ -34,6 +34,7 @@ from vultron.wire.as2.factories import (
     reject_case_participant_role_activity,
     remove_participant_from_case_activity,
     rm_invite_to_case_activity,
+    update_case_activity,
 )
 from vultron.wire.as2.factories._context import (
     case_target_ref,
@@ -128,6 +129,13 @@ def _role_offer():
                 invitee=_VENDOR, target=_CASE_ID, actor=_ACTOR
             ),
             id="invite_actor_to_case-bare-target",
+        ),
+        pytest.param(
+            lambda: update_case_activity(
+                case=as_VulnerabilityCase(id_=_CASE_ID, name="x"),
+                actor=_ACTOR,
+            ),
+            id="update_case",
         ),
         pytest.param(_recommendation, id="recommend_actor"),
         pytest.param(

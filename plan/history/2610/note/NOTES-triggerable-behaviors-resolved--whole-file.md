@@ -1,0 +1,218 @@
+---
+source: NOTES-triggerable-behaviors-resolved--whole-file
+timestamp: '2026-10-12T19:34:12.657380+00:00'
+title: 'Triggerable Behaviors: Resolved Design Decisions and Audit Results (whole
+  file)'
+type: note
+---
+
+**Archived:** 2026-10-12
+**Reason:** delivered — every decision is implemented and governed by specs; the file is a record of the P30-1 trigger work, not guidance for open work
+**Superseded by:** `specs/triggerable-behaviors.yaml` (TRIG-03, TRIG-04, TRIG-08–TRIG-10), `specs/behavior-tree-integration.yaml` BT-06-005/006, `vultron/core/use_cases/triggers/AGENTS.md`
+
+---
+
+# Triggerable Behaviors: Resolved Design Decisions and Audit Results
+
+> See also: [triggerable-behaviors.md](triggerable-behaviors.md) for the first half of these design notes.
+
+## Resolved Design Decisions: Trigger Implementation (P30-1)
+
+These decisions were reached during initial implementation of the trigger
+endpoints, now under `vultron/adapters/driving/fastapi/routers/`
+(`demo_triggers.py`, `trigger_case.py`, `trigger_sync.py`).
+
+### P30-1: Outbox Diff Strategy for Retrieving the Resulting Activity
+
+`trigger_validate_report` (and similar BT-backed triggers) needs to return
+the resulting ActivityStreams activity in the response body (TRIG-04-001).
+The BT writes the new activity ID to `actor.outbox.items` via the
+`UpdateActorOutbox` node.
+
+**Design decision**: Snapshot the actor's outbox ID set before BT execution,
+then subtract after execution to find newly added activity IDs. The diff is a
+set subtraction on string IDs.
+
+**Rationale**: Avoids modifying the bridge layer or BT nodes for a specific
+trigger use case. Concurrency-safe as long as each BT execution produces a
+distinct UUID-based activity ID (guaranteed by existing BT node
+implementations).
+
+**Implication**: This approach couples the trigger endpoint to the outbox
+data model. If the outbox model changes (e.g., moving to a separate outbox
+collection), the snapshot/diff logic must also be updated.
+
+### Request Model DRY Pattern
+
+When implementing trigger request models, check existing models first:
+
+- `ValidateReportRequest` and `InvalidateReportRequest` are identical;
+  prefer a shared base class over two independent models.
+- `RejectReportRequest` extends the base by adding a required `note` field.
+- All request models SHOULD use `model_config = ConfigDict(extra="ignore")`
+  for forward-compatibility (TRIG-03-002).
+
+**See also**: `specs/triggerable-behaviors.yaml`.
+
+---
+
+## BT Requirement for Trigger Use Cases
+
+Trigger use cases follow the same BT requirement as received use cases:
+all protocol-observable behaviors MUST be implemented as BT nodes or
+subtrees. A trigger endpoint's `execute()` method is permitted to contain
+infrastructure glue (build event, set up blackboard), but the domain logic
+MUST live in the BT.
+
+In particular, trigger use cases MUST NOT call `SvcXxxUseCase().execute()`
+or equivalent domain functions procedurally after `bridge.execute_with_setup()`
+returns. Cascades from the triggering action to downstream protocol behaviors
+must be expressed as BT child subtrees.
+
+See `specs/behavior-tree-integration.yaml` BT-06-005 and BT-06-006, and
+`notes/bt-integration.md` for the subtree composition model (see "Canonical CVD
+Protocol Behavior Tree Reference" section).
+
+---
+
+## General-Purpose vs. Demo-Only Trigger Classification
+
+> Spec: `specs/triggerable-behaviors.yaml` TRIG-08, TRIG-09, TRIG-10;
+> `specs/configuration.yaml` CFG-04. Operating rules summary:
+> `vultron/core/use_cases/triggers/AGENTS.md`.
+
+### Background
+
+Vultron's trigger API (`POST /actors/{id}/trigger/{behavior}`) lets
+external callers initiate protocol behaviors. Over time, demo scripts
+added triggers that exist purely to puppeteer actors through steps their
+own BTs should handle autonomously — "puppet string" triggers. These
+accumulate technical debt: they look like general-purpose API operations
+but belong only in demo deployments.
+
+IDEA-26041003 introduces a formal classification and a separate URL
+prefix (`/demo/`) so the distinction is explicit in URLs, OpenAPI docs,
+and at runtime.
+
+### Classification Criteria
+
+| Category | Criterion |
+|---|---|
+| **General-purpose** | Represents a legitimate external stimulus or an intentional actor decision that an operator or agentic client would make |
+| **Demo-only** | Only needed to puppeteer an actor through a step its own BT would handle autonomously in a real deployment |
+
+**Key test**: would a real autonomous actor ever need an external caller
+to drive this step? If yes → general. If the BT should always handle it
+→ demo-only.
+
+### Trigger Audit Results
+
+| Endpoint | Prefix | Classification | Notes |
+|---|---|---|---|
+| `validate-report` | `/trigger/` | General | Explicit RM decision |
+| `invalidate-report` | `/trigger/` | General | Explicit RM decision |
+| `reject-report` | `/trigger/` | General | Explicit RM decision |
+| `engage-case` | `/trigger/` | General | Explicit RM decision |
+| `defer-case` | `/trigger/` | General | Explicit RM decision |
+| `close-report` | `/trigger/` | General | Explicit RM decision |
+| `submit-report` | `/trigger/` | General | Finder initiating CVD is always an external stimulus |
+| `create-case` | `/trigger/` | General | Coordinators legitimately open cases from scratch |
+| `add-object-to-case` | `/trigger/` | General | **New** — replaces `add-note-to-case` as the general endpoint |
+| `add-report-to-case` | `/trigger/` | General | Real deduplication/linking action; delegates to `add-object-to-case` |
+| `propose-embargo` | `/trigger/` | General | Explicit EM decision |
+| `accept-embargo` | `/trigger/` | General | Explicit EM decision |
+| `reject-embargo` | `/trigger/` | General | Explicit EM decision |
+| `propose-embargo-revision` | `/trigger/` | General | Explicit EM decision |
+| `terminate-embargo` | `/trigger/` | General | Explicit EM decision |
+| `suggest-actor-to-case` | `/trigger/` | General | Real CVD coordination action |
+| `invite-actor-to-case` | `/trigger/` | General | Real CVD coordination action |
+| `accept-case-invite` | `/trigger/` | General | Explicit actor decision |
+| `add-note-to-case` | `/demo/` | Demo-only | Moved from `/trigger/`; wrapper on `add-object-to-case` |
+| `sync-log-entry` | `/demo/` | Demo-only | Moved from `/trigger/`; should cascade automatically in production |
+
+### Wrapper Pattern: `add-object-to-case`
+
+Type-specific convenience triggers delegate to the general
+`add-object-to-case` use case after validating the object type.
+
+```python
+# General trigger (at /trigger/) — accepts any object type
+class SvcAddObjectToCaseUseCase:
+    def __init__(self, dl: DataLayer, request: AddObjectToCaseTriggerRequest):
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict:
+        obj = self._dl.read(self._request.object_id)
+        # attach obj to case, queue Add(obj, case) activity ...
+
+# Type-specific wrapper (at /trigger/) — validates type, delegates
+class SvcAddReportToCaseUseCase:
+    def execute(self) -> dict:
+        obj = self._dl.read(self._request.report_id)
+        if not isinstance(obj, VulnerabilityReport):
+            raise VultronError(f"{self._request.report_id} is not a Report")
+        inner = SvcAddObjectToCaseUseCase(
+            self._dl,
+            AddObjectToCaseTriggerRequest(
+                case_id=self._request.case_id,
+                object_id=self._request.report_id,
+            ),
+        )
+        return inner.execute()
+
+# Demo-only note wrapper (at /demo/)
+class DemoAddNoteToCaseUseCase:
+    def execute(self) -> dict:
+        note = as_Note(name=self._request.note_name,
+                       content=self._request.note_content)
+        self._dl.save(note)
+        inner = SvcAddObjectToCaseUseCase(
+            self._dl,
+            AddObjectToCaseTriggerRequest(
+                case_id=self._request.case_id,
+                object_id=note.id_,
+            ),
+        )
+        return inner.execute()
+```
+
+### `sync-log-entry` and the Context Field Format
+
+Moving `sync-log-entry` to `/demo/` surfaces a design note about a
+future production `force-sync` operation.
+
+SYNC-03-004 already requires that participants include their log tail
+hash in the `context` field of messages sent to the CASE_MANAGER:
+
+```text
+context: "https://example.org/cases/abc123#sha256:deadbeef..."
+```
+
+This allows the CASE_MANAGER to detect out-of-sync participants and initiate
+a replay automatically. A proper `force-sync` trigger, if ever added
+under `/trigger/`, would build on this mechanism. Until then,
+`sync-log-entry` remains a demo scaffold under `/demo/`.
+
+### Testing Patterns
+
+```python
+def test_demo_router_absent_in_prod(monkeypatch, test_client):
+    monkeypatch.setenv("VULTRON_SERVER__RUN_MODE", "prod")
+    reload_config()
+    response = test_client.post("/actors/alice/demo/add-note-to-case", json={})
+    assert response.status_code == 404
+
+def test_demo_router_present_in_prototype(monkeypatch, test_client):
+    monkeypatch.setenv("VULTRON_SERVER__RUN_MODE", "prototype")
+    reload_config()
+    response = test_client.post(
+        "/actors/alice/demo/add-note-to-case",
+        json={"case_id": "...", "note_name": "Test", "note_content": "..."},
+    )
+    assert response.status_code == 202
+
+def test_add_note_not_at_trigger_prefix(test_client):
+    response = test_client.post("/actors/alice/trigger/add-note-to-case", json={})
+    assert response.status_code == 404
+```

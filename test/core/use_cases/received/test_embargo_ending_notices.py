@@ -435,8 +435,9 @@ def test_case_manager_termination_sends_et_without_attribution(
     """The shared terminate tree (P/X/A cascade, trigger) sends the ET too.
 
     The CASE_MANAGER decides the end itself here, so it credits nobody else.
-    Its committed ``Remove`` goes to the active participants as well; the
-    notice is the one addressed to a single unreached signatory.
+    Its committed ``Remove`` is case content, so it goes to the active
+    participants and never to the closed signatory (CM-23-004).  Each
+    unreached signatory's only ``Remove`` is therefore its own notice.
     """
     manager = _Manager()
 
@@ -445,17 +446,20 @@ def test_case_manager_termination_sends_et_without_attribution(
     case = manager.dl.read(CASE_ID)
     assert isinstance(case, as_VulnerabilityCase)
     assert case.active_embargo_id is None
-    notices = {
-        recipient: [a for a in sent if len(a.to) == 1]
-        for recipient, sent in manager.notices("Remove", EMBARGO_ID).items()
+    removes = manager.notices("Remove", EMBARGO_ID)
+    committed = {
+        a.id_ for a in removes[ACTIVE] if a.id_ in manager.ledger_object_ids()
     }
+    assert len(committed) == 1
     for recipient in _unreached_signatories():
-        assert len(notices[recipient]) == 1
-        notice = notices[recipient][0]
+        assert len(removes[recipient]) == 1
+        notice = removes[recipient][0]
+        assert [_as_id(t) for t in notice.to] == [recipient]
         assert getattr(notice, "attributed_to", None) is None
         assert notice.id_ not in manager.ledger_object_ids()
-    for recipient in (DECLINER, INVITEE, ACTIVE):
-        assert not notices.get(recipient)
+    for recipient in (OWNER, ACTIVE, DECLINER):
+        assert {a.id_ for a in removes[recipient]} == committed
+    assert INVITEE not in removes
 
 
 @pytest.mark.spec("CM-31-009")
@@ -963,4 +967,5 @@ def test_owed_notice_without_a_trigger_factory_is_an_internal_fault() -> None:
             ),
             receiving_actor_id=MANAGER,
             sync_port=SyncActivityAdapter(manager.dl),
+            trigger_activity=None,
         )

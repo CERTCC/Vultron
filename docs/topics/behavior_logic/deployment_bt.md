@@ -18,6 +18,8 @@ The behavioral requirements for this tree are specified in the
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+{% include-markdown "../../includes/notional_external_process.md" %}
+
 !!! note "Legacy design diagram"
 
     The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
@@ -102,8 +104,7 @@ It consists of two subprocesses: prioritize deployment and deploy.
 
 The prioritize deployment behavior is shown in (C2) the fallback node in the center of the diagram.
 The subgoal is for the deployment priority to be established, as indicated by the Deployer's RM state $q^{rm} \in \{D,A\}$.
-For example, a Deployer might use the [SSVC Deployer Tree](https://github.com/CERTCC/SSVC){:target="_blank"} to decide whether (and when)
-to deploy a fix or mitigation.
+For example, a Deployer might use the [Stakeholder-Specific Vulnerability Categorization (SSVC) Deployer Tree](https://github.com/CERTCC/SSVC){:target="_blank"} to decide whether (and when) to deploy a fix or mitigation.
 If the deployment priority evaluation indicates further action is needed,
 
 - the report management state is set to $q^{rm} \in A$

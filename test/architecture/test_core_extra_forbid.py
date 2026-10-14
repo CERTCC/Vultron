@@ -26,11 +26,11 @@ from pydantic import ValidationError
 
 from test.architecture import _corpus
 from test.support.core_vocab import build_core_vocab, import_all_core_models
-from test.support.subclasses import all_subclasses
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.errors import VultronProtocolViolationError
 from vultron.metadata.base import repo_root
+from vultron.subclasses import all_subclasses
 
 
 def _all_core_object_subclasses() -> set[type[CoreObject]]:

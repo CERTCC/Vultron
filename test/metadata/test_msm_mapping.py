@@ -30,9 +30,6 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
     NOT_YET_CHECKED,
@@ -40,18 +37,15 @@ from vultron.metadata.msm._mapping import (
     SENT_BY_WORDING,
     MappingStatus,
     answered_request,
-    discriminator,
     mapping_status,
     sent_by,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY, lookup_entry
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
-    FieldValue,
     MessagePage,
     Occasion,
     ProtocolShorthand,
-    StateContext,
 )
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
@@ -184,27 +178,6 @@ def test_ep_is_carried_only_by_the_embargo_invite():
     assert carriers == [MessageSemantics.INVITE_TO_EMBARGO_ON_CASE]
 
 
-def test_discriminator_names_fields_and_state_contexts_once_each():
-    vf_ready = FieldValue(
-        object_type=ParticipantStatus, field="vf_state", value=CS_vf.VF
-    )
-    vf_aware = FieldValue(
-        object_type=ParticipantStatus, field="vf_state", value=CS_vf.Vf
-    )
-    deployed = FieldValue(
-        object_type=ParticipantStatus, field="d_state", value=CS_d.D
-    )
-    occasions = [
-        _occasion(0, distinguisher=vf_aware),
-        _occasion(1, distinguisher=vf_ready),
-        _occasion(2, distinguisher=deployed),
-    ]
-    assert discriminator(occasions) == "vf_state / d_state"
-    em = StateContext(machine=EM, states=(EM.ACTIVE,))
-    assert discriminator([_occasion(distinguisher=em)]) == "EM state context"
-    assert discriminator([_occasion()]) is None
-
-
 # ---------------------------------------------------------------------------
 # "Sent by" (MSM-08-005).
 # ---------------------------------------------------------------------------
@@ -218,7 +191,6 @@ def test_discriminator_names_fields_and_state_contexts_once_each():
         (SenderEntitlementKind.CASE_OWNER, "the case owner"),
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
         (SenderEntitlementKind.INVITEE, "the invitee"),
-        (SenderEntitlementKind.EXECUTING_ACTOR, "the receiving actor itself"),
         (SenderEntitlementKind.ANY_ACTOR, "any actor"),
     ],
 )

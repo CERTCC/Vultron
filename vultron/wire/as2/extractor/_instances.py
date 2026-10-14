@@ -145,9 +145,6 @@ CloseReportPattern = ActivityPattern(
 CreateCaseActivityPattern = ActivityPattern(
     activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
 )
-UpdateCaseActivityPattern = ActivityPattern(
-    activity_=TAtype.UPDATE, object_=VOtype.VULNERABILITY_CASE
-)
 EngageCasePattern = ActivityPattern(
     description=(
         "Actor engages (joins) a VulnerabilityCase, transitioning their RM "
@@ -291,6 +288,14 @@ AcceptCaseOwnershipTransferActivityPattern = ActivityPattern(
 )
 RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
     activity_=TAtype.REJECT, object_=OfferCaseOwnershipTransferActivityPattern
+)
+UndoCaseOwnershipTransferActivityPattern = ActivityPattern(
+    description=(
+        "Undo(Offer(VulnerabilityCase)) — the offerer withdraws an open "
+        "ownership-transfer Offer (CM-21-015)."
+    ),
+    activity_=TAtype.UNDO,
+    object_=OfferCaseOwnershipTransferActivityPattern,
 )
 
 # ---------------------------------------------------------------------------

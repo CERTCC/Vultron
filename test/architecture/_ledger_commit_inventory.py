@@ -61,6 +61,7 @@ from typing import Any
 
 from test.architecture import _corpus
 from vultron.semantic_registry import use_case_map
+from vultron.subclasses import all_subclasses
 
 _RECEIVE_FACTORY = "create_receive_activity_tree"
 #: Building either of these commits the received activity whatever the case id.
@@ -236,12 +237,6 @@ def _constant_value(expr: ast.expr, module: ModuleType) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _subclasses(cls: type) -> Iterator[type]:
-    yield cls
-    for sub in cls.__subclasses__():
-        yield from _subclasses(sub)
-
-
 def _class_attribute_values(
     owner: ast.ClassDef, attr: str, module: ModuleType
 ) -> set[str]:
@@ -249,7 +244,7 @@ def _class_attribute_values(
     cls = getattr(module, owner.name, None)
     if not inspect.isclass(cls):
         return set()
-    values = {getattr(sub, attr, None) for sub in _subclasses(cls)}
+    values = {getattr(sub, attr, None) for sub in {cls} | all_subclasses(cls)}
     return {value for value in values if isinstance(value, str)}
 
 

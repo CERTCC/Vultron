@@ -53,7 +53,7 @@ References
 - ADR-0028: ``docs/adr/0028-publication-intent-bt-collapse.md``
 - ADR-0030: ``docs/adr/0030-publish-leaf-draft-review-submit-pipeline.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-20-002, BT-20-004
-- Notes: ``notes/bt-fuzzer-nodes-report-management.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-publication.md``
   § "Production Collapse 2" and "Production Collapse 4"
 - Precedent: ``vultron.core.behaviors.report.acquire_exploit_strategy_tree``
   (Production Collapse 1, ADR-0027)

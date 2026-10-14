@@ -35,8 +35,8 @@ from typing import Any
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.rsvp_deadline import (
+    EXPIRE_SNAPSHOT_TYPE,
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.models.wire_keys import wire_key
@@ -64,8 +64,15 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
     ("Reject", "Offer"),  # close_report (RC)
-    ("Read", "Offer"),  # ack_report (RK, ADR-0021)
+    # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
+    # The Case Owner's withdrawal of an ownership-transfer Offer (CM-21-015),
+    # the only Undo(Offer) semantic today; a second one would share this
+    # signature.  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    ("Undo", "Offer"),
     ("Add", "Note"),
+    # A received note whose ``context`` names the case: its entry is the
+    # attachment's entry (CLP-07-013, #4441).
+    ("Create", "Note"),
     ("Remove", "Note"),  # remove_note_from_case
     ("Add", "VulnerabilityReport"),  # add_report_to_case
     ("Add", "CaseStatus"),  # add_case_status_to_case
@@ -106,9 +113,17 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
     # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
     (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+    # CASE_MANAGER-authored record that an ownership-transfer Offer passed its
+    # end_time unanswered (CM-21-017).  Distinct from ("Reject", "Offer"), the
+    # transferee's decline.
+    (EXPIRE_SNAPSHOT_TYPE, "Offer"),
     # CASE_MANAGER-authored no-op acknowledgement of a late Accept when the
-    # embargo is no longer active (EMB-17-004, ADR-0118).
-    (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
+    # embargo is no longer active: it ignores the Accept, carried inline as
+    # received (EMB-17-004, CLP-07-013).
+    ("Ignore", "Accept"),
+    # CASE_MANAGER-authored closure of the case on the owner's Leave, carrying
+    # the closed case (case_fully_closed, CM-23-002 step 3, CLP-07-013).
+    ("Update", "VulnerabilityCase"),
     # CASE_MANAGER-authored honour decision for a late Accept when the embargo
     # is still active and matching (EMB-17-001, ADR-0118).
     (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
@@ -136,8 +151,12 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
         # ADR-0118)
         (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+        # CASE_MANAGER-authored ownership-transfer Offer expiry (CM-21-017)
+        (EXPIRE_SNAPSHOT_TYPE, "Offer"),
         # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
-        (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
+        ("Ignore", "Accept"),
+        # CASE_MANAGER-authored case closure (CM-23-002 step 3)
+        ("Update", "VulnerabilityCase"),
         # CASE_MANAGER-authored honour decision (EMB-17-001, ADR-0118)
         (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)

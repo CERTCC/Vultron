@@ -5,13 +5,13 @@ This module derives what the occasions already say, so nothing here is typed
 by hand:
 
 - the mapping status of an entry (MSM-06-003, MSM-08-006);
-- the discriminator, the payload fields or state contexts that tell an
-  entry's occasions apart;
+- the "Distinguished by" value of an occasion, the field value or state
+  context that tells it apart from its entry's other occasions;
 - the "Sent by" value of an occasion, from the sender entitlement its received
   use case declares (MSM-08-005).
 
-:class:`RowSpec` is the derived view of one entry that the page renderer and
-the MSM-06-002 ratchet read.
+:class:`RowSpec` is the derived view of one entry that the MSM-06-002 ratchet
+reads.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -61,7 +61,6 @@ from vultron.semantic_registry._entry import (
 from vultron.semantic_registry._occasion import (
     ANCHOR_PATTERN,
     FieldValue,
-    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -138,37 +137,19 @@ def mapping_status(
     return MappingStatus.DIRECT
 
 
-def discriminator(occasions: Iterable[Occasion]) -> str | None:
-    """Name what tells the *occasions* of one entry apart, or ``None``.
-
-    A field-value distinguisher contributes its field name; a state context
-    contributes "<machine> state context".  Distinct names are joined with
-    `` / `` in first-seen order.
-    """
-    names: list[str] = []
-    for occasion in occasions:
-        d = occasion.distinguisher
-        if isinstance(d, FieldValue):
-            names.append(d.field)
-        elif isinstance(d, StateContext):
-            names.append(f"{d.machine.__name__} state context")
-    unique = list(dict.fromkeys(names))
-    return " / ".join(unique) if unique else None
-
-
 # ---------------------------------------------------------------------------
 # "Sent by" (MSM-08-005).
 # ---------------------------------------------------------------------------
 
-#: The "Sent by" wording per entitlement kind, from
-#: ``notes/message-type-reference.md`` § "Planning decisions (#4418)".
+#: The "Sent by" wording per entitlement kind (MSM-08-005, decided in #4418).
+#: Moving it onto the kind itself is planned (MSM-08-010,
+#: ``notes/message-occasion-table.md``).
 #: ``NAMED_ACTOR`` is worded from the answered request; see :func:`sent_by`.
 SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
     SenderEntitlementKind.CASE_MANAGER: "the case manager",
     SenderEntitlementKind.CASE_OWNER: "the case owner",
     SenderEntitlementKind.ACTIVE_PARTICIPANT: "an active participant",
     SenderEntitlementKind.INVITEE: "the invitee",
-    SenderEntitlementKind.EXECUTING_ACTOR: "the receiving actor itself",
     SenderEntitlementKind.ANY_ACTOR: "any actor",
 }
 
@@ -315,14 +296,12 @@ class RowSpec:
         page: Primary page slug under ``docs/reference/messages/``.
         shorthands: The distinct shorthands the entry's occasions carry.
         status: How the shorthands relate to this wire form.
-        discriminator: What tells the entry's occasions apart, or ``None``.
     """
 
     semantics: MessageSemantics
     page: str
     shorthands: tuple[str, ...]
     status: MappingStatus
-    discriminator: str | None
 
 
 def row_for(
@@ -342,7 +321,6 @@ def row_for(
         page=entry.page.value,
         shorthands=tuple(s.value for s in entry_shorthands(entry)),
         status=mapping_status(entry, registry),
-        discriminator=discriminator(entry.occasions),
     )
 
 
@@ -359,13 +337,6 @@ ROW_SPECS: tuple[RowSpec, ...] = tuple(
     )
 )
 
-#: Mapping from page slug → tuple of RowSpecs assigned to that page.
-PAGE_ROWS: dict[str, tuple[RowSpec, ...]] = {
-    slug: tuple(row for row in ROW_SPECS if row.page == slug)
-    for slug in PAGE_SLUGS
-    if any(row.page == slug for row in ROW_SPECS)
-}
-
 #: Mapping from ``MessageSemantics`` → ``RowSpec`` for O(1) lookup.
 SEMANTICS_TO_ROW: dict[MessageSemantics, RowSpec] = {
     row.semantics: row for row in ROW_SPECS
@@ -381,19 +352,25 @@ SEMANTICS_TO_ROW: dict[MessageSemantics, RowSpec] = {
 OCCASION_TABLE_PATH: Path = Path(__file__).with_name("occasions.yaml")
 
 #: The occasion table's format version, written into the file from the start
-#: so that a later reader can tell the shapes apart.
-OCCASION_TABLE_FORMAT_VERSION: Final = 1
+#: so that a later reader can tell the shapes apart.  Version 2 replaced each
+#: row's declared ``howto`` link with the derived ``seen_in`` pages (#4432).
+OCCASION_TABLE_FORMAT_VERSION: Final = 2
 
 _ANCHOR = Annotated[str, Field(pattern=ANCHOR_PATTERN)]
 _RECORD = ConfigDict(frozen=True, extra="forbid")
 
 
-class HowToLink(BaseModel):
-    """The how-to guide whose steps send an occasion, with its page title."""
+class PageLink(BaseModel):
+    """A ``docs/`` page that embeds an occasion, with its page title.
+
+    Attributes:
+        path: The page, relative to ``docs/``.
+        title: The page's H1, the text a link to it carries.
+    """
 
     model_config = _RECORD
 
-    path: HowToGuide
+    path: NonEmptyString
     title: NonEmptyString
 
 
@@ -413,7 +390,9 @@ class OccasionRow(BaseModel):
         status: The entry's mapping status (MSM-06-003).
         description: What the activity does.
         notes: Further prose for the section.
-        howto: The how-to guide whose steps send it.
+        seen_in: The published pages outside the message pages that embed
+            the occasion, derived from their include directives, in path
+            order.
         example: The ``vocab_examples`` function that builds its example.
     """
 
@@ -430,7 +409,7 @@ class OccasionRow(BaseModel):
     status: MappingStatus
     description: NonEmptyString
     notes: NonEmptyString | None = None
-    howto: HowToLink | None = None
+    seen_in: tuple[PageLink, ...] = ()
     example: NonEmptyString
 
 
@@ -462,7 +441,7 @@ class OccasionTable(BaseModel):
 
     model_config = _RECORD
 
-    format_version: Literal[1]
+    format_version: Literal[2]
     groups: tuple[OccasionGroup, ...] = Field(min_length=1)
 
     @model_validator(mode="after")

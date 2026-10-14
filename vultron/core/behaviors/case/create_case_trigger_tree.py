@@ -26,12 +26,19 @@ from py_trees.ports import NoDataAvailable
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CommitNativeLedgerEntriesNode,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
     UpdateActorOutbox,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.port_guard import (
+    RequireSyncPortNode,
+    RequireWireRenderPortNode,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -183,6 +190,7 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
 
 def create_case_trigger_bt(
     *,
+    actor_id: str,
     case_name: str,
     case_content: str,
     report_id: str | None,
@@ -195,8 +203,21 @@ def create_case_trigger_bt(
     ``queue_for_delivery`` is ``False`` when the activity names no recipient:
     the case and its ``Create`` are still built, but nothing is queued, since
     the outbox refuses an activity whose ``to:`` names no one (OX-08-001).
+
+    The creating actor (*actor_id*) is the case's CASE_OWNER and its
+    CASE_MANAGER (CM-02-015), so it commits the case's creation entries:
+    the genesis ``create_case`` entry, then one entry for each record the
+    tree wrote (CLP-07-013).  ``CommitNativeLedgerEntriesNode`` is the same
+    node the case-proposal tree composes, so a case created either way is
+    committed as the same entry sequence.  It runs last, after the
+    ``Create`` is queued, for the reason it does on the proposal path: a
+    recipient must hold the case before the first entry's fan-out reaches it
+    (CP-09-009).  The ports those commits need are checked first, so a
+    composition fault refuses before the case is written.
     """
     children: list[py_trees.behaviour.Behaviour] = [
+        RequireWireRenderPortNode(),
+        RequireSyncPortNode(),
         _CreateCaseRecordNode(
             case_name=case_name,
             case_content=case_content,
@@ -211,6 +232,9 @@ def create_case_trigger_bt(
     ]
     if queue_for_delivery:
         children.append(UpdateActorOutbox())
+    children.append(
+        CommitNativeLedgerEntriesNode(owner_uri=actor_id, report_id=report_id)
+    )
     return py_trees.composites.Sequence(
         name="CreateCaseTriggerBT",
         memory=False,

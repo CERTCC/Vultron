@@ -32,6 +32,7 @@ from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
     _fetch_participant,
+    recipient_ids,
 )
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
@@ -70,7 +71,17 @@ REPLICA_PARTICIPANT_TIMEOUT: float = 10.0
 LEDGER_COVERAGE_TIMEOUT: float = 30.0
 # 45 s: contiguous ledger-coverage budget for a late joiner, which catches up
 # from genesis through the CM-17-004 backfill — one Announce per prior entry.
+# Both coverage budgets are stall budgets: each newly arrived entry restarts
+# them, up to BACKFILL_PROGRESS_CEILING (wait_for_contiguous_ledger_coverage).
 LATE_JOINER_COVERAGE_TIMEOUT: float = 45.0
+# 300 s: ceiling for a wait that follows a late joiner's backfill
+# (:class:`ProgressDeadline`).  Such a wait fails when the joiner's ledger copy
+# stops advancing, not when a fixed budget runs out: the backfill is one
+# Announce per prior entry, applied one at a time by the joiner's inbox, and
+# under CI load it ran from 26 s to over 100 s for the same 50-odd entries
+# (#4424).  The ceiling only stops a wait that keeps seeing progress from
+# running for ever; it is about three times the slowest backfill seen in CI.
+BACKFILL_PROGRESS_CEILING: float = 300.0
 
 
 def _client_in(
@@ -90,12 +101,74 @@ def _client_in(
 # ---------------------------------------------------------------------------
 
 
+class ProgressDeadline:
+    """A deadline that moves forward while the awaited cause visibly advances.
+
+    A wait whose effect lands behind a queue of work — a late joiner's
+    full-case Invite, queued after the ledger backfill (CM-11-010) — cannot be
+    bounded by a fixed budget, because the queue's length times its per-item
+    cost under load is not known in advance (#4424).  Gating on the cause
+    (EDF-06, ADR-0058) means watching the queue drain: each reading of the
+    progress measure that is higher than every earlier one restarts the
+    *stall* budget.  The wait then fails only when nothing has advanced for
+    ``stall_seconds``, or at ``ceiling_seconds`` from construction, whichever
+    comes first.
+
+    With no readings at all it is a plain ``stall_seconds`` deadline.  The
+    first reading only sets the baseline, so progress made before the wait
+    began earns no extra time.
+
+    Args:
+        stall_seconds: Seconds the measure may go without advancing.
+        ceiling_seconds: Seconds after construction at which the wait ends
+            however much progress it sees; never less than ``stall_seconds``.
+    """
+
+    def __init__(self, stall_seconds: float, ceiling_seconds: float) -> None:
+        now = time.monotonic()
+        self._stall = stall_seconds
+        self._ceiling_seconds = max(stall_seconds, ceiling_seconds)
+        self._ceiling = now + self._ceiling_seconds
+        self._deadline = now + stall_seconds
+        self._best: int | None = None
+
+    def observe(self, progress: int) -> None:
+        """Record a reading; restart the stall budget if it is a new high."""
+        if self._best is None:
+            self._best = progress
+        elif progress > self._best:
+            self._best = progress
+            self._deadline = min(time.monotonic() + self._stall, self._ceiling)
+
+    def expired(self) -> bool:
+        """Whether the wait has run out of time."""
+        return time.monotonic() >= self._deadline
+
+    def describe(self) -> str:
+        """Name the last progress reading, for a timeout message."""
+        if self._best is None:
+            return "no progress reading was taken"
+        if (
+            self._ceiling_seconds > self._stall
+            and self._deadline >= self._ceiling
+        ):
+            return (
+                f"progress reached {self._best} and was still advancing when"
+                f" the wait hit its {self._ceiling_seconds:.0f} s ceiling"
+            )
+        return (
+            f"progress reached {self._best}, then did not advance for"
+            f" {self._stall:.0f} s"
+        )
+
+
 def _poll_until(
     condition_fn: Callable[[], bool],
     timeout_seconds: float,
     poll_interval: float = 0.5,
     error_msg: str = "Timed out waiting for condition",
     swallow_exceptions: bool = True,
+    progress: ProgressDeadline | None = None,
 ) -> None:
     """Poll *condition_fn* until it returns ``True`` or the deadline passes.
 
@@ -107,6 +180,9 @@ def _poll_until(
         swallow_exceptions: When ``True``, exceptions raised by *condition_fn*
             are caught and treated as ``False`` (poll continues).  When
             ``False``, exceptions propagate immediately.
+        progress: When given, replaces the fixed *timeout_seconds* deadline;
+            *condition_fn* feeds it readings, so the wait lasts as long as the
+            cause keeps advancing (:class:`ProgressDeadline`).
 
     Raises:
         AssertionError: If *condition_fn* does not return ``True`` within
@@ -119,7 +195,11 @@ def _poll_until(
     # The condition is always tried at least once, even with no time left: a
     # wait handed the tail of a shared budget (SharedBudget) must still succeed
     # when its effect has already landed, and fail only when it has not.
-    deadline = time.monotonic() + timeout_seconds
+    deadline = (
+        progress
+        if progress is not None
+        else ProgressDeadline(timeout_seconds, timeout_seconds)
+    )
     last_exc: Exception | None = None
     while True:
         try:
@@ -130,7 +210,7 @@ def _poll_until(
             if not swallow_exceptions:
                 raise
             last_exc = exc
-        if time.monotonic() >= deadline:
+        if deadline.expired():
             break
         time.sleep(poll_interval)
 
@@ -139,6 +219,8 @@ def _poll_until(
             f"{error_msg} — the check never completed: every attempt raised"
             f" {type(last_exc).__name__}: {last_exc}"
         ) from last_exc
+    if progress is not None:
+        raise AssertionError(f"{error_msg} ({progress.describe()})")
     raise AssertionError(error_msg)
 
 
@@ -537,12 +619,15 @@ def wait_for_event_type_in_ledger(
 ) -> None:
     """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *event_type* appears.
 
-    Use this before reading the authoritative tail index in close phases to
-    ensure the ``close_case`` entry (committed asynchronously by the CaseActor's
-    auto-close BT after the last RM.CLOSED) is present before we snapshot the
-    tail.  Without this wait, the tail index may exclude ``close_case``, causing
-    a coverage-wait 'success' for the wrong tail and a gapped ledger dump
-    (issue #1772 Bug B).
+    Use this before reading the authoritative tail index when a later step
+    depends on an entry the CaseActor commits asynchronously, so the tail
+    snapshot includes it.  Without such a wait, the tail index may exclude the
+    entry, causing a coverage-wait 'success' for the wrong tail and a gapped
+    ledger dump (issue #1772 Bug B).  The close phase no longer reads the
+    authority's tail: a closed participant is sent nothing after its own
+    closure entries (CM-23-004), so
+    :func:`~vultron.demo.helpers.closure.close_case_owner_last` checks each
+    replica against that participant's own closure instead.
 
     Args:
         client: DataLayerClient connected to the authoritative container.
@@ -580,6 +665,7 @@ def wait_for_contiguous_ledger_coverage(
     expected_tail_index: int,
     timeout_seconds: float = LEDGER_COVERAGE_TIMEOUT,
     poll_interval: float = 0.5,
+    progress_ceiling: float = BACKFILL_PROGRESS_CEILING,
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
 
@@ -591,22 +677,32 @@ def wait_for_contiguous_ledger_coverage(
     This helper closes that race by polling until the replica's local index
     set is the complete contiguous range ``{0, 1, …, expected_tail_index}``.
 
+    The wait follows the delivery it is waiting on: every poll that finds more
+    of the case's entries than any before restarts *timeout_seconds*
+    (:class:`ProgressDeadline`), so a late joiner still draining a long
+    backfill is waited for, and one whose entries stopped arriving fails
+    *timeout_seconds* after the last one landed (#4424).
+
     Args:
         client: DataLayerClient connected to the replica container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         expected_tail_index: The highest ``log_index`` the replica must hold
             (inclusive).  Typically obtained from the authoritative actor's
             ledger dump before calling this function.
-        timeout_seconds: Maximum time to wait before raising.
+        timeout_seconds: Seconds the replica may go without receiving another
+            of the case's entries before the wait gives up.
         poll_interval: Seconds between DataLayer poll attempts.
+        progress_ceiling: Seconds after which the wait gives up however many
+            entries are still arriving.
 
     Raises:
-        AssertionError: If the replica does not have full contiguous coverage
-            within *timeout_seconds*.
+        AssertionError: If the replica stops receiving entries short of full
+            contiguous coverage, or *progress_ceiling* passes first.
 
     Spec: SYNC-10-004 (catch-up gate must require a contiguous canonical log prefix).
     """
     expected_indices = set(range(expected_tail_index + 1))
+    progress = ProgressDeadline(timeout_seconds, progress_ceiling)
 
     def _check() -> bool:
         raw = client.get(client.dl_path("CaseLedgerEntrys/"))
@@ -619,6 +715,7 @@ def wait_for_contiguous_ledger_coverage(
             and v.get("case_id") == case_id
             and isinstance(v.get("log_index"), int)
         }
+        progress.observe(len(present))
         missing = expected_indices - present
         if missing:
             logger.debug(
@@ -646,6 +743,7 @@ def wait_for_contiguous_ledger_coverage(
         f"for case {case_id!r} — one or more intermediate entries may not have "
         "been delivered",
         swallow_exceptions=True,
+        progress=progress,
     )
 
 
@@ -662,6 +760,8 @@ def _poll_datalayer_for(
     log_msg: str,
     error_msg: str,
     id_fn: Callable[[str, dict], str] | None = None,
+    progress_fn: Callable[[dict], int] | None = None,
+    progress_ceiling: float = BACKFILL_PROGRESS_CEILING,
 ) -> str:
     """Poll the client's own DataLayer until *discriminator_fn* matches.
 
@@ -685,15 +785,25 @@ def _poll_datalayer_for(
         id_fn: Maps a match's raw ID and data to the ID returned; the raw ID
             itself when omitted.  A record that wraps another object (a
             received-activity archive) returns the wrapped object's ID.
+        progress_fn: Reads, from the same dump, how far the work queued ahead
+            of the awaited object has got.  When given, *timeout_seconds* is
+            a stall budget that each advance restarts, up to
+            *progress_ceiling* (:class:`ProgressDeadline`); when omitted it is
+            a fixed deadline.
+        progress_ceiling: Seconds after which a *progress_fn* wait gives up
+            however much progress it sees.
 
     Returns:
         The ID of the first matching object, as *id_fn* derives it.
 
     Raises:
-        AssertionError: If no matching object is found within *timeout_seconds*.
+        AssertionError: If no matching object is found in time.
     """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
+    deadline = ProgressDeadline(
+        timeout_seconds,
+        progress_ceiling if progress_fn is not None else timeout_seconds,
+    )
+    while not deadline.expired():
         try:
             all_objects = client.get(client.dl_path())
             if isinstance(all_objects, dict):
@@ -708,9 +818,15 @@ def _poll_datalayer_for(
                         )
                         logger.info(log_msg, obj_id)
                         return obj_id
+                # Read progress only after the match, so a reading that raises
+                # can never hide an object that has already arrived.
+                if progress_fn is not None:
+                    deadline.observe(progress_fn(all_objects))
         except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)
+    if progress_fn is not None:
+        raise AssertionError(f"{error_msg} ({deadline.describe()})")
     raise AssertionError(error_msg)
 
 
@@ -890,12 +1006,29 @@ def find_case_invite_for_actor(
     )
 
 
+def _count_case_ledger_entries(dump: dict, case_id: str) -> int:
+    """Count *case_id*'s ledger entries in a whole-store dump.
+
+    The dump serializes every object by alias (camelCase), so an entry's case
+    is ``caseId`` — unlike the ``CaseLedgerEntrys/`` collection, which is
+    served by field name.
+    """
+    return sum(
+        1
+        for obj in dump.values()
+        if isinstance(obj, dict)
+        and obj.get("type") == "CaseLedgerEntry"
+        and obj.get("caseId") == case_id
+    )
+
+
 def find_full_case_invite_for_actor(
     client: DataLayerClient,
     case_id: str,
     invitee_id: str,
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
+    progress_ceiling: float = BACKFILL_PROGRESS_CEILING,
 ) -> str:
     """Poll until the CASE_MANAGER's full-case Invite for *invitee_id* arrives.
 
@@ -903,18 +1036,30 @@ def find_full_case_invite_for_actor(
     and ledger replay (CM-11-010); the joined participant answers it with
     ``accept-full-case-invite`` or one of its two siblings (CM-11-011).
 
+    Because the Invite is queued after the replay, the invitee's inbox reaches
+    it only once every replayed entry before it has been applied, one at a
+    time.  The wait is therefore gated on that backfill (EDF-06, ADR-0058):
+    each poll that finds more of the case's ledger entries in the invitee's
+    store restarts *timeout_seconds*, so a long backfill under CI load is
+    waited for and a stalled one fails (#4424).  The count is read from the
+    same dump the Invite is looked for in, so the wait adds no request.
+
     Args:
         client: DataLayerClient connected to the invitee container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         invitee_id: Full URI of the joined participant.
-        timeout_seconds: Maximum time to wait before raising.
+        timeout_seconds: Seconds the invitee's ledger copy of the case may go
+            without advancing before the wait gives up.
         poll_interval: Seconds between DataLayer poll attempts.
+        progress_ceiling: Seconds after which the wait gives up however far
+            the backfill is still advancing.
 
     Returns:
         The full-case Invite activity ID string.
 
     Raises:
-        AssertionError: If no matching Invite is found within *timeout_seconds*.
+        AssertionError: If no matching Invite is found before the backfill
+            stalls or *progress_ceiling* passes.
     """
     return _poll_datalayer_for(
         client=client,
@@ -924,6 +1069,8 @@ def find_full_case_invite_for_actor(
         id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
+        progress_fn=lambda dump: _count_case_ledger_entries(dump, case_id),
+        progress_ceiling=progress_ceiling,
         log_msg=(
             f"Found full-case Invite for actor {invitee_id} on case"
             f" {case_id}: %s"
@@ -1281,6 +1428,7 @@ def wait_for_object_stored(
     obj_id: str,
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
+    actor_id: str | None = None,
 ) -> None:
     """Poll *client*'s DataLayer until *obj_id* appears.
 
@@ -1298,6 +1446,9 @@ def wait_for_object_stored(
         obj_id: Full URI of the object to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
+        actor_id: Whose store to poll.  Defaults to *client*'s own actor;
+            name the recipient when it is not the actor *client* is bound to
+            (ADR-0073).
 
     Raises:
         AssertionError: If *obj_id* does not appear within *timeout_seconds*.
@@ -1307,7 +1458,7 @@ def wait_for_object_stored(
 
     def _check() -> bool:
         try:
-            data = client.get(client.dl_path(obj_id))
+            data = client.get(client.dl_path(obj_id, actor_id=actor_id))
             if data:
                 logger.info(
                     "Object %s found in DataLayer at %s",
@@ -1657,12 +1808,7 @@ def _is_embargo_invite_for(
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     if inner_id != embargo_id:
         return False
-    recipients = invite.get("to")
-    if not isinstance(recipients, list):
-        recipients = [recipients]
-    return invitee_id in [
-        r.get("id") if isinstance(r, dict) else r for r in recipients
-    ]
+    return invitee_id in recipient_ids(invite.get("to"))
 
 
 def find_embargo_invite_for_actor(

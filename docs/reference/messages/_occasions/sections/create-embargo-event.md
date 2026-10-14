@@ -7,7 +7,8 @@ Mints the embargo event that carries the proposed terms. It precedes the Invite 
 - **When…** a Participant has drafted embargo terms it is about to propose
 - **Send:** `Create(Event)[context=VulnerabilityCase|VulnerabilityReport]`
 - **Sent by:** the case owner
-- **How-to:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
+- **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

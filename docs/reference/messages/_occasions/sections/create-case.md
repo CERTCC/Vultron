@@ -2,12 +2,13 @@
 
 ## Create case { #create-case }
 
-Mints the vulnerability case, seats its initial participants and links the report. The Case Manager sends the completed case once to the report submitter.
+Mints the vulnerability case, seats its initial participants and links the report.
 
 - **When…** the Case Manager has opened a case for a submitted report
 - **Send:** `Create(VulnerabilityCase)`
 - **Sent by:** not yet checked
-- **How-to:** [How to Initialize a Case](../../../../howto/activitypub/activities/initialize_case.md)
+- **Seen in:** [How to Initialize a Case](../../../../howto/activitypub/activities/initialize_case.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

@@ -120,7 +120,11 @@ class CheckResult:
 
 
 def include_directives(
-    host_path: Path, docs_dir: Path, *, uncut: bool = False
+    host_path: Path,
+    docs_dir: Path,
+    *,
+    uncut: bool = False,
+    existing: bool = True,
 ) -> Iterator[tuple[int, str, bool]]:
     """Yield ``(offset, target, whole)`` for each ``.md`` file *host_path* includes.
 
@@ -130,7 +134,9 @@ def include_directives(
     are not pages and are skipped. *offset* is where the directive starts in
     the host's source, and *target* is ``docs/``-relative. *whole* means no
     ``start=``, so the target's frontmatter renders; with *uncut* it also
-    means no ``end=``, so every link in the target renders.
+    means no ``end=``, so every link in the target renders. With
+    *existing* false, a target that does not exist yet is yielded too, so a
+    generator can read the directives naming a file it is about to write.
     """
     docs_resolved = docs_dir.resolve()
     text = host_path.read_text(encoding="utf-8", errors="replace")
@@ -150,7 +156,7 @@ def include_directives(
             resolved = candidate.resolve()
             if (
                 resolved.suffix == ".md"
-                and resolved.is_file()
+                and (resolved.is_file() or not existing)
                 and resolved.is_relative_to(docs_resolved)
             ):
                 target = resolved.relative_to(docs_resolved).as_posix()

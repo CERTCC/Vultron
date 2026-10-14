@@ -2176,7 +2176,11 @@ groups:
       When the CASE_MANAGER acknowledges a no-op late Accept (EMB-17-004), it
       MUST commit a distinct ledger entry of event type
       `invite_to_embargo_on_case_expired_noop` so that replicas can record the
-      acknowledgement without applying any PEC transition (RSH-08-004).
+      acknowledgement without applying any PEC transition (RSH-08-004). Its
+      payloadSnapshot MUST be the CASE_MANAGER's own factory-built
+      `Ignore(Accept(Invite(EmbargoEvent)))` carrying the late Accept inline,
+      in the AS2 shape a received activity is recorded in (CLP-07-009,
+      CLP-07-013, VM-08-003).
     rationale: >-
       Without a committed entry the replica has no record that the late Accept
       was received and acknowledged; its chain position would be missing,
@@ -2408,8 +2412,9 @@ groups:
     verification: >-
       `test_em_transition_table_is_declared_and_enforced` in
       `test/core/states/test_em_transition_table.py` asserts the table is
-      declared and a step whose EM move is not in it is refused; it is a strict
-      `xfail` until #4449 lands.
+      declared and a step whose EM move is not in it is refused, and
+      `test_a_refused_em_move_leaves_the_case_unchanged` that the refusal
+      writes nothing to the case.
     adr:
     - ADR-0130
     testable: true

@@ -37,7 +37,8 @@ Named constants for known request/reply pairs:
   full-case ``Invite(Actor)[target=Case]``.
 - :data:`OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` — closes when the
   transferee's ``Accept`` or ``Reject`` of an ownership-transfer
-  ``Offer(VulnerabilityCase)`` is ledgered (CM-21-011, CM-21-014).
+  ``Offer(VulnerabilityCase)``, or the offerer's ``Undo`` of it, is ledgered
+  (CM-21-011, CM-21-014, CM-21-015).
 """
 
 from __future__ import annotations
@@ -79,14 +80,31 @@ INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
 #: ``Offer(VulnerabilityCase)`` — the request side of the pair below.
 OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE: str = "offer_case_ownership_transfer"
 
-#: Reply event types that close an ownership-transfer
-#: ``Offer(VulnerabilityCase)`` protocol pair: the transferee's answer, once the
-#: CASE_MANAGER ledgers it (CM-21-007, CM-21-012, CM-21-014).  Withdrawal and
-#: expiry (CM-21-015, CM-21-017) join this set when they are ledgered.
+#: Ledger ``event_type`` of the offerer's withdrawal of an ownership-transfer
+#: Offer, ``Undo(Offer(VulnerabilityCase))`` (CM-21-015).
+UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE: str = "undo_case_ownership_transfer"
+
+#: Ledger ``event_type`` of the CASE_MANAGER's record that an
+#: ownership-transfer Offer passed its ``end_time`` unanswered (CM-21-017).
+#: Distinct from the transferee's Reject (CM-21-012): nobody declined, the
+#: deadline passed.  Only the CASE_MANAGER commits it; a replica learns the
+#: expiry from the entry and never computes one.
+OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE: str = (
+    "offer_case_ownership_transfer_expired"
+)
+
+#: Event types that close an ownership-transfer ``Offer(VulnerabilityCase)``
+#: protocol pair once the CASE_MANAGER ledgers them (CM-21-014): the
+#: transferee's answer (CM-21-007, CM-21-012), the offerer's withdrawal
+#: (CM-21-015) and the CASE_MANAGER's expiry record (CM-21-017).  Every reader
+#: of "is this Offer open?" goes through this set, so a new closing entry needs
+#: no other change to close the Offer.
 OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
     {
         "accept_case_ownership_transfer",
         "reject_case_ownership_transfer",
+        UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
+        OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
     }
 )
 
@@ -117,6 +135,12 @@ INVITE_ACTOR_TO_CASE_EXPIRY: AskExpiry = AskExpiry.STALE
 #: Expiry consequence of an ``Invite(EmbargoEvent)`` (ASK-03-007): a late reply
 #: is still honoured under EMB-17 once the expiry has been recorded.
 INVITE_TO_EMBARGO_EXPIRY: AskExpiry = AskExpiry.STALE
+
+#: Expiry consequence of an ownership-transfer ``Offer(VulnerabilityCase)``
+#: (ASK-03-002): void.  The deadline is binding, so an Accept or Reject the
+#: CASE_MANAGER processes after ``Offer.end_time`` moves no role and is not
+#: ledgered (CM-21-016, ASK-03-006).
+OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY: AskExpiry = AskExpiry.VOID
 
 
 @dataclass(frozen=True)
@@ -187,5 +211,8 @@ __all__ = [
     "INVITE_ACTOR_TO_CASE_REPLY_TYPES",
     "INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES",
     "OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE",
+    "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE",
+    "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY",
     "OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES",
+    "UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE",
 ]

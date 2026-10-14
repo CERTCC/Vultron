@@ -101,7 +101,6 @@ _Site = tuple[str, str]
 _C = "vultron/core/behaviors/case"
 _E = "vultron/core/behaviors/embargo"
 _N = "vultron/core/behaviors/note"
-_R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
 
 # ---------------------------------------------------------------------------
@@ -115,10 +114,11 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
 #    received trees only: a trigger, expiry or retry tree runs on the actor's
-#    own initiative.  The four ``case_manager_admits_*_guard`` composites
+#    own initiative.  The ``case_manager_admits_*_guard`` composites
 #    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
-#    removal and reinstatement trees, the two suggest-actor trees): they
+#    removal and reinstatement trees, the two suggest-actor trees, the
+#    ownership-transfer Offer tree's one-open-Offer guard): they
 #    hold no effect and no emit, which is all BT-17-008 governs (#4301
 #    keeps their direct gate).  The admission backfill is a CM-10-006
 #    follow-on that the embargo Accept use case runs on its own, given no
@@ -140,10 +140,21 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (f"{_E}/expiry_tree.py", "create_invite_expiry_tree"),
         (f"{_E}/expiry_tree.py", "create_noop_ledger_entry_tree"),
         (f"{_E}/expiry_tree.py", "create_reinvite_stale_accepter_tree"),
+        # The ownership-transfer Offer's lazy expiry (CM-21-017): the
+        # CASE_MANAGER's own act, run before the received tree, like the
+        # embargo Invite expiry above.
+        (
+            f"{_C}/ownership_expiry_tree.py",
+            "create_ownership_offer_expiry_tree",
+        ),
         (f"{_E}/nodes/relay.py", "case_manager_admits_proposal_guard"),
         (
             f"{_C}/nodes/case_participant_received.py",
             "case_manager_admits_removal_guard",
+        ),
+        (
+            f"{_C}/nodes/ownership_offer_guard.py",
+            "case_manager_admits_ownership_offer_guard",
         ),
         (
             f"{_C}/nodes/participant_reinstatement.py",
@@ -182,6 +193,12 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "vultron.core.behaviors.case.nodes.lifecycle",
             "CommitCaseLedgerEntryNode",
         ),
+        # Mints the CASE_MANAGER's ownership-transfer Offer expiry entry and
+        # fans it out (CM-21-017); sends nothing else.
+        (
+            "vultron.core.behaviors.case.nodes.ownership_offer_expiry",
+            "ExpireOverdueOwnershipOfferNode",
+        ),
         (
             "vultron.core.behaviors.case.nodes.proposal_ledger",
             "CommitNativeLedgerEntriesNode",
@@ -217,11 +234,6 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
 # replica_emit_exemptions.py)
 REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        (
-            "ACK_ECHO",
-            f"{_R}/received_report_trees.py",
-            "create_ack_report_received_tree",
-        ),
         (
             "CASE_PROPOSAL",
             f"{_C}/case_proposal_received_tree.py",

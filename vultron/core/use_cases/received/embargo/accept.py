@@ -189,12 +189,13 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         self,
         *,
         case_id: str,
-        invite_id: str,
-        embargo_id: str,
-        accepting_actor_id: str,
         receiving_actor_id: str,
     ) -> None:
         """Commit the EMB-17-004 no-op acknowledgement entry (ADR-0118, RSH-08-004).
+
+        The entry is the CASE_MANAGER's factory-built ``Ignore`` of the late
+        Accept (CLP-07-013, VM-08-003), so the tree reads the received Accept
+        from ``activity`` and builds it through ``trigger_activity``.
 
         Gated on CASE_MANAGER (BT-17-001): only the CASE_MANAGER commits the
         no-op entry.  A non-manager receiving the same late Accept is refused
@@ -203,20 +204,16 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         integrity invariant is never accidentally violated if the caller
         ordering changes.
         """
-        tree = create_noop_ledger_entry_tree(
-            case_id=case_id,
-            invite_id=invite_id,
-            embargo_id=embargo_id,
-            accepting_actor_id=accepting_actor_id,
-            published=claimed_published_iso(self._request.activity),
-        )
+        tree = create_noop_ledger_entry_tree(case_id=case_id)
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
+            activity=self._request,
         )
         applied_or_raise(tree, result, label="CommitNoopLedgerEntryBT")
 
@@ -346,9 +343,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             # Commit so replicas can replay (RSH-08-004, ADR-0118).
             self._commit_noop_ledger_entry(
                 case_id=case_id,
-                invite_id=invite_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
                 receiving_actor_id=receiving_actor_id,
             )
 

@@ -1,5 +1,6 @@
 """Tests for vultron.wire.as2.extractor."""
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -836,3 +837,63 @@ def test_consent_coercion_helpers_are_retired():
 
     assert not hasattr(_builders, "_coerce_pec_or_none")
     assert not hasattr(base, "_coerce_pec_or_none")
+
+
+# ---------------------------------------------------------------------------
+# Ownership-transfer Offer deadline (CM-21-016, #4491)
+# ---------------------------------------------------------------------------
+
+
+def _deadline_offer(end_time=None):
+    from vultron.wire.as2.factories import (
+        offer_case_ownership_transfer_activity,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(id_="https://example.org/cases/ot-deadline")
+    kwargs: dict[str, Any] = {"actor": "https://example.org/vendor"}
+    if end_time is not None:
+        kwargs["end_time"] = end_time
+    return offer_case_ownership_transfer_activity(
+        case, target="https://example.org/coordinator", **kwargs
+    )
+
+
+@pytest.mark.spec("CM-21-016")
+@pytest.mark.parametrize(
+    "end_time",
+    [
+        "2026-12-01T17:00:00+05:00",
+        # A naive deadline is read as UTC (CS-13-001).
+        "2026-12-01T12:00:00",
+    ],
+)
+def test_ownership_offer_deadline_is_normalised_to_utc_at_the_edge(end_time):
+    """The event carries the Offer's end_time in UTC; the activity keeps the
+    offset it arrived with (CS-13-005), since the entry records it."""
+    from vultron.wire.as2.parser import parse_activity
+
+    wire_dict = json.loads(_deadline_offer().to_json())
+    wire_dict["endTime"] = end_time
+
+    event = cast(Any, extract_event(parse_activity(wire_dict)))
+
+    expected = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)
+    assert (
+        event.semantic_type is MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+    )
+    assert event.answer_deadline == expected
+    assert event.answer_deadline.utcoffset() == timedelta(0)
+    assert event.activity.end_time == expected
+    sent_offset = datetime.fromisoformat(end_time).utcoffset()
+    assert event.activity.end_time.utcoffset() == (sent_offset or timedelta(0))
+
+
+@pytest.mark.spec("CM-21-016")
+def test_ownership_offer_without_end_time_has_no_deadline():
+    event = cast(Any, extract_event(_deadline_offer()))
+
+    assert event.answer_deadline is None
+    assert event.activity.end_time is None

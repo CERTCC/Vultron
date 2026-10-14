@@ -373,9 +373,16 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     def test_invariant_per_actor_replica_rm_closed_termination(
         request: pytest.FixtureRequest,
     ) -> None:
-        """Each non-case-actor replica's log ends with every participant CLOSED."""
+        """Each leaver's replica ends at its own closure, itself RM=CLOSED.
+
+        CM-23-004: a closed participant is sent nothing after the entries
+        that record its own closure, so no replica holds every closure;
+        invariant 7 checks every participant on the ``case-actor`` log.
+        """
         replicas = request.getfixturevalue(replicas_fixture)
-        violations = check_per_actor_replica_rm_closed_termination(replicas)
+        violations = check_per_actor_replica_rm_closed_termination(
+            replicas, load_actor_names(request.module._DEMO_NAME)
+        )
         assert not violations, (
             f"{len(violations)} replica-side RM-termination violation(s):\n"
             + "\n".join(violations)

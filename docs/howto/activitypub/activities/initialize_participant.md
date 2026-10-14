@@ -46,8 +46,14 @@ flowchart LR
 
 1. Ask the CASE_MANAGER to invite the actor, naming the roles it will hold — see [How to Invite an Actor to a Case](invite_actor.md).
    The CASE_MANAGER sends the stub `Invite(Actor)` and records an inert `CaseParticipant` for the actor, with the roles the Invite names.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-case.md" %}
+
 2. The actor answers `Accept(Invite(Actor))` to the CASE_MANAGER.
    The CASE_MANAGER commits the `Accept` as a ledger entry and seats the actor.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/accept-invite-to-case.md" %}
+
 3. The CASE_MANAGER sends the new participant the case and the ledger it missed, then the full-case Invite that asks it to judge the case.
    The ledger holds the messages exchanged: the CASE_MANAGER's entry for creating the inert record, then the invitee's `Accept(Invite(Actor))` itself, which every other replica applies, and the CASE_MANAGER's entry for a vendor's VF status.
 

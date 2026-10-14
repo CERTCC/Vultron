@@ -33,6 +33,9 @@ Three mechanisms cover every case (MSM-05-001).
 
 - If you could not parse the message, send `Create(ProcessingFault)`.
   Do not reject it — rejection claims you understood it.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/create-processing-fault.md" %}
+
 - If you understood the message and are refusing it, send `as:Reject`.
   Say which rule or state made it inadmissible.
 - If the condition needs a human to read it, add a note to the case.
