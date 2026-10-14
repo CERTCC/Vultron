@@ -312,18 +312,22 @@ clock: a replica learns an expiry and never computes one.
 
 An invitee that never answers sends nothing, so a late-`Accept` check never sees
 it: its row stays `INVITED` until owner close expires it (CM-23-014). The
-CASE_MANAGER therefore expires every overdue `INVITED` row of the case before it
-commits the owner's decision, and on every other received embargo activity, after
-the sender gate (CM-28-015). Reuse the owner-close settle step's commit → effect
-pair, filtered to rows past their deadline, rather than writing a second expiry
-path (`create_commit_and_record_expiry_tree`).
+CASE_MANAGER therefore expires every overdue `INVITED` row of an open proposal or
+the embargo in force before it commits the owner's decision, and on every other
+received embargo activity, after all of the activity's refusal checks, so a
+refused activity writes nothing (CM-28-015). Rows of a replaced, rejected,
+cancelled or ended embargo are frozen: skip them. Reuse the owner-close settle
+step's commit → effect pair, filtered to rows past their deadline, rather than
+writing a second expiry path (`create_commit_and_record_expiry_tree`).
 
 ### The ledger fan-out is the owner's notification (MSM-07-007)
 
-The owner learns of a `DECLINED` or `TIMED_OUT` answer from the entry's
-`Announce(CaseLedgerEntry)`: it is an active participant, so
-`ledger_entry_recipients` always includes it. Do not add a separate notification
-activity: it would duplicate the announcement, which EP-09-009 forbids (#4548).
+The owner learns of a `DECLINED` or `TIMED_OUT` answer from the entry itself. An
+active owner gets the `Announce(CaseLedgerEntry)`, because `ledger_entry_recipients`
+includes every active participant; an owner holding CASE_MANAGER is excluded from
+its own fan-out but already holds the entry. Do not add a separate notification
+activity: it would duplicate the entry, and for a `Reject` it would be the
+acknowledgement EP-09-009 forbids (#4548).
 
 ### Clamp, don't reject (EP-07-002, EP-07-003)
 

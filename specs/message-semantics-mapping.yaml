@@ -972,22 +972,26 @@ groups:
       the deadline attaches to that invitation. The CASE_MANAGER MUST author a case-ledger entry
       recording the expiry (CM-28-005) so the consent change is visible in the canonical ledger, but
       no additional protocol wire activity is required. The case owner learns of the expiry, as of
-      an explicit refusal (MSM-07-004), from that entry's `Announce(CaseLedgerEntry)` fan-out; no
-      separate notification activity is sent to the owner.
+      an explicit refusal (MSM-07-004), from that entry: by its `Announce(CaseLedgerEntry)`
+      fan-out while the owner is an active participant (CM-10-004), or from its own ledger when
+      the owner holds `CVDRole.CASE_MANAGER`. No separate notification activity is sent to the
+      owner.
     rationale: >-
       Inaction cannot produce an outbound message because there is no actor-observable event to
       report. The expiry is a derived conclusion from (the row's rsvp_deadline, now); the ledger entry
       is the record of that conclusion, not a message sent by the silent participant. Requiring a
       wire message would demand the system speak on behalf of a participant who has said nothing,
-      which contradicts the Actor Knowledge Model (AKM). The owner is an active participant, so the
-      fan-out already reaches it; a second message for the same entry would be the acknowledgement
-      EP-09-009 forbids.
+      which contradicts the Actor Knowledge Model (AKM). The entry already reaches every owner
+      entitled to case content, so a second message would only duplicate it; for an explicit
+      refusal, a received embargo activity, it would also be the acknowledgement EP-09-009 forbids.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms detect_and_apply_expiry()
       applies PEC_Trigger.TIME_OUT without emitting an outbound wire activity, that a
       CASE_MANAGER-authored ledger entry is written per CM-28-005, and that
       detect_and_apply_expiry() applies it only to the named invitation's row, and only from
-      INVITED.
+      INVITED. A test asserts an active case owner that does not hold CVDRole.CASE_MANAGER is
+      among ledger_entry_recipients for both the expiry entry and a Reject(Invite(EmbargoEvent))
+      entry, and that neither commit emits any activity other than the Announce fan-out.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002
