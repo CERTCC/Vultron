@@ -151,7 +151,7 @@ groups:
     - story_2022_045
   - id: CM-02-010
     priority: MAY
-    kind: protocol
+    kind: project
     statement: The actor enacting CASE_MANAGER and the case owner (named actor) MAY be the same actor. When they are different
       actors, each MUST have its own actor ID, even when co-located on the same server
     rationale: A deployment may enact both roles in one actor. When the proposal flow (CP-09-001) yields two actors, distinct
@@ -164,8 +164,6 @@ groups:
       spec_id: CM-01-001
     - rel_type: depends_on
       spec_id: CM-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: CM-02-011
     priority: MUST
     kind: architecture
@@ -501,8 +499,14 @@ groups:
   - id: CM-04-006
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
-    statement: 'A state transition handler for a participant-specific transition (RM or VFD) MUST NOT update any case-level (participant-agnostic) state field (em_state, pxa_state). A state transition handler for a case-level transition (PXA or EM) MUST NOT update any participant-specific state field (rm_state, vfd_state).'
+    verification: >-
+      Inspection of the state transition handlers confirms each RM or VFD handler writes
+      only participant-specific fields and each EM or PXA handler writes only case-level
+      fields.
+    statement: >-
+      A participant-specific transition (RM or VFD) MUST NOT change any case-level
+      (participant-agnostic) state (EM or PXA), and a case-level transition (PXA or EM) MUST
+      NOT change any participant-specific state (RM or VFD).
     relationships:
     - rel_type: implements
       spec_id: VP-13-009
@@ -543,16 +547,39 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The system MUST distinguish the following domain objects as separate, non-interchangeable
-      types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference,
-      CaseParticipant, and ParticipantStatus. Each of these types MUST NOT be substituted for
-      another at any API boundary, persistence layer, or wire message.
-    verification: Static analysis (mypy) confirms that `VulnerabilityReport`,
-      `VulnerabilityCase`, `VulnerabilityRecord`, `CaseReference`,
-      `CaseParticipant`, and `ParticipantStatus` are declared as distinct non-interchangeable
-      types.
+      VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference,
+      CaseParticipant, and ParticipantStatus MUST be distinct, non-interchangeable object
+      types, and a message MUST NOT carry one of them where another is expected.
+    rationale: >-
+      The CASE_MANAGER is not in this list: it is an ordinary actor designated for a case,
+      not an identity or a distinct object type (ADR-0088).
+    verification: >-
+      `test/core/models/test_distinct_domain_types.py` confirms that the serialized form of
+      each of the six types validates as that type and is refused with a validation error
+      when parsed as any of the others.
     lint_suppress:
     - missing_story_reference
+  - id: CM-05-013
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST model VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord,
+      CaseReference, CaseParticipant, and ParticipantStatus as separate types and MUST NOT
+      substitute one for another at any API boundary or in the persistence layer.
+    rationale: >-
+      How this codebase meets CM-05-001; split from it so CM-05-001 states only what other
+      participants observe (MS-12-010). The case actor is not in this list: it is an
+      ordinary `VultronService` holding the CASE_MANAGER role, not a distinct type (#4605,
+      #4612).
+    verification: >-
+      Static analysis (mypy) confirms that `VulnerabilityReport`, `VulnerabilityCase`,
+      `VulnerabilityRecord`, `CaseReference`, `CaseParticipant`, and `ParticipantStatus` are
+      declared as distinct types that no typed signature accepts in place of one another,
+      and `test/core/models/test_distinct_domain_types.py` confirms that each type's
+      serialized form is refused when parsed as any of the others.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-05-001
   - id: CM-05-002
     priority: MUST_NOT
     kind: protocol
@@ -771,8 +798,11 @@ groups:
       model for CVD objects
   - id: CM-08-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms no core domain class inherits from an ActivityStreams base
+      type and no wire class defines a translation method; AS2 rendering goes through
+      the rendering port.
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
       translation methods; AS2 serialization MUST be performed by the rendering port (ARCH-20-001)
       (see `notes/wire-core-boundary.md` and ADR-0099)
@@ -1071,11 +1101,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When processing a reply to a stub Invite
-      (`Accept`/`Reject(Invite(Actor, VulnerabilityCaseStub))`), the use case
-      MUST resolve `case_id` from the case the nested Invite's stub names,
-      never by deriving it from the stub's ID; the top-level `target` of the
-      reply is not populated.
+      A receiver processing a reply to a stub Invite (`Accept` or `Reject` of `Invite(Actor,
+      VulnerabilityCaseStub)`) MUST identify the case from the case the nested Invite's stub
+      names, never by deriving it from the stub's ID; the top-level `target` of the reply is
+      not populated.
     rationale: >-
       The reply wraps the Invite as its `object_`, so the stub is on
       `object_.target`, which `extract_event` maps to `inner_target`. The stub
@@ -1478,12 +1507,10 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A participant that joined a case through an Invite MUST NOT send
-      `Accept`, `TentativeReject` or `Reject` of the original
-      `Offer(VulnerabilityReport)`, and MUST NOT run `validate-report`,
-      `invalidate-report` or `reject-report` for the case's report. It was never
-      offered that report; it judges the case by replying to the full-case
-      Invite (CM-11-011).
+      A participant that joined a case through an Invite MUST NOT send `Accept`,
+      `TentativeReject` or `Reject` of the original `Offer(VulnerabilityReport)`, and MUST
+      NOT validate, invalidate or reject the case's report. It was never offered that
+      report; it judges the case by replying to the full-case Invite (CM-11-011).
     rationale: >-
       A reply must answer a message sent to the replier. And a joined
       participant — a late joiner especially — judges the case as it stands,
@@ -1587,12 +1614,47 @@ groups:
   - id: CM-13-005
     priority: MUST
     kind: protocol
-    statement: 'Embargo accept/reject handlers MUST be idempotent: if the participant''s consent row for the embargo is already `AGREED` (for accept) or `DECLINED` (for reject), the handler MUST succeed silently without re-running state machine transitions
-      or emitting invalid-transition warnings'
-    verification: A unit test confirms that a repeated embargo accept on an already-`AGREED` consent row returns success without re-running state machine transitions or emitting
-      invalid-transition warnings.
+    statement: >-
+      An embargo answer is idempotent per participant and invitation: a repeated `Accept`
+      or `Reject` by the same participant of the same embargo invitation, whatever its
+      activity id, MUST have no further effect. The receiver MUST NOT change any state for
+      it, MUST NOT add a ledger entry for it and MUST NOT send any message because of it.
+      Answers from different participants are separate consents.
+    verification: >-
+      `test_a_redelivered_embargo_answer_has_no_effect` in
+      `test/core/use_cases/received/test_embargo_propose_accept_reject.py` delivers an
+      answered `Accept` or `Reject` of an embargo Invite to the CASE_MANAGER a second time,
+      with the same activity id, and confirms the redelivery leaves the case, the sender's
+      participant record, the ledger and the outbox unchanged. In
+      `test/core/use_cases/received/test_embargo_answer_idempotency.py`,
+      `test_a_repeat_answer_under_a_new_id_changes_nothing` confirms the same for a repeat
+      under a new activity id (no entry, no Announce, no state change), and
+      `test_another_participants_answer_is_still_its_own_consent` confirms that a different
+      participant's answer is still recorded as its own consent.
     lint_suppress:
     - missing_story_reference
+  - id: CM-13-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The embargo accept and reject use cases MUST succeed silently when the participant's
+      consent row for the embargo is already `AGREED` (for accept) or `DECLINED` (for
+      reject), without re-running state machine transitions or emitting invalid-transition
+      warnings.
+    rationale: >-
+      How this codebase meets CM-13-005; split from it so CM-13-005 states only what other
+      participants observe (MS-12-010).
+    verification: >-
+      `test_a_fresh_repeat_of_an_embargo_answer_changes_no_consent` in
+      `test/core/use_cases/received/test_embargo_propose_accept_reject.py` confirms that a
+      new `Accept` or `Reject` from a participant whose row is already `AGREED` or
+      `DECLINED` leaves the case and the row unchanged, and
+      `test_accept_embargo_invite_idempotent` in
+      `test/core/services/embargo_lifecycle/test_answers.py` confirms that a second accept
+      of an `AGREED` row reports no participant or case change.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-13-005
   - id: CM-13-006
     priority: MUST
     kind: project
@@ -1609,15 +1671,13 @@ groups:
       spec_id: CM-12-004
   - id: CM-13-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Note attachment idempotency MUST be checked by testing whether the note's `id_` is present in `VulnerabilityCase.notes`,
       NOT by testing whether the note object exists in the DataLayer
     rationale: A note may be stored in the DataLayer by one path and never attached to `case.notes` by another path. Checking
       DataLayer existence produces false idempotency.
     verification: A unit test confirms that note idempotency is checked by testing `note.id_` in
       `VulnerabilityCase.notes`, not by querying the DataLayer for the note object's existence.
-    lint_suppress:
-    - missing_story_reference
 - id: CM-14
   title: Case Initialization Sequence
   description: Defines the canonical ordered sequence of initialization steps that MUST occur when a VulnerabilityCase is
@@ -1891,8 +1951,12 @@ groups:
       without creating a `VulnerabilityCase`.
   - id: CM-15-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/behaviors/case/test_receive_report_case_tree.py::TestPolicyGate`
+      confirms that with `auto_create_case=False` the receive tree returns FAILURE and
+      writes no `VultronReportCaseLink`; inspection confirms no `Offer(Report)` receive
+      path creates a `VulnerabilityCase`.
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
       `Offer(Report)` MUST NOT create a `VulnerabilityCase`.
@@ -2904,10 +2968,12 @@ groups:
   - id: CM-20-004
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      Inspection of the invitation flow confirms a Coordinator invited as a regular
+      participant is given `case_roles` that exclude `CVDRole.CASE_MANAGER`.
     statement: >-
-      A Coordinator invited to a case as a regular participant MUST NOT hold
-      `CVDRole.CASE_MANAGER` in their `case_roles` list.
+      A Coordinator invited to a case as a regular participant MUST NOT hold the
+      CASE_MANAGER role in its case roles.
     rationale: '`CVDRole.CASE_MANAGER` grants single-writer authority over the canonical ledger and is held by the actor that
       created the case and enacts that role (CBT-01-003, ADR-0088). It MUST NOT be conferred on an organizational or human
       actor invited to the case as a regular facilitation participant.'
@@ -2917,11 +2983,14 @@ groups:
   - id: CM-20-005
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      Inspection confirms `CVDRole.CASE_MANAGER` is assigned only to the actor that
+      enacts the case-manager role at case creation (CBT-01-003) and never to a
+      participant added through the invitation flow.
     statement: >-
-      `CVDRole.CASE_MANAGER` MUST NOT be assigned to any organizational or human participant
+      The CASE_MANAGER role MUST NOT be assigned to any organizational or human participant
       joining a case as a facilitation actor rather than as the actor enacting the
-      `CVDRole.CASE_MANAGER` role (CBT-01-003).
+      CASE_MANAGER role (CBT-01-003).
     rationale: '`CVDRole.CASE_MANAGER` grants single-writer authority over the canonical ledger (CLP-09). Conferring it on a
       participant invited for facilitation would let them author ledger entries that only the actor enacting `CVDRole.CASE_MANAGER`
       is authorized to write.'
@@ -4503,12 +4572,15 @@ groups:
   - id: CM-25-005
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      `test/core/behaviors/case/nodes/test_vfd_role_guards.py::test_not_sole_observer_failure_for_sole_observer_actor`
+      and
+      `test/core/use_cases/triggers/case/test_add_participant_status.py::TestSoleObserverVfdGuard::test_sole_observer_vf_transition_blocked_end_to_end`
+      confirm a sole-Observer participant cannot emit a VFD transition.
     statement: >-
-      A participant whose `case_roles` list contains ONLY `CVDRole.OBSERVER`
-      MUST NOT emit VFD state-transition messages (CV, CF, or CD). An Observer
-      has no vendor-fix-deployment obligations and no authority to advance the
-      VFD dimension on behalf of a product or service.
+      A participant whose only case role is OBSERVER MUST NOT emit VFD state-transition
+      messages (CV, CF, or CD). An Observer has no vendor-fix-deployment obligations and no
+      authority to advance the VFD dimension on behalf of a product or service.
     note: >-
       This restriction is scoped to sole-OBSERVER participants. When
       CVDRole.OBSERVER is combined with any role that carries VFD obligations
@@ -4549,11 +4621,13 @@ groups:
   - id: CM-25-007
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      Inspection confirms Observer invitations carry `case_roles=[CVDRole.OBSERVER]` and
+      that the CM-16-003 non-empty invariant rejects an empty `case_roles` list.
     statement: >-
-      An empty `case_roles` list MUST NOT be used for Observer invitations; `[]` is
-      indistinguishable from the `caseRoles=[]` admission defect (issue #1288) and
-      violates the CM-16-003 non-empty invariant.
+      An Observer invitation MUST NOT carry an empty case-roles list: an empty list names no
+      role, so the invitee's participant record would violate the CM-16-003 non-empty
+      invariant.
     rationale: >-
       `[]` provides no role information to the CASE_MANAGER's participant-creation path
       on the stub Invite (CM-11-006), producing a participant record that violates the
@@ -4754,7 +4828,7 @@ groups:
     - story_2022_074
   - id: CM-28-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       An inbound `Invite.end_time` MUST be normalised to UTC before any
       comparison against the current time, per CS-13-001. A naive (non
@@ -4783,8 +4857,6 @@ groups:
     adr:
     - ADR-0065
     - ADR-0032
-    lint_suppress:
-    - missing_story_reference
   - id: CM-28-007
     priority: MUST
     kind: project
@@ -4806,8 +4878,11 @@ groups:
     - ADR-0065
   - id: CM-28-008
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms embargo invite expiry is evaluated lazily against the stored
+      deadline when a later event reads the row, with no scheduler or Sentinel runtime
+      on the correctness path.
     statement: >-
       Implementations MUST NOT require a scheduler or Sentinel runtime for embargo invite
       expiry correctness.
@@ -4844,8 +4919,10 @@ groups:
     - story_2022_074
   - id: CM-28-010
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection of the consent-row model confirms it carries no reason field recording
+      expiry versus refusal provenance.
     statement: >-
       The expiry-versus-refusal provenance MUST NOT be duplicated onto a consent row as
       a reason field.

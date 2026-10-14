@@ -2705,6 +2705,7 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
     """
 
     @pytest.mark.spec("CLP-09-001")
+    @pytest.mark.spec("VP-17-001")
     def test_non_case_manager_receiver_commits_no_canonical_entry(self):
         """A receiver without the CASE_MANAGER role authors nothing."""
         dl = _make_full_dl()

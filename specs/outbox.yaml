@@ -147,17 +147,21 @@ groups:
     - story_2022_100
   - id: OX-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Delivery MUST occur after the generating handler completes
     verification: Integration tests confirm that outbox delivery does not begin until the inbox handler returns, and
       the HTTP response is sent before delivery is attempted.
-    lint_suppress:
-    - missing_story_reference
   - id: OX-03-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
     statement: Delivery MUST NOT block inbox HTTP response
+    verification: >-
+      Inspection of `post_actor_inbox` in
+      `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint
+      schedules `run_inbox_pipeline`, which runs the handlers and then drains the outbox,
+      with `BackgroundTasks.add_task` and returns without awaiting it;
+      `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py::test_event_loop_keeps_serving_while_a_payload_is_processed`
+      confirms the inbox keeps serving requests while a payload is processed.
 - id: OX-04
   title: Local Delivery
   specs:

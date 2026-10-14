@@ -10,6 +10,8 @@ meeting the gap in context sees it there rather than only here.
 
 {% include-markdown "./_oq-negative-ack.md" %}
 
+{% include-markdown "./_oq-transport-status-codes.md" %}
+
 {% include-markdown "./_oq-role-acquisition.md" %}
 
 {% include-markdown "./_oq-embargo-termination-authority.md" %}
