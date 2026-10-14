@@ -824,7 +824,7 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
             activity_id
         )
         if not queued:
-            self.logger.debug(
+            self.logger.info(
                 "%s: activity '%s' is already pending in the outbox — not"
                 " queued again (OX-06-002)",
                 self.name,
@@ -1337,12 +1337,13 @@ class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
 
             case_id = self.case_id
 
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+            queued = cast(CaseOutboxPersistence, self.datalayer).outbox_append(
                 activity_id
             )
             self.logger.info(
-                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
+                "%s Create(Case '%s') activity '%s' in actor '%s' outbox"
                 " (case creation notification)",
+                "Queued" if queued else "Left already-pending (OX-06-002)",
                 case_id,
                 activity_id,
                 self.actor_id,

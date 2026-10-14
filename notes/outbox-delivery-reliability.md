@@ -148,5 +148,9 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
 - Call `outbox_append` and read its result; never test `id in outbox_list()` first.
   The append itself leaves a pending id alone (OX-06-002), atomically, and returns
   `False`. It only sees what is pending: a delivered id is queued again.
+- A rebuilt activity carries its first attempt's sealed body, so its first
+  `published`. `CreateLogEntryNode` therefore reuses an equivalent recorded entry
+  before the claimed-timestamp guard runs; checking first would refuse a late retry
+  as stale (CLP-14-008) for an act the ledger already holds.
 - A spec that answers a duplicate request by re-sending the stored response (CP-05-006)
   is the same rule: reuse the id and sealed body, re-queue only when not pending.

@@ -36,10 +36,9 @@ within a shared one.
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from sqlalchemy import exists, insert, literal, select as sa_select
-from sqlalchemy.engine import CursorResult
 from sqlmodel import col, select
 
 from vultron.adapters.outbox_dead_letter import (
@@ -113,16 +112,20 @@ def _queue_append_unless_pending(
         col(QueueEntry.queue) == queue,
         col(QueueEntry.activity_id) == activity_id,
     )
-    stmt = insert(QueueEntry).from_select(
-        ["queue", "activity_id"],
-        sa_select(literal(queue), literal(activity_id)).where(
-            ~already_pending
-        ),
+    stmt = (
+        insert(QueueEntry)
+        .from_select(
+            ["queue", "activity_id"],
+            sa_select(literal(queue), literal(activity_id)).where(
+                ~already_pending
+            ),
+        )
+        .returning(col(QueueEntry.id))
     )
     with dl._session() as session:
-        result = cast(CursorResult[Any], session.execute(stmt))
+        queued_row = session.execute(stmt).scalar_one_or_none()
         session.commit()
-    return result.rowcount == 1
+    return queued_row is not None
 
 
 def inbox_append(
