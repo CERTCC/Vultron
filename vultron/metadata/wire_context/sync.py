@@ -49,6 +49,7 @@ from pathlib import Path
 import vultron.wire.as2.vocab as vocab_pkg
 from vultron.metadata.base import repo_root
 from vultron.metadata.generated_files import stale_paths, write_generated
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
     VULTRON_NS_URI,
@@ -107,17 +108,9 @@ def _all_object_subclasses() -> set[type]:
     """
     _import_all_vocab()
 
-    def descend(cls: type) -> set[type]:
-        found: set[type] = set()
-        sub: type
-        for sub in cls.__subclasses__():
-            found.add(sub)
-            found |= descend(sub)
-        return found
-
     return {
         cls
-        for cls in descend(as_Object)
+        for cls in all_subclasses(as_Object)
         if cls.__module__.startswith(VOCAB_PACKAGE)
     }
 

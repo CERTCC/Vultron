@@ -24,6 +24,7 @@ Verifies:
 
 import pytest
 
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_Collection,
@@ -623,14 +624,7 @@ def _classes_presenting_own_type() -> list[tuple[type, str]]:
     from vultron.wire.as2.vocab.base.registry import wire_type_value
 
     found: list[tuple[type, str]] = []
-    seen: set[type] = set()
-    pending: list[type] = list(as_Base.__subclasses__())
-    while pending:
-        cls = pending.pop()
-        if cls in seen:
-            continue
-        seen.add(cls)
-        pending.extend(cls.__subclasses__())
+    for cls in all_subclasses(as_Base):
         if not cls.__module__.startswith("vultron."):
             continue
         value = wire_type_value(cls)
