@@ -164,8 +164,7 @@ def add_participant_status_tree(
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all non-CASE_OWNER updates (historical behavior).
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).  An activity whose
-            case is not known is checked against its ``outside_case`` side.
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.

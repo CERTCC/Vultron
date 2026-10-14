@@ -55,7 +55,7 @@ from vultron.core.behaviors.sender_guard import embargo_sender_context
 #: The Case Owner decides the embargo (EP-09-005) and asks the CASE_MANAGER,
 #: which also acts on its own Remove (a delegated termination); a participant
 #: takes the change from the CASE_MANAGER alone (PCR-03-001).
-_CASE_OWNER_TO_CASE_MANAGER = SenderRule.to_case_manager(
+_OWNER_OR_MANAGER_AT_MANAGER = SenderRule.to_case_manager(
     SenderEntitlementKind.CASE_MANAGER, SenderEntitlementKind.CASE_OWNER
 )
 
@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 class CreateEmbargoEventReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = _CASE_OWNER_TO_CASE_MANAGER
+    sender_entitlement: ClassVar[SenderRule] = _OWNER_OR_MANAGER_AT_MANAGER
 
     def __init__(
         self,
@@ -125,7 +125,7 @@ class CreateEmbargoEventReceivedUseCase:
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = _CASE_OWNER_TO_CASE_MANAGER
+    sender_entitlement: ClassVar[SenderRule] = _OWNER_OR_MANAGER_AT_MANAGER
 
     def __init__(
         self,

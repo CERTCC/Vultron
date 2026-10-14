@@ -95,6 +95,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: The declared rule the tree's sender guard is composed from (HP-01-008).
+_STATUS_RULE = (
+    AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+)
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -917,7 +922,7 @@ class TestAddParticipantStatusTree:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
         case_before = populated_dl.read(CASE_ID)
         initial_status_count = (
@@ -963,7 +968,7 @@ class TestAddParticipantStatusTree:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=OUTSIDER_ID)
         assert result.status == Status.FAILURE
@@ -1007,7 +1012,7 @@ class TestAddParticipantStatusTree:
         )
         cm_event = make_payload(cm_activity)
         cm_tree = add_participant_status_tree(
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
             request=cm_event,
             case_id=CASE_ID,
             call_out=reject_bundle,
@@ -1058,7 +1063,7 @@ class TestAddParticipantStatusTree:
         cm_tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         # Verify RequireCaseOwnerApprovalNode is wired as the call-out
@@ -1108,7 +1113,7 @@ class TestAddParticipantStatusTree:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         # PublicDisclosureBranchNode must NOT appear anywhere in the tree
@@ -1152,7 +1157,7 @@ class TestAddParticipantStatusTree:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         declared = [
@@ -1184,7 +1189,7 @@ class TestAddParticipantStatusTree:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         def _collect_nodes(node: py_trees.behaviour.Behaviour) -> list:
@@ -1248,7 +1253,7 @@ class TestNoAutoCloseSequenceInTree:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
         all_nodes = self._all_nodes(tree)
         node_names = [n.name for n in all_nodes]
@@ -1277,7 +1282,7 @@ class TestNoAutoCloseSequenceInTree:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
         all_nodes = self._all_nodes(tree)
         assert not any(isinstance(n, EmitCloseCaseNode) for n in all_nodes), (
@@ -1516,7 +1521,7 @@ class TestRejectionValidatorBeforeCommit:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
@@ -1604,7 +1609,7 @@ class TestRejectionValidatorBeforeCommit:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
@@ -1773,7 +1778,7 @@ class TestAddParticipantStatusTeardownWiring:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         all_nodes = self._collect_nodes(tree)
@@ -1799,7 +1804,7 @@ class TestAddParticipantStatusTeardownWiring:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         all_nodes = self._collect_nodes(tree)
@@ -1826,7 +1831,7 @@ class TestAddParticipantStatusTeardownWiring:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         all_nodes = self._collect_nodes(tree)
@@ -1858,7 +1863,7 @@ class TestAddParticipantStatusTeardownWiring:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         all_nodes = self._collect_nodes(tree)
@@ -1895,7 +1900,7 @@ class TestAddParticipantStatusTeardownWiring:
         tree = add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
-            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+            sender_rule=_STATUS_RULE,
         )
 
         all_nodes = self._collect_nodes(tree)

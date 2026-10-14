@@ -56,6 +56,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 
+#: The declared rule the tree's sender guard is composed from (HP-01-008).
+_REMOVE_RULE = RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement
+
 # Kept for objects that reference the vendor; the trees below execute as the
 # CASE_MANAGER, which is who the ledger commit is gated on.
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -123,7 +126,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
@@ -164,7 +167,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         embargo_id = cast(str, case.active_embargo_id)
         dl.create(make_case_and_embargo("atrt1c")[1])
         tree = remove_embargo_from_case_tree(
-            sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo_id,
             sender_actor_id=CASE_MANAGER_ACTOR,
@@ -208,7 +211,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
@@ -245,7 +248,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         dl.create(embargo)
 
         tree = remove_embargo_from_case_tree(
-            sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
@@ -291,7 +294,7 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
             sync_port=SyncActivityAdapter(dl),
         ).execute_with_setup(
             tree=remove_embargo_from_case_tree(
-                sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+                sender_rule=_REMOVE_RULE,
                 case_id=case.id_,
                 embargo_id=embargo.id_,
                 sender_actor_id=CASE_MANAGER_ACTOR,
@@ -372,7 +375,7 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
@@ -405,7 +408,7 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
