@@ -287,7 +287,7 @@ def create_honour_late_accept_tree(
     the commit node persists the :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE` entry,
     and only then
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
-    applies ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``).
+    applies ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED``.
 
     Replicas learn the honour decision via
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`

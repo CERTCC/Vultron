@@ -240,19 +240,23 @@ groups:
       the tree it cannot be reasoned about from the tree alone.
   - id: BT-06-005
     priority: MUST
-    kind: protocol
-    statement: Cascades from a parent subtree to a child subtree in the canonical BT MUST be expressed as BT subtrees within
-      the use case's BT — not as procedural calls in `execute()` after `bt.run()` returns.
+    kind: architecture
+    statement: >-
+      Cascades from a parent subtree to a child subtree MUST be expressed as subtrees within
+      the use case's behavior tree, not as procedural calls made after the tree has run.
     verification: >-
       Inspection of all use-case `execute()` methods confirms that no protocol-observable
       state changes or message sends occur in procedural code after
       `BTBridge.execute_with_setup()` returns.
-    lint_suppress:
-    - missing_story_reference
   - id: BT-06-006
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: architecture
+    verification: >-
+      Marked tests in `test/core/behaviors/report/test_develop_fix_tree.py` and
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm the guarded
+      transitions run inside the tree; inspection of use-case `execute()` methods
+      confirms no protocol-observable action or state transition is performed outside
+      the BT.
     statement: Protocol-observable actions and state transitions MUST NOT be performed as procedural code outside the BT.
 - id: BT-07
   title: DataLayer Integration
@@ -482,8 +486,11 @@ groups:
     - story_2022_039
   - id: BT-11-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py::test_event_loop_keeps_serving_while_a_payload_is_processed`
+      confirms the inbox keeps serving requests while a payload is processed in the
+      background.
     statement: Sequential processing MUST NOT block HTTP response (BackgroundTasks)
   - id: BT-11-003
     priority: MAY
@@ -578,8 +585,12 @@ groups:
       note: SM transitions performed outside a BT violate BT-06-006
   - id: BT-15-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Marked tests in `test/core/behaviors/report/test_trigger_report_trees.py` confirm
+      trigger state changes run inside the trigger tree; inspection of trigger-side
+      `execute()` methods confirms no domain lifecycle method or direct status write is
+      called outside a BT execution context.
     statement: Trigger-side execute() methods MUST NOT call domain lifecycle methods (e.g., EmbargoLifecycle, direct
       ParticipantStatus writes with rm_state/em_state) outside a BT execution context.
     rationale: Direct lifecycle calls in execute() make protocol transitions invisible to BT-level audit and observability

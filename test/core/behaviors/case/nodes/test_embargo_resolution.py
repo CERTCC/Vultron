@@ -45,9 +45,8 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
 )
 from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
 from vultron.core.models._helpers import _as_id, from_now_utc
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
@@ -86,7 +85,7 @@ PROTOCOL_DEFAULT = timedelta(hours=96)
 
 @pytest.fixture
 def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
-    bt_scenario.dl.create(CaseActor(id_=ACTOR_ID, name="Vendor Co"))
+    bt_scenario.dl.create(VultronService(id_=ACTOR_ID, name="Vendor Co"))
     case = VulnerabilityCase(id_=CASE_ID, name="Case", attributed_to=ACTOR_ID)
     seed_case_owner_participant(bt_scenario.dl, case)
     bt_scenario.dl.create(case)

@@ -26,11 +26,11 @@ from py_trees.common import Status
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
-    SenderIsCaseManagerNode,
-    SenderIsNamedActorNode,
     SenderRule,
 )
 from vultron.core.behaviors.sync.announce_tree import (
+    SENDER_IS_CASE_MANAGER,
+    SENDER_IS_OWN_CASE_MANAGER,
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
@@ -71,6 +71,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    named_node_status,
     node_failed,
     node_succeeded,
     not_case_manager_refusal,
@@ -121,7 +122,10 @@ def _announce_verdict(
     """
     verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
     if verdict.disposition is HandlerDisposition.APPLIED:
-        if node_succeeded(tree, SenderIsNamedActorNode):
+        if (
+            named_node_status(tree, SENDER_IS_OWN_CASE_MANAGER)
+            is Status.SUCCESS
+        ):
             return HandlerResult.skipped(
                 f"own announcement of ledger entry '{entry.id_}' echoed back;"
                 " delivery confirmed"
@@ -152,12 +156,12 @@ def _refused_announce_verdict(
             f"ledger entry '{entry.id_}' buffered until case"
             f" '{entry.case_id}' is seeded (SYNC-15-004)"
         )
-    if node_failed(tree, SenderIsNamedActorNode):
+    if named_node_status(tree, SENDER_IS_OWN_CASE_MANAGER) is Status.FAILURE:
         return HandlerResult.refused(
             f"CASE_MANAGER does not accept an announcement of ledger entry"
             f" '{entry.id_}' from '{request.actor_id}'"
         )
-    if node_failed(tree, SenderIsCaseManagerNode):
+    if named_node_status(tree, SENDER_IS_CASE_MANAGER) is Status.FAILURE:
         return HandlerResult.refused(
             f"sender '{request.actor_id}' is not the CaseActor for case"
             f" '{entry.case_id}' (SYNC-13-006)"

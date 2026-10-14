@@ -29,8 +29,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsProposalAddresseeNode,
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    CaseProposalRequest,
+    SenderCheckContext,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
@@ -113,6 +115,8 @@ def create_reject_case_proposal_received_tree(
     report_id: str,
     sender_actor_id: str,
     rejection_reason: str | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing ``Reject(as_CaseProposal)``.
 
@@ -127,6 +131,9 @@ def create_reject_case_proposal_received_tree(
         rejection_reason: Human-readable reason from the case-actor service,
             taken from the Reject activity's ``summary`` field.  ``None``
             when not provided.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the guard from it, checking the sender against the
+            addressee the report case link records (CP-06-005, HP-01-008).
 
     Returns:
         A py_trees Sequence behaviour ready for ``BTBridge.execute_with_setup``.
@@ -134,8 +141,10 @@ def create_reject_case_proposal_received_tree(
     return create_receive_activity_tree(
         name="RejectCaseProposalReceivedBT",
         case_id=None,
-        sender_guard=SenderIsProposalAddresseeNode(
-            report_id=report_id, sender_actor_id=sender_actor_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id,
+            request=CaseProposalRequest(report_id=report_id),
         ),
         precondition_guards=[],
         replica_effects=[

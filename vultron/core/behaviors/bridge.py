@@ -419,12 +419,9 @@ class BTBridge:
 
         self.logger.info("BT setup complete for actor %s", actor_id)
 
-        # BT scaffolding, not protocol story — DEBUG only (SL-04-007).
-        # Guard kept: unicode_tree() is a call, which lazy args do not skip.
-        if self.logger.isEnabledFor(logging.DEBUG):
-            tree_repr = unicode_tree(tree, show_status=True)
-            self.logger.debug("BT structure:\n%s", tree_repr)
-
+        # No tree dump here: before the first tick every node is unrun, so it
+        # would restate the tree's shape, which "Final BT state" (logged after
+        # execution) repeats with each node's result (#4600).
         return bt
 
     def _exception_result(

@@ -23,6 +23,7 @@ related_notes:
   - notes/demo-scenario-registry.md
   - notes/participant-role-management.md
   - notes/event-driven-control-flow.md
+  - notes/structured-logging.md
 relevant_packages:
   - vultron/adapters/driven
   - vultron/adapters/driving/fastapi/routers
@@ -241,6 +242,20 @@ Each matrix entry uploads, under the run's **Artifacts**:
 
 CI runs the containers at `VULTRON_SERVER__LOG_LEVEL=DEBUG`, so the logs include
 the Layer 2 line, tracebacks and state transitions.
+
+### Timing a step from the job log
+
+The server log format has no timestamps, but the job log does: `docker compose up`
+streams every container into the demo step, and GitHub stamps each line when it
+arrives. `gh run view <run> --job <job-id> --log` therefore times any step, green
+or red, with no workflow change. Count a marker line per second, for example
+`PersistReceivedLogEntry: stored` on a late joiner to time its backfill.
+
+Read the gaps before dividing. In the run #4600 cited, 52 entries over about 105 s
+looked like 2 s per entry. The real backfill was about 38 entries in 19 s. The
+idle stretches after it were demo checks timing out once the Invite wait failed,
+and the later entries were ordinary fan-out from later phases. A late joiner's
+backfill on `main` takes about 15 s for 45 entries.
 
 ---
 

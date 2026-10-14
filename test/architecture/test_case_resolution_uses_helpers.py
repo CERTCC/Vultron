@@ -249,7 +249,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # (CM-21-011, CM-21-015).
         (
             "vultron/core/behaviors/sender_entitlement.py",
-            "SenderIsOwnershipOfferPartyNode.update",
+            "SenderIsOwnershipOfferPartyNode._recorded_offer",
         ),
         # LEN — post-RM-close PEC step in Reject-Invite effects. By the time
         # this read_case fires the participant's RM transition has already

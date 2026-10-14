@@ -6,12 +6,14 @@ description: >
   Rules for per-participant embargo consent, recorded as one row per
   (participant, embargo register entry): which writes create and move rows,
   what is derived rather than stored, why only the CASE_MANAGER sets consent,
-  pocket veto and RSVP deadlines, late accepts, and the content gate.
+  pocket veto and RSVP deadlines, the expiry sweep before an owner decision,
+  how the owner learns of a decline or timeout, late accepts, and the content gate.
 related_specs:
   - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
+  - specs/handler-protocol.yaml
   - specs/message-semantics-mapping.yaml
   - specs/message-validation.yaml
   - specs/protocol-asks.yaml
@@ -60,17 +62,25 @@ predates ADR-0122 and is wrong.
 | `DECLINED` | Explicitly refused it, or withdrew from it (ADR-0093) |
 | `TIMED_OUT` | Invited; the RSVP deadline passed with no answer (pocket veto, ADR-0118) |
 
-- **A given consent is not silently undone.** `AGREED` refuses `INVITE` and
-  `DECLINED` refuses `AGREE`; a decliner is re-invited first. An illegal trigger
-  raises (CM-18-009).
-- **`CARRY_OVER` is the one way past that.** Agreeing to N days is agreeing to
-  every shorter period, so a signatory of the replaced embargo is bound by a
-  shorter revision even if it declined the revision (EP-05-001).
-- **Rows for a final entry are frozen.** A row whose entry is `SUPERSEDED`,
-  `REJECTED`, `CANCELLED` or `TERMINATED` accepts no trigger;
-  `apply_pec_transition()` takes the entry status (`entry_status=`) and refuses.
-  This also covers "nothing is recorded after termination". A late Accept of
-  stale terms is answered with an invitation to the current embargo (EMB-17-003).
+- **Asking again does not undo an answer.** `AGREED` refuses `INVITE`. An
+  illegal trigger raises (CM-18-009).
+- **A participant can change its answer.** `AGREE` is legal from `DECLINED`:
+  a participant that declined and then accepts has just said it accepts, so its
+  row moves straight to `AGREED`, with no new invitation first (CM-18-003,
+  #4597). Only the participant's own answer does this. Seeding (CM-14-003,
+  CM-14-005) and the Accept of the full-case Invite leave a `DECLINED` row as it
+  is, because they are not answers the participant gave.
+- **`CARRY_OVER` agrees for a participant without its asking.** Agreeing to N
+  days is agreeing to every shorter period, so a signatory of the replaced
+  embargo is bound by a shorter revision even if it declined the revision
+  (EP-05-001).
+- **Answers to a closed embargo version can no longer change.** Each embargo
+  version has its own record of each participant's answer. Once a version is
+  replaced (`SUPERSEDED`), rejected (`REJECTED`), cancelled (`CANCELLED`) or ended
+  (`TERMINATED`), answers to it can no longer change: `apply_pec_transition()`
+  takes the entry status (`entry_status=`) and refuses every trigger. This also
+  covers "nothing is recorded after termination". A late Accept of stale terms is
+  answered with an invitation to the current embargo (EMB-17-003).
 
 ### Every Row Is Written (CM-18-001)
 
@@ -133,11 +143,12 @@ agreed to.**
 | A participant (owner included) accepts the Invite to B | its row for B becomes `AGREED`; its row for A is untouched |
 | A participant (owner included) rejects the Invite to B | its row for B becomes `DECLINED`; refusing B is not withdrawing from A |
 | A non-owner withdraws from the *active* embargo | its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to (MSM-07-010) |
+| A participant that declined an embargo accepts its Invite | its row for that embargo becomes `AGREED` directly; no new invitation first (CM-18-003) |
 | Owner rejects B for the case (`Reject(EmbargoEvent)`) | nothing — the owner is keeping A, not declining it |
 | Owner activates B, and B ends **no later than** A | owner's row for B → `AGREED`; `CARRY_OVER` makes B's row `AGREED` for every signatory of A, a `DECLINED` row for B included |
 | Owner activates B, and B ends **later than** A | owner's row for B → `AGREED`; nothing else — signatories without an `AGREED` row for B have lapsed by derivation |
-| Owner activates B while its own row for B is `DECLINED` | refused; the owner is invited again first |
-| Termination | nothing — no entry is `ACTIVE` and every row is frozen |
+| Owner activates B while its own row for B is `DECLINED` | the owner has changed its answer: its row for B → `AGREED` and B is activated, with no re-invite first |
+| Termination | nothing — no entry is `ACTIVE`, and answers to the ended embargo can no longer change |
 
 **Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-004, MSM-07-010).
 A Reject of the active embargo from an `AGREED` row must be refused. The code
@@ -227,8 +238,8 @@ a node: the received `Reject(Invite)` tree writes through
 case. Silence is never recorded as `DECLINED`, which only an explicit refusal
 reaches (CM-28-004). `TIMED_OUT` is a state, not ledger provenance, because code,
 logs and replicas read the state: a silent invitee must not read as a refuser
-(ADR-0118). Both are re-invitable and excluded from embargoed content; only
-`TIMED_OUT → AGREED` is direct.
+(ADR-0118). Both are re-invitable and excluded from embargoed content, and
+both move straight to `AGREED` on an Accept.
 
 **The pocket veto and the RSVP deadline are one mechanism.** An `Invite.end_time`
 is authoritative (CM-28-002); the configured window is the fallback for an Invite
@@ -286,8 +297,8 @@ ledger entries (`vultron/core/models/rsvp_deadline.py`, trees in
 | Situation | Behaviour |
 |---|---|
 | `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `TIME_OUT` on that row only (CM-28-005) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: row → `AGREED`, directly from `TIMED_OUT`, via a re-invite from `DECLINED` (EMB-17-001/002) |
-| Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the stale row is frozen (EMB-17-003) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: row → `AGREED`, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
+| Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | acknowledge as a no-op; rows and case participation unchanged (EMB-17-004) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
@@ -296,6 +307,27 @@ commit leaves the row `INVITED`. A non-manager writes nothing and gets `REFUSED`
 from the gate. Replicas replay each entry through the same service method the
 manager used (`honour_late_accept()`, `record_invite_expiry()`), reading no
 clock: a replica learns an expiry and never computes one.
+
+### Sweep due expiries before the owner decides (CM-28-015)
+
+An invitee that never answers sends nothing, so a late-`Accept` check never sees
+it: its row stays `INVITED` until owner close expires it (CM-23-014). The
+CASE_MANAGER therefore expires every overdue `INVITED` row of an open proposal or
+the embargo in force before it commits the owner's decision, and on every other
+received embargo activity, after all of the activity's refusal checks, so a
+refused activity writes nothing (CM-28-015). Rows of a replaced, rejected,
+cancelled or ended embargo are frozen: skip them. Reuse the owner-close settle
+step's commit → effect pair, filtered to rows past their deadline, rather than
+writing a second expiry path (`create_commit_and_record_expiry_tree`).
+
+### The ledger fan-out is the owner's notification (MSM-07-007)
+
+The owner learns of a `DECLINED` or `TIMED_OUT` answer from the entry itself. An
+active owner gets the `Announce(CaseLedgerEntry)`, because `ledger_entry_recipients`
+includes every active participant; an owner holding CASE_MANAGER is excluded from
+its own fan-out but already holds the entry. Do not add a separate notification
+activity: it would duplicate the entry, and for a `Reject` it would be the
+acknowledgement EP-09-009 forbids (#4548).
 
 ### Clamp, don't reject (EP-07-002, EP-07-003)
 
@@ -376,10 +408,15 @@ The owner's decision and each participant's consent are different messages
   target=Case)`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
   which move only its own row. A case with no owner (`attributed_to is None`)
   has no owner decision, so every trigger sends consent.
-- **Repeats are idempotent.** A retried accept/reject whose row is already in the
-  target state succeeds silently, logs no invalid-transition warning, and never
-  downgrades consent. Check `consent_for(embargo_id)` before
-  `apply_pec_transition()`.
+- **A repeated answer changes nothing.** A repeat of the same answer from the
+  same participant (Accept after Accept, Reject after Reject, under any activity
+  id) changes nothing. It logs no invalid-transition warning, and the
+  CASE_MANAGER commits no ledger entry and sends nothing:
+  `EmbargoAnswerNotRecordedNode` reads `consent_for(embargo_id)` ahead of the
+  commit and the handler reports `SKIPPED` (CM-13-005, HP-01-003, #4597). A
+  change of answer is normal, not a repeat, and is recorded with one ledger
+  entry: withdrawal (a Reject until #4388 adds `Leave`), or an Accept after a
+  Reject, which moves the row straight to `AGREED`.
 - **Full case delivery needs both** `rm_state == ACCEPTED` and signatory status
   (or no active embargo), checked in the `AcceptInviteActorToCase` BT subtree,
   not in post-BT code (MV-10-005).

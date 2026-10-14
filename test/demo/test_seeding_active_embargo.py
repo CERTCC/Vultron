@@ -200,3 +200,27 @@ def test_seeded_embargo_records_the_owners_consent(
     assert isinstance(participant, CaseParticipant)
     assert participant.consent_for(embargo.id_) == EmbargoConsentState.AGREED
     assert participant.is_signatory(stored.active_embargo_id)
+
+
+@pytest.mark.spec("BT-10-002")
+def test_seeded_case_actor_is_a_plain_service_not_a_per_case_object(
+    owner_and_dl: tuple[VultronService, SqliteDataLayer],
+) -> None:
+    """The seeded case actor names no case and no author (ADR-0088, #4612).
+
+    One actor per container enacts CASE_MANAGER for every case, so its record
+    carries neither a ``context`` naming the case nor an ``attributed_to``.
+    """
+    owner, dl = owner_and_dl
+    embargo = _seed(owner, dl)
+    stored = cast(VulnerabilityCase, dl.read(embargo.context))
+    seated = set(stored.actor_participant_index) - {owner.id_}
+    assert len(seated) == 1, seated
+    (case_actor_id,) = seated
+
+    case_actor = dl.clone_for_actor(case_actor_id).read(case_actor_id)
+
+    assert type(case_actor) is VultronService
+    assert case_actor.name == "CaseActor"
+    assert case_actor.context is None
+    assert case_actor.attributed_to is None

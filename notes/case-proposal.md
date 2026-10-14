@@ -161,7 +161,8 @@ identity `http://case-actor:7999/api/v2/actors/case-actor`.
 - **Canonical records live in the case-actor container.** Its store holds the
   case, ledger and participant records, with the CaseActor as the `CASE_MANAGER`
   participant; each participant container holds a replica plus an address-book
-  copy of the CaseActor (`EnsureCaseActorHostedNode`) that publishes no inbox.
+  copy of the CaseActor (`EnsureCaseActorHostedNode`), a plain `VultronService`
+  whose inbox and outbox derive from its id (ARCH-12-006).
 - **Read the CaseActor's state through its own client**, never a participant's
   replica: some participant RM transitions are applied without a ledger entry,
   so a replica can lag them indefinitely (DEMOMA-06-005).

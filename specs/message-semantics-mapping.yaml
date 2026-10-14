@@ -530,7 +530,7 @@ groups:
       spec_id: VAM-04-003
   - id: MSM-04-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthands `GK` (General Acknowledgement) and `GE` (General Error) MUST NOT be assigned dedicated
       `MessageSemantics` dispatch values; the purposes they name are served by the mechanisms specified in MSM-05.
     rationale: Recording these as plain absences invites the reading that the behaviour is unimplemented. It is implemented,
@@ -543,8 +543,6 @@ groups:
       spec_id: MSM-05-001
     - rel_type: refines
       spec_id: MSM-05-002
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-05
   title: Fault and Acknowledgement Mechanism Evolution
   description: 'Normative record of how the formal protocol''s per-model error and acknowledgement shorthands (RE, EE, CE, GE
@@ -625,9 +623,11 @@ groups:
   - id: MSM-05-003
     priority: MUST_NOT
     kind: protocol
-    statement: Implementations MUST NOT infer error semantics from the `as:Reject` verb alone, because `as:Reject` also
-      carries legitimate protocol rejections including `close_report`, `reject_invite_to_embargo_on_case`,
-      `reject_invite_actor_to_case`, `reject_case_proposal`, and `reject_case_ownership_transfer`.
+    statement: >-
+      Implementations MUST NOT infer error semantics from the `as:Reject` verb alone,
+      because `as:Reject` also carries legitimate protocol rejections, including closing a
+      report and declining an embargo invitation, a case invitation, a case proposal or a
+      case-ownership transfer.
     rationale: '`as:Reject` is overloaded across error reporting and ordinary protocol refusal. A receiver that treats every
       `as:Reject` as a fault will misclassify routine protocol traffic as errors.'
     verification: >-
@@ -790,15 +790,15 @@ groups:
       Accept(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
       consent, whoever sends it, the case owner included: it MUST apply the PEC AGREE
       trigger to the sender's row for the accepted embargo, advancing it from UNINVITED,
-      INVITED or TIMED_OUT to AGREED, and MUST NOT change any embargo register entry. The
+      INVITED, DECLINED or TIMED_OUT to AGREED, and MUST NOT change any embargo register entry. The
       rule is the same whether the accepted embargo is the case's active embargo, a first
       proposal (EM PROPOSED) or a *proposed revision* of an embargo still in force: the
       accepted embargo's row is marked, and only that row. A participant is a signatory
       exactly when the row for the active embargo is AGREED, so accepting a proposed
       revision binds the participant to nothing new until the owner activates it
-      (MSM-07-008). A participant whose row for the accepted embargo is DECLINED records
-      nothing — AGREE is not legal from DECLINED (CM-18-003), so it is re-invited first —
-      and neither does one whose row's register entry is final (CM-18-003).
+      (MSM-07-008). An Accept from a DECLINED row is the participant changing its answer, so
+      the row moves directly to AGREED with no re-invite first (CM-18-003). A participant whose
+      row's register entry is final records nothing (CM-18-003).
     rationale: >-
       The case owner's decision for the case has its own activity (MSM-07-008, ADR-0122), so
       an Accept of an Invite means one thing whoever sends it and no handler branches on the
@@ -813,7 +813,7 @@ groups:
       marks exactly that embargo's row AGREED and moves no register entry, that the case
       owner's Accept of an Invite records only its own consent, that a signatory accepting a
       proposed revision keeps its AGREED row for the active embargo, and that a DECLINED
-      participant's Accept records nothing.
+      participant's Accept moves its row directly to AGREED.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -886,8 +886,8 @@ groups:
       (CM-18-003); if B ends later than A, implementations MUST NOT write any row to lapse
       anyone — a participant whose row for B is not AGREED is not a signatory to B and has
       lapsed if it had agreed to A (CM-18-001). The owner's row for B is AGREED unless it
-      already is, and an owner whose row for B is DECLINED cannot activate it: AGREE refuses
-      DECLINED, so the activation is refused and the owner is invited again first (ADR-0122).
+      already is; an owner whose row for B is DECLINED has changed its answer by activating B,
+      so its row moves directly to AGREED with no re-invite first (MSM-07-008, CM-18-003).
       Activating B advances no one else: a participant holding an AGREED row for B is its
       signatory by lookup, whether it is the proposer or an early acceptor. Only participants
       whose row for A is AGREED are carried over: a participant that had lapsed from an
@@ -971,19 +971,27 @@ groups:
       change itself. A lapse has no timer path (CM-18-002): a lapsed participant is re-invited, and
       the deadline attaches to that invitation. The CASE_MANAGER MUST author a case-ledger entry
       recording the expiry (CM-28-005) so the consent change is visible in the canonical ledger, but
-      no additional protocol wire activity is required.
+      no additional protocol wire activity is required. The case owner learns of the expiry, as of
+      an explicit refusal (MSM-07-004), from that entry: by its `Announce(CaseLedgerEntry)`
+      fan-out while the owner is an active participant (CM-10-004), or from its own ledger when
+      the owner holds `CVDRole.CASE_MANAGER`. No separate notification activity is sent to the
+      owner.
     rationale: >-
       Inaction cannot produce an outbound message because there is no actor-observable event to
       report. The expiry is a derived conclusion from (the row's rsvp_deadline, now); the ledger entry
       is the record of that conclusion, not a message sent by the silent participant. Requiring a
       wire message would demand the system speak on behalf of a participant who has said nothing,
-      which contradicts the Actor Knowledge Model (AKM).
+      which contradicts the Actor Knowledge Model (AKM). The entry already reaches every owner
+      entitled to case content, so a second message would only duplicate it; for an explicit
+      refusal, a received embargo activity, it would also be the acknowledgement EP-09-009 forbids.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms detect_and_apply_expiry()
       applies PEC_Trigger.TIME_OUT without emitting an outbound wire activity, that a
       CASE_MANAGER-authored ledger entry is written per CM-28-005, and that
       detect_and_apply_expiry() applies it only to the named invitation's row, and only from
-      INVITED.
+      INVITED. A test asserts an active case owner that does not hold CVDRole.CASE_MANAGER is
+      among ledger_entry_recipients for both the expiry entry and a Reject(Invite(EmbargoEvent))
+      entry, and that neither commit emits any activity other than the Announce fan-out.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002
@@ -1003,11 +1011,11 @@ groups:
       other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST
       activate the named proposal's embargo register entry and supersede any entry in force
       in the same step, so the derived EM becomes ACTIVE (EA, or EC for a revision); MUST
-      mark the owner's row for the activated embargo AGREED unless it already is; and, when
+      mark the owner's row for the activated embargo AGREED unless it already is, a DECLINED
+      row included, since activating is the owner changing its answer (CM-18-003); and, when
       it replaces an embargo in force, MUST apply the MSM-07-005 consent rule. It MUST be
       refused before it is committed when the named embargo is not an open proposal of the
-      case, when CS is public, exploited or attacked (EMB-02-002), or when the owner's row for
-      the proposal is DECLINED (the owner is invited again first, CM-18-003).
+      case, or when CS is public, exploited or attacked (EMB-02-002).
     rationale: >-
       Giving the owner's decision its own activity retires the two-audience rule: an Accept of
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
@@ -1019,8 +1027,9 @@ groups:
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
       Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
       the owner's AGREED row and carries signatories over to a shorter revision, that a
-      replica replaying the committed entry converges, and that a non-owner sender, a
-      non-open proposal, P/X/A and a DECLINED owner are each refused with nothing committed.
+      replica replaying the committed entry converges, that a DECLINED owner's activation
+      moves its row to AGREED with one ledger entry, and that a non-owner sender, a non-open
+      proposal and P/X/A are each refused with nothing committed.
     relationships:
     - rel_type: derives_from
       spec_id: EP-09-005

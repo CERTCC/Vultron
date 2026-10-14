@@ -45,8 +45,8 @@ from vultron.core.behaviors.case.nodes.invite_participant_persist import (
     ActivateInviteeParticipantNode,
     CommitInviteeAcceptEntriesNode,
 )
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cs import CS_vf
@@ -76,7 +76,7 @@ def _scenario(roles: list[CVDRole], embargo: bool) -> BTTestScenario:
     if embargo:
         activate(case, EMBARGO_ID)
     s = BTTestScenario(actor_id=MANAGER_ID).seed(
-        CaseActor(id_=MANAGER_ID, name="Manager"), case
+        VultronService(id_=MANAGER_ID, name="Manager"), case
     )
     s.assert_success(
         s.run(

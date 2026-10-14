@@ -145,7 +145,7 @@ groups:
             spec_id: HM-02-001
       - id: BW-02-002
         priority: MUST
-        kind: protocol
+        kind: process
         statement: >-
           The `source` field in an incoming learning file MUST be the
           originating work-item identifier — `ISSUE-<n>`, `CONCERN-<n>`,
@@ -171,11 +171,9 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
-        lint_suppress:
-        - missing_story_reference
       - id: BW-02-003
         priority: MUST
-        kind: protocol
+        kind: process
         statement: >-
           The `timestamp` field in an incoming learning file MUST reflect the
           actual creation time of the observation (not the current date if the
@@ -185,8 +183,6 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: HM-06-001
-        lint_suppress:
-        - missing_story_reference
       - id: BW-02-004
         priority: MUST_NOT
         kind: process

@@ -200,7 +200,6 @@ _NAME_BEARING_TYPES = frozenset(
         "Application",
         "Group",
         "Actor",
-        "CaseActor",
     }
 )
 
@@ -281,7 +280,6 @@ _ACTOR_LIKE_TYPES = frozenset(
         "Person",
         "Group",
         "CaseParticipant",
-        "CaseActor",
     }
 )
 

@@ -146,7 +146,8 @@ def mapping_status(
 #: The "Sent by" wording per entitlement kind (MSM-08-005, decided in #4418).
 #: Moving it onto the kind itself is planned (MSM-08-010,
 #: ``notes/message-occasion-table.md``).
-#: ``NAMED_ACTOR`` is worded from the answered request; see :func:`sent_by`.
+#: ``NAMED_ACTOR`` is worded from the answered request and ``AUTHOR`` from the
+#: changed object; see :func:`sent_by`.
 SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
     SenderEntitlementKind.CASE_MANAGER: "the case manager",
     SenderEntitlementKind.CASE_OWNER: "the case owner",
@@ -187,9 +188,12 @@ def answered_request(entry: SemanticEntry) -> str:
 
 
 def _kind_wording(kind: SenderEntitlementKind, entry: SemanticEntry) -> str:
-    """The "Sent by" words for one kind; ``NAMED_ACTOR`` names its request."""
+    """The "Sent by" words for one kind; ``NAMED_ACTOR`` names its request
+    and ``AUTHOR`` the object it changes."""
     if kind is SenderEntitlementKind.NAMED_ACTOR:
         return f"the addressee of the {answered_request(entry)}"
+    if kind is SenderEntitlementKind.AUTHOR:
+        return f"the author of the {answered_request(entry)}"
     return SENT_BY_WORDING[kind]
 
 

@@ -103,6 +103,7 @@ def test_get_actor_not_found_returns_404(client_actors):
 
 @pytest.mark.spec("IE-02-003")
 @pytest.mark.spec("IE-02-004")
+@pytest.mark.spec("IE-07-001")
 @pytest.mark.parametrize(
     "method", ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
 )

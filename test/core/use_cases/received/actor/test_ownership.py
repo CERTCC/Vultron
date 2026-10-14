@@ -32,6 +32,9 @@ from vultron.core.behaviors.case.nodes.store_received_object import (
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.protocol_pair import (
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
@@ -1963,6 +1966,40 @@ class TestWithdrawalOfOwnershipTransfer:
         assert _event_types(dl) == entries_after_first
         assert dl.outbox_list() == outbox_after_first
 
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CM-21-015")
+    def test_redelivered_withdrawal_is_skipped_after_ownership_moved_on(
+        self, make_payload
+    ):
+        """A redelivered Undo is a duplicate, not a new withdrawal: it is
+        ``SKIPPED`` even once a later Offer has moved ownership away from the
+        offerer, so the offerer's lost CASE_OWNER role does not refuse it."""
+        case_id = "https://example.org/cases/case_ot_undo_again_moved"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, first_offer = deliver(_COORDINATOR_ID, f"{case_id}/offer-1")
+        undo = undo_case_ownership_transfer_activity(
+            first_offer, actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
+        )
+        assert (
+            _undo(dl, make_payload, first_offer, undo=undo).disposition
+            is HandlerDisposition.APPLIED
+        )
+        _, second_offer = deliver(_COORDINATOR_ID, f"{case_id}/offer-2")
+        assert (
+            _accept(dl, make_payload, second_offer).disposition
+            is HandlerDisposition.APPLIED
+        )
+        assert _owner(dl, case_id) == _COORDINATOR_ID
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        again = _undo(dl, make_payload, first_offer, undo=undo)
+
+        assert again.disposition is HandlerDisposition.SKIPPED
+        assert _event_types(dl) == entries_before
+        assert dl.outbox_list() == outbox_before
+        assert _owner(dl, case_id) == _COORDINATOR_ID
+
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.parametrize("answer", ["accept", "reject"])
     def test_withdrawal_of_an_answered_offer_is_refused(
@@ -1986,7 +2023,16 @@ class TestWithdrawalOfOwnershipTransfer:
         late = _undo(dl, make_payload, offer)
 
         assert late.disposition is HandlerDisposition.REFUSED
-        assert late.reason is not None and "already closed" in late.reason
+        # After a Reject the offerer is still the Case Owner and learns the
+        # Offer is closed; after an Accept it no longer holds CASE_OWNER, so
+        # it is refused for standing before the Offer's state is read
+        # (decision 2 of #4437).
+        expected = (
+            "does not hold CASE_OWNER"
+            if answer == "accept"
+            else "already closed"
+        )
+        assert late.reason is not None and expected in late.reason
         assert _event_types(dl) == entries_before
         assert dl.outbox_list() == outbox_before
 
@@ -2128,3 +2174,116 @@ class TestWithdrawalAtAReplica:
 
         assert result.disposition is HandlerDisposition.APPLIED
         _assert_nothing_changed(dl, case_id, roles_before, [])
+
+
+_STRANGER_ID = "https://example.org/users/stranger"
+
+
+def _closed_offer(make_payload, case_id: str):
+    """A CASE_MANAGER store whose one Offer the transferee's Reject closed.
+
+    A Reject leaves the offerer the Case Owner, so each party still has
+    standing to reply.
+    """
+    dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+    _, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
+    assert _reject(dl, make_payload, offer).disposition is (
+        HandlerDisposition.APPLIED
+    )
+    return dl, offer
+
+
+def _expired_offer(make_payload, case_id: str):
+    """A CASE_MANAGER store whose one Offer's deadline has passed."""
+    dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+    deadline = _deadline_shortly()
+    _, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer", end_time=deadline)
+    _wait_past(deadline)
+    return dl, offer
+
+
+#: Each reply, the sender with standing to send it, and the words naming
+#: the standing a stranger lacks.
+_REPLIES = {
+    "accept": (_accept, _COORDINATOR_ID, "is not the transferee"),
+    "reject": (_reject, _COORDINATOR_ID, "is not the transferee"),
+    "undo": (_undo, _VENDOR_ID, "is not the offerer"),
+}
+
+
+class TestStandingIsCheckedBeforeTheOfferState:
+    """A sender with no standing is refused for that, before the Offer's
+    state is read; the rightful party still learns the Offer is closed or
+    expired, and a redelivery is still ``SKIPPED`` (HP-01-006, #4437)."""
+
+    @pytest.mark.spec("CM-21-013")
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.parametrize("reply", sorted(_REPLIES))
+    def test_a_stranger_replying_to_a_closed_offer_is_refused_for_standing(
+        self, make_payload, reply
+    ):
+        send, _party, no_standing = _REPLIES[reply]
+        case_id = f"https://example.org/cases/case_ot_stranger_closed_{reply}"
+        dl, offer = _closed_offer(make_payload, case_id)
+        entries_before = _event_types(dl)
+
+        result = send(dl, make_payload, offer, sender=_STRANGER_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert no_standing in result.reason
+        assert "already closed" not in result.reason
+        assert _event_types(dl) == entries_before
+
+    @pytest.mark.spec("CM-21-013")
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.parametrize("reply", sorted(_REPLIES))
+    def test_a_stranger_replying_to_an_expired_offer_is_refused_for_standing(
+        self, make_payload, reply
+    ):
+        send, _party, no_standing = _REPLIES[reply]
+        case_id = f"https://example.org/cases/case_ot_stranger_late_{reply}"
+        dl, offer = _expired_offer(make_payload, case_id)
+
+        result = send(dl, make_payload, offer, sender=_STRANGER_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert no_standing in result.reason
+        assert "too late" not in result.reason
+        # A sender with no standing never makes the CASE_MANAGER ledger the
+        # expiry (HP-01-006).
+        assert OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE not in (
+            _event_types(dl)
+        )
+        assert _owner(dl, case_id) == _VENDOR_ID
+
+    @pytest.mark.spec("CM-21-014")
+    @pytest.mark.parametrize("reply", sorted(_REPLIES))
+    def test_the_rightful_party_is_refused_for_a_closed_offer(
+        self, make_payload, reply
+    ):
+        send, party, _no_standing = _REPLIES[reply]
+        case_id = f"https://example.org/cases/case_ot_party_closed_{reply}"
+        dl, offer = _closed_offer(make_payload, case_id)
+
+        result = send(dl, make_payload, offer, sender=party)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "already closed" in result.reason
+
+    @pytest.mark.spec("CM-21-016")
+    @pytest.mark.parametrize("reply", sorted(_REPLIES))
+    def test_the_rightful_party_is_refused_for_an_expired_offer(
+        self, make_payload, reply
+    ):
+        send, party, _no_standing = _REPLIES[reply]
+        case_id = f"https://example.org/cases/case_ot_party_late_{reply}"
+        dl, offer = _expired_offer(make_payload, case_id)
+
+        result = send(dl, make_payload, offer, sender=party)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "too late" in result.reason
+        assert f"from '{party}' came too late" in result.reason
+        assert _owner(dl, case_id) == _VENDOR_ID

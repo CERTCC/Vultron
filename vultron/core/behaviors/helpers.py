@@ -45,7 +45,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
 from vultron.core.behaviors.emit_capable import EmitCapable
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
@@ -562,7 +562,8 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
                 "actor_id": _ACTOR_KEY,
                 **self._domain_port_remappings(),
                 **self._instance_port_remappings(),
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def initialise(self) -> None:
@@ -667,7 +668,8 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
                 "wire_render_port": "/wire_render_port",
                 **self._domain_port_remappings(),
                 **self._instance_port_remappings(),
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def initialise(self) -> None:
@@ -897,7 +899,8 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
                 "participant": f"/{self.participant_key}",
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def _participant_actor_id(self, participant: CaseParticipant) -> str:
@@ -1057,7 +1060,8 @@ class ReadObject(DataLayerConditionWithPorts):
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
                 "object_data": f"/{self.blackboard_key}",
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:
@@ -1137,7 +1141,8 @@ class UpdateObject(DataLayerActionWithPorts):
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
                 "object_data": f"/{self.blackboard_key}",
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def initialise(self) -> None:

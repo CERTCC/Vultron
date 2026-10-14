@@ -276,15 +276,22 @@ groups:
   - id: EMB-02-002
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_activation_with_pxa_set_is_refused_uncommitted`
+      and
+      `test/core/use_cases/received/test_embargo_relay_replay.py::test_a_case_manager_with_pxa_set_rejects_a_participants_acceptance`
+      confirm an activation on a public case (P set) is refused before commit, and that
+      the CASE_MANAGER answers a participant's acceptance with ER; inspection confirms
+      both refusals test all three bits (`pxa_is_embargo_eligible` in the owner's
+      decision, `pxa_embargo_ineligible` on a participant's acceptance), so X or A set
+      refuses the activation as P does.
     statement: >-
-      A Participant MUST NOT process EA to transition EM to Active when the case
-      is already public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or
-      attacks have been observed (q^cs ∈ ·····A). The Participant MUST instead
-      emit ER to signal the embargo is not viable. Where the case's EM is moved
-      only by the case owner's `Accept(EmbargoEvent, target=Case)` (MSM-07-008),
-      the CASE_MANAGER refuses that activation with `REFUSED` before committing
-      it, and sends no ER for it.
+      A Participant MUST NOT process EA to transition EM to Active when the case is already
+      public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or attacks have been
+      observed (q^cs ∈ ·····A). The Participant MUST instead emit ER to signal the embargo
+      is not viable. Where the case's EM is moved only by the case owner's
+      `Accept(EmbargoEvent, target=Case)` (MSM-07-008), the CASE_MANAGER refuses that
+      activation before committing it to the case ledger, and sends no ER for it.
     rationale: >-
       VP-06-001 prohibits accepting embargoes once public disclosure has occurred.
       In the CASE_MANAGER topology an ER is a `Reject(Invite(EmbargoEvent))`,
@@ -1628,8 +1635,10 @@ groups:
     - story_2022_006
   - id: EMB-15-006
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/behaviors/embargo/test_response_decision_tree.py::TestBTBridgeIntegration::test_case_owner_skips_case_owner_approves_call_out`
+      confirms the case owner's response bypasses the approval call-out.
     statement: >-
       When the deciding actor holds `CVDRole.CASE_OWNER`, the owner's stated
       response is authoritative and the seam MUST NOT require external approval.
@@ -1946,8 +1955,8 @@ groups:
       When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
       Accept and mark the participant's consent row for it AGREED, exactly as it would for an
       on-time Accept. A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`,
-      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → AGREED`), because
-      AGREE is not legal from DECLINED (CM-18-003).
+      ADR-0118), and so does one at DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
+      has changed its answer, so it is not re-invited first.
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
