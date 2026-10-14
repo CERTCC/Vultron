@@ -97,12 +97,16 @@ x-actor-service: &actor-service
     retries: 15
     # Startup budget, not a fixed delay (#4621): probes inside start_period do
     # not count toward retries, and the first success marks the container
-    # healthy, so a fast runner is healthy within one 2 s interval of the app
-    # being ready. A slow CI runner spent about 31 s importing the app under
-    # the reloader, after the uv build step, and outlasted the old 5 s start
-    # period plus 15 x 2 s retries (~35 s). 90 s is about three times that cold
-    # start; with the retries, Docker gives up after about 2 minutes.
+    # healthy. Inside start_period Docker probes every start_interval (default
+    # 5 s), not every interval, so start_interval is pinned to 2 s: a fast
+    # runner is healthy within 2 s of the app being ready. A slow CI runner
+    # spent about 31 s importing the app under the reloader, after the uv build
+    # step, and outlasted the old 5 s start period plus 15 x 2 s retries
+    # (~35 s). 90 s is about three times that cold start; with the retries,
+    # Docker marks the container unhealthy after about 2 minutes, and
+    # demo-runner's service_healthy wait fails.
     start_period: 90s
+    start_interval: 2s
 
 services:
 
