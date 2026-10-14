@@ -1297,7 +1297,7 @@ groups:
       `EvaluateExploitPriority`, `ExploitDeferred`, `ExploitDesired`). The Evaluator SHOULD receive case context (vulnerability
       state, org policy, threat landscape, and the `HaveExploit` query result) and return a structured `ExploitStrategyDecision`
       record containing `have_exploit`, `acquire`, and `rationale`. The `HaveExploit` Retriever is kept as a separate seam
-      for independent swapability (ADR-0027, Option 2).
+      for independent swapability (ADR-0027).
     rationale: 'The five-node simulator sequence encodes a single policy-driven decision ("should we acquire an exploit?")
       in granular boolean flags that are unnecessary in production. Collapsing to two call-out points (Retriever + Evaluator)
       reduces seam count while keeping the exploit-repo query independently swappable. Implemented by issue #1309 (PR #1566).

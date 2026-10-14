@@ -1117,7 +1117,7 @@ groups:
       transition accepted as a status snapshot but refused as the activity that
       caused it lets the sender pick its adjudication by picking its message
       shape, and lets the receiver second-guess a legal self-declaration because
-      it never saw the intermediate step (ADR-0108 § 3). Adjacency remains the
+      it never saw the intermediate step (ADR-0108). Adjacency remains the
       emit-side rule (ADR-0086): conservative in what you send, liberal in what
       you accept.
     verification: Tests under `test/core/behaviors/report/` and `test/core/behaviors/status/` assert, with shared
@@ -1302,7 +1302,7 @@ groups:
       acceptance rule (RSH-06) like any other declaration; the disagreement is
       not itself grounds for refusal.
     rationale: >
-      One move producing both messages is expected (ADR-0108 § 1). The
+      One move producing both messages is expected (ADR-0108). The
       declaration is the participant's own statement about itself and the
       participant is the authority on that; a mismatch with the act is a gap to
       flag under RSH-06-003, not a reason to prefer one message over the other.
@@ -1361,7 +1361,7 @@ groups:
       committed on every embargo or public-state change, the embargo activation,
       and the report valid/invalid/closed and engage/defer entries had none
       until #3814. Removing the direct-receipt effects before the ledger carries
-      those transitions would leave replicas blind (ADR-0108 § 4).
+      those transitions would leave replicas blind (ADR-0108).
     verification: >
       `test/architecture/test_ledger_event_types_are_replayed.py` derives the
       committed `event_type` set from code (`_ledger_commit_inventory.py`: the

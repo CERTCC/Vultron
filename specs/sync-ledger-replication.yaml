@@ -906,6 +906,46 @@ groups:
       code path.
     stories:
     - story_2022_045
+  - id: SYNC-14-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When a buffered entry becomes appliable, either because a participant
+      committed its predecessor or because the participant seeded the case
+      (SYNC-15-005), the drain MUST hand that entry back to the receiving
+      actor's own inbox processing as a delivery of its own, through the inbox's
+      sole entry point (IO-02-003) and under the receiving actor, rather than
+      running its tree inside the delivery that made it appliable. The buffer
+      holds the entry, not the `Announce(CaseLedgerEntry)` that carried it, so
+      the hand-back MUST carry it in an `Announce(CaseLedgerEntry)` attributed
+      to the case's CASE_MANAGER, the sender a replica applies entries from
+      (SYNC-15). The handed-back entry's own tree hands back the next one, so
+      the cascade (SYNC-14-003) needs no loop in the use case.
+    rationale: >-
+      Running the successor inline made one delivery run several trees, chosen
+      by Python (CLP-10-005), and attributed each drained entry to a sender it
+      synthesized (the CASE_MANAGER when known, else the case id). Folding the
+      drain into the tree would nest one bridge run inside another, which hides an internal error in the
+      inner run. A hand-back makes the drain the same path as in-order delivery
+      by construction (SYNC-14-008) (ISSUE-4585, ADR-0135).
+    verification: >-
+      `test/core/use_cases/received/test_sync.py` asserts that committing an
+      entry with a buffered successor hands the successor to the inbox
+      hand-back port under the receiving actor and runs no second tree in the
+      same `execute()`; `test/core/use_cases/received/actor/test_announce.py`
+      asserts the same for an entry buffered before the case was seeded; each
+      asserts the handed-back Announce is attributed to the CASE_MANAGER; and
+      an integration test asserts an out-of-order pair converges through the
+      hand-back.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-14-008
+    - rel_type: refines
+      spec_id: SYNC-15-005
+    - rel_type: refines
+      spec_id: CLP-10-005
+    adr:
+    - ADR-0135
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: project
