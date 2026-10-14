@@ -132,6 +132,24 @@ The other participants still receive the Invite and answer it, and only those th
 
 ---
 
+## Answer an embargo already in force
+
+The Case Owner can activate an embargo before every participant has answered its Invite.
+Once the embargo is in force it is no longer an open proposal, but a participant that has not answered can still answer it.
+
+1. Find the `Invite(Event)` you received for the embargo in force.
+2. Call `accept-embargo` or `reject-embargo` with that Invite's ID as `proposal_id`.
+   You send the same `Accept(Invite(Event))` or `Reject(Invite(Event))` as for an open proposal, addressed to the CASE_MANAGER.
+
+You can answer this way while your consent row for the embargo in force is `INVITED` or `TIMED_OUT`.
+An Accept sent after the reply deadline is honored, because the terms you agree to are the terms in force (EMB-17-002).
+The trigger reports not found when you hold no such Invite, or when your row is already `AGREED` or `DECLINED`.
+
+Name the Invite.
+A call without `proposal_id` answers only an open proposal and never the embargo in force (EP-09-012), so it reports not found when no proposal is open.
+
+---
+
 ## Verify
 
 | What you sent | What to confirm |

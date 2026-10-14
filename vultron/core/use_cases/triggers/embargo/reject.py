@@ -40,7 +40,6 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
-    _resolve_embargo_id_from_proposal_id,
     _resolve_embargo_proposal,
     resolve_actor,
     resolve_case,
@@ -64,11 +63,10 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
         actor = resolve_actor(request.actor_id, dl)
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
-        self._proposal_id = _resolve_embargo_proposal(
-            self._case, request.proposal_id, dl
-        )
-        self._embargo_id = _resolve_embargo_id_from_proposal_id(
-            self._case, self._proposal_id
+        # An open proposal, or — when named — the actor's received Invite
+        # for the embargo in force (EP-09-012).
+        self._proposal_id, self._embargo_id = _resolve_embargo_proposal(
+            self._case, request.proposal_id, self._actor_id, dl
         )
         self._is_owner = _is_case_owner(self._case, self._actor_id)
 
