@@ -52,6 +52,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
     OfferCaseParticipantReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
@@ -1701,8 +1702,10 @@ class TestActorSuggestionAnswersAreSentOnceOnRetry:
             failed = fail_commits(
                 mp, commit_tree, when=lambda kw: kw["event_type"] == event_type
             )
-            first = self._run(use_case_class, dl, event)
-        assert first.disposition is not HandlerDisposition.APPLIED
+            # The answer is queued, so the failed commit escapes rather than
+            # failing the tree into another arm (BT-14-001).
+            with pytest.raises(VultronBTInternalError, match="commit failed"):
+                self._run(use_case_class, dl, event)
         (answer_id,) = failed
         assert dl.outbox_list().count(answer_id) == 1
         assert self._entries_of(dl, event_type) == []
@@ -1756,4 +1759,59 @@ class TestActorSuggestionAnswersAreSentOnceOnRetry:
             dl,
             event,
             "reject_actor_recommendation",
+        )
+
+
+class TestAFailedAnswerCommitDoesNotFallThrough:
+    """A queued answer whose commit fails ends the tree; no other arm runs.
+
+    The answer is in the outbox before it is committed (ADR-0119), so a
+    FAILURE would let the recommendation Selector try its next arm and
+    forward a fresh ``Offer(CaseParticipant)`` after the ``Accept``.  The
+    failed commit escapes as an internal error instead (BT-14-001).
+    """
+
+    @pytest.mark.spec("BT-14-001")
+    @pytest.mark.spec("CM-16-010")
+    def test_the_already_participant_accept_is_the_only_send(self):
+        from test.core.use_cases.received.conftest import (
+            seed_case_participant,
+        )
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        dl, event = _seed_a_recommendation_at_the_case_manager()
+        case = dl.read_case(CASE_ID)
+        assert case is not None
+        seed_case_participant(dl, case, RECOMMENDED_ID)
+        dl.save(case)
+
+        with pytest.MonkeyPatch.context() as mp:
+            failed = fail_commits(
+                mp,
+                commit_tree,
+                when=lambda kw: (
+                    kw["event_type"] == "accept_actor_recommendation"
+                ),
+            )
+            with pytest.raises(VultronBTInternalError, match="commit failed"):
+                OfferActorToCaseReceivedUseCase(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                ).execute()
+
+        (accept_id,) = failed
+        answers = [
+            item
+            for item in dl.outbox_list()
+            if str(getattr(dl.read(item), "type_", "")) != "Announce"
+        ]
+        assert answers == [accept_id], (
+            "only the Accept may be queued; no other arm may answer after it"
         )

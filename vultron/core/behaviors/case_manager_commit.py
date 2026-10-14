@@ -56,7 +56,8 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     activity is addressed to every case-content recipient except the
     executing actor, queued when that audience is not empty, and committed
     once queued (ADR-0119); otherwise it is addressed to nobody and only
-    committed.
+    committed.  A queued activity whose commit fails is withdrawn from the
+    outbox before the failure is raised (:meth:`_withdraw_unrecorded`).
 
     The queue write goes through the shared emit seam
     (:meth:`_EmitSingleActivityBase._emit_through_seam`, OX-14-001); unlike
@@ -123,17 +124,23 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         # (ADR-0119).  A pending id is an earlier attempt's send, recorded now.
         if to:
             self._emit_through_seam(activity_id, blob)
-        # A nested commit inherits the outer execution's ``/sync_port``, so
-        # the entry is announced to every participant replica (SYNC-02-002).
-        commit_emitted_activity(
-            datalayer=dl,
-            actor_id=actor_id,
-            case_id=self._case_id,
-            activity_id=self._ledger_object_id(activity_id),
-            activity_blob=blob,
-            event_type=self._event_type,
-            check_freshness=self._CHECK_LEDGER_FRESHNESS,
-        )
+        try:
+            # A nested commit inherits the outer execution's ``/sync_port``,
+            # so the entry is announced to every participant replica
+            # (SYNC-02-002).
+            commit_emitted_activity(
+                datalayer=dl,
+                actor_id=actor_id,
+                case_id=self._case_id,
+                activity_id=self._ledger_object_id(activity_id),
+                activity_blob=blob,
+                event_type=self._event_type,
+                check_freshness=self._CHECK_LEDGER_FRESHNESS,
+            )
+        except Exception:
+            if to:
+                self._withdraw_unrecorded(dl, activity_id)
+            raise
         self.committed_activity_ids = [activity_id]
         self.feedback_message = (
             f"CASE_MANAGER committed '{self._event_type}' entry for"
@@ -142,6 +149,36 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+    def _withdraw_unrecorded(
+        self, dl: CaseOutboxPersistence, activity_id: str
+    ) -> None:
+        """Take a decision whose commit failed back out of the outbox.
+
+        No retry rebuilds a decision: it is taken once, and the embargo
+        teardown's EM write already stops a rerun.  Left queued, it would
+        reach participants with no entry that records it, so it is withdrawn,
+        as the create-case trigger withdraws its ``Create`` (CLP-07-013).
+        One delivery already took cannot be withdrawn, and is reported.
+        """
+        if dl.outbox_withdraw(activity_id):
+            self.logger.warning(
+                "%s: withdrew '%s' from the outbox: its '%s' entry on case"
+                " '%s' did not commit",
+                self.name,
+                activity_id,
+                self._event_type,
+                self._case_id,
+            )
+            return
+        self.logger.error(
+            "%s: '%s' was already taken for delivery, but its '%s' entry on"
+            " case '%s' did not commit",
+            self.name,
+            activity_id,
+            self._event_type,
+            self._case_id,
+        )
 
 
 __all__ = ["_CommitCaseManagerActivityBase"]

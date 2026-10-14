@@ -194,10 +194,11 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
 class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """Withdraw a new case none of whose creation entries committed.
 
-    Runs only after ``CommitNativeLedgerEntriesNode`` fails, and always
-    returns FAILURE, carrying that node's reason.  The trigger queues the
-    ``Create`` before it commits (ADR-0119), so a case with no entry in the
-    ledger may still have its ``Create`` pending in the outbox.  The node
+    Runs only after the queue-then-commit step fails, and always returns
+    FAILURE, carrying the reason.  The trigger queues the ``Create`` before
+    it commits (ADR-0119), so a case with no entry in the ledger may still
+    have its ``Create`` pending in the outbox; one whose outbox write failed
+    has nothing queued and nothing committed.  The node
     withdraws it from the outbox first (``outbox_withdraw``); once nothing
     about the case was committed or sent, the case, the participant records
     it names and the ``Create`` are removed, so the case file is as it was
@@ -230,7 +231,7 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     def __init__(
         self,
         commit: CommitNativeLedgerEntriesNode,
-        queued: bool,
+        outbox_step: UpdateActorOutbox | None,
         name: str | None = None,
     ) -> None:
         """Create the node.
@@ -238,12 +239,14 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         Args:
             commit: The commit node this one follows; its feedback is the
                 reason the creation failed.
-            queued: Whether the tree queued the ``Create`` before the commit.
+            outbox_step: The node that queues the ``Create`` ahead of the
+                commit, or ``None`` when the tree queues nothing.  The
+                ``Create`` was queued only if that node succeeded.
             name: Node name.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._commit = commit
-        self._queued = queued
+        self._outbox_step = outbox_step
 
     def initialise(self) -> None:
         super().initialise()
@@ -265,7 +268,12 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        reason = self._commit.feedback_message or "creation commit failed"
+        reason = (
+            "its Create could not be queued for delivery"
+            if self._outbox_step is not None
+            and self._outbox_step.status == Status.FAILURE
+            else self._commit.feedback_message or "creation commit failed"
+        )
         case, failure = self._require_case(self._case_id_bb)
         if failure is not None:
             # Regime 1: nothing written to withdraw (ADR-0087).  The commit's
@@ -307,7 +315,11 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         ``True`` when nothing was queued or the pending ``Create`` was
         withdrawn: the case was sent to no one.
         """
-        if not self._queued or not self._activity_id_bb:
+        if (
+            self._outbox_step is None
+            or self._outbox_step.status != Status.SUCCESS
+            or not self._activity_id_bb
+        ):
             return True
         assert self.datalayer is not None
         return cast(CaseOutboxPersistence, self.datalayer).outbox_withdraw(
@@ -340,7 +352,8 @@ def create_case_trigger_bt(
     queued, as on the proposal path (CP-09-009): the entries record a case
     whose creation was sent (ADR-0119).  A genesis entry that fails to
     commit withdraws the ``Create`` from the outbox and the case with it
-    (``WithdrawUncommittedCaseNode``); a later entry that fails stops the
+    (``WithdrawUncommittedCaseNode``), as does a ``Create`` the outbox
+    could not take; a later entry that fails stops the
     tree with the ``Create`` queued and the genesis recorded.  The ports
     those commits need are checked first, so a composition fault refuses
     before the case is written.
@@ -360,19 +373,25 @@ def create_case_trigger_bt(
             result_out=result_out,
         ),
     ]
-    if queue_for_delivery:
-        children.append(UpdateActorOutbox())
+    outbox_step = UpdateActorOutbox() if queue_for_delivery else None
     commit = CommitNativeLedgerEntriesNode(
         owner_uri=actor_id, report_id=report_id
+    )
+    # The outbox write sits under the withdraw too: a Create that could not
+    # be queued leaves a case nothing committed or sent, which is withdrawn.
+    send_then_commit = py_trees.composites.Sequence(
+        name="QueueThenCommitCase",
+        memory=False,
+        children=[*([outbox_step] if outbox_step else []), commit],
     )
     children.append(
         py_trees.composites.Selector(
             name="CommitOrWithdrawCase",
             memory=False,
             children=[
-                commit,
+                send_then_commit,
                 WithdrawUncommittedCaseNode(
-                    commit=commit, queued=queue_for_delivery
+                    commit=commit, outbox_step=outbox_step
                 ),
             ],
         )

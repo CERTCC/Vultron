@@ -9,7 +9,8 @@ description: >
   immediate dead-lettering of a refused sealed body (OX-13-013),
   request-derived ids for responses, the outbox-id idempotency check
   (OX-06-002), and why the send-then-commit order (SYNC-09-002) makes a derived
-  id mandatory for a send a retry can rebuild.
+  id mandatory for a send a retry can rebuild, and a withdrawal mandatory for
+  one no retry rebuilds.
 related_specs:
   - specs/outbox.yaml
   - specs/sync-ledger-replication.yaml
@@ -153,6 +154,14 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
   node — MUST derive the id. A node that cannot tell from the store that its send
   is unrecorded (the stub re-issue reads stored Invites) must look for the sent,
   unrecorded activity itself and commit it (`ReissueStubInvitesNode`).
+- A send that no retry rebuilds (the embargo teardown, which its own EM write stops
+  from rerunning; the manager's own proposal relay) MUST withdraw the activity with
+  `outbox_withdraw` when its commit fails, then raise: left pending it reaches
+  participants with no entry recording it (CLP-07-013). See
+  `_CommitCaseManagerActivityBase._withdraw_unrecorded`.
+- A commit that fails after the outbox write MUST escape the node, never return
+  FAILURE: an enclosing Selector would read it as a guard miss and send another
+  arm's answer after the queued one (BT-14-001; `_EmitSingleActivityBase.update`).
 - Call `outbox_append` and read its result; never test `id in outbox_list()` first.
   The append itself leaves a pending id alone (OX-06-002), atomically, and returns
   `False`. It only sees what is pending: a delivered id is queued again.

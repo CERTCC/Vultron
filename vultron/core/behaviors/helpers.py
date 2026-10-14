@@ -804,8 +804,9 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
         Called after the outbox write whether or not that write queued the
         activity: an id already pending is the earlier attempt's send, whose
         commit failed, so the retry records it now (OX-06-002, ADR-0119).
-        Raises when the commit fails, so ``update()`` reports FAILURE with the
-        activity queued and unrecorded until a retry records it.
+        Raises when the commit fails; ``update()`` does not catch it, so the
+        exception reaches ``BTBridge`` with the activity queued and
+        unrecorded until a retry records it.
         """
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -859,11 +860,16 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-            self._record_sent(activity_id, activity_blob)
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
             self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
+        # Not caught: the activity is already queued, so a FAILURE here would
+        # let an enclosing Selector fall through to another arm and send a
+        # second, contradictory answer after it.  A failed commit escapes to
+        # ``BTBridge`` as an internal error instead (BT-14-001, ARCH-15-001),
+        # as in the relay node and ``_CommitCaseManagerActivityBase``.
+        self._record_sent(activity_id, activity_blob)
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
 

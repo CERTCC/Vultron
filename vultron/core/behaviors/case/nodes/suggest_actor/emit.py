@@ -249,32 +249,35 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                     self.recommendation_id,
                 ),
             )
-            # Route through the shared emit seam (OX-14-001, ASK-04-008),
-            # then record the sent Offer (ADR-0119, CM-16-010).  The exact
-            # blob is the snapshot (VM-08-003): the factory sets context.
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
             self._emit_through_seam(activity_id, "")
-            commit_emitted_activity(
-                datalayer=cast(CaseOutboxPersistence, self.datalayer),
-                actor_id=self.actor_id,
-                case_id=self.case_id,
-                activity_id=activity_id,
-                activity_blob=activity_blob,
-                event_type=OFFER_CASE_PARTICIPANT_EVENT_TYPE,
-            )
-            self.logger.info(
-                "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
-                " for case '%s'",
-                self.name,
-                activity_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitOfferCaseParticipantToOwner failed: {e}"
             )
             self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
+        # Record the sent Offer (ADR-0119, CM-16-010).  The exact blob is the
+        # snapshot (VM-08-003): the factory sets context.  Not caught: the
+        # Offer is queued, so a failed commit escapes to ``BTBridge`` as an
+        # internal error and the redelivered recommendation records it
+        # (BT-14-001, OX-06-002), as in ``_EmitSingleActivityBase.update()``.
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+            event_type=OFFER_CASE_PARTICIPANT_EVENT_TYPE,
+        )
+        self.logger.info(
+            "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
+            " for case '%s'",
+            self.name,
+            activity_id,
+            self.case_id,
+        )
+        return Status.SUCCESS
 
 
 class EmitNoteDuplicateRecommendationToOwnerNode(_EmitSingleActivityBase):

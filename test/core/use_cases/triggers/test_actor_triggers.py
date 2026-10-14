@@ -64,7 +64,11 @@ from vultron.core.use_cases.triggers.requests import (
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
@@ -777,8 +781,10 @@ class TestInviteRetrySendsOnce:
                 commit_tree,
                 when=lambda kw: kw["event_type"] == "invite_actor_to_case",
             )
-            first = harness.deliver_to_manager(offer["id"], make_payload)
-        assert first.disposition.value != "applied", first
+            # The Invite is queued, so the failed commit escapes rather than
+            # failing the tree into another arm (BT-14-001).
+            with pytest.raises(VultronBTInternalError, match="commit failed"):
+                harness.deliver_to_manager(offer["id"], make_payload)
         assert len(failed) == 1, "the first attempt never built the Invite"
         invite_id = failed[0]
         assert self._invite_entries(harness) == []

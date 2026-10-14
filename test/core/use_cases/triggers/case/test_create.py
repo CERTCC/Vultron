@@ -622,6 +622,33 @@ class TestCreateCaseTriggerLedger:
         ]
 
     @pytest.mark.spec("CLP-07-013")
+    def test_a_create_the_outbox_cannot_take_withdraws_the_case(
+        self, monkeypatch
+    ):
+        """A failed outbox write leaves nothing committed or sent.
+
+        The ``Create`` is queued before the creation entries (ADR-0119), so
+        when the queue write fails the case has no entry and was sent to
+        no one: it is withdrawn, as for a failed genesis.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        def _refuse(_self, _activity_id):
+            raise RuntimeError("outbox unavailable")
+
+        monkeypatch.setattr(SqliteDataLayer, "outbox_append", _refuse)
+        with pytest.raises(
+            VultronValidationError, match="could not be queued"
+        ):
+            self._create(to=[_RECIPIENT])
+
+        assert self.dl.list_objects("VulnerabilityCase") == []
+        assert self.dl.list_objects("CaseParticipant") == []
+        assert self.dl.list_objects("Create") == []
+        assert self.dl.list_objects("CaseLedgerEntry") == []
+        assert self.dl.read(self.report.id_) is not None
+
+    @pytest.mark.spec("CLP-07-013")
     def test_a_create_already_taken_for_delivery_keeps_the_case(
         self, monkeypatch
     ):

@@ -36,6 +36,7 @@ from vultron.core.use_cases.received.actor.invite import (
     InviteActorToCaseReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -1331,13 +1332,16 @@ class TestInviteActorUseCases:
                     kw["event_type"] == "invite_actor_to_full_case"
                 ),
             )
-            AcceptInviteActorToCaseReceivedUseCase(
-                dl,
-                make_payload(accept),
-                sync_port=MagicMock(),
-                trigger_activity=lj["trigger_activity"],
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            # The Invite is queued, so the failed commit escapes rather than
+            # failing the tree (BT-14-001).
+            with pytest.raises(VultronBTInternalError, match="commit failed"):
+                AcceptInviteActorToCaseReceivedUseCase(
+                    dl,
+                    make_payload(accept),
+                    sync_port=MagicMock(),
+                    trigger_activity=lj["trigger_activity"],
+                    wire_render_port=As2WireRenderAdapter(),
+                ).execute()
         (invite_id,) = failed
         assert dl.outbox_list().count(invite_id) == 1
 

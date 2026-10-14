@@ -50,7 +50,7 @@ The re-invite of a stale accepter (EMB-17-003) is a CASE_MANAGER-gated commit �
 effect node of the relay's frame::
 
     ReinviteStaleAccepterBT (CASE_MANAGER-gated)
-    └─ ReinviteStaleAccepterNode     # stamp → build → commit → outbox → PEC INVITE
+    └─ ReinviteStaleAccepterNode     # stamp → build → outbox → commit → PEC INVITE
 
 Replicas replay it through
 :class:`~vultron.core.behaviors.embargo.nodes.relay_effect.ApplyEmbargoReinviteFromLedgerNode`.

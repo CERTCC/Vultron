@@ -243,8 +243,11 @@ def _propose_arms(
                 embargo_id=embargo.id_,
                 proposer_id=actor_id,
                 # The manager's own proposal is the request each relayed
-                # Invite answers, so a retry rebuilds the same Invites.
+                # Invite answers.  A repeated trigger proposes a new embargo,
+                # so no retry rebuilds these Invites: one whose commit fails
+                # is withdrawn instead (CLP-07-013).
                 answers=embargo.id_,
+                withdraw_unrecorded=True,
             ),
             IndexOwnEmbargoProposalNode(
                 case_id=case_id,
