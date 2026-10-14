@@ -12,6 +12,7 @@ consulted: >-
   docs/adr/0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md,
   issue #3339
 informed: CERT/CC Vultron protocol team
+partially_superseded_by: 0135-compose-received-trees-never-chain-them.md
 stakeholder_type: [project-contributor]
 ---
 
