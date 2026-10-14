@@ -26,6 +26,7 @@ Found during the notes sweep for #4495 (PR #4546); the question was archived in 
 ---
 
 **Resolved**: 2026-10-14 — closed as already resolved; no implementation issues.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4622>.
 
 The concern was written from an archived open question that predates the
 active-participant rules. Current specs, code and tests on `main` answer it
