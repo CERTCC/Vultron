@@ -42,6 +42,7 @@ import pytest
 from py_trees.ports import PortsMixin
 
 import vultron.core.behaviors
+from vultron.subclasses import all_subclasses
 
 _OLD_ACCESSORS = ("input_ports", "output_ports")
 _PORT_ATTRIBUTES = ("INPUT_PORTS", "OUTPUT_PORTS")
@@ -56,13 +57,13 @@ def _import_all_behavior_modules() -> None:
 
 def _vultron_ports_classes() -> list[type]:
     _import_all_behavior_modules()
-    found: list[type] = []
-    pending = list(PortsMixin.__subclasses__())
-    while pending:
-        cls = pending.pop()
-        pending.extend(cls.__subclasses__())
-        if cls.__module__.startswith("vultron.") and cls not in found:
-            found.append(cls)
+    # PortsMixin is abstract, which mypy refuses as a ``type[T]`` argument.
+    root: type[object] = PortsMixin
+    found = [
+        cls
+        for cls in all_subclasses(root)
+        if cls.__module__.startswith("vultron.")
+    ]
     return sorted(found, key=lambda c: f"{c.__module__}.{c.__qualname__}")
 
 

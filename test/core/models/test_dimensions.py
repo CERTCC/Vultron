@@ -2,7 +2,11 @@
 """Unit tests for vultron/core/models/dimensions.py."""
 
 import pytest
+from pydantic import ValidationError
 
+from test.support.embargo_register import activate
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     EmDimension,
     PxaDimension,
@@ -53,6 +57,63 @@ class TestEmDimension:
         json_str = d.model_dump_json()
         d2 = EmDimension.model_validate_json(json_str)
         assert d2.state == EM.ACTIVE
+
+    def test_state_mutation_raises(self):
+        """``EmDimension`` is frozen: assigning to .state raises (SDO-03-006)."""
+        d = EmDimension(state=EM.NONE)
+        with pytest.raises(ValidationError):
+            d.state = EM.ACTIVE  # type: ignore[misc]
+
+    def test_status_em_assignment_raises(self):
+        """``CaseStatus.em`` is a frozen field: reassignment raises (SDO-03-006)."""
+        status = CaseStatus(context="urn:case:1")
+        with pytest.raises(ValidationError):
+            status.em = EmDimension(state=EM.ACTIVE)  # type: ignore[misc]
+
+    def test_status_em_state_assignment_raises(self):
+        """Writing to ``status.em.state`` raises because EmDimension is frozen."""
+        status = CaseStatus(context="urn:case:1")
+        with pytest.raises(ValidationError):
+            status.em.state = EM.ACTIVE  # type: ignore[misc]
+
+    def test_status_em_state_setter_deleted(self):
+        """``CaseStatus.em_state`` has no setter (AC-2, SDO-03-006)."""
+        assert isinstance(CaseStatus.__dict__["em_state"], property), (
+            "em_state must be a property"
+        )
+        assert CaseStatus.__dict__["em_state"].fset is None, (
+            "em_state must have no setter"
+        )
+
+    def test_status_em_state_assignment_raises_attribute_error(self):
+        """The flat spelling ``status.em_state = X`` raises (SDO-03-006)."""
+        status = CaseStatus(context="urn:case:1")
+        with pytest.raises(AttributeError):
+            status.em_state = EM.ACTIVE  # type: ignore[misc]
+        assert status.em.state == EM.NONE
+
+    def test_case_register_step_still_stamps_frozen_status(self):
+        """A register step re-stamps EM onto the frozen status (AC-3, ADR-0122)."""
+        case = VulnerabilityCase(
+            id_="urn:uuid:case-4375",
+            case_statuses=[CaseStatus(context="urn:uuid:case-4375")],
+        )
+        before = case.current_status
+        activate(case, "urn:uuid:embargo-4375")
+        assert case.em_state == EM.ACTIVE
+        assert case.current_status.em.state == EM.ACTIVE
+        # the stamp replaced the status by copy; the old one is untouched
+        assert before.em.state == EM.NONE
+
+    def test_model_copy_with_em_update_works(self):
+        """``model_copy(update={"em": ...})`` is the legitimate write path (ADR-0122)."""
+        status = CaseStatus(context="urn:case:1")
+        stamped = status.model_copy(
+            update={"em": EmDimension(state=EM.ACTIVE)}
+        )
+        assert stamped.em.state == EM.ACTIVE
+        # original is unchanged
+        assert status.em.state == EM.NONE
 
 
 class TestPxaDimension:

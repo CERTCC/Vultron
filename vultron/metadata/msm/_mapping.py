@@ -42,6 +42,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderExemption,
+    SenderRule,
+    in_declaration_order,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.base import repo_root
@@ -184,29 +186,52 @@ def answered_request(entry: SemanticEntry) -> str:
     return _words(str(obj))
 
 
+def _kind_wording(kind: SenderEntitlementKind, entry: SemanticEntry) -> str:
+    """The "Sent by" words for one kind; ``NAMED_ACTOR`` names its request."""
+    if kind is SenderEntitlementKind.NAMED_ACTOR:
+        return f"the addressee of the {answered_request(entry)}"
+    return SENT_BY_WORDING[kind]
+
+
+def rule_wording(rule: SenderRule, entry: SemanticEntry) -> str:
+    """Word *rule* for a "Sent by" cell: one side's kinds joined with "or".
+
+    The side is the CASE_MANAGER's when the rule states it, else the one for
+    an actor outside any case, else a participant's.  Occasions do not yet
+    declare their addressee (MSM-08-009), so a cell names one side: the
+    CASE_MANAGER's is the one a participant's message is addressed to.
+    """
+    side = rule.at_case_manager or rule.outside_case or rule.at_participant
+    return " or ".join(
+        _kind_wording(kind, entry) for kind in in_declaration_order(side)
+    )
+
+
 def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """Derive the "Sent by" value of *occasion* on *entry* (MSM-08-005).
 
-    The value is the wording of the sender entitlement that the entry's
-    received use case declares, or :data:`NOT_YET_CHECKED` for an exemption.
+    The value is the wording of the sender rule that the entry's received use
+    case declares (:func:`rule_wording`), or :data:`NOT_YET_CHECKED` for an
+    exemption.
     The occasion's usual sender roles, when it has any, follow in
     parentheses: "an active participant (usually: vendor)".
 
     Raises:
         ValueError: When the use case declares no sender entitlement.
     """
-    declared = getattr(entry.use_case_class, "sender_entitlement", None)
-    if isinstance(declared, SenderExemption):
-        wording = NOT_YET_CHECKED
-    elif declared is SenderEntitlementKind.NAMED_ACTOR:
-        wording = f"the addressee of the {answered_request(entry)}"
-    elif isinstance(declared, SenderEntitlementKind):
-        wording = SENT_BY_WORDING[declared]
-    else:
-        raise ValueError(
-            f"{entry.use_case_class.__name__} declares no sender_entitlement"
-            " (HP-01-007)"
-        )
+    declared: object = getattr(
+        entry.use_case_class, "sender_entitlement", None
+    )
+    match declared:
+        case SenderExemption():
+            wording = NOT_YET_CHECKED
+        case SenderRule():
+            wording = rule_wording(declared, entry)
+        case _:
+            raise ValueError(
+                f"{entry.use_case_class.__name__} declares no"
+                " sender_entitlement (HP-01-007)"
+            )
     if not occasion.usual_senders:
         return wording
     usual = ", ".join(

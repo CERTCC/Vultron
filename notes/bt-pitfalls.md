@@ -464,8 +464,7 @@ Rules for the arm:
   per-request evidence before the first effect. A gate keyed on a requester's
   value is one the requester can arrange to skip (#3399). For fixing every member
   of the affected set, see [agentic-workflow.md](agentic-workflow.md)
-  § "Enumerate the Affected Set From Its Consumers, Not From the Site the Report
-  Names".
+  § "Enumerate the Affected Set From Its Consumers".
 
 ---
 

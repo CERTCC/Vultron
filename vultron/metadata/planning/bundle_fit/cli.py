@@ -18,6 +18,7 @@ from vultron.metadata.planning.bundle_fit.model import (
     WORKFLOW_BY_TYPE,
 )
 from vultron.metadata.planning.bundle_fit.parse import (
+    epic_assignees,
     graphql_errors,
     parse_graphql,
 )
@@ -87,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         candidates,
         epic=epic,
         epic_schedule=epic_schedule,
+        epic_assignees=epic_assignees(payload),
         workflow=args.workflow,
         budget=args.budget,
         max_members=args.max_members,

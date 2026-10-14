@@ -1939,8 +1939,8 @@ groups:
       actor: system
       action: >-
         As the CASE_MANAGER, cancel each open proposal via
-        reject_proposed_embargo_bt (AbandonEmbargoProposalsLifecycleNode →
-        CommitEmbargoAbandonmentNode)
+        reject_proposed_embargo_bt (AbandonEmbargoProposalsLifecycleNode
+        commits each proposal's ER, then cancels that proposal)
       expected: >-
         Each proposal's register entry is CANCELLED and EM derives NONE; one
         ER per open proposal is committed and replayed by every replica

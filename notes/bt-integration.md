@@ -37,6 +37,13 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/triggerable-behaviors.md
   - notes/flaky-tests.md
+  - notes/activitystreams-semantics.md
+  - notes/activitystreams-state-update.md
+  - notes/codebase-structure.md
+  - notes/documentation-strategy.md
+  - notes/domain-validation.md
+  - notes/protocol-asks.md
+  - notes/structured-logging.md
 relevant_packages:
   - py_trees
   - vultron/bt

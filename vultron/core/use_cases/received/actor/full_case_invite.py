@@ -19,8 +19,8 @@ from vultron.core.behaviors.case.full_case_invite_trees import (
     create_invite_actor_to_full_case_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
 )
 from vultron.core.models.events.actor import (
     AcceptInviteActorToFullCaseReceivedEvent,
@@ -59,7 +59,7 @@ class InviteActorToFullCaseReceivedUseCase:
     from the Invite.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_MANAGER
     )
 
@@ -98,6 +98,7 @@ class InviteActorToFullCaseReceivedUseCase:
             invitee_id=invitee_id,
             inviter_id=request.actor_id,
             floor=request.ledger_tail,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -120,7 +121,7 @@ class _FullCaseInviteReplyReceivedUseCase:
     state already recorded is ``SKIPPED`` (RSH-08-002).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.INVITEE
     )
     rm_state: ClassVar[RM]
@@ -154,6 +155,7 @@ class _FullCaseInviteReplyReceivedUseCase:
             replier_id=request.actor_id,
             position=request.ledger_tail,
             rm_state=self.rm_state,
+            sender_rule=self.sender_entitlement,
         )
 
     def execute(self) -> HandlerResult:

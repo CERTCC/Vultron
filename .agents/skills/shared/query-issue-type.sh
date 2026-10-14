@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
 # Query issue type and sub-issue count for the Empty-Epic gate.
-# Usage: query-issue-type.sh <ISSUE_NUMBER>
+# Usage: query-issue-type.sh [--name] <ISSUE_NUMBER>
+#   --name  print only the issue type's name (empty for an untyped issue)
 set -euo pipefail
 
-ISSUE_NUMBER="${1:?Usage: $0 <ISSUE_NUMBER>}"
+NAME_ONLY=false
+if [ "${1:-}" = "--name" ]; then
+  NAME_ONLY=true
+  shift
+fi
+ISSUE_NUMBER="${1:?Usage: $0 [--name] <ISSUE_NUMBER>}"
 
-gh api graphql -f query="{
+if [ "$NAME_ONLY" = true ]; then
+  JQ='.data.repository.issue.issueType.name // ""'
+else
+  JQ='.'
+fi
+
+gh api graphql --jq "$JQ" -f query="{
   repository(owner:\"CERTCC\", name:\"Vultron\") {
     issue(number: ${ISSUE_NUMBER}) {
       issueType { name }

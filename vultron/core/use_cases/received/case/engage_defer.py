@@ -29,8 +29,8 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 class EngageCaseReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
@@ -113,7 +113,7 @@ class EngageCaseReceivedUseCase:
 class DeferCaseReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
@@ -161,7 +161,11 @@ class DeferCaseReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
+        tree = create_defer_case_tree(
+            case_id=case_id,
+            actor_id=actor_id,
+            sender_rule=self.sender_entitlement,
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

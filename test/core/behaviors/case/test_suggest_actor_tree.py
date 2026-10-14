@@ -71,6 +71,11 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
     ProtocolPair,
 )
+from vultron.core.use_cases.received.actor.offer_case_participant import (
+    AcceptOfferCaseParticipantReceivedUseCase,
+    OfferCaseParticipantReceivedUseCase,
+    RejectOfferCaseParticipantReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 
 _REC_ID = "https://example.org/recommendations/rec-1"
@@ -78,6 +83,9 @@ _RECOMMENDER = "https://example.org/actors/recommender"
 _RECOMMENDED = "https://example.org/actors/recommended"
 _CASE_ID = "https://example.org/cases/case-1"
 _SENDER = "https://example.org/actors/sender"
+_OFFER_RULE = OfferCaseParticipantReceivedUseCase.sender_entitlement
+_ACCEPT_RULE = AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
+_REJECT_RULE = RejectOfferCaseParticipantReceivedUseCase.sender_entitlement
 
 
 class TestEvaluateDefaultRolesNode:
@@ -496,6 +504,7 @@ class TestAcceptActorRecommendationReceivedTree:
             invitee_id=_RECOMMENDED,
             case_id=_CASE_ID,
             sender_id=_SENDER,
+            sender_rule=_ACCEPT_RULE,
         )
 
     def test_root_is_sequence(self):
@@ -576,6 +585,7 @@ class TestRejectActorRecommendationReceivedTree:
             recommended_id=_RECOMMENDED,
             case_id=_CASE_ID,
             sender_id=_SENDER,
+            sender_rule=_REJECT_RULE,
         )
 
     def test_root_is_sequence(self):
@@ -1204,6 +1214,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
                 invitee_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_ACCEPT_RULE,
             ),
             "AcceptActorRecommendationIfCaseManager",
         ),
@@ -1215,6 +1226,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
                 recommended_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_REJECT_RULE,
             ),
             "RejectActorRecommendationIfCaseManager",
         ),
@@ -1271,7 +1283,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
         ),
         (
             create_receive_offer_case_participant_tree,
-            dict(case_id=_CASE_ID),
+            dict(case_id=_CASE_ID, sender_id=_SENDER, sender_rule=_OFFER_RULE),
             SenderIsCaseManagerNode,
         ),
         (
@@ -1282,6 +1294,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
                 invitee_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_ACCEPT_RULE,
             ),
             SenderIsCaseOwnerNode,
         ),
@@ -1293,6 +1306,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
                 recommended_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_REJECT_RULE,
             ),
             SenderIsCaseOwnerNode,
         ),

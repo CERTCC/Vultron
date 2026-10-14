@@ -40,6 +40,7 @@ from test.support.blank_strings import (
     rejects_blank,
 )
 from vultron.core.models._helpers import strip_annotated
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -53,15 +54,11 @@ def wire_classes() -> dict[str, type[as_Base]]:
     and never register, yet they are exactly where the hand-spelled unions
     #3876 AC-2 names live.  Iterating the registry examined none of them.
     """
-    found: dict[str, type[as_Base]] = {}
-
-    def descend(cls: type[as_Base]) -> None:
-        for sub in cls.__subclasses__():
-            if sub.__module__.startswith("vultron.wire"):
-                found[sub.__qualname__] = sub
-            descend(sub)
-
-    descend(as_Base)
+    found = {
+        cls.__qualname__: cls
+        for cls in all_subclasses(as_Base)
+        if cls.__module__.startswith("vultron.wire")
+    }
     return dict(sorted(found.items()))
 
 

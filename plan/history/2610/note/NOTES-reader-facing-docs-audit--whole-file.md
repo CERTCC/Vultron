@@ -1,18 +1,12 @@
 ---
-title: Reader-Facing Docs Audit — Cross-Page Rulings
-status: active
-kind: guidance
-description: >
-  Dated audit of every reader-facing docs/ page against the site information
-  architecture (ADR-0102). The per-page routing ledger is archived (every
-  remediation task closed); what stays are the judgments that cannot be made
-  from inside one page — which overlapping page wins, inbound link counts, level
-  violations, and missing pages.
-related_notes:
-  - notes/site-information-architecture.md
-  - notes/documentation-sweeps.md
-related_specs:
-  - specs/diataxis-requirements.yaml
+source: NOTES-reader-facing-docs-audit--whole-file
+timestamp: '2026-10-14T14:25:51.008867+00:00'
+title: 'reader-facing-docs-audit: whole file'
+type: note
+---
+
+Archived from `notes/reader-facing-docs-audit.md` by #4498: a dated audit (2026-09-24) whose every remediation task under #3526 is closed, and whose missing-pages inventory is delivered except item 6. Lasting content lives elsewhere: the concept-registry division of labor is stated on `docs/reference/glossary.md` itself (spec §2 normative, glossary the registry of names, taxonomy the concept-name authority; `terms.md` retired); levels and stakeholder types live in each page's frontmatter; the "audit routes; the fix decides" rule stays in `notes/site-information-architecture.md`. Missing page 6 (how a case split or merge is expressed in the protocol) was carried onto #3701.
+
 ---
 
 # Reader-Facing Docs Audit — Cross-Page Rulings

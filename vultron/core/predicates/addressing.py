@@ -60,3 +60,14 @@ def is_addressed_to(actor_id: str, recipients: Iterable[str]) -> bool:
     """
     target = normalise_actor_id(actor_id)
     return any(normalise_actor_id(r) == target for r in recipients)
+
+
+def distinct_recipients(recipients: Iterable[str | None]) -> list[str]:
+    """Return the actors *recipients* names, once each, in order.
+
+    Ids are normalised with :func:`normalise_actor_id`, so two spellings that
+    differ only by a trailing slash count once; ``None`` and empty ids are
+    dropped.  The invitee of an ``Invite(EmbargoEvent)`` is its sole ``to``
+    recipient (EP-09-010): it has one exactly when this returns one id.
+    """
+    return list(dict.fromkeys(normalise_actor_id(r) for r in recipients if r))

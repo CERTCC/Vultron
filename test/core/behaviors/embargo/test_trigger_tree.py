@@ -25,13 +25,15 @@ in that order, and the other arm declares nothing.
 import py_trees
 import pytest
 
+from vultron.core.behaviors.case_manager_commit import (
+    _CommitCaseManagerActivityBase,
+)
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.embargo.nodes import (
     AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
-    CommitEmbargoAbandonmentNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoTeardownNode,
     LeaveAbandonmentToCaseManagerNode,
@@ -196,17 +198,39 @@ class TestRejectEmbargoTriggerBt:
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("EMB-16-001")
 class TestRejectProposedEmbargoBt:
-    def test_manager_arm_writes_commits_then_declares(self, result_out):
+    @pytest.mark.spec("CLP-07-013")
+    def test_manager_arm_commits_and_writes_in_one_node_then_declares(
+        self, result_out
+    ):
+        """Each ER commits before its cancel, inside one node (#4442).
+
+        The commit and the write interleave per proposal, so there is no
+        separate commit node after the write to order against.
+        """
         tree = reject_proposed_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
         )
-        _assert_manager_arm_order(
-            tree,
-            AbandonEmbargoProposalsLifecycleNode,
-            CommitEmbargoAbandonmentNode,
-            other_suffix=ABANDONMENT_LEFT_TO_CASE_MANAGER,
+        manager = _arm(tree, "AsCaseManager")
+        index = {type(n): i for i, n in reversed(list(enumerate(manager)))}
+        assert (
+            index[AbandonEmbargoProposalsLifecycleNode]
+            < index[EmitCaseStatusUpdateNode]
         )
+        assert not any(
+            isinstance(n, _CommitCaseManagerActivityBase) for n in manager
+        ), "no commit node runs after the write it would record"
+        other = _arm(tree, ABANDONMENT_LEFT_TO_CASE_MANAGER)
+        assert not any(
+            isinstance(
+                n,
+                (
+                    AbandonEmbargoProposalsLifecycleNode,
+                    EmitCaseStatusUpdateNode,
+                ),
+            )
+            for n in other
+        ), "a non-manager writes, commits and declares nothing (EP-09-008)"
 
     @pytest.mark.spec("EMB-16-002")
     def test_non_manager_arm_neither_writes_nor_asks(self, result_out):

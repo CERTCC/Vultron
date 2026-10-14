@@ -76,6 +76,9 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.invite import (
+    AcceptInviteActorToCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
@@ -98,6 +101,7 @@ VENDOR = "https://example.org/actors/vendor-removal"
 OTHER = "https://example.org/actors/other-removal"
 STRANGER = "https://example.org/actors/stranger-removal"
 EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
+_ACCEPT_INVITE_RULE = AcceptInviteActorToCaseReceivedUseCase.sender_entitlement
 
 # The issue implementing each CM-31 requirement (ADR-0116).
 _TRACKED_BY = {
@@ -553,6 +557,7 @@ def test_accept_invite_tree_emits_no_add_case_participant() -> None:
             case_id=CASE_ID,
             invitee_id=VENDOR,
             invite_id=f"{CASE_ID}/invitations/1",
+            sender_rule=_ACCEPT_INVITE_RULE,
         ).iterate()
     ]
     assert "EmitAddCaseParticipantNode" not in names

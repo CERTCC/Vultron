@@ -25,10 +25,10 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderIsCaseManagerNode,
     SenderIsNamedActorNode,
+    SenderRule,
 )
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -278,7 +278,7 @@ class AnnounceLedgerEntryReceivedUseCase:
     SYNC-11-003, SYNC-12-001.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_MANAGER
     )
 
@@ -398,7 +398,7 @@ class RejectLedgerEntryReceivedUseCase:
     Spec: SYNC-03-001, SYNC-03-002, SYNC-03-005, SYNC-04-001, SYNC-04-002.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 

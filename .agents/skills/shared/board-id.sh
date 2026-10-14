@@ -15,6 +15,9 @@
 #   board-id.sh project                  # Project #24 node ID
 #   board-id.sh schedule-field           # Schedule field ID
 #   board-id.sh schedule <Name>          # Schedule option ID (Now|Next|Later|Someday|Focus|Completed)
+#   board-id.sh status-field             # Status field ID
+#   board-id.sh status <Name>            # Status option ID (Backlog|Ready|In Progress|In Review|Done),
+#                                        # matched case-insensitively: the board spells it "In progress"
 #   board-id.sh issue-type <Name>        # issue-type ID (Task|Bug|Feature|Idea|Epic|Concern)
 #   board-id.sh --refresh [<args...>]    # force re-fetch, then resolve (args optional)
 #   board-id.sh --dump                   # print the whole cache as JSON
@@ -54,7 +57,10 @@ refresh_cache() {
       organization(login:$owner) {
         projectV2(number:$number) {
           id
-          field(name:"Schedule") {
+          schedule: field(name:"Schedule") {
+            ... on ProjectV2SingleSelectField { id options { id name } }
+          }
+          status: field(name:"Status") {
             ... on ProjectV2SingleSelectField { id options { id name } }
           }
         }
@@ -71,8 +77,11 @@ refresh_cache() {
       fetched_at_epoch: $now,
       repo:            .data.repository.id,
       project:         .data.organization.projectV2.id,
-      "schedule-field": .data.organization.projectV2.field.id,
-      schedule:        (.data.organization.projectV2.field.options
+      "schedule-field": .data.organization.projectV2.schedule.id,
+      schedule:        (.data.organization.projectV2.schedule.options
+                          | map({(.name): .id}) | add // {}),
+      "status-field":  .data.organization.projectV2.status.id,
+      status:          (.data.organization.projectV2.status.options
                           | map({(.name): .id}) | add // {}),
       "issue-type":    (.data.repository.issueTypes.nodes
                           | map({(.name): .id}) | add // {})
@@ -106,7 +115,7 @@ ensure_cache() {
 resolve() {
   local category="${1:-}" name="${2:-}"
   case "$category" in
-    repo|project|schedule-field)
+    repo|project|schedule-field|status-field)
       # No -e: a miss prints empty and still exits 0, so the caller can tell a
       # valid-but-absent name (empty output) apart from a usage error (below).
       jq -r --arg k "$category" '.[$k] // empty' "$CACHE"
@@ -115,9 +124,17 @@ resolve() {
       [ -n "$name" ] || { echo "❌ board-id: '$category' needs a name argument." >&2; return 1; }
       jq -r --arg c "$category" --arg n "$name" '.[$c][$n] // empty' "$CACHE"
       ;;
+    status)
+      # Case-insensitive: the specs say "In Progress", the board option is
+      # "In progress", and both name the same column.
+      [ -n "$name" ] || { echo "❌ board-id: '$category' needs a name argument." >&2; return 1; }
+      jq -r --arg n "$name" '(.status // {}) | to_entries
+        | map(select((.key | ascii_downcase) == ($n | ascii_downcase)))
+        | .[0].value // empty' "$CACHE"
+      ;;
     *)
       echo "❌ board-id: unknown category '$category'." >&2
-      echo "   Categories: repo | project | schedule-field | schedule <Name> | issue-type <Name>" >&2
+      echo "   Categories: repo | project | schedule-field | schedule <Name> | status-field | status <Name> | issue-type <Name>" >&2
       return 1
       ;;
   esac

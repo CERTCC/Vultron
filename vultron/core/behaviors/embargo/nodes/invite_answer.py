@@ -136,7 +136,7 @@ class OwnerMayAutoAcceptEmbargoNode(DataLayerConditionWithPorts):
                 f" on case '{self._case_id}'"
             )
         case = self._resolve_case_replica(self._case_id)
-        if case is None or case.current_status.em_state != EM.NONE:
+        if case is None or case.em_state != EM.NONE:
             self.feedback_message = (
                 "an embargo exists or is being revised — the owner answers,"
                 " nothing is auto-accepted (EP-09-006)"
