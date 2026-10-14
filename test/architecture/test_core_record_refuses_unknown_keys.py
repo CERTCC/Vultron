@@ -44,6 +44,11 @@ _PROPOSAL = {
 #: Minimal valid data for each concrete record.  The abstract
 #: ``RetiredFieldsRecord`` base has no fields of its own to build from.
 _SAMPLES: dict[str, dict[str, Any]] = {
+    "ActorRecommendationRecord": {
+        "case_id": _URI,
+        "recommendation_id": _URI,
+        "recommender_id": _URI,
+    },
     "CaseProposalAdmissionRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "CaseProposalDeclineRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "PendingCreateCaseActivity": {**_PROPOSAL, "owner_uri": _URI},

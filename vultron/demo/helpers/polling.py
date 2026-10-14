@@ -32,6 +32,7 @@ from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
     _fetch_participant,
+    recipient_ids,
 )
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
@@ -537,12 +538,15 @@ def wait_for_event_type_in_ledger(
 ) -> None:
     """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *event_type* appears.
 
-    Use this before reading the authoritative tail index in close phases to
-    ensure the ``close_case`` entry (committed asynchronously by the CaseActor's
-    auto-close BT after the last RM.CLOSED) is present before we snapshot the
-    tail.  Without this wait, the tail index may exclude ``close_case``, causing
-    a coverage-wait 'success' for the wrong tail and a gapped ledger dump
-    (issue #1772 Bug B).
+    Use this before reading the authoritative tail index when a later step
+    depends on an entry the CaseActor commits asynchronously, so the tail
+    snapshot includes it.  Without such a wait, the tail index may exclude the
+    entry, causing a coverage-wait 'success' for the wrong tail and a gapped
+    ledger dump (issue #1772 Bug B).  The close phase no longer reads the
+    authority's tail: a closed participant is sent nothing after its own
+    closure entries (CM-23-004), so
+    :func:`~vultron.demo.helpers.closure.close_case_owner_last` checks each
+    replica against that participant's own closure instead.
 
     Args:
         client: DataLayerClient connected to the authoritative container.
@@ -1657,12 +1661,7 @@ def _is_embargo_invite_for(
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     if inner_id != embargo_id:
         return False
-    recipients = invite.get("to")
-    if not isinstance(recipients, list):
-        recipients = [recipients]
-    return invitee_id in [
-        r.get("id") if isinstance(r, dict) else r for r in recipients
-    ]
+    return invitee_id in recipient_ids(invite.get("to"))
 
 
 def find_embargo_invite_for_actor(

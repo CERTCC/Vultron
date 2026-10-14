@@ -110,8 +110,8 @@ acceptance is recorded as an `accept_invite_actor_to_case` entry.
 
 ### 6. Participants exchange notes
 
-Finder, Vendor1, and Vendor2 communicate via case notes.  Each note is recorded
-as `add_note_to_case`.
+Finder, Vendor1, and Vendor2 communicate via case notes.
+Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
 
 *Antecedent:* `engage_case` is present in the ledger.
 

@@ -208,21 +208,11 @@ def test_the_assembled_table_indexes_cleanly() -> None:
 
 
 @pytest.mark.spec("TRIG-11-005")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="TRIG-11-005: no reject-case-ownership-transfer trigger yet. #4475.",
-)
 def test_reject_case_ownership_transfer_trigger_is_registered() -> None:
     assert "reject-case-ownership-transfer" in {row.verb for row in entries()}
 
 
 @pytest.mark.spec("TRIG-11-006")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="TRIG-11-006: no withdraw-case-ownership-transfer trigger yet. #4491.",
-)
 def test_withdraw_case_ownership_transfer_trigger_is_registered() -> None:
     assert "withdraw-case-ownership-transfer" in {
         row.verb for row in entries()
@@ -230,11 +220,6 @@ def test_withdraw_case_ownership_transfer_trigger_is_registered() -> None:
 
 
 @pytest.mark.spec("TRIG-11-007")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="TRIG-11-007: the offer trigger takes no end_time yet. #4491.",
-)
 def test_offer_case_ownership_transfer_trigger_accepts_end_time() -> None:
     (row,) = [
         row for row in entries() if row.verb == "offer-case-ownership-transfer"

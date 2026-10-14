@@ -23,22 +23,43 @@ not the same as that order on the ledger (EDF-06-002).
 
 :func:`close_case_owner_last` is the one place that sequence lives, so no
 scenario carries its own copy of the ordering or of the gate (DEMOMA-17-001).
-It also runs the ledger half of the closure milestone,
-:func:`~vultron.demo.helpers.milestones.verify_case_closure_recorded`, which
-depends on the owner having left; a scenario adds only its replica checks.
+It also runs the whole closure milestone, which depends on the owner having
+left.  A participant at RM ``CLOSED`` is sent nothing after the entries that
+record its own closure (CM-23-004), so no replica converges on every closure:
+
+- the CASE_MANAGER's own store is where every participant's closure is
+  verified — the ledger order
+  (:func:`~vultron.demo.helpers.milestones.verify_case_closure_recorded`)
+  and every record at ``RM.CLOSED``
+  (:func:`~vultron.demo.helpers.milestones.verify_case_closed`);
+- each departing participant's replica is checked for its own closure only:
+  it holds the ledger through the last entry recording that closure, nothing
+  after it, and reads itself ``RM.CLOSED``.  That is the point at which a
+  departing participant's replication would exit.
+
+The CASE_MANAGER's store is read where it lives — the dedicated
+``case-actor`` container when the topology has one (DEMOMA-06-004) —
+through the scenario's authority client, scoped by
+:func:`~vultron.demo.helpers.polling.case_manager_store`.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.milestones import verify_case_closure_recorded
+from vultron.demo.helpers.milestones import (
+    case_manager_ledger,
+    own_closure_tail_index,
+    verify_case_closed,
+    verify_case_closure_recorded,
+)
 from vultron.demo.helpers.polling import (
-    resolve_case_actor_store_id,
+    case_manager_store,
     wait_for_participant_rm_state,
 )
+from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -81,29 +102,40 @@ def close_case_owner_last(
     order given.  The owner's ``Leave`` is gated on the CASE_MANAGER having
     recorded every one of those departures: each leaver reads ``RM.CLOSED``
     in the CASE_MANAGER's own store, where the non-owner closure commits
-    (CM-23-003).  The read goes through *authority_client*, scoped to the
-    co-hosted CaseActor's store when there is one
-    (:func:`~vultron.demo.helpers.polling.resolve_case_actor_store_id`).
-    When a departure is not recorded in time the gate fails once and the
-    owner does not leave: an owner ``Leave`` sent then would close the case
-    over a departure the ledger might never record (CM-23-013).
+    (CM-23-003).  That store is read through *authority_client*, scoped to
+    the CaseActor it hosts (:func:`~vultron.demo.helpers.polling
+    .case_manager_store`).  When a departure is not recorded in time the
+    gate fails once and the owner does not leave: an owner ``Leave`` sent
+    then would close the case over a departure the ledger might never
+    record (CM-23-013).
 
-    Once the owner has left, the closure milestone's ledger check runs in its
-    own ``demo_check``: every departure is recorded before
-    ``case_fully_closed`` and no participant act follows it
-    (:func:`~vultron.demo.helpers.milestones.verify_case_closure_recorded`,
-    read through *authority_client*).  It is skipped with the owner's
-    ``Leave`` when the gate fails, so the one failure names the cause.
+    Once the owner has left, the closure milestone runs, each part in its
+    own ``demo_check``:
+
+    1. the CASE_MANAGER's ledger records every departure before
+       ``case_fully_closed`` and no participant act after it
+       (:func:`~vultron.demo.helpers.milestones.verify_case_closure_recorded`);
+    2. every participant is ``RM.CLOSED`` in the CASE_MANAGER's store
+       (:func:`~vultron.demo.helpers.milestones.verify_case_closed`);
+    3. each departing participant's own replica holds the ledger through the
+       last entry recording its own closure and nothing after it, and reads
+       itself ``RM.CLOSED`` (CM-23-004).  This is the leaver waiting for its
+       own closure entry before it exits; it is never sent a later closure
+       or ``case_fully_closed``, so no replica is checked for those.
+
+    They are skipped with the owner's ``Leave`` when the gate fails, so the
+    one failure names the cause.
 
     Args:
         case: The case being closed.
         authority_client: Client for the container that hosts the case's
-            CASE_MANAGER.
+            CASE_MANAGER: the dedicated case-actor container, bound to its
+            CaseActor, when the topology has one (DEMOMA-06-004).
         others: Every participant other than the Case Owner, in the order
             they leave.  Each MUST be distinct from *owner*.
         owner: The participant holding ``CASE_OWNER`` at closure.
         milestone: The scenario's label for its closure milestone (``"M7"``),
-            prefixed to the ledger check's description; ``None`` for none.
+            prefixed to each check's description; ``None`` for none.
 
     Returns:
         The actor ids of every participant whose ``Leave`` step ran, in that
@@ -113,7 +145,7 @@ def close_case_owner_last(
         ValueError: If *owner* is also listed in *others*, which would
             send the owner's ``Leave`` before the others have left.
 
-    Spec: CM-23-015, CM-23-013, CM-23-003, EDF-06-002.
+    Spec: CM-23-015, CM-23-013, CM-23-004, CM-23-003, EDF-06-002.
     """
     owner_id = owner.actor.id_
     if any(leaver.actor.id_ == owner_id for leaver in others):
@@ -131,29 +163,91 @@ def close_case_owner_last(
         "every other participant's departure recorded before the Case Owner"
         " leaves (CM-23-015)"
     ):
-        store_id = resolve_case_actor_store_id(authority_client, case.id_)
+        manager = _case_manager_reader(authority_client, case.id_)
         for leaver in others:
             wait_for_participant_rm_state(
-                client=authority_client,
+                client=manager,
                 case_id=case.id_,
                 actor_id=leaver.actor.id_,
                 expected_states={RM.CLOSED},
-                dl_actor_id=store_id,
             )
         _leave(owner, case)
         departed.append(owner_id)
-        prefix = f"{milestone}: " if milestone else ""
-        with demo_check(
-            f"{prefix}every departure recorded before case_fully_closed"
-            " (CM-23-015)"
-        ):
-            verify_case_closure_recorded(
-                client=authority_client,
-                case_id=case.id_,
-                departed_actor_ids=departed,
-            )
+        _verify_closure(
+            manager, case, [*others, owner], departed, milestone=milestone
+        )
 
     return departed
+
+
+def _case_manager_reader(
+    authority_client: DataLayerClient, case_id: str
+) -> DataLayerClient:
+    """*authority_client*, bound to the CASE_MANAGER's own store.
+
+    The closure checks read every record through one client, so the store
+    scope :func:`~vultron.demo.helpers.polling.case_manager_store` returns
+    is bound onto it rather than passed to each read.
+    """
+    client, store_id = case_manager_store(authority_client, case_id)
+    if store_id is None:
+        return client
+    return client.model_copy(update={"actor_id": store_id})
+
+
+def _verify_closure(
+    manager: DataLayerClient,
+    case: as_VulnerabilityCase,
+    leavers: Sequence[CaseLeaver],
+    departed: list[str],
+    *,
+    milestone: str | None,
+) -> None:
+    """Run the closure milestone's checks once the owner has left."""
+    prefix = f"{milestone}: " if milestone else ""
+    with demo_check(
+        f"{prefix}every departure recorded before case_fully_closed"
+        " (CM-23-015)"
+    ):
+        verify_case_closure_recorded(
+            client=manager,
+            case_id=case.id_,
+            departed_actor_ids=departed,
+        )
+    with demo_check(
+        f"{prefix}all participants RM.CLOSED in the CASE_MANAGER's store"
+        " (CM-23-004)"
+    ):
+        verify_case_closed(case_manager_client=manager, case_id=case.id_)
+    ledger = case_manager_ledger(manager, case.id_)
+    for leaver in leavers:
+        with demo_check(
+            f"{prefix}{ref_id(leaver.actor)} replica holds its own closure"
+            " and nothing after it (CM-23-004) — temporal wait (EDF-06-006)"
+        ):
+            _verify_own_closure(leaver, case, ledger)
+
+
+def _verify_own_closure(
+    leaver: CaseLeaver,
+    case: as_VulnerabilityCase,
+    ledger: Sequence[Mapping[str, object]],
+) -> None:
+    """The leaver's replica ends at its own closure and reads it RM.CLOSED."""
+    actor_id = leaver.actor.id_
+    tail = own_closure_tail_index(ledger, actor_id)
+    if tail is None:
+        raise AssertionError(
+            f"the CASE_MANAGER's ledger records no close_case entry for"
+            f" {actor_id!r}"
+        )
+    wait_for_replica_ledger_ending_at(leaver.client, case.id_, tail)
+    wait_for_participant_rm_state(
+        client=leaver.client,
+        case_id=case.id_,
+        actor_id=actor_id,
+        expected_states={RM.CLOSED},
+    )
 
 
 def _leave(leaver: CaseLeaver, case: as_VulnerabilityCase) -> None:

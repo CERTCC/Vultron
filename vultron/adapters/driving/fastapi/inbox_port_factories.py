@@ -244,10 +244,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
         # direct Remove(CaseParticipant) notice (CM-31-006).
         MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-        # UPDATE_CASE broadcasts Announce(VulnerabilityCase) to the
-        # participants (CM-06-001); the adapter builds and seals it
-        # (VM-08-003).
-        MessageSemantics.UPDATE_CASE,
         MessageSemantics.VALIDATE_REPORT,
     }
 )

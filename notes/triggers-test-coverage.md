@@ -7,97 +7,44 @@ related_specs:
   - specs/use-case-organization.yaml
 description: >
   Coverage expectations and PR-scope discipline for trigger use cases in
-  vultron/core/use_cases/triggers/, motivated by repeated high-churn in
-  case trigger use cases without per-use-case regression tests.
+  vultron/core/use_cases/triggers/.
 related_notes:
   - notes/testing-pitfalls.md
+  - notes/case-communication-model.md
 ---
 
 # Trigger Use-Case Test Coverage and PR Scope
 
-## Background
-
-`vultron/core/use_cases/triggers/case.py` accumulated 26 commits in 90 days
-before it was split into `triggers/case/` (originating concern:
-[#652](https://github.com/CERTCC/Vultron/issues/652)).
-Two structural properties amplify the risk of regressions in this file:
-
-1. **Multiple use cases per module.** As of the originating concern, `case.py`
-   contained six trigger use cases (`SvcEngageCaseUseCase`,
-   `SvcDeferCaseUseCase`, `SvcCreateCaseUseCase`, `SvcAddObjectToCaseUseCase`,
-   `SvcAddReportToCaseUseCase`, `SvcAddParticipantStatusUseCase`).
-2. **Co-evolution with embargo logic.** Case-state and embargo-state
-   transitions are tightly coupled in the protocol, so many PRs touch case
-   triggers and embargo triggers together. When tests are sparse, a regression
-   in one can ship silently behind a fix to the other.
-
 ## Coverage expectation
 
-Every trigger use case in `vultron/core/use_cases/triggers/` SHOULD have at
-least one dedicated unit test that exercises its `execute()` path against a
-real (in-memory) `DataLayer` and asserts:
+Every trigger use case in `vultron/core/use_cases/triggers/` SHOULD have a
+dedicated unit test, under `test/core/use_cases/triggers/`, that runs its
+`execute()` path against a real in-memory `DataLayer` and asserts:
 
-- the use case's state mutation (RM, EM, CS, or PEC transition as applicable);
-- the outbox effect (activity queued, addressed correctly per PCR-08-001); and
-- the failure modes the use case is documented to raise
-  (`VultronValidationError`, `VultronNotFoundError`).
+- the state mutation (RM, EM, CS, or PEC transition as applicable);
+- the outbox effect: the activity is queued and addressed per PCR-08-001
+  (see `notes/case-communication-model.md`); and
+- the failure modes the use case documents raising (`VultronValidationError`,
+  `VultronNotFoundError`).
 
-The outbox `to`-field assertion (PCR-08-001) applies to **all** trigger use
-cases, not only the six case-trigger ones listed in the table below. Embargo
-trigger tests already follow this pattern; case trigger `to`-field tests were
-added in PR #2005 (closes CONCERN-1970).
+Case triggers and embargo triggers co-evolve, so sparse tests let a regression
+in one ship behind a fix to the other (#652).
 
-Existing coverage anchors:
+Create the test file in the same PR as the use case. The registry ratchet
+(`test/architecture/test_trigger_registry_ratchets.py`, ADR-0110) already fails
+when a `Svc*UseCase` has no registry row, so a new use case is registered in
+that PR anyway. Integration coverage (`test_trignotify.py`, scenario demos) is
+no substitute.
 
-| Use case | Dedicated test file |
-|---|---|
-| `SvcEngageCaseUseCase` | `test/core/use_cases/triggers/case/test_engage.py` |
-| `SvcDeferCaseUseCase` | `test/core/use_cases/triggers/case/test_defer.py` |
-| `SvcAddParticipantStatusUseCase` | `test/core/use_cases/triggers/case/test_add_participant_status.py` |
-| `SvcCreateCaseUseCase` | `test/core/use_cases/triggers/case/test_create.py` |
-| `SvcAddObjectToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_object.py` |
-| `SvcAddReportToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_report.py` |
-| `SvcAddOnBehalfStatusUseCase` | `test/core/use_cases/triggers/case/test_add_on_behalf_status.py` |
-| `SvcSyncLogEntryUseCase` | `test/core/use_cases/triggers/test_sync_log_entry.py` |
-| `SvcAckReportUseCase` | `test/core/use_cases/triggers/test_ack_report.py` |
-
-The trigger registry (`vultron/trigger_registry/`, ADR-0110) makes the
-"every use case has a row" half of this mechanical:
-`test/architecture/test_trigger_registry_ratchets.py` fails when a
-`Svc*UseCase` under `triggers/` has no row, so a new use case must be
-registered in the same PR as its test file.
-
-When you add a new trigger use case, create the matching `test_<use_case>.py`
-file in the same PR. Do not rely on integration coverage in
-`test_trignotify.py` or scenario demos to substitute for per-use-case tests.
-
-There is no facade-level suite to lean on either: `test_service.py` (48 tests
-over the retired `TriggerService`) was ported into the per-use-case files
-above and the per-router suites when the facade went (#3833, ADR-0110). The
-route-layer checks that every router suite used to repeat per endpoint — 202,
-the store the dispatcher is handed, the queued flush — live once, parametrized
-over the registry, in
+Route-layer checks (202, the store handed to the dispatcher, the queued flush)
+live once, parametrized over the registry, in
 `test/adapters/driving/fastapi/test_trigger_routes_contract.py`; a per-router
 suite carries only the verb's domain assertions.
 
 ## PR-scope discipline
 
-Avoid bundling case-trigger and embargo-trigger changes in the same PR
-unless the change is intrinsically cross-cutting (e.g., a renaming sweep,
-or an `EmbargoLifecycle` (#538) seam refactor that necessarily touches both).
-Bundled diffs are the primary failure mode that the originating concern
-documented: a reviewer focused on the case-trigger change misses the
-embargo regression and vice versa.
-
-When a single PR must touch both, call it out explicitly in the PR body and
-list the integration test(s) that exercise the combined path.
-
-## References
-
-- Originating concern: [#652](https://github.com/CERTCC/Vultron/issues/652)
-- Parallel BT-nodes pattern: `specs/behavior-tree-node-design.yaml`
-  BTND-07-001, BTND-07-002
-- PCR-08-001 (participant → CASE_MANAGER addressing): see
-  `notes/case-communication-model.md`
-- Trigger-side state machine BT integration: [#711](https://github.com/CERTCC/Vultron/issues/711)
-- EmbargoLifecycle consolidation: [#538](https://github.com/CERTCC/Vultron/issues/538)
+Do not bundle case-trigger and embargo-trigger changes in one PR unless the
+change is intrinsically cross-cutting (a renaming sweep, an `EmbargoLifecycle`
+seam refactor). A reviewer focused on one half misses a regression in the
+other. When a PR must touch both, say so in the PR body and list the
+integration tests that exercise the combined path.

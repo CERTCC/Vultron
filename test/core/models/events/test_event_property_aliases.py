@@ -23,6 +23,7 @@ from vultron.core.models.events.actor import (
     InviteActorToCaseReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
+    UndoCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import (
@@ -31,7 +32,6 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
-    UpdateCaseReceivedEvent,
 )
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
@@ -190,12 +190,6 @@ _CASES = [
         [("case_id", "object_id"), ("case", "object_")],
     ),
     (
-        UpdateCaseReceivedEvent,
-        MessageSemantics.UPDATE_CASE,
-        {"object_": _case},
-        [("case_id", "object_id"), ("case", "object_")],
-    ),
-    (
         EngageCaseReceivedEvent,
         MessageSemantics.ENGAGE_CASE,
         {"object_": _case},
@@ -234,8 +228,22 @@ _CASES = [
     (
         RejectCaseOwnershipTransferReceivedEvent,
         MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
-        {"object_": _activity},
-        [("offer_id", "object_id"), ("offer", "object_")],
+        {"object_": _activity, "inner_object": _case},
+        [
+            ("offer_id", "object_id"),
+            ("offer", "object_"),
+            ("case_id", "inner_object_id"),
+        ],
+    ),
+    (
+        UndoCaseOwnershipTransferReceivedEvent,
+        MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER,
+        {"object_": _activity, "inner_object": _case},
+        [
+            ("offer_id", "object_id"),
+            ("offer", "object_"),
+            ("case_id", "inner_object_id"),
+        ],
     ),
     (
         AcceptInviteActorToCaseReceivedEvent,
@@ -451,11 +459,6 @@ def test_named_aliases_resolve_to_correct_base_fields(
             SubmitReportReceivedEvent,
             MessageSemantics.SUBMIT_REPORT,
             ["report_id", "report"],
-        ),
-        (
-            UpdateCaseReceivedEvent,
-            MessageSemantics.UPDATE_CASE,
-            ["case_id", "case"],
         ),
         (
             CreateNoteReceivedEvent,

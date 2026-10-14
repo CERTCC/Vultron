@@ -66,8 +66,14 @@ sequenceDiagram
 The formal message set does not name this exchange: all three activities fall under the General Inquiry (GI) umbrella, which is a placeholder rather than a description — see [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
 
 1. Send `Offer(Actor)` to the CASE_MANAGER with the recommended actor as its `object` and the case as its `target`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/suggest-actor-to-case.md" %}
+
 2. Wait.
    The CASE_MANAGER records the recommendation on the ledger, assigns default roles, and forwards a transformed offer to the Case Owner.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/offer-case-participant.md" %}
+
 3. Read the outcome from the CASE_MANAGER's reply — `Accept(Offer(CaseParticipant))` or `Reject(Offer(CaseParticipant))`.
 
 The forwarded offer carries the original recommendation's ID in its `origin` field, so the Case Owner can trace the request back to you.
@@ -80,8 +86,13 @@ As Case Owner, answer the forwarded offer, addressing the reply to the CASE_MANA
 
 - If the actor should join, send `Accept(Offer(CaseParticipant))`, with the forwarded `Offer(CaseParticipant)` as its `object`.
   The CASE_MANAGER then invites the actor.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/accept-case-participant-offer.md" %}
+
 - If it should not, send `Reject(Offer(CaseParticipant))` with the same `object`.
   No invitation is sent.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/reject-case-participant-offer.md" %}
 
 The CASE_MANAGER acts on a decision only when the Case Owner sent it.
 It refuses a reply from any other sender, invites no one, and tells the recommender nothing.

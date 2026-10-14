@@ -32,6 +32,7 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToFullCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
     TentativeRejectInviteActorToFullCaseReceivedEvent,
+    UndoCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.models.events.base import (
     MessageSemantics,
@@ -43,7 +44,6 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
-    UpdateCaseReceivedEvent,
 )
 from vultron.core.models.events.case_context import (
     CASE_BOOTSTRAP_SEMANTICS,
@@ -112,7 +112,6 @@ AnyReceivedEvent = (
     |
     # case
     CreateCaseReceivedEvent
-    | UpdateCaseReceivedEvent
     | EngageCaseReceivedEvent
     | DeferCaseReceivedEvent
     | AddReportToCaseReceivedEvent
@@ -130,6 +129,7 @@ AnyReceivedEvent = (
     | OfferCaseOwnershipTransferReceivedEvent
     | AcceptCaseOwnershipTransferReceivedEvent
     | RejectCaseOwnershipTransferReceivedEvent
+    | UndoCaseOwnershipTransferReceivedEvent
     | InviteActorToCaseReceivedEvent
     | AcceptInviteActorToCaseReceivedEvent
     | RejectInviteActorToCaseReceivedEvent
@@ -198,7 +198,6 @@ __all__ = [
     "CloseReportReceivedEvent",
     # case
     "CreateCaseReceivedEvent",
-    "UpdateCaseReceivedEvent",
     "EngageCaseReceivedEvent",
     "DeferCaseReceivedEvent",
     "AddReportToCaseReceivedEvent",
@@ -215,6 +214,7 @@ __all__ = [
     "OfferCaseOwnershipTransferReceivedEvent",
     "AcceptCaseOwnershipTransferReceivedEvent",
     "RejectCaseOwnershipTransferReceivedEvent",
+    "UndoCaseOwnershipTransferReceivedEvent",
     "InviteActorToCaseReceivedEvent",
     "AcceptInviteActorToCaseReceivedEvent",
     "RejectInviteActorToCaseReceivedEvent",

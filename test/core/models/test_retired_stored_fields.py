@@ -11,12 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A renamed stored field is refused under its old key, never aliased (#4128).
+"""A renamed or moved stored field is refused under its old key (#4128).
 
 The CaseProposal admission, decline and pending-Create records named the
 proposer or case owner ``vendor_uri``; the field is now ``proposer_uri`` on
 the two decision records and ``owner_uri`` on the pending-Create marker
-(CS-12-001).  There is no read alias and no conversion.
+(CS-12-001).  The case's recommender index moved off the case into an
+``ActorRecommendationRecord`` (#4448).  There is no read alias and no
+conversion.
 """
 
 from collections.abc import Mapping
@@ -25,6 +27,7 @@ from typing import Any, ClassVar
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )
@@ -36,6 +39,7 @@ from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
     RetiredStoredField,
 )
+from vultron.errors import VultronValidationError
 
 PROPOSAL_ID = "https://example.org/proposals/p-1"
 CASE_ACTOR_ID = "https://example.org/actors/vendor/case-actor"
@@ -150,6 +154,57 @@ def test_a_replacement_the_model_does_not_declare_is_refused_at_definition() -> 
             retired_stored_fields: ClassVar[
                 Mapping[str, RetiredStoredField]
             ] = {"old_name": RetiredStoredField("new_nmae", "#0")}
+
+
+@pytest.mark.spec("CLP-07-014")
+@pytest.mark.parametrize(
+    "old",
+    ["recommendation_recommender_index", "recommendationRecommenderIndex"],
+)
+def test_a_case_carrying_the_moved_recommender_index_is_refused(
+    old: str,
+) -> None:
+    """The index moved off the case into its own record (#4448).
+
+    No conversion is made: a stored or received case still carrying it is
+    refused with a note that names where the value went and the reset.
+    """
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/c-1",
+        attributed_to=OWNER_ID,
+        name="Retired index",
+    )
+    data = {
+        **case.model_dump(mode="json", by_alias=True),
+        old: {"https://example.org/activities/o-1": OWNER_ID},
+    }
+
+    with pytest.raises(ValidationError, match="must be reset") as excinfo:
+        VulnerabilityCase.model_validate(data)
+
+    message = str(excinfo.value)
+    assert repr(old) in message
+    assert "moved it to ActorRecommendationRecord.recommender_id" in message
+    assert "#4448" in message
+    assert "sender still using the old shape" in message
+    # The replacement is not a field of the case, so the violation names the
+    # key it read rather than sending the reader to a field the case lacks.
+    refusal = excinfo.value.errors()[0].get("ctx", {}).get("error")
+    assert isinstance(refusal, VultronValidationError)
+    assert [v.dimensions for v in refusal.violations] == [(old,)]
+
+
+@pytest.mark.usefixtures("isolated_core_registries")
+def test_a_moved_field_the_destination_does_not_declare_is_refused() -> None:
+    class _Destination(RetiredFieldsRecord):
+        kept: str
+
+    with pytest.raises(TypeError, match="_Destination does not declare"):
+
+        class _Moved(RetiredFieldsRecord):
+            retired_stored_fields: ClassVar[
+                Mapping[str, RetiredStoredField]
+            ] = {"old_name": RetiredStoredField("kpet", "#0", _Destination)}
 
 
 @pytest.mark.usefixtures("isolated_core_registries")

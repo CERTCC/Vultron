@@ -616,7 +616,7 @@ groups:
       Between deliveries, silence and unreachability are observationally equivalent. Documenting this as a
       deliberate MAY-level property (rather than a defect) closes the liveness question raised by CONCERN-3006
       without foreclosing a future heartbeat mechanism (CaseActorHeartbeat is already sketched in
-      notes/sync-ledger-replication.md for the multi-node CASE_MANAGER cluster design).
+      notes/case-actor-cluster.md for the multi-node CASE_MANAGER cluster design).
     verification: >-
       No normative heartbeat requirement exists in specs/sync-ledger-replication.yaml;
       this entry records the absence as intentional.
@@ -672,11 +672,11 @@ groups:
       `test/metadata/test_msm_occasions.py` fails when the committed YAML or a
       fragment under `docs/reference/messages/_occasions/` differs from a fresh
       generation. `test_no_message_page_renders_its_table_at_build_time` in
-      the same module fails while any page under `docs/reference/messages/`
-      prints a mapping table from a `markdown_exec` block; it is a strict
-      `xfail` until #4431 moves the pages onto the fragments, which must
-      remove the marker. A wire example inside an occasion section carries no
-      link and is not a mapping table, so it may still render at build time.
+      the same module fails when any page under `docs/reference/messages/`
+      carries a `markdown_exec` block of its own, because each page includes
+      its table and its occasion sections as fragments. A wire example inside
+      an occasion section carries no link and is not a mapping table, so it
+      may still render at build time.
   - id: MSM-06-002
     priority: MUST
     kind: process
@@ -686,7 +686,7 @@ groups:
       collapse or an evolved mechanism gives it a second home.
     rationale: 'Without a completeness check a new registry entry can be added without ever being documented, so every entry
       needs one page that owns it. A bare "exactly one page" rule would be unsatisfiable, because the mapping is many-to-many
-      — see `notes/message-type-reference.md` for the entries that legitimately need a second home. A *primary* page keeps the
+      — see `docs/reference/messages/` for the entries that legitimately need a second home. A *primary* page keeps the
       completeness guarantee without contradicting MSM-06-003. The dispatch fallbacks are the intended exemptions.'
     verification: >-
       A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts exactly one primary-page
@@ -697,15 +697,21 @@ groups:
   - id: MSM-06-003
     priority: MUST
     kind: process
-    statement: Each mapping row MUST carry a status indicating whether the relationship is direct, a collapse of several
-      shorthands onto one wire activity, an expansion of one shorthand across several wire activities, or a mechanism that
-      evolved onto a different axis per MSM-05.
-    rationale: Reference material must state what is true, including divergence from the normative message set. A table that
-      shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about both
-      the collapses and the evolved mechanisms.
+    statement: Each occasion section on a message page MUST state its entry's mapping status, indicating whether the
+      relationship is direct, a collapse of several shorthands onto one wire activity, an expansion of one shorthand across
+      several wire activities, a mechanism that evolved onto a different axis per MSM-05, or none, and the Message Types
+      page MUST define each status value. The occasion table need not carry the status, because its columns serve a sender
+      choosing what to send.
+    rationale: Reference material must state what is true, including divergence from the normative message set. Documentation
+      that shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about
+      both the collapses and the evolved mechanisms. The status sits in each section, beside the formal definition it
+      qualifies, rather than in a table column a sender does not need.
     verification: >-
-      Inspection of the rendered pages confirms a status column is present and
-      populated for every row.
+      `test_every_section_links_its_mapping_status_to_its_definition` in
+      `test/metadata/test_msm_occasions.py` asserts that every generated
+      occasion section states its entry's status, linked to the definitions on
+      `docs/reference/messages/index.md`, and that the page defines every
+      `MappingStatus` value.
 - id: MSM-07
   title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
   description: >-

@@ -189,12 +189,14 @@ vultron-demo transfer-ownership
 
 This demo shows case ownership transfer.
 The current owner (the vendor) offers the case to a coordinator, who either **accepts**, so the case's `attributedTo` moves to the coordinator, or **rejects**, so ownership stays with the vendor.
+A third path has the vendor **withdraw** the offer before the coordinator answers, so ownership again stays with the vendor.
+In the accept path the offer carries a deadline to answer, and the demo checks that the offer the coordinator receives names it; the coordinator answers in time.
 
-Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer and every participant learns of it.
+Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer or its refusal and every participant learns of it.
 
 ```mermaid
 ---
-title: transfer-ownership — accept and reject paths
+title: transfer-ownership — accept, reject and withdraw paths
 ---
 sequenceDiagram
     participant V as Vendor
@@ -208,7 +210,10 @@ sequenceDiagram
         Note over CA: CASE_OWNER moves to Coordinator
     else Coordinator rejects
         C-->>CA: Reject Case Ownership Transfer<br/>Reject(Offer)
-        Note over CA: Ownership unchanged
+        Note over CA: Ledgers the Reject, ownership unchanged
+    else Vendor withdraws
+        V-->>CA: Withdraw Case Ownership Transfer<br/>Undo(Offer)
+        Note over CA: Ledgers the withdrawal, ownership unchanged
     end
 ```
 

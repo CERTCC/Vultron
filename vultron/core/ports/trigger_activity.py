@@ -847,8 +847,12 @@ class TriggerActivityPort(Protocol):
         content: str | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        end_time: datetime | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
+
+        *end_time*, when given, is the Offer's activity-level ``end_time``:
+        the deadline to answer it (TRIG-11-007, CM-21-016).
 
         Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
         """
@@ -863,6 +867,30 @@ class TriggerActivityPort(Protocol):
         """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership-transfer activity.
 
         Returns ``(activity_id, activity_dict)`` (TRIG-11-002).
+        """
+        ...
+
+    def reject_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer(VulnerabilityCase))`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-005).
+        """
+        ...
+
+    def withdraw_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Undo(Offer(VulnerabilityCase))`` ownership-transfer withdrawal.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-006).
         """
         ...
 

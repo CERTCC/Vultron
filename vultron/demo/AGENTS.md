@@ -43,7 +43,7 @@ update its own replica either. Activities route through the CaseActor, whose
 `Announce` every replica consumes — a replica that is not updating means the
 routing is wrong. See
 [`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "The Accepting
-Actor's Replica Updates via the CaseActor's Announce". (CONCERN-1635, ISSUE-2719)
+Actor's Replica Updates via the CASE_MANAGER's Announce". (CONCERN-1635, ISSUE-2719)
 
 ### A Scenario Declares Itself Once; Every Consumer Is Generated
 
@@ -138,7 +138,7 @@ Display-layer code maps `MessageSemantics` → phrase via
 `SemanticEntry.phrase` is a construction-time `TypeError` (SE-07-003). Only
 `{actor}`, `{object}` and `{target}` are ever filled. See
 [`notes/activitystreams-semantics.md`](../../notes/activitystreams-semantics.md)
-§ "Event-Phrase Lookups". (CONCERN-1675)
+§ "Event Phrases Come From `lookup_entry()`, Never a Local Dict". (CONCERN-1675)
 
 ### Docker Compose Service Names Are Not Actor Names
 

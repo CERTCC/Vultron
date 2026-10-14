@@ -7,7 +7,8 @@ Activates the proposal for the case. If an embargo is already active, the propos
 - **When…** the Case Owner decides to activate a proposed embargo
 - **Send:** `Accept(Event)[target=VulnerabilityCase]`
 - **Sent by:** the case owner
-- **How-to:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
+- **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md), [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

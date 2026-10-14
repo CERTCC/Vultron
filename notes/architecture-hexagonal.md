@@ -3,8 +3,8 @@ title: Hexagonal Architecture Overview
 status: active
 kind: guidance
 description: >
-  Hexagonal architecture layer model, boundaries, rules, and review checklist
-  for Vultron.
+  Hexagonal architecture layer model, adapter categories, boundaries, rules,
+  and review checklist for Vultron.
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/architecture-adapters.md
@@ -82,20 +82,32 @@ AS2 parser + extractor      domain events, semantics            Delivery queue
 
 ## Adapter Categories
 
-- **Driving adapters**: trigger core execution (HTTP inbox, CLI, MCP).
-- **Driven adapters**: core calls them for persistence/delivery.
-- **Connector adapters**: third-party tracker/event translation.
-- **Wire adapters**: parser/extractor stage in inbound pipeline.
+This note holds the canonical list; `notes/architecture-adapters.md` covers
+adapter patterns and boundary invariants.
+
+- **Driving adapters** (`adapters/driving/`): receive external input and trigger
+  core execution (HTTP inbox, CLI, MCP).
+- **Driven adapters** (`adapters/driven/`): implement outbound dependencies core
+  calls through ports (persistence, delivery).
+- **Connector adapters** (`adapters/connectors/`): translate to and from
+  third-party trackers and systems at the boundary.
+- **Wire adapters** (`wire/as2/`): the parser/extractor stage of the inbound
+  pipeline.
+
+Do not mix driving and driven concerns in one module: a feature that needs both
+directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 
 ---
 
-## File Layout (Target)
+## File Layout
 
 - `vultron/core/`: domain models, use cases, ports, errors.
 - `vultron/wire/as2/`: AS2 vocabulary, parser, extractor, serializer.
 - `vultron/adapters/`: driving, driven, connectors.
 
-Key enforced principle: core has no FastAPI, wire, or transport imports.
+Core has no FastAPI, wire, or transport imports. The wire and adapter halves are
+enforced by `test/architecture/test_core_no_wire_imports.py` and
+`test/architecture/test_core_no_adapter_imports.py`.
 
 ---
 
@@ -119,21 +131,6 @@ Key enforced principle: core has no FastAPI, wire, or transport imports.
 10. Edge adapters promote loose wire objects to strict core types before
     calling core functions. Core helpers raise a descriptive exception on
     failure; they never return `None` as a failure signal. See ADR-0032.
-
----
-
-## Core Models Must Be Richer Than Wire Models
-
-Core models are authoritative. Wire models are projections. Fields represented
-on the wire must be representable in core.
-
----
-
-## Adapter Category Discipline
-
-Avoid mixing driving and driven concerns in one module. If both directions are
-needed, implement one module in `adapters/driving/` and one in
-`adapters/driven/`.
 
 ---
 
@@ -171,7 +168,9 @@ needed, implement one module in `adapters/driving/` and one in
 
 ## Design Constraints and Invariants
 
-1. **Core >= Wire**: core represents all wire fields.
+1. **Core >= Wire**: core models are authoritative and wire models are
+   projections, so every field represented on the wire is representable in
+   core.
 2. **Fail-fast models**: required domain invariants validated at construction.
    Core helpers raise a descriptive exception rather than returning `None` on
    failure (ADR-0032). Collection-typed fields default to the empty collection
@@ -179,5 +178,7 @@ needed, implement one module in `adapters/driving/` and one in
    semantically distinct from empty.
 3. **ActivityStreams alignment** for protocol-exposed objects.
 4. **Adapter/core boundary**: adapters own transport/wire construction.
-5. **Non-breaking BT migration**: layer cleanup and behavior changes are staged.
-6. **Dispatcher port preservation** until a validated replacement exists.
+5. **Non-breaking BT migration**: stage layer cleanup and behavior changes in
+   separate changes.
+6. **Dispatcher port preservation**: keep the dispatcher port until a validated
+   replacement exists.

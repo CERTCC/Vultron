@@ -30,6 +30,7 @@ related_notes:
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-registry.md
   - notes/event-driven-control-flow.md
+  - notes/call-out-simulation-plan.md
 ---
 
 # Planned Demo Scenarios and Future Demo Ideas
@@ -93,8 +94,9 @@ partition check keys on.
 
 The multi-container variant is deferred until container reset and STOCHASTIC
 bundle configuration via environment variables are designed. See
-`notes/call-out-configuration.md` § "Multi-Actor In-Process Simulation" for
-the design decisions reached in the #1178 planning session.
+`notes/call-out-simulation-plan.md` § "Multi-Actor In-Process Simulation
+(#1732, DEMOMA-18)" for the design decisions reached in the #1178 planning
+session.
 
 ### Role-expansion scenarios
 

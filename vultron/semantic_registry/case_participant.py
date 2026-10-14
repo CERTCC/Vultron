@@ -63,7 +63,6 @@ ENTRIES: list[SemanticEntry] = [
                     "roles in the case. It precedes the Add."
                 ),
                 example="create_participant",
-                howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,

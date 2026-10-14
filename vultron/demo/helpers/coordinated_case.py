@@ -52,24 +52,20 @@ from vultron.demo.helpers.ledger_dump import (
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
-    verify_case_closed,
     verify_fix_ready,
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
     PARTICIPANT_JOIN_TIMEOUT,
-    wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
     wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
-    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
@@ -482,16 +478,18 @@ def everyone_closes_case(
     case: as_VulnerabilityCase,
     later_vendors: Sequence[tuple[str, DataLayerClient, as_Actor]] = (),
 ) -> None:
-    """Every participant closes the case; check the terminal state everywhere.
+    """Every participant closes the case, and the closure milestone runs.
 
     The Vendor, the Reporter and each of *later_vendors* leave first, in that
     order; the Coordinator, the Case Owner, leaves last, once their
     departures are recorded (CM-23-015).
 
     *later_vendors* are ``(label, client, actor)`` for vendors beyond the first
-    (the second vendor of ``rcvv-embargo``); each closes and is checked for
-    ledger coverage like the rest.  The departures are read where they
-    commit: the CASE_MANAGER's store, through *case_actor_client*.
+    (the second vendor of ``rcvv-embargo``); each closes like the rest.  Every
+    closure is verified in the CASE_MANAGER's store, through
+    *case_actor_client*, and each leaver's own replica only for its own
+    closure (CM-23-004, :func:`~vultron.demo.helpers.closure
+    .close_case_owner_last`).
     """
     close_case_owner_last(
         case=case,
@@ -508,49 +506,6 @@ def everyone_closes_case(
         owner=CaseLeaver(
             client=coordinator_client, actor=coordinator_in_coordinator
         ),
-    )
-
-    with demo_check("M7: all participants RM.CLOSED on all replicas"):
-        wait_for_all_participants_rm_closed(
-            client=coordinator_client,
-            case_id=case.id_,
-        )
-        wait_for_all_participants_rm_closed(
-            client=reporter_client,
-            case_id=case.id_,
-        )
-        verify_case_closed(
-            receiver_client=coordinator_client,
-            reporter_client=reporter_client,
-            case_id=case.id_,
-        )
-
-    with demo_check(
-        "close_case entry present on authoritative actor (coordinator)"
-    ):
-        wait_for_event_type_in_ledger(
-            client=coordinator_client,
-            case_id=case.id_,
-            event_type="close_case",
-        )
-    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
-    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
-    # but the ledger dump depends on it. Bounded per replica by
-    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
-    wait_for_replica_ledger_coverage(
-        auth_client=coordinator_client,
-        replicas=[
-            (reporter_client, "Reporter"),
-            (vendor_client, "Vendor"),
-            *((client, label) for label, client, _ in later_vendors),
-        ],
-        case_id=case.id_,
-        late_joiners=(
-            vendor_client,
-            *(client for _, client, _ in later_vendors),
-        ),
-        phase_label="close phase",
-        causal=False,
     )
 
 

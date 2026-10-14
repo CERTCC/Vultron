@@ -20,12 +20,16 @@ change is a **step** — the whole change one protocol event causes — and
 :func:`apply_register_step` checks the step's triggers together against the
 register invariants, so ``TERMINATE`` and the ``CANCEL`` of every open
 proposal, or ``ACTIVATE`` and the ``SUPERSEDE`` it implies, are one change.
+Each step names one EM trigger (:func:`register_step_em_trigger`), and the EM
+derived before and after it must be one of that trigger's moves in
+:data:`vultron.core.states.em.EM_TRANSITIONS` (ADR-0130).
 
 The ``*_changes`` builders name the step each protocol event causes, so the
 callers say *what happened* and the register decides which entries move.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
@@ -33,10 +37,12 @@ from pydantic.alias_generators import to_camel
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.states.em import EM_Trigger, is_em_transition
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
     TerminationReason,
+    derive_em,
     register_invariant_violations,
     register_status_after,
 )
@@ -44,6 +50,19 @@ from vultron.errors import VultronInvalidStateTransitionError
 
 _S = EmbargoRegisterStatus
 _T = RegisterTrigger
+
+#: The EM trigger each register trigger belongs to (ADR-0130).  ``CANCEL`` is
+#: absent: it is part of ``terminate`` beside a ``TERMINATE``, and ``reject``
+#: alone, on a threat signal with no embargo in force (EMB-16-001).
+_EM_TRIGGER_OF: Mapping[RegisterTrigger, EM_Trigger] = MappingProxyType(
+    {
+        _T.PROPOSE: EM_Trigger.PROPOSE,
+        _T.ACTIVATE: EM_Trigger.ACCEPT,
+        _T.SUPERSEDE: EM_Trigger.ACCEPT,
+        _T.REJECT: EM_Trigger.REJECT,
+        _T.TERMINATE: EM_Trigger.TERMINATE,
+    }
+)
 
 #: Statuses an entry reaches only by having been ``ACTIVE``.
 _WAS_ACTIVE = frozenset({_S.ACTIVE, _S.SUPERSEDED, _S.TERMINATED})
@@ -169,6 +188,71 @@ def replaces_violations(entries: Sequence[EmbargoRegisterEntry]) -> list[str]:
     return violations
 
 
+def _em_triggers_of(changes: Sequence[RegisterChange]) -> set[EM_Trigger]:
+    """The EM triggers *changes* belong to; one for a well-formed step."""
+    triggers = {change.trigger for change in changes}
+    unmapped = triggers - set(_EM_TRIGGER_OF) - {_T.CANCEL}
+    if unmapped:
+        raise VultronInvalidStateTransitionError(
+            "Embargo register: no EM trigger is mapped for"
+            f" {sorted(t.name for t in unmapped)} (ADR-0130)."
+        )
+    em_triggers = {_EM_TRIGGER_OF[t] for t in triggers if t != _T.CANCEL}
+    if _T.CANCEL in triggers:
+        em_triggers.add(
+            EM_Trigger.TERMINATE
+            if _T.TERMINATE in triggers
+            else EM_Trigger.REJECT
+        )
+    return em_triggers
+
+
+def register_step_em_trigger(
+    changes: Sequence[RegisterChange],
+) -> EM_Trigger:
+    """The EM trigger the register step *changes* is (ADR-0130).
+
+    ``PROPOSE`` is ``propose``; ``ACTIVATE``, with any ``SUPERSEDE``, is
+    ``accept``; ``REJECT`` is ``reject``; ``TERMINATE``, with any
+    ``CANCEL``, is ``terminate``; and ``CANCEL`` alone — a threat signal
+    abandoning open proposals with no embargo in force — is ``reject``.
+
+    Raises:
+        VultronInvalidStateTransitionError: the step changes nothing,
+            mixes register triggers of more than one EM trigger, or carries
+            a register trigger no EM trigger is mapped for.
+    """
+    em_triggers = _em_triggers_of(changes)
+    if len(em_triggers) != 1:
+        raise VultronInvalidStateTransitionError(
+            "Embargo register: a step must name exactly one EM trigger, but"
+            f" {[(c.trigger.name, c.embargo_id) for c in changes]} names"
+            f" {sorted(str(t) for t in em_triggers) or 'none'}."
+        )
+    return em_triggers.pop()
+
+
+def em_move_violations(
+    before: Sequence[EmbargoRegisterEntry],
+    after: Sequence[EmbargoRegisterEntry],
+    em_trigger: EM_Trigger,
+) -> list[str]:
+    """The EM move from *before* to *after*, if *em_trigger* does not allow it.
+
+    Both registers must keep invariants 1–3, so EM derives from each
+    (ADR-0122); the move must then be in the EM transition table
+    (ADR-0130, EMB-18-006).  An empty list means the move is legal.
+    """
+    source = derive_em(entry.status for entry in before)
+    dest = derive_em(entry.status for entry in after)
+    if is_em_transition(em_trigger, source, dest):
+        return []
+    return [
+        f"EM {source} → {dest} is not an EM transition for"
+        f" '{em_trigger}' (ADR-0130)"
+    ]
+
+
 def _step_violations(
     entries: Sequence[EmbargoRegisterEntry],
     changes: Sequence[RegisterChange],
@@ -241,9 +325,14 @@ def apply_register_step(
     for its entry, ``SUPERSEDE`` needs an ``ACTIVATE`` in the same step,
     ``CANCEL`` needs a ``TERMINATE`` in the same step or, when
     *threat_signal* is set, no ``ACTIVE`` entry before it, and once an entry
-    is ``TERMINATED`` no step changes anything (invariant 4).  The result must
-    then keep invariants 1–3.  An activated entry records the entry it
-    superseded in ``replaces``.  New entries are appended; none is removed.
+    is ``TERMINATED`` no step changes anything (invariant 4), and the step
+    names exactly one EM trigger.  The result must then keep invariants 1–3,
+    and EM derived before and after must be one of that trigger's moves in
+    the EM transition table (ADR-0130, EMB-18-006).  Every node — the
+    CASE_MANAGER and each replica — applies a step only through this
+    function, so all of them make the same checks.  An activated entry
+    records the entry it superseded in ``replaces``.  New entries are
+    appended; none is removed.
 
     Raises:
         VultronInvalidStateTransitionError: naming every rule the step breaks;
@@ -252,7 +341,12 @@ def apply_register_step(
     violations = _step_violations(
         entries, changes, threat_signal=threat_signal
     )
-    if not violations:
+    em_trigger: EM_Trigger | None = None
+    try:
+        em_trigger = register_step_em_trigger(changes)
+    except VultronInvalidStateTransitionError as exc:
+        violations.append(str(exc))
+    if em_trigger is not None and not violations:
         by_change = {change.embargo_id: change for change in changes}
         superseded_id = next(
             (c.embargo_id for c in changes if c.trigger == _T.SUPERSEDE), None
@@ -272,6 +366,8 @@ def apply_register_step(
             if change.embargo_id not in known
         )
         violations = register_invariant_violations(e.status for e in after)
+        if not violations:
+            violations = em_move_violations(entries, after, em_trigger)
         if not violations:
             return after
     raise VultronInvalidStateTransitionError(
@@ -380,7 +476,9 @@ __all__ = [
     "RegisterChange",
     "activation_changes",
     "apply_register_step",
+    "em_move_violations",
     "proposal_changes",
+    "register_step_em_trigger",
     "rejection_changes",
     "repeated_ids",
     "termination_changes",

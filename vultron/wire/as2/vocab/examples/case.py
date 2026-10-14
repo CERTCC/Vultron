@@ -25,6 +25,7 @@ from vultron.wire.as2.factories import (
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
+    undo_case_ownership_transfer_activity,
     update_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -37,6 +38,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Offer,
     as_Reject,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.examples._base import (
@@ -44,6 +46,7 @@ from vultron.wire.as2.vocab.examples._base import (
     _REPORT,
     _VENDOR,
     case,
+    case_actor,
     gen_report,
     vendor,
 )
@@ -188,14 +191,30 @@ def reject_case_ownership_transfer() -> as_Reject:
     return _activity
 
 
-def update_case() -> as_Update:
+def undo_case_ownership_transfer() -> as_Undo:
     _case = case()
     _vendor = vendor()
+    _offer = offer_case_ownership_transfer()
+    _activity = undo_case_ownership_transfer_activity(
+        _offer,
+        actor=_vendor.id_,
+        content=f"We're withdrawing our offer to transfer ownership of case {_case.name}.",
+    )
+    return _activity
+
+
+def update_case() -> as_Update:
+    """The snapshot shape of a CASE_MANAGER-authored case-field ledger entry.
+
+    Not a message any actor sends: no pattern routes a received
+    ``Update(VulnerabilityCase)`` (CLP-07-013, #4443), so the example is
+    authored by the case actor and carries no sender-voice ``content``.
+    """
+    _case = case()
 
     _activity = update_case_activity(
         _case,
-        actor=_vendor.id_,
-        content="We're updating the case to reflect a transfer of ownership.",
+        actor=case_actor().id_,
     )
     return _activity
 

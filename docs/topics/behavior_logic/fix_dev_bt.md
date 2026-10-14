@@ -19,6 +19,8 @@ The behavioral requirements for this tree are specified in the
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+{% include-markdown "../../includes/notional_external_process.md" %}
+
 !!! note "Legacy design diagram"
 
     The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
@@ -50,7 +52,7 @@ flowchart LR
     seq --> cs_to_VF
 ```
 
-(A) Fix development is relegated to the Vendor role, so Non-Vendors just return *Success* since they have nothing further to do.
+(A) Fix development is relegated to the Vendor role, so Non-Vendors return *Success* since they have nothing further to do.
 
 (B) For Vendors, if a fix is ready (i.e., the case is in $q^{cs} \in VF\cdot\cdot\cdot\cdot$), the tree returns *Success*.
 

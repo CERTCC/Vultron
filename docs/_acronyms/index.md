@@ -19,6 +19,7 @@ sense the docs actually use.
 *[AKM]: Actor Knowledge Model
 *[AMA]: Ask Me Anything
 *[API]: Application Programming Interface
+*[APIs]: Application Programming Interfaces
 *[AS]: ActivityStreams
 *[AS2]: ActivityStreams Vocabulary 2.0
 *[ASCII]: American Standard Code for Information Interchange
@@ -44,6 +45,7 @@ sense the docs actually use.
 *[CISA]: Cybersecurity and Infrastructure Security Agency, a part of the U.S. Department of Homeland Security
 *[CK]: CS Acknowledgment (CS message)
 *[CLI]: Command Line Interface
+*[CMS]: Content Management System
 *[CMU]: Carnegie Mellon University
 *[CNA]: CVE Numbering Authority
 *[CNAs]: CVE Numbering Authorities
@@ -56,6 +58,7 @@ sense the docs actually use.
 *[CSET]: Cyber Security Experimentation and Test
 *[CSIRT]: Computer Security Incident Response Team
 *[CSIRTs]: Computer Security Incident Response Teams
+*[CTI]: Cyber Threat Intelligence
 *[CV]: Vendor Awareness (CS message)
 *[CVD]: Coordinated Vulnerability Disclosure
 *[CVE]: Common Vulnerabilities and Exposures
@@ -129,8 +132,8 @@ sense the docs actually use.
 *[IEC]: International Electrotechnical Commission
 *[IEEE]: Institute of Electrical and Electronics Engineers
 *[IETF]: Internet Engineering Task Force
-*[IoT]: Internet of Things
 *[I/O]: Input/Output
+*[IoT]: Internet of Things
 *[IP]: Internet Protocol
 *[IPS]: Intrusion Prevention System
 *[ISAC]: Information Sharing and Analysis Center
@@ -175,6 +178,7 @@ sense the docs actually use.
 *[OCTAVE]: Operationally Critical Threat, Asset, and Vulnerability Evaluation
 *[OpSec]: Operational Security
 *[OS]: Operating System
+*[OSINT]: Open-Source Intelligence
 *[OUSPG]: Oulu University Secure Programming Group
 *[OWL]: Web Ontology Language
 
@@ -185,6 +189,8 @@ sense the docs actually use.
 *[PSIRT]: Product Security Incident Response Team
 *[PSIRTs]: Product Security Incident Response Teams
 *[PXA]: Public aware, eXploit public, Attacks observed — the public-path case state dimensions
+
+*[QA]: Quality Assurance
 
 *[RA]: Report/Case Accepted (RM message)
 *[RC]: Report Closed (RM message)
@@ -213,6 +219,7 @@ sense the docs actually use.
 *[SEC]: U.S. Securities and Exchange Commission
 *[SEI]: Software Engineering Institute
 *[SERA]: Security Engineering Risk Analysis
+*[SIEM]: Security Information and Event Management
 *[SIG]: Special Interest Group
 *[SLA]: Service Level Agreement
 *[SLAs]: Service Level Agreements
@@ -240,6 +247,7 @@ sense the docs actually use.
 *[TV]: Television
 *[TVs]: Televisions
 
+*[UI]: User Interface
 *[UK]: United Kingdom
 *[UML]: Unified Modeling Language
 *[URI]: Uniform Resource Identifier
@@ -265,6 +273,7 @@ sense the docs actually use.
 *[VXREF]: Vulnerability Cross-Reference
 
 *[W3C]: World Wide Web Consortium
+*[WAF]: Web Application Firewall
 *[WEIS]: Workshop on the Economics of Information Security
 
 *[XMPP]: Extensible Messaging and Presence Protocol

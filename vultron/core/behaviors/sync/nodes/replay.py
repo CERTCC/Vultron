@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     clear_embargo_pause,
+    closed_peer_cutoff,
     peer_is_inactive_joined,
     peer_is_withheld,
     record_embargo_pause,
@@ -335,6 +336,19 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             paused = withheld and peer_is_inactive_joined(
                 datalayer, case_id=entry.case_id, peer_id=peer_id
             )
+            # CM-23-004: a peer at RM.CLOSED is owed the entries that record
+            # its own closure and nothing after them, so its replay stops at
+            # the last of those, as its fan-out did.
+            cutoff = (
+                None
+                if withheld
+                else closed_peer_cutoff(
+                    datalayer,
+                    case_id=entry.case_id,
+                    peer_id=peer_id,
+                    entries=entries,
+                )
+            )
         except VultronError as exc:
             self.feedback_message = str(exc)
             self.logger.exception("%s: embargo gate undecidable", self.name)
@@ -350,6 +364,16 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             self.logger.info(
                 "%s: peer '%s' is not an active participant of case"
                 " '%s'; replay withheld (CM-10-004, CM-10-005)",
+                self.name,
+                peer_id,
+                entry.case_id,
+            )
+            return Status.SUCCESS
+        if cutoff is not None and cutoff <= from_index:
+            self.logger.info(
+                "%s: peer '%s' is at RM.CLOSED in case '%s' and holds every"
+                " entry recording its own closure; nothing replayed"
+                " (CM-23-004)",
                 self.name,
                 peer_id,
                 entry.case_id,
@@ -383,6 +407,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             after_index=from_index,
             actor_id=self.case_actor_id_bb,
             peer_id=peer_id,
+            through_index=cutoff,
         )
         # An admitted peer's replay ends any pause. A suffix past the paused
         # index needs no resend either: the Reject reports a contiguous prefix

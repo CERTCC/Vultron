@@ -7,8 +7,9 @@ Accepts the proposed participant record. The Case Manager then invites the sugge
 - **When…** the Case Owner approves a suggested actor
 - **Send:** `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`
 - **Sent by:** the case owner
-- **How-to:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
+- **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
+- **Mapping status:** [expansion](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

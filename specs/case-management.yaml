@@ -645,9 +645,13 @@ groups:
       When the CASE_MANAGER updates canonical case state, it MUST notify every active
       participant (CM-10-004).
     rationale: >-
-      An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (ADR-0111,
-      #3936); the CASE_MANAGER announces a received update to the participants as
-      a broadcast, and every ledgered change reaches them as `Announce(CaseLedgerEntry)`.
+      Every change the CASE_MANAGER makes to the case file is its own ledger entry
+      (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
+      active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
+      announces the updated case as `Announce(VulnerabilityCase)` after admitting
+      a participant's engagement. No participant sends
+      the CASE_MANAGER an `Update(VulnerabilityCase)`; one that arrives is refused
+      as unmatched (CLP-02-013, #4443).
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
@@ -771,7 +775,7 @@ groups:
     verification_debt: '#3612'
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
       translation methods; AS2 serialization MUST be performed by the rendering port (ARCH-20-001)
-      (see `notes/domain-model-separation.md` and ADR-0099)
+      (see `notes/wire-core-boundary.md` and ADR-0099)
     rationale: The two branches stay distinct type hierarchies, and the translation between them lives on the adapter side —
       the one layer permitted to see both — so neither branch imports the other.
     adr:
@@ -1733,7 +1737,7 @@ groups:
       `Offer(VulnerabilityReport)` activity. This requirement is therefore reachable, and the
       reconciliation it describes is the shortest-wins comparison of EP-04-003. Note that the
       protocol default of EP-04-005 is not a candidate in that comparison (EP-04-006). Amended by
-      ADR-0096; see `notes/embargo-default-semantics.md` § "Resolved: Reporter Embargo Proposal
+      ADR-0096; see `notes/embargo-default-semantics.md` § "Reporter Embargo Proposal
       Mechanism (EP-04-004)".
     relationships:
     - rel_type: depends_on
@@ -4362,7 +4366,7 @@ groups:
       An Observer that accepts the stub Invite consents to the active embargo
       (MV-10-006). The absence of a remediation function does not change what
       the Observer is entitled to receive once it is active. Introducing a separate
-      reduced delivery tier for Observers is deferred: `notes/stub-objects.md`
+      reduced delivery tier for Observers is deferred: `notes/selective-disclosure.md`
       describes the potential future mechanism but it is not yet implemented.
     verification: >-
       Integration tests in `test/demo/` confirm that an active Observer receives full

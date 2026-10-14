@@ -63,6 +63,9 @@ from test.architecture._ledger_commit_inventory import (
     received_commit_semantics,
 )
 from vultron.core.models.events.base import MessageSemantics as MS
+from vultron.core.models.protocol_pair import (
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
@@ -95,6 +98,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
         MS.ADD_REPORT_TO_CASE.value,
         MS.CLOSE_REPORT.value,
+        MS.CREATE_NOTE.value,
         MS.DEFER_CASE.value,
         MS.ENGAGE_CASE.value,
         MS.INVALIDATE_REPORT.value,
@@ -156,12 +160,34 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " #4091)"
     ),
     MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
-    MS.OFFER_ACTOR_TO_CASE.value: _RECOMMENDATION,
+    MS.OFFER_ACTOR_TO_CASE.value: (
+        "the receipt of a suggestion (CM-16-002); the one thing the"
+        " CASE_MANAGER keeps from it, who recommended whom, is its own"
+        " ActorRecommendationRecord, case bookkeeping outside the case file"
+        " that no replica holds (CLP-07-014), and the member it may lead to"
+        " arrives with accept_invite_actor_to_case"
+    ),
     MS.OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.ACCEPT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     "accept_actor_recommendation": _RECOMMENDATION,
     "reject_actor_recommendation": _RECOMMENDATION,
+    MS.REJECT_CASE_OWNERSHIP_TRANSFER.value: (
+        "the transferee's decline closes the ownership-transfer Offer and"
+        " changes no owner or role; the open state is read from the ledger"
+        " itself, not from replica state (CM-21-012, CM-21-014)"
+    ),
+    MS.UNDO_CASE_OWNERSHIP_TRANSFER.value: (
+        "the offerer's withdrawal closes the ownership-transfer Offer and"
+        " changes no owner or role; the open state is read from the ledger"
+        " itself, not from replica state (CM-21-014, CM-21-015)"
+    ),
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE: (
+        "the CASE_MANAGER's expiry record closes the ownership-transfer Offer"
+        " and changes no owner or role; the open state is read from the ledger"
+        " itself, so a replica learns the expiry from the entry and never"
+        " computes one (CM-21-014, CM-21-017)"
+    ),
     MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
         "the CASE_MANAGER records the role-delegation offer as an assertion"
         " (ADR-0039, CLP-07-001), but an offer is a proposal, not the grant;"

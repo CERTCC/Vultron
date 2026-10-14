@@ -7,7 +7,8 @@ Asks the Case Manager to reinstate the participant record named by the object. T
 - **When…** the Case Owner reinstates a removed Participant
 - **Send:** `Add(CaseParticipant)[target=VulnerabilityCase]`
 - **Sent by:** the case owner
-- **How-to:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
+- **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

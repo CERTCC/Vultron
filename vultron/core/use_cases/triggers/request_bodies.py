@@ -39,7 +39,7 @@ a non-optional note field.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -375,17 +375,27 @@ class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
 
     TRIG-03-001: Must include case_id and transferee_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    TRIG-11-007: Optional end_time, timezone-aware and in the future, is the
+    deadline to answer the Offer (CM-21-016); it is held in UTC.
     """
 
     transferee_id: UriString
     content: NonEmptyString | None = None
+    end_time: datetime | None = None
+
+    @field_validator("end_time")
+    @classmethod
+    def end_time_must_be_tz_aware_and_future(
+        cls, v: datetime | None
+    ) -> datetime | None:
+        deadline = require_future_aware(v)
+        return deadline.astimezone(UTC) if deadline is not None else None
 
 
-class AcceptCaseOwnershipTransferRequest(BaseModel):
-    """Request body for the accept-case-ownership-transfer trigger endpoint.
+class _OwnershipTransferAnswerRequest(BaseModel):
+    """The body shared by every reply to an Offer: it names the Offer.
 
-    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
-    to the offering actor (TRIG-11-002).
+    The transferee's two answers, and the offerer's withdrawal.
 
     TRIG-03-001: Must include offer_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
@@ -394,6 +404,40 @@ class AcceptCaseOwnershipTransferRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     offer_id: NonEmptyString
+
+
+class AcceptCaseOwnershipTransferRequest(_OwnershipTransferAnswerRequest):
+    """Request body for the accept-case-ownership-transfer trigger endpoint.
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor,
+    addressed to the case's CASE_MANAGER (TRIG-11-002, CM-21-006).
+
+    TRIG-03-001: Must include offer_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+
+class RejectCaseOwnershipTransferRequest(_OwnershipTransferAnswerRequest):
+    """Request body for the reject-case-ownership-transfer trigger endpoint.
+
+    Emits ``Reject(Offer(VulnerabilityCase))`` from the requesting actor,
+    addressed to the case's CASE_MANAGER (TRIG-11-005, CM-21-010).
+
+    TRIG-03-001: Must include offer_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+
+class WithdrawCaseOwnershipTransferRequest(_OwnershipTransferAnswerRequest):
+    """Request body for the withdraw-case-ownership-transfer trigger endpoint.
+
+    Emits ``Undo(Offer(VulnerabilityCase))`` from the requesting actor — the
+    Case Owner that made the Offer — addressed to the case's CASE_MANAGER
+    (TRIG-11-006, CM-21-015).
+
+    TRIG-03-001: Must include offer_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
 
 
 class AddOnBehalfStatusRequest(CaseTriggerRequest):

@@ -7,7 +7,8 @@ Sends the Full-Case Invite, which asks the Participant to judge the case. It car
 - **When…** the Case Manager has replayed the case ledger to a newly joined Participant
 - **Send:** `Invite(Actor)[target=VulnerabilityCase]`
 - **Sent by:** the case manager
-- **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
+- **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

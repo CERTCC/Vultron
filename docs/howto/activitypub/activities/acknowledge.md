@@ -16,7 +16,6 @@ You finish with the sender informed and your own Report Management (RM) state un
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - A report you have received, at `RM.RECEIVED`, whose `Offer(VulnerabilityReport)` was addressed to you.
-- No case yet exists for the report.
 - The sender's actor Uniform Resource Identifier (URI).
 
 ---
@@ -33,7 +32,7 @@ An acknowledgment carries no verdict, so it is worth sending only while you have
 
 Sending `Read(Offer(VulnerabilityReport))` immediately before a verdict adds a message without adding information.
 
-Once a case exists for the report, do not acknowledge it: the case's own messages, which go through the CASE_MANAGER, say what happened to the report (RMB-08-003).
+You may acknowledge at any time after the report arrives, whether or not a case exists yet; the acknowledgment answers the sender's original Offer and sits outside the case (RMB-08-003, PCR-08-001).
 
 ---
 
@@ -41,7 +40,10 @@ Once a case exists for the report, do not acknowledge it: the case's own message
 
 1. Send `Read(Offer(VulnerabilityReport))` to the sender's inbox, with the original `Offer(VulnerabilityReport)` activity as its `object`.
    The `ack-report` trigger does this for you: `POST /actors/{actor_id}/trigger/ack-report` with the Offer's `offer_id`.
-   It addresses the sender alone, and it answers HTTP 409 once a case exists for the report.
+   It addresses the sender alone.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/report-acknowledgment.md" %}
+
 2. Do not send it to the CASE_MANAGER.
    The CASE_MANAGER holds no record of who the Offer was addressed to, so nobody sends it an acknowledgment (RMB-08-003).
 3. Leave your RM state at `RECEIVED`.

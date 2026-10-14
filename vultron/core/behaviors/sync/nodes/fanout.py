@@ -14,17 +14,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Fan-out action nodes for SYNC log-replication.
 
-Standard fan-out (all active participants):
-  ``CollectLogEntryRecipientsNode`` + ``SendLogEntryToEachNode`` →
-  composed as ``FanOutLogEntryNode``.
+The one fan-out: ``CollectLogEntryRecipientsNode`` + ``SendLogEntryToEachNode``
+→ composed as ``FanOutLogEntryNode``.
 
-Closed-filtered fan-out (active participants not at RM.CLOSED, CM-23-004):
-  ``CollectNonClosedLogEntryRecipientsNode`` + ``SendLogEntryToEachNode`` →
-  composed as ``FanOutLogEntryExcludingClosedNode`` (CM-23-004).
-
-Both collectors pick recipients through the shared selection
-(``vultron.core.participants.recipients``, CM-10-007), so only active
-participants receive an entry (CM-10-004). They also publish, as
+The collector picks recipients through the shared selection
+(``vultron.core.participants.recipients.ledger_entry_recipients``,
+CM-10-007): only active participants receive an entry (CM-10-004), and a
+participant at RM ``CLOSED`` receives only the entries that record its own
+closure (CM-23-004).  Skipping closed participants is not an option a tree
+picks; every fan-out does it.  The collector also publishes, as
 ``fanout_withheld``, the joined participants that are not active — the
 active embargo withholds them, or they were removed (CM-31-001)
 (``inactive_joined_participants``). The send node pauses a withheld peer's
@@ -52,8 +50,8 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.recipients import (
-    case_content_recipients,
     inactive_joined_participants,
+    ledger_entry_recipients,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -74,36 +72,12 @@ _COLLECTOR_REMAPPINGS: dict[str, str] = {
 }
 
 
-class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
-    """Fan-out that skips participants already at RM.CLOSED (CM-23-004).
-
-    Used for the ``case_fully_closed`` ledger entry so that already-closed
-    participants are not re-notified.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                CollectNonClosedLogEntryRecipientsNode(
-                    case_id=case_id,
-                    name="CollectNonClosedLogEntryRecipients",
-                ),
-                SendLogEntryToEachNode(name="SendLogEntryToEach"),
-            ],
-        )
-
-
 # ---------------------------------------------------------------------------
-# Unfiltered fan-out — moved here from ``replay.py`` (BTND-07-004).
+# Fan-out — moved here from ``replay.py`` (BTND-07-004).
 #
-# These are the plain fan-out nodes; the filtered variants above also skip
-# participants already at RM.CLOSED.  They lived in ``replay.py`` because
-# reject-driven replay was written first, but fan-out is a distinct concern:
-# replay is catch-up for one lagging peer, fan-out is distribution of one
-# entry to every recipient.  Keeping both fan-out flavours in one module also
-# makes the filtered/unfiltered choice visible in one place.
+# These nodes lived in ``replay.py`` because reject-driven replay was written
+# first, but fan-out is a distinct concern: replay is catch-up for one lagging
+# peer, fan-out is distribution of one entry to every recipient.
 # ---------------------------------------------------------------------------
 
 
@@ -112,13 +86,13 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
 
     Every participant entitled to case content except the sender
     (CM-10-004, SYNC-02-003), chosen by the shared selection (CM-10-007).
-    The joined participants that are not active (not signatories to the
-    active embargo, or removed, CM-31-001) go to ``fanout_withheld``, so the
-    send node can pause their streams (CM-10-005).
+    A participant at RM ``CLOSED`` is left out unless the entry records its
+    own closure (CM-23-004): the leaver receives its ``close_case`` entry and
+    its closure steps, and nothing after them.  The joined participants that
+    are not active (not signatories to the active embargo, or removed,
+    CM-31-001) go to ``fanout_withheld``, so the send node can pause their
+    streams (CM-10-005).
     """
-
-    #: Also leave out participants at RM.CLOSED (CM-23-004).
-    SKIP_CLOSED: bool = False
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -157,31 +131,18 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
             return failure
 
         excluding = {self.actor_id}
-        recipients = case_content_recipients(
+        recipients = ledger_entry_recipients(
             case_obj,
             self.datalayer,
+            cast(CaseLedgerEntry, self.log_entry),
             excluding=excluding,
-            skip_closed=self.SKIP_CLOSED,
         )
         withheld = inactive_joined_participants(
-            case_obj,
-            self.datalayer,
-            excluding=excluding,
-            skip_closed=self.SKIP_CLOSED,
+            case_obj, self.datalayer, excluding=excluding
         )
         self._set_output("fanout_recipients", recipients)
         self._set_output("fanout_withheld", withheld)
         return Status.SUCCESS
-
-
-class CollectNonClosedLogEntryRecipientsNode(CollectLogEntryRecipientsNode):
-    """Collect fan-out recipients, excluding actors already at RM.CLOSED.
-
-    The active participants (CM-10-004) minus any that has recorded RM
-    ``RM.CLOSED`` (CM-23-004), chosen by the shared selection (CM-10-007).
-    """
-
-    SKIP_CLOSED = True
 
 
 class SendLogEntryToEachNode(DataLayerActionWithPorts):
@@ -202,7 +163,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
     status. A received activity commits before its effect admits anyone, so
     that case is covered by ``BackfillAdmittedParticipantsNode`` instead. The
     gate is recomputed over the whole case in step 2, not read from
-    ``fanout_withheld``, because a collector may filter peers (e.g. RM.CLOSED)
+    ``fanout_withheld``, because the collector filters peers (RM.CLOSED)
     before it gates.
 
     A missing sync port is a wiring fault and raises ``VultronWiringError``.

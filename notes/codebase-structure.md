@@ -4,17 +4,20 @@ status: active
 kind: guidance
 tags: [architecture, codebase, circular-imports, fastapi, docker, health-check, actor-ids]
 description: >
-  Overview of the Vultron codebase structure, module organization, and
-  hexagonal architecture layout.
+  Module layout rules and recurring pitfalls: enum placement, the legacy
+  simulator boundary, demo lifecycle helpers, FastAPI routing and serialization,
+  actor-ID normalization, surrogate-key lookup, module splits, formatter and
+  type-checker interplay, and small coding habits.
 related_specs:
   - specs/prototype-shortcuts.yaml
   - specs/code-style.yaml
   - specs/behavior-tree-node-design.yaml
   - specs/architecture.yaml
+  - specs/http-protocol.yaml
+  - specs/semantic-extraction.yaml
 related_notes:
-  - notes/codebase-structure-fastapi-patterns.md
   - notes/bt-integration.md
-  - notes/domain-model-separation.md
+  - notes/structured-logging.md
 relevant_packages:
   - fastapi
   - py_trees
@@ -27,427 +30,265 @@ relevant_packages:
 
 # Codebase Structure Notes
 
-## Top-Level Modules
+## Enum Placement
 
-A few modules remain at the top level of `vultron/` by necessity:
+Put each new enum in the enums module of the layer that owns the concept, so it is
+easy to find and does not drag a dependency upward:
 
-- `vultron/errors.py` — top-level error base; adapter-layer errors live at
-  `vultron/adapters/driving/fastapi/errors.py`
+- `vultron/enums/` — the neutral bottom layer (`CVDRole` and its helpers); it MUST NOT
+  import from `vultron/core/` or `vultron/config/` (ADR-0031).
+- `vultron/core/states/` — the authoritative CS/RM/EM/PEC state enums.
+- `vultron/enums/object_types.py` — object and actor type enums shared across core
+  models (`vultron/core/models/enums.py` only re-exports them; do not add there).
+- `vultron/wire/as2/enums.py` — AS2 structural enums.
 
-**Constraint**: `types.py` MUST remain accessible to both core dispatch
-modules and adapter layers without creating circular imports. See `AGENTS.md`
-"Circular Imports" section for the import chain rules.
+`vultron/core/case_states/patterns/` holds the legacy 6-character case-state pattern
+tables, a reference model only (ADR-0060).
 
----
+When `core` needs a domain-concept enum that lives in `vultron/bt/` or
+`vultron/core/case_states/`, move the enum into its owning `core` module instead of
+adding a new import from the legacy tree. BT-engine internals stay in `vultron/bt/`.
+An area with many enums gets an `enums/` subpackage, not one large `enums.py`.
 
-## Enum Refactoring
+### CVD roles are a `list[CVDRole]`, not a `Flag`
 
-Enums are currently organized across multiple locations in the codebase:
-
-- `vultron/core/models/events.py` — `MessageSemantics` (domain enum)
-- `vultron/wire/as2/enums.py` — AS2 structural enums (`as_ObjectType`,
-  `as_TransitiveActivityType`, etc.)
-- `vultron/enums/` — bottom-of-stack neutral enumeration layer (`CVDRole`,
-  `serialize_roles`, `validate_roles`; MUST NOT import from `vultron/core/`
-  or `vultron/config/`); see `docs/adr/0031-vultron-enums-neutral-layer.md`
-- `vultron/core/states/` — the authoritative CS/RM/EM/PEC state enums
-  (`cs.py`, `rm.py`, `em.py`, `participant_embargo_consent.py`) plus
-  `cs_invariants.py` (CS validity/history rules)
-- `vultron/core/case_states/patterns/` — legacy case-state *pattern* tables,
-  keyed by 6-character state patterns rather than enums; reference model only,
-  see ADR-0060:
-  - `base.py`
-  - `cvss31.py`
-  - `embargo.py`
-  - `explanations.py`
-  - `info.py`
-  - `potential_actions.py`
-  - `ssvc.py`
-  - `vep.py`
-  - `zerodays.py`
-- `vultron/wire/as2/vocab/` — vocabulary-level type enums (moved from
-  `vultron/as_vocab/`)
-
-**Target organization**: Each level of the package hierarchy SHOULD have a
-dedicated `enums.py` module (or `enums/` subpackage if there are many enums)
-so that enums are easy to find and manage. For example:
-
-- `vultron/core/models/events/enums.py` — `MessageSemantics` (moving from
-  `events.py` base)
-- `vultron/core/models/enums/` — enums shared across core models (e.g.,
-  `CVDRole`, state machine enums migrated from `vultron/bt` and
-  `vultron/core/case_states`)
-- `vultron/wire/as2/enums.py` — AS2 structural enums (already in place)
-
-Enums imported from outside `core` that are used in `core` are candidates
-for relocation into `core` (refactoring from their original location as
-needed). In particular:
-
-- Enums in `vultron/bt/` and `vultron/core/case_states/` that represent domain
-  concepts (not BT-engine internals) SHOULD migrate to `core/models/enums/`.
-- If a given area has many enums, split them into an `enums/` subpackage
-  with multiple files rather than one large `enums.py`.
-
-**Not a high priority for the prototype**, but each new enum SHOULD be
-placed at the correct layer from the start to avoid accumulating more
-technical debt.
-
----
-
-## `CVDRoles` Design Decision: StrEnum List, Not Flag
-
-The `CVDRoles` enum in `vultron/bt/roles/states.py` uses bitwise `Flag`
-semantics. This design is acceptable within `vultron/bt/` (the legacy BT
-simulator) but MUST NOT be used elsewhere.
-
-**For all new code in `core` and `wire`**, represent CVD roles as a
-`list[CVDRole]` where `CVDRole` is a `StrEnum`:
-
-```python
-# vultron/core/models/enums/cvd_role.py  (proposed location)
-from enum import StrEnum
-
-class CVDRole(StrEnum):
-    FINDER = "finder"
-    REPORTER = "reporter"
-    VENDOR = "vendor"
-    COORDINATOR = "coordinator"
-    OTHER = "other"
-```
-
-When roles appear on case objects or participant objects, the field type
-SHOULD be `list[CVDRole]`. This is easier to work with than bitwise flags:
-membership checks use `if CVDRole.VENDOR in participant.roles` instead of
-bitwise tests.
-
-The old `CVDRoles` `Flag` class can be renamed `CVDRoleFlags` and left in
-`vultron/bt/roles/states.py` as long as the legacy BT simulator still uses it.
-When the BT simulator is eventually retired or migrated, `CVDRoleFlags` can be
-removed.
-
----
-
-## Code Documentation (Static and Dynamic)
-
-### Static Code Documentation
-
-Auto-generated code documentation lives in `docs/reference/code/**/*.md`,
-generated from docstrings in the codebase. The organization is currently
-ad-hoc and not comprehensive. It is intended for inclusion in the MkDocs
-static site. Reorganizing this section is low priority for the prototype.
-
-**Guidelines for maintaining quality:**
-
-- Keep docstrings accurate and up to date with implementation changes.
-- MkDocs material + mkdocstrings generates from docstrings automatically.
-- The static docs reflect the codebase at build time — they go stale quickly
-  if not regenerated.
-
-### Dynamic API Documentation
-
-FastAPI's built-in OpenAPI support generates interactive API documentation
-automatically. This is available at `/docs` (Swagger UI) and `/redoc` when
-the server is running.
-
-**Priority note**: The FastAPI OpenAPI docs are higher priority to maintain
-than the static code docs. Developers and agents interacting with the running
-API are more likely to use the OpenAPI docs. Ensure:
-
-- Route docstrings describe the endpoint clearly.
-- Request/response models have clear field descriptions in Pydantic models.
-- New endpoints are added to the correct router so they appear in the docs.
+Core and wire code represent CVD roles as `list[CVDRole]`, the `StrEnum` in
+`vultron/enums/roles.py`; membership is `CVDRole.VENDOR in participant.roles`. The
+bitwise `CVDRolesFlag` in `vultron/bt/roles/enums.py` is for the legacy simulator only
+and MUST NOT spread beyond `vultron/bt/`.
 
 ---
 
 ## Module Boundary: `vultron/bt/` vs `vultron/core/behaviors/`
 
-These two trees coexist and MUST NOT be merged or confused:
-
-| Module | Purpose | BT Engine | Status |
+| Module | Purpose | BT engine | Status |
 |--------|---------|-----------|--------|
-| `vultron/bt/` | Original simulation (custom engine) | Custom (`vultron.bt.base`) | Legacy; do not modify for prototype handlers |
-| `vultron/core/behaviors/` | Prototype handler BTs | `py_trees` (v2.2.0+) | Active development |
+| `vultron/bt/` | Original simulation | Custom (`vultron.bt.base`) | Legacy; do not modify for prototype handlers |
+| `vultron/core/behaviors/` | Prototype handler BTs | `py_trees` | Active development |
 
-The `vultron/sim/` module also exists as another simulation-related module and
-MUST NOT be confused with `vultron/bt/` or `vultron/core/behaviors/`.
-
-See `notes/bt-integration.md` for architectural decisions about the BT
-layer.
+The two trees MUST NOT be merged or confused. See `notes/bt-integration.md` for the BT
+layer's design.
 
 ### Demo layer MUST NOT import the legacy simulator (ARCH-01-006)
 
-`vultron/demo/` demonstrates the **production** protocol (API server, core, and
-wire layers). It MUST NOT import from the legacy `vultron/bt/` simulator, with
-one exception: the unified demo CLI aggregator `vultron/demo/cli.py`
-(mandated by DC-01-001) is permitted to import the standalone `vultron/bt/`
-behaviour-tree demos (pacman, robot, cvd) so it can surface them as a
-`vultrabot` sub-group. Demo *logic* modules — `scenario/`, `exchange/`,
-`helpers/`, `fuzzer/` — MUST stay free of any `vultron/bt/` import.
+`vultron/demo/` demonstrates the production protocol, so demo logic modules
+(`scenario/`, `exchange/`, `helpers/`, `fuzzer/`) MUST NOT import `vultron/bt/`. The
+one exception is the CLI aggregator `vultron/demo/cli.py` (DC-01-001), which surfaces
+the standalone simulator demos in `vultron/bt/base/demo/` as a sub-group.
 
-The standalone behaviour-tree demos live **inside** the simulator tree, at
-`vultron/bt/base/demo/` (`pacman.py`, `robot.py`, `cvd.py`). The CVD
-self-simulation demo `cvd.py` was relocated there from `vultron/demo/vultrabot.py`
-(issue #1375); it is a demo *of* the legacy simulator, not of the production
-protocol, so it belongs with its siblings.
-
-**Relocate, don't re-launder.** When a `vultron/demo/` module genuinely needs
-legacy-simulator symbols (`CvdProtocolBt`, `CVDRolesFlag`, `show_graph`, etc.),
-the fix is to move that module into `vultron/bt/base/demo/` — NOT to re-export
-the legacy symbols through `vultron/core/`. Re-exporting simulator internals via
-the core domain would pull the frozen legacy engine into the production
-dependency graph, a worse layering violation than the one being fixed.
-
-Enforced by the AST ratchet `test/architecture/test_demo_no_bt_imports.py`
-(`KNOWN_VIOLATIONS` lists only `vultron/demo/cli.py`), following the ARCH-18
-bidirectional-equality pattern.
+**Relocate, don't re-launder.** A demo module that needs simulator symbols moves into
+`vultron/bt/base/demo/`; it never re-exports them through `vultron/core/`, which would
+pull the frozen legacy engine into the production dependency graph. Enforced by
+`test/architecture/test_demo_no_bt_imports.py`.
 
 ---
 
 ## Demo Script Lifecycle Logging: `demo_step` / `demo_check` / `demo_gate`
 
-All demo scripts use three context managers defined in `vultron/demo/utils.py`
-for structured lifecycle logging and failure accumulation. All three suppress
-exceptions into the `_demo_failures` accumulator (no re-raise); call
-`assert_demo_success()` at the end of each scenario to surface failures
-(DEMOCI-01-003, DEMOCI-01-004).
+Wrap every demo workflow step and verification in the context managers from
+`vultron/demo/utils.py`. All three log entry and outcome, accumulate a failure instead
+of re-raising, and need `assert_demo_success()` at the end of the scenario to surface
+failures (DEMOCI-01-003/004):
 
-- **`demo_step(description)`**: Wraps a workflow step. Logs `🚥 description`
-  at INFO on entry, `🟢 description` on clean exit, `🔴 description` at ERROR
-  on exception. On exception, accumulates the failure and continues after the
-  block.
-- **`demo_check(description)`**: Wraps a standalone side-effect verification.
-  Logs `📋 description` at INFO on entry, `✅ description` on success,
-  `❌ description` at ERROR on exception. On exception, accumulates and
-  continues — subsequent steps outside the block always run. Use when a
-  verification failure should not skip dependent work.
-- **`demo_gate(description)`**: Causal precondition gate. Logs `🚧 description`
-  on entry, `🔓` on success, `🔒` on failure. On exception, Python immediately
-  exits the `with` body — steps inside the gate that follow the failing assertion
-  are skipped. Execution continues after the gate block. Use when continuing
-  after a precondition failure would produce meaningless secondary failures.
-  See ADR-0058.
+- `demo_step` — a workflow step; execution continues after the block on failure.
+- `demo_check` — a side-effect verification whose failure must not skip later work.
+- `demo_gate` — a causal precondition: on failure the rest of the gate body is
+  skipped, so dependent steps go inside it and do not produce meaningless secondary
+  failures (ADR-0058).
 
-Import these from `vultron.demo.utils` in every demo script.
-
-**Pattern**:
-
-```python
-with demo_step("1. Create vulnerability report"):
-    report = create_report(...)
-
-with demo_check("1a. Verify report persisted"):
-    assert dl.get(report.as_id) is not None
-
-with demo_gate("2. Case seeded before notes phase"):
-    wait_for_case_on_container(client, case_id)
-    with demo_step("2a. Add note"):   # skipped if gate fails
-        add_note(...)
-```
-
-**Cross-reference**: `test/demo/test_demo_context_managers.py` (18 tests);
-ADR-0058 for the causal-gate design rationale.
-
----
-
-## Demo Scripts Live in `vultron/demo/`
-
-All demo scripts are located in `vultron/demo/` (migration from
-`vultron/scripts/` completed in Phase DEMO-4.3). **`vultron/scripts/` no longer
-exists**: it was drained one module at a time — `vocab_examples.py`,
-`vultrabot.py`, the twelve `*_demo.py` scripts — and its last resident,
-`ontology2md.py`, went with the ontology pages it rendered (#3570). Standalone
-maintenance tooling now belongs in `vultron/metadata/`, which has a console
-entry point per tool.
-
-- **`vultron/demo/`** — end-to-end workflow demonstrations, CLI entry point,
-  shared utilities, and the `*_demo.py` scripts under `scenario/` and `exchange/`
-  (no count: the directories are the count, MS-16-001)
-- **`vultron/demo/utils.py`** — shared demo utilities (`demo_step`,
-  `demo_check`, `DataLayerClient`, HTTP helpers, `demo_environment` context
-  manager)
-- **`vultron/demo/cli.py`** — unified `vultron-demo` Click CLI
-
-Tests for demo scripts are in `test/demo/` (corresponding to the demo module
-structure). Docker Compose services are in `docker/docker-compose.yml`.
+When to use which is in `vultron/demo/AGENTS.md`; behavior is pinned by
+`test/demo/test_demo_context_managers.py`. Standalone maintenance tooling belongs in
+`vultron/metadata/`, not `vultron/demo/`.
 
 ---
 
 ## Starlette Path-Type Parameters for URL-Keyed Endpoints
 
-(DR-10, 2026-05-21 — fixed in #617, which resolves #610)
-
-When a FastAPI/Starlette endpoint needs to accept keys that may contain
-literal forward slashes (e.g., full HTTP URL IDs such as
-`http://vendor:7999/api/v2/actors/case-actor-{uuid}/participant`), use the
-`{param:path}` path converter instead of the plain `{param}` converter.
-
-```python
-# ✅ Correct: accepts keys with embedded slashes
-@router.get("/{key:path}")
-def get_object_by_key(key: str, ...): ...
-
-# ❌ Broken: Starlette decodes %2F → / before route matching,
-#    so percent-encoding does not work as a workaround
-@router.get("/{key}")
-def get_object_by_key(key: str, ...): ...
-```
-
-**Rule**: Register catch-all `/{param:path}` routes **last** in the router so
-that specific literal routes (e.g., `/Offers/`, `/Actors/`) are matched first.
-Starlette matches routes in registration order; a catch-all at the top shadows
-all subsequent routes.
-
-**Why percent-encoding fails**: Starlette decodes `%2F` back to `/` before
-route matching, so there is no client-side workaround. Only the server-side
-`path` converter fixes the root cause.
-
-**Implemented in**:
-
-- `vultron/adapters/driving/fastapi/routers/datalayer.py` — `/{key:path}`
-- `vultron/adapters/driving/fastapi/routers/actors.py` —
-  `/{actor_id:path}/inbox`, `/{actor_id:path}/outbox/`, `/{actor_id:path}`
-
-**See also**: GitHub concern #618 (Full-URI IDs in URL path segments —
-deeper architectural issue of separating routing identity from object
-identity remains open).
+An endpoint whose key may contain `/` (a full-URI ID) uses the `{param:path}`
+converter, not `{param}`. Starlette decodes `%2F` to `/` before route matching, so
+percent-encoding is no client-side workaround. Register a `/{param:path}` catch-all
+**last**: Starlette matches in registration order, and an early catch-all shadows every
+later literal route.
 
 ---
 
-### Actor ID Normalization: Full URIs Everywhere
+## FastAPI response_model Filtering
 
-(DR-09, 2026-04-20)
+FastAPI treats a return annotation as an implicit `response_model` and serializes only
+the annotated class's fields, so `-> as_Base` silently drops every subclass field
+(HTTP-08-001).
 
-Actor IDs MUST be full URIs everywhere in the system. They MUST be normalized
-to a full URI at the point the actor ID is first established (actor creation,
-seed load, session context). No function downstream of that point should ever
-receive or handle a short UUID as an actor ID.
+- **AS2 routes** return `AS2JSONResponse(obj)`, which dumps by alias and bypasses the
+  filter (HTTP-09-002).
+- **Other routes** returning several types drop the annotation or annotate the exact
+  `Union`. Do not use `AS2JSONResponse` on non-AS2 routes.
+- **Trigger routes declare `response_model` on purpose** (TRIG-12-001, ADR-0110): each
+  `TriggerResult` subtype is the verb's exact key set with `extra="forbid"`, so there
+  is nothing to drop and the declaration puts the body into OpenAPI. Pinned by
+  `test/adapters/driving/fastapi/test_trigger_routes_contract.py`.
 
-**Why this matters**: Short-UUID actor IDs break semantic routing, outbox
-addressing, and trust boundary checks. They also cause non-deterministic
-failures where the same actor appears under two different IDs in the DataLayer.
+Test the JSON response, not only what was stored.
 
-**Audit**: Search for short-UUID actor ID assignment in
-`vultron/demo/`, `vultron/adapters/`, and `vultron/core/` seeding code.
+---
 
-### Actor ID Normalization in Trigger Paths
+## Docker Health Check Coordination
 
-(BUG-26042202, 2026-04-22)
+`depends_on: service_started` waits for the container, not the app, so a dependent
+container can get "Connection refused". Use all three layers: a `healthcheck` on the
+API service (`/api/v2/health/live`), `condition: service_healthy` on its dependents,
+and client retry against the server (use `httpx2`, the declared runtime dependency,
+not `requests`). See `docker/docker-compose.yml`.
 
-Trigger paths that accept short actor IDs from router path parameters MUST
-overwrite `actor_id` with the resolved `actor.id_` before any outbox mutation.
+---
 
-**Why SQLite hides this bug**: For `urn:uuid:` actor IDs, the SQLite DataLayer
-performs bare-UUID compatibility lookups in `dl.read()`, so a trigger that
-passes a short UUID to the DataLayer may appear to work. The same trigger
-**silently fails** if the actor record uses a URL-form ID (e.g.,
-`https://example.org/actors/alice`).
+## The Formatter Can Invalidate Inline Type-Checker Suppressions
 
-**Testing guidance**: Regression tests for short-ID trigger normalization MUST
-use URL-form actor records to exercise the missing canonicalization path.
-Asserting both `outbox.items` mutation AND the absence of a warning log is a
-better guard than checking the queued activity alone.
+When `ruff format` wraps a long line, an end-of-line `# type: ignore` or `# pyright:
+ignore` stays on the statement's last line, away from the expression it suppressed; the
+error returns and the pragma reports as unused. Re-run mypy and pyright after every
+format pass (the `run-linters` order does), and move the pragma onto the line carrying
+the flagged argument. A file-level `# pyright: reportGeneralTypeIssues=false` is
+acceptable only for a Pydantic subclass that intentionally narrows an optional base
+field to required (see `vultron/wire/as2/vocab/objects/case_proposal.py`).
+
+---
+
+## Actor IDs
+
+### Actor IDs Must Always Be Full URIs
+
+Normalize an actor ID to a full URI where it is first established (actor creation, seed
+load, session context); nothing downstream handles a short UUID as an actor ID. Short
+IDs break semantic routing, outbox addressing, and trust-boundary checks, and let one
+actor appear under two IDs in the DataLayer.
+
+### Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox
+
+A trigger path that accepts a short actor ID from a route parameter overwrites
+`actor_id` with the resolved `actor.id_` before any outbox mutation. The SQLite
+DataLayer's bare-UUID compatibility lookup hides the bug for `urn:uuid:` IDs, so
+regression tests MUST use URL-form actor records, and should assert both the outbox
+mutation and the absence of a warning log (BUG-26042202).
+
+---
+
+## Surrogate-Key Routing
+
+Routes accept short-ID surrogate keys beside canonical URIs
+(`find_actor_by_short_id()` / `find_case_by_short_id()` in
+`vultron/adapters/driven/datalayer_sqlite/queries.py`). Two invariants (ISSUE-654):
+
+- **Ambiguity is a miss, never first-match.** More than one canonical ID matching a
+  tail segment logs a WARNING and returns `None`; first-match makes lookups
+  non-deterministic.
+- **A non-case hit does not end case-key resolution.** When `dl.read(key)` returns a
+  non-case object, continue to the short-key fallback, or non-case IDs shadow valid case
+  keys with false 404s.
+
+When asserting a mock's positional arguments, use `call_args.args`, not `call_args[0]`:
+the named attribute fails clearly if the call moves to kwargs.
+
+---
+
+## Circular Imports: Shared Helpers in `use_cases/_helpers.py`
+
+A helper needed by both `vultron/core/behaviors/` and
+`vultron/core/use_cases/triggers/` lives in `vultron/core/use_cases/_helpers.py`.
+The `triggers/` submodules import the behaviors layer, so a behaviors module that
+imports anything under `triggers/` closes a cycle.
+
+---
+
+## Router Test Overrides
+
+Override the per-actor dependency, not a module binding:
+`app.dependency_overrides[get_actor_dl]` for routes with an actor path segment (it
+replaces canonical-URI resolution too), `get_trigger_dl` for trigger routes, and
+`get_hosted_actor_dls` for node-wide routes (all in
+`vultron/adapters/driving/fastapi/deps.py`; ADR-0073). The
+engine cache is keyed on the resolved per-actor URL, so a test that needs a fresh store
+calls `dispose_actor_engines()`; in in-memory mode that also destroys the database.
+
+---
+
+## Cross-Actor TestClient Router: Keep Blocking `post()` off the Portal Loop
+
+In the multi-actor demo harness (`test/demo/conftest.py`), the router's `emit()` runs
+on the sending app's `TestClient` portal loop, while `TestClient.post()` blocks and
+drives the target through its own portal. Calling it inline blocks the sender and can
+deadlock the two portals, so the harness runs the post through
+`anyio.to_thread.run_sync`. It posts the sealed body as-is (`content=`, not `json=`),
+never re-serializing what the ledger recorded (VM-08-003).
+
+---
+
+## Phrase Tests Using `defaultdict` Cannot Detect Unfillable Slots
+
+Rendering a phrase with `format_map(defaultdict(...))` fills every slot, so it passes a
+phrase referencing a slot the real renderer never fills. The real pipeline
+(`CaseTimelineEvent.summary` in `vultron/demo/report.py`) fills only `actor` and,
+when `target_label` resolves, `object`/`target`. A phrase regression test builds a
+representative `CaseTimelineEvent` and asserts its `summary` has no trailing `—`
+and no unsubstituted `{slot}` (SE-07). `event_phrase()` fills every slot with `—`,
+so a test through it is the vacuous kind this section warns against.
+
+---
+
+## Logger Names: Verify from Source, Not Assumption
+
+Read a logger's name from the source before writing a log filter or a `caplog` scope;
+module paths mislead. The actors router logs as `uvicorn.error`, and a BT node bound
+through `node_logger(node)` logs under its class-qualified name (for example
+`vultron.core.behaviors.sync.nodes.chain.PersistLogEntryNode`). Scope `caplog` to the
+class-qualified name to avoid sibling nodes' records.
 
 ---
 
 ## Docstring and Markdown Compatibility
 
-Vultron uses `mkdocstrings` to render docstrings in the MkDocs documentation
-site. Docstrings MUST use markdown-compatible syntax.
-
-### Lists
-
-Use a blank line before every list, with consistent indentation:
-
-```python
-"""
-When run as a script, this module will:
-
-1. Check if the API server is available
-2. Post a VulnerabilityReport Offer
-"""
-```
-
-### Inline Code
-
-Use backticks for inline code references even if they are not Python
-identifiers:
-
-```python
-"""
-To see BT execution details, run with `DEBUG` logging enabled:
-`LOG_LEVEL=DEBUG uvicorn vultron.adapters.driving.fastapi.main:app --port 7999`
-"""
-```
-
-The canonical deployment entrypoint is
-`vultron.adapters.driving.fastapi.main:app`. Treat legacy
-`vultron.api.main:app` references in demo-facing text as stale and do not copy
-them into new docs.
-
-### Documentation Links
-
-When referencing other documentation in docstrings, use proper markdown links
-relative to `docs/` as the site root, with the target page title as link text:
-
-```python
-"""
-See [How to Report a Vulnerability](/howto/activitypub/activities/report_vulnerability.md).
-"""
-```
+Docstrings render through `mkdocstrings`, so they use markdown: a blank line before
+every list, backticks for any code-like text, and links relative to `docs/` with the
+target page title as link text. The deployment entrypoint is
+`vultron.adapters.driving.fastapi.main:app`; `vultron.api.main:app` is stale. FastAPI's
+OpenAPI pages (`/docs`, `/redoc`) are generated from route docstrings and Pydantic field
+descriptions, so keep those accurate and put new endpoints on the right router.
 
 ---
 
-## Bulk Module-Rename Lessons Learned (VCR-019a)
+## Bulk Module Renames
 
-When doing large-scale module renames (moving packages from one location to
-another with import path changes), the following approach works reliably:
-
-- **`sed`-based bulk replacement** is faster and less error-prone than editing
-  files individually:
-  `sed -i '' 's/old\.module\.path/new\.module\.path/g' <file>` applied to
-  each affected file.
-- **Test directory must mirror source directory.** Move `test/old_package/`
-  to `test/new_package/` with a `__init__.py` to ensure pytest discovers
-  tests under the new paths.
-- **No shims = immediate confidence.** Without compatibility re-exports, a
-  clean test run proves all callers were updated. Any missed import site
-  causes an `ImportError` immediately rather than silently passing through a
-  shim. See `specs/prototype-shortcuts.yaml` PROTO-08-001, PROTO-08-002.
-- **Find all callers first.** Use `grep -r "from old.path\|import old.path"`
-  across `vultron/` and `test/` to get the complete call-site list before
-  starting.
+- Find every caller first (`grep -r "from old.path\|import old.path" vultron/ test/`),
+  then bulk-replace with `sed`.
+- Mirror the move in `test/`, with an `__init__.py`, so pytest discovers the tests.
+- Leave no shim at the old path: a clean test run then proves every caller moved
+  (PROTO-08-001). A split differs: see the next section.
 
 ---
 
 ## Module Splits: No New God Modules, Always Re-Export
 
-- **A split must not produce a new god module.** Submodules stay at or under
-  500 lines and are split again when they re-accumulate (CS-18-001 through
-  CS-18-004). A flat `nodes.py` in a BT process area fails; leaf modules go in a
-  `nodes/` subpackage grouped by semantic concern (BTND-07-001, BTND-07-003,
-  BTND-07-006).
-- **Check `wc -l` before documenting a leaf.** A BT leaf module within ~20
-  lines of the 500-line cap (BTND-07-004) is split *before* docstrings or audit
-  comments are added: extract a semantic concern into a sibling submodule first,
-  then write the documentation.
-- **A split re-exports what it moved.** A use-case subpackage re-exports its
-  classes *and* their request models. A module split re-imports each moved name
-  in the old module (`# noqa: F401`) so `monkeypatch` targets keep resolving
-  (#972). A FastAPI router package re-exports the names used as
-  `dependency_overrides` keys (#970).
-- **Deleting a module instead of re-exporting needs importer proof**: no live
-  importers in `vultron/` or `test/`. See also "Bulk Module-Rename Lessons
-  Learned" above for the no-shim case.
+- **A split must not produce a new god module.** Submodules stay at or under 500 lines
+  and are split again when they re-accumulate (CS-18-001). A BT process area's leaf
+  modules go in a `nodes/` subpackage grouped by semantic concern (BTND-07-001).
+- **Check `wc -l` before documenting a leaf.** A BT leaf module within ~20 lines of the
+  500-line cap (BTND-07-004) is split before docstrings or audit comments are added.
+- **A split re-exports what it moved, only where the old name is still a live
+  interface.** A use-case subpackage re-exports its classes and their request models
+  as its public API; a module split re-imports a moved name in the old module
+  (`# noqa: F401`) only when it is a `monkeypatch` target; a FastAPI router package
+  re-exports the names used as `dependency_overrides` keys (#972). Anything else is
+  a shim (PROTO-08-001): move the callers.
+- **Deleting a module instead of re-exporting needs importer proof**: no live importers
+  in `vultron/` or `test/`.
 
 ---
 
 ## Small Coding Habits
 
-- **mypy infers a variable's type from its first assignment.** Use distinct
-  names per `except` or `if`/`else` branch rather than reusing one name with
-  different types.
-- **Pre-build dedup sets before fallback loops** — `seen = set(d.values())`
-  turns an O(n×m) membership scan into O(n+m).
+- **mypy infers a variable's type from its first assignment.** Use distinct names per
+  `except` or `if`/`else` branch rather than reusing one name with different types.
+- **Pre-build dedup sets before fallback loops** — `seen = set(d.values())` turns an
+  O(n×m) membership scan into O(n+m).
 - **Use the walrus operator for single-assignment guards**:
   `if (f := self._require_factory()) is not None:`.
 
@@ -455,23 +296,16 @@ another with import path changes), the following approach works reliably:
 
 ## Protocol Declarations Stay in Sync With Concrete Classes (CS-20)
 
-When a field or method leaves a class that structurally conforms to a
-`Protocol` (`vultron/core/models/protocols.py`, `vultron/core/ports/`), remove the
-matching Protocol member too, and vice versa (CS-20-001) — type checkers never flag a
-Protocol member that no implementation still has. No `TypeGuard` discriminators
-remain: #1504 replaced most with concrete `isinstance` checks, and the last,
-`has_outbox`, went in #4143. A new one MAY `hasattr`-check only Protocol-declared
-members (CS-20-002).
+When a field or method leaves a class that structurally conforms to a `Protocol`
+(`vultron/core/models/protocols.py`, `vultron/core/ports/`), remove the matching
+Protocol member too, and vice versa (CS-20-001): type checkers never flag a Protocol
+member no implementation still has. A new `TypeGuard` discriminator MAY `hasattr`-check
+only Protocol-declared members (CS-20-002).
 
 ---
 
 ## `HashChainLedgerRecord` ≠ `CaseLedgerEntry`
 
-`HashChainLedgerRecord` (`core/models/case_ledger.py`) is the in-memory
-hash-chain record, a plain `BaseModel`; `CaseLedgerEntry`
-(`core/models/case_ledger_entry.py`) is the wire-serializable `CoreObject`
-(ARCH-12-007). They are distinct types: import each by its full module path.
-
----
-
-> See also: [codebase-structure-fastapi-patterns.md](codebase-structure-fastapi-patterns.md) for the continuation of these design notes.
+`HashChainLedgerRecord` (`core/models/case_ledger.py`) is the in-memory hash-chain
+record, a plain `BaseModel`; `CaseLedgerEntry` (`core/models/case_ledger_entry.py`) is
+the wire-serializable `CoreObject` (ARCH-12-007). Import each by its full module path.

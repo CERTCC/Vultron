@@ -46,7 +46,11 @@ BTND-08-001/BTND-08-002 (role checks MUST be in the tree, not in action node
 
 Per ADR-0050: ``Leave(VulnerabilityCase)`` is the only canonical RM closure
 path.  The ``case_fully_closed`` ledger entry is written here on the Case Actor
-receive path; all other replicas learn via Announce(CaseLedgerEntry) fan-out.
+receive path; every replica whose closure the ledger does not already record
+learns of it via Announce(CaseLedgerEntry) fan-out.  A participant at RM
+``CLOSED`` — every earlier leaver, and the Case Owner once its own status
+entries are committed — is not sent it (CM-23-004): it receives the entries
+that record its own closure and nothing after them.
 """
 
 import logging
@@ -218,7 +222,7 @@ def create_close_case_received_tree(
                 │       │       ├── ReconstructChainTailNode        # step 3a: tail hash
                 │       │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
                 │       │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
-                │       │       └── FanOutLogEntryNode              # step 4: fan-out
+                │       │       └── FanOutLogEntryNode              # step 4: fan-out (skips RM.CLOSED)
                 │       └── NonOwnerLeaveFallbackSeq (Sequence)  # Non-owner (CM-23-003)
                 │           ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
                 │           └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-001)

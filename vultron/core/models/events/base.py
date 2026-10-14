@@ -28,7 +28,6 @@ class MessageSemantics(StrEnum):
     CLOSE_REPORT = auto()
 
     CREATE_CASE = auto()
-    UPDATE_CASE = auto()
     ENGAGE_CASE = auto()
     DEFER_CASE = auto()
     ADD_REPORT_TO_CASE = auto()
@@ -44,6 +43,7 @@ class MessageSemantics(StrEnum):
     OFFER_CASE_OWNERSHIP_TRANSFER = auto()
     ACCEPT_CASE_OWNERSHIP_TRANSFER = auto()
     REJECT_CASE_OWNERSHIP_TRANSFER = auto()
+    UNDO_CASE_OWNERSHIP_TRANSFER = auto()
 
     INVITE_ACTOR_TO_CASE = auto()
     ACCEPT_INVITE_ACTOR_TO_CASE = auto()

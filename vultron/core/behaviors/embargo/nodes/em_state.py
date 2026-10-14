@@ -104,7 +104,7 @@ def read_case_em_state(
     """Return the EM state of *case_id*, read through ``ReadEmStateNode``.
 
     The in-node EM read (``notes/embargo-lifecycle.md`` § "Guidance for
-    Agents", item 8): a node that needs the current EM state inside its own
+    Agents", item 6): a node that needs the current EM state inside its own
     ``update()`` calls this instead of reading ``case.em_state``
     inline.  When *result_out* is given, the read writes ``em_before`` (or
     ``error``) into it, as ``ReadEmStateNode`` does, so a node that exposes

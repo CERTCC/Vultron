@@ -7,8 +7,9 @@ Accepts the Full-Case Invite, which records RM Valid. It carries the sender's ow
 - **When…** a Participant asked by a Full-Case Invite judges the case valid
 - **Send:** `Accept(Invite(Actor)[target=VulnerabilityCase])`
 - **Sent by:** the invitee
-- **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
+- **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
 - **Formal definition:** [Report Valid (RV)](../../../formal_protocol/messages.md#rm-message-types)
+- **Mapping status:** [expansion](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

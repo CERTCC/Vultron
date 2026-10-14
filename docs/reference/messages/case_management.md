@@ -7,11 +7,8 @@ description: >
 
 # Case Management Messages
 
-These messages drive the lifecycle of a `VulnerabilityCase` and its roster of
-participants. They have no formal-protocol shorthand — the 28-symbol formal
-message set addresses state-machine transitions, not the case-infrastructure
-layer that supports them (see
-[ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
+These messages drive the lifecycle of a `VulnerabilityCase`, the record of one Coordinated Vulnerability Disclosure (CVD) case, and its roster of participants.
+They have no formal-protocol shorthand — the 28-symbol formal message set addresses state-machine transitions, not the case-infrastructure layer that supports them (see [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 
 All messages on this page operate on a case that already exists. For the
 pre-existence bootstrap (vendor → case-actor service) see
@@ -25,199 +22,89 @@ The **CASE_MANAGER** is the case's single-writer authority: it mints and updates
 The CASE_MANAGER acts on the Case Owner's behalf; the two roles are often held by the same actor but need not be.
 The 300-level introduction is [The Case Manager and the Case Ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).
 
-## Message mapping
+## Occasions
 
-```python exec="true" idprefix=""
-from vultron.metadata.msm.render import render_page
+{% include-markdown "./_occasions/lookup-case_management.md" %}
 
-print(render_page("case_management", heading=False))
-```
+{% include-markdown "./_occasions/sections/create-case.md" %}
 
----
-
-## Create Case
-
-- **Protocol role:** The CASE_MANAGER mints a new `VulnerabilityCase`, seats the initial participants (the Case Owner and the reporter), and links the report, then sends the completed case to the report receiver (the Case Owner) only ([CBT-01-010](../specs/protocol.md#cbt-01-010), [CM-22-001](../specs/protocol.md#cm-22-001), [CM-22-002](../specs/protocol.md#cm-22-002)).
+- **Recipients:** the CASE_MANAGER sends the completed case to the report receiver (the Case Owner) only ([CBT-01-010](../specs/protocol.md#cbt-01-010), [CM-22-001](../specs/protocol.md#cm-22-001), [CM-22-002](../specs/protocol.md#cm-22-002)).
+  Until [#4511](https://github.com/CERTCC/Vultron/issues/4511) lands, the prototype also addresses this `Create` to the report submitter.
   The report receiver then sends the report submitter a `Create(VulnerabilityCase)` as itself, which names the CASE_MANAGER and is the trust bootstrap (spec [§4.5 Trust and Bootstrap Semantics](../vultron-spec/layers.md#45-trust-and-bootstrap-semantics); [CBT-01-001](../specs/protocol.md#cbt-01-001), [ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
 - **Who is named where:** the `actor` of the `Create` is the CASE_MANAGER that mints the case, and the case's `attributedTo` is the Case Owner ([CP-09-001](../specs/protocol.md#cp-09-001), [CM-02-008](../specs/protocol.md#cm-02-008)).
-  The two coincide when the Case Owner creates its own case, as in the example below.
+  The two coincide when the Case Owner creates its own case, as in the example above.
   When a case-actor service creates the case from a [Case Proposal](case_proposal.md), the service is the `actor` and `attributedTo` names the proposing actor, never the service itself.
   Every owner check reads `attributedTo`, and an ownership transfer rewrites it ([CM-21-002](../specs/protocol.md#cm-21-002)).
 - **Triggering transition:** none — object construction precedes protocol state.
-- **Wire activity:** `Create(VulnerabilityCase)`.
 - **Example artifact:** [create_case.json](../examples/create_case.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_case, json2md
+{% include-markdown "./_occasions/sections/add-report-to-case.md" %}
 
-print(json2md(create_case()))
-```
-
----
-
-## Update Case
-
-- **Protocol role:** The CASE_MANAGER records a changed `VulnerabilityCase` object — for example after a title edit or an ownership transfer is applied — and fans it out through the ledger ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
-  A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to its peers.
-- **Triggering transition:** none — metadata change, not a state transition.
-- **Wire activity:** `Update(VulnerabilityCase)`.
-- **Example artifact:** [update_case.json](../examples/update_case.json).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import update_case, json2md
-
-print(json2md(update_case()))
-```
-
----
-
-## Add Report to Case
-
-- **Protocol role:** Links a `VulnerabilityReport` to an existing case.
-- **Triggering transition:** none — a report can be added at any RM state.
-- **Wire activity:** `Add(VulnerabilityReport)` with `target` = case URI.
-- **Who may send:**
-  The CASE_MANAGER accepts it only from the Case Owner, and a participant replica accepts it only from the CASE_MANAGER.
+- **Triggering transition:** none — a report can be added at any Report Management (RM) state.
+- **Who may send:** the CASE_MANAGER accepts it only from the Case Owner, and a participant replica accepts it only from the CASE_MANAGER.
   Any other sender is refused and the report is not attached.
 - **Example artifact:** [add_report_to_case.json](../examples/add_report_to_case.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_report_to_case, json2md
+{% include-markdown "./_occasions/sections/offer-case-participant-role.md" %}
 
-print(json2md(add_report_to_case()))
-```
-
----
-
-## Close Case
-
-- **Protocol role:** The sender signals that their participation in the case
-  is complete (RM Accepted → Closed).
-- **Triggering transition:** RM: A → C.
-- **Wire activity:** `Leave(VulnerabilityCase)`.
-- **Example artifact:** [close_case.json](../examples/close_case.json).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import close_case, json2md
-
-print(json2md(close_case()))
-```
-
----
-
-## Offer Case Participant Role
-
-- **Protocol role:** An authorized participant offers a specific `CVDRole` on the case to another actor.
-  The object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
+- **Object type:** the object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
   Roles are granted through the case's authority chain ([§11.1 Role Assignment](../vultron-spec/interactions.md#111-role-assignment-n)).
+- **Target:** the Actor receiving the role; the `context` is the case.
 - **Triggering transition:** none — roster action, not a state-machine event.
-- **Wire activity:** `Offer(CaseParticipantRole)`, with `target` = the Actor
-  receiving the role and `context` = the case.
-- **How-to:** [How to Delegate a Role to Another Participant](../../howto/activitypub/activities/role_delegation.md).
 - **Example artifact:** [offer_case_participant_role.json](../examples/offer_case_participant_role.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant_role, json2md
+The [`CaseParticipantRole`](../activitypub/objects.md#caseparticipantrole) object carries the role.
+This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor recommendation to the Case Owner and is covered under [Offer case participant](general.md#offer-case-participant).
 
-print(json2md(offer_case_participant_role()))
-```
+{% include-markdown "./_occasions/sections/accept-case-participant-role.md" %}
 
-The [`CaseParticipantRole`](../activitypub/objects.md#caseparticipantrole) object carries the role. This offer is distinct from
-`Offer(CaseParticipant)`, which forwards an actor recommendation to the Case Owner
-and is covered on [General (GI) Messages](general.md).
-
----
-
-## Accept Case Participant Role
-
-- **Protocol role:** The target actor accepts the offered role and holds it from
-  that point.
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Accept(Offer(CaseParticipantRole))`.
-- **How-to:** [How to Delegate a Role to Another Participant](../../howto/activitypub/activities/role_delegation.md).
 - **Example artifact:** [accept_case_participant_role.json](../examples/accept_case_participant_role.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_role, json2md
+{% include-markdown "./_occasions/sections/reject-case-participant-role.md" %}
 
-print(json2md(accept_case_participant_role()))
-```
-
----
-
-## Reject Case Participant Role
-
-- **Protocol role:** The target actor declines the offered role. The roster is
-  unchanged.
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Reject(Offer(CaseParticipantRole))`.
-- **How-to:** [How to Delegate a Role to Another Participant](../../howto/activitypub/activities/role_delegation.md).
 - **Example artifact:** [reject_case_participant_role.json](../examples/reject_case_participant_role.json).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_role, json2md
-
-print(json2md(reject_case_participant_role()))
-```
 
 The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase, target=CaseParticipant)` for offering a role has been removed.
 
----
+{% include-markdown "./_occasions/sections/offer-case-ownership-transfer.md" %}
 
-## Offer Case Ownership Transfer
-
-- **Protocol role:** The current Case Owner offers to transfer ownership to another actor (e.g. from a reporter to a coordinator).
-  The offer is routed through the CASE_MANAGER, which records it in the ledger ([§11.3 Case Ownership Transfer](../vultron-spec/interactions.md#113-case-ownership-transfer-n)); see [Case Ownership Transfer](../../topics/case_lifecycle/ownership_transfer.md).
+- **Routing:** the offer is routed through the CASE_MANAGER, which records it in the ledger ([§11.3 Case Ownership Transfer](../vultron-spec/interactions.md#113-case-ownership-transfer-n)); see [Case Ownership Transfer](../../topics/case_lifecycle/ownership_transfer.md).
+- **Target:** the recipient's URI.
 - **Triggering transition:** none — ownership transfer is a roster operation.
-- **Wire activity:** `Offer(VulnerabilityCase)` with `target` = recipient URI.
 - **Example artifact:** [offer_case_ownership_transfer.json](../examples/offer_case_ownership_transfer.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_ownership_transfer, json2md
+{% include-markdown "./_occasions/sections/accept-case-ownership-transfer.md" %}
 
-print(json2md(offer_case_ownership_transfer()))
-```
-
----
-
-## Accept Case Ownership Transfer
-
-- **Protocol role:** The recipient accepts the ownership transfer offer.
 - **Triggering transition:** none — roster operation.
-- **Wire activity:** `Accept(Offer(VulnerabilityCase))`.
 - **Example artifact:** [accept_case_ownership_transfer.json](../examples/accept_case_ownership_transfer.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_ownership_transfer, json2md
+{% include-markdown "./_occasions/sections/reject-case-ownership-transfer.md" %}
 
-print(json2md(accept_case_ownership_transfer()))
-```
-
----
-
-## Reject Case Ownership Transfer
-
-- **Protocol role:** The recipient declines the ownership transfer offer.
+- **Routing:** the refusal is addressed to the CASE_MANAGER, not to the actor that made the offer ([CM-21-010](../specs/protocol.md#cm-21-010)).
+  The CASE_MANAGER acts on it only when it comes from the proposed owner of an open offer it recorded ([CM-21-013](../specs/protocol.md#cm-21-013)).
+  It records the refusal in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../specs/protocol.md#cm-21-012)).
+- **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/protocol.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
-- **Wire activity:** `Reject(Offer(VulnerabilityCase))`.
 - **Example artifact:** [reject_case_ownership_transfer.json](../examples/reject_case_ownership_transfer.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_ownership_transfer, json2md
+{% include-markdown "./_occasions/sections/withdraw-case-ownership-transfer.md" %}
 
-print(json2md(reject_case_ownership_transfer()))
-```
+- **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-015](../specs/protocol.md#cm-21-015)).
+  The CASE_MANAGER acts on it only when it comes from the Case Owner that made an open offer it recorded.
+  It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer: the proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../specs/protocol.md#cm-21-014)).
+  A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded and nothing sent.
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names the `offer_id` it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Triggering transition:** none — roster operation.
+- **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 
----
+{% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
-## Invite Actor to Case
-
-- **Protocol role:** The CASE_MANAGER invites a new actor to join the case, carrying the case stub and the embargo terms the invitee would agree to.
-  The Case Owner decides whom to invite; a participant that wants a third party brought in sends a recommendation instead (`Offer(CaseParticipant)`, on [General (GI) Messages](general.md)).
+- **Who decides:** the Case Owner decides whom to invite; a participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).
   See [§11.2 Invitation and Acceptance](../vultron-spec/interactions.md#112-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Invite(Actor, target=VulnerabilityCaseStub)`.
-  The `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
+- **Object and target:** the `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
   The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010), [MV-10-001](../specs/protocol.md#mv-10-001)).
   The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, and the receiver refuses a stub with an absent or blank `summary`.
   The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../specs/protocol.md#cm-11-019)).
@@ -232,156 +119,73 @@ print(json2md(reject_case_ownership_transfer()))
 - **Ask kind:** the Invite closes on `Accept` or `Reject` of it (`INVITE_ACTOR_TO_CASE_REPLY_TYPES`), and its expiry is stale: a late reply is still processed ([ASK-03-008](../specs/protocol.md#ask-03-008)).
 - **Example artifact:** [invite_to_case.json](../examples/invite_to_case.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import rm_invite_to_case, json2md
+{% include-markdown "./_occasions/sections/accept-invite-to-case.md" %}
 
-print(json2md(rm_invite_to_case()))
-```
-
----
-
-## Accept Invite to Case
-
-- **Protocol role:** The invited actor accepts and joins the case at RM Received.
-  The CASE_MANAGER records the acceptance in the ledger, marks the participant's existing record joined, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
+- **Effects:** the CASE_MANAGER records the acceptance in the ledger, marks the participant's existing record joined, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
   An Accept from an invitee with no participant record is refused with a reported reason and writes nothing, because an Accept never creates a participant ([CM-11-021](../specs/protocol.md#cm-11-021)).
   The Accept is the ledger entry for its own effects (the consent row and `joined`), which a replica applies; the record's creation and a vendor's VF status have their own entries; the CASE_MANAGER sends no `Add(CaseParticipant)` for it ([CM-31-012](../specs/protocol.md#cm-31-012)).
-- **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCaseStub))`.
-  It joins the case and consents to the active embargo; it does not judge the case.
-  The participant judges the case by answering the full-case Invite that follows.
+- **What it does not do:** it joins the case and consents to the active embargo; it does not judge the case.
+  The participant judges the case by answering the [Full-Case Invite](#invite-actor-to-full-case) that follows.
 - **Example artifact:** [accept_invite_to_case.json](../examples/accept_invite_to_case.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_invite_to_case, json2md
+{% include-markdown "./_occasions/sections/reject-invite-to-case.md" %}
 
-print(json2md(accept_invite_to_case()))
-```
-
----
-
-## Reject Invite to Case
-
-- **Protocol role:** The invited actor declines.
-  The CASE_MANAGER moves the invitee's record to RM Closed and keeps it, and the participant stays inert ([CM-11-007](../specs/protocol.md#cm-11-007)).
+- **Effects:** the CASE_MANAGER moves the invitee's record to RM Closed and keeps it, and the participant stays inert ([CM-11-007](../specs/protocol.md#cm-11-007)).
   A `Reject` from an invitee that has no participant record is refused with a reported reason, not ignored ([CM-11-018](../specs/protocol.md#cm-11-018)).
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Reject(Invite(Actor, target=VulnerabilityCaseStub))`.
 - **Example artifact:** [reject_invite_to_case.json](../examples/reject_invite_to_case.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_invite_to_case, json2md
+{% include-markdown "./_occasions/sections/invite-actor-to-full-case.md" %}
 
-print(json2md(reject_invite_to_case()))
-```
-
----
-
-## Invite Actor to Full Case
-
-- **Protocol role:** After a participant joins, the CASE_MANAGER sends `Announce(VulnerabilityCase)`, starts the ledger replay, and then asks the participant to judge the case with the full-case Invite ([CM-11-010](../specs/protocol.md#cm-11-010), [ADR-0121](../../adr/0121-joined-participant-judges-the-case-by-full-case-invite.md)).
+- **Sequence:** after a participant joins, the CASE_MANAGER sends `Announce(VulnerabilityCase)`, starts the ledger replay, and then asks the participant to judge the case with the full-case Invite ([CM-11-010](../specs/protocol.md#cm-11-010), [ADR-0121](../../adr/0121-joined-participant-judges-the-case-by-full-case-invite.md)).
   The participant already holds the case, so the Invite names it by URI and asks one question: is this case valid?
 - **Triggering transition:** none — the Invite asks; the reply moves RM.
-- **Wire activity:** `Invite(Actor, target=VulnerabilityCase)`.
-  The `object` is the participant, and the `target` is the plain case URI ([AKM-02-003](../specs/protocol.md#akm-02-003)).
+- **Object and target:** the `object` is the participant, and the `target` is the plain case URI ([AKM-02-003](../specs/protocol.md#akm-02-003)).
   The CASE_MANAGER's ledger position when it issued the Invite travels in the standard AS2 `content` field, as the JSON dump of the `LedgerPosition` model, for example `{"logIndex":3,"entryHash":"<hash>"}`.
   It is a floor: the participant's reply must reach at least this point in the ledger ([VAM-04-011](../specs/protocol.md#vam-04-011)).
   An empty ledger is `logIndex` -1 with the case's `genesisHash` as `entryHash` ([CLP-08-004](../specs/protocol.md#clp-08-004)).
 - **Ask kind:** the Invite closes on `Accept`, `TentativeReject` or `Reject` of it (`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES`).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import invite_to_full_case, json2md
+{% include-markdown "./_occasions/sections/accept-full-case-invite.md" %}
 
-print(json2md(invite_to_full_case()))
-```
-
----
-
-## Accept Full-Case Invite
-
-- **Protocol role:** The participant judges the case valid (RV).
-  The CASE_MANAGER records RM Received → Valid ([CM-11-011](../specs/protocol.md#cm-11-011)).
-- **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCase))`.
-  The reply carries the participant's own ledger position in `content`, in the same form as the Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
+- **Effects:** the participant judges the case valid ([Validate report](rm.md#report-valid)), and the CASE_MANAGER records RM Received → Valid ([CM-11-011](../specs/protocol.md#cm-11-011)).
+- **Ledger position:** the reply carries the participant's own ledger position in `content`, in the same form as the Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
   The CASE_MANAGER refuses a reply whose position is behind the Invite's, or names an entry its ledger does not hold, and writes nothing ([CM-11-012](../specs/protocol.md#cm-11-012)).
   It also refuses, and writes nothing for, a reply from an inert participant that has not joined the case (CM-11-012).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_full_case_invite, json2md
+{% include-markdown "./_occasions/sections/tentatively-reject-full-case-invite.md" %}
 
-print(json2md(accept_full_case_invite()))
-```
-
----
-
-## Tentatively Reject Full-Case Invite
-
-- **Protocol role:** The participant judges the case invalid (RI).
-  The CASE_MANAGER records RM Received → Invalid.
+- **Effects:** the participant judges the case invalid ([Invalidate report](rm.md#report-invalid)), and the CASE_MANAGER records RM Received → Invalid.
   The stub Invite has no `TentativeReject`, because accepting a stub judges nothing ([CM-11-007](../specs/protocol.md#cm-11-007)).
-- **Wire activity:** `TentativeReject(Invite(Actor, target=VulnerabilityCase))`, carrying the participant's ledger position in `content` ([VAM-04-013](../specs/protocol.md#vam-04-013)).
+- **Ledger position:** the reply carries the participant's ledger position in `content` ([VAM-04-013](../specs/protocol.md#vam-04-013)).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import tentative_reject_full_case_invite, json2md
+{% include-markdown "./_occasions/sections/reject-full-case-invite.md" %}
 
-print(json2md(tentative_reject_full_case_invite()))
-```
+- **Effects:** the participant closes the case ([Close report](rm.md#report-closed)), and the CASE_MANAGER records RM Received → Closed; the participant stops receiving case content.
+- **Ledger position:** the reply carries the participant's ledger position in `content` ([VAM-04-014](../specs/protocol.md#vam-04-014)).
 
----
+{% include-markdown "./_occasions/sections/announce-vulnerability-case.md" %}
 
-## Reject Full-Case Invite
-
-- **Protocol role:** The participant closes the case (RC).
-  The CASE_MANAGER records RM Received → Closed, and the participant stops receiving case content.
-- **Wire activity:** `Reject(Invite(Actor, target=VulnerabilityCase))`, carrying the participant's ledger position in `content` ([VAM-04-014](../specs/protocol.md#vam-04-014)).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_full_case_invite, json2md
-
-print(json2md(reject_full_case_invite()))
-```
-
----
-
-## Announce Vulnerability Case
-
-- **Protocol role:** Sent by the CASE_MANAGER to a newly admitted participant after their `Accept(Invite)` clears embargo consent checks.
-  The full `VulnerabilityCase` object is delivered inline so the recipient can seed its local replica ([PCR-02-002](../specs/protocol.md#pcr-02-002)).
+- **Contents:** the full `VulnerabilityCase` object is delivered inline so the recipient can seed its local replica ([PCR-02-002](../specs/protocol.md#pcr-02-002)).
   The same activity delivers a full case snapshot at every later lifecycle stage ([PCR-02-001](../specs/protocol.md#pcr-02-001)).
 - **Triggering transition:** none — roster action following invite acceptance.
-- **Wire activity:** `Announce(VulnerabilityCase)`.
 - **Example artifact:** [announce_case.json](../examples/announce_case.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import announce_case, json2md
+{% include-markdown "./_occasions/sections/close-case.md" %}
 
-print(json2md(announce_case()))
-```
+- **Triggering transition:** RM: A → C.
+- **Example artifact:** [close_case.json](../examples/close_case.json).
 
----
+{% include-markdown "./_occasions/sections/create-case-participant.md" %}
 
-## Create Case Participant
-
-- **Protocol role:** Mints a new `CaseParticipant` record pairing an actor
-  with a case and a set of CVD roles.
 - **Triggering transition:** none — object construction.
-- **Wire activity:** `Create(CaseParticipant)`.
 - **Example artifact:** [create_participant.json](../examples/create_participant.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_participant, json2md
+{% include-markdown "./_occasions/sections/add-case-participant-to-case.md" %}
 
-print(json2md(create_participant()))
-```
-
----
-
-## Add Case Participant to Case
-
-- **Protocol role:** The Case Owner's request to the CASE_MANAGER to reinstate a removed participant.
-  Reinstatement clears the participant's removal fact, so it is entitled to case content again; it does not ask the participant to accept again.
+- **Reinstatement:** it clears the participant's removal fact, so it is entitled to case content again; it does not ask the participant to accept again.
   `Add(CaseParticipant)` does not seat a new member: an actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
 - **Triggering transition:** none — the participant's record loses its removal fact.
-- **Wire activity:** `Add(CaseParticipant)` with `target` = case URI.
 - **Who may send:**
   The CASE_MANAGER accepts it only from the Case Owner.
   It refuses an `Add` that names a participant that is not removed, a participant that never joined the case, or no participant of the case.
@@ -395,24 +199,14 @@ print(json2md(create_participant()))
   The notice is not ledgered.
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
 
+The example above shows a Vendor that holds the Case Owner role reinstating a Coordinator.
 The wire shape is the same whatever roles the participant holds; only `caseRoles` on the attached object differs.
-A Vendor that holds the Case Owner role, reinstating a Coordinator:
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_coordinator_participant_to_case, json2md
+{% include-markdown "./_occasions/sections/remove-case-participant-from-case.md" %}
 
-print(json2md(add_coordinator_participant_to_case()))
-```
-
----
-
-## Remove Case Participant from Case
-
-- **Protocol role:** The Case Owner's request to the CASE_MANAGER to remove a participant from active participation.
-  Removal withdraws the participant's entitlement to case content; the participant's record stays on the case roster.
+- **Removal:** it withdraws the participant's entitlement to case content; the participant's record stays on the case roster.
 - **Triggering transition:** none — the participant's record gains a removal fact.
-- **Wire activity:** `Remove(CaseParticipant)` with `target` = case URI.
-  The case MUST be named in `target`; a `Remove` that names the case only in `origin` is not recognized as this message.
+- **Target:** the case MUST be named in `target`; a `Remove` that names the case only in `origin` is not recognized as this message.
 - **Who may send:**
   The CASE_MANAGER accepts it only from the Case Owner.
   It refuses a removal of the CASE_MANAGER's or the Case Owner's participant, and a removal that names no participant of the case.
@@ -425,8 +219,15 @@ print(json2md(add_coordinator_participant_to_case()))
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import remove_participant_from_case, json2md
+## Update Case { #update-case }
 
-print(json2md(remove_participant_from_case()))
-```
+`Update(VulnerabilityCase)` is not an occasion: it is not a message any actor sends.
+
+- **Protocol role:** it is reserved as the snapshot shape of a ledger entry.
+  Every change the CASE_MANAGER makes to the case file must be its own ledger entry ([CLP-07-013](../specs/protocol.md#clp-07-013)), and an `Update` carrying the case in full is the shape such an entry takes for a change to a case field.
+  The prototype does not yet commit an `Update(VulnerabilityCase)` entry: the canonical-entry check does not yet admit that signature.
+  Once it does, replicas copy the entry from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
+- **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
+- **Triggering transition:** none — metadata change, not a state transition.
+- **Example artifact:** [update_case.json](../examples/update_case.json), the snapshot shape as the case actor would author it.

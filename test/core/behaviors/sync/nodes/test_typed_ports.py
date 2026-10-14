@@ -43,7 +43,6 @@ from vultron.core.behaviors.sync.nodes.chain import (
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
-    CollectNonClosedLogEntryRecipientsNode,
     SendLogEntryToEachNode,
 )
 from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
@@ -76,7 +75,6 @@ LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
         "name": "CollectAndSortCaseLedgerEntries"
     },
     "CollectLogEntryRecipientsNode": {"case_id": LEDGER_CASE_ID},
-    "CollectNonClosedLogEntryRecipientsNode": {"case_id": LEDGER_CASE_ID},
     "CreateLogEntryNode": {
         "case_id": LEDGER_CASE_ID,
         "object_id": "https://example.org/activities/act-001",
@@ -331,13 +329,7 @@ class TestFanoutCollectorsRequireCase:
     BT-05-006). They now hard-fail through ``_require_case``.
     """
 
-    @pytest.mark.parametrize(
-        "node_cls",
-        [
-            CollectLogEntryRecipientsNode,
-            CollectNonClosedLogEntryRecipientsNode,
-        ],
-    )
+    @pytest.mark.parametrize("node_cls", [CollectLogEntryRecipientsNode])
     def test_missing_case_fails(
         self, bt_scenario: BTTestScenario, node_cls: type
     ) -> None:

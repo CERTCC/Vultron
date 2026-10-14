@@ -1541,6 +1541,70 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         assert updated.attributed_to == OWNER_ACTOR_ID
 
 
+class TestAnnounceLogEntryOfOwnershipTransferReject:
+    """A replica applies no state change from a declined transfer (CM-21-012).
+
+    ``reject_case_ownership_transfer`` is declared ``NO_REPLICA_EFFECT``
+    (RSH-08-004): the entry closes the Offer, which every reader learns from
+    the ledger itself, and moves no owner or role.
+    """
+
+    @pytest.mark.spec("CM-21-012")
+    @pytest.mark.spec("RSH-08-004")
+    def test_reject_entry_is_persisted_and_ownership_unchanged(
+        self, bridge, datalayer, case_actor
+    ):
+        case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        roles: dict[str, list[CVDRole]] = {
+            OWNER_ACTOR_ID: [CVDRole.CASE_OWNER],
+            NEW_OWNER_ID: [],
+        }
+        for actor_id, case_roles in roles.items():
+            participant = CaseParticipant(
+                attributed_to=actor_id, context=CASE_ID, case_roles=case_roles
+            )
+            datalayer.create(participant)
+            case.actor_participant_index[actor_id] = participant.id_
+            case.case_participants.append(participant.id_)
+        datalayer.save(case)
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/reject-ownership",
+                event_type="reject_case_ownership_transfer",
+                payload_snapshot={"type": "Reject", "actor": NEW_OWNER_ID},
+                prev_log_hash=case.genesis_hash,
+            )
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert [
+            e.event_type
+            for e in datalayer.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ] == ["reject_case_ownership_transfer"]
+        updated = datalayer.read(CASE_ID)
+        assert isinstance(updated, VulnerabilityCase)
+        assert updated.attributed_to == OWNER_ACTOR_ID
+        for actor_id, case_roles in roles.items():
+            participant = datalayer.read(
+                updated.actor_participant_index[actor_id]
+            )
+            assert isinstance(participant, CaseParticipant)
+            assert (CVDRole.CASE_OWNER in participant.case_roles) is (
+                CVDRole.CASE_OWNER in case_roles
+            )
+
+
 # ---------------------------------------------------------------------------
 # RSH-05-021: Selector(ApplyOrFault) — fault emission and persist blocking
 # ---------------------------------------------------------------------------
