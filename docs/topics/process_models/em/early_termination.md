@@ -87,7 +87,8 @@ The cause stays with the Case Manager's record and is not sent in the terminatio
 
 An embargo does not end by itself when its end time passes.
 The Case Manager ends it with the reason `END_TIME_REACHED`, and the termination runs the same steps as any other: open proposals are canceled, the case leaves the embargo, and every Participant is told.
-The Case Manager checks the end time the next time it handles the case, so no scheduler is needed.
+The Case Manager checks the end time the next time it handles the case, whether for an incoming message or one of its own actions, so no scheduler is needed.
+A request to end the embargo early that arrives after its end time is recorded as `END_TIME_REACHED`, because the embargo had already reached its end.
 An outside service, such as a [Sentinel](../../../reference/glossary.md) watching embargo timers, can also ask the Case Manager to end the embargo at its end time.
 The two requests share one path: whichever arrives second finds the embargo already ended, and nothing more is sent.
 A termination that claims the end time was reached before it was is refused.
