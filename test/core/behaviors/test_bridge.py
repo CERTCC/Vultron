@@ -24,7 +24,11 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+)
+from vultron.core.behaviors.node_logger import PORT_WIRING_LOGGER_NAME
 from vultron.core.behaviors.store_scope import same_authority
 from vultron.errors import VultronError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -767,25 +771,17 @@ def test_final_bt_state_logged_at_debug(
     )
 
 
-def test_bt_structure_logged_at_debug(bridge, test_actor_id, caplog):
-    """The pre-execution BT structure dump is DEBUG-only (SL-04-007)."""
+def test_no_tree_dump_before_ticking(bridge, test_actor_id, caplog):
+    """Setup writes no tree dump, even at DEBUG (#4600).
+
+    Before the first tick every node is unrun, so the dump restated the tree's
+    shape — code, not run-time state — and the ``Final BT state`` dump that
+    follows execution carries the same shape with each node's result.  In CI
+    it was about a tenth of every container's DEBUG output.
+    """
     import logging
 
     with caplog.at_level(logging.DEBUG):
-        bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
-
-    structure_records = [
-        r for r in caplog.records if "BT structure" in r.message
-    ]
-    assert structure_records, "Expected 'BT structure' log entry"
-    assert all(r.levelno == logging.DEBUG for r in structure_records)
-
-
-def test_bt_structure_not_emitted_at_info(bridge, test_actor_id, caplog):
-    """No 'BT structure' record reaches an INFO-only handler (SL-04-007)."""
-    import logging
-
-    with caplog.at_level(logging.INFO):
         bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
 
     assert not [r for r in caplog.records if "BT structure" in r.message]
@@ -1991,3 +1987,29 @@ def test_wiring_error_is_flagged_internal():
     assert "VultronWiringError: sync_port must be injected" in (
         result.feedback_message
     )
+
+
+class _PortedNode(DataLayerActionWithPorts):
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+def test_port_wiring_is_logged_on_the_port_wiring_logger(
+    bridge, test_actor_id, caplog
+):
+    """py_trees' per-port registration lines leave the node's own logger.
+
+    They restate a node class's declared ports on every tree build — over half
+    of every container's DEBUG output in CI (#4600) — so they get a logger of
+    their own that the entry points keep at INFO (``vultron.logging_setup``).
+    """
+    bt = bridge.setup_tree(tree=_PortedNode("ported"), actor_id=test_actor_id)
+
+    with caplog.at_level(logging.DEBUG):
+        bridge.execute_tree(bt)
+
+    wiring = [
+        r for r in caplog.records if "Registered blackboard key" in r.message
+    ]
+    assert wiring, "expected py_trees to log the port registrations"
+    assert {r.name for r in wiring} == {PORT_WIRING_LOGGER_NAME}

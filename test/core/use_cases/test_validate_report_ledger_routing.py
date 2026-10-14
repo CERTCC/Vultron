@@ -364,13 +364,13 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
     def _make_case_actor_dl(self) -> SqliteDataLayer:
         """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link."""
-        from vultron.core.models.case_actor import CaseActor
+        from vultron.core.models.actor import VultronService
 
         dl = _make_dl(self.CASE_ACTOR_ID)
 
         # The CaseActor Service must have context=case_id so that
         # _find_case_actor_id resolves it via the Service scan.
-        case_actor_svc = CaseActor(
+        case_actor_svc = VultronService(
             id_=self.CASE_ACTOR_ID,
             context=self.CASE_ID,
         )
@@ -574,7 +574,7 @@ class TestFullValidateReportLedgerChain:
 
     def test_case_actor_ledger_contains_validate_report_after_trigger(self):
         """CaseActor ledger has 'validate_report' after vendor triggers validate."""
-        from vultron.core.models.case_actor import CaseActor
+        from vultron.core.models.actor import VultronService
         from vultron.core.use_cases._helpers import outbox_ids
 
         # ── Step 1: vendor_dl — case at RM.RECEIVED ──────────────────────────
@@ -633,7 +633,7 @@ class TestFullValidateReportLedgerChain:
         case_actor_dl = _make_dl(case_actor_id)
 
         # The CaseActor Service needs context=case.id_ for _find_case_actor_id.
-        ca_svc = CaseActor(id_=case_actor_id, context=case.id_)
+        ca_svc = VultronService(id_=case_actor_id, context=case.id_)
         case_actor_dl.save(ca_svc)
 
         ca_case = as_VulnerabilityCase(

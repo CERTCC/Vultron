@@ -34,6 +34,7 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.node_logger import port_wiring_logger
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
@@ -91,7 +92,8 @@ class SkipIfIdempotentNode(BehaviourWithPorts):
         self.setup_ports(
             port_remappings={
                 "append_status_participant": "/append_status_participant"
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:

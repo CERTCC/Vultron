@@ -52,6 +52,16 @@ class CaseOutboxPersistence(CasePersistence, Protocol):
     needed.
     """
 
-    def outbox_append(self, activity_id: str) -> None: ...
+    def outbox_append(self, activity_id: str) -> bool:
+        """Queue *activity_id* unless it is already pending; ``True`` if queued.
+
+        This is the outbox-id idempotency check (OX-06-002, ADR-0119): an
+        activity already waiting in this outbox is not queued again, so a
+        retry that rebuilds an activity under the id its first attempt used
+        sends it once.  An id no longer pending — delivered, or never queued —
+        is queued again, and the receiver deduplicates the redelivery by id
+        (ID-02-001).  Callers do not check ``outbox_list()`` first.
+        """
+        ...
 
     def outbox_list(self) -> list[str]: ...

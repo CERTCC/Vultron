@@ -57,8 +57,8 @@ from vultron.core.behaviors.sync.announce_tree import (
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -146,7 +146,7 @@ def _make_full_dl(
     """
     dl = _make_dl(store_owner_id)
 
-    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(
@@ -2705,6 +2705,7 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
     """
 
     @pytest.mark.spec("CLP-09-001")
+    @pytest.mark.spec("VP-17-001")
     def test_non_case_manager_receiver_commits_no_canonical_entry(self):
         """A receiver without the CASE_MANAGER role authors nothing."""
         dl = _make_full_dl()

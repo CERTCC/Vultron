@@ -255,3 +255,53 @@ def test_test_datalayer_uses_in_memory_storage(datalayer):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_datalayer_contents_type_filter_serves_only_those_types(
+    client, datalayer
+):
+    """A ``type`` filter narrows the dump without changing its serialization.
+
+    The demo's polls look for one received activity in a store that a late
+    joiner's backfill is filling; dumping the whole store on every poll cost
+    the busy container more as the store grew (#4600).  Each object served
+    under the filter is byte-for-byte what the whole-store dump serves for it.
+    """
+    report = as_VulnerabilityReport(
+        id_="urn:uuid:report-1", content="Test vulnerability content"
+    )
+    datalayer.create(report)
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id=ACTOR_ID,
+        report_id="urn:uuid:report-1",
+    )
+    datalayer.create(record)
+    path = f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/"
+    whole = client.get(path).json()
+
+    response = client.get(path, params={"type": "VulnerabilityReport"})
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {report.id_: whole[report.id_]}
+
+
+def test_datalayer_contents_type_filter_accepts_several_types(
+    client, datalayer
+):
+    report = as_VulnerabilityReport(id_="urn:uuid:report-1", content="x")
+    datalayer.create(report)
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id=ACTOR_ID,
+        report_id="urn:uuid:report-1",
+    )
+    datalayer.create(record)
+
+    response = client.get(
+        f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/",
+        params=[("type", "VulnerabilityReport"), ("type", record.type_)],
+    )
+
+    assert response.status_code == 200, response.text
+    assert set(response.json()) == {report.id_, record.id_}

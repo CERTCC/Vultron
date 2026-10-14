@@ -504,7 +504,9 @@ class TestAckReportReceivedTree:
         """Full BT archives the AckReport activity via intake → SUCCESS."""
         _record_offer_to_sender(dl)
         event = _make_ack_report_event()
-        tree = create_ack_report_received_tree(event)
+        tree = create_ack_report_received_tree(
+            event, sender_rule=AckReportReceivedUseCase.sender_entitlement
+        )
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -517,7 +519,9 @@ class TestAckReportReceivedTree:
         """AckReportReceivedBT must NOT create standalone ParticipantStatus."""
         _record_offer_to_sender(dl)
         event = _make_ack_report_event()
-        tree = create_ack_report_received_tree(event)
+        tree = create_ack_report_received_tree(
+            event, sender_rule=AckReportReceivedUseCase.sender_entitlement
+        )
         bridge = BTBridge(datalayer=dl)
         bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID, activity=event)
 
@@ -533,7 +537,9 @@ class TestAckReportReceivedTree:
         event = _make_ack_report_event()
         bridge = BTBridge(datalayer=dl)
         for _ in range(2):
-            tree = create_ack_report_received_tree(event)
+            tree = create_ack_report_received_tree(
+                event, sender_rule=AckReportReceivedUseCase.sender_entitlement
+            )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )

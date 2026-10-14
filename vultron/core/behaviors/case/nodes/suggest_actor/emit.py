@@ -43,6 +43,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.node_logger import port_wiring_logger
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -180,7 +181,8 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
                 "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def initialise(self) -> None:

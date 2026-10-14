@@ -276,8 +276,11 @@ class _LateOTOfferClient:
         self._delay = delay
         self.calls = 0
 
-    def get(self, path: str) -> dict | None:
+    def get(self, path: str, params: dict | None = None) -> dict | None:
         if path == self.dl_path():
+            # The finder reads only the type the forwarded Offer is stored as
+            # (#4600), never the whole store.
+            assert params == {"type": ["Offer"]}, params
             self.calls += 1
             if self.calls <= self._delay:
                 return {}

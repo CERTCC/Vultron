@@ -23,7 +23,7 @@ from test.core.use_cases.received.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.dimensions import (
     EmDimension,
@@ -734,7 +734,7 @@ class TestParticipantStatusLogEntryCascade:
         # receiving_actor_id they pass), so this is the CaseActor's own store.
         case_actor_id = f"{case_id}/actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        case_actor = CaseActor(
+        case_actor = VultronService(
             id_=case_actor_id,
             name=f"CaseActor for {case_id}",
             attributed_to=actor_id,

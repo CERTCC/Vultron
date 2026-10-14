@@ -302,22 +302,37 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The implementation MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
-      within `InitializeDefaultEmbargoNode`. The intermediate `EM.PROPOSED` state MUST NOT
-      be persisted or observable externally.
+      When a default embargo is created, the intermediate EM Proposed state MUST NOT be
+      observable to other participants: no message, ledger entry or replica shows the
+      embargo as Proposed.
     verification: >-
-      The `initialize_creation_embargo` service tests confirm that the creation-time operation
-      hands the store one commit (`save_many`) holding the case at `EM.ACTIVE` with the embargo
-      attached, the participant consent records, the case owner's signatory seed and, for a
-      contested creation, the revision's `EmbargoEvent` with the case at `EM.REVISE`; that a
-      refused P/X/A check, an unheld embargo, a missing owner record or a case that has left
-      `EM.NONE` writes nothing; and that a failed commit writes nothing and a rerun completes.
-      `TestCreationTimeEmbargoIsOneWrite` refuses the ACCEPT step after PROPOSE has been applied
-      and asserts the stored case stays at `EM.NONE`, and that a rerun then reaches `EM.ACTIVE`
-      with an attached embargo (EP-04-012, #4123).
+      `TestCreationTimeEmbargoIsOneWrite` refuses the ACCEPT step after PROPOSE has been
+      applied and asserts the stored case stays at `EM.NONE` rather than `EM.PROPOSED`, and
+      that a rerun then reaches `EM.ACTIVE` with an attached embargo (EP-04-012, #4123).
       `TestCreationTimeEmbargoCommitsItsEffectsWithIt` faults the owner-seed write and the
       revision write in turn and asserts the case stays at `EM.NONE` and that a rerun seeds
       the owner and registers the revision (#4142).
+  - id: EP-04-013
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      This codebase MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
+      within `InitializeDefaultEmbargoNode`, and MUST NOT persist the intermediate
+      `EM.PROPOSED` state.
+    rationale: >-
+      How this codebase meets EP-04-002; split from it so EP-04-002 states only what other
+      participants observe (MS-12-010).
+    verification: >-
+      The `initialize_creation_embargo` service tests confirm that the creation-time
+      operation hands the store one commit (`save_many`) holding the case at `EM.ACTIVE`
+      with the embargo attached, the participant consent records, the case owner's signatory
+      seed and, for a contested creation, the revision's `EmbargoEvent` with the case at
+      `EM.REVISE`; that a refused P/X/A check, an unheld embargo, a missing owner record or
+      a case that has left `EM.NONE` writes nothing; and that a failed commit writes nothing
+      and a rerun completes.
+    relationships:
+    - rel_type: implements
+      spec_id: EP-04-002
   - id: EP-04-003
     priority: MUST
     kind: protocol

@@ -755,13 +755,14 @@ def wait_for_contiguous_ledger_coverage(
 
 def _poll_datalayer_for(
     client: DataLayerClient,
+    object_types: Sequence[str],
     discriminator_fn: Callable[[dict], bool],
     timeout_seconds: float,
     poll_interval: float,
     log_msg: str,
     error_msg: str,
     id_fn: Callable[[str, dict], str] | None = None,
-    progress_fn: Callable[[dict], int] | None = None,
+    progress_fn: Callable[[], int] | None = None,
     progress_ceiling: float = BACKFILL_PROGRESS_CEILING,
 ) -> str:
     """Poll the client's own DataLayer until *discriminator_fn* matches.
@@ -770,12 +771,17 @@ def _poll_datalayer_for(
     retired unscoped ``/datalayer/``.  Under ADR-0073 there is no store that is
     not some actor's own, so a poll must name whose store it is reading.
 
-    Scans the full DataLayer dict on each tick and calls *discriminator_fn*
-    on every ``dict``-typed value.  Returns the matching object's raw ID
-    string on the first match.
+    Each tick reads the store's objects of *object_types* — serialized as the
+    whole-store dump serializes them — and calls *discriminator_fn* on every
+    ``dict``-typed value.  Returns the matching object's raw ID string on the
+    first match.  The read is never the whole store: the polled container is
+    often the one doing the work being waited on, and rehydrating and
+    serializing its every object twice a second slowed that work down as the
+    store grew (#4600).
 
     Args:
         client: DataLayerClient to poll.
+        object_types: The stored types the awaited object can be held as.
         discriminator_fn: Callable receiving a single ``dict`` and returning
             ``True`` when the target object is found.
         timeout_seconds: Maximum seconds to wait before raising.
@@ -786,8 +792,8 @@ def _poll_datalayer_for(
         id_fn: Maps a match's raw ID and data to the ID returned; the raw ID
             itself when omitted.  A record that wraps another object (a
             received-activity archive) returns the wrapped object's ID.
-        progress_fn: Reads, from the same dump, how far the work queued ahead
-            of the awaited object has got.  When given, *timeout_seconds* is
+        progress_fn: Reads how far the work queued ahead of the awaited
+            object has got.  When given, *timeout_seconds* is
             a stall budget that each advance restarts, up to
             *progress_ceiling* (:class:`ProgressDeadline`); when omitted it is
             a fixed deadline.
@@ -804,11 +810,12 @@ def _poll_datalayer_for(
         timeout_seconds,
         progress_ceiling if progress_fn is not None else timeout_seconds,
     )
+    params = {"type": list(object_types)}
     while not deadline.expired():
         try:
-            all_objects = client.get(client.dl_path())
-            if isinstance(all_objects, dict):
-                for raw_id, obj_data in all_objects.items():
+            objects = client.get(client.dl_path(), params=params)
+            if isinstance(objects, dict):
+                for raw_id, obj_data in objects.items():
                     if not isinstance(obj_data, dict):
                         continue
                     if discriminator_fn(obj_data):
@@ -822,7 +829,7 @@ def _poll_datalayer_for(
                 # Read progress only after the match, so a reading that raises
                 # can never hide an object that has already arrived.
                 if progress_fn is not None:
-                    deadline.observe(progress_fn(all_objects))
+                    deadline.observe(progress_fn())
         except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)
@@ -834,6 +841,12 @@ def _poll_datalayer_for(
 # ---------------------------------------------------------------------------
 # Invite polling helpers
 # ---------------------------------------------------------------------------
+
+
+#: The stored types a received Invite can be held as: intake's archive record,
+#: or the bare activity while the inbox defers it (see
+#: :func:`_received_activity`).
+_RECEIVED_INVITE_TYPES: tuple[str, ...] = ("ReceivedActivityRecord", "Invite")
 
 
 def _received_activity(obj_data: dict) -> dict:
@@ -993,6 +1006,7 @@ def find_case_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
+        object_types=_RECEIVED_INVITE_TYPES,
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id
         ),
@@ -1007,19 +1021,22 @@ def find_case_invite_for_actor(
     )
 
 
-def _count_case_ledger_entries(dump: dict, case_id: str) -> int:
-    """Count *case_id*'s ledger entries in a whole-store dump.
+def _count_case_ledger_entries(client: DataLayerClient, case_id: str) -> int:
+    """Count *case_id*'s ledger entries in *client*'s store.
 
-    The dump serializes every object by alias (camelCase), so an entry's case
-    is ``caseId`` — unlike the ``CaseLedgerEntrys/`` collection, which is
-    served by field name.
+    Read from the ``CaseLedgerEntrys/`` collection, which serves the stored
+    rows by field name (``case_id``) without rehydrating them, the same read
+    :func:`wait_for_contiguous_ledger_coverage` makes.  It still transfers every
+    entry, ``payload_snapshot`` included, on each poll; only the rehydration
+    and the rest of the store are saved (#4600).
     """
+    raw = client.get(client.dl_path("CaseLedgerEntrys/"))
+    if not isinstance(raw, dict):
+        return 0
     return sum(
         1
-        for obj in dump.values()
-        if isinstance(obj, dict)
-        and obj.get("type") == "CaseLedgerEntry"
-        and obj.get("caseId") == case_id
+        for obj in raw.values()
+        if isinstance(obj, dict) and obj.get("case_id") == case_id
     )
 
 
@@ -1042,8 +1059,9 @@ def find_full_case_invite_for_actor(
     time.  The wait is therefore gated on that backfill (EDF-06, ADR-0058):
     each poll that finds more of the case's ledger entries in the invitee's
     store restarts *timeout_seconds*, so a long backfill under CI load is
-    waited for and a stalled one fails (#4424).  The count is read from the
-    same dump the Invite is looked for in, so the wait adds no request.
+    waited for and a stalled one fails (#4424).  The count comes from the
+    unrehydrated ledger collection, not a store dump (#4600), which saves
+    rehydration but still moves every entry per poll.
 
     Args:
         client: DataLayerClient connected to the invitee container.
@@ -1064,13 +1082,14 @@ def find_full_case_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
+        object_types=_RECEIVED_INVITE_TYPES,
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id, full_case=True
         ),
         id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
-        progress_fn=lambda dump: _count_case_ledger_entries(dump, case_id),
+        progress_fn=lambda: _count_case_ledger_entries(client, case_id),
         progress_ceiling=progress_ceiling,
         log_msg=(
             f"Found full-case Invite for actor {invitee_id} on case"
@@ -1151,6 +1170,7 @@ def find_ownership_transfer_offer_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
+        object_types=("Offer",),
         discriminator_fn=lambda obj: _is_ownership_transfer_offer_for(
             obj, case_id, transferee_id
         ),
@@ -1216,6 +1236,7 @@ def find_cp_offer_for_case(
     """
     return _poll_datalayer_for(
         client=client,
+        object_types=("Offer",),
         discriminator_fn=lambda obj: _is_cp_offer_for_case(obj, case_id),
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
@@ -1841,6 +1862,7 @@ def find_embargo_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
+        object_types=_RECEIVED_INVITE_TYPES,
         discriminator_fn=lambda obj: _is_embargo_invite_for(
             obj, embargo_id, invitee_id
         ),

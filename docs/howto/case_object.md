@@ -14,5 +14,5 @@ level: 300
     section and updated to reflect the current implementation.
 
     See [**The Case Model**](../topics/case_lifecycle/case_model.md) for the current
-    version, covering `VulnerabilityCase`, `CaseActor`, `CaseParticipant`,
+    version, covering `VulnerabilityCase`, the Case Actor, `CaseParticipant`,
     status objects, dimension objects, and `CVDRole`.

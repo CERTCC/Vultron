@@ -42,8 +42,8 @@ from vultron.core.behaviors.report.nodes.conditions import (
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoValid,
 )
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -166,7 +166,7 @@ class TestCheckRMStateValidPorts:
     def test_via_bt_scenario_when_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, report, link)
@@ -178,7 +178,7 @@ class TestCheckRMStateValidPorts:
     def test_via_bt_scenario_when_not_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
@@ -191,8 +191,8 @@ class TestCheckRMStateValidPorts:
     ) -> None:
         """sender_actor_id overrides blackboard actor_id (ADR-0022 single-BT)."""
         SENDER_ID = "https://example.org/actors/reporter"
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
-        sender = CaseActor(id_=SENDER_ID, name="Reporter")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        sender = VultronService(id_=SENDER_ID, name="Reporter")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, sender, report, link)
@@ -225,7 +225,7 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     def test_success_when_no_valid_status(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
@@ -237,7 +237,7 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     def test_failure_when_already_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, report, link)
@@ -271,7 +271,7 @@ class TestEnsureEmbargoExistsPorts:
     def test_failure_when_no_case_id_published(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
@@ -282,7 +282,7 @@ class TestEnsureEmbargoExistsPorts:
     def test_success_when_case_has_active_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         case = VulnerabilityCase(
             name="Test Case",
@@ -301,7 +301,7 @@ class TestEnsureEmbargoExistsPorts:
     def test_failure_when_case_has_no_active_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         case = VulnerabilityCase(
             name="Test Case",
@@ -340,7 +340,7 @@ class TestTransitionRMtoValid:
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
 
-        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         offer = VultronOffer(
             id_=OFFER_ID, actor=ACTOR_ID, object_=REPORT_ID, target=ACTOR_ID

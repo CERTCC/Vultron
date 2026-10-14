@@ -22,7 +22,6 @@ from pydantic import ValidationError
 
 from test.support.embargo_register import register
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
@@ -40,7 +39,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -261,25 +259,6 @@ def test_case_ledger_entry_to_core_returns_domain_model():
     assert isinstance(entry, CaseLedgerEntry)
     assert entry.case_id == "https://example.org/cases/1"
     assert entry.entry_hash is not None
-
-
-def test_case_actor_round_trips_between_core_and_wire():
-    """ADR-0099 detail 3: as_CaseActor is CaseActor (identity)."""
-    assert as_CaseActor is CaseActor
-
-    core = CaseActor(
-        id_="https://example.org/actors/case-actor",
-        name="Case Actor",
-        attributed_to="https://example.org/actors/vendor",
-        context="https://example.org/cases/1",
-    )
-
-    assert isinstance(core, as_CaseActor)
-    data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
-    restored = as_CaseActor.model_validate(data)
-    assert restored.id_ == core.id_
-    assert restored.attributed_to == core.attributed_to
-    assert restored.context == core.context
 
 
 # ============================================================================

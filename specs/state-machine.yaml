@@ -25,12 +25,10 @@ groups:
     statement: State enums SHOULD provide both a full descriptive name and a short single-character alias for each state
   - id: SM-01-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: State enum values are the authoritative definition of valid states
     verification: Inspection confirms all state validation and transition guards reference enum values (e.g.,
       `RM.RECEIVED`, `EM.ACTIVE`) rather than raw strings or integer literals.
-    lint_suppress:
-    - missing_story_reference
 - id: SM-02
   title: State Machine Definitions
   specs:
@@ -41,8 +39,10 @@ groups:
       library `Machine` instance for the axis
   - id: SM-02-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms production use-case and handler code calls no
+      `create_*_machine()` factory for runtime state changes.
     statement: '`create_*_machine()` factory functions MUST NOT be called for runtime state changes in production use-case
       or handler code'
     relationships:
@@ -67,12 +67,10 @@ groups:
     statement: Transition definitions SHOULD be stored as a module-level list in the same module that defines the state enum
   - id: SM-03-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Every valid (source → dest) pair that the protocol describes MUST have a corresponding transition entry.'
     verification: The transition list for each axis (RM, EM, VFD, PXA) is compared against the protocol's valid
       (source, dest) pairs; inspection confirms no valid pair is absent.
-    lint_suppress:
-    - missing_story_reference
 - id: SM-04
   title: Runtime State Changes
   specs:

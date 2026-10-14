@@ -38,6 +38,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy import exists, insert, literal, select as sa_select
 from sqlmodel import col, select
 
 from vultron.adapters.outbox_dead_letter import (
@@ -94,6 +95,39 @@ def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
         session.commit()
 
 
+def _queue_append_unless_pending(
+    dl: "SqliteDataLayer", queue: str, activity_id: str
+) -> bool:
+    """Append *activity_id* to *queue* unless it is already there.
+
+    One ``INSERT ... SELECT ... WHERE NOT EXISTS`` statement does the check
+    and the insert, and SQLite runs a single statement atomically, so two
+    writers cannot both find the id absent and both queue it — on a
+    file-backed store too, where sessions are not serialized.
+
+    Returns:
+        ``True`` when the id was queued, ``False`` when it was already pending.
+    """
+    already_pending = exists().where(
+        col(QueueEntry.queue) == queue,
+        col(QueueEntry.activity_id) == activity_id,
+    )
+    stmt = (
+        insert(QueueEntry)
+        .from_select(
+            ["queue", "activity_id"],
+            sa_select(literal(queue), literal(activity_id)).where(
+                ~already_pending
+            ),
+        )
+        .returning(col(QueueEntry.id))
+    )
+    with dl._session() as session:
+        queued_row = session.execute(stmt).scalar_one_or_none()
+        session.commit()
+    return queued_row is not None
+
+
 def inbox_append(
     dl: "SqliteDataLayer",
     activity_id: str,
@@ -134,14 +168,30 @@ def inbox_pop(dl: "SqliteDataLayer") -> str | None:
 def outbox_append(
     dl: "SqliteDataLayer",
     activity_id: str,
-) -> None:
-    """Append an activity ID to this actor's outbox queue.
+) -> bool:
+    """Append an activity ID to this actor's outbox queue unless it is pending.
+
+    The outbox-id idempotency check (OX-06-002, ADR-0119): an id already
+    waiting in this outbox is not queued a second time, so it is delivered
+    once per queueing.  An id no longer pending is queued again; delivery
+    popped it, and the receiver deduplicates a redelivery by id (ID-02-001).
+    The enqueue callback runs only when a row was added.
 
     Args:
         dl: The SqliteDataLayer instance.
         activity_id: ID of the activity to enqueue.
+
+    Returns:
+        ``True`` when the id was queued, ``False`` when it was already pending.
     """
-    _queue_append(dl, "outbox", activity_id)
+    if not _queue_append_unless_pending(dl, "outbox", activity_id):
+        logger.debug(
+            "outbox_append: activity '%s' already pending for actor '%s'"
+            " — not queued again (OX-06-002)",
+            activity_id,
+            dl._actor_id,
+        )
+        return False
     if dl._enqueue_callback is not None:
         try:
             dl._enqueue_callback(dl._actor_id)
@@ -150,6 +200,7 @@ def outbox_append(
                 "outbox_append: enqueue_callback raised for actor '%s'",
                 dl._actor_id,
             )
+    return True
 
 
 def outbox_list(dl: "SqliteDataLayer") -> list[str]:

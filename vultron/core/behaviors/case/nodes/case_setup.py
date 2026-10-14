@@ -33,7 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.store_scope import store_for_actor
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -85,7 +85,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
-        case_actor = CaseActor(id_=case_actor_id, name="CaseActor")
+        case_actor = VultronService(id_=case_actor_id, name="CaseActor")
         own_store = store_for_actor(
             self.datalayer, case_actor_id, require_same_authority=True
         )

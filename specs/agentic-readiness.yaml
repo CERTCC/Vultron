@@ -120,11 +120,9 @@ groups:
     - story_2022_034
   - id: AR-10-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The profile endpoint MUST return HTTP 404 when the actor is not found
     verification: Integration tests confirm that `GET /actors/{unknown_id}/profile` returns HTTP 404.
-    lint_suppress:
-    - missing_story_reference
   - id: AR-10-003
     priority: MUST
     kind: protocol
@@ -157,7 +155,7 @@ groups:
     - story_2022_086
   - id: AR-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The action rules endpoint MUST be reflected in the OpenAPI schema per AR-01-001
     verification: Inspection of the `GET /openapi.json` response confirms the action rules endpoint path and response
       schema are present in the OpenAPI spec.
@@ -170,8 +168,6 @@ groups:
       spec_id: CM-07-002
     - rel_type: depends_on
       spec_id: CM-07-003
-    lint_suppress:
-    - missing_story_reference
 - id: AR-08
   title: CLI Interface
   specs:

@@ -18,8 +18,8 @@
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
 
 
@@ -29,8 +29,8 @@ def actor_id() -> str:
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario, actor_id: str) -> CaseActor:
-    obj = CaseActor(id_=actor_id, name="Vendor Co")
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
+    obj = VultronService(id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 

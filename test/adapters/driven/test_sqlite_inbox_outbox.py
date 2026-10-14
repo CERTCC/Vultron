@@ -73,6 +73,78 @@ def test_outbox_pop_empty_returns_none(dl):
 
 
 # ---------------------------------------------------------------------------
+# Outbox-id idempotency check (OX-06-002, ADR-0119)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("OX-06-002")
+def test_outbox_append_reports_that_it_queued(dl):
+    assert dl.outbox_append("urn:test:once") is True
+    assert dl.outbox_list() == ["urn:test:once"]
+
+
+@pytest.mark.spec("OX-06-002")
+def test_an_id_already_pending_is_not_queued_again(dl):
+    dl.outbox_append("urn:test:first")
+    dl.outbox_append("urn:test:retried")
+    dl.outbox_append("urn:test:last")
+
+    assert dl.outbox_append("urn:test:retried") is False
+
+    # One row, still in its first place: the retry did not move it.
+    assert dl.outbox_list() == [
+        "urn:test:first",
+        "urn:test:retried",
+        "urn:test:last",
+    ]
+
+
+@pytest.mark.spec("OX-06-002")
+def test_an_id_no_longer_pending_is_queued_again(dl):
+    """Delivery pops the row; the same id is queued again, not lost."""
+    dl.outbox_append("urn:test:delivered")
+    assert dl.outbox_pop() == "urn:test:delivered"
+
+    assert dl.outbox_append("urn:test:delivered") is True
+    assert dl.outbox_list() == ["urn:test:delivered"]
+
+
+@pytest.mark.integration
+@pytest.mark.spec("OX-06-002")
+def test_concurrent_appends_to_a_file_backed_store_queue_one_row(file_dl):
+    """File-backed sessions are not serialized; the one statement still is."""
+    import threading
+
+    writers = 8
+    barrier = threading.Barrier(writers)
+    results: list[bool] = []
+    lock = threading.Lock()
+
+    def _append() -> None:
+        barrier.wait()
+        queued = file_dl.outbox_append("urn:test:raced")
+        with lock:
+            results.append(queued)
+
+    threads = [threading.Thread(target=_append) for _ in range(writers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(results) == [False] * (writers - 1) + [True]
+    assert file_dl.outbox_list() == ["urn:test:raced"]
+
+
+@pytest.mark.spec("OX-06-002")
+def test_the_inbox_does_not_take_the_outbox_check(dl):
+    """The check is the outbox's: an id in the inbox does not block it."""
+    dl.inbox_append("urn:test:shared")
+    assert dl.outbox_append("urn:test:shared") is True
+    assert dl.inbox_list() == ["urn:test:shared"]
+
+
+# ---------------------------------------------------------------------------
 # File-backed integration test
 # ---------------------------------------------------------------------------
 
@@ -105,6 +177,18 @@ def test_outbox_append_calls_callback_with_actor_id(scoped_dl):
     """outbox_append fires the enqueue_callback with the actor_id."""
     calls: list[str] = []
     scoped_dl.set_enqueue_callback(calls.append)
+    scoped_dl.outbox_append("urn:test:act-001")
+    assert calls == ["https://example.org/alice"]
+
+
+@pytest.mark.spec("OX-06-002")
+def test_outbox_append_does_not_call_back_for_an_id_already_pending(
+    scoped_dl,
+):
+    """Nothing was queued, so there is nothing new for the drain to wake on."""
+    calls: list[str] = []
+    scoped_dl.set_enqueue_callback(calls.append)
+    scoped_dl.outbox_append("urn:test:act-001")
     scoped_dl.outbox_append("urn:test:act-001")
     assert calls == ["https://example.org/alice"]
 

@@ -336,7 +336,7 @@ class HonourLateAcceptNode(DataLayerActionWithPorts, StateWriteCapable):
     This is the **effect** node in
     :func:`~vultron.core.behaviors.embargo.expiry_tree.create_honour_late_accept_tree`.
     Called after the ledger entry is committed, it applies
-    ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``) by
+    ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED`` by
     delegating to
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`
     (CLP-10-006, BT-06-006, EMB-17-001, ADR-0118).
@@ -384,7 +384,7 @@ class ApplyHonourLateAcceptFromLedgerNode(_LedgerEffectNode):
 
     The entry's ``actor`` is the accepted participant; the entry's ``object``
     carries the Invite's id and the embargo's id.  The replica applies
-    ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``) by
+    ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED`` by
     calling
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`.
     Regime 2 (ADR-0087): a replica holding no copy of the case skips with

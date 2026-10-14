@@ -165,8 +165,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     ``attributed_to`` actor ID.
 
     On SUCCESS, writes the resolved manager ID to the ``case_actor_id``
-    output port so downstream nodes (e.g. ``VerifySenderIsOwnIdNode``) can
-    verify the sender without a separate Service lookup.
+    output port for downstream nodes that need the resolved manager id.
 
     ``case_id`` resolution priority:
     1. Constructor arg ``case_id``.

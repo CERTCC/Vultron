@@ -427,16 +427,22 @@ class CaseParticipant(CoreObject):
         The one seeding shape for a participant that consents to the active
         embargo without an answer of its own (CM-14-003, CM-14-005, the
         Accept of the full-case Invite): apply ``AGREE`` where it is legal.
-        A participant that declined this embargo is left as it is, so the
-        content gate (CM-10-004) never admits an actor whose row says it is
-        not bound.  The caller passes the register's ``ACTIVE`` entry and
-        persists the record.
+        A participant that declined this embargo is left as it is: seeding is
+        not an answer the participant gave, so it never overrides one it did
+        give, and the content gate (CM-10-004) never admits an actor whose row
+        says it is not bound.  Only the participant's own Accept of the
+        embargo changes a decline (CM-18-003).  The caller passes the
+        register's ``ACTIVE`` entry and persists the record.
         """
-        self.apply_pec_transition_if_legal(
-            active_embargo_id,
-            PEC_Trigger.AGREE,
-            entry_status=EmbargoRegisterStatus.ACTIVE,
-        )
+        if (
+            self.consent_for(active_embargo_id)
+            is not EmbargoConsentState.DECLINED
+        ):
+            self.apply_pec_transition_if_legal(
+                active_embargo_id,
+                PEC_Trigger.AGREE,
+                entry_status=EmbargoRegisterStatus.ACTIVE,
+            )
         return self.is_signatory(active_embargo_id)
 
     @property

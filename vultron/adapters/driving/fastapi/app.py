@@ -95,7 +95,9 @@ def configure_logging() -> None:
     # to reduce DEBUG output noise by ~30%.
     logging.getLogger("httpx2").setLevel(logging.WARNING)
 
-    # Drop `transitions` FSM callback chatter from INFO (SL-04-007).
+    # Drop `transitions` FSM callback chatter from INFO (SL-04-007), and keep
+    # the static-wiring loggers (py_trees port registration) at INFO even at
+    # DEBUG (#4600).
     suppress_third_party_info_noise(log_level)
 
 

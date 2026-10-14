@@ -30,7 +30,7 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 )
 from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
 from vultron.core.models._helpers import days_from_now_utc
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.events.base import MessageSemantics
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -55,7 +55,7 @@ def datalayer():
         "sqlite:///:memory:",
         actor_id=ACTOR_ID,
     )
-    actor = CaseActor(id_=ACTOR_ID, name="Vendor Co")
+    actor = VultronService(id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl
 

@@ -1134,3 +1134,144 @@ class TestPxaRejectionAttribution:
         reject = _sole_queued_reject(dl)
         assert ref_id(reject.actor) == self.RECEIVER_ID
         assert [ref_id(r) for r in reject.to or []] == [self.INVITEE_ID]
+
+
+_ANSWERS = {
+    "accept": (
+        em_accept_embargo_activity,
+        AcceptInviteToEmbargoOnCaseReceivedUseCase,
+        EmbargoConsentState.AGREED,
+    ),
+    "reject": (
+        em_reject_embargo_activity,
+        RejectInviteToEmbargoOnCaseReceivedUseCase,
+        EmbargoConsentState.DECLINED,
+    ),
+}
+
+
+class _AnsweredInvite:
+    """A CASE_MANAGER store in which a participant has answered an Invite.
+
+    The answer was delivered once, so the participant's consent row records
+    it, the ledger holds its entry and the outbox its relay.
+    """
+
+    COORDINATOR_ID = "https://example.org/users/coordinator"
+    VENDOR_ID = "https://example.org/users/vendor"
+
+    def __init__(self, answer: str, make_payload: Any) -> None:
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        self._factory, self._use_case, consent = _ANSWERS[answer]
+        self._make_payload = make_payload
+        self.dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=self.COORDINATOR_ID
+        )
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_em_dup",
+            name="Duplicate EM Answer Test",
+            attributed_to=self.VENDOR_ID,
+        )
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/cases/case_em_dup/embargo_events/e1",
+            content="Embargo",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        self._proposal = em_propose_embargo_activity(
+            embargo,
+            context=case.id_,
+            actor=self.COORDINATOR_ID,
+            to=[self.VENDOR_ID],
+            id_="https://example.org/cases/case_em_dup/embargo_proposals/1",
+        )
+        propose(case, embargo.id_)
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005); the
+        # sender joins after the proposal, so it holds the proposal's row.
+        seed_store_owner_as_case_manager(self.dl, case)
+        self._sender_id = seed_case_owner_participant(
+            self.dl, case, self.VENDOR_ID
+        ).id_
+        self._case_id = case.id_
+        self.dl.create(case)
+        self.dl.create(embargo)
+        self.dl.create(self._proposal)
+
+        self.first_answer = self.build_answer()
+        self.deliver(self.first_answer)
+        record = cast(CaseParticipant, self.dl.read(self._sender_id))
+        assert record.consent_for(embargo.id_) == consent
+        # The answer commits its entry and queues its relay, so a ledger and
+        # outbox left unchanged by a later delivery show it added none.
+        assert self.ledger_ids() and self.dl.outbox_list()
+
+    def build_answer(self) -> Any:
+        return self._factory(
+            self._proposal,
+            context=self._case_id,
+            actor=self.VENDOR_ID,
+            to=[self.COORDINATOR_ID],
+        )
+
+    def deliver(self, activity: Any) -> None:
+        event = self._make_payload(
+            activity, receiving_actor_id=self.COORDINATOR_ID
+        )
+        self._use_case(
+            self.dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(self.dl),
+        ).execute()
+
+    def case_and_sender(self) -> tuple[Any, Any]:
+        stored_case = self.dl.read(self._case_id)
+        record = self.dl.read(self._sender_id)
+        assert stored_case is not None and record is not None
+        return stored_case.model_dump(mode="json"), record.model_dump(
+            mode="json"
+        )
+
+    def ledger_ids(self) -> list[str]:
+        return [e.id_ for e in self.dl.list_objects("CaseLedgerEntry")]
+
+
+@pytest.mark.spec("CM-13-005")
+@pytest.mark.parametrize("answer", list(_ANSWERS))
+def test_a_redelivered_embargo_answer_has_no_effect(make_payload, answer):
+    """Redelivering an answered Accept or Reject changes nothing and sends
+    nothing: the case, the sender's record, the ledger and the outbox stay
+    as the first delivery left them."""
+    store = _AnsweredInvite(answer, make_payload)
+    before = (
+        store.case_and_sender(),
+        store.ledger_ids(),
+        store.dl.outbox_list(),
+    )
+
+    store.deliver(store.first_answer)
+
+    assert (
+        store.case_and_sender(),
+        store.ledger_ids(),
+        store.dl.outbox_list(),
+    ) == before
+
+
+@pytest.mark.spec("CM-13-009")
+@pytest.mark.parametrize("answer", list(_ANSWERS))
+def test_a_fresh_repeat_of_an_embargo_answer_changes_no_consent(
+    make_payload, answer
+):
+    """A new Accept or Reject from a participant whose consent already
+    records that answer leaves the case and the consent row unchanged."""
+    store = _AnsweredInvite(answer, make_payload)
+    before = store.case_and_sender()
+
+    store.deliver(store.build_answer())
+
+    assert store.case_and_sender() == before

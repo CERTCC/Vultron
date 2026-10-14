@@ -90,12 +90,14 @@ factory may be shared across trigger-side and received-side paths.
 
 (ISSUE-1325, 2026-07-13)
 
-> **Under review.** Proposed ADR-0119 (epic #4158) reverses this order: a
+> **Under review.** Proposed ADR-0119 (#4158) reverses this order: a
 > ledger entry records a completed act, so a sent activity is committed after
-> it is delivered to the outbox, and duplicate sends are prevented by an
-> outbox-id check instead. Until ADR-0119 is accepted, new code follows the
-> current specs (SYNC-09-002, SBT-04-004): commit before send. The ordering is
-> under review, not yet changed.
+> it is delivered to the outbox. The replacement duplicate-send protection is
+> already in place: `outbox_append` does not queue an id already pending
+> (OX-06-002), so a retry that rebuilds its activity under the first attempt's
+> id — derived from what it answers (`derived_activity_id`) — sends it once.
+> Until the order is reversed, new code follows the current specs
+> (SYNC-09-002, SBT-04-004): commit before send.
 
 When a BT subtree both commits a ledger correlation marker and records an
 outbox item, the ledger commit MUST happen first.

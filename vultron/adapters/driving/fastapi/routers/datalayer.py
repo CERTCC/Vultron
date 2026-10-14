@@ -17,9 +17,9 @@ Provides a backend API router for basic Vultron data layer operations.
 """
 
 import logging
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.db_record import Record, record_to_object
@@ -29,8 +29,9 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -132,11 +133,15 @@ def get_report(
 
 @router.get(
     "/",
-    description="Returns the entire contents of the datalayer.",
+    description=(
+        "Returns the entire contents of the datalayer, or, given one or more"
+        " `type` parameters, only the objects of those types."
+    ),
     operation_id="datalayer_list",
 )
 def get_datalayer_contents(
     datalayer: DataLayer = Depends(get_actor_dl),
+    types: Annotated[list[str] | None, Query(alias="type")] = None,
 ) -> dict[str, Any]:
     """Return every stored object, keyed by id, as plain JSON.
 
@@ -144,8 +149,25 @@ def get_datalayer_contents(
     so the whole-store dump is not an AS2 document and is served as
     ``application/json`` rather than through ``AS2JSONResponse``
     (ARCH-20-006).
+
+    One or more ``type`` query parameters narrow the dump to objects of those
+    types, each serialized exactly as the whole-store dump serializes it.  A
+    poll that looks for one kind of object reads only that kind: rehydrating
+    and serializing the whole store on every poll slowed the container it
+    polled as the store grew (#4600).  A type the store holds no object of
+    contributes nothing, so an unknown or misspelled name yields an empty
+    mapping rather than an error: the store cannot tell a type it has no rows
+    for from one that does not exist.
     """
-    data = datalayer.all()
+    data: dict[str, PersistableModel] | list[StorableRecord]
+    if types:
+        data = {
+            obj.id_: obj
+            for type_key in types
+            for obj in datalayer.list_objects(type_key)
+        }
+    else:
+        data = datalayer.all()
     if not isinstance(data, dict):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

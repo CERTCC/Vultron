@@ -41,6 +41,9 @@ from vultron.core.models.pending_creation_time_revision_relay import (
     PendingCreationTimeRevisionRelay,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_lifecycle.pec import (
+    owner_declined_embargo,
+)
 from vultron.core.services.embargo_lifecycle.proposals import (
     _ProposalOperationsMixin,
 )
@@ -163,8 +166,9 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         The case owner — ``attributed_to``, never the executing actor, which
         on the CASE_MANAGER's creation path is someone else — is then seeded
         a signatory of the embargo it set (CM-14-003).  An owner that has
-        already ``DECLINED`` records nothing: ``AGREE`` is not legal from
-        that state, so it stays declined until re-invited (CM-18-003).
+        already ``DECLINED`` is left declined: the seed is not an answer the
+        owner gave, so it never overrides one the owner did give
+        (CM-18-003).  Only the owner's own Accept changes that answer.
 
         A *revision* is the longer creation-time proposal that lost
         shortest-wins (EP-04-003).  It is stored and proposed through
@@ -255,10 +259,12 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         participant_changes: list[ParticipantConsentChange] = (
             work._record_proposer_consent(case, actor_id, embargo_id)
         )
-        # CM-14-003: the owner set these terms, so it is their signatory.
-        participant_changes.extend(
-            work._record_actor_acceptance(case, owner_id, embargo_id)
-        )
+        # CM-14-003: the owner set these terms, so it is their signatory —
+        # unless it declined them, which an implicit seed never overrides.
+        if not owner_declined_embargo(staged, case, embargo_id):
+            participant_changes.extend(
+                work._record_actor_acceptance(case, owner_id, embargo_id)
+            )
         if revision is not None:
             # EP-04-011: the relay is owed in the commit that opens the
             # revision (#4156).

@@ -306,6 +306,8 @@ This is the transport an implementation MUST provide.
 - Authentication and authorization requirements are at
   [§14 Security Considerations](considerations.md#14-security-considerations-ni).
 
+{% include-markdown "./_oq-transport-status-codes.md" %}
+
 #### ActivityPub federation profile [I]
 
 Full ActivityPub conformance is not required by this version. The roadmap is at
