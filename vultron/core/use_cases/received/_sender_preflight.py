@@ -27,6 +27,10 @@ boundary (CM-23-013): it runs the factory's own
 :class:`~vultron.core.behaviors.case.nodes.post_close.CaseOpenToExternalWritesNode`
 as a one-node tree, so a handler that writes or sends before its tree runs
 asks the one guard rather than carrying a closed-case check of its own.
+
+:func:`repeat_answer_skip` does the same for the repeat guard of an answer to
+an embargo Invite (CM-13-005): the Accept handler's P/X/A, expiry and late-Accept
+paths write or send before its tree runs, so a repeat must be caught first.
 """
 
 import py_trees
@@ -35,6 +39,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
 )
+from vultron.core.behaviors.embargo.nodes.answer_repeat import (
+    case_manager_admits_embargo_answer_guard,
+)
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -42,8 +49,12 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases._helpers import unaddressed_copy_refusal
 from vultron.core.use_cases.received._bt_verdict import (
+    embargo_answer_repeat_verdict,
     post_close_refusal,
     verdict_from_bt,
 )
@@ -115,6 +126,47 @@ def post_close_refusal_before_tree(
     if (refusal := post_close_refusal(tree)) is not None:
         return refusal
     verdict_from_bt(tree, result, label="PostClosePreflight")
+    return None
+
+
+def repeat_answer_skip(
+    dl: CasePersistence,
+    receiving_actor_id: str,
+    *,
+    case_id: str,
+    embargo_id: str,
+    answering_actor_id: str,
+    answer: EmbargoConsentState,
+    sync_port: SyncActivityPort | None,
+) -> HandlerResult | None:
+    """``SKIPPED`` when the answer repeats one already recorded, else ``None``.
+
+    Runs the received answer tree's own repeat guard
+    (:func:`~vultron.core.behaviors.embargo.nodes.answer_repeat.case_manager_admits_embargo_answer_guard`)
+    as a one-node tree, for a handler that writes or sends before that tree
+    runs.  A repeat of an answer the CASE_MANAGER already recorded, under any
+    activity id, changes nothing, commits nothing and sends nothing
+    (CM-13-005, HP-01-003).  A different answer is a consent change and
+    passes, and so does every answer at a store that is not the case's
+    CASE_MANAGER, whose tree then refuses it (HP-01-005).
+
+    Raises:
+        VultronBTInternalError: The guard failed on an internal error.
+    """
+    tree = case_manager_admits_embargo_answer_guard(
+        case_id=case_id,
+        embargo_id=embargo_id,
+        answering_actor_id=answering_actor_id,
+        answer=answer,
+    )
+    result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
+        tree=tree, actor_id=receiving_actor_id
+    )
+    verdict = embargo_answer_repeat_verdict(
+        tree, verdict_from_bt(tree, result, label="EmbargoAnswerRepeatGuard")
+    )
+    if verdict.disposition is HandlerDisposition.SKIPPED:
+        return verdict
     return None
 
 

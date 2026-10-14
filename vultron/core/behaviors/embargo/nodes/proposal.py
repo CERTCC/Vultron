@@ -302,8 +302,10 @@ class RecordParticipantRejectionNode(
             return Status.FAILURE
 
         if not result.participant_changes and self._already_declined(case):
-            # A repeat of a Reject already recorded (HP-01-003, #2255): the
-            # handler reads this FAILURE's prefix as SKIPPED.
+            # A repeat of a Reject already recorded (HP-01-003, #2255).  The
+            # received tree's repeat guard stops one before the commit
+            # (CM-13-005, #4597); the ledger replay reads this FAILURE's
+            # prefix as a no-op.
             self.feedback_message = (
                 f"{ALREADY_DECLINED_PREFIX}: '{self.rejecting_actor_id}'"
                 f" had declined embargo '{self.embargo_id}' on case"

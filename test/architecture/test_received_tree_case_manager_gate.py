@@ -149,6 +149,12 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "create_ownership_offer_expiry_tree",
         ),
         (f"{_E}/nodes/relay.py", "case_manager_admits_proposal_guard"),
+        # The repeat guard for an answer to an embargo Invite (CM-13-005),
+        # also run by the Accept handler before its pre-tree paths.
+        (
+            f"{_E}/nodes/answer_repeat.py",
+            "case_manager_admits_embargo_answer_guard",
+        ),
         (
             f"{_C}/nodes/case_participant_received.py",
             "case_manager_admits_removal_guard",

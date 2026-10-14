@@ -12,6 +12,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
+  - specs/handler-protocol.yaml
   - specs/message-semantics-mapping.yaml
   - specs/message-validation.yaml
   - specs/protocol-asks.yaml
@@ -66,11 +67,13 @@ predates ADR-0122 and is wrong.
 - **`CARRY_OVER` is the one way past that.** Agreeing to N days is agreeing to
   every shorter period, so a signatory of the replaced embargo is bound by a
   shorter revision even if it declined the revision (EP-05-001).
-- **Rows for a final entry are frozen.** A row whose entry is `SUPERSEDED`,
-  `REJECTED`, `CANCELLED` or `TERMINATED` accepts no trigger;
-  `apply_pec_transition()` takes the entry status (`entry_status=`) and refuses.
-  This also covers "nothing is recorded after termination". A late Accept of
-  stale terms is answered with an invitation to the current embargo (EMB-17-003).
+- **Answers to a closed embargo version can no longer change.** Each embargo
+  version has its own record of each participant's answer. Once a version is
+  replaced (`SUPERSEDED`), rejected (`REJECTED`), cancelled (`CANCELLED`) or ended
+  (`TERMINATED`), answers to it can no longer change: `apply_pec_transition()`
+  takes the entry status (`entry_status=`) and refuses every trigger. This also
+  covers "nothing is recorded after termination". A late Accept of stale terms is
+  answered with an invitation to the current embargo (EMB-17-003).
 
 ### Every Row Is Written (CM-18-001)
 
@@ -137,7 +140,7 @@ agreed to.**
 | Owner activates B, and B ends **no later than** A | owner's row for B → `AGREED`; `CARRY_OVER` makes B's row `AGREED` for every signatory of A, a `DECLINED` row for B included |
 | Owner activates B, and B ends **later than** A | owner's row for B → `AGREED`; nothing else — signatories without an `AGREED` row for B have lapsed by derivation |
 | Owner activates B while its own row for B is `DECLINED` | refused; the owner is invited again first |
-| Termination | nothing — no entry is `ACTIVE` and every row is frozen |
+| Termination | nothing — no entry is `ACTIVE`, and answers to the ended embargo can no longer change |
 
 **Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-004, MSM-07-010).
 A Reject of the active embargo from an `AGREED` row must be refused. The code
@@ -287,7 +290,7 @@ ledger entries (`vultron/core/models/rsvp_deadline.py`, trees in
 |---|---|
 | `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `TIME_OUT` on that row only (CM-28-005) |
 | Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: row → `AGREED`, directly from `TIMED_OUT`, via a re-invite from `DECLINED` (EMB-17-001/002) |
-| Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the stale row is frozen (EMB-17-003) |
+| Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | acknowledge as a no-op; rows and case participation unchanged (EMB-17-004) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
@@ -345,10 +348,14 @@ The owner's decision and each participant's consent are different messages
   target=Case)`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
   which move only its own row. A case with no owner (`attributed_to is None`)
   has no owner decision, so every trigger sends consent.
-- **Repeats are idempotent.** A retried accept/reject whose row is already in the
-  target state succeeds silently, logs no invalid-transition warning, and never
-  downgrades consent. Check `consent_for(embargo_id)` before
-  `apply_pec_transition()`.
+- **A repeated answer changes nothing.** A repeat of the same answer from the
+  same participant (Accept after Accept, Reject after Reject, under any activity
+  id) changes nothing and cannot move the recorded answer backwards. It logs no
+  invalid-transition warning, and the CASE_MANAGER commits no ledger entry and
+  sends nothing: `EmbargoAnswerNotRecordedNode` reads `consent_for(embargo_id)`
+  ahead of the commit and the handler reports `SKIPPED` (CM-13-005, HP-01-003,
+  #4597). A change of answer is normal, not a repeat: withdrawal (a Reject until
+  #4388 adds `Leave`) or an Accept after a re-invite.
 - **Full case delivery needs both** `rm_state == ACCEPTED` and signatory status
   (or no active embargo), checked in the `AcceptInviteActorToCase` BT subtree,
   not in post-BT code (MV-10-005).
