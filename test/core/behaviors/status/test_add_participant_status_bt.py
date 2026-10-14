@@ -84,6 +84,9 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -911,7 +914,11 @@ class TestAddParticipantStatusTree:
         )
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
         case_before = populated_dl.read(CASE_ID)
         initial_status_count = (
             len(case_before.case_statuses)
@@ -953,7 +960,11 @@ class TestAddParticipantStatusTree:
         )
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
         result = bridge.execute_with_setup(tree=tree, actor_id=OUTSIDER_ID)
         assert result.status == Status.FAILURE
 
@@ -996,6 +1007,7 @@ class TestAddParticipantStatusTree:
         )
         cm_event = make_payload(cm_activity)
         cm_tree = add_participant_status_tree(
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
             request=cm_event,
             case_id=CASE_ID,
             call_out=reject_bundle,
@@ -1043,7 +1055,11 @@ class TestAddParticipantStatusTree:
         )
         event = make_payload(cm_activity)
         # Default DETERMINISTIC bundle — RequireCaseOwnerApproval is wired
-        cm_tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        cm_tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         # Verify RequireCaseOwnerApprovalNode is wired as the call-out
         def _collect_nodes(node):
@@ -1089,7 +1105,11 @@ class TestAddParticipantStatusTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         # PublicDisclosureBranchNode must NOT appear anywhere in the tree
         def _collect_nodes(node: py_trees.behaviour.Behaviour) -> list:
@@ -1129,7 +1149,11 @@ class TestAddParticipantStatusTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         declared = [
             n
@@ -1157,7 +1181,11 @@ class TestAddParticipantStatusTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         def _collect_nodes(node: py_trees.behaviour.Behaviour) -> list:
             result_inner = [node]
@@ -1217,7 +1245,11 @@ class TestNoAutoCloseSequenceInTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
         all_nodes = self._all_nodes(tree)
         node_names = [n.name for n in all_nodes]
         assert "AutoCloseSequence" not in node_names, (
@@ -1242,7 +1274,11 @@ class TestNoAutoCloseSequenceInTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
         all_nodes = self._all_nodes(tree)
         assert not any(isinstance(n, EmitCloseCaseNode) for n in all_nodes), (
             "EmitCloseCaseNode must not be in add_participant_status_tree (ADR-0050)"
@@ -1477,7 +1513,11 @@ class TestRejectionValidatorBeforeCommit:
         event = make_payload(activity)
 
         bridge = self._bridge_with_factory(dl)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
@@ -1561,7 +1601,11 @@ class TestRejectionValidatorBeforeCommit:
         event = make_payload(activity)
 
         bridge = self._bridge_with_factory(dl)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
@@ -1726,7 +1770,11 @@ class TestAddParticipantStatusTeardownWiring:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         all_nodes = self._collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]
@@ -1748,7 +1796,11 @@ class TestAddParticipantStatusTeardownWiring:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         all_nodes = self._collect_nodes(tree)
         node_names = [n.name for n in all_nodes]
@@ -1771,7 +1823,11 @@ class TestAddParticipantStatusTeardownWiring:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         all_nodes = self._collect_nodes(tree)
         node_names = [n.name for n in all_nodes]
@@ -1799,7 +1855,11 @@ class TestAddParticipantStatusTeardownWiring:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         all_nodes = self._collect_nodes(tree)
         node_names = [n.name for n in all_nodes]
@@ -1832,7 +1892,11 @@ class TestAddParticipantStatusTeardownWiring:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
 
         all_nodes = self._collect_nodes(tree)
         teardown = [n for n in all_nodes if n.name == "TeardownEffects"]

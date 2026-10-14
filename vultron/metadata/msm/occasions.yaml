@@ -429,7 +429,7 @@ groups:
     heading: Create embargo event
     when: a Participant has drafted embargo terms it is about to propose
     send: Create(Event)[context=VulnerabilityCase|VulnerabilityReport]
-    sent_by: the case owner
+    sent_by: the case manager or the case owner
     semantics: create_embargo_event
     status: none
     description: Mints the embargo event that carries the proposed terms. It precedes the
@@ -442,7 +442,7 @@ groups:
     heading: Embargo Termination (ET)
     when: the Case Owner terminates the active embargo
     send: Remove(Event)
-    sent_by: the case owner
+    sent_by: the case manager or the case owner
     semantics: remove_embargo_event_from_case
     shorthand: ET
     status: direct
@@ -469,7 +469,7 @@ groups:
     heading: Embargo Proposal (EP)
     when: a Participant proposes embargo terms for a case with no active embargo
     send: Invite(Event)[context=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: the case manager or an active participant
     distinguished_by: EM state `NONE` or `PROPOSED`
     semantics: invite_to_embargo_on_case
     shorthand: EP
@@ -483,7 +483,7 @@ groups:
     heading: Embargo Revision Proposal (EV)
     when: a Participant proposes revised terms for the active embargo
     send: Invite(Event)[context=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: the case manager or an active participant
     distinguished_by: EM state `ACTIVE` or `REVISE`
     semantics: invite_to_embargo_on_case
     shorthand: EV
@@ -792,7 +792,7 @@ groups:
     heading: Remove note from case
     when: a note's author or the Case Owner withdraws a note from the case
     send: Remove(Note)[target=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: the case owner or the author of the note
     semantics: remove_note_from_case
     shorthand: GI
     status: expansion

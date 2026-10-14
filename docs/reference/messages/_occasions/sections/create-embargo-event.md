@@ -6,7 +6,7 @@ Mints the embargo event that carries the proposed terms. It precedes the Invite 
 
 - **When…** a Participant has drafted embargo terms it is about to propose
 - **Send:** `Create(Event)[context=VulnerabilityCase|VulnerabilityReport]`
-- **Sent by:** the case owner
+- **Sent by:** the case manager or the case owner
 - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 

@@ -51,11 +51,11 @@
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| a Participant has drafted embargo terms it is about to propose | <code>Create(Event)&#91;context=VulnerabilityCase&#124;VulnerabilityReport&#93;</code> | the case owner | — | [Create embargo event](../em.md#create-embargo-event) |
-| the Case Owner terminates the active embargo | `Remove(Event)` | the case owner | — | [Embargo Termination (ET)](../em.md#embargo-termination) |
+| a Participant has drafted embargo terms it is about to propose | <code>Create(Event)&#91;context=VulnerabilityCase&#124;VulnerabilityReport&#93;</code> | the case manager or the case owner | — | [Create embargo event](../em.md#create-embargo-event) |
+| the Case Owner terminates the active embargo | `Remove(Event)` | the case manager or the case owner | — | [Embargo Termination (ET)](../em.md#embargo-termination) |
 | the Case Manager states the terms of the embargo in force | `Announce(Event)[context=VulnerabilityCase]` | the case manager | — | [Announce embargo](../em.md#announce-embargo) |
-| a Participant proposes embargo terms for a case with no active embargo | `Invite(Event)[context=VulnerabilityCase]` | an active participant | EM state `NONE` or `PROPOSED` | [Embargo Proposal (EP)](../em.md#embargo-proposal) |
-| a Participant proposes revised terms for the active embargo | `Invite(Event)[context=VulnerabilityCase]` | an active participant | EM state `ACTIVE` or `REVISE` | [Embargo Revision Proposal (EV)](../em.md#embargo-revision-proposal) |
+| a Participant proposes embargo terms for a case with no active embargo | `Invite(Event)[context=VulnerabilityCase]` | the case manager or an active participant | EM state `NONE` or `PROPOSED` | [Embargo Proposal (EP)](../em.md#embargo-proposal) |
+| a Participant proposes revised terms for the active embargo | `Invite(Event)[context=VulnerabilityCase]` | the case manager or an active participant | EM state `ACTIVE` or `REVISE` | [Embargo Revision Proposal (EV)](../em.md#embargo-revision-proposal) |
 | a Participant agrees to proposed embargo terms | `Accept(Invite(Event)[context=VulnerabilityCase])` | the invitee | EM state `PROPOSED` | [Embargo Proposal Acceptance (EA)](../em.md#embargo-proposal-acceptance) |
 | a Participant agrees to a proposed embargo revision | `Accept(Invite(Event)[context=VulnerabilityCase])` | the invitee | EM state `REVISE` | [Embargo Revision Acceptance (EC)](../em.md#embargo-revision-acceptance) |
 | a Participant refuses proposed embargo terms | `Reject(Invite(Event)[context=VulnerabilityCase])` | the invitee | EM state `PROPOSED` | [Embargo Proposal Rejection (ER)](../em.md#embargo-proposal-rejection) |
@@ -86,7 +86,7 @@
 | the Case Owner declines a suggested actor | `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case owner | — | [Reject case participant offer](../general.md#reject-case-participant-offer) |
 | a Participant has written a note it is about to post to the case | `Create(Note)` | not yet checked | — | [Create note](../general.md#create-note) |
 | a Participant posts a note to the case | `Add(Note)[target=VulnerabilityCase]` | not yet checked | — | [Add note to case](../general.md#add-note-to-case) |
-| a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[target=VulnerabilityCase]` | an active participant | — | [Remove note from case](../general.md#remove-note-from-case) |
+| a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[target=VulnerabilityCase]` | the case owner or the author of the note | — | [Remove note from case](../general.md#remove-note-from-case) |
 
 ## Faults and acknowledgments
 

@@ -80,6 +80,7 @@ __all__ = [
     "ReportOfferRequest",
     "SenderCheckContext",
     "compose_sender_guard",
+    "embargo_sender_context",
 ]
 
 
@@ -151,6 +152,8 @@ class SenderCheckContext:
         case_manager_required: A ``CASE_MANAGER`` sender is refused, rather
             than passed through, when this store holds no case or the case
             names no CASE_MANAGER.
+        active_participant_required: An ``ACTIVE_PARTICIPANT`` sender must be
+            active (CM-10-004), not only listed by the case.
         request: The record holding the request a ``NAMED_ACTOR`` sender
             answers; it picks the addressee check (HP-01-009).  An
             :class:`OwnershipOfferRequest` also makes a ``CASE_OWNER`` sender
@@ -165,8 +168,29 @@ class SenderCheckContext:
     invite_is_case_join: bool = False
     case_manager_anchored: bool = False
     case_manager_required: bool = False
+    active_participant_required: bool = False
     request: AddresseeRequest | None = None
     authored_object_id: str | None = None
+
+
+def embargo_sender_context(
+    sender_id: str, case_id: str | None
+) -> SenderCheckContext:
+    """The context an embargo activity's sender is checked in.
+
+    Embargo state is the case's, so the sender's standing is established
+    against the case this store holds: a case it does not hold, or one that
+    names no CASE_MANAGER, refuses the sender rather than passing it through
+    (Regime 1, ADR-0087).  A proposing participant must be active
+    (CM-10-004).  ``Invite``, ``Remove``, ``Create`` and ``Announce`` of an
+    ``EmbargoEvent`` share it (EP-09-003, PCR-03-001, PCR-08).
+    """
+    return SenderCheckContext(
+        sender_id=sender_id,
+        case_id=case_id,
+        case_manager_required=True,
+        active_participant_required=True,
+    )
 
 
 def _addressee_node(
@@ -210,7 +234,10 @@ def _kind_node(
     """The condition node that checks *kind* for the activity in *ctx*."""
     if kind is SenderEntitlementKind.ACTIVE_PARTICIPANT:
         return SenderIsActiveParticipantNode(
-            status_id="", sender_actor_id=ctx.sender_id, case_id=ctx.case_id
+            status_id="",
+            sender_actor_id=ctx.sender_id,
+            case_id=ctx.case_id,
+            require_active=ctx.active_participant_required,
         )
     if kind is SenderEntitlementKind.CASE_MANAGER:
         return SenderIsCaseManagerNode(

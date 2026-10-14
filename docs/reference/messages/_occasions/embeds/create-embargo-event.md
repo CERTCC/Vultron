@@ -6,7 +6,7 @@
 
     - **When…** a Participant has drafted embargo terms it is about to propose
     - **Send:** `Create(Event)[context=VulnerabilityCase|VulnerabilityReport]`
-    - **Sent by:** the case owner
+    - **Sent by:** the case manager or the case owner
     - **Reference:** [Create embargo event](../../em.md#create-embargo-event)
 
     ??? example "Example activity"

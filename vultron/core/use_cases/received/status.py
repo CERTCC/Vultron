@@ -318,6 +318,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         tree = add_participant_status_tree(
             request=request,
             case_id=case_id,
+            sender_rule=self.sender_entitlement,
             **call_out_kwargs,
         )
         bridge = BTBridge(

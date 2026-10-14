@@ -28,9 +28,9 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
-    SenderMayAssertEmbargoNode,
     SenderRule,
 )
+from vultron.core.behaviors.sender_guard import embargo_sender_context
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
@@ -40,7 +40,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._sender_preflight import rule_refusal
 from vultron.core.use_cases.received._store_only import run_store_only
 
 logger = logging.getLogger(__name__)
@@ -81,13 +81,12 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         # guard runs ahead of the store-only tree, so a refused sender leaves
         # nothing behind.
         if (
-            refusal := sender_refusal(
+            refusal := rule_refusal(
                 self._dl,
                 receiving_actor_id,
-                SenderMayAssertEmbargoNode(
-                    case_id=request.case_id,
-                    sender_actor_id=request.actor_id,
-                ),
+                self.sender_entitlement,
+                embargo_sender_context(request.actor_id, request.case_id),
+                request,
                 label="Announce(EmbargoEvent)",
                 sync_port=self._sync_port,
             )

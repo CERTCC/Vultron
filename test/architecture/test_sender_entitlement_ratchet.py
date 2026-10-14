@@ -223,7 +223,6 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 # HP-01-008: trees still building their own sender guard (temporary)
 # ---------------------------------------------------------------------------
 
-_PIECE_3 = "#4437 (piece 3: widened rules, AC-4)"
 _PIECE_4 = "#4437 (piece 4: ratchet, AC-5)"
 
 #: Received-tree builders that still pass their own ``sender_guard`` to
@@ -231,39 +230,6 @@ _PIECE_4 = "#4437 (piece 4: ratchet, AC-5)"
 #: keyed by (module path, function), each naming the work that migrates it.
 #: The list only shrinks: a new entry, or a stale one, fails the test.
 SENDER_GUARD_ALLOW_LIST: dict[tuple[str, str], str] = {
-    (
-        "vultron/core/behaviors/note/remove_note_received_tree.py",
-        "create_remove_note_from_case_received_tree",
-    ): _PIECE_3,
-    (
-        "vultron/core/behaviors/embargo/announce_teardown_tree.py",
-        "invite_to_embargo_on_case_tree",
-    ): _PIECE_3,
-    (
-        "vultron/core/behaviors/embargo/announce_teardown_tree.py",
-        "remove_embargo_from_case_tree",
-    ): _PIECE_3,
-    (
-        "vultron/core/behaviors/case/case_participant_received_tree.py",
-        "create_add_case_participant_received_tree",
-    ): _PIECE_3,
-    (
-        "vultron/core/behaviors/case/case_participant_received_tree.py",
-        "create_remove_case_participant_received_tree",
-    ): _PIECE_3,
-    (
-        "vultron/core/behaviors/case/suggest_actor_tree.py",
-        "create_recommend_actor_to_case_received_tree",
-    ): _PIECE_3,
-    (
-        "vultron/core/behaviors/status/add_participant_status_tree.py",
-        "add_participant_status_tree",
-    ): _PIECE_3,
-    # Two-sided (CASE_OWNER at the CASE_MANAGER, CASE_MANAGER at a replica).
-    (
-        "vultron/core/behaviors/case/add_report_received_tree.py",
-        "create_add_report_to_case_received_tree",
-    ): _PIECE_4,
     # The Invite may name no case, which needs an ``outside_case`` side.
     (
         "vultron/core/behaviors/case/invite_actor_to_case_received_tree.py",

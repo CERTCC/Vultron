@@ -86,12 +86,14 @@ lookup table is mostly links.
   node. A `Reject(CaseLedgerEntry)` is a participant's, so it stays
   `ACTIVE_PARTICIPANT` (SYNC-03-005). The invitee stays its own kind: it is checked
   against the `to` of the recorded Invite (EP-09-010, CM-11-017).
-- **A declaration is the full rule, per addressee side** (HP-01-008). Today some
-  declarations are a floor with the rest in the tree (`Remove(Note)` declares an
-  active participant while CM-30-001 entitles the author or Case Owner;
-  `SenderMayAssertEmbargoNode` checks two sides). A declaration becomes "any of"
-  several kinds, stated per addressee (the CASE_MANAGER, a participant, or an
-  actor outside any case), and the factory builds the guard from it alone.
+- **A declaration is the full rule, per addressee side** (HP-01-008). It is
+  "any of" several kinds, stated per addressee (the CASE_MANAGER, a participant,
+  or an actor outside any case), and the factory builds the guard from it alone.
+  Declarations that used to be a floor with the rest in the tree now state the
+  whole rule (#4437): `Remove(Note)` admits the note's author or the Case Owner
+  at the CASE_MANAGER, and the embargo `Invite(Event)` admits the CASE_MANAGER or
+  an active participant there; at a participant both admit only the
+  CASE_MANAGER.
 - **Each occasion names its addressee; "Sent by" and "Send to" are derived**
   (MSM-08-009). One wire activity can carry occasions with different senders: a
   participant's `Invite(Event)` to the CASE_MANAGER and the CASE_MANAGER's

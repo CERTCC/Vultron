@@ -35,7 +35,7 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._sender_preflight import rule_refusal
 from vultron.core.use_cases.received._store_only import (
     run_store_only,
     store_only_verdict,
@@ -48,17 +48,22 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
-    SenderMayAssertEmbargoNode,
     SenderRule,
+)
+from vultron.core.behaviors.sender_guard import embargo_sender_context
+
+#: The Case Owner decides the embargo (EP-09-005) and asks the CASE_MANAGER,
+#: which also acts on its own Remove (a delegated termination); a participant
+#: takes the change from the CASE_MANAGER alone (PCR-03-001).
+_CASE_OWNER_TO_CASE_MANAGER = SenderRule.to_case_manager(
+    SenderEntitlementKind.CASE_MANAGER, SenderEntitlementKind.CASE_OWNER
 )
 
 logger = logging.getLogger(__name__)
 
 
 class CreateEmbargoEventReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.CASE_OWNER
-    )
+    sender_entitlement: ClassVar[SenderRule] = _CASE_OWNER_TO_CASE_MANAGER
 
     def __init__(
         self,
@@ -89,14 +94,12 @@ class CreateEmbargoEventReceivedUseCase:
         # write: the Case Owner at the CASE_MANAGER, the CASE_MANAGER at any
         # other replica (EP-09-005, PCR-03-001, ADR-0115).
         if (
-            refusal := sender_refusal(
+            refusal := rule_refusal(
                 self._dl,
                 receiving_actor_id,
-                SenderMayAssertEmbargoNode(
-                    case_id=request.context_id,
-                    sender_actor_id=request.actor_id,
-                    manager_arm=SenderEntitlementKind.CASE_OWNER,
-                ),
+                self.sender_entitlement,
+                embargo_sender_context(request.actor_id, request.context_id),
+                request,
                 label="Create(EmbargoEvent)",
                 sync_port=self._sync_port,
             )
@@ -122,9 +125,7 @@ class CreateEmbargoEventReceivedUseCase:
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.CASE_OWNER
-    )
+    sender_entitlement: ClassVar[SenderRule] = _CASE_OWNER_TO_CASE_MANAGER
 
     def __init__(
         self,
@@ -180,6 +181,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             embargo_id=embargo_id,
             sender_actor_id=request.actor_id,
             actor_config=self._actor_config,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,

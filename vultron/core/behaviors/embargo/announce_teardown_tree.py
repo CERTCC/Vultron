@@ -120,10 +120,10 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_ANSWER,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlementKind,
     SenderIsCaseOwnerNode,
-    SenderMayAssertEmbargoNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import embargo_sender_context
 from vultron.core.models.embargo_event import EmbargoEvent
 
 logger = logging.getLogger(__name__)
@@ -180,6 +180,8 @@ def remove_embargo_from_case_tree(
     embargo_id: str,
     sender_actor_id: str,
     actor_config: ActorConfig | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -217,6 +219,8 @@ def remove_embargo_from_case_tree(
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a re-issued stub Invite.  ``None`` applies the
             ``ActorConfig`` defaults.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
@@ -230,11 +234,8 @@ def remove_embargo_from_case_tree(
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
-        sender_guard=SenderMayAssertEmbargoNode(
-            case_id=case_id,
-            sender_actor_id=sender_actor_id,
-            manager_arm=SenderEntitlementKind.CASE_OWNER,
-        ),
+        sender_rule=sender_rule,
+        sender_context=embargo_sender_context(sender_actor_id, case_id),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
         # RSH-08-003/CM-31-010: an active replica takes the teardown from the
         # ledger (EmbargoTeardown slot), so it writes nothing here (#3814).
@@ -318,6 +319,7 @@ def invite_to_embargo_on_case_tree(
     embargo_id: str,
     proposer_id: str,
     sender_actor_id: str,
+    sender_rule: SenderRule,
     embargo: EmbargoEvent | None = None,
     actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -384,6 +386,8 @@ def invite_to_embargo_on_case_tree(
             CASE_MANAGER (CM-10-004), the CASE_MANAGER at a participant
             replica (EP-09-003, PCR-08; ADR-0115).  Not ``proposer_id``, which
             a relay's ``attributedTo`` may name.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
             by the intake in whichever store receives the Invite (CLP-10-017);
             ``None`` when the message named its object by bare URI.
@@ -427,11 +431,8 @@ def invite_to_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=case_id,
-        sender_guard=SenderMayAssertEmbargoNode(
-            case_id=case_id,
-            sender_actor_id=sender_actor_id,
-            manager_arm=SenderEntitlementKind.ACTIVE_PARTICIPANT,
-        ),
+        sender_rule=sender_rule,
+        sender_context=embargo_sender_context(sender_actor_id, case_id),
         precondition_guards=[
             EmbargoProposalNotYetRecordedNode(
                 case_id=case_id, embargo_id=embargo_id, invite_id=invite_id

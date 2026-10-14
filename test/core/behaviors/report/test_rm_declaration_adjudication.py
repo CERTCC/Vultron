@@ -83,6 +83,9 @@ from vultron.core.use_cases.received.report import (
     InvalidateReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     rm_close_report_activity,
@@ -286,7 +289,11 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
         sync_port=SyncActivityAdapter(dl),
     )
     return bridge.execute_with_setup(
-        tree=add_participant_status_tree(request=event, case_id=CASE_ID),
+        tree=add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        ),
         actor_id=CASE_MANAGER_ID,
         activity=event,
     )
@@ -512,7 +519,11 @@ class TestRefusedRegressionIsNoted:
             sync_port=SyncActivityAdapter(dl),
         )
 
-        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )

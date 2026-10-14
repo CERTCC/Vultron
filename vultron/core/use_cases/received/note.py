@@ -202,11 +202,11 @@ class RemoveNoteFromCaseReceivedUseCase:
     A note the case does not hold is ``SKIPPED``.
     """
 
-    # The declared kind names the floor; the tree's role-scoped sender guard
-    # (author or Case Owner at the manager, the CASE_MANAGER at a replica) is
-    # the full rule, and the only place it is defined (HP-01-006/007).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    # The note's author or the Case Owner asks the CASE_MANAGER; a
+    # participant takes the removal from the CASE_MANAGER alone (CM-30-001,
+    # PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.AUTHOR, SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -240,6 +240,7 @@ class RemoveNoteFromCaseReceivedUseCase:
             note_id=note_id,
             case_id=case_id,
             sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
