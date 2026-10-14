@@ -1183,7 +1183,7 @@ groups:
       the commit and also passes `case_id=None` — `Announce(VulnerabilityCase)`,
       which only the CASE_MANAGER sends and only a participant replica, never the
       CASE_MANAGER itself, receives (PCR-03-004). The bootstrap
-      `Create(VulnerabilityCase)` a participant receives MAY likewise pass
+      `Create(VulnerabilityCase)` a participant receives MUST likewise pass
       `case_id=None`, because only the CASE_MANAGER sends it, and the case's
       genesis entry is committed where the CASE_MANAGER creates the case
       (CLP-02-013).
