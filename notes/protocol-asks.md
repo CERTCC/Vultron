@@ -29,6 +29,8 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/participant-embargo-consent.md
   - notes/selective-disclosure.md
+  - notes/bt-canonical-reference.md
+  - notes/call-out-configuration.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/core/models

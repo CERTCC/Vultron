@@ -221,7 +221,10 @@ once.
   `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`).
 - Timeouts are the named constants in `helpers/polling.py`
   (`LEDGER_COVERAGE_TIMEOUT`, `LATE_JOINER_COVERAGE_TIMEOUT`), passed as
-  parameters, never literals in a scenario.
+  parameters, never literals in a scenario. Each is a stall budget, not a
+  total: every newly arrived entry restarts it, up to
+  `BACKFILL_PROGRESS_CEILING`, so a long backfill under CI load is waited for
+  and a stalled one fails (#4424).
 
 **Why:** one copy per scenario module is how the timeouts drifted apart and why
 one race fix had to touch most modules (DEMOMA-23-005).

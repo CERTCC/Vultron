@@ -12,9 +12,9 @@
 """Planned behaviour recorded by the 2026-10-02 audit (#4195).
 
 Strict-``xfail`` tests for protocol requirements the audit added before the
-code that satisfies them exists.  Each flips to passing once the issue named
-in its reason lands; see ``notes/spec-authoring-rules.md`` § "Never Raise the
-Ceiling — Use a Strict ``xfail``".
+code that satisfies them exists.  Each strict xfail fails once the issue
+named in its reason lands, prompting its removal; see ``notes/spec-authoring-rules.md`` § "Use a Strict
+``xfail`` for Not-Yet-Implemented Specs".
 """
 
 import pkgutil

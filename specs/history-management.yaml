@@ -272,7 +272,7 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: The `study-project-docs` skill documentation MUST explicitly state that Step 2 (read plan context) covers `plan/*.md`
+    statement: The `orient-agent` skill documentation MUST explicitly state that its plan-context reading covers `plan/*.md`
       but NOT `plan/history/`. Agents following this skill MUST NOT recursively read `plan/history/` during orientation.
 - id: HM-05
   title: Skill and AGENTS.md Integration
@@ -286,13 +286,13 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: The `ingest-idea` skill MUST use `uv run append-history idea` to archive processed ideas.
+    statement: The `plan-issue` skill MUST use `uv run append-history idea` to archive processed ideas.
   - id: HM-05-003
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
-      skill MUST invoke `study-project-docs` and let that skill mediate which plan files are relevant to load.
+      skill MUST invoke `deepen-context` and let that skill mediate which plan files are relevant to load.
 - id: HM-06
   title: Timestamp Field and Future-Date Rejection
   specs:
@@ -425,7 +425,7 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Skill documentation (`ingest-idea`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
+    statement: Skill documentation (`plan-issue`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
       interface for `append-history`. The frontmatter-in-stdin pattern MUST NOT be used.
 - id: HM-08
   title: GitHub Comment Output Mode

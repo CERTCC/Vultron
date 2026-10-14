@@ -20,6 +20,13 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/protocol-asks.md
   - notes/case-joining.md
+  - notes/case-bootstrap-trust.md
+  - notes/case-ledger-authority.md
+  - notes/case-proposal.md
+  - notes/case-state-model.md
+  - notes/datalayer-design.md
+  - notes/protocol-event-cascades.md
+  - notes/vocabulary-registry.md
 relevant_packages:
   - pydantic
   - vultron/wire/as2

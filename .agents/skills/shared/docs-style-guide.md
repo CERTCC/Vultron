@@ -365,8 +365,8 @@ whatever it does for the one reader who starts at the top. The repeated block
 is not an SG-43 copy either — SG-43 is about content that belongs to one
 authority and drifted into two, not about a page introducing itself. Page-scoped:
 evaluated against the assembly unit, never a fragment (DF-09-007). Implements
-DF-11-007; rationale in `notes/site-information-architecture.md` § "Two
-premises that were in conflict".
+DF-11-007; rationale in `notes/site-information-architecture.md` § "Pages stay
+self-sufficient; nav order carries dependency".
 
 ---
 
