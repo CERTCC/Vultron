@@ -29,11 +29,11 @@ import ast
 import importlib
 import inspect
 import sys
-from pathlib import Path
 from types import ModuleType
 
 import pytest
 
+from test.architecture import _corpus
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementConditionNode,
     SenderEntitlementKind,
@@ -290,15 +290,15 @@ SENDER_GUARD_ALLOW_LIST: dict[tuple[str, str], str] = {
     ): _PIECE_4,
 }
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-
 
 def _sender_guard_builders() -> set[tuple[str, str]]:
     """Every (module path, function) whose body passes ``sender_guard=``."""
     found: set[tuple[str, str]] = set()
-    for path in sorted((_REPO_ROOT / "vultron").rglob("*.py")):
-        rel = path.relative_to(_REPO_ROOT).as_posix()
-        for func in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+    for path, tree in _corpus.files_mentioning(
+        "sender_guard", under=_corpus.REPO_ROOT / "vultron"
+    ):
+        rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
+        for func in ast.walk(tree):
             if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             if any(
