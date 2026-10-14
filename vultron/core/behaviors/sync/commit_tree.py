@@ -112,10 +112,12 @@ def commit_emitted_activity(
     The one shape every emit node that commits in-tree shares (ADR-0109): the
     sealed *activity_blob* the factory returned is the snapshot, verbatim —
     the same text the outbox delivers (VM-08-003) — and the commit runs as a
-    nested tree so the ledger commit precedes the outbox write.  Returns the
-    decoded snapshot; raises ``RuntimeError`` when the commit did not succeed,
-    so a caller that is itself a BT node fails rather than queuing an
-    emission the ledger never recorded.
+    nested tree.  The caller queues the activity first: the entry records a
+    completed act, and a send is complete once it is in the outbox
+    (SYNC-09-002, ADR-0119).  Returns the decoded snapshot; raises
+    ``RuntimeError`` when the commit did not succeed, so a caller that is
+    itself a BT node fails with the activity queued and unrecorded, which a
+    retry that rebuilds it under the same id records (OX-06-002).
 
     *sync_port* fans the entry out to the case's participants when given; an
     emit node that reads ``/sync_port`` passes it through so a relayed

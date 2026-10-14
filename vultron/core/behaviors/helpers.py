@@ -762,9 +762,13 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
 
     Subclasses override ``_call_factory()`` (required) to invoke the
     appropriate ``TriggerActivityPort`` method and return
-    ``(activity_id, activity_dict)``.  The optional ``_on_success()`` hook
-    is called after a successful outbox write and is useful for domain-specific
-    log messages.
+    ``(activity_id, activity_dict)``.  A node whose activity is recorded in
+    the case ledger overrides ``_record_sent()`` to commit it: ``update()``
+    calls it after the outbox write, because a ledger entry records a
+    completed act and a send is complete once the activity is in this
+    actor's outbox (ADR-0119, SYNC-09-002).  The optional ``_on_success()``
+    hook is called after a successful outbox write and is useful for
+    domain-specific log messages.
 
     When *captured* is provided, ``captured["activity"]`` is set to the
     serialised activity dict on success, avoiding a follow-up ``dl.read()``
@@ -791,6 +795,16 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
             NotImplementedError: Subclasses must implement this method.
         """
         raise NotImplementedError
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        """Commit the ledger entry of the activity just queued; default: none.
+
+        Called after the outbox write whether or not that write queued the
+        activity: an id already pending is the earlier attempt's send, whose
+        commit failed, so the retry records it now (OX-06-002, ADR-0119).
+        Raises when the commit fails, so ``update()`` reports FAILURE with the
+        activity queued and unrecorded until a retry records it.
+        """
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         """Optional hook called after a successful outbox write.
@@ -843,6 +857,7 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
+            self._record_sent(activity_id, activity_blob)
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
             self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
