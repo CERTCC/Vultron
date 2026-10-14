@@ -142,7 +142,7 @@ class VultronReplicationState(CoreRecord):
 
         # The input may spell a backfill field either way, so read each one
         # under every spelling its own ``validation_alias`` accepts instead of
-        # writing the AS2 spelling out here (ADR-0099 detail 2).
+        # writing the AS2 spelling out here (ARCH-25-002, ADR-0099).
         def _stated(field_name: str, default: Any) -> Any:
             for key in input_keys(cls, field_name):
                 value = data.get(key)

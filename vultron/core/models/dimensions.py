@@ -164,7 +164,7 @@ class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
     Subclasses declare ``state`` with their own enum type and a
     ``field_validator`` that coerces it, plus ``transition()`` and guards.
 
-    ADR-0099 detail 5; ADR-0036 governing principles 1 through 3 are unchanged.
+    ARCH-25-005 (ADR-0099); ADR-0036 governing principles 1 through 3 are unchanged.
     """
 
     @model_validator(mode="before")
@@ -182,8 +182,8 @@ class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
         validator this replaces guarded on ``raw is not None`` and silently
         substituted the initial state, so ``{"rmState": None}`` produced
         ``RM.START`` with no error.  A caller that names a dimension and supplies
-        no state is making a statement it cannot back, and detail 7's fail-loudly
-        rule says to refuse it.  Absence and explicit-null are different inputs
+        no state is making a statement it cannot back, and ARCH-25-007's
+        fail-loudly rule says to refuse it.  Absence and explicit-null are different inputs
         and only absence gets the default.
         """
         if isinstance(data, (dict, _ScalarDimension)):

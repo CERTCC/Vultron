@@ -64,8 +64,8 @@ _COSMETIC_SUBSTRING = "case-actor"
 
 #: Protocol logic, for ARCH-24-004's purposes.  ``vultron/demo/`` and
 #: ``vultron/config/`` are excluded on purpose: provisioning a container at a
-#: readable ``case-actor`` URL is exactly the cosmetic convenience ADR-0088 §7
-#: preserves.  ``vultron/semantic_registry/`` is *included* — it maps inbound
+#: readable ``case-actor`` URL is exactly the cosmetic convenience CM-02-013
+#: (ADR-0088) preserves.  ``vultron/semantic_registry/`` is *included* — it maps inbound
 #: semantics to use cases, which is recognition and routing, the two words
 #: ARCH-24-004 uses.  ``vultron/bt/`` is the legacy simulator and models no
 #: federated identity at all.

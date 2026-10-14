@@ -264,7 +264,7 @@ class AdvanceCaseActorToRMClosedNode(
 
         self.logger.info(
             "%s: advanced case actor '%s' to RM.CLOSED in case '%s'"
-            " (CM-23-002 step 2, ADR-0051)",
+            " (CM-23-002 step 2; ADR-0051)",
             self.name,
             self._case_actor_id,
             self._case_id,

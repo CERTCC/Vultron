@@ -102,7 +102,7 @@ def _dimension_state(status: dict[str, Any], dimension: str) -> Any:
 
     Three shapes are live and all three must be read:
 
-    * the **bare state value** a dimension serializes to since ADR-0099 detail 5
+    * the **bare state value** a dimension serializes to since ARCH-25-005 (ADR-0099)
       / SDO-01-004 — ``{"rm": "RECEIVED"}``;
     * the **one-key mapping** of ADR-0036 — ``{"rm": {"state": "RECEIVED"}}``,
       still accepted on input and still present in rows written before that

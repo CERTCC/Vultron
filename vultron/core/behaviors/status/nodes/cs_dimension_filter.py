@@ -386,7 +386,7 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 "producer_type": self.__class__.__name__,
                 # Keyed by the core fields' own AS2 aliases, because the
                 # snapshot ``object`` this patches is wire-shaped (RSH-05-009,
-                # CLP-07-011) — ADR-0099 detail 2.
+                # CLP-07-011) — ARCH-25-002 (ADR-0099).
                 "fields": {
                     key: getattr(filtered, field).state.name
                     for key, field in zip(

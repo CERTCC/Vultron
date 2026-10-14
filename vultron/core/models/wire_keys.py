@@ -15,7 +15,7 @@
 
 """AS2 key lookup for core code that has to key a wire-shaped mapping.
 
-ADR-0099 detail 2: core field names follow Python convention and the AS2
+ARCH-25-002 (ADR-0099): core field names follow Python convention and the AS2
 spelling lives in a Pydantic alias.  **Core code MUST NOT type an AS2
 spelling** — it names ``in_reply_to``, never ``inReplyTo``.
 
@@ -30,7 +30,7 @@ never appears in core logic.
 Two sources answer, in order:
 
 1. the field's declared ``serialization_alias`` on the core model — the single
-   source of truth wherever the model declares one (ADR-0099 detail 2);
+   source of truth wherever the model declares one (ARCH-25-002, ADR-0099);
 2. :func:`pydantic.alias_generators.to_camel`, the same generator the core
    models' ``alias_generator`` config uses, for the models that carry no
    explicit alias yet (``VulnerabilityCase``, ``VultronOfferRecord``).
@@ -41,7 +41,7 @@ hand-writing it.  It is a derivation, not a translation table: there is nothing
 to keep in sync.
 
 Spec: ARCH-20-001 (core MUST NOT produce a wire shape for a core object);
-CLP-07-011; RSH-05-009; ADR-0099 details 2 and 5.
+CLP-07-011; RSH-05-009; ARCH-25-002 (ADR-0099) and 5.
 """
 
 from collections.abc import Iterable
@@ -100,7 +100,7 @@ def input_keys(model: type[BaseModel], field_name: str) -> tuple[str, ...]:
     The field's ``validation_alias`` comes first, in its declared order, and the
     Python field name last.  For a ``mode="before"`` validator that has to look
     at raw input keys, this is how it asks the field which keys are its own
-    instead of listing them again (ADR-0099 detail 2).
+    instead of listing them again (ARCH-25-002, ADR-0099).
 
     Note the ordering is significant to callers that take the *first* key
     present: the AS2 spelling wins over the Python field name.  That is

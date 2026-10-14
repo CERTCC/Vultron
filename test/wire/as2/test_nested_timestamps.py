@@ -26,7 +26,7 @@ real sender value.  Downstream every one of those read as the sender's claim.
 Each body is raw JSON through ``parse_activity`` → ``extract_event``, the real
 inbound path, so the test sees what a receiver sees.
 
-Most nested kinds now validate into a *core* class (ADR-0099 detail 3), which is
+Most nested kinds now validate into a *core* class (ARCH-25-003, ADR-0099), which is
 why the rule is held twice: ``as_Base.carry_absent_times_on_inbound`` and its
 core twin ``CoreObject._carry_absent_times_on_inbound`` both call
 ``absent_times_as_none``.  That helper finds the timestamp fields by class
@@ -180,8 +180,8 @@ def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
     return nested
 
 
-#: The nested kinds that validate straight into a core class once ADR-0099
-#: detail 3 deleted their paired ``as_*`` twins (#3487).  Absence handling for
+#: The nested kinds that validate straight into a core class once ARCH-25-003
+#: (ADR-0099) deleted their paired ``as_*`` twins (#3487).  Absence handling for
 #: these runs in ``CoreObject._carry_absent_times_on_inbound``, not in
 #: ``as_Base.carry_absent_times_on_inbound`` which was written first (ISSUE-3589).
 CORE_KINDS = [k for k in KINDS if k != "Note"]
@@ -493,7 +493,7 @@ def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
     knows both that the object has timestamps and which they are.
     """
     # ``context`` is carried because the class the parent chooses is now the
-    # core ``CaseStatus`` (ADR-0099 detail 3), which requires it; the looser
+    # core ``CaseStatus`` (ARCH-25-003, ADR-0099), which requires it; the looser
     # wire class it replaced did not.
     status: dict[str, Any] = {
         "id": "https://example.org/cases/c1/statuses/1",

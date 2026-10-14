@@ -49,11 +49,11 @@ class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
     """Gate case creation on the actor's ``auto_create_case`` policy.
 
     Returns ``SUCCESS`` when the local actor's :class:`ActorConfig` has
-    ``auto_create_case`` set (the ADR-0015 Option 4 default), allowing the
-    downstream case-creation subtree to run.  Returns ``FAILURE`` when
+    ``auto_create_case`` set (CM-15-001 default), allowing the downstream
+    case-creation subtree to run.  Returns ``FAILURE`` when
     ``auto_create_case`` is ``False``, so the enclosing ``Sequence`` exits
     without creating a ``VulnerabilityCase`` — enabling the pre-case ACK
-    (``Read(Offer(Report))``) protocol path (CM-15-001, ADR-0015 Option 3).
+    (``Read(Offer(Report))``) protocol path (CM-15-002, CM-15-003; ADR-0015).
 
     The policy is supplied as a constructor argument rather than read from
     the blackboard so it travels with the tree the same way

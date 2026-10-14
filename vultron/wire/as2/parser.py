@@ -194,8 +194,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # ``723ff08eb`` on main used and what this resolution supersedes.  A falsy
     # test also absorbs ``0``, ``[]``, ``{}`` and ``false``; those are malformed
     # values, not omitted ones, and reporting them as a missing field tells the
-    # sender to resend a field they already sent (ADR-0090 rejects that as
-    # option 1; MV-03-002).
+    # sender to resend a field they already sent (a falsy test conflates absent
+    # with malformed; MV-03-002).
     if is_blank(body.get("published")):
         raise VultronParseMissingPublishedError(
             f"Missing 'published' field on {type_!r} activity. An activity "
@@ -267,7 +267,7 @@ def _received_evidence_json(body: dict[str, Any]) -> str:
     """Serialize *body* as the received evidence, refusing non-JSON content.
 
     Why a class config cannot hold VM-08-002 any more: ``frozen=True`` covers
-    only the class that declares it, and since ADR-0099 detail 3 a parsed
+    only the class that declares it, and since ARCH-25-003 (ADR-0099) a parsed
     activity nests *core* classes, which are mutable by design because they are
     also the domain objects (ISSUE-3584).  Pydantic has no per-instance
     freezing, so the guarantee moves from the object graph to a value copy taken

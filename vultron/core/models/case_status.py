@@ -47,7 +47,7 @@ class CaseStatus(CoreObject):
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]
-    # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
+    # Each dimension serializes to its bare state value (ARCH-25-005, ADR-0099), so
     # the alias alone produces the flat wire shape the AS2 form has always used:
     # ``em`` -> ``{"emState": "NONE"}``.  ``AliasChoices`` keeps the legacy flat
     # spellings accepted on input so no caller has to change.  Declared for the
@@ -72,7 +72,7 @@ class CaseStatus(CoreObject):
     # There is deliberately no ``_migrate_flat_fields`` before-validator any
     # more.  It hand-translated the flat ``em_state`` / ``emState`` spellings
     # into the nested ``{"state": ...}`` form, and was the only AS2 spelling in
-    # this module outside an alias.  Both mechanisms ADR-0099 detail 5 introduced
+    # this module outside an alias.  Both mechanisms ARCH-25-005 (ADR-0099) introduced
     # now cover its whole job with nothing hand-written: the ``AliasChoices``
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
@@ -80,7 +80,7 @@ class CaseStatus(CoreObject):
     # ``em_state``/``pxa_state`` are a view onto the dimension, not a second
     # place to keep the value: the dimension owns the state machine
     # (ADR-0036, SDO-03-001) and the flat spelling is only how it serializes
-    # (ADR-0099 detail 5).  ``pxa_state`` is read/write; ``em_state`` is
+    # (ARCH-25-005, ADR-0099).  ``pxa_state`` is read/write; ``em_state`` is
     # read-only (SDO-03-006, EMB-18-001).  ``em`` is a frozen field and
     # ``EmDimension`` a frozen model, so ``status.em = ...`` and
     # ``status.em.state = ...`` raise ``ValidationError``, and ``em_state``
@@ -112,8 +112,8 @@ class CaseStatus(CoreObject):
         label, so a core ``CaseStatus`` that left ``name`` unset silently
         shortened the enclosing participant status's label — making core and
         ``as_ParticipantStatus`` disagree on an AS2 property for the one input
-        shape that sets ``case_status``, which is exactly the parity ADR-0099
-        detail 5 claims.  ``name`` reaches the wire through
+        shape that sets ``case_status``, which is exactly the parity ARCH-25-005
+        (ADR-0099) claims.  ``name`` reaches the wire through
         ``CaseLedgerEntry.payloadSnapshot``, so the disagreement is
         protocol-visible.
 

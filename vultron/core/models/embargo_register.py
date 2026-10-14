@@ -239,8 +239,8 @@ def em_move_violations(
 ) -> list[str]:
     """The EM move from *before* to *after*, if *em_trigger* does not allow it.
 
-    Both registers must keep invariants 1–3, so EM derives from each
-    (ADR-0122); the move must then be in the EM transition table
+    Both registers must keep their structural invariants; EM derives from each
+    (ADR-0122). The move must then be in the EM transition table
     (ADR-0130, EMB-18-006).  An empty list means the move is legal.
     """
     source = derive_em(entry.status for entry in before)

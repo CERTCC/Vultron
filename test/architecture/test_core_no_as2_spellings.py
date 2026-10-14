@@ -14,11 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Architecture boundary test: core code must not type an AS2 spelling.
 
-ADR-0099 detail 2: core field names follow Python convention and the AS2
+ARCH-25-002 (ADR-0099): core field names follow Python convention and the AS2
 spelling lives in a Pydantic alias.  **Core code MUST NOT type an AS2
 spelling** — it names ``in_reply_to``, never ``inReplyTo``.
 
-Spec: ARCH-20-001; ADR-0099 detail 2.  Issue #3485 AC-1 and AC-4.
+Spec: ARCH-20-001; ARCH-25-002 (ADR-0099).  Issue #3485 AC-1 and AC-4.
 
 Declaration versus use
 ----------------------
@@ -159,7 +159,7 @@ def _collect_violations() -> frozenset[tuple[str, str]]:
 def test_core_logic_types_no_as2_spelling():
     """No module under vultron/core/ uses an AS2 spelling outside an alias.
 
-    Spec: ADR-0099 detail 2, ARCH-20-001.  Issue #3485 AC-1.
+    Spec: ARCH-25-002 (ADR-0099), ARCH-20-001.  Issue #3485 AC-1.
 
     See the module docstring for how a declaration is told from a use.
     """
@@ -170,7 +170,7 @@ def test_core_logic_types_no_as2_spelling():
     diff_lines: list[str] = []
     if new_violations:
         diff_lines.append(
-            "NEW AS2 spellings used in core logic (ADR-0099 detail 2 — name the"
+            "NEW AS2 spellings used in core logic (ARCH-25-002 (ADR-0099) — name the"
             " core field and get the AS2 key from"
             " vultron.core.models.wire_keys):"
         )

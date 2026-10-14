@@ -261,7 +261,7 @@ def from_row(
             try:
                 wire_obj = wire_object_from_row(row)
             except WIRE_ROW_FAILURES:
-                # Under ADR-0099 detail 3 a paired type's wire class *is* its
+                # Under ARCH-25-003 (ADR-0099) a paired type's wire class *is* its
                 # core class, so there is no looser fallback left to try.
                 # dl.read() will report the row absent; say why, loudly, or
                 # the caller sees a misleading "not found" (issue #2232).

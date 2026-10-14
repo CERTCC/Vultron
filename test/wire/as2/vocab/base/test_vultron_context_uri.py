@@ -94,11 +94,11 @@ def test_vultron_subclass_serializes_vultron_context():
 
 @pytest.mark.spec("VM-10-001")
 def test_embargo_event_serializes_vultron_context():
-    """AC-3: as_EmbargoEvent is now a core class (ADR-0099 detail 3, issue #3487).
+    """AC-3: as_EmbargoEvent is now a core class (ARCH-25-003 (ADR-0099), issue #3487).
 
     The paired wire class was deleted; as_EmbargoEvent IS EmbargoEvent (core).
     The core class adds the Vultron ``@context`` on the by-alias (wire) dump
-    (ADR-0099 detail 1), so the collapsed class still serializes it.
+    (ARCH-25-001, ADR-0099), so the collapsed class still serializes it.
     """
     from vultron.core.models.embargo_event import EmbargoEvent
 
@@ -135,7 +135,7 @@ def test_as_vultron_object_roundtrip_preserves_context():
 
 @pytest.mark.spec("VM-10-001")
 def test_embargo_event_roundtrip_preserves_context():
-    """AC-4: as_EmbargoEvent is now a core class (ADR-0099 detail 3, issue #3487).
+    """AC-4: as_EmbargoEvent is now a core class (ARCH-25-003 (ADR-0099), issue #3487).
 
     Round-trip via model_dump/model_validate preserves the context field.
     (Core ``context`` stores the case URI, not a @context namespace URI.)
@@ -153,7 +153,7 @@ def test_embargo_event_roundtrip_preserves_context():
 
 @pytest.mark.spec("VM-10-002")
 def test_embargo_event_vocab_namespace_is_vultron():
-    """as_EmbargoEvent is now a core class (ADR-0099 detail 3, issue #3487).
+    """as_EmbargoEvent is now a core class (ARCH-25-003 (ADR-0099), issue #3487).
 
     The paired wire class was deleted; _vocab_ns is a wire-layer concept and
     does not exist on the core EmbargoEvent.  Verify the class identity instead.

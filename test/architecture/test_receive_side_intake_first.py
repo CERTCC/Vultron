@@ -191,8 +191,8 @@ def _composes_through_shared_factory(
 #: Receive-side factories that never call the shared factory and therefore
 #: run no intake node (CLP-10-017).  Exact set (ARCH-18-001): remove an
 #: entry in the commit that moves the factory (ARCH-18-002).
-#: ADR-0111 detail 7 named the two that composed the CASE_MANAGER gate
-#: directly; those moved with #3870.  The rest moved with #3871–#3874, #3935
+#: The two trees that formerly composed the CASE_MANAGER gate directly were
+#: the first entries in this set; those moved with #3870.  The rest moved with #3871–#3874, #3935
 #: and #4288.  What remains synthesises an entry or runs after a received
 #: activity was already handled; none processes a received activity of its
 #: own, so each entry below names the spec or ADR that keeps it here.

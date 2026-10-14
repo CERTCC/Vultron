@@ -662,8 +662,8 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
     """P/X/A set: the manager rejects the revision and the case stays ACTIVE.
 
     The EMB-03-003 marker attests a *refusal*, not the ET its text names:
-    ADR-0113 step 2 maps EMB-03-003 (with EMB-01-002) onto the CASE_MANAGER
-    refusing a proposal on a public, exploited or attacked case — the embargo
+    EMB-03-003 (with EMB-01-002) maps onto the CASE_MANAGER refusing a
+    proposal on a public, exploited or attacked case (ADR-0113) — the embargo
     termination the requirement calls "emit ET" is the CS public-event
     cascade's job (``ThreatTerminationBranchNode``), which has already run or
     will run regardless of this proposal.  The received proposal itself is

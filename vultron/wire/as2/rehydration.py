@@ -21,8 +21,7 @@ into the correct wire-vocabulary subclass.  Callers MUST pass the active
 ``DataLayer`` instance via the *dl* parameter so that string ID references can
 be resolved without importing a concrete adapter.
 
-**This module owns ID-to-object materialisation** (VM-06-007, ADR-0099 detail
-9).  See :func:`materialise_object_slots` for the rule and for why the
+**This module owns ID-to-object materialisation** (VM-06-007, ARCH-25-009 (ADR-0099)).  See :func:`materialise_object_slots` for the rule and for why the
 fabricated-stub behaviour it replaces is not reproduced.
 """
 
@@ -76,7 +75,7 @@ def _annotation_branches(annotation: Any) -> list[Any]:
 def _slot_requires_object(annotation: Any) -> bool:
     """True when *annotation* can hold a model but cannot hold a bare URI.
 
-    This is the test ADR-0099 detail 9 turns on.  A slot declared
+    This is the test ARCH-25-009 (ADR-0099) turns on.  A slot declared
     ``ActivityStreamRef[as_Foo]`` expands to ``as_Foo | as_Link | NonEmptyString``
     (a ``str`` branch once its ``Annotated`` wrapper is stripped), so a
     URI is a legal value there and an unresolvable reference is *deferred* —
@@ -99,7 +98,7 @@ def _slot_requires_object(annotation: Any) -> bool:
     exclusion is load-bearing rather than defensive.  A core dimension field is
     annotated ``EmDimension`` — a ``BaseModel`` that is not an ``as_Object`` and
     admits no ``str`` branch — so the rule above would classify it as an
-    ID-reference slot.  Since ADR-0099 detail 5 a dimension *serializes to a bare
+    ID-reference slot.  Since ARCH-25-005 (ADR-0099) a dimension *serializes to a bare
     state value*, so ``materialise_object_slots(CaseStatus, core_cs.model_dump(),
     dl)`` would read ``"NONE"`` as a reference and try to resolve it.  Only
     ``as_Object`` slots can hold a materialised AS2 object, so only they are in
@@ -116,14 +115,14 @@ def _slot_requires_object(annotation: Any) -> bool:
     if not model_branches:
         return False
     # A promoted core class is a materialisable AS2 object too.  Requiring
-    # ``as_Object`` alone excluded every class ADR-0099 detail 3 collapsed —
+    # ``as_Object`` alone excluded every class ARCH-25-003 (ADR-0099) collapsed —
     # ``participant_statuses: list[ParticipantStatus]`` stopped being an eligible
     # slot, so an unresolvable reference in it was left bare instead of refused,
     # silently dropping VM-06-007's refusal guarantee.
     #
     # ``CoreObject`` is the right addition rather than ``BaseModel``: the point of
-    # this gate is to keep a *dimension* out, since detail 5 makes it serialize to
-    # a bare state value that would otherwise be read as a reference. Dimensions
+    # this gate is to keep a *dimension* out, since ARCH-25-005 makes it serialize
+    # to a bare state value that would otherwise be read as a reference. Dimensions
     # derive from ``_ScalarDimension``, not ``CoreObject``, so they stay excluded.
     if not all(
         issubclass(branch, (as_Object, CoreObject))
@@ -160,7 +159,7 @@ def _materialise_one(
     ``as_CaseStatus`` or ``list[as_ParticipantStatus]`` gets a core object back
     today, which cannot go into a wire slot.  Refusing here names the cause;
     substituting it would surface as an opaque Pydantic ``ValidationError`` three
-    frames away.  Those two slots become materialisable when ADR-0099 detail 3
+    frames away.  Those two slots become materialisable when ARCH-25-003 (ADR-0099)
     deletes the paired classes and the slots name the core types directly.
 
     Raises:
@@ -175,8 +174,8 @@ def _materialise_one(
             "object rather than a URI. Refusing rather than fabricating a "
             "placeholder (VM-06-007)."
         )
-    # A promoted core class is placeable: detail 3 has now retargeted these slots
-    # at the core class, which is what the previous version of this message said
+    # A promoted core class is placeable: ARCH-25-003 has now retargeted these
+    # slots at the core class, which is what the previous version of this message said
     # it was waiting for.  ``dl.read()`` returns core objects for paired types
     # (DL-05-004), so requiring ``as_Object`` alone refused every read of a
     # collapsed type — the refusal fired on the normal path instead of the
@@ -203,7 +202,7 @@ def materialise_object_slots(
 ) -> dict[str, Any]:
     """Fill *model_cls*'s object-only slots in *data* with resolved objects.
 
-    ADR-0099 detail 9 says an object slot holds the whole object, not an ID,
+    ARCH-25-009 (ADR-0099) says an object slot holds the whole object, not an ID,
     and that reading resolves an IRI reference to the referenced object, with
     an unresolvable reference deferred or refused.  It did not name what
     performs that resolution.  **This function is that owner** (VM-06-007).
@@ -466,7 +465,7 @@ def rehydrate(
 
     Also materialises object-only slots: a bare URI in a slot whose declared
     type cannot hold a URI is resolved through *dl*, or refused.  See
-    :func:`materialise_object_slots` (VM-06-007, ADR-0099 detail 9).
+    :func:`materialise_object_slots` (VM-06-007, ARCH-25-009 (ADR-0099)).
 
     Returns:
         The rehydrated object of the correct wire-vocabulary subclass.

@@ -289,7 +289,7 @@ class TestVulnerabilityCaseAddCaseStatus:
             as_CaseStatus,
         )
 
-        # ``as_CaseStatus`` *is* ``CaseStatus`` (ADR-0099 detail 3), so there is no
+        # ``as_CaseStatus`` *is* ``CaseStatus`` (ARCH-25-003, ADR-0099), so there is no
         # wire-shaped status left to reject — the object is exactly what the slot
         # wants and is appended.  The guard against a genuinely wrong type is still
         # covered by ``test_add_case_status_rejects_non_case_status`` below.
@@ -328,7 +328,7 @@ class TestWireVulnerabilityCaseFieldParity:
 
 
 class TestVulnerabilityCaseWireRoundTrip:
-    """as_VulnerabilityCase IS VulnerabilityCase (ADR-0099 detail 3, issue #3487)."""
+    """as_VulnerabilityCase IS VulnerabilityCase (ARCH-25-003 (ADR-0099), issue #3487)."""
 
     def test_to_core_produces_vulnerability_case(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (

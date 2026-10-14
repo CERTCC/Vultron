@@ -309,7 +309,7 @@ def _is_datetime_field(field: FieldInfo) -> bool:
 #: Validation-context key that marks a ``model_validate`` call as reading
 #: *inbound* data.  ``parse_activity`` sets it; nothing else should.  Defined in
 #: core because both ``as_Base`` and ``CoreObject`` gate on it, and under
-#: ADR-0099 detail 3 a core class is what an inbound payload validates into.
+#: ARCH-25-003 (ADR-0099) a core class is what an inbound payload validates into.
 INBOUND_CONTEXT_KEY = "inbound_wire"
 
 
