@@ -205,7 +205,7 @@ def _run_negotiated_submission(
             logger.info(
                 "Canonical case %s created at %s",
                 case.id_,
-                case.current_status.em_state,
+                case.em_state,
             )
 
             if receiver_default_days is None:

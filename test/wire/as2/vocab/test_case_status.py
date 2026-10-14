@@ -155,9 +155,9 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
             )
 
     def test_pxa_state_unknown_raises_validation_error(self):
-        """as_CaseStatus with bogus pxa_state raises ValidationError."""
+        """as_CaseStatus with bogus pxa raises ValidationError."""
         with pytest.raises(ValidationError):
-            as_CaseStatus(pxa_state="BOGUS_PXA")  # type: ignore[arg-type]
+            as_CaseStatus(pxa="BOGUS_PXA")  # type: ignore[arg-type]
 
     def test_rm_state_unknown_raises_validation_error(self):
         """as_ParticipantStatus with bogus rm_state raises ValidationError."""

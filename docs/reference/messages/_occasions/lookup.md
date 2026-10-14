@@ -68,9 +68,9 @@
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
 | a Participant is about to announce a change to the public state of the case | `Create(CaseStatus)[context=VulnerabilityCase]` | not yet checked | — | [Create case status](../cs.md#create-case-status) |
-| a Participant learns that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `Pxa` | [Public Awareness (CP)](../cs.md#public-awareness) |
-| a Participant learns that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `PXa` | [Exploit Public (CX)](../cs.md#exploit-public) |
-| a Participant observes attacks that exploit the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `pxA` | [Attacks Observed (CA)](../cs.md#attacks-observed) |
+| a Participant learns that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxaState` = `Pxa` | [Public Awareness (CP)](../cs.md#public-awareness) |
+| a Participant learns that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxaState` = `PXa` | [Exploit Public (CX)](../cs.md#exploit-public) |
+| a Participant observes attacks that exploit the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxaState` = `pxA` | [Attacks Observed (CA)](../cs.md#attacks-observed) |
 | a Participant is about to announce a change to its own state in the case | `Create(ParticipantStatus)` | not yet checked | — | [Create participant status](../cs.md#create-participant-status) |
 | a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: vendor) | `vf_state` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
 | a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: vendor) | `vf_state` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |

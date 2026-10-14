@@ -14,7 +14,7 @@ a scope boundary that the "case state" name obscures:
   `as_ParticipantStatus` (`vf_state` and `d_state`) on
   `Add(ParticipantStatus)[target=CaseParticipant]`.
 - **`P`, `X`, `A` are case-scoped** — one per case. They ride
-  `as_CaseStatus.pxa_state` on `Add(CaseStatus)[target=VulnerabilityCase]`.
+  the `pxaState` field of `as_CaseStatus` on `Add(CaseStatus)[target=VulnerabilityCase]`.
 
 There are **no case-level `V`/`F`/`D` states**. A case-level status cannot
 express *which* vendor became aware or ready, which is the purpose of the V/F/D

@@ -21,8 +21,6 @@ from pydantic import AliasChoices, Field, model_validator
 
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import EmDimension, PxaDimension
-from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM
 
 
 class CaseStatus(CoreObject):
@@ -49,59 +47,41 @@ class CaseStatus(CoreObject):
     attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]
     # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
     # the alias alone produces the flat wire shape the AS2 form has always used:
-    # ``em`` -> ``{"emState": "NONE"}``.  ``AliasChoices`` keeps the legacy flat
-    # spellings accepted on input so no caller has to change.  Declared for the
-    # same reason ``ParticipantStatus`` declares its own: the AS2 spelling of a
-    # core field belongs in the field's alias and nowhere else (ADR-0099 detail
-    # 2), which is also where core code that must key an AS2-shaped snapshot
-    # reads it from (:mod:`vultron.core.models.wire_keys`).  Adding them here
-    # made this class's own ``by_alias`` dump agree with the wire form that
+    # ``em`` -> ``{"emState": "NONE"}``.  Declared for the same reason
+    # ``ParticipantStatus`` declares its own: the AS2 spelling of a core field
+    # belongs in the field's alias and nowhere else (ADR-0099 detail 2), which
+    # is also where core code that must key an AS2-shaped snapshot reads it
+    # from (:mod:`vultron.core.models.wire_keys`).  Adding them here made this
+    # class's own ``by_alias`` dump agree with the wire form that
     # ``as_CaseStatus`` — and therefore every replica — has always produced.
+    #
+    # Input accepts the wire spelling and the field name only.  The old flat
+    # snake_case spellings (``em_state``, ``pxa_state``) are retired with their
+    # shim properties (SDO-03-003): ``extra="forbid"`` refuses them on
+    # in-process and stored data (SDO-03-005), and the parse edge refuses them
+    # inbound as near misses of ``emState`` / ``pxaState`` (MV-11-002).
     em: EmDimension = Field(
         default_factory=EmDimension,
-        validation_alias=AliasChoices("emState", "em_state", "em"),
+        validation_alias=AliasChoices("emState", "em"),
         serialization_alias="emState",
         frozen=True,
     )
     pxa: PxaDimension = Field(
         default_factory=PxaDimension,
-        validation_alias=AliasChoices("pxaState", "pxa_state", "pxa"),
+        validation_alias=AliasChoices("pxaState", "pxa"),
         serialization_alias="pxaState",
     )
 
-    # There is deliberately no ``_migrate_flat_fields`` before-validator any
-    # more.  It hand-translated the flat ``em_state`` / ``emState`` spellings
-    # into the nested ``{"state": ...}`` form, and was the only AS2 spelling in
-    # this module outside an alias.  Both mechanisms ADR-0099 detail 5 introduced
-    # now cover its whole job with nothing hand-written: the ``AliasChoices``
-    # above accept all three spellings, and ``_ScalarDimension``'s
-    # ``_accept_bare_state`` accepts the bare state value the flat form carries.
-
-    # ``em_state``/``pxa_state`` are a view onto the dimension, not a second
-    # place to keep the value: the dimension owns the state machine
-    # (ADR-0036, SDO-03-001) and the flat spelling is only how it serializes
-    # (ADR-0099 detail 5).  ``pxa_state`` is read/write; ``em_state`` is
-    # read-only (SDO-03-006, EMB-18-001).  ``em`` is a frozen field and
-    # ``EmDimension`` a frozen model, so ``status.em = ...`` and
-    # ``status.em.state = ...`` raise ``ValidationError``, and ``em_state``
-    # has no setter, so ``status.em_state = ...`` raises ``AttributeError``.
-    # The owning ``VulnerabilityCase`` stamps the derived EM onto a copy via
-    # ``model_copy(update={"em": ...})`` rather than mutating the status
-    # (ADR-0122).
-
-    @property
-    def em_state(self) -> EM:
-        """The EM state value. Read-only view onto ``em.state`` (SDO-03-006)."""
-        return self.em.state
-
-    @property
-    def pxa_state(self) -> CS_pxa:
-        """The PXA state value. A view onto ``pxa.state``."""
-        return self.pxa.state
-
-    @pxa_state.setter
-    def pxa_state(self, value: CS_pxa) -> None:
-        self.pxa = PxaDimension(state=value)
+    # There is deliberately no ``_migrate_flat_fields`` before-validator and no
+    # flat ``em_state`` / ``pxa_state`` view (SDO-03-003): the dimension owns
+    # the state machine (ADR-0036, SDO-03-001), so readers use ``em.state`` and
+    # ``pxa.state``.  ``_ScalarDimension``'s ``_accept_bare_state`` accepts the
+    # bare state value the flat wire form carries.  ``em`` is a frozen field
+    # and ``EmDimension`` a frozen model, so ``status.em = ...`` and
+    # ``status.em.state = ...`` raise ``ValidationError`` (SDO-03-006,
+    # EMB-18-001).  The owning ``VulnerabilityCase`` stamps the derived EM onto
+    # a copy via ``model_copy(update={"em": ...})`` rather than mutating the
+    # status (ADR-0122).
 
     @model_validator(mode="after")
     def _set_name(self) -> "CaseStatus":

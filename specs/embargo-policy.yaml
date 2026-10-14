@@ -278,7 +278,7 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_OWNER's **actor default** embargo applies at case creation and the sender
-      submitted no explicit embargo proposal, the initial `CaseStatus.em_state` MUST be set
+      submitted no explicit embargo proposal, the initial `CaseStatus.em.state` MUST be set
       to `EM.ACTIVE`, not `EM.PROPOSED`. The sender's report submission without a counter-proposal
       constitutes tacit acceptance of the CASE_OWNER's actor default embargo.
     note: >-

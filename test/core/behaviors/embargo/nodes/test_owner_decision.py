@@ -217,7 +217,7 @@ class TestOwnerMayActivateEmbargoNode:
         case, _, revision_id, _ = _case_with_owner(
             dl, "may-pxa", em_state=EM.ACTIVE
         )
-        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        case.append_case_status(pxa=CS_pxa.Pxa)
         dl.save(case)
         setup_blackboard(dl, actor_id=MANAGER)
 
@@ -387,7 +387,7 @@ class TestRejectEmbargoProposalLifecycleNode:
         case, _, revision_id, _ = _case_with_owner(
             dl, "rej-pxa", em_state=EM.ACTIVE
         )
-        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        case.append_case_status(pxa=CS_pxa.Pxa)
         dl.save(case)
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}

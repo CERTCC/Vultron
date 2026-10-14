@@ -41,7 +41,7 @@ class TestResolvePxaThreatState:
         assert resolve_pxa_threat_state(None) is None
 
     def test_returns_none_when_no_pxa_attribute(self):
-        """Returns None when case_status has no pxa or pxa_state attribute."""
+        """Returns None when case_status has no pxa attribute."""
 
         class _NoPxa:
             pass

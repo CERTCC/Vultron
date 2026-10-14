@@ -23,7 +23,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
     EmbargoRegisterEntry,
@@ -32,6 +32,7 @@ from vultron.core.models.embargo_register import (
     carry_embargo_inline,
     register_step_is_legal,
 )
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
@@ -423,10 +424,34 @@ def test_an_appended_status_cannot_carry_another_em() -> None:
     assert case.current_status.em.state is EM.PROPOSED
 
 
-def test_append_case_status_refuses_an_em_state() -> None:
+def test_append_case_status_refuses_an_em() -> None:
     case = _case()
     with pytest.raises(VultronValidationError, match="register"):
-        case.append_case_status(em_state=EM.ACTIVE)
+        case.append_case_status(em=EmDimension(state=EM.ACTIVE))
+
+
+@pytest.mark.parametrize("keyword", ["pxa_state", "em_state", "no_such_field"])
+def test_append_case_status_refuses_an_unknown_keyword(keyword: str) -> None:
+    """The retired flat spellings are unknown keywords, not translated (SDO-03-003)."""
+    case = _case()
+    with pytest.raises(VultronValidationError, match=keyword):
+        case.append_case_status(**{keyword: CS_pxa.Pxa})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [CS_pxa.Pxa, PxaDimension(state=CS_pxa.Pxa)],
+    ids=["bare", "dimension"],
+)
+def test_append_case_status_sets_the_pxa_dimension(
+    value: CS_pxa | PxaDimension,
+) -> None:
+    case = _case()
+    before = case.current_status
+    case.append_case_status(pxa=value)
+    assert case.current_status is not before
+    assert case.current_status.pxa.state is CS_pxa.Pxa
+    assert case.current_status.em.state is before.em.state
 
 
 def test_construction_stamps_the_register_em_onto_the_status() -> None:

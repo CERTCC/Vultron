@@ -253,8 +253,8 @@ groups:
     kind: protocol
     statement: 'EM and PXA state transitions MUST update the shared `CaseStatus` record for the associated `VulnerabilityCase`.
       These axes are participant-agnostic: a single shared value covers all participants in the case.'
-    verification: Integration tests confirm that processing an EM or PXA message updates `CaseStatus.em_state`
-      or `CaseStatus.pxa_state` on the shared `VulnerabilityCase` before the handler exits.
+    verification: Integration tests confirm that processing an EM or PXA message updates `CaseStatus.em.state`
+      or `CaseStatus.pxa.state` on the shared `VulnerabilityCase` before the handler exits.
     relationships:
     - rel_type: refines
       spec_id: CM-04-003

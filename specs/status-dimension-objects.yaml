@@ -187,9 +187,13 @@ groups:
   - id: SDO-03-003
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: The old flat enum fields (em_state, pxa_state, rm_state, vfd_state, em_consent_state) MUST NOT be retained
       as aliases or shim properties after the migration is complete.
+    verification: '`TestCaseStatusCarriesNoFlatShim` in `test/core/models/test_dimensions.py` asserts that `CaseStatus`
+      defines no `em_state` or `pxa_state` property or field and refuses either key on input through `extra="forbid"`;
+      `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` and `test_retired_name_on_inline_object_is_refused`
+      in `test/wire/as2/test_unknown_key_disposition.py` pin the parse-edge refusal of the flat CaseStatus spellings and
+      of `vfd_state`. The `ParticipantStatus.rm_state` shim is retired by #4377.'
     rationale: Keeping both representations creates an extended half-migrated state and perpetuates the flat-enum problem.
       See ADR-0036.
     adr:
@@ -253,7 +257,7 @@ groups:
       write path at runtime, including dynamic ones a source ratchet would miss, while the case's copy-based stamp still
       works. EmDimension has no transitions, so freezing removes no behavior (#4321).
     verification: Unit tests show that `status.em = EmDimension(...)` and `status.em.state = EM.X` each raise pydantic
-      `ValidationError`, that `CaseStatus` defines no `em_state` setter so `status.em_state = EM.X` raises `AttributeError`,
+      `ValidationError`, that `CaseStatus` defines no `em_state` attribute so `status.em_state = EM.X` raises pydantic `ValidationError`,
       and that a case whose register changes still stamps the derived EM onto its current status.
     relationships:
     - rel_type: refines

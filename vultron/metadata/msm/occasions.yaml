@@ -595,7 +595,7 @@ groups:
     sent_by: not yet checked
     semantics: create_case_status
     status: none
-    description: Mints a case status object carrying `em_state` and `pxa_state`. It precedes
+    description: Mints a case status object carrying `emState` and `pxaState`. It precedes
       the Add.
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
@@ -606,7 +606,7 @@ groups:
     when: a Participant learns that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     sent_by: not yet checked
-    distinguished_by: '`pxa_state` = `Pxa`'
+    distinguished_by: '`pxaState` = `Pxa`'
     semantics: add_case_status_to_case
     shorthand: CP
     status: collapse
@@ -620,7 +620,7 @@ groups:
     when: a Participant learns that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
     sent_by: not yet checked
-    distinguished_by: '`pxa_state` = `PXa`'
+    distinguished_by: '`pxaState` = `PXa`'
     semantics: add_case_status_to_case
     shorthand: CX
     status: collapse
@@ -634,7 +634,7 @@ groups:
     when: a Participant observes attacks that exploit the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     sent_by: not yet checked
-    distinguished_by: '`pxa_state` = `pxA`'
+    distinguished_by: '`pxaState` = `pxA`'
     semantics: add_case_status_to_case
     shorthand: CA
     status: collapse

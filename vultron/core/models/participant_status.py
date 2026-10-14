@@ -225,8 +225,8 @@ class ParticipantStatus(CoreObject):
     def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
         return coerce_cvd_roles(v)
 
-    # Flat views onto the dimensions, matching ``CaseStatus.em_state``/
-    # ``pxa_state``.  The deleted ``as_ParticipantStatus`` carried
+    # Flat views onto the dimensions (``CaseStatus`` no longer carries its own,
+    # SDO-03-003; these go with #4377).  The deleted ``as_ParticipantStatus`` carried
     # ``rm_state``/``vf_state``/``d_state`` as real fields, so callers read and
     # assigned them; the dimension remains the owner of the state machine
     # (ADR-0036) and the flat spelling is only how it serializes (ADR-0099

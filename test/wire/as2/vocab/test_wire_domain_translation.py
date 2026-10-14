@@ -89,7 +89,7 @@ def test_case_status_round_trips_between_core_and_wire():
     )
 
     assert isinstance(wire, as_CaseStatus)
-    assert wire.em_state == EM.PROPOSED
+    assert wire.em.state == EM.PROPOSED
     round_tripped = wire
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to

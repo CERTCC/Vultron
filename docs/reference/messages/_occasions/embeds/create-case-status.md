@@ -2,7 +2,7 @@
 
 !!! info "Create case status"
 
-    Mints a case status object carrying `em_state` and `pxa_state`. It precedes the Add.
+    Mints a case status object carrying `emState` and `pxaState`. It precedes the Add.
 
     - **When…** a Participant is about to announce a change to the public state of the case
     - **Send:** `Create(CaseStatus)[context=VulnerabilityCase]`

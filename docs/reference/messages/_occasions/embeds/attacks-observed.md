@@ -7,7 +7,7 @@
     - **When…** a Participant observes attacks that exploit the vulnerability
     - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
     - **Sent by:** not yet checked
-    - **Distinguished by:** `pxa_state` = `pxA`
+    - **Distinguished by:** `pxaState` = `pxA`
     - **Reference:** [Attacks Observed (CA)](../../cs.md#attacks-observed)
 
     ??? example "Example activity"

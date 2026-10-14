@@ -296,7 +296,7 @@ def test_pxa_set_is_refused_before_any_write(
 ) -> None:
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 

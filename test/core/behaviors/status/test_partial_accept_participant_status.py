@@ -573,7 +573,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert case_status["pxaState"] == CS_pxa.Pxa.name
         assert case_status["emState"] == EM.NONE.name
         assert case_status.get("id") == f"{ASSERTED_STATUS_ID}/cs"
-        assert "pxa_state" not in case_status
+        assert "pxa" not in case_status
 
 
 # ---------------------------------------------------------------------------
@@ -1080,7 +1080,7 @@ class TestMergeSnapshotObjectFields:
                     "id": f"{ASSERTED_STATUS_ID}/cs",
                     "type": "CaseStatus",
                     "pxaState": "PXA",
-                    "pxa_state": "PXA",
+                    "pxa": "PXA",
                     "emState": "NONE",
                 },
             },
@@ -1088,7 +1088,7 @@ class TestMergeSnapshotObjectFields:
         )
         case_status = merged["caseStatus"]
         assert case_status["pxaState"] == "pxa"
-        assert "pxa_state" not in case_status
+        assert "pxa" not in case_status
         assert case_status["id"] == f"{ASSERTED_STATUS_ID}/cs"
         assert case_status["type"] == "CaseStatus"
 

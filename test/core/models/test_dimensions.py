@@ -76,21 +76,14 @@ class TestEmDimension:
         with pytest.raises(ValidationError):
             status.em.state = EM.ACTIVE  # type: ignore[misc]
 
-    def test_status_em_state_setter_deleted(self):
-        """``CaseStatus.em_state`` has no setter (AC-2, SDO-03-006)."""
-        assert isinstance(CaseStatus.__dict__["em_state"], property), (
-            "em_state must be a property"
-        )
-        assert CaseStatus.__dict__["em_state"].fset is None, (
-            "em_state must have no setter"
-        )
-
-    def test_status_em_state_assignment_raises_attribute_error(self):
+    @pytest.mark.parametrize("flat", ["em_state", "pxa_state"])
+    def test_flat_assignment_raises(self, flat):
         """The flat spelling ``status.em_state = X`` raises (SDO-03-006)."""
         status = CaseStatus(context="urn:case:1")
-        with pytest.raises(AttributeError):
-            status.em_state = EM.ACTIVE  # type: ignore[misc]
+        with pytest.raises(ValidationError, match="no attribute"):
+            setattr(status, flat, EM.ACTIVE)
         assert status.em.state == EM.NONE
+        assert status.pxa.state == CS_pxa.pxa
 
     def test_case_register_step_still_stamps_frozen_status(self):
         """A register step re-stamps EM onto the frozen status (AC-3, ADR-0122)."""
@@ -183,3 +176,57 @@ class TestRmDimension:
         d = RmDimension(state=RM.ACCEPTED)
         d2 = RmDimension.model_validate_json(d.model_dump_json())
         assert d2.state == RM.ACCEPTED
+
+
+class TestCaseStatusCarriesNoFlatShim:
+    """SDO-03-003 / SDO-03-005: the flat ``em_state`` / ``pxa_state`` are gone."""
+
+    @pytest.mark.spec("SDO-03-003")
+    @pytest.mark.parametrize("flat", ["em_state", "pxa_state"])
+    def test_case_status_defines_no_flat_property(self, flat):
+        """No getter, setter or field survives under the flat name (SDO-03-003)."""
+        assert not hasattr(CaseStatus, flat)
+        assert flat not in CaseStatus.model_fields
+        assert not hasattr(CaseStatus(context="urn:case:1"), flat)
+
+    @pytest.mark.spec("SDO-03-003")
+    @pytest.mark.spec("SDO-03-005")
+    @pytest.mark.parametrize(
+        "flat, value", [("em_state", "ACTIVE"), ("pxa_state", "PXA")]
+    )
+    def test_flat_input_key_is_refused_by_extra_forbid(self, flat, value):
+        """A flat key raises through ``extra="forbid"`` (SDO-03-005)."""
+        with pytest.raises(ValidationError) as excinfo:
+            CaseStatus.model_validate({"context": "urn:case:1", flat: value})
+        assert [e["type"] for e in excinfo.value.errors()] == [
+            "extra_forbidden"
+        ]
+        assert [e["loc"] for e in excinfo.value.errors()] == [(flat,)]
+
+    @pytest.mark.parametrize(
+        "key, value, read",
+        [
+            ("emState", "NONE", lambda s: s.em.state),
+            ("em", "NONE", lambda s: s.em.state),
+            ("pxaState", "PXA", lambda s: s.pxa.state),
+            ("pxa", "PXA", lambda s: s.pxa.state),
+        ],
+    )
+    def test_wire_and_field_spellings_are_accepted(self, key, value, read):
+        """``emState``/``em`` and ``pxaState``/``pxa`` stay accepted (AC-2)."""
+        status = CaseStatus.model_validate(
+            {"context": "urn:case:1", key: value}
+        )
+        assert read(status).name == value
+
+    @pytest.mark.spec("SDO-03-005")
+    def test_no_reject_guard_validator(self):
+        """The refusal is ``extra="forbid"``, not a before-validator (SDO-03-005)."""
+        validators = CaseStatus.__pydantic_decorators__.model_validators
+        own_before = [
+            name
+            for name, v in validators.items()
+            if v.info.mode == "before"
+            and getattr(v.func, "__qualname__", "").startswith("CaseStatus.")
+        ]
+        assert own_before == []

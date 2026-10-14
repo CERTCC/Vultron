@@ -75,8 +75,8 @@ ENTRIES: list[SemanticEntry] = [
                 anchor="create-case-status",
                 heading="Create case status",
                 description=(
-                    "Mints a case status object carrying `em_state` and "
-                    "`pxa_state`. It precedes the Add."
+                    "Mints a case status object carrying `emState` and "
+                    "`pxaState`. It precedes the Add."
                 ),
                 example="create_case_status",
                 howto=HowToGuide.STATUS_UPDATES,
@@ -105,7 +105,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="add_public_awareness_to_case",
                 distinguisher=FieldValue(
-                    object_type=CaseStatus, field="pxa_state", value=CS_pxa.Pxa
+                    object_type=CaseStatus, field="pxa", value=CS_pxa.Pxa
                 ),
                 howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CP,
@@ -121,7 +121,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="add_exploit_public_to_case",
                 distinguisher=FieldValue(
-                    object_type=CaseStatus, field="pxa_state", value=CS_pxa.PXa
+                    object_type=CaseStatus, field="pxa", value=CS_pxa.PXa
                 ),
                 howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CX,
@@ -138,7 +138,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="add_attacks_observed_to_case",
                 distinguisher=FieldValue(
-                    object_type=CaseStatus, field="pxa_state", value=CS_pxa.pxA
+                    object_type=CaseStatus, field="pxa", value=CS_pxa.pxA
                 ),
                 howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CA,

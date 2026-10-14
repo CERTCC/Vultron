@@ -23,6 +23,9 @@ import logging
 import httpx2 as httpx
 
 from vultron.adapters.utils import parse_id
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    read_pxa_state,
+)
 from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import (
     CS_d,
@@ -184,12 +187,12 @@ def _assert_vendor_case_status(case: as_VulnerabilityCase) -> None:
     Raises:
         AssertionError: If either invariant is violated.
     """
-    if not is_em_embargo_active(case.current_status.em_state):
+    if not is_em_embargo_active(case.em_state):
         raise AssertionError(
             f"Expected ACTIVE final EM state (default embargo activated at"
-            f" case creation per EP-04-001), found {case.current_status.em_state}"
+            f" case creation per EP-04-001), found {case.em_state}"
         )
-    pxa = case.current_status.pxa_state
+    pxa = case.current_status.pxa.state
     if (
         is_pxa_public_aware(pxa)
         or is_pxa_exploit_public(pxa)
@@ -362,7 +365,7 @@ def _assert_participant_pxa_only(
             f"M6 {label}: participant {actor_id!r} has no statuses"
         )
     cs = getattr(latest, "case_status", None)
-    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    pxa = read_pxa_state(cs)
     if pxa not in public_aware:
         raise AssertionError(
             f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"
@@ -398,7 +401,7 @@ def _assert_participant_vf_pxa(
             f"M6 {label}: vf_state is not VF (fix ready), found {latest.vf_state!r}"
         )
     cs = getattr(latest, "case_status", None)
-    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    pxa = read_pxa_state(cs)
     if pxa not in public_aware:
         raise AssertionError(
             f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"

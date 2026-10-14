@@ -538,6 +538,11 @@ def _coerce_pxa(raw: object) -> CS_pxa:
     return CS_pxa.pxa
 
 
+def _dimension_state(status: object, dimension: str) -> object:
+    """Return the ``state`` of *status*'s *dimension* object, or ``None``."""
+    return getattr(getattr(status, dimension, None), "state", None)
+
+
 def _coerce_rm(raw: object) -> RM:
     if isinstance(raw, RM):
         return raw
@@ -583,11 +588,9 @@ def _build_case_status_object(obj: object) -> dict[str, Any]:
                 name=getattr(obj, "name", None),
                 context=case_context,
                 attributed_to=attributed_to,
-                em=EmDimension(
-                    state=_coerce_em(getattr(obj, "em_state", None))
-                ),
+                em=EmDimension(state=_coerce_em(_dimension_state(obj, "em"))),
                 pxa=PxaDimension(
-                    state=_coerce_pxa(getattr(obj, "pxa_state", None))
+                    state=_coerce_pxa(_dimension_state(obj, "pxa"))
                 ),
                 published=_get_timestamp(obj, "published"),
                 updated=_get_timestamp(obj, "updated"),
@@ -619,12 +622,12 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     attributed_to=cs_attributed_to,
                     em=EmDimension(
                         state=_coerce_em(
-                            getattr(wire_case_status, "em_state", None)
+                            _dimension_state(wire_case_status, "em")
                         )
                     ),
                     pxa=PxaDimension(
                         state=_coerce_pxa(
-                            getattr(wire_case_status, "pxa_state", None)
+                            _dimension_state(wire_case_status, "pxa")
                         )
                     ),
                     published=_get_timestamp(wire_case_status, "published"),

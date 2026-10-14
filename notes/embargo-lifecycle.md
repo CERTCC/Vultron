@@ -102,7 +102,7 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   proposals open, `reject` and `accept` self-loop, and activating one proposal
   leaves the others open as revisions.
 - **`CaseStatus.em` is a frozen stamped copy.** Core reads `case.em_state`,
-  never the copy. `append_case_status(em_state=...)` is refused, and a received
+  never the copy. `append_case_status(em=...)` is refused, and a received
   `Add(CaseStatus)` whose EM differs has its EM refused and the case's carried
   forward (RSH-05-023, SDO-03-006).
 - **Do not store the termination reason on the entry** while the replica's

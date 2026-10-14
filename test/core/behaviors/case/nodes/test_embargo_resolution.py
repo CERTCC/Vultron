@@ -138,7 +138,7 @@ def _store_policy_record(
 
 def _set_pxa(bt_scenario: BTTestScenario) -> None:
     case = cast(Any, bt_scenario.dl.read(CASE_ID))
-    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
     bt_scenario.dl.save(case)
 
 

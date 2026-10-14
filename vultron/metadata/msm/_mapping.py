@@ -67,6 +67,7 @@ from vultron.semantic_registry._occasion import (
     Occasion,
     ProtocolShorthand,
     StateContext,
+    wire_spelling,
 )
 from vultron.wire.as2.extractor._pattern import ActivityPattern
 
@@ -294,13 +295,14 @@ def section_heading(
 def distinguished_by(occasion: Occasion) -> str | None:
     """Render what tells *occasion* apart, as markdown, or ``None``.
 
-    A field value reads "`vf_state` = `VF`"; a state context reads
+    A field value reads "`pxaState` = `Pxa`", the field named by its wire
+    spelling (:func:`wire_spelling`); a state context reads
     "EM state `NONE` or `PROPOSED`".  Enum members are named, not valued,
     because a composite state such as ``CS_pxa.Pxa`` has no scalar value.
     """
     d = occasion.distinguisher
     if isinstance(d, FieldValue):
-        return f"`{d.field}` = `{d.value.name}`"
+        return f"`{wire_spelling(d.object_type, d.field)}` = `{d.value.name}`"
     if isinstance(d, StateContext):
         states = " or ".join(f"`{state.name}`" for state in d.states)
         return f"{d.machine.__name__} state {states}"

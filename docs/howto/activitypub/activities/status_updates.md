@@ -63,15 +63,15 @@ Participant status is self-declaratory, so a participant asserting another parti
 Use a case status for public awareness, exploit publication, and observed attacks — the dimensions that are properties of the vulnerability rather than of any one participant.
 
 Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`.
-All three set `pxa_state`; which one you are sending is determined by which letter in it changes case.
+All three set `pxaState`; which one you are sending is determined by which letter in it changes case.
 
-In every case, first send `Create(CaseStatus)` carrying the new `pxa_state` and naming the case in `context`, then send `Add(CaseStatus)` naming the case in `target`.
+In every case, first send `Create(CaseStatus)` carrying the new `pxaState` and naming the case in `context`, then send `Add(CaseStatus)` naming the case in `target`.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/create-case-status.md" %}
 
 ### Report that the vulnerability is public
 
-Change `p` to `P` in `pxa_state`.
+Change `p` to `P` in `pxaState`.
 That is Public Awareness (CP).
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/public-awareness.md" %}
@@ -129,7 +129,7 @@ If the note is a fault report rather than ordinary case discussion, see [How to 
 | What you sent | What to confirm |
 |---|---|
 | `Add(ParticipantStatus)` | Your participant record carries the new status, on every replica. |
-| `Add(CaseStatus)` | The case status carries the new `pxa_state`, on every replica. |
+| `Add(CaseStatus)` | The case status carries the new `pxaState`, on every replica. |
 | `Add(Note)` | The note appears on the case. |
 
 Each of these is committed by the CASE_MANAGER and fanned out, so checking your own store alone does not confirm the update landed.
