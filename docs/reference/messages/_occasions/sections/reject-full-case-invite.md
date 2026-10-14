@@ -7,7 +7,7 @@ Rejects the Full-Case Invite, which records RM Closed. It carries the sender's o
 - **When…** a Participant asked by a Full-Case Invite closes the case
 - **Send:** `Reject(Invite(Actor)[target=VulnerabilityCase])`
 - **Sent by:** the invitee
-- **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
+- **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
 - **Formal definition:** [Report Closed (RC)](../../../formal_protocol/messages.md#rm-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)
 

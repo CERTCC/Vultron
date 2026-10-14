@@ -275,13 +275,12 @@ turns a delivery away before it can build its tree uses `refuse_after_intake`
 **The factory commits only when given a `case_id`**, and CLP-10-013 requires a
 commit exactly when the received `(type, object)` pair is a canonical payload
 signature (`_CANONICAL_PAYLOAD_SIGNATURES`); otherwise the CASE_MANAGER would
-refuse its own commit. Two trees pass `case_id=None` by decision:
-`create_update_case_received_tree` (`Update(VulnerabilityCase)` is not canonical;
-the CASE_MANAGER publishes the update by `Announce` broadcast, CM-06-001),
-and the `Announce(VulnerabilityCase)` tree (only the CASE_MANAGER sends it and
-only replicas receive it, so the gate could only skip). Every other tree
-whose activity is canonical passes `case_id`, with its refusing nodes in
-`precondition_guards`, so a refused activity leaves no entry.
+refuse its own commit. The `Announce(VulnerabilityCase)` tree passes
+`case_id=None` by decision: only the CASE_MANAGER sends it and only replicas
+receive it, so the gate could only skip. `Update(VulnerabilityCase)` has no
+received tree; an inbound one resolves to `UNKNOWN` and is refused (#4443).
+Every other tree whose activity is canonical passes `case_id`, with its
+refusing nodes in `precondition_guards`, so a refused activity leaves no entry.
 
 ### Trigger/Received Parity
 

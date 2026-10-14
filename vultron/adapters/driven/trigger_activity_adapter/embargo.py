@@ -21,19 +21,23 @@ from typing import Any, cast
 
 from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import VultronAlreadyExistsError
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronAlreadyExistsError,
+)
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._base import _seal, _to_wire
+from ._base import _seal, _seal_record, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +157,36 @@ class _EmbargoMixin:
                 activity.id_,
             )
         return _seal(self._dl, activity)
+
+    def ignore_late_embargo_accept(
+        self,
+        case_id: str,
+        actor: str,
+        late_accept: dict[str, Any],
+    ) -> tuple[str, str]:
+        """Build and seal the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
+
+        The EMB-17-004 no-op acknowledgement.  *late_accept* is carried
+        inline; *actor* (the CASE_MANAGER) is the ``Ignore``'s
+        only author, and the ``Ignore`` is threaded to the Accept by
+        ``inReplyTo``.  The id is derived from the CASE_MANAGER and the
+        Accept, so a redelivered Accept hands back the body its first
+        delivery sealed (ID-04-004, VM-08-003).  Not addressed to anyone: the
+        ledger fan-out delivers it.
+        """
+        accept_id = late_accept.get("id")
+        if not isinstance(accept_id, str) or not accept_id:
+            raise VultronActivityConstructionError(
+                "ignore_late_embargo_accept: the late Accept has no id"
+            )
+        activity = ignore_late_embargo_accept_activity(
+            late_accept,
+            actor=actor,
+            context=case_id,
+            in_reply_to=accept_id,
+            id_=derived_activity_id("late-accept-ignore", actor, accept_id),
+        )
+        return _seal_record(self._dl, activity)
 
     def activate_embargo(
         self,

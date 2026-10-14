@@ -69,17 +69,35 @@ flowchart TB
 Embargo Proposal (EP) is implemented in ActivityStreams as `Invite(Event)`.
 The same activity carries a revision, Embargo Revision Proposal (EV); a receiver tells the two apart from the case's EM state rather than from the activity (MSM-02).
 
-1. Send `Invite(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `context`.
+1. Mint the proposed `EmbargoEvent` with `Create(Event)`, naming the case in `context`, or the report before a case exists.
+   Then send `Invite(Event)` with that `EmbargoEvent` as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/create-embargo-event.md" %}
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
+
 2. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(Event))`, or Embargo Proposal Rejection (ER), `Reject(Invite(Event))`.
    Either answer records only that participant's own consent, the Case Owner's included; the case stays at `EM.PROPOSED`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-acceptance.md" %}
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-rejection.md" %}
+
 3. As Case Owner, send `Accept(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `target`, once you judge the proposal has carried.
    The case moves to `EM.ACTIVE`, and your own consent to the terms is recorded with it.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/activate-embargo.md" %}
+
 4. Send `Announce(Event)` so every participant has the terms in hand.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 
 To turn the proposal down, send `Reject(Event)` with the same `object` and `target` as Case Owner instead.
 The case returns to `EM.NONE` and the negotiation is open again.
 Propose revised terms with another `Invite(Event)`.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/reject-embargo-proposal.md" %}
 
 Propose one set of terms at a time.
 That is how the protocol resolves competing terms, not a workaround: there is no poll across candidate embargoes ([ADR-0100](../../../adr/0100-no-multi-candidate-embargo-poll.md)).

@@ -28,8 +28,8 @@ and :class:`~vultron.core.behaviors.status.nodes.case_status.AppendCaseStatusToC
 both apply.
 """
 
+import json
 import logging
-from datetime import UTC, datetime
 from typing import Any, cast
 
 from py_trees.common import Status
@@ -65,8 +65,10 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
     2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
-    3. Persists the CaseStatus and appends it to ``case.case_statuses``.
-    4. Commits a CaseLedgerEntry via ``create_commit_log_entry_tree``.
+    3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
+       trigger-activity port and commits its sealed blob as a CaseLedgerEntry
+       via ``create_commit_log_entry_tree`` (VM-08-003).
+    4. Persists the CaseStatus and appends it to ``case.case_statuses``.
     5. FanOutLogEntryNode (inside the commit tree) announces to participants
        when a ``sync_port`` is available on the blackboard.
 
@@ -126,20 +128,16 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             pxa=PxaDimension(state=pxa_state),
         )
 
-        # ``new_status`` is a core-branch ``CaseStatus`` this node just built, so
-        # its AS2 form — the ``emState`` / ``pxaState`` snapshot shape
-        # CM-18-006's invariant harness and every replica read — comes from the
-        # port (ARCH-20-001, CLP-07-009).
-        status_dict: dict[str, Any] = self._require_wire_render_port().render(
-            new_status
+        # The entry records the CASE_MANAGER's own Add(CaseStatus), built by
+        # the factory and sealed; its blob is the snapshot, verbatim
+        # (VM-08-003, CLP-07-013).  The status is carried inline before it is
+        # persisted: it is stored only once the commit succeeds (below).
+        _, blob = (
+            self._require_trigger_activity_port().record_case_status_added(
+                status=new_status, case_id=self.case_id, actor=self.actor_id
+            )
         )
-        payload: dict[str, Any] = {
-            "type": "Add",
-            "actor": self.actor_id,
-            "context": self.case_id,
-            "published": datetime.now(tz=UTC).isoformat(),
-            "object": status_dict,
-        }
+        payload: dict[str, Any] = json.loads(blob)
 
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,

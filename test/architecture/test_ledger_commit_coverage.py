@@ -48,7 +48,6 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "create_case_proposal": NotACaseEvent.PRE_CASE,
     "announce_case_ledger_entry": NotACaseEvent.REPLICA_APPLY,
     "reject_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,
-    "update_case": NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013,
     "announce_vulnerability_case": NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013,
     "unknown": NotACaseEvent.UNMATCHED,
     "unknown_unresolvable_object": NotACaseEvent.UNMATCHED,

@@ -20,7 +20,7 @@ A change of owner matters to everyone in the case, not only to the two participa
 Every participant needs to know who decides for the case now.
 The only way a participant learns about a change to the case is through an entry in the case ledger, and only the CASE_MANAGER writes those entries ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
 
-So both the offer and the answer are sent to the CASE_MANAGER, not to the other party directly ([CM-21-005, CM-21-006, CM-21-010](../../reference/specs/protocol.md#cm-21), [ADR-0053](../../adr/0053-ownership-transfer-routed-via-caseactor.md)).
+So the offer, the answer, and a withdrawal of the offer are all sent to the CASE_MANAGER, not to the other party directly ([CM-21-005, CM-21-006, CM-21-010, CM-21-015](../../reference/specs/protocol.md#cm-21), [ADR-0053](../../adr/0053-ownership-transfer-routed-via-caseactor.md)).
 If they went directly between the two parties, no ledger entry would be written, and the other participants would never learn that ownership had changed.
 
 ---
@@ -100,14 +100,55 @@ While it is open, the CASE_MANAGER refuses a new offer for the case, and neither
 Once it is closed, the owner may offer the case again to anyone, including a participant that refused, with nothing to clear first.
 A closed offer cannot be answered again: an acceptance after a refusal, or a refusal after an acceptance, is refused.
 
-The owner that made an offer may withdraw it while it is open, by sending an `Undo` of the offer to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015)).
+```text
+Offering owner sends trigger: withdraw-case-ownership-transfer
+  → Undo(Offer(VulnerabilityCase))
+      to: [case_actor_id]     ← MUST route through Case Actor (CM-21-015)
+
+Case Actor inbox receives Undo:
+  0. Checks the sender is the Case Owner that made an
+     open offer it recorded (anyone else: refused).     ← CM-21-015
+  1. Commits CaseLedgerEntry (offer withdrawn).         ← CM-21-015
+  2. Announce(CaseLedgerEntry) → all participants.
+```
+
+The owner that made an offer may withdraw it while it is open, with the `withdraw-case-ownership-transfer` trigger, which sends an `Undo` of the offer to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015), [TRIG-11-006](../../reference/specs/protocol.md#trig-11-006)).
+The CASE_MANAGER acts on a withdrawal only when its sender is the Case Owner that made an offer it recorded for the case, and that offer is still open.
+It records the withdrawal in the ledger and sends the entry to every participant, so the proposed owner learns that it can no longer accept, and the offer is closed.
+It refuses a withdrawal from anyone else, or of an offer already accepted, refused, withdrawn, or expired, and records and sends nothing.
+Ownership stays where it was, and the owner may offer the case again at once.
+
+```text
+Offering owner sends trigger: offer-case-ownership-transfer
+  with end_time (optional)                              ← TRIG-11-007
+  → Offer(VulnerabilityCase, endTime=deadline)
+
+Case Actor inbox receives an Accept, Reject or Undo of the offer
+from its party, or a new Offer for the case:
+  0. Is the open offer past its endTime?                ← CM-21-017
+     yes: Commits CaseLedgerEntry (offer expired),
+          Announce(CaseLedgerEntry) → all participants.
+  1. Handles the activity; the expired offer is closed,
+     so an answer to it is refused.                     ← CM-21-016
+```
+
 An offer may also carry an `end_time`, the deadline to answer it ([CM-21-016](../../reference/specs/protocol.md#cm-21-016)).
+The owner sets it with the `end_time` field of the `offer-case-ownership-transfer` trigger, which must be a future time with a timezone ([TRIG-11-007](../../reference/specs/protocol.md#trig-11-007)); without it, the offer stays open until it is answered or withdrawn.
+The forwarded offer carries the same deadline, so the proposed owner knows when it can no longer answer.
+The CASE_MANAGER reads the deadline in Coordinated Universal Time (UTC), whatever offset the offer was sent with.
+
 The deadline is binding: the CASE_MANAGER refuses an acceptance or refusal it processes after the deadline, so every participant knows who decides for the case once it passes.
+A refused late answer moves no role and is not recorded in the ledger.
 This is stricter than the deadline on an embargo invitation, which is a strong suggestion.
-The CASE_MANAGER notices an expired offer the next time it handles something for that case, and records the expiry in the ledger before it acts ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
+
+The CASE_MANAGER checks the deadline only when it handles an acceptance, refusal or withdrawal of the offer, or a new offer for the case; nothing runs on a timer ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
+When it finds the open offer past its deadline, it first records the expiry in the ledger and sends the entry to every participant, and then handles the activity.
+Only the proposed owner's acceptance or refusal, or the offering owner's withdrawal, prompts this check, so an actor with no part in the offer cannot make the CASE_MANAGER record anything ([HP-01-006](../../reference/specs/protocol.md#hp-01-006)).
+The expiry entry is distinct from a refusal: nobody declined, the deadline passed.
+It closes the offer like an acceptance, a refusal or a withdrawal, so a late answer is refused, a withdrawal of the expired offer is refused, and a new offer for the case is admitted.
+Only the CASE_MANAGER decides that an offer expired; every other participant learns it from the entry.
 
 Without withdrawal and the deadline, a proposed owner that never answered would block every later transfer of the case.
-The prototype does not implement withdrawal or the deadline yet ([#4491](https://github.com/CERTCC/Vultron/issues/4491)), so until then an offer is closed only by an acceptance or a refusal.
 
 ---
 
@@ -128,7 +169,7 @@ In both, the CASE_MANAGER sits in the middle because it is the only participant 
 
 ## See also
 
-- [Case Management Messages](../../reference/messages/case_management.md#offer-case-ownership-transfer) — the `Offer`, `Accept`, and `Reject` activities on the wire
+- [Case Management Messages](../../reference/messages/case_management.md#offer-case-ownership-transfer) — the `Offer`, `Accept`, `Reject`, and `Undo` activities on the wire
 - [Other Demos: transfer-ownership](../../tutorials/other_demos.md#transfer-ownership) — run a transfer end to end
 - [The Case Model](case_model.md) — `VulnerabilityCase`, participants, and the `CASE_OWNER` role
 - [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) — how a ledger entry reaches every participant

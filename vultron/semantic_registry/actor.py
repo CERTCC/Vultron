@@ -36,6 +36,7 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToFullCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
     TentativeRejectInviteActorToFullCaseReceivedEvent,
+    UndoCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.received.actor import (
@@ -57,6 +58,7 @@ from vultron.core.use_cases.received.actor import (
     RejectInviteActorToFullCaseReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
     TentativeRejectInviteActorToFullCaseReceivedUseCase,
+    UndoCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
@@ -83,6 +85,7 @@ from vultron.wire.as2.extractor import (
     RejectInviteActorToCasePattern,
     RejectInviteActorToFullCasePattern,
     TentativeRejectInviteActorToFullCasePattern,
+    UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.extractor._instances import SuggestActorToCasePattern
 from vultron.wire.as2.vocab.activities.actor import (
@@ -106,6 +109,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmRejectFullCaseInviteActivity,
     _RmRejectInviteToCaseActivity,
     _RmTentativeRejectFullCaseInviteActivity,
+    _UndoCaseOwnershipTransferActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -304,7 +308,9 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Offer case ownership transfer",
                 description=(
                     "Offers the case to the actor named by the target, for "
-                    "example from a Reporter to a Coordinator."
+                    "example from a Reporter to a Coordinator, optionally "
+                    "with an `endTime` after which the CASE_MANAGER refuses "
+                    "an answer and records the offer as expired."
                 ),
                 example="offer_case_ownership_transfer",
             ),
@@ -348,6 +354,30 @@ ENTRIES: list[SemanticEntry] = [
                     "Owner keeps the case."
                 ),
                 example="reject_case_ownership_transfer",
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER,
+        pattern=UndoCaseOwnershipTransferActivityPattern,
+        event_class=UndoCaseOwnershipTransferReceivedEvent,
+        use_case_class=UndoCaseOwnershipTransferReceivedUseCase,
+        phrase="{actor} withdrew the case ownership offer",
+        wire_activity_class=_UndoCaseOwnershipTransferActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Owner withdraws an open offer of case ownership"
+                ),
+                anchor="withdraw-case-ownership-transfer",
+                heading="Withdraw case ownership transfer",
+                description=(
+                    "Withdraws the ownership transfer offer before it is "
+                    "answered. The current Case Owner keeps the case."
+                ),
+                example="undo_case_ownership_transfer",
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -443,7 +473,7 @@ ENTRIES: list[SemanticEntry] = [
                     "position as the floor the reply must reach."
                 ),
                 example="invite_to_full_case",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -469,7 +499,7 @@ ENTRIES: list[SemanticEntry] = [
                     "carries the sender's own ledger position."
                 ),
                 example="accept_full_case_invite",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
                 shorthand=ProtocolShorthand.RV,
             ),
         ),
@@ -496,7 +526,7 @@ ENTRIES: list[SemanticEntry] = [
                     "RM Invalid. It carries the sender's own ledger position."
                 ),
                 example="tentative_reject_full_case_invite",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
                 shorthand=ProtocolShorthand.RI,
             ),
         ),
@@ -522,7 +552,7 @@ ENTRIES: list[SemanticEntry] = [
                     " carries the sender's own ledger position."
                 ),
                 example="reject_full_case_invite",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
                 shorthand=ProtocolShorthand.RC,
             ),
         ),

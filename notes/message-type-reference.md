@@ -216,3 +216,30 @@ how-to tree.
   each section once and on no other page, and no page has an exec block of its
   own (MSM-06-001, MSM-08-004); `mkdocs build --strict` and `docs-links` check
   the rendered links.
+
+### How-to embeds and "Seen in" (#4432)
+
+- **A how-to step that sends an occasion includes
+  `_occasions/embeds/<anchor>.md`, never the section.** The embed is a
+  generated variant of the same YAML row: an `!!! info` box with no heading,
+  holding the sender's facts, a **Reference** link to the canonical section and
+  the example in a collapsed `??? example`. Do not cut the section with
+  `start=`/`end=` and wrap it by hand: the collapse and the link would be typed
+  per step. The formal definition, mapping status and notes stay in the section.
+- **An embed has no heading**, so a host gains no `{ #anchor }` or TOC entry
+  that could collide with the reference page's.
+- **"Seen in" is read from include directives, never typed.**
+  `embedding_pages` reads every `docs/` page outside the fragment directory
+  with `include_directives(..., existing=False)`, so a directive counts before
+  its embed exists and one `--write` settles it; the fragments include nothing,
+  so `--check` cannot loop. The hook watches all of `docs/` and `mkdocs.yml`.
+  The row's `howto` link became `seen_in` (`format_version` 2).
+- **Refused or skipped hosts**: an embed on any message page is refused (the
+  page carries the section), as is one in a fragment another page includes
+  whole (the reader sees the host); a `draft_docs`/`exclude_docs` page is
+  skipped, since production withholds it.
+- **A declared guide must embed its occasion.** `derive_table` fails when
+  `Occasion.howto` names a guide that does not include the embed. Declare the
+  guide whose step sends the occasion, or none: `Create(CaseParticipant)` is the
+  CASE_MANAGER's ledger entry for an inert record and no guide's step sends it
+  (#4576). Two steps send an activity no occasion fits yet (#4578).

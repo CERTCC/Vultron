@@ -645,9 +645,13 @@ groups:
       When the CASE_MANAGER updates canonical case state, it MUST notify every active
       participant (CM-10-004).
     rationale: >-
-      An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (ADR-0111,
-      #3936); the CASE_MANAGER announces a received update to the participants as
-      a broadcast, and every ledgered change reaches them as `Announce(CaseLedgerEntry)`.
+      Every change the CASE_MANAGER makes to the case file is its own ledger entry
+      (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
+      active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
+      announces the updated case as `Announce(VulnerabilityCase)` after admitting
+      a participant's engagement. No participant sends
+      the CASE_MANAGER an `Update(VulnerabilityCase)`; one that arrives is refused
+      as unmatched (CLP-02-013, #4443).
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
@@ -3578,8 +3582,10 @@ groups:
           entry per RM transition it writes, in order (CM-23-001),
       (2) advance the CASE_MANAGER's own CaseParticipant to RM.CLOSED, committing
           one status entry per RM transition it writes, in order (CM-23-005),
-      (3) emit a case_fully_closed CaseLedgerEntry marking the owner-close write
-          boundary (ADR-0085),
+      (3) commit a case_fully_closed CaseLedgerEntry marking the owner-close write
+          boundary (ADR-0085), whose payloadSnapshot is the CASE_MANAGER's own
+          factory-built Update(VulnerabilityCase) carrying the closed case
+          (CLP-07-013, VM-08-003),
       (4) fan-out that entry to every active participant whose closure the ledger
           does not already record (CM-10-004, CM-23-004).
       Every entry of steps (0) to (2) MUST precede case_fully_closed, because no

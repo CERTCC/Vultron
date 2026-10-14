@@ -485,7 +485,14 @@ def test_a_joined_invitee_is_not_reissued_on_an_embargo_change(
 
     _terminate(dl, owner.id_, case.id_)
 
-    assert [i.id_ for i in _invites_to(dl, invitee.id_)] == [original["id"]]
+    # Joining sent the invitee its full-case Invite (CM-11-010); no stub
+    # Invite was re-issued.
+    stub_invites = [
+        i
+        for i in _invites_to(dl, invitee.id_)
+        if getattr(i.target, "type_", None) != "VulnerabilityCase"
+    ]
+    assert [i.id_ for i in stub_invites] == [original["id"]]
 
 
 @pytest.mark.spec("CM-11-016")

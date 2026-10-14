@@ -285,21 +285,34 @@ reconstructing a participant's causal order; they are verified by
 
 The CASE_MANAGER commits every initialization entry natively in
 `CommitNativeLedgerEntriesNode` (`vultron/core/behaviors/case/nodes/proposal_ledger.py`)
-while handling `Create(as_CaseProposal)` (CM-22-003, CLP-12). Order:
+while handling `Create(as_CaseProposal)` (CM-22-003, CLP-12). The create-case
+trigger composes the same node (`create_case_trigger_tree.py`), its creator being
+owner and CASE_MANAGER, so both creation paths commit one sequence; do not add a
+second copy (CLP-07-013). Order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, actor CASE_MANAGER
 2. `add_report_to_case` — actor CASE_MANAGER
-3. `add_participant_status_to_participant` × N — actor CASE_MANAGER
+3. `add_participant_status_to_participant` × N — actor CASE_MANAGER; its
+   `target` is the participant record in full, the entry that carries the record
+   (a `Create(CaseParticipant)` shape is #4295's)
 4. `add_case_status_to_case` — actor **vendor URI**
 
-Snapshot shapes come from `vultron/core/behaviors/case/ledger_snapshots.py`.
+Each snapshot is the CASE_MANAGER's factory-built activity, sealed and committed
+verbatim: the `record_*` methods of `TriggerActivityPort`
+(`trigger_activity_adapter/ledger.py`). Core builds no snapshot dict itself
+(VM-08-003; `test/architecture/test_no_hand_built_payload_snapshots.py`).
+A record is sealed, not stored as an activity (`_seal_record`): it is no
+message, and a scan for the messages sent (one `Create(VulnerabilityCase)` per
+case, CP-09-009) must not count it. Its id is derived from the CASE_MANAGER and
+what changed, so a retry hands back the first sealed body (ID-04-004).
 
 - **Exactly one participant-status entry per participant** (CM-18-007). The
   default embargo is set before PEC state is fixed, so the single snapshot already
   carries the true consent value. A second entry shifts every downstream
   `log_index` and breaks "`log_index` order is causal order".
 - **Fail fast on genesis, best-effort after.** If step 1 fails, the node returns
-  FAILURE so no `Accept`/`Create` tells the vendor a case exists with no ledger.
+  FAILURE and the handler or trigger reports it. The node runs after the `Create`
+  is queued (CM-14-011, CP-09-009), so the failure is surfaced, not prevented.
   Steps 2–4 warn and continue.
 - **Step 4 names the vendor** because the vendor set the genesis status.
   `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so

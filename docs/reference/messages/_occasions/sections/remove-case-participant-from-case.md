@@ -7,7 +7,7 @@ Asks the Case Manager to remove the participant record named by the object. The 
 - **When…** the Case Owner removes a Participant from active participation
 - **Send:** `Remove(CaseParticipant)[target=VulnerabilityCase]`
 - **Sent by:** the case owner
-- **How-to:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
+- **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""

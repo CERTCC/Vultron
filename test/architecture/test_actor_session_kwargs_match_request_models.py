@@ -61,6 +61,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     SyncLogEntryRequest,
     TerminateEmbargoRequest,
     ValidateReportRequest,
+    WithdrawCaseOwnershipTransferRequest,
 )
 from vultron.demo.actor_session import ActorSession
 
@@ -84,6 +85,7 @@ METHOD_TO_MODEL = {
     "offer_case_ownership_transfer": OfferCaseOwnershipTransferRequest,
     "accept_case_ownership_transfer": AcceptCaseOwnershipTransferRequest,
     "reject_case_ownership_transfer": RejectCaseOwnershipTransferRequest,
+    "withdraw_case_ownership_transfer": WithdrawCaseOwnershipTransferRequest,
     "add_note_to_case": AddNoteToCaseRequest,
     "notify_fix_ready": NotifyFixReadyRequest,
     "notify_fix_deployed": NotifyFixDeployedRequest,

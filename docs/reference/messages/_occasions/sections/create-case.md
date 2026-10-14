@@ -7,7 +7,7 @@ Mints the vulnerability case, seats its initial participants and links the repor
 - **When…** the Case Manager has opened a case for a submitted report
 - **Send:** `Create(VulnerabilityCase)`
 - **Sent by:** not yet checked
-- **How-to:** [How to Initialize a Case](../../../../howto/activitypub/activities/initialize_case.md)
+- **Seen in:** [How to Initialize a Case](../../../../howto/activitypub/activities/initialize_case.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""

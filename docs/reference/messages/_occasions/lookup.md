@@ -26,7 +26,6 @@
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
 | the Case Manager has opened a case for a submitted report | `Create(VulnerabilityCase)` | not yet checked | — | [Create case](../case_management.md#create-case) |
-| the Case Manager has recorded a change to the case object | `Update(VulnerabilityCase)` | not yet checked | — | [Update case](../case_management.md#update-case) |
 | the Case Owner links a further report to an existing case | `Add(VulnerabilityReport)[target=VulnerabilityCase]` | the case owner | — | [Add report to case](../case_management.md#add-report-to-case) |
 | a Participant offers a CVD role on the case to another actor | `Offer(CaseParticipantRole)[context=VulnerabilityCase]` | not yet checked | — | [Offer case participant role](../case_management.md#offer-case-participant-role) |
 | an actor accepts a role offered to it on the case | `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | not yet checked | — | [Accept case participant role](../case_management.md#accept-case-participant-role) |
@@ -34,6 +33,7 @@
 | the Case Owner offers to transfer ownership of the case to another actor | `Offer(VulnerabilityCase)` | not yet checked | — | [Offer case ownership transfer](../case_management.md#offer-case-ownership-transfer) |
 | an actor accepts an offer of case ownership | `Accept(Offer(VulnerabilityCase))` | the addressee of the vulnerability case | — | [Accept case ownership transfer](../case_management.md#accept-case-ownership-transfer) |
 | an actor declines an offer of case ownership | `Reject(Offer(VulnerabilityCase))` | the addressee of the vulnerability case | — | [Reject case ownership transfer](../case_management.md#reject-case-ownership-transfer) |
+| the Case Owner withdraws an open offer of case ownership | `Undo(Offer(VulnerabilityCase))` | the case owner | — | [Withdraw case ownership transfer](../case_management.md#withdraw-case-ownership-transfer) |
 | the Case Manager invites an actor to join the case | `Invite(Actor)[target=VulnerabilityCaseStub]` | not yet checked | — | [Invite actor to case](../case_management.md#invite-actor-to-case) |
 | an invited actor agrees to join the case | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` | the invitee | — | [Accept invite to case](../case_management.md#accept-invite-to-case) |
 | an invited actor declines to join the case | `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` | the invitee | — | [Reject invite to case](../case_management.md#reject-invite-to-case) |

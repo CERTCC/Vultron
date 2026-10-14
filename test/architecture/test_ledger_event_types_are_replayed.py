@@ -63,6 +63,9 @@ from test.architecture._ledger_commit_inventory import (
     received_commit_semantics,
 )
 from vultron.core.models.events.base import MessageSemantics as MS
+from vultron.core.models.protocol_pair import (
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
@@ -149,9 +152,11 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         "Read(Offer) acknowledges receipt and moves no RM state (RK, ADR-0021)"
     ),
     "case_fully_closed": (
-        "a marker; the transitions it summarises arrive as the"
+        "the CASE_MANAGER's Update(VulnerabilityCase) marking the write"
+        " boundary; it carries the case a replica at that ledger position"
+        " already holds, and the transitions it follows arrive as the"
         " add_participant_status_to_participant entries before it"
-        " (CM-23-002, CM-23-005)"
+        " (CM-23-002, CM-23-005, CM-23-016)"
     ),
     MS.CLOSE_CASE.value: (
         "records the received Leave; the RM transitions it caused arrive as"
@@ -176,6 +181,17 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         "the transferee's decline closes the ownership-transfer Offer and"
         " changes no owner or role; the open state is read from the ledger"
         " itself, not from replica state (CM-21-012, CM-21-014)"
+    ),
+    MS.UNDO_CASE_OWNERSHIP_TRANSFER.value: (
+        "the offerer's withdrawal closes the ownership-transfer Offer and"
+        " changes no owner or role; the open state is read from the ledger"
+        " itself, not from replica state (CM-21-014, CM-21-015)"
+    ),
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE: (
+        "the CASE_MANAGER's expiry record closes the ownership-transfer Offer"
+        " and changes no owner or role; the open state is read from the ledger"
+        " itself, so a replica learns the expiry from the entry and never"
+        " computes one (CM-21-014, CM-21-017)"
     ),
     MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
         "the CASE_MANAGER records the role-delegation offer as an assertion"

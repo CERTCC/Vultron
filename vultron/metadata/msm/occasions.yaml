@@ -1,7 +1,7 @@
 # The occasion table, generated from SEMANTIC_REGISTRY (ADR-0128).
 # Do not edit: edit the occasions and run `uv run msm-occasions --write`.
 # Internal; not a published interface (#2959).
-format_version: 1
+format_version: 2
 groups:
 - page: rm
   title: Report
@@ -16,8 +16,8 @@ groups:
     status: none
     description: Mints the vulnerability report object. It precedes the Offer that submits
       the report.
-    howto:
-      path: howto/activitypub/activities/report_vulnerability.md
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
       title: How to Report a Vulnerability
     example: create_report
   - anchor: report-submission
@@ -30,8 +30,8 @@ groups:
     status: direct
     description: Offers the report to a new Participant. The Offer may carry proposed embargo
       terms.
-    howto:
-      path: howto/activitypub/activities/report_vulnerability.md
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
       title: How to Report a Vulnerability
     example: submit_report
   - anchor: report-acknowledgment
@@ -44,8 +44,10 @@ groups:
     status: direct
     description: Acknowledges receipt of the submitted report. Report submission is not replicated
       through the case ledger, so the acknowledgment is an explicit message.
-    howto:
-      path: howto/activitypub/activities/report_vulnerability.md
+    seen_in:
+    - path: howto/activitypub/activities/acknowledge.md
+      title: How to Acknowledge a Report
+    - path: howto/activitypub/activities/report_vulnerability.md
       title: How to Report a Vulnerability
     example: read_report
   - anchor: report-valid
@@ -57,8 +59,8 @@ groups:
     shorthand: RV
     status: expansion
     description: Designates the report as valid, moving the sender's RM state to Valid.
-    howto:
-      path: howto/activitypub/activities/report_vulnerability.md
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
       title: How to Report a Vulnerability
     example: validate_report
   - anchor: report-invalid
@@ -70,8 +72,8 @@ groups:
     shorthand: RI
     status: expansion
     description: Designates the report as invalid, moving the sender's RM state to Invalid.
-    howto:
-      path: howto/activitypub/activities/report_vulnerability.md
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
       title: How to Report a Vulnerability
     example: invalidate_report
   - anchor: report-closed
@@ -83,8 +85,10 @@ groups:
     shorthand: RC
     status: expansion
     description: Closes the report, moving the sender's RM state to Closed.
-    howto:
-      path: howto/activitypub/activities/report_vulnerability.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
+      title: How to Advance a Case Through Report Management
+    - path: howto/activitypub/activities/report_vulnerability.md
       title: How to Report a Vulnerability
     example: close_report
   - anchor: report-accepted
@@ -97,8 +101,8 @@ groups:
     status: direct
     description: Joins the case, moving the sender's RM state to Accepted. Engaging is a case-participation
       decision, so the verb names the case rather than the report.
-    howto:
-      path: howto/activitypub/activities/manage_case.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
       title: How to Advance a Case Through Report Management
     example: engage_case
   - anchor: report-deferred
@@ -111,8 +115,8 @@ groups:
     status: direct
     description: Ignores the case, moving the sender's RM state to Deferred. Deferring is
       a case-participation decision, so the verb names the case rather than the report.
-    howto:
-      path: howto/activitypub/activities/manage_case.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
       title: How to Advance a Case Through Report Management
     example: defer_case
 - page: case_proposal
@@ -128,6 +132,7 @@ groups:
     status: none
     description: Submits a case proposal for the attached report to the service's inbox. No
       case exists yet.
+    seen_in: []
     example: create_case_proposal
   - anchor: accept-case-proposal
     heading: Accept case proposal
@@ -138,6 +143,7 @@ groups:
     status: none
     description: Accepts the case proposal and tells the proposing actor that a case will
       be opened for its report.
+    seen_in: []
     example: accept_case_proposal
   - anchor: reject-case-proposal
     heading: Reject case proposal
@@ -147,6 +153,7 @@ groups:
     semantics: reject_case_proposal
     status: none
     description: Rejects the case proposal. No case is opened.
+    seen_in: []
     example: reject_case_proposal
 - page: case_management
   title: Case and participants
@@ -161,20 +168,10 @@ groups:
     status: none
     description: Mints the vulnerability case, seats its initial participants and links the
       report.
-    howto:
-      path: howto/activitypub/activities/initialize_case.md
+    seen_in:
+    - path: howto/activitypub/activities/initialize_case.md
       title: How to Initialize a Case
     example: create_case
-  - anchor: update-case
-    heading: Update case
-    when: the Case Manager has recorded a change to the case object
-    send: Update(VulnerabilityCase)
-    sent_by: not yet checked
-    semantics: update_case
-    status: none
-    description: Sends the changed case object, for example after a title edit or an applied
-      ownership transfer.
-    example: update_case
   - anchor: add-report-to-case
     heading: Add report to case
     when: the Case Owner links a further report to an existing case
@@ -183,6 +180,9 @@ groups:
     semantics: add_report_to_case
     status: none
     description: Adds a vulnerability report to the case named by the target.
+    seen_in:
+    - path: howto/activitypub/activities/initialize_case.md
+      title: How to Initialize a Case
     example: add_report_to_case
   - anchor: offer-case-participant-role
     heading: Offer case participant role
@@ -192,8 +192,8 @@ groups:
     semantics: offer_case_participant_role
     status: none
     description: Offers one role on the case to the actor named by the target.
-    howto:
-      path: howto/activitypub/activities/role_delegation.md
+    seen_in:
+    - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: offer_case_participant_role
   - anchor: accept-case-participant-role
@@ -204,8 +204,8 @@ groups:
     semantics: accept_case_participant_role
     status: none
     description: Accepts the offered role. The actor holds the role from then on.
-    howto:
-      path: howto/activitypub/activities/role_delegation.md
+    seen_in:
+    - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: accept_case_participant_role
   - anchor: reject-case-participant-role
@@ -216,8 +216,8 @@ groups:
     semantics: reject_case_participant_role
     status: none
     description: Declines the offered role. The roster does not change.
-    howto:
-      path: howto/activitypub/activities/role_delegation.md
+    seen_in:
+    - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: reject_case_participant_role
   - anchor: offer-case-ownership-transfer
@@ -228,7 +228,9 @@ groups:
     semantics: offer_case_ownership_transfer
     status: none
     description: Offers the case to the actor named by the target, for example from a Reporter
-      to a Coordinator.
+      to a Coordinator, optionally with an `endTime` after which the CASE_MANAGER refuses
+      an answer and records the offer as expired.
+    seen_in: []
     example: offer_case_ownership_transfer
   - anchor: accept-case-ownership-transfer
     heading: Accept case ownership transfer
@@ -238,6 +240,7 @@ groups:
     semantics: accept_case_ownership_transfer
     status: none
     description: Accepts the ownership transfer offer.
+    seen_in: []
     example: accept_case_ownership_transfer
   - anchor: reject-case-ownership-transfer
     heading: Reject case ownership transfer
@@ -247,7 +250,19 @@ groups:
     semantics: reject_case_ownership_transfer
     status: none
     description: Declines the ownership transfer offer. The current Case Owner keeps the case.
+    seen_in: []
     example: reject_case_ownership_transfer
+  - anchor: withdraw-case-ownership-transfer
+    heading: Withdraw case ownership transfer
+    when: the Case Owner withdraws an open offer of case ownership
+    send: Undo(Offer(VulnerabilityCase))
+    sent_by: the case owner
+    semantics: undo_case_ownership_transfer
+    status: none
+    description: Withdraws the ownership transfer offer before it is answered. The current
+      Case Owner keeps the case.
+    seen_in: []
+    example: undo_case_ownership_transfer
   - anchor: invite-actor-to-case
     heading: Invite actor to case
     when: the Case Manager invites an actor to join the case
@@ -257,8 +272,10 @@ groups:
     status: none
     description: Sends a Stub Invite carrying the case stub and the embargo terms the invitee
       would agree to.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/initialize_participant.md
+      title: How to Seat a Participant on an Existing Case
+    - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
     example: rm_invite_to_case
   - anchor: accept-invite-to-case
@@ -269,8 +286,10 @@ groups:
     semantics: accept_invite_actor_to_case
     status: none
     description: Accepts the Stub Invite. The actor joins the case at RM Received.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/initialize_participant.md
+      title: How to Seat a Participant on an Existing Case
+    - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
     example: accept_invite_to_case
   - anchor: reject-invite-to-case
@@ -281,8 +300,8 @@ groups:
     semantics: reject_invite_actor_to_case
     status: none
     description: Rejects the Stub Invite, which closes the invitee's participant record.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
     example: reject_invite_to_case
   - anchor: invite-actor-to-full-case
@@ -294,9 +313,9 @@ groups:
     status: none
     description: Sends the Full-Case Invite, which asks the Participant to judge the case.
       It carries the Case Manager's ledger position as the floor the reply must reach.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
-      title: How to Invite an Actor to a Case
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
     example: invite_to_full_case
   - anchor: accept-full-case-invite
     heading: Accept Full-Case Invite
@@ -308,9 +327,9 @@ groups:
     status: expansion
     description: Accepts the Full-Case Invite, which records RM Valid. It carries the sender's
       own ledger position.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
-      title: How to Invite an Actor to a Case
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
     example: accept_full_case_invite
   - anchor: tentatively-reject-full-case-invite
     heading: Tentatively reject Full-Case Invite
@@ -322,9 +341,9 @@ groups:
     status: expansion
     description: Tentatively rejects the Full-Case Invite, which records RM Invalid. It carries
       the sender's own ledger position.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
-      title: How to Invite an Actor to a Case
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
     example: tentative_reject_full_case_invite
   - anchor: reject-full-case-invite
     heading: Reject Full-Case Invite
@@ -336,9 +355,9 @@ groups:
     status: expansion
     description: Rejects the Full-Case Invite, which records RM Closed. It carries the sender's
       own ledger position.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
-      title: How to Invite an Actor to a Case
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
     example: reject_full_case_invite
   - anchor: announce-vulnerability-case
     heading: Announce vulnerability case
@@ -349,8 +368,8 @@ groups:
     status: none
     description: Sends the full case to the newly admitted Participant once its acceptance
       clears the embargo consent checks.
-    howto:
-      path: howto/activitypub/activities/invite_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
     example: announce_case
   - anchor: close-case
@@ -361,8 +380,8 @@ groups:
     semantics: close_case
     status: none
     description: Leaves the case, moving the sender's RM state to Closed.
-    howto:
-      path: howto/activitypub/activities/manage_case.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
       title: How to Advance a Case Through Report Management
     example: close_case
   - anchor: create-case-participant
@@ -374,9 +393,7 @@ groups:
     status: none
     description: Mints a participant record that pairs an actor with its roles in the case.
       It precedes the Add.
-    howto:
-      path: howto/activitypub/activities/manage_participants.md
-      title: How to Manage a Case Roster
+    seen_in: []
     example: create_participant
   - anchor: add-case-participant-to-case
     heading: Add case participant to case
@@ -387,8 +404,8 @@ groups:
     status: none
     description: Asks the Case Manager to reinstate the participant record named by the object.
       The Participant becomes active again and receives the ledger entries it missed.
-    howto:
-      path: howto/activitypub/activities/manage_participants.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
       title: How to Manage a Case Roster
     example: add_coordinator_participant_to_case
   - anchor: remove-case-participant-from-case
@@ -400,8 +417,8 @@ groups:
     status: none
     description: Asks the Case Manager to remove the participant record named by the object.
       The removed Participant receives a direct notice.
-    howto:
-      path: howto/activitypub/activities/manage_participants.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
       title: How to Manage a Case Roster
     example: remove_participant_from_case
 - page: em
@@ -417,8 +434,8 @@ groups:
     status: none
     description: Mints the embargo event that carries the proposed terms. It precedes the
       Invite that proposes them.
-    howto:
-      path: howto/activitypub/activities/establish_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
     example: create_embargo_event
   - anchor: embargo-termination
@@ -430,8 +447,8 @@ groups:
     shorthand: ET
     status: direct
     description: Terminates the embargo with immediate effect.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: remove_embargo
   - anchor: announce-embargo
@@ -442,8 +459,10 @@ groups:
     semantics: announce_embargo_event_to_case
     status: none
     description: Tells participants the terms of the active embargo. It proposes nothing.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: announce_embargo
   - anchor: embargo-proposal
@@ -456,8 +475,8 @@ groups:
     shorthand: EP
     status: collapse
     description: Proposes embargo terms, such as an end date and time.
-    howto:
-      path: howto/activitypub/activities/establish_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
     example: propose_embargo
   - anchor: embargo-revision-proposal
@@ -471,8 +490,8 @@ groups:
     status: collapse
     description: Proposes a revision to the terms of the active embargo. The wire form is
       the same as a first proposal; the receiver's EM state makes it a revision.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: propose_embargo_revision
   - anchor: embargo-proposal-acceptance
@@ -486,9 +505,9 @@ groups:
     status: collapse
     description: Records the sender's own consent to the proposed terms. The embargo becomes
       active only when the Case Owner sends its decision.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
-      title: How to Revise or Terminate an Embargo
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
     example: accept_embargo
   - anchor: embargo-revision-acceptance
     heading: Embargo Revision Acceptance (EC)
@@ -501,8 +520,8 @@ groups:
     status: collapse
     description: Records the sender's own consent to the revision. The revision replaces the
       active embargo only when the Case Owner sends its decision.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: accept_embargo_revision
   - anchor: embargo-proposal-rejection
@@ -516,9 +535,9 @@ groups:
     status: collapse
     description: Records the sender's own refusal of the proposed terms. The proposal is rejected
       for the case only when the Case Owner sends its decision.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
-      title: How to Revise or Terminate an Embargo
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
     example: reject_embargo
   - anchor: embargo-revision-rejection
     heading: Embargo Revision Rejection (EJ)
@@ -531,8 +550,8 @@ groups:
     status: collapse
     description: Records the sender's own refusal of the revision. The Case Owner keeps the
       prior terms by sending its decision.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: reject_embargo_revision
   - anchor: activate-embargo
@@ -544,8 +563,10 @@ groups:
     status: none
     description: Activates the proposal for the case. If an embargo is already active, the
       proposal replaces it.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: activate_embargo
   - anchor: reject-embargo-proposal
@@ -557,8 +578,10 @@ groups:
     status: none
     description: Rejects the proposal for the case. An active embargo stays in force on its
       current terms.
-    howto:
-      path: howto/activitypub/activities/manage_embargo.md
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: reject_embargo_proposal
 - page: cs
@@ -574,8 +597,8 @@ groups:
     status: none
     description: Mints a case status object carrying `em_state` and `pxa_state`. It precedes
       the Add.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: create_case_status
   - anchor: public-awareness
@@ -588,8 +611,8 @@ groups:
     shorthand: CP
     status: collapse
     description: Announces evidence that the vulnerability is known to the public.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_public_awareness_to_case
   - anchor: exploit-public
@@ -602,8 +625,8 @@ groups:
     shorthand: CX
     status: collapse
     description: Announces evidence that an exploit is publicly available.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_exploit_public_to_case
   - anchor: attacks-observed
@@ -616,8 +639,8 @@ groups:
     shorthand: CA
     status: collapse
     description: Announces evidence that attackers are exploiting the vulnerability.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_attacks_observed_to_case
   - anchor: create-participant-status
@@ -629,8 +652,8 @@ groups:
     status: none
     description: Mints a participant status object carrying `rm_state`, `vf_state` and `d_state`.
       It precedes the Add.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: create_participant_status
   - anchor: vendor-awareness
@@ -644,8 +667,8 @@ groups:
     status: collapse
     description: Announces that the report has reached the Vendor whose participant record
       is the target.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_vendor_awareness_to_participant
   - anchor: fix-readiness
@@ -659,8 +682,8 @@ groups:
     status: collapse
     description: Announces that the Vendor whose participant record is the target has a fix
       ready.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_fix_readiness_to_participant
   - anchor: fix-deployed
@@ -674,8 +697,8 @@ groups:
     status: collapse
     description: Announces that the Deployer whose participant record is the target has deployed
       the fix.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_fix_deployment_to_participant
 - page: general
@@ -691,8 +714,8 @@ groups:
     shorthand: GI
     status: expansion
     description: Recommends an actor to the Case Manager for the case named by the target.
-    howto:
-      path: howto/activitypub/activities/suggest_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: recommend_actor
   - anchor: offer-case-participant
@@ -705,8 +728,8 @@ groups:
     status: expansion
     description: Forwards the recommendation as a proposed participant record, carrying the
       original recommendation's ID and the default roles it assigned.
-    howto:
-      path: howto/activitypub/activities/suggest_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: offer_case_participant
   - anchor: accept-case-participant-offer
@@ -719,8 +742,8 @@ groups:
     status: expansion
     description: Accepts the proposed participant record. The Case Manager then invites the
       suggested actor.
-    howto:
-      path: howto/activitypub/activities/suggest_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: accept_case_participant_offer
   - anchor: reject-case-participant-offer
@@ -732,8 +755,8 @@ groups:
     shorthand: GI
     status: expansion
     description: Rejects the proposed participant record. The Case Manager tells the recommender.
-    howto:
-      path: howto/activitypub/activities/suggest_actor.md
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: reject_case_participant_offer
   - anchor: create-note
@@ -747,8 +770,8 @@ groups:
     description: Mints a note for the case. When the note's context names the case, the Case
       Manager attaches it and records the attachment in the case ledger, so the Add that follows
       changes nothing more.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: create_note
   - anchor: add-note-to-case
@@ -761,8 +784,8 @@ groups:
     status: expansion
     description: Attaches the note to the case named by the target, for example to ask or
       answer a question.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_note_to_case
   - anchor: remove-note-from-case
@@ -774,8 +797,8 @@ groups:
     shorthand: GI
     status: expansion
     description: Removes the note from the case named by the target.
-    howto:
-      path: howto/activitypub/activities/status_updates.md
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: remove_note_from_case
 - page: faults_and_acknowledgements
@@ -792,6 +815,9 @@ groups:
     description: Tells the sender that its message was received but not understood. It names
       the failed activity and a failure class, with no implementation diagnostics. This fault
       serves the not-understood purpose of the formal RE, EE, CE and GE messages.
+    seen_in:
+    - path: howto/activitypub/activities/error.md
+      title: How to Report a Protocol Fault
     example: create_processing_fault
 - page: ledger_replication
   title: Ledger replication
@@ -805,6 +831,7 @@ groups:
     semantics: announce_case_ledger_entry
     status: none
     description: Fans out the newly committed ledger entry to each active participant.
+    seen_in: []
     example: announce_case_ledger_entry
   - anchor: reject-case-ledger-entry
     heading: Reject case ledger entry
@@ -816,4 +843,5 @@ groups:
     description: Tells the Case Manager that the entry's previous hash does not match the
       sender's ledger tail, and the Case Manager replays every entry after the last accepted
       hash. This negative acknowledgment serves the purpose of the formal EK and CK messages.
+    seen_in: []
     example: reject_case_ledger_entry
