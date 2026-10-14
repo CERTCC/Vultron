@@ -60,7 +60,7 @@ sequenceDiagram
     V->>CA: Create(CaseProposal)
     CA->>V: Accept(CaseProposal)
     CA->>V: Create(VulnerabilityCase)
-    CA->>F: Create(VulnerabilityCase)
+    V->>F: Create(VulnerabilityCase) — introduces the Case Actor
     V->>CA: Accept(Offer(VulnerabilityReport)) — Report Valid (RV)
     V->>CA: Join(VulnerabilityCase) — Report/Case Accepted (RA)
     CA-->>V: Announce(CaseLedgerEntry) ×n
