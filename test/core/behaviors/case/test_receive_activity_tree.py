@@ -24,6 +24,9 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.delegation import (
+    EmitRejectCaseParticipantRoleNode,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -39,11 +42,11 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
-    ACK_ECHO,
+    OFFER_ROLE,
     ReplicaEmitExemption,
 )
-from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
@@ -83,8 +86,14 @@ def _effect(name: str = "Effect") -> py_trees.behaviour.Behaviour:
     return py_trees.behaviours.Success(name=name)
 
 
-def _ack_emit() -> EmitAckReportActivity:
-    return EmitAckReportActivity(offer_id="urn:uuid:offer", report_id="r")
+def _role_reject_emit() -> EmitRejectCaseParticipantRoleNode:
+    return EmitRejectCaseParticipantRoleNode(
+        offer_id="urn:uuid:offer",
+        case_id=CASE_ID,
+        role=CVDRole.VENDOR,
+        target_actor_id="urn:uuid:target",
+        vendor_id="urn:uuid:vendor",
+    )
 
 
 def _names(tree: py_trees.behaviour.Behaviour) -> list[str]:
@@ -273,14 +282,14 @@ class TestNamedExemption:
     def test_a_registered_exemption_admits_the_emitters_it_covers(
         self,
     ) -> None:
-        emit = _ack_emit()
+        emit = _role_reject_emit()
 
         tree = create_receive_activity_tree(
-            name="AckBT",
+            name="RoleOfferBT",
             case_id=CASE_ID,
             precondition_guards=[],
             replica_effects=[emit],
-            replica_emit_exemption=ACK_ECHO,
+            replica_emit_exemption=OFFER_ROLE,
         )
 
         assert tree.children[-1] is emit
@@ -290,11 +299,11 @@ class TestNamedExemption:
     ) -> None:
         with pytest.raises(VultronWiringError, match="_Emitter"):
             create_receive_activity_tree(
-                name="AckBT",
+                name="RoleOfferBT",
                 case_id=CASE_ID,
                 precondition_guards=[],
-                replica_effects=[_ack_emit(), _Emitter()],
-                replica_emit_exemption=ACK_ECHO,
+                replica_effects=[_role_reject_emit(), _Emitter()],
+                replica_emit_exemption=OFFER_ROLE,
             )
 
     def test_an_unregistered_exemption_is_refused(self) -> None:
@@ -319,7 +328,7 @@ class TestNamedExemption:
                 case_id=CASE_ID,
                 precondition_guards=[],
                 replica_effects=[_effect()],
-                replica_emit_exemption=ACK_ECHO,
+                replica_emit_exemption=OFFER_ROLE,
             )
 
     def test_an_exemption_needs_a_reason(self) -> None:

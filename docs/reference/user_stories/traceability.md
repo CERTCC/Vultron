@@ -153,7 +153,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-03-011](../specs/protocol.md#vp-03-011)</td>
-<td markdown="span">Recipients SHOULD acknowledge RE messages and inquire about the error — bidirectional inquiry.</td>
+<td markdown="span">Recipients SHOULD inquire about the error in an RE message; the ledger entry, not RK, acknowledges it — bidirectional inquiry.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="6" markdown="span">[story_2022_101](story_2022_101.md)</td>
@@ -1234,7 +1234,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="3" markdown="span">[story_2022_016](story_2022_016.md)</td>
 <td rowspan="3" markdown="span">As a Participant, limited ACK of vulnerability / full advisory</td>
 <td markdown="span">[VP-03-009](../specs/protocol.md#vp-03-009)</td>
-<td markdown="span">Recipients SHOULD send RK in acknowledgment of any R* message — acknowledgment requirement.</td>
+<td markdown="span">Recipients SHOULD acknowledge R* messages: RK acknowledges RS only, and once a case exists the CASE_MANAGER's ledger entry is the acknowledgment — acknowledgment requirement.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[RF-02-001](../specs/protocol.md#rf-02-001)</td>

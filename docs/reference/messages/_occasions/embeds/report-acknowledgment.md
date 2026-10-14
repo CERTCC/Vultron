@@ -6,7 +6,7 @@
 
     - **When…** a report receiver has read a submitted report
     - **Send:** `Read(Offer(VulnerabilityReport))`
-    - **Sent by:** not yet checked (usually: vendor, coordinator)
+    - **Sent by:** the addressee of the vulnerability report (usually: vendor, coordinator)
     - **Reference:** [Report Acknowledgment (RK)](../../rm.md#report-acknowledgment)
 
     ??? example "Example activity"

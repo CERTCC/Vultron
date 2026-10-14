@@ -42,7 +42,9 @@ An activity and an `Add(ParticipantStatus)` that report the same move record it 
 
 {% include-markdown "./_occasions/sections/report-acknowledgment.md" %}
 
-- **Triggering transition:** any valid RM message.
+- **Triggering transition:** receipt of `RS`; Vultron sends `RK` only to acknowledge a report submission (RMB-08-003).
+- **Receiver:** the reporter, which holds the Offer, accepts `RK` only from one of the Offer's addressees and refuses any other sender (RMB-08-004).
+  `RK` may go to the reporter at any time after the report arrives, whether or not a case exists, but never to the CASE_MANAGER, and it writes no ledger entry (RMB-08-003, PCR-08-001).
 - **Object:** the report's original `Offer`, not the report itself; a bare `Read(VulnerabilityReport)` matches no pattern.
   `RK` survives as a dedicated wire activity because report submission is not ledger-replicated (MSM-01-008).
 
