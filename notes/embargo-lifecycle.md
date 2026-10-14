@@ -125,9 +125,10 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 - No operation branches on whether the sender is the owner. The accept and
   reject triggers pick by actor: an owner sends its decision, anyone else its
   consent.
-- `activate_embargo()` refuses, in either mode, an owner whose row is
-  `DECLINED`: the owner is invited again first. The received owner-decision
-  trees check this and P/X/A with read-only guards ahead of the commit
+- An owner whose row is `DECLINED` may still activate: activating is the
+  owner changing its answer, so its row moves straight to `AGREED`, in either
+  mode, with one ledger entry (MSM-07-008). The received owner-decision trees
+  check P/X/A with a read-only guard ahead of the commit
   (`OwnerMayActivateEmbargoNode`), because replay runs `OBSERVED` and does not
   re-check.
 - A repeat of a recorded Accept or Reject is `SKIPPED` before the commit

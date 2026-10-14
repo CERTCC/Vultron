@@ -886,8 +886,8 @@ groups:
       (CM-18-003); if B ends later than A, implementations MUST NOT write any row to lapse
       anyone — a participant whose row for B is not AGREED is not a signatory to B and has
       lapsed if it had agreed to A (CM-18-001). The owner's row for B is AGREED unless it
-      already is, and an owner whose row for B is DECLINED cannot activate it: the activation
-      is refused and the owner is invited again first (MSM-07-008, ADR-0122).
+      already is; an owner whose row for B is DECLINED has changed its answer by activating B,
+      so its row moves directly to AGREED with no re-invite first (MSM-07-008, CM-18-003).
       Activating B advances no one else: a participant holding an AGREED row for B is its
       signatory by lookup, whether it is the proposer or an early acceptor. Only participants
       whose row for A is AGREED are carried over: a participant that had lapsed from an
@@ -1003,11 +1003,11 @@ groups:
       other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST
       activate the named proposal's embargo register entry and supersede any entry in force
       in the same step, so the derived EM becomes ACTIVE (EA, or EC for a revision); MUST
-      mark the owner's row for the activated embargo AGREED unless it already is; and, when
+      mark the owner's row for the activated embargo AGREED unless it already is, a DECLINED
+      row included, since activating is the owner changing its answer (CM-18-003); and, when
       it replaces an embargo in force, MUST apply the MSM-07-005 consent rule. It MUST be
       refused before it is committed when the named embargo is not an open proposal of the
-      case, when CS is public, exploited or attacked (EMB-02-002), or when the owner's row for
-      the proposal is DECLINED (the owner is invited again first, ADR-0122).
+      case, or when CS is public, exploited or attacked (EMB-02-002).
     rationale: >-
       Giving the owner's decision its own activity retires the two-audience rule: an Accept of
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
@@ -1019,8 +1019,9 @@ groups:
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
       Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
       the owner's AGREED row and carries signatories over to a shorter revision, that a
-      replica replaying the committed entry converges, and that a non-owner sender, a
-      non-open proposal, P/X/A and a DECLINED owner are each refused with nothing committed.
+      replica replaying the committed entry converges, that a DECLINED owner's activation
+      moves its row to AGREED with one ledger entry, and that a non-owner sender, a non-open
+      proposal and P/X/A are each refused with nothing committed.
     relationships:
     - rel_type: derives_from
       spec_id: EP-09-005

@@ -70,16 +70,12 @@ def owner_declined_embargo(
 ) -> bool:
     """True when the case owner's consent row for *embargo_id* is ``DECLINED``.
 
-    An owner that declined the proposal as a participant is invited again
-    before it can activate it (ADR-0122, MSM-07).  The rule is the owner's,
-    not the consent row's: ``AGREE`` itself is legal from ``DECLINED``
-    (CM-18-003).  A case with no owner,
-    or an owner with no participant record in *persistence*, has no declined
-    row, so the activation is not refused on this ground; nor has an owner
-    whose case does not hold the embargo yet (a replica that has not
-    recorded the proposal), since it holds no row for it.  Shared by the
-    received-side guard (``OwnerMayActivateEmbargoNode``) and the lifecycle's
-    STRICT enforcement (``_assert_owner_may_activate``) so the two cannot drift.
+    The creation-time owner seed reads it: seeding is not an answer the owner
+    gave, so it never overrides a decline (CM-14-003, CM-18-003).  The
+    owner's own activation does change a decline (MSM-07-008).  A case with
+    no owner, or an owner with no participant record in *persistence*, has
+    no declined row; nor has an owner whose case does not hold the embargo
+    yet, since it holds no row for it.
     """
     owner_id = _as_id(case.attributed_to)
     if owner_id is None or case.embargo_register_entry(embargo_id) is None:

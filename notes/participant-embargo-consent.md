@@ -146,7 +146,7 @@ agreed to.**
 | Owner rejects B for the case (`Reject(EmbargoEvent)`) | nothing — the owner is keeping A, not declining it |
 | Owner activates B, and B ends **no later than** A | owner's row for B → `AGREED`; `CARRY_OVER` makes B's row `AGREED` for every signatory of A, a `DECLINED` row for B included |
 | Owner activates B, and B ends **later than** A | owner's row for B → `AGREED`; nothing else — signatories without an `AGREED` row for B have lapsed by derivation |
-| Owner activates B while its own row for B is `DECLINED` | refused; the owner is invited again first |
+| Owner activates B while its own row for B is `DECLINED` | the owner has changed its answer: its row for B → `AGREED` and B is activated, with no re-invite first |
 | Termination | nothing — no entry is `ACTIVE`, and answers to the ended embargo can no longer change |
 
 **Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-004, MSM-07-010).
