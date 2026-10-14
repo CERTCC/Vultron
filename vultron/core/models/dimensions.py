@@ -182,9 +182,9 @@ class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
         validator this replaces guarded on ``raw is not None`` and silently
         substituted the initial state, so ``{"rmState": None}`` produced
         ``RM.START`` with no error.  A caller that names a dimension and supplies
-        no state is making a statement it cannot back, and ARCH-25-007's
-        fail-loudly rule says to refuse it.  Absence and explicit-null are different inputs
-        and only absence gets the default.
+        no state is making a statement it cannot back, and ARCH-25-007 refuses
+        a recognised field whose value violates its declared type.  Absence and
+        explicit-null are different inputs and only absence gets the default.
         """
         if isinstance(data, (dict, _ScalarDimension)):
             return data

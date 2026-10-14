@@ -269,7 +269,8 @@ class ParticipantStatus(CoreObject):
 
         ``name`` is an optional AS2 property carrying a display label, not
         protocol data. The object derives its own label from its own state, for
-        the same reason a dimension serializes its own value (ARCH-25-005, ADR-0099): the fact belongs to the class that holds the state.
+        the same reason a dimension serializes its own value (ARCH-25-005,
+        ADR-0099): the fact belongs to the class that holds the state.
 
         Only set when the caller supplied none, so an explicit ``name`` always
         wins. ``object.__setattr__`` avoids re-entering validation, since

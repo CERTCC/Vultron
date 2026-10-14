@@ -41,7 +41,7 @@ hand-writing it.  It is a derivation, not a translation table: there is nothing
 to keep in sync.
 
 Spec: ARCH-20-001 (core MUST NOT produce a wire shape for a core object);
-CLP-07-011; RSH-05-009; ARCH-25-002 (ADR-0099) and 5.
+CLP-07-011; RSH-05-009; ARCH-25-002, ARCH-25-005 (ADR-0099).
 """
 
 from collections.abc import Iterable

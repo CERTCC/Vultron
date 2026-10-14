@@ -138,7 +138,7 @@ def _type_checking_import_nodes(tree: ast.AST) -> set[ast.stmt]:
     resolve and nothing for wire to *call*.  It can only be used in an
     annotation, which means it cannot be a route around the rule: a wire module
     cannot invoke a core behaviour it imported under TYPE_CHECKING.  Wire stays
-    replaceable as a unit, which is the property ARCH-25-006 (ADR-0009) asks
+    replaceable as a unit, which is the property ARCH-06-001 (ADR-0009) asks
     for.
 
     Exempting the one current case instead — ``vultron/wire/as2/rehydration.py``,

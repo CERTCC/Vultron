@@ -59,9 +59,11 @@ _EXCLUDE_SELF = (
     ":(exclude)test/metadata/test_no_decision_record_part_citations.py"
 )
 
-#: Whitespace (a line break included) or a hyphen, an optional "#", and one or
-#: two digits, so "details 2026" (a year) is not a part number.
-_NUMBER = r"(?:\s+|-)#?\d{1,2}\b"
+#: Whitespace (a line break included, with the ``#`` or ``#:`` that continues
+#: a Python comment onto the next line) or a hyphen, an optional "#", and one or
+#: two digits, which may open a parenthesis ("invariant (1–3 of ADR-0122)"),
+#: so "details 2026" (a year) is not a part number.
+_NUMBER = r"(?:\s+(?:#:?\s+)?|-)[(#]?\d{1,2}\b"
 
 #: The words naming a numbered part of a record body ("Rule 1", "invariant 4"),
 #: each a pattern valid in both Python ``re`` and POSIX ERE.
@@ -98,7 +100,7 @@ CITATION_RE = re.compile(
 #: the joined lines.
 _CANDIDATE_ERE = (
     rf"\b({_PART_WORD})"
-    r"([[:space:]]*-?[[:space:]]*#?[0-9]{1,2}\b|[[:space:]]*$)"
+    r"([[:space:]]*-?[[:space:]]*[(#]?[0-9]{1,2}\b|[[:space:]]*$)"
     r"|§([[:space:]]*[0-9]|[[:space:]]*$)"
 )
 
@@ -201,6 +203,9 @@ def test_no_file_names_a_numbered_decision_part() -> None:
     [
         "an alias of the core class (ADR-0099 detail 3), not a subclass",
         "MUST NOT define a second actor class (ADR-0099 detail\n      3).",
+        "belongs in the alias (ADR-0099 detail\n    # 2), which is also",
+        "the cosmetic convenience ADR-0088\n#: §7 preserves",
+        "Every register invariant (1–3 of ADR-0122) that it breaks.",
         "on the core class (detail 2) and a bare state value (detail 5)",
         "**The rule (MV-11, ADR-0099 details 7 and 8 as amended).**",
         "| ADR-0099 Details 7–8 | The epic's closed children |",

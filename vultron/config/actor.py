@@ -89,10 +89,10 @@ class ActorConfig(BaseModel):
             appended at participant-creation time (BTND-05-002).
         auto_create_case: When ``True`` (default), create a
             ``VulnerabilityCase`` immediately on ``Offer(Report)`` receipt
-            (CM-15-001).  When ``False``, defer case creation so
-            the receiver can send a pre-case ACK (``Read(Offer(Report))``)
-            before deciding to accept or reject (CM-15-002, CM-15-003;
-            ADR-0015, issue #1133).
+            (CM-15-001 default; CM-12-001, CM-22-001).  When ``False``, defer
+            case creation so the receiver can send a pre-case ACK
+            (``Read(Offer(Report))``, VAM-02-003) before deciding to accept or
+            reject (CM-15-002, CM-15-003; ADR-0015, issue #1133).
         case_actor_service_url: Base URL of the dedicated CaseActor service
             (e.g. ``http://case-actor:7999/api/v2``).  The CaseActor's identity is
             ``{this}/actors/case-actor`` — one per container, no per-case slug

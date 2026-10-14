@@ -328,7 +328,7 @@ class TestWireVulnerabilityCaseFieldParity:
 
 
 class TestVulnerabilityCaseWireRoundTrip:
-    """as_VulnerabilityCase IS VulnerabilityCase (ARCH-25-003 (ADR-0099), issue #3487)."""
+    """as_VulnerabilityCase IS VulnerabilityCase (ARCH-25-003, ADR-0099, issue #3487)."""
 
     def test_to_core_produces_vulnerability_case(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (

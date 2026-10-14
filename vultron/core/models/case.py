@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 def _present_key(data: dict[str, Any], field_name: str) -> str:
     """Return the spelling of *field_name* that *data* carries.
 
-    The AS2 spelling when present (an inbound case, ARCH-25-002 (ADR-0099)), else
+    The AS2 spelling when present (an inbound case, ARCH-25-002, ADR-0099), else
     the field name, so a validator writes back under the key it read.
     """
     as2 = wire_key(field_name)

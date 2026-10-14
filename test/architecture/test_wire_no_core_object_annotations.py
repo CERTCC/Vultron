@@ -67,9 +67,9 @@ def test_promoted_core_classes_are_exactly_as2_representable() -> None:
 
     ARCH-25-003 states the invariant that takes its place, and it is a real
     constraint rather than a weaker one: a core class that can appear in a
-    message slot "MUST be exactly AS2-representable. Every field it carries must
-    have a valid AS2 property spelling, and it MUST NOT carry a field that cannot
-    go on the wire."
+    message slot "MUST be exactly AS2-representable: every field it carries has
+    a valid AS2 property spelling, and it carries no field that cannot go on the
+    wire (ARCH-23-006)."
 
     So this asserts the delivery payload of every promoted class is spelled in
     AS2: camelCase or a reserved AS2 name, never a Python field name. That is the

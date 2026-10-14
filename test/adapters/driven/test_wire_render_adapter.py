@@ -290,7 +290,7 @@ def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
 
 
 def test_render_succeeds_for_case_actor(adapter):
-    """CaseActor IS the wire counterpart after ARCH-25-003 (ADR-0099) (#3487)."""
+    """CaseActor IS the wire counterpart after ARCH-25-003 (ADR-0099, #3487)."""
     obj = VultronService()
     result = adapter.render(obj)
     assert isinstance(result, dict)
@@ -302,7 +302,7 @@ def test_render_succeeds_for_case_actor(adapter):
 
 
 def test_render_succeeds_for_vultron_person(adapter):
-    """VultronPerson IS the wire counterpart after ARCH-25-003 (ADR-0099) (#3487)."""
+    """VultronPerson IS the wire counterpart after ARCH-25-003 (ADR-0099, #3487)."""
     obj = VultronPerson()
     result = adapter.render(obj)
     assert isinstance(result, dict)

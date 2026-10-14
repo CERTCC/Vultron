@@ -30,7 +30,7 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import URN_UUID_PREFIX
 
-# --- Own root (ARCH-25-004 (ADR-0099), ARCH-12-001) -----------------------------
+# --- Own root (ARCH-25-004, ARCH-12-001; ADR-0099) -----------------------------
 
 
 def test_as_base_stands_directly_on_base_model():

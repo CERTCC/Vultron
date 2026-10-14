@@ -195,7 +195,7 @@ class CoreObject(CoreRecord):
     ``icon``, ``image``, …) stay declared on purpose: a declared-but-unused
     field is a *recognised* field core ignores, whereas an undeclared one
     would be an unrecognised field rejected on every message carrying it
-    (ARCH-25-007 (ADR-0099) and 8).
+    (ARCH-25-007, ARCH-25-008; ADR-0099).
 
     A bare ``CoreObject(id_=..., type_=...)`` is the minimal reference the
     extractor wraps an otherwise-unmodelled object in; it keeps the ``type_``

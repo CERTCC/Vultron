@@ -170,7 +170,7 @@ def test_core_logic_types_no_as2_spelling():
     diff_lines: list[str] = []
     if new_violations:
         diff_lines.append(
-            "NEW AS2 spellings used in core logic (ARCH-25-002 (ADR-0099) — name the"
+            "NEW AS2 spellings used in core logic (ARCH-25-002, ADR-0099 — name the"
             " core field and get the AS2 key from"
             " vultron.core.models.wire_keys):"
         )

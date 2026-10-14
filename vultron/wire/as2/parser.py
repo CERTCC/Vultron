@@ -194,8 +194,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # ``723ff08eb`` on main used and what this resolution supersedes.  A falsy
     # test also absorbs ``0``, ``[]``, ``{}`` and ``false``; those are malformed
     # values, not omitted ones, and reporting them as a missing field tells the
-    # sender to resend a field they already sent (a falsy test conflates absent
-    # with malformed; MV-03-002).
+    # sender to resend a field they already sent.  MV-03-002 reports a present,
+    # non-blank but unparseable value as a schema fault instead (ADR-0090).
     if is_blank(body.get("published")):
         raise VultronParseMissingPublishedError(
             f"Missing 'published' field on {type_!r} activity. An activity "

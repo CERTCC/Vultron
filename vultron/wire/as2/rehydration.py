@@ -21,7 +21,8 @@ into the correct wire-vocabulary subclass.  Callers MUST pass the active
 ``DataLayer`` instance via the *dl* parameter so that string ID references can
 be resolved without importing a concrete adapter.
 
-**This module owns ID-to-object materialisation** (VM-06-007, ARCH-25-009 (ADR-0099)).  See :func:`materialise_object_slots` for the rule and for why the
+**This module owns ID-to-object materialisation** (VM-06-007, ARCH-25-009;
+ADR-0099).  See :func:`materialise_object_slots` for the rule and for why the
 fabricated-stub behaviour it replaces is not reproduced.
 """
 
@@ -202,10 +203,10 @@ def materialise_object_slots(
 ) -> dict[str, Any]:
     """Fill *model_cls*'s object-only slots in *data* with resolved objects.
 
-    ARCH-25-009 (ADR-0099) says an object slot holds the whole object, not an ID,
-    and that reading resolves an IRI reference to the referenced object, with
-    an unresolvable reference deferred or refused.  It did not name what
-    performs that resolution.  **This function is that owner** (VM-06-007).
+    ARCH-25-009 (ADR-0099) says an object slot holds the whole object, not an
+    ID, that reading resolves an IRI reference to the referenced object, with
+    an unresolvable reference deferred or refused, and that this module owns
+    that resolution.  **This function is where it happens** (VM-06-007).
 
     The rule is read off the declared field types, which ADR-0099 makes the
     single source of truth:
@@ -465,7 +466,7 @@ def rehydrate(
 
     Also materialises object-only slots: a bare URI in a slot whose declared
     type cannot hold a URI is resolved through *dl*, or refused.  See
-    :func:`materialise_object_slots` (VM-06-007, ARCH-25-009 (ADR-0099)).
+    :func:`materialise_object_slots` (VM-06-007, ARCH-25-009; ADR-0099).
 
     Returns:
         The rehydrated object of the correct wire-vocabulary subclass.

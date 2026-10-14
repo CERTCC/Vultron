@@ -155,7 +155,7 @@ def test_activate_embargo_strict_invalid_state_raises(
     """Owner accept from EXITED state raises VultronInvalidStateTransitionError.
 
     Once an entry is TERMINATED the register accepts no further step
-    (EMB-18-005, EMB-18-006), so the owner cannot activate a new embargo.
+    (ADR-0122), so the owner cannot activate a new embargo.
     """
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)

@@ -52,8 +52,8 @@ class CaseStatus(CoreObject):
     # ``em`` -> ``{"emState": "NONE"}``.  ``AliasChoices`` keeps the legacy flat
     # spellings accepted on input so no caller has to change.  Declared for the
     # same reason ``ParticipantStatus`` declares its own: the AS2 spelling of a
-    # core field belongs in the field's alias and nowhere else (ADR-0099 detail
-    # 2), which is also where core code that must key an AS2-shaped snapshot
+    # core field belongs in the field's alias and nowhere else (ARCH-25-002,
+    # ADR-0099), which is also where core code that must key an AS2-shaped snapshot
     # reads it from (:mod:`vultron.core.models.wire_keys`).  Adding them here
     # made this class's own ``by_alias`` dump agree with the wire form that
     # ``as_CaseStatus`` — and therefore every replica — has always produced.
