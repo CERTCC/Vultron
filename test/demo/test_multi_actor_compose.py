@@ -218,3 +218,53 @@ class TestDedicatedCaseActorTopology:
             _env(runner)["VULTRON_CASE_ACTOR_BASE_URL"]
             == _DEDICATED_CASE_ACTOR_URL
         )
+
+
+def _seconds(value: str) -> float:
+    """Parse a Compose duration such as ``"2s"`` or ``"1m30s"`` into seconds."""
+    total = 0.0
+    for amount, unit in re.findall(r"(\d+(?:\.\d+)?)(ms|s|m|h)", value):
+        total += (
+            float(amount) * {"ms": 0.001, "s": 1, "m": 60, "h": 3600}[unit]
+        )
+    assert total > 0, f"unparseable duration {value!r}"
+    return total
+
+
+#: The slowest cold start seen in CI: about 31 s importing the app under the
+#: reloader, after the ``uv`` build step (#4621).
+_SLOWEST_OBSERVED_COLD_START_SECONDS = 31.0
+
+
+class TestActorHealthcheckStartupBudget:
+    """An actor that is slow to start must not abort the demo (#4621).
+
+    ``demo-runner`` waits on ``service_healthy`` (DEMOMA-02-002), so a
+    healthcheck budget a slow runner outlasts fails the job before the demo
+    starts.  Probes inside ``start_period`` do not count toward ``retries``
+    and the first success marks the container healthy, so a long start period
+    costs a fast runner nothing.
+    """
+
+    def _actor_healthchecks(self) -> dict[str, dict[str, Any]]:
+        services = _load_compose()["services"]
+        checks = {
+            name: svc["healthcheck"]
+            for name, svc in services.items()
+            if "healthcheck" in svc
+        }
+        assert checks, "no actor service declares a healthcheck"
+        return checks
+
+    def test_start_period_covers_a_slow_cold_start_with_margin(self):
+        for name, check in self._actor_healthchecks().items():
+            start_period = _seconds(check["start_period"])
+            assert start_period >= 2 * _SLOWEST_OBSERVED_COLD_START_SECONDS, (
+                f"{name}: start_period {check['start_period']} is under twice"
+                f" the slowest observed cold start"
+                f" ({_SLOWEST_OBSERVED_COLD_START_SECONDS:.0f} s)"
+            )
+
+    def test_probes_stay_frequent_so_a_fast_start_is_not_delayed(self):
+        for name, check in self._actor_healthchecks().items():
+            assert _seconds(check["interval"]) <= 2, name

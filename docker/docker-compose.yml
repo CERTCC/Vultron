@@ -73,7 +73,9 @@ services:
       interval: 2s
       timeout: 2s
       retries: 15
-      start_period: 5s
+      # Startup budget, not a fixed delay: see the actor healthcheck in
+      # docker-compose-multi-actor.yml (#4621).
+      start_period: 90s
 
   demo:
     build:
