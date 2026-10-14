@@ -253,6 +253,20 @@ def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
     return outbound_activity_id(activity), body
 
 
+def _addressing(
+    actor: str, to: list[str] | None, id_: str | None
+) -> dict[str, Any]:
+    """Factory keywords for *actor*, *to* and, when given, a caller's *id_*.
+
+    A caller passes *id_* to give the activity a retry-stable id
+    (ID-04-004); absent, the factory mints one.
+    """
+    extra: dict[str, Any] = {"actor": actor, "to": to}
+    if id_ is not None:
+        extra["id_"] = id_
+    return extra
+
+
 def _already_sealed(
     dl: CaseOutboxPersistence, activity_id: str | None
 ) -> tuple[str, str] | None:

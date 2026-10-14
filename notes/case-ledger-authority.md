@@ -221,12 +221,14 @@ the leaver in `close_case`. A replica may still refuse a step with a WARNING (it
 RM ratchet, or a composite-state violation, RSH-05-021), and then writes nothing
 in its place.
 
-### Proposed: A Sent Message Is Committed After Its Outbox Write (ADR-0119)
+### A Sent Message Is Committed After Its Outbox Write (SYNC-09-002)
 
-The rule in force is commit before outbox write (SYNC-09-002, SBT-04-004,
-EP-09-002); new code follows it. ADR-0119 proposes the reverse for sent messages,
-tracked by Epic #4158. Until those specs change, treat it as direction, not a
-constraint.
+Queue the activity, then commit the entry that records it; only
+`Announce(CaseLedgerEntry)` follows its commit, because it delivers the record
+(SYNC-09-002, SBT-04-004, ADR-0119). A retry must rebuild the activity under its
+first id or it sends it twice; see
+[outbox-delivery-reliability](outbox-delivery-reliability.md) § "A Response to an
+Inbound Activity Takes Its Id From the Request".
 
 ### Commit-Boundary Enforcement
 

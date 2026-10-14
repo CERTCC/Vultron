@@ -82,8 +82,9 @@ cascade call sites use the shared factory directly (BT-19-002, PR #1263).
 Every embargo trigger tree in `trigger_tree.py` ends in `_by_role()`'s two
 mutually exclusive arms. Add a new embargo write to the **CASE_MANAGER arm**
 only, in this order: `*EmbargoLifecycleNode` (`STRICT`) →
-`CommitEmbargoDecisionNode` (`nodes/manager_commit.py`; a decision it sends
-is queued before it is committed, SYNC-09-002) → `EmitCaseStatusUpdateNode`. The other arm writes no EM state:
+`CommitEmbargoDecisionNode` (`nodes/manager_commit.py`; a decision it
+sends is queued before it is committed, SYNC-09-002) →
+`EmitCaseStatusUpdateNode`. The other arm writes no EM state:
 it queues to the manager through `sender_side_bt` with `_asserting()`, which
 writes `result_out[ASSERTED_ACTIVITY_KEY]` for the pending-assertion record.
 The one exception is `reject_proposed_embargo_bt` (the P/X/A abandonment):

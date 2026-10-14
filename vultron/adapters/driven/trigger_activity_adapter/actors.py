@@ -82,7 +82,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-from ._base import _already_sealed, _case_for_wire, _seal, _to_wire
+from ._base import (
+    _addressing,
+    _already_sealed,
+    _case_for_wire,
+    _seal,
+    _to_wire,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -181,9 +187,7 @@ class _ActorsMixin:
         ``case_id`` and passed to the factory with any active embargo entity for
         CM-17-002 enrichment.
         """
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to, id_)
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
         if rsvp_deadline is not None:
@@ -300,9 +304,7 @@ class _ActorsMixin:
         id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist the full-case ``Invite(Actor)[target=Case]``."""
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to, id_)
         activity = rm_invite_to_full_case_activity(
             invitee=invitee_id,
             case=case_id,
@@ -455,9 +457,7 @@ class _ActorsMixin:
         roles: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity."""
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to, id_)
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
             recommended=recommended_id,
@@ -497,9 +497,7 @@ class _ActorsMixin:
         """
         if (built := _already_sealed(self._dl, id_)) is not None:
             return built
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to, id_)
         if origin is not None:
             extra["origin"] = origin
         activity = offer_case_participant_activity(
@@ -545,9 +543,7 @@ class _ActorsMixin:
             id_=recommendation_id,
             actor=recommender_id,
         )
-        extra: dict[str, Any] = {"actor": actor, "to": to or [recommender_id]}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to or [recommender_id], id_)
         activity = accept_actor_recommendation_activity(
             offer=recommendation, target=case_id, **extra
         )
@@ -582,9 +578,7 @@ class _ActorsMixin:
             id_=recommendation_id,
             actor=recommender_id,
         )
-        extra: dict[str, Any] = {"actor": actor, "to": to or [recommender_id]}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to or [recommender_id], id_)
         activity = reject_actor_recommendation_activity(
             offer=recommendation, target=case_id, **extra
         )
@@ -620,9 +614,7 @@ class _ActorsMixin:
             id_=recommendation_id,
             actor=recommender_id,
         )
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to, id_)
         activity = accept_actor_recommendation_activity(
             offer=recommendation, target=case_id, **extra
         )
@@ -794,9 +786,7 @@ class _ActorsMixin:
             id_=offer_id,
             actor=vendor_id,
         )
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to, id_)
         activity = accept_case_participant_role_activity(offer=offer, **extra)
         try:
             self._dl.create(activity)

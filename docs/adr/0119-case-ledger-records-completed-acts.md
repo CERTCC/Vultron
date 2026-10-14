@@ -82,7 +82,7 @@ It is not an act the ledger records; it is the record itself, replicated to the 
 ## Validation
 
 Issue #4158 carries the work.
-SYNC-09-002, SBT-04-004, EP-09-002, CM-16-010, CM-17-006 and OX-14-002's verification state the order this ADR sets, and tests of the emitting trees assert that the outbox write precedes the commit that records it and that a retry after a failed commit sends nothing twice.
+SYNC-09-002, SBT-04-004, EP-09-002, CM-16-010, CM-17-006 and OX-14-002's verification state the order this ADR sets, and tests of the emitting trees assert that the outbox write precedes the commit that records it and that a retry after a failed commit queues the activity once and records it once.
 
 ## Pros and Cons of the Options
 

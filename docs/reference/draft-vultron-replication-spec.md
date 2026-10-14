@@ -354,14 +354,11 @@ No replication quorum is required.
 
 ### 7.2 Commit-After-Send Invariant
 
-A node MUST commit the `CaseLedgerEntry` that records a Vultron message it
-sends only after the message has been written to its own outbox, and MUST NOT
-commit it before that write. `Announce(CaseLedgerEntry)` is the one message
-sent after its commit: it delivers a committed entry. (SYNC-09-002)
+A node MUST commit the `CaseLedgerEntry` that records a Vultron message it sends only after the message has been written to its own outbox, and MUST NOT commit it before that write.
+`Announce(CaseLedgerEntry)` is the one message sent after its commit: it delivers a committed entry. (SYNC-09-002)
 
-This ensures that every entry records an act that has happened. A retry after
-a send whose commit failed rebuilds the activity under its first id, so the
-outbox does not send it twice. (OX-06-002)
+This ensures that every entry records an act that has happened.
+A retry after a send whose commit failed rebuilds the activity under its first id, so the outbox does not send it twice. (OX-06-002)
 
 ### 7.3 Effects-Before-Persist Invariant
 

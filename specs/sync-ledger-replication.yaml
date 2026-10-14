@@ -420,8 +420,10 @@ groups:
       outbox's job. An entry committed before the send records an intention that
       may never become true, and committing first put fan-out ahead of the
       `Create(VulnerabilityCase)` it referred to (#3033, #2898). A retry after a
-      send whose commit failed must not send twice; the outbox, not the ledger,
-      prevents that (OX-06-002).
+      send whose commit failed rebuilds the activity under its first id: the
+      outbox does not queue it again while it is pending (OX-06-002), and one
+      delivery already took is sent again under the same id, which the
+      receiver drops (ID-02-001).
     verification: >-
       `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`,
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_the_full_case_invite_is_recorded_after_the_accepts_entries`,

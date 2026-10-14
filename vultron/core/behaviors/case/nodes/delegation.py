@@ -164,7 +164,10 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
                 exc,
             )
             return Status.FAILURE
-        # Sent, then recorded (ADR-0119).
+        # Sent, then recorded (ADR-0119).  Neither write is caught: once the
+        # Accept is stored a FAILURE would send a Reject after it, so a fault
+        # escapes to BTBridge as an internal error, as in the relay node and
+        # ``_CommitCaseManagerActivityBase`` (BT-14-001, ARCH-15-001).
         self._enqueue_accept(accept_id)
         self._commit_accept_to_ledger(accept_id, payload_snapshot)
         self.logger.info(

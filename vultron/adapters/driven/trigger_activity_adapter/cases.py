@@ -44,6 +44,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from ._base import (
+    _addressing,
     _case_for_wire,
     _seal,
     _seal_record,
@@ -68,9 +69,7 @@ class _CasesMixin:
     ) -> tuple[str, str]:
         """Create and persist a ``Create(as_VulnerabilityCase)`` activity."""
         case = _case_for_wire(self._dl, case_id)
-        extra: dict[str, Any] = {"actor": actor, "to": to}
-        if id_ is not None:
-            extra["id_"] = id_
+        extra = _addressing(actor, to, id_)
         activity = create_case_activity(case=case, **extra)
         try:
             self._dl.create(activity)
