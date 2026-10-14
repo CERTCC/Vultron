@@ -18,6 +18,12 @@ issue that tracks its missing commit.  ``received_commit_semantics`` derives the
 committing set from code (``_ledger_commit_inventory``), so a handler that
 "changes nothing" and commits nothing fails here instead of being found one
 case at a time.
+
+Only the receive-side commit counts: CLP-09-003 asks for a commit *for the
+act*, and an explicit ``event_type=`` commit inside a received tree records a
+consequence (``CommitNativeLedgerEntriesNode``'s genesis entries) or an
+activity the actor emits, not the act received.  Crediting those would let a
+handler whose act goes unledgered pass on a side entry.
 """
 
 from enum import StrEnum
@@ -37,6 +43,8 @@ class NotACaseEvent(StrEnum):
     REPLICA_APPLY = "a replica applying an entry, not asserting one"
     LEDGER_MECHANICS = "an activity about the ledger itself"
     NOT_LEDGERED_BY_CLP_10_013 = "left unledgered by CLP-10-013 (ADR-0111)"
+    SENT_BY_CASE_MANAGER = "sent only by the CASE_MANAGER, which ledgers it, if at all, at sending"
+    PROCESSING_FAULT = "a NACK about message handling (ADR-0080)"
     UNMATCHED = "no pattern matches or the object is unresolvable"
 
 
@@ -46,22 +54,50 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "create_report": NotACaseEvent.PRE_CASE,
     "submit_report": NotACaseEvent.PRE_CASE,
     "create_case_proposal": NotACaseEvent.PRE_CASE,
+    # The proposer's receipt of the answer to its proposal: case proposal
+    # intake, before the proposer holds any case (CP-06-001, CP-06-002).
+    "accept_case_proposal": NotACaseEvent.PRE_CASE,
+    "reject_case_proposal": NotACaseEvent.PRE_CASE,
     "announce_case_ledger_entry": NotACaseEvent.REPLICA_APPLY,
     "reject_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,
     "announce_vulnerability_case": NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013,
     "unknown": NotACaseEvent.UNMATCHED,
     "unknown_unresolvable_object": NotACaseEvent.UNMATCHED,
+    # Received only by a participant, which never commits (CLP-09-001).
+    "create_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    "accept_case_participant_role": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
+    # The CASE_MANAGER's Reject of a role offer is not yet ledgered, which
+    # CLP-02-012 requires.
+    "reject_case_participant_role": "#4588",
+    # Store-only Create(X) handlers write the object with no entry.
+    "create_case_participant": "#4598",
+    "create_case_status": "#4598",
+    "create_participant_status": "#4598",
+    "create_embargo_event": "#4598",
 }
+
+
+def _rows(*, tracked: bool) -> list[str]:
+    """The ``EXEMPT`` rows naming an issue (*tracked*) or a ground."""
+    return sorted(
+        semantic
+        for semantic, ground in EXEMPT.items()
+        if isinstance(ground, NotACaseEvent) is not tracked
+    )
+
+
+@pytest.fixture(scope="module")
+def committed() -> set[str]:
+    return received_commit_semantics()
 
 
 @pytest.mark.spec("CLP-09-003")
 @pytest.mark.spec("CLP-02-013")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CLP-09-003: routed use cases reach no commit and are not yet classified. #4476.",
-)
-def test_every_routed_use_case_reaches_a_commit_or_is_exempt():
-    committed = received_commit_semantics()
+def test_every_routed_use_case_reaches_a_commit_or_is_exempt(
+    committed: set[str],
+):
     missing = sorted(
         semantic.value
         for semantic in use_case_map()
@@ -79,8 +115,24 @@ def test_exemptions_name_a_ground_or_an_issue():
 
 
 @pytest.mark.spec("CLP-02-013")
-def test_exemptions_name_routed_use_cases_that_do_not_commit():
+def test_exemptions_name_routed_use_cases_that_do_not_commit(
+    committed: set[str],
+):
+    """Ground rows are checked here; issue rows each in their own test."""
     routed = {semantic.value for semantic in use_case_map()}
-    committed = received_commit_semantics()
+    grounds = set(_rows(tracked=False))
     assert set(EXEMPT) <= routed, sorted(set(EXEMPT) - routed)
-    assert set(EXEMPT).isdisjoint(committed), sorted(set(EXEMPT) & committed)
+    assert grounds.isdisjoint(committed), sorted(grounds & committed)
+
+
+@pytest.mark.spec("CLP-09-003")
+@pytest.mark.parametrize("semantic", _rows(tracked=True))
+def test_issue_row_still_reaches_no_commit(semantic: str, committed: set[str]):
+    """Each issue-numbered row is checked on its own, never as a count.
+
+    A PR that lands a tracked commit fails only its own row, and two PRs
+    closing different gaps merge cleanly (#3984).
+    """
+    assert semantic not in committed, (
+        f"{semantic} now commits: delete its EXEMPT row ({EXEMPT[semantic]})"
+    )

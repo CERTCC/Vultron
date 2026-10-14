@@ -135,7 +135,11 @@ replica decides nothing:
 - **No allow-list.** A write with no entry is a defect. `NO_REPLICA_EFFECT` in
   `test/architecture/test_ledger_event_types_are_replayed.py` lists committed
   types that change nothing a replica holds; it is not a place to park an
-  unreplayed write.
+  unreplayed write. `EXEMPT` in `test/architecture/test_ledger_commit_coverage.py`
+  lists routed activities that commit nothing: each row is a CLP-02-013 ground
+  (not a case event) or the open issue that owns the missing commit. A handler
+  believed to need no entry that fits no ground is an amendment to CLP-02-013
+  first, never a new row.
 
 **Pitfall: "one act, one entry".** That reading leaves the second change an act
 causes with nowhere to be recorded, and replicas rebuild it with their own ids
@@ -162,7 +166,9 @@ case event is ledgered (CLP-02-001). CLP-02-013 closes the list of activities
 that are not case events, and `test/architecture/test_ledger_commit_coverage.py`
 (CLP-09-003) fails any routed use case that reaches no commit without one of
 those grounds or an open tracking issue. Read that list instead of opening a
-design question.
+design question. A handler only a participant runs, receiving what the
+CASE_MANAGER sent, has nothing to commit there: the entry, if the activity is a
+case event, is the CASE_MANAGER's at sending (CLP-09-001).
 
 ## `pending_assertions`: Local Decision-Suppression Memory
 

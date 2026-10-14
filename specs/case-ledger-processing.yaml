@@ -210,15 +210,21 @@ groups:
       CASE_MANAGER's refusal notice (CLP-05-001) and a replica's
       `Reject(CaseLedgerEntry)` asking for redelivery; the activity CLP-10-013
       deliberately leaves unledgered, namely a replica's receipt of
-      `Announce(VulnerabilityCase)` (ADR-0111); and a
-      message no pattern matches or whose object cannot be resolved. The list is
-      closed: a new kind of activity that carries no entry MUST be added here
-      first.
+      `Announce(VulnerabilityCase)` (ADR-0111); an activity only the CASE_MANAGER
+      sends, received by a participant (the bootstrap `Create(VulnerabilityCase)`,
+      its `Accept` of a role-delegation offer, its `Announce(EmbargoEvent)`
+      notice): a participant never commits (CLP-09-001), so such an activity is
+      ledgered, if it is a case event, where the CASE_MANAGER sends it
+      (CLP-09-003); a `Create(ProcessingFault)` NACK (ADR-0080), which reports on
+      message handling rather than changing the case; and a message no pattern
+      matches or whose object cannot be resolved. The list is closed: a new kind
+      of activity that carries no entry MUST be added here first.
     rationale: >-
       Whether something is ledgered was decided handler by handler, so a handler
       that "changed nothing" committed nothing and nobody noticed. A closed list
       turns each exception into a recorded decision and gives the CLP-09-003
-      coverage test a fixed set of grounds for exemption.
+      coverage test a fixed set of grounds for exemption. A handler that runs
+      only at a participant has no commit to reach.
     verification: >-
       The CLP-09-003 coverage test, marked `CLP-02-013`, exempts a routed use case
       only on one of these grounds or by naming an open issue.
@@ -1169,10 +1175,14 @@ groups:
       received activity has no canonical signature — the
       `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004) — MUST pass
       `case_id=None` and omit the commit stage rather than commit an entry the
-      canonical-entry check would refuse. One canonical signature is exempt from
+      canonical-entry check would refuse. A canonical signature is exempt from
       the commit and also passes `case_id=None` — `Announce(VulnerabilityCase)`,
       which only the CASE_MANAGER sends and only a participant replica, never the
-      CASE_MANAGER itself, receives (PCR-03-004).
+      CASE_MANAGER itself, receives (PCR-03-004). The bootstrap
+      `Create(VulnerabilityCase)` a participant receives MAY likewise pass
+      `case_id=None`, because only the CASE_MANAGER sends it, and the case's
+      genesis entry is committed where the CASE_MANAGER creates the case
+      (CLP-02-013).
     rationale: 'Amended with ADR-0111: the rule as first written required a commit for
       every factory-built tree, which the CASE_MANAGER refused for an
       `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
@@ -1211,8 +1221,8 @@ groups:
       ordering ratchet finds the commit after the guards. A receive-side test per
       committing tree asserts the CASE_MANAGER commits the entry once, any other
       receiver skips it, and a refused activity
-      leaves no entry; the `Announce(VulnerabilityCase)` tree is asserted to have
-      no commit child.'
+      leaves no entry; the `Announce(VulnerabilityCase)` and bootstrap
+      `Create(VulnerabilityCase)` trees are asserted to have no commit child.'
     adr:
     - ADR-0111
     relationships:
