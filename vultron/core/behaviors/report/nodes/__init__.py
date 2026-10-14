@@ -21,7 +21,6 @@ existing import paths (``from vultron.core.behaviors.report.nodes import ...``)
 continue to work without modification.
 
 Submodules:
-- ``ack_conditions``: Received-side AckReport condition nodes
 - ``conditions``: Validation and prioritization condition nodes
 - ``close_conditions``: Report-closure guard nodes
 - ``rm_transitions``: Report-management transition action nodes

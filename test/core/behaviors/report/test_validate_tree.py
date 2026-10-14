@@ -33,7 +33,7 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.models.activity import VultronOffer
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -107,7 +107,7 @@ def offer(datalayer, report, actor_id, reporter_actor_id):
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create test vendor actor in the DataLayer."""
-    actor_obj = CaseActor(
+    actor_obj = VultronService(
         id_=actor_id,
         name="Vendor Co",
     )
@@ -118,7 +118,7 @@ def actor(datalayer, actor_id):
 @pytest.fixture
 def reporter_actor(datalayer, reporter_actor_id):
     """Create test reporter actor in the DataLayer."""
-    actor_obj = CaseActor(
+    actor_obj = VultronService(
         id_=reporter_actor_id,
         name="Reporter Co",
     )
@@ -724,7 +724,7 @@ def test_tree_execution_actor_isolation():
                 target=actor_id,
             )
         )
-        dl.create(CaseActor(id_=actor_id, name=f"Actor {slug}"))
+        dl.create(VultronService(id_=actor_id, name=f"Actor {slug}"))
         case_obj = VulnerabilityCase(
             id_=f"{actor_id}/cases/test-case-validate",
             name="Validate-tree isolation case",

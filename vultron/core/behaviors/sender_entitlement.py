@@ -29,8 +29,6 @@ Entitlement kinds
   (full active-participant predicate tracked by #2257)
 - ``NAMED_ACTOR`` — sender must match a specific named actor ID (e.g. a
   blackboard-resolved CaseActor identity)
-- ``EXECUTING_ACTOR`` — sender must equal the executing actor itself (ack echo
-  path, ISSUE-2667)
 - ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
   it answers (EP-09-010, CM-11-017)
 - ``ANY_ACTOR`` — any actor may send it, whatever its standing in any case: a new
@@ -38,10 +36,19 @@ Entitlement kinds
   It is a declared rule, not an exemption, and has no condition node: there is
   no standing to check, so no tree composes a sender guard for it.
 
-A kind names the entitlement at the CASE_MANAGER, where the assertion is
-adjudicated.
-For the embargo messages a replica other than the CASE_MANAGER accepts the
-same message only from the CASE_MANAGER (PCR-03-001), whatever the kind.
+Sender rules
+------------
+A received use case declares a ``SenderRule`` (HP-01-008, ADR-0129): per
+addressee side (the CASE_MANAGER, a participant, an actor outside any case),
+an any-of set of kinds.  ``SenderRule.in_case(kind)`` states the same kinds at
+the CASE_MANAGER and at a participant; ``SenderRule.before_case(kind)`` states
+the side for an activity sent before any case exists.  The receive-tree
+factory composes the guard from the rule
+(``vultron.core.behaviors.sender_guard.compose_sender_guard``).
+
+Some trees still build their own guard and pass it as ``sender_guard``; their
+declarations are not yet the full rule.  The allow-list in
+``test/architecture/test_sender_entitlement_ratchet.py`` names them (#4437).
 
 Exemption
 ---------
@@ -63,6 +70,9 @@ Nodes
 - ``SenderIsProposalAddresseeNode`` — guards that the sender is the actor the
   vendor addressed a CaseProposal to, as recorded on the report case link
   (``NAMED_ACTOR`` kind; CP-06-005)
+- ``SenderIsOfferAddresseeNode`` — guards that the sender is an actor the
+  ``Offer(VulnerabilityReport)`` was addressed to, as recorded on this store's
+  offer record (``NAMED_ACTOR`` kind; RMB-08-004)
 - ``SenderMayAssertEmbargoNode`` — guards an embargo activity: at the
   CASE_MANAGER the sender must hold the standing the activity needs (an active
   participant, or the Case Owner); at any other replica it must be the
@@ -72,11 +82,17 @@ Nodes
 - ``SenderIsOwnershipTransfereeNode`` — guards an answer to an
   ownership-transfer Offer: at the CASE_MANAGER the sender must be the
   transferee of the open Offer it recorded; at any other replica it must be
-  the CASE_MANAGER (``NAMED_ACTOR`` kind; CM-21-011, PCR-03-001)
-- ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
-  actor; merged from ``CheckSenderIsExecutingActorNode``
+  the CASE_MANAGER (``NAMED_ACTOR`` kind; CM-21-011, CM-21-013, PCR-03-001)
+- ``SenderIsOwnershipOffererNode`` — guards a withdrawal of an
+  ownership-transfer Offer: at the CASE_MANAGER the sender must be the Case
+  Owner that made the open Offer it recorded; at any other replica it must be
+  the CASE_MANAGER (``CASE_OWNER`` kind; CM-21-015, PCR-03-001)
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
   merged from ``CheckIsCaseOwnerNode``
+- ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
+  leaves empty (HP-01-008)
+- ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
+  standing the side accepts (HP-01-008)
 
 Helper predicate
 ----------------
@@ -88,8 +104,9 @@ Spec: HP-01-006, HP-01-007, CM-10-004, PCR-03-001.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum, auto
-from typing import Any
+from typing import Any, ClassVar
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -98,10 +115,11 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -112,7 +130,8 @@ from vultron.core.participants.ownership_offer import (
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
-    normalise_actor_id,
+    distinct_recipients,
+    is_addressed_to,
     same_actor_id,
 )
 from vultron.core.predicates.roles import has_case_owner_role
@@ -149,10 +168,12 @@ def _log_entry_from(activity: Any, node_name: str) -> CaseLedgerEntry:
 
 
 class SenderEntitlementKind(Enum):
-    """The required sender role for a received activity.
+    """One sender standing a :class:`SenderRule` may require.
 
     Each kind corresponds to one condition node in this module, except
     ``ANY_ACTOR``, which requires no standing and so has no guard.
+    A use case never declares a kind on its own: it declares a
+    :class:`SenderRule` composed of kinds (HP-01-008).
     """
 
     CASE_MANAGER = auto()
@@ -166,9 +187,6 @@ class SenderEntitlementKind(Enum):
 
     NAMED_ACTOR = auto()
     """Sender must match a specific named actor ID."""
-
-    EXECUTING_ACTOR = auto()
-    """Sender must equal the executing actor (ack echo path)."""
 
     INVITEE = auto()
     """Sender must be the sole ``to`` recipient of the recorded Invite."""
@@ -199,8 +217,88 @@ class SenderExemption:
     reason: str = ""
 
 
-#: Union type for the per-use-case ``sender_entitlement`` class variable.
-SenderEntitlement = SenderEntitlementKind | SenderExemption
+def any_of(*kinds: SenderEntitlementKind) -> frozenset[SenderEntitlementKind]:
+    """The kinds one side of a :class:`SenderRule` admits, any one sufficing."""
+    return frozenset(kinds)
+
+
+def in_declaration_order(
+    kinds: frozenset[SenderEntitlementKind],
+) -> list[SenderEntitlementKind]:
+    """*kinds* in the enum's declaration order, so composition and wording
+    are deterministic."""
+    return [kind for kind in SenderEntitlementKind if kind in kinds]
+
+
+@dataclass(frozen=True)
+class SenderRule:
+    """The full sender rule a received use case declares (HP-01-008, ADR-0129).
+
+    Each field is one addressee side: the standing a sender needs when the
+    activity is addressed to the CASE_MANAGER, to a participant, or, for an
+    activity sent before a case exists, to an actor outside any case.
+    A side holds an any-of set of kinds: the sender is entitled when it holds
+    any one of them.  An empty side admits no sender, so an activity addressed
+    to that side is refused.
+
+    The receive-tree factory composes the guard from the rule alone
+    (:func:`vultron.core.behaviors.sender_guard.compose_sender_guard`).
+
+    Attributes:
+        at_case_manager: Kinds that entitle a sender at the CASE_MANAGER.
+        at_participant: Kinds that entitle a sender at any other participant.
+        outside_case: Kinds that entitle a sender of an activity that names no
+            case, addressed to an actor outside any case.
+
+    Raises:
+        ValueError: The rule states no side, a side holds something other than
+            a :class:`SenderEntitlementKind`, or ``ANY_ACTOR`` shares a side
+            with another kind (it already admits every sender).
+    """
+
+    at_case_manager: frozenset[SenderEntitlementKind] = frozenset()
+    at_participant: frozenset[SenderEntitlementKind] = frozenset()
+    outside_case: frozenset[SenderEntitlementKind] = frozenset()
+
+    def __post_init__(self) -> None:
+        sides = (self.at_case_manager, self.at_participant, self.outside_case)
+        if not any(sides):
+            raise ValueError("A SenderRule must state at least one side")
+        for side in sides:
+            if not isinstance(side, frozenset) or not all(
+                isinstance(kind, SenderEntitlementKind) for kind in side
+            ):
+                raise ValueError(
+                    "Each side of a SenderRule is a frozenset of"
+                    f" SenderEntitlementKind members, got {side!r}"
+                )
+            if SenderEntitlementKind.ANY_ACTOR in side and len(side) > 1:
+                raise ValueError(
+                    "ANY_ACTOR admits every sender, so it cannot share a side"
+                    f" with other kinds: {sorted(k.name for k in side)}"
+                )
+
+    @classmethod
+    def in_case(cls, *kinds: SenderEntitlementKind) -> "SenderRule":
+        """The same kinds entitle a sender at the CASE_MANAGER and at a participant."""
+        return cls(
+            at_case_manager=any_of(*kinds), at_participant=any_of(*kinds)
+        )
+
+    @classmethod
+    def before_case(cls, *kinds: SenderEntitlementKind) -> "SenderRule":
+        """The kinds entitle the sender of an activity sent before any case exists."""
+        return cls(outside_case=any_of(*kinds))
+
+    @property
+    def kinds(self) -> frozenset[SenderEntitlementKind]:
+        """Every kind the rule names, on any side."""
+        return self.at_case_manager | self.at_participant | self.outside_case
+
+
+#: Union type for the per-use-case ``sender_entitlement`` class variable: a
+#: full sender rule, or an exemption naming the issue that owns the check.
+SenderEntitlement = SenderRule | SenderExemption
 
 
 def exempt(tracking_issue: str, reason: str = "") -> SenderExemption:
@@ -710,6 +808,81 @@ class SenderIsProposalAddresseeNode(SenderEntitlementConditionNode):
 
 
 # ---------------------------------------------------------------------------
+# Condition node: NAMED_ACTOR (recorded Offer(Report) addressee)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsOfferAddresseeNode(SenderEntitlementConditionNode):
+    """Guard: sender must be an actor the ``Offer(VulnerabilityReport)`` was
+    addressed to.
+
+    ``RK`` (``Read(Offer(VulnerabilityReport))``) is sent by the actor that
+    received the report submission, to the reporter (RMB-08-003).  The
+    reporter holds the Offer it sent, so this guard reads this store's
+    :class:`~vultron.core.models.offer_record.VultronOfferRecord` for the
+    acknowledged Offer and returns ``SUCCESS`` only when the sender is one of
+    its ``offer_to`` recipients.  The record is this store's own, never the
+    copy the acknowledgement embeds, which the sender wrote.
+
+    A store that holds no record of the Offer has nothing to establish the
+    sender's standing against, so the sender is refused.
+
+    The addressee of the request is the entitled sender, so the kind is
+    ``NAMED_ACTOR`` (ADR-0129).
+
+    Spec: RMB-08-004, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        offer_id: str | None,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            offer_id: The Offer the acknowledgement names (``None`` when it
+                names none, which refuses).
+            sender_actor_id: The acknowledgement's sender.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.offer_id = offer_id
+        self.sender_actor_id = sender_actor_id
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (RMB-08-004, HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if self.offer_id is None:
+            return self._refuse(
+                f"Acknowledgement from '{self.sender_actor_id}' names no Offer"
+            )
+        record = self.datalayer.read(
+            VultronOfferRecord.build_id(self.offer_id)
+        )
+        if not isinstance(record, VultronOfferRecord):
+            return self._refuse(
+                f"No record of Offer '{self.offer_id}' in this store, so"
+                f" sender '{self.sender_actor_id}' cannot be shown to be its"
+                " addressee"
+            )
+        if is_addressed_to(self.sender_actor_id, record.offer_to):
+            return Status.SUCCESS
+        return self._refuse(
+            f"Sender '{self.sender_actor_id}' is not an addressee of Offer"
+            f" '{self.offer_id}' ({record.offer_to})"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Condition node: embargo activity (CASE_MANAGER arm / replica arm)
 # ---------------------------------------------------------------------------
 
@@ -880,14 +1053,8 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         invite = (
             self.datalayer.read(self._invite_id) if self._invite_id else None
         )
-        recipients = list(
-            dict.fromkeys(
-                normalise_actor_id(rid)
-                for rid in (
-                    _as_id(r) for r in (getattr(invite, "to", None) or [])
-                )
-                if rid
-            )
+        recipients = distinct_recipients(
+            _as_id(r) for r in (getattr(invite, "to", None) or [])
         )
         if len(recipients) == 1 and same_actor_id(sender, recipients[0]):
             if self._case_id is None:
@@ -927,24 +1094,28 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
 
 
 # ---------------------------------------------------------------------------
-# Condition node: NAMED_ACTOR (the transferee of a recorded ownership Offer)
+# Condition nodes: the parties to a recorded ownership-transfer Offer
 # ---------------------------------------------------------------------------
 
 
-class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
-    """Guard: sender may answer this ownership-transfer Offer to this receiver.
+class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
+    """Guard: sender may reply to this ownership-transfer Offer at this receiver.
 
-    The entitlement depends on who receives the answer (CM-21-011,
-    CM-21-013, PCR-03-001):
+    Shared by the transferee's answer (:class:`SenderIsOwnershipTransfereeNode`)
+    and the offerer's withdrawal (:class:`SenderIsOwnershipOffererNode`).  The
+    entitlement depends on who receives the reply (CM-21-011, CM-21-013,
+    CM-21-015, PCR-03-001):
 
-    - At the **CASE_MANAGER** the sender must be the transferee named in an
-      ownership-transfer Offer the CASE_MANAGER recorded for the case, and
-      the Offer must still be open: no other answer is ledgered for it
-      (CM-21-014).  The Offer is read from this store's ledger, never from
-      the copy the answer embeds, which the sender wrote.
-    - A **redelivery** of the answer that already closed the Offer is not a
+    - At the **CASE_MANAGER** the sender must be the party to an
+      ownership-transfer Offer the CASE_MANAGER recorded for the case that
+      the subclass names (:meth:`_party_refusal`), and the Offer must still be
+      open: no answer, withdrawal or expiry is ledgered for it (CM-21-014),
+      and its ``end_time``, if any, has not passed (CM-21-016).  The Offer is
+      read from this store's ledger, never from the copy the reply embeds,
+      which the sender wrote.
+    - A **redelivery** of the reply that already closed the Offer is not a
       refusal (HP-01-003), but it must change nothing: by then ownership may
-      have moved on through a later Offer, and re-applying the old answer
+      have moved on through a later Offer, and re-applying the old reply
       would hand it back with no ledger entry.  The guard sets
       :attr:`is_redelivery` and fails, so nothing downstream runs, and the
       handler reports the run as ``SKIPPED``.
@@ -955,69 +1126,130 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
     leaves nothing to establish the sender's standing against, so the sender
     is refused.
 
-    The transferee is the addressee of the request, so the kind is
-    ``NAMED_ACTOR`` (ADR-0129).
+    The deadline is read here as well as by the CASE_MANAGER's expiry step,
+    which runs first and ledgers the expiry
+    (:func:`~vultron.core.behaviors.case.ownership_expiry_tree.create_ownership_offer_expiry_tree`):
+    a reply after ``end_time`` is refused even when that record could not be
+    committed, so the deadline binds whatever the ledger holds.  A replica
+    never reads it: it learns an expiry only from the entry (CM-21-017).
 
-    Spec: CM-21-011, CM-21-013, CM-21-014, PCR-03-001, HP-01-006.
+    Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, PCR-03-001,
+    HP-01-006.
     """
+
+    _spec: ClassVar[str]
+    """The requirement a refusal cites; each subclass names its own."""
+
+    _late_spec: ClassVar[str]
+    """The requirements a refusal after the Offer's deadline cites."""
 
     def __init__(
         self,
         case_id: str,
         offer_id: str | None,
         sender_actor_id: str,
-        answer_id: str,
+        reply_id: str,
+        now: datetime | None = None,
         name: str | None = None,
     ) -> None:
         """Create the guard.
 
         Args:
-            case_id: The case the answer names.
-            offer_id: The Offer the answer names (``None`` when it names
+            case_id: The case the reply names.
+            offer_id: The Offer the reply names (``None`` when it names
                 none, which refuses at the CASE_MANAGER).
-            sender_actor_id: The answer's sender.
-            answer_id: The answer's own id, so a redelivery is recognised.
+            sender_actor_id: The reply's sender.
+            reply_id: The reply's own id, so a redelivery is recognised.
+            now: The instant the Offer's deadline is compared against: the
+                one the CASE_MANAGER's expiry step used.  ``None`` reads the
+                clock when the guard runs.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._offer_id = offer_id
         self._sender_actor_id = sender_actor_id
-        self._answer_id = answer_id
+        self._reply_id = reply_id
+        self._now = now
         self.is_redelivery = False
-        """``True`` when the last run found the answer already ledgered as
+        """``True`` when the last run found the reply already ledgered as
         the one that closed the Offer: a benign no-op, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED (CM-21-011, HP-01-006)"
+        self.feedback_message = f"{reason} — REFUSED ({self._spec}, HP-01-006)"
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
-    def _check_open_offer(self, offer: RecordedOwnershipOffer) -> Status:
-        """The CASE_MANAGER arm: the sender is the transferee of *offer*,
-        which no answer has closed yet."""
-        sender = self._sender_actor_id
-        if not same_actor_id(sender, offer.transferee_id):
-            return self._refuse(
-                f"Sender '{sender}' is not the transferee"
-                f" '{offer.transferee_id}' of ownership-transfer Offer"
-                f" '{offer.offer_id}'"
-            )
-        if offer.answer_id == self._answer_id:
+    def _refuse_late(self, offer: RecordedOwnershipOffer) -> Status:
+        """Refuse a reply to *offer* that came after its deadline.
+
+        The deadline is binding (CM-21-016): nothing the reply asks for is
+        done and it is not ledgered.  Each subclass cites the rule that
+        refuses its reply (:attr:`_late_spec`).
+        """
+        deadline = (
+            offer.end_time.isoformat() if offer.end_time is not None else "?"
+        )
+        self.feedback_message = (
+            f"Ownership-transfer Offer '{offer.offer_id}' for case"
+            f" '{self._case_id}' expired at its end_time {deadline}; reply"
+            f" '{self._reply_id}' from '{self._sender_actor_id}' came too late"
+            f" — REFUSED ({self._late_spec}, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
+        """Why the sender is not the party to *offer* this reply needs.
+
+        *manager_id* is the case's CASE_MANAGER, which recorded *offer*.
+        Returns ``None`` when the sender is that party.
+        """
+        raise NotImplementedError
+
+    def _standing_refusal(
+        self, case: VulnerabilityCase, offer: RecordedOwnershipOffer
+    ) -> str | None:
+        """Why the party may not reply to the *open* Offer now, if at all.
+
+        Checked last, once the Offer is known to be open, so a reply to a
+        closed Offer is refused as closed.  ``None`` by default.
+        """
+        return None
+
+    def _check_open_offer(
+        self,
+        case: VulnerabilityCase,
+        offer: RecordedOwnershipOffer,
+        manager_id: str,
+    ) -> Status:
+        """The CASE_MANAGER arm: the sender is the right party to *offer*,
+        which nothing has closed yet."""
+        if (why := self._party_refusal(offer, manager_id)) is not None:
+            return self._refuse(why)
+        if offer.answer_id == self._reply_id:
             self.is_redelivery = True
             self.feedback_message = (
-                f"Answer '{self._answer_id}' already closed ownership-transfer"
+                f"Reply '{self._reply_id}' already closed ownership-transfer"
                 f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
                 " (HP-01-003)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        if offer.is_answered_other_than(self._answer_id):
+        if offer.is_answered_other_than(self._reply_id):
+            if offer.closed_by_expiry:
+                return self._refuse_late(offer)
             return self._refuse(
                 f"Ownership-transfer Offer '{offer.offer_id}' for case"
-                f" '{self._case_id}' was already answered by"
-                f" '{offer.answer_id}'"
+                f" '{self._case_id}' was already closed by"
+                f" '{offer.answer_id}' ({offer.closed_by_event_type})"
             )
+        if offer.is_past_deadline(self._now or now_utc()):
+            return self._refuse_late(offer)
+        if (why := self._standing_refusal(case, offer)) is not None:
+            return self._refuse(why)
         return Status.SUCCESS
 
     def update(self) -> Status:
@@ -1044,7 +1276,7 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
         if same_actor_id(self.actor_id, manager_id):
             if self._offer_id is None:
                 return self._refuse(
-                    f"Sender '{sender}' answers no ownership-transfer Offer"
+                    f"Sender '{sender}' names no ownership-transfer Offer"
                 )
             try:
                 offer = recorded_ownership_offer(
@@ -1052,11 +1284,11 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
                 )
             except VultronNotFoundError as exc:
                 return self._refuse(
-                    f"Sender '{sender}' answers Offer '{self._offer_id}',"
+                    f"Sender '{sender}' names Offer '{self._offer_id}',"
                     f" which this CASE_MANAGER never recorded for case"
                     f" '{self._case_id}' ({exc})"
                 )
-            return self._check_open_offer(offer)
+            return self._check_open_offer(case, offer, manager_id)
         if same_actor_id(sender, manager_id):
             return Status.SUCCESS
         return self._refuse(
@@ -1066,47 +1298,153 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
         )
 
 
-# ---------------------------------------------------------------------------
-# Condition node: EXECUTING_ACTOR
-# ---------------------------------------------------------------------------
+class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
+    """Guard: sender may answer this ownership-transfer Offer to this receiver.
 
+    At the CASE_MANAGER the sender must be the transferee named in an open
+    ownership-transfer Offer the CASE_MANAGER recorded for the case
+    (CM-21-011, CM-21-013); everything else is the shared rule of
+    :class:`SenderIsOwnershipOfferPartyNode`.
 
-class SenderIsExecutingActorNode(SenderEntitlementConditionNode):
-    """Guard: sender must equal the executing actor.
+    The transferee is the addressee of the request, so the kind is
+    ``NAMED_ACTOR`` (ADR-0129).
 
-    Comparison uses :func:`~vultron.core.predicates.addressing.same_actor_id`,
-    so ids differing only by a trailing slash are considered equal.
-
-    Used to guard the ack echo path: the ``Read(Offer(Report))`` must have
-    been sent by the actor executing the tree (ISSUE-2667).
-
-    Merged from ``CheckSenderIsExecutingActorNode`` (ADR-0115, AC-2).
-
-    Spec: HP-01-006.
+    Spec: CM-21-011, CM-21-013, CM-21-014, PCR-03-001, HP-01-006.
     """
 
-    def __init__(self, sender_actor_id: str, name: str | None = None) -> None:
+    _spec = "CM-21-011"
+    _late_spec = "CM-21-016"
+
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
+        sender = self._sender_actor_id
+        if same_actor_id(sender, offer.transferee_id):
+            return None
+        return (
+            f"Sender '{sender}' is not the transferee"
+            f" '{offer.transferee_id}' of ownership-transfer Offer"
+            f" '{offer.offer_id}'"
+        )
+
+
+class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
+    """Guard: sender may withdraw this ownership-transfer Offer at this receiver.
+
+    At the CASE_MANAGER the sender must be the Case Owner that made an open
+    ownership-transfer Offer the CASE_MANAGER recorded for the case
+    (CM-21-015): the participant the recorded Offer speaks for — its
+    ``attributedTo`` only when the CASE_MANAGER sent it on that participant's
+    behalf, else its ``actor`` (CM-24-002) — and holding
+    ``CVDRole.CASE_OWNER`` now.  Everything else is the shared rule of
+    :class:`SenderIsOwnershipOfferPartyNode`, so a withdrawal of an Offer
+    already answered or withdrawn is refused and a redelivered withdrawal is
+    recognised.
+
+    The kind is ``CASE_OWNER``.
+
+    Spec: CM-21-015, CM-21-014, PCR-03-001, HP-01-006.
+    """
+
+    _spec = "CM-21-015"
+    # An expired Offer is closed (CM-21-017), and a closed one cannot be
+    # withdrawn (CM-21-015).
+    _late_spec = "CM-21-015, CM-21-017"
+
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
+        sender = self._sender_actor_id
+        offerer_id = offer.offerer_id(manager_id)
+        if offerer_id is not None and same_actor_id(sender, offerer_id):
+            return None
+        return (
+            f"Sender '{sender}' is not the offerer"
+            f" '{offerer_id}' of ownership-transfer Offer"
+            f" '{offer.offer_id}'"
+        )
+
+    def _standing_refusal(
+        self, case: VulnerabilityCase, offer: RecordedOwnershipOffer
+    ) -> str | None:
+        assert self.datalayer is not None
+        sender = self._sender_actor_id
+        if not _holds_case_owner_role(self.datalayer, case, sender):
+            return (
+                f"Sender '{sender}' made ownership-transfer Offer"
+                f" '{offer.offer_id}' but does not hold CASE_OWNER on case"
+                f" '{self._case_id}'"
+            )
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Condition node: a side the declared rule leaves empty
+# ---------------------------------------------------------------------------
+
+
+class NoSenderAdmittedNode(SenderEntitlementConditionNode):
+    """Guard for a side a :class:`SenderRule` leaves empty: it admits no one.
+
+    The factory composes it when the receiver is on a side the use case's
+    rule names no kind for, such as a participant receiving an activity only
+    the CASE_MANAGER may be sent (HP-01-008).  It always fails, naming the
+    side, so the tree ends ``REFUSED`` with nothing written.
+
+    Spec: HP-01-006, HP-01-008.
+    """
+
+    def __init__(self, side: str, name: str | None = None) -> None:
+        """Create the guard.
+
+        Args:
+            side: Plain-language name of the empty side, e.g.
+                ``"a participant other than the CASE_MANAGER"``.
+            name: Optional node name.
+        """
         super().__init__(name=name or self.__class__.__name__)
-        self.sender_actor_id = sender_actor_id
+        self._side = side
 
     def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.actor_id is not None
-
-        if same_actor_id(self.sender_actor_id, self.actor_id):
-            return Status.SUCCESS
-
         self.feedback_message = (
-            f"Sender '{self.sender_actor_id}' is not the executing actor"
-            f" '{self.actor_id}' — REFUSED (HP-01-006)"
+            f"No sender is entitled to send this activity to {self._side}"
+            " — REFUSED (HP-01-006, HP-01-008)"
         )
-        self.logger.debug(
-            "%s: sender '%s' is not the executing actor '%s'",
-            self.name,
-            self.sender_actor_id,
-            self.actor_id,
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class SenderHoldsNoneOfNode(SenderEntitlementConditionNode):
+    """The last arm of an any-of side: the sender held none of its kinds.
+
+    The factory appends it to the selector of an any-of side (HP-01-008), so
+    a refused sender's reason names every standing the side accepts rather
+    than only the last kind tried (HP-01-006, BT-13-001).  It always fails.
+
+    Spec: HP-01-006, HP-01-008.
+    """
+
+    def __init__(
+        self,
+        kinds: frozenset[SenderEntitlementKind],
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            kinds: The kinds the side accepts, any one sufficing.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._kinds = in_declaration_order(kinds)
+
+    def update(self) -> Status:
+        names = ", ".join(kind.name for kind in self._kinds)
+        self.feedback_message = (
+            f"Sender holds none of the standings this activity accepts"
+            f" ({names}) — REFUSED (HP-01-006, HP-01-008)"
         )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -1257,6 +1595,9 @@ __all__ = [
     "SenderEntitlementKind",
     "SenderExemption",
     "SenderEntitlement",
+    "SenderRule",
+    "any_of",
+    "in_declaration_order",
     "exempt",
     # Helper predicate
     "is_case_owner",
@@ -1269,7 +1610,9 @@ __all__ = [
     "SenderIsNamedActorNode",
     "SenderMayAssertEmbargoNode",
     "SenderIsInviteeNode",
-    "SenderIsExecutingActorNode",
+    "SenderIsOfferAddresseeNode",
     "SenderIsCaseOwnerNode",
     "SenderIsNoteAuthorNode",
+    "NoSenderAdmittedNode",
+    "SenderHoldsNoneOfNode",
 ]

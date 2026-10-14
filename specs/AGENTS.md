@@ -107,7 +107,7 @@ protocol, foundation, or architecture tier tests, it belongs in `project` or
 
 ### Field Values, Lint Traps, and the Coverage Gate
 
-The exact enum values `spec-lint` accepts, the keys it silently drops, and the
+The exact enum values `spec-lint` accepts, `adr:` versus `references:`, and the
 audit passes required when retiring a name or splitting a compound requirement
 are all in
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md). The ones

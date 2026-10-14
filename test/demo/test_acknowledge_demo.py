@@ -13,44 +13,14 @@
 import pytest
 
 from test.demo._helpers import route_exchange_demo_at_testclient
-from vultron.adapters.driving.fastapi.outbox_handler import (
-    configure_default_emitter,
-    get_default_emitter,
-)
 from vultron.demo.exchange import acknowledge_demo as demo
-
-
-class _NoOpEmitter:
-    """Drop BT-emitted outbound deliveries to prevent re-entrant TestClient deadlock.
-
-    When AckReportReceivedUseCase runs its behavior tree, EmitAckReportActivity
-    enqueues an outbound delivery. Without this override, outbox_handler would
-    call _TestClientRouter.emit() → anyio.to_thread.run_sync(client.post(...)),
-    which re-enters the same portal that is already handling the vendor inbox
-    request, deadlocking. The demo steps already cover the explicit notification
-    path, so dropping the BT-emitted delivery loses no coverage.
-    """
-
-    async def emit(self, activity_id, json_body, recipients):
-        pass
 
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Routes the demo at the TestClient and drops BT-emitted deliveries.
-
-    The module-level default emitter is the path outbox_handler uses when
-    request.app.state.emitter is None (the case for routes served through the
-    mounted api_app root); replace it with a no-op so BT-emitted outbound
-    activities are dropped rather than re-POSTed via the same TestClient portal.
-    """
-    previous_emitter = get_default_emitter()
-    configure_default_emitter(_NoOpEmitter())  # type: ignore[arg-type]
-    try:
-        with route_exchange_demo_at_testclient(client, demo):
-            yield
-    finally:
-        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+    """Routes the demo at the TestClient (DEMOMA-26-002)."""
+    with route_exchange_demo_at_testclient(client, demo):
+        yield
 
 
 @pytest.mark.parametrize(

@@ -45,6 +45,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmInviteToCaseActivity,
     _RmRejectCloseCaseActivity,
     _RmRejectInviteToCaseActivity,
+    _UndoCaseOwnershipTransferActivity,
     _UpdateCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
@@ -212,6 +213,9 @@ class TestBareStringObjectRejected(unittest.TestCase):
     def test_reject_case_ownership_transfer_rejects_string(self):
         self._assert_string_rejected(_RejectCaseOwnershipTransferActivity)
 
+    def test_undo_case_ownership_transfer_rejects_string(self):
+        self._assert_string_rejected(_UndoCaseOwnershipTransferActivity)
+
     def test_rm_accept_invite_rejects_string(self):
         self._assert_string_rejected(_RmAcceptInviteToCaseActivity)
 
@@ -263,6 +267,12 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
 
     def test_reject_case_ownership_transfer_accepts_typed(self):
         obj = _RejectCaseOwnershipTransferActivity(
+            actor=_ACTOR.id_, object_=_OFFER_TRANSFER
+        )
+        assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
+
+    def test_undo_case_ownership_transfer_accepts_typed(self):
+        obj = _UndoCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
         )
         assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
@@ -436,6 +446,12 @@ class TestNoneObjectRejected(unittest.TestCase):
 
     def test_reject_case_ownership_transfer_rejects_missing(self):
         self._assert_missing_rejected(_RejectCaseOwnershipTransferActivity)
+
+    def test_undo_case_ownership_transfer_rejects_none(self):
+        self._assert_none_rejected(_UndoCaseOwnershipTransferActivity)
+
+    def test_undo_case_ownership_transfer_rejects_missing(self):
+        self._assert_missing_rejected(_UndoCaseOwnershipTransferActivity)
 
     def test_rm_accept_invite_rejects_none(self):
         self._assert_none_rejected(_RmAcceptInviteToCaseActivity)

@@ -15,6 +15,7 @@
 
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.use_cases.triggers.report import (
+    SvcAckReportUseCase,
     SvcCloseCaseUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
@@ -22,6 +23,7 @@ from vultron.core.use_cases.triggers.report import (
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AckReportTriggerRequest,
     CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
@@ -43,6 +45,15 @@ _COMMON = (
 )
 
 ENTRIES: list[TriggerEntry] = [
+    TriggerEntry(
+        verb="ack-report",
+        request_model=AckReportTriggerRequest,
+        use_case_class=SvcAckReportUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=(*_COMMON, "TRIG-03-003", "RMB-08-003"),
+    ),
     TriggerEntry(
         verb="validate-report",
         request_model=ValidateReportTriggerRequest,

@@ -378,6 +378,7 @@ The CASE_MANAGER runs one fixed sequence when it receives the Case Owner's `Leav
 3. It moves its own participant record to RM `CLOSED`, recording each step.
 4. It expires every embargo invitation still waiting for an answer ([CM-23-014](../../reference/specs/protocol.md#cm-23-014)).
 5. It records a `case_fully_closed` entry, which marks the boundary.
+   The entry is the CASE_MANAGER's own `Update(VulnerabilityCase)` carrying the closed case, not a record of the Case Owner's act.
 6. It sends that entry to every active participant that has not already left.
 
 The CASE_MANAGER declines the close with a `Reject` while an embargo is still active ([CM-23-011](../../reference/specs/protocol.md#cm-23-011)).

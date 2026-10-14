@@ -20,9 +20,12 @@ from __future__ import annotations
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.use_cases.received.case.lifecycle import (
@@ -61,7 +64,7 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant."""
     dl = _make_dl()
 
-    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(
@@ -191,6 +194,9 @@ class TestCloseCaseLedgerRouting:
             ),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            # The closure steps' entries are factory-built (VM-08-003); a
+            # closure the CASE_MANAGER cannot record is not made (#4442).
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)

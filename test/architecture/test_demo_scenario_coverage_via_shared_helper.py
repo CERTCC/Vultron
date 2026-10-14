@@ -187,10 +187,11 @@ def test_demo_corpus_covers_scenarios_and_helpers():
 def test_demo_module_routes_coverage_waits_through_shared_helper(module: Path):
     """No module under ``vultron/demo/`` calls or imports the coverage-loop primitives.
 
-    Route the wait through ``wait_for_replica_ledger_coverage`` (Phase 1 drain
-    and closure phase) or ``run_sync_verification_phase`` (sync-verification
-    phase) instead (DEMOMA-23-005, DEMOMA-23-006, DEMOMA-23-007).  This covers
-    helper modules too: a copy of the loop moved into one is the same defect
+    Route the wait through ``wait_for_replica_ledger_coverage`` (Phase 1
+    drain), ``wait_for_replica_ledger_ending_at`` (closure phase, CM-23-004)
+    or ``run_sync_verification_phase`` (sync-verification phase) instead
+    (DEMOMA-23-005, DEMOMA-23-006, DEMOMA-23-007).  This covers helper
+    modules too: a copy of the loop moved into one is the same defect
     as a copy in a scenario (#3906).
     """
     hits = _violations(module, _DEMO_TREES[module])
@@ -356,7 +357,7 @@ def test_the_check_passes_for_the_shared_helper_call():
         "def _phase_case_closure(client, case):\n"
         "    wait_for_replica_ledger_coverage(\n"
         "        auth_client=client, replicas=[(client, 'Finder')],\n"
-        "        case_id=case.id_, phase_label='close phase', causal=False,\n"
+        "        case_id=case.id_, phase_label='Phase 1 drain',\n"
         "    )\n"
     )
     assert not _forbidden_references(sample)

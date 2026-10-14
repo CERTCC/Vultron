@@ -43,9 +43,12 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
-from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.node_logger import port_wiring_logger
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
+)
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -89,18 +92,18 @@ def _resolve_owner_recipient(
     return None
 
 
-class RecordRecommendationRecommenderNode(
-    DataLayerActionWithPorts, StateWriteCapable
-):
-    """Write recommendation_id → recommender_id into core case state.
+class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
+    """Record who made a recommendation, in the CASE_MANAGER's own store.
 
     Runs as the first effect node in ``RecommendActorToCaseBT`` so downstream
     Accept/Reject use cases can look up the recommender without re-reading the
     stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
 
-    Idempotent: no-op when the index already holds the correct mapping.
-    Returns SUCCESS unconditionally so the tree continues even when the case
-    cannot be found (the subsequent routing nodes will handle that failure).
+    The record is an :class:`ActorRecommendationRecord`, case bookkeeping kept
+    beside the case and never part of it (CLP-07-014), so the node writes no
+    case state and carries no ``StateWriteCapable`` marker.  It is saved under
+    a deterministic id, so a redelivered recommendation rewrites the same
+    record rather than adding a second one.
     """
 
     def __init__(
@@ -117,30 +120,21 @@ class RecordRecommendationRecommenderNode(
 
     def update(self) -> Status:
         assert self.datalayer is not None
-        # Lenient best-effort write (ADR-0087): this index write is an
-        # optimization; a missing case is left for the downstream routing
-        # nodes to fail on, so skip-as-SUCCESS here (conformance allowlist).
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            return Status.SUCCESS
-
-        if (
-            case.recommendation_recommender_index.get(self.recommendation_id)
-            != self.recommender_id
-        ):
-            case.recommendation_recommender_index[self.recommendation_id] = (
-                self.recommender_id
+        self.datalayer.save(
+            ActorRecommendationRecord(
+                case_id=self.case_id,
+                recommendation_id=self.recommendation_id,
+                recommender_id=self.recommender_id,
             )
-            self.datalayer.save(case)
-            self.logger.debug(
-                "%s: recorded recommender '%s' for recommendation '%s'"
-                " in case '%s'",
-                self.name,
-                self.recommender_id,
-                self.recommendation_id,
-                self.case_id,
-            )
-
+        )
+        self.logger.debug(
+            "%s: recorded recommender '%s' for recommendation '%s'"
+            " in case '%s'",
+            self.name,
+            self.recommender_id,
+            self.recommendation_id,
+            self.case_id,
+        )
         return Status.SUCCESS
 
 
@@ -187,7 +181,8 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
                 "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def initialise(self) -> None:

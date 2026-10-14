@@ -986,6 +986,9 @@ class TestInviteeIsTheAddressee:
             rejecting_actor_id=_INVITEE,
             invite_id="https://example.org/cases/wiring/proposals/p1",
             embargo_id="https://example.org/cases/wiring/embargos/e1",
+            sender_rule=(
+                RejectInviteToEmbargoOnCaseReceivedUseCase.sender_entitlement
+            ),
         )
 
         recorders = [
@@ -1876,23 +1879,20 @@ class TestLateAcceptHandling:
         "start, triggers",
         [
             (EmbargoConsentState.TIMED_OUT, [PEC_Trigger.AGREE]),
-            (
-                EmbargoConsentState.DECLINED,
-                [PEC_Trigger.INVITE, PEC_Trigger.AGREE],
-            ),
+            (EmbargoConsentState.DECLINED, [PEC_Trigger.AGREE]),
         ],
-        ids=["timed-out-agrees-directly", "declined-is-invited-first"],
+        ids=["timed-out-agrees-directly", "declined-agrees-directly"],
     )
     def test_late_accept_reaches_signatory_by_the_legal_path(
         self, make_payload, monkeypatch, start, triggers
     ):
         """A late Accept of the current embargo reaches AGREED by a legal path.
 
-        ``AGREE`` is legal from ``TIMED_OUT`` (ADR-0118), so that row agrees
-        directly.  ``AGREE`` refuses ``DECLINED`` (CM-18-003), so a declined
-        participant is invited again first (``DECLINED → INVITED → AGREED``,
-        EMB-17-002).  Neither row keeps a deadline once it leaves ``INVITED``;
-        the row state itself closes the invitation.
+        ``AGREE`` is legal from ``TIMED_OUT`` (ADR-0118) and from
+        ``DECLINED`` (CM-18-003), so either row agrees directly: a declined
+        participant that accepts has changed its answer, and is not invited
+        again first (EMB-17-002).  Neither row keeps a deadline once it
+        leaves ``INVITED``; the row state itself closes the invitation.
         """
         from vultron.core.models.case_participant import (
             CaseParticipant as _CoreParticipant,
@@ -2098,6 +2098,7 @@ class TestLateAcceptHandling:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
@@ -2117,6 +2118,26 @@ class TestLateAcceptHandling:
             participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
         )
         assert not participant.is_signatory(fresh_case.active_embargo_id)
+
+        # The acknowledgement is the CASE_MANAGER's own Ignore of the Accept
+        # (CLP-07-013), and a redelivered Accept is acknowledged once: the
+        # Ignore's id is derived from the Accept (ID-04-004).
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        (noop,) = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.event_type == INVITE_EXPIRED_NOOP_EVENT_TYPE
+        ]
+        assert noop.payload_snapshot["type"] == "Ignore"
+        assert noop.payload_snapshot["actor"] == _COORD
+        assert noop.payload_snapshot["object"]["actor"] == _INVITEE
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-004")
@@ -2165,6 +2186,7 @@ class TestLateAcceptHandling:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 

@@ -114,7 +114,6 @@ _VALIDATE_ASSIGNMENT_TARGETS: frozenset[str] = frozenset(
         "VfDimension",
         "VultronEvent",
         "CoreRecord",
-        "VultronOutbox",
     }
 )
 

@@ -118,6 +118,7 @@ its own clock conditions may tune both thresholds
 ([CLP-14-009](../../reference/specs/protocol.md#clp-14-009)). These are sanity
 checks, not proof of honesty; a participant with a badly wrong clock can still
 produce a well-formed but misleading assertion.
+A retry of an assertion the ledger already holds is answered with the entry recorded for it, however old its timestamp, because it records nothing new ([OX-06-002](../../reference/specs/project.md#ox-06-002)).
 
 ### Two timestamps, two different rules
 

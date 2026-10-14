@@ -347,7 +347,6 @@ _RETIRED_CORE_ALIASES = frozenset(
             "VultronCaseLedgerEntryRef",
         ),
         # #3678
-        ("vultron.core.models.case_actor", "VultronCaseActor"),
         ("vultron.core.models.report", "VultronReport"),
         ("vultron.core.models.embargo_event", "VultronEmbargoEvent"),
         ("vultron.core.models.case_participant", "VultronParticipant"),
@@ -373,10 +372,16 @@ def test_retired_core_alias_is_gone_from_its_old_home(module_name, alias):
 
 @pytest.mark.parametrize(
     "module_name",
-    ["vultron.core.models.vultron_types", "vultron.core.models.participant"],
+    [
+        "vultron.core.models.vultron_types",
+        "vultron.core.models.participant",
+        # #4612: the CaseActor class and its wire alias
+        "vultron.core.models.case_actor",
+        "vultron.wire.as2.vocab.objects.case_actor",
+    ],
 )
 def test_retired_core_model_shim_modules_are_gone(module_name):
-    """The re-export shim modules are deleted, not emptied (#3678, CS-15-001)."""
+    """Retired modules are deleted, not emptied (#3678, #4612, CS-15-001)."""
     assert importlib.util.find_spec(module_name) is None
 
 

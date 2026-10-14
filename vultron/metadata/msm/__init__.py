@@ -2,16 +2,18 @@
 
 Public API for the ``vultron.metadata.msm`` package:
 
-- :func:`render_page` — render a shorthand↔wire-form mapping table for a
-  ``docs/reference/messages/`` page.
 - :data:`PAGE_SLUGS` — canonical tuple of valid page slugs.
 - :class:`MappingStatus` — enum of mapping relationship types.
 - :class:`RowSpec` — one registry entry's derived page, shorthands and status.
-- :data:`ROW_SPECS` — the mapping table, derived from the occasions on
+- :data:`ROW_SPECS` — one mapping row per entry, derived from the occasions on
   ``SEMANTIC_REGISTRY`` (ADR-0128); nothing in it is typed by hand.
 - :data:`SEMANTICS_TO_ROW` — O(1) lookup from ``MessageSemantics`` → ``RowSpec``.
-- :func:`mapping_status`, :func:`sent_by` — the derivations (MSM-08-005,
-  MSM-08-006).
+- :func:`mapping_status`, :func:`sent_by`, :func:`section_heading` — the
+  derivations (MSM-08-005, MSM-08-006, MSM-08-008).
+- :class:`OccasionTable`, :func:`load_occasion_table` — the committed occasion
+  table YAML and its loader.  The generator is
+  :mod:`vultron.metadata.msm.occasions`; run it as ``uv run msm-occasions``,
+  not ``python -m``, which would load the module twice through this package.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -29,21 +31,20 @@ Public API for the ``vultron.metadata.msm`` package:
 
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
-    PAGE_ROWS,
     PAGE_SLUGS,
     ROW_SPECS,
     SEMANTICS_TO_ROW,
     MappingStatus,
+    OccasionTable,
     RowSpec,
+    load_occasion_table,
     mapping_status,
+    section_heading,
     sent_by,
 )
-from vultron.metadata.msm.render import render_page
 
 __all__ = [
-    "render_page",
     "PAGE_SLUGS",
-    "PAGE_ROWS",
     "MappingStatus",
     "RowSpec",
     "ROW_SPECS",
@@ -51,4 +52,7 @@ __all__ = [
     "EXEMPTED_SEMANTICS",
     "mapping_status",
     "sent_by",
+    "section_heading",
+    "OccasionTable",
+    "load_occasion_table",
 ]

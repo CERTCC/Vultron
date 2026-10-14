@@ -56,7 +56,7 @@ class MessagePage(StrEnum):
 
 
 class HowToGuide(StrEnum):
-    """The how-to guides an occasion links to, as ``docs/``-relative paths."""
+    """The how-to guides an occasion declares, as ``docs/``-relative paths."""
 
     REPORT_VULNERABILITY = (
         "howto/activitypub/activities/report_vulnerability.md"
@@ -109,8 +109,64 @@ class ProtocolShorthand(StrEnum):
     GK = "GK"
     GE = "GE"
 
+    @property
+    def formal_name(self) -> str:
+        """The message's name in ``formal_protocol/messages.md``, e.g.
+        ``"Fix Readiness"`` for ``CF`` (MSM-08-008)."""
+        return _FORMAL_NAMES[self]
 
-_ANCHOR_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    @property
+    def formal_section(self) -> str:
+        """The anchor of the ``formal_protocol/messages.md`` section that
+        defines this message's family, e.g. ``"cs-message-types"``."""
+        return _FORMAL_SECTIONS[self.value[0]]
+
+
+#: The section of ``formal_protocol/messages.md`` defining each family of
+#: shorthands, keyed by the shorthand's first letter (its state machine).
+_FORMAL_SECTIONS: dict[str, str] = {
+    "R": "rm-message-types",
+    "E": "em-message-types",
+    "C": "cs-message-types",
+    "G": "other-message-types",
+}
+
+#: The formal message names, as ``docs/reference/formal_protocol/messages.md``
+#: gives them; ``test_semantic_registry_occasions.py`` holds the two in step.
+_FORMAL_NAMES: dict[ProtocolShorthand, str] = {
+    ProtocolShorthand.RS: "Report Submission",
+    ProtocolShorthand.RI: "Report Invalid",
+    ProtocolShorthand.RV: "Report Valid",
+    ProtocolShorthand.RD: "Report/Case Deferred",
+    ProtocolShorthand.RA: "Report/Case Accepted",
+    ProtocolShorthand.RC: "Report Closed",
+    ProtocolShorthand.RK: "Report Acknowledgment",
+    ProtocolShorthand.RE: "Report Error",
+    ProtocolShorthand.EP: "Embargo Proposal",
+    ProtocolShorthand.ER: "Embargo Proposal Rejection",
+    ProtocolShorthand.EA: "Embargo Proposal Acceptance",
+    ProtocolShorthand.EV: "Embargo Revision Proposal",
+    ProtocolShorthand.EJ: "Embargo Revision Rejection",
+    ProtocolShorthand.EC: "Embargo Revision Acceptance",
+    ProtocolShorthand.ET: "Embargo Termination",
+    ProtocolShorthand.EK: "Embargo Acknowledgment",
+    ProtocolShorthand.EE: "Embargo Error",
+    ProtocolShorthand.CV: "Vendor Awareness",
+    ProtocolShorthand.CF: "Fix Readiness",
+    ProtocolShorthand.CD: "Fix Deployed",
+    ProtocolShorthand.CP: "Public Awareness",
+    ProtocolShorthand.CX: "Exploit Public",
+    ProtocolShorthand.CA: "Attacks Observed",
+    ProtocolShorthand.CK: "CS Acknowledgment",
+    ProtocolShorthand.CE: "CS Error",
+    ProtocolShorthand.GI: "General Inquiry",
+    ProtocolShorthand.GK: "General Acknowledgment",
+    ProtocolShorthand.GE: "General Error",
+}
+
+
+#: An occasion anchor: lowercase words joined by hyphens.
+ANCHOR_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 _EXAMPLE_NAME_PATTERN = r"^[a-z_][a-z0-9_]*$"
 
 
@@ -228,12 +284,23 @@ class Occasion(BaseModel):
         when: The sender's situation, worded to complete "When…", e.g.
             "a Vendor has a fix ready".
         anchor: Stable section anchor, lowercase words joined by hyphens.
+        heading: The plain-English heading of the occasion's section, in
+            sentence case, e.g. "Add note to case".  Required when the
+            occasion has no shorthand.  An occasion whose shorthand is
+            carried by another entry too (an expansion such as ``GI``) needs
+            one as well, and one whose shorthand is its own must not declare
+            one, because its section is headed by the formal name
+            (MSM-08-008); both depend on the whole registry, so
+            ``vultron.metadata.msm`` checks them, not this model.
         description: One or two sentences on what the activity does.
         example: Name of the ``vocab_examples`` function that builds this
             occasion's example (MSM-08-003).
         distinguisher: What tells this occasion apart from the entry's other
             occasions, when it has any.
-        howto: The how-to guide whose steps send it.
+        howto: The how-to guide whose steps send it.  The guide must embed
+            the occasion where a step sends it, or ``msm-occasions`` fails;
+            the section's "Seen in" lists that guide and every other page
+            that embeds the occasion (#4432).
         shorthand: The formal protocol message it carries, if any.
         usual_senders: The CVD roles that usually send it, beside the rule a
             receiver applies (MSM-08-005).
@@ -247,8 +314,9 @@ class Occasion(BaseModel):
     model_config = _FROZEN
 
     when: NonEmptyString
-    anchor: Annotated[str, Field(pattern=_ANCHOR_PATTERN)]
+    anchor: Annotated[str, Field(pattern=ANCHOR_PATTERN)]
     description: NonEmptyString
+    heading: NonEmptyString | None = None
     example: Annotated[str, Field(pattern=_EXAMPLE_NAME_PATTERN)]
     distinguisher: Distinguisher | None = None
     howto: HowToGuide | None = None
@@ -265,8 +333,18 @@ class Occasion(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _no_shorthand_needs_a_heading(self) -> "Occasion":
+        if self.shorthand is None and self.heading is None:
+            raise ValueError(
+                f"occasion {self.anchor!r} has no shorthand, so its section"
+                " needs a plain-English heading (MSM-08-008)"
+            )
+        return self
+
 
 __all__ = [
+    "ANCHOR_PATTERN",
     "Distinguisher",
     "FieldValue",
     "HowToGuide",

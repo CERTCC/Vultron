@@ -433,7 +433,8 @@ groups:
       Target-field discrimination is a latent correctness risk: a minimally-conformant or
       buggy sender omitting the target will be silently misrouted. A distinct object type
       eliminates this risk structurally and makes the wire format self-describing.
-      See also `notes/activitystreams-state-update.md` § "Target-Field Discriminators".
+      See also `notes/activitystreams-state-update.md` § "Patterns Sharing a Verb and
+      Object Need a Strict Discriminator".
       `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, context=VulnerabilityCase)`)
       is the canonical example of applying this principle, introduced by ADR-0039.
       A CASE_MANAGER that receives one records it as a canonical ledger assertion

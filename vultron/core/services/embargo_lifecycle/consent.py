@@ -66,10 +66,10 @@ _ANSWERED_OR_TIMED_OUT = frozenset(
 )
 """Row states that close an invitation without a deadline left to read.
 
-A ``TIMED_OUT`` row's deadline passed; a ``DECLINED`` row was answered, and
-a participant that declined is invited again before it can agree (ADR-0122,
-EMB-17-002).  Both rows drop their deadline when they leave ``INVITED``, so
-the state itself is what says the invitation closed.
+A ``TIMED_OUT`` row's deadline passed; a ``DECLINED`` row was answered, so
+an Accept of it is a later change of answer, which EMB-17-002 honours on the
+embargo in force.  Both rows drop their deadline when they leave
+``INVITED``, so the state itself is what says the invitation closed.
 """
 
 
@@ -459,7 +459,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         actor_id: str,
         embargo_id: str,
     ) -> EmbargoLifecycleResult:
-        """Apply the honour decision: ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``).
+        """Apply the honour decision: ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED``.
 
         This is the **effect** of :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE`
         (EMB-17-001, ADR-0118).  Called by the replica replay node
@@ -468,11 +468,11 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
         **after** the entry is committed (CLP-10-006).
 
-        A participant whose row for *embargo_id* is ``DECLINED`` is first
-        invited again (``DECLINED → INVITED``, since ``AGREE`` is not legal
-        from ``DECLINED``), then the shared
+        The shared
         :meth:`~vultron.core.services.embargo_lifecycle.pec._PecEffectsMixin._record_actor_acceptance`
-        applies ``AGREE`` to that row.
+        applies ``AGREE`` to the row for *embargo_id*.  A ``DECLINED`` row
+        moves directly: the participant has changed its answer, so there is no
+        re-invite step (CM-18-003).
 
         Idempotent: a participant whose row is already ``AGREED`` is not
         changed.
@@ -491,29 +491,10 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """
         case = self._read_case(case_id)
         em_state = case.em_state
-        participant_id, participant = self._require_participant(case, actor_id)
+        # An unknown honouring actor is an error, not a skip (Raises).
+        self._require_participant(case, actor_id)
 
-        participant_changes: list[ParticipantConsentChange] = []
-        # DECLINED is not a legal AGREE source (CM-18-003); invite again first.
-        if participant.consent_for(embargo_id) == EmbargoConsentState.DECLINED:
-            participant_changes = self._apply_where_legal(
-                case,
-                participant_id,
-                participant,
-                embargo_id,
-                PEC_Trigger.INVITE,
-            )
-            logger.info(
-                "honour_late_accept: re-invited DECLINED actor '%s'"
-                " on case '%s' before AGREE (DECLINED → INVITED)",
-                actor_id,
-                case_id,
-            )
-
-        accept_changes = self._record_actor_acceptance(
-            case, actor_id, embargo_id
-        )
-        all_changes = participant_changes + accept_changes
+        all_changes = self._record_actor_acceptance(case, actor_id, embargo_id)
         logger.info(
             "honour_late_accept: honoured late Accept for actor '%s'"
             " on case '%s' (embargo '%s', EMB-17-001;"

@@ -105,10 +105,9 @@ like a core object, not core's record — an effect node writes it from the even
 copy after the guards; intake writing it would seed a replica ahead of trust
 (PCR-03-004). Never add a store node or helper for the received activity (CLP-10-019). Intake reads the `VultronEvent` from `/activity`: run any
 factory-built tree with `activity=<event>` or it fails with `ACTIVITY_UNAVAILABLE`.
-The commit runs only for a canonical `(type, object)` signature (CLP-10-013);
-`Update(VulnerabilityCase)` has none, and `Announce(VulnerabilityCase)` is exempt
-(#4304), so both pass `case_id=None`. Intake-only handlers use `intake_verdict()`.
-The factory adds the post-close guard (CM-23-013). See `notes/bt-integration.md`.
+Only a canonical `(type, object)` signature commits (CLP-10-013); the exempt
+`Announce(VulnerabilityCase)` (#4304) passes `case_id=None`. Intake-only handlers use
+`intake_verdict()`. The factory adds the post-close guard (CM-23-013).
 
 **The factory owns the CASE_MANAGER gate (BT-17-008).** Pass effects as
 `replica_effects` (every replica, ungated) and `manager_effects` (gated by the
@@ -141,7 +140,7 @@ then return here), then apply these BT-specific checks
    | Domain | Base class | File |
    |--------|-----------|------|
    | Report | `_EmitCaseActorReportActivityBase` | `report/nodes/emit.py` |
-   | Embargo (send; CASE_MANAGER decision: build → commit → queue) | `_SendEmbargoActivityBase`; `_CommitEmbargoDecisionBase` | `embargo/nodes/emit.py`; `embargo/nodes/manager_commit.py` |
+   | Embargo (send); CASE_MANAGER's own act (build → commit sealed blob → queue if addressed: embargo decisions, case closure, late-Accept ack) | `_SendEmbargoActivityBase`; `_CommitCaseManagerActivityBase` | `embargo/nodes/emit.py`; `case_manager_commit.py` |
    | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` |
    | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` |
 

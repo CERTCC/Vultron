@@ -44,9 +44,18 @@ from vultron.core.behaviors.embargo.nodes import (
     RecordParticipantRejectionNode,
     ValidateCaseExistsNode,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
+from vultron.core.behaviors.embargo.nodes.answer_repeat import (
+    case_manager_admits_embargo_answer_guard,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderRule,
+)
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
+)
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,6 +66,8 @@ def accept_invite_to_embargo_tree(
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting an embargo invitation.
 
@@ -75,6 +86,8 @@ def accept_invite_to_embargo_tree(
         embargo_id: ID of the EmbargoEvent being accepted.
         accepting_actor_id: Actor ID of the participant accepting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
@@ -82,10 +95,21 @@ def accept_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
         case_id=case_id,
-        sender_guard=SenderIsInviteeNode(
-            invite_id=invite_id, sender_actor_id=accepting_actor_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=accepting_actor_id, case_id=case_id, invite_id=invite_id
         ),
-        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
+        precondition_guards=[
+            ValidateCaseExistsNode(case_id=case_id),
+            # A repeat of an Accept already recorded commits nothing and
+            # announces nothing (CM-13-005, HP-01-003).
+            case_manager_admits_embargo_answer_guard(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                answering_actor_id=accepting_actor_id,
+                answer=EmbargoConsentState.AGREED,
+            ),
+        ],
         manager_effects=[
             RecordParticipantAcceptanceNode(
                 case_id=case_id,
@@ -115,6 +139,8 @@ def reject_invite_to_embargo_tree(
     rejecting_actor_id: str,
     invite_id: str,
     embargo_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for rejecting an embargo invitation.
 
@@ -125,6 +151,7 @@ def reject_invite_to_embargo_tree(
         ├─ IntakeReceivedActivityNode
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
+        ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
            └─ RecordParticipantRejectionNode  # consent (MSM-07-004)
@@ -146,6 +173,8 @@ def reject_invite_to_embargo_tree(
         invite_id: ID of the InviteToEmbargoOnCase activity.
         embargo_id: ID of the EmbargoEvent the Reject names (required: which
             terms are refused decides the consent effect, MSM-07-004).
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
@@ -153,11 +182,20 @@ def reject_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,
-        sender_guard=SenderIsInviteeNode(
-            invite_id=invite_id, sender_actor_id=rejecting_actor_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=rejecting_actor_id, case_id=case_id, invite_id=invite_id
         ),
         precondition_guards=[
             IsRejectableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
+            # A repeat of a Reject already recorded commits nothing and
+            # announces nothing (CM-13-005, HP-01-003).
+            case_manager_admits_embargo_answer_guard(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                answering_actor_id=rejecting_actor_id,
+                answer=EmbargoConsentState.DECLINED,
+            ),
         ],
         manager_effects=[
             # The consent belongs to the actor who rejected, not to the BT

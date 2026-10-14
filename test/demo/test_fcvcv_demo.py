@@ -1157,13 +1157,6 @@ class TestFcvcvDedicatedCaseActor(_Helpers):
             close = stack.enter_context(
                 patch.object(demo, "close_case_owner_last")
             )
-            for name in (
-                "wait_for_all_participants_rm_closed",
-                "verify_case_closed",
-                "wait_for_event_type_in_ledger",
-                "wait_for_replica_ledger_coverage",
-            ):
-                stack.enter_context(patch.object(demo, name))
             null_demo_contexts(stack, demo)
             demo._phase_case_closure(
                 finder_client=MagicMock(),

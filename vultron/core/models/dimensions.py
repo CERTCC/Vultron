@@ -27,6 +27,7 @@ from typing import Any
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     field_validator,
     model_serializer,
     model_validator,
@@ -216,7 +217,14 @@ class EmDimension(_ScalarDimension):
     EM is derived from the case's embargo register (ADR-0122), and a case
     stamps the derived value onto its current status.
     Replaces CaseStatus.em_state (SDO-01-001, SDO-03-001).
+
+    Frozen so that ``instance.state = EM.X`` raises ``ValidationError``.
+    A status with a different EM is always built by construction or by
+    ``status.model_copy(update={"em": EmDimension(state=...)})``, never by
+    mutation (SDO-03-006).
     """
+
+    model_config = ConfigDict(frozen=True)
 
     state: EM = EM.NONE
 

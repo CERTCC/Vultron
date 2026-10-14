@@ -655,6 +655,7 @@ class TestRolesThreadingIntegration:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(harness.manager_dl),
         ).execute()
 
         updated_case = cast(Any, harness.manager_dl.read(harness.case.id_))
@@ -722,6 +723,92 @@ class TestRolesThreadingIntegration:
         ]
         assert not invites, (
             "CASE_MANAGER must not emit an Invite when no roles are given"
+        )
+
+
+class TestInviteRetrySendsOnce:
+    """A retried invite sends its Invite once and records it once (OX-06-002).
+
+    ADR-0119 records a sent act after it reaches the outbox, so a retry after
+    a send whose commit failed finds the Invite already queued.  The
+    CASE_MANAGER derives the Invite's id from the owner's Offer, so the retry
+    rebuilds the same Invite, and the outbox does not queue it a second time.
+    """
+
+    @staticmethod
+    def _invite_entries(harness: _OwnerDirectInvite) -> list[Any]:
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        return [
+            e
+            for e in harness.manager_dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.event_type == "invite_actor_to_case"
+        ]
+
+    @staticmethod
+    def _queued_invites(harness: _OwnerDirectInvite) -> list[str]:
+        return [
+            item
+            for item in harness.manager_dl.outbox_list()
+            if isinstance(harness.manager_dl.read(item), as_Invite)
+        ]
+
+    @pytest.mark.spec("OX-06-002")
+    def test_a_retry_after_an_uncommitted_send_queues_and_commits_once(
+        self, make_payload
+    ):
+        """The owner's invite trigger, then its Offer processed twice.
+
+        The trigger's Invite is the CASE_MANAGER's to send (CM-17-007), so
+        the retried step is the CASE_MANAGER's tree for the trigger's Offer.
+        """
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+
+        harness = _OwnerDirectInvite()
+        offer = harness.trigger(roles=[CVDRole.VENDOR])
+
+        # The first attempt builds and seals the Invite, but its commit
+        # fails.  Under ADR-0119's order the Invite was queued before that
+        # commit, so it is queued here by hand: the crash-window state.
+        with pytest.MonkeyPatch.context() as mp:
+            failed = fail_commits(
+                mp,
+                commit_tree,
+                when=lambda kw: kw["event_type"] == "invite_actor_to_case",
+            )
+            first = harness.deliver_to_manager(offer["id"], make_payload)
+        assert first.disposition.value != "applied", first
+        assert len(failed) == 1, "the first attempt never built the Invite"
+        invite_id = failed[0]
+        assert self._invite_entries(harness) == []
+        assert harness.manager_dl.outbox_append(invite_id) is True
+
+        retry = harness.deliver_to_manager(offer["id"], make_payload)
+
+        assert retry.disposition.value == "applied", retry
+        assert self._queued_invites(harness) == [invite_id]
+        entries = self._invite_entries(harness)
+        assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
+
+    @pytest.mark.spec("OX-06-002")
+    def test_the_invite_id_is_derived_from_the_owners_offer(
+        self, make_payload
+    ):
+        """The id the retry relies on: one per Offer, not one per attempt."""
+        from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+            INVITE_ID_KIND,
+        )
+        from vultron.core.models.activity_ids import derived_activity_id
+
+        harness = _OwnerDirectInvite()
+        offer = harness.trigger(roles=[CVDRole.VENDOR])
+        result = harness.deliver_to_manager(offer["id"], make_payload)
+        assert result.disposition.value == "applied", result
+
+        assert harness.manager_invite().id_ == derived_activity_id(
+            INVITE_ID_KIND, harness.manager.id_, harness.case.id_, offer["id"]
         )
 
 
@@ -1283,6 +1370,95 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_data["type"] == "Offer"
         assert activity_data["actor"] == case_actor.id_
         assert activity_data["attributedTo"] == owner.id_
+
+    @pytest.mark.spec("TRIG-11-007")
+    @pytest.mark.spec("CM-21-016")
+    def test_offer_carries_the_requested_end_time(self):
+        """The trigger's end_time is the Offer's deadline to answer, in UTC."""
+        from datetime import UTC, datetime, timedelta, timezone
+
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case, _ = _seed_delegated_case(owner, dl, transferee)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        deadline = (datetime.now(UTC) + timedelta(days=3)).replace(
+            microsecond=0
+        )
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee.id_,
+            end_time=deadline.astimezone(timezone(timedelta(hours=5))),
+        )
+        assert request.end_time is not None
+        assert request.end_time.utcoffset() == timedelta(0)
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        end_time = activity_of(result)["endTime"]
+        assert datetime.fromisoformat(end_time) == deadline
+        # Generated by this node, so it serialises in UTC (CS-13-005).
+        assert end_time.endswith(("+00:00", "Z"))
+
+    @pytest.mark.spec("TRIG-11-007")
+    def test_offer_without_end_time_carries_none(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case, _ = _seed_delegated_case(owner, dl, transferee)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl,
+            OfferCaseOwnershipTransferTriggerRequest(
+                actor_id=owner.id_,
+                case_id=case.id_,
+                transferee_id=transferee.id_,
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert activity_of(result).get("endTime") is None
+
+    @pytest.mark.spec("TRIG-11-007")
+    @pytest.mark.parametrize("hours, aware", [(-1, True), (1, False)])
+    def test_offer_end_time_must_be_aware_and_future(self, hours, aware):
+        from datetime import UTC, datetime, timedelta
+
+        from pydantic import ValidationError
+
+        from vultron.core.use_cases.triggers.request_bodies import (
+            OfferCaseOwnershipTransferRequest,
+        )
+
+        end_time = datetime.now(UTC) + timedelta(hours=hours)
+        with pytest.raises(ValidationError):
+            OfferCaseOwnershipTransferRequest(
+                case_id="https://example.org/cases/c",
+                transferee_id="https://example.org/actors/t",
+                end_time=end_time if aware else end_time.replace(tzinfo=None),
+            )
 
     def test_offer_persisted_in_datalayer(self):
         owner, dl = _make_actor_dl("Vendor")

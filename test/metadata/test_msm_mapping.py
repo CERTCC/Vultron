@@ -18,6 +18,7 @@ two disagreed for ``EP`` (MSM-08-006 rationale).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import dataclasses
 from typing import Any, ClassVar
 
 import pytest
@@ -26,13 +27,12 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
     SenderExemption,
+    SenderRule,
+    any_of,
     exempt,
 )
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
     NOT_YET_CHECKED,
@@ -40,18 +40,15 @@ from vultron.metadata.msm._mapping import (
     SENT_BY_WORDING,
     MappingStatus,
     answered_request,
-    discriminator,
     mapping_status,
     sent_by,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY, lookup_entry
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
-    FieldValue,
     MessagePage,
     Occasion,
     ProtocolShorthand,
-    StateContext,
 )
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
@@ -71,10 +68,14 @@ def _use_case(entitlement: SenderEntitlement | None) -> type:
     return _UseCase
 
 
+_CASE_OWNER_RULE = SenderRule.in_case(SenderEntitlementKind.CASE_OWNER)
+
+
 def _occasion(index: int = 0, **overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": f"stub situation {index} arises",
         "anchor": f"stub-{index}",
+        "heading": f"Stub situation {index}",
         "description": "Stands in for a real occasion.",
         "example": f"stub_example_{index}",
     }
@@ -85,7 +86,7 @@ def _occasion(index: int = 0, **overrides: Any) -> Occasion:
 def _entry(
     *occasions: Occasion,
     semantics: MessageSemantics = MessageSemantics.CREATE_NOTE,
-    entitlement: SenderEntitlement | None = SenderEntitlementKind.CASE_OWNER,
+    entitlement: SenderEntitlement | None = _CASE_OWNER_RULE,
     pattern: ActivityPattern | None = None,
 ) -> SemanticEntry:
     return SemanticEntry(
@@ -183,27 +184,6 @@ def test_ep_is_carried_only_by_the_embargo_invite():
     assert carriers == [MessageSemantics.INVITE_TO_EMBARGO_ON_CASE]
 
 
-def test_discriminator_names_fields_and_state_contexts_once_each():
-    vf_ready = FieldValue(
-        object_type=ParticipantStatus, field="vf_state", value=CS_vf.VF
-    )
-    vf_aware = FieldValue(
-        object_type=ParticipantStatus, field="vf_state", value=CS_vf.Vf
-    )
-    deployed = FieldValue(
-        object_type=ParticipantStatus, field="d_state", value=CS_d.D
-    )
-    occasions = [
-        _occasion(0, distinguisher=vf_aware),
-        _occasion(1, distinguisher=vf_ready),
-        _occasion(2, distinguisher=deployed),
-    ]
-    assert discriminator(occasions) == "vf_state / d_state"
-    em = StateContext(machine=EM, states=(EM.ACTIVE,))
-    assert discriminator([_occasion(distinguisher=em)]) == "EM state context"
-    assert discriminator([_occasion()]) is None
-
-
 # ---------------------------------------------------------------------------
 # "Sent by" (MSM-08-005).
 # ---------------------------------------------------------------------------
@@ -217,12 +197,11 @@ def test_discriminator_names_fields_and_state_contexts_once_each():
         (SenderEntitlementKind.CASE_OWNER, "the case owner"),
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
         (SenderEntitlementKind.INVITEE, "the invitee"),
-        (SenderEntitlementKind.EXECUTING_ACTOR, "the receiving actor itself"),
         (SenderEntitlementKind.ANY_ACTOR, "any actor"),
     ],
 )
 def test_sent_by_words_each_kind(kind: SenderEntitlementKind, wording: str):
-    entry = _entry(entitlement=kind)
+    entry = _entry(entitlement=SenderRule.in_case(kind))
     assert sent_by(entry, entry.occasions[0]) == wording
 
 
@@ -245,7 +224,8 @@ def test_sent_by_words_the_addressee_from_the_answered_request():
         activity_=TAtype.ACCEPT, object_=VOtype.CASE_PROPOSAL
     )
     entry = _entry(
-        entitlement=SenderEntitlementKind.NAMED_ACTOR, pattern=pattern
+        entitlement=SenderRule.in_case(SenderEntitlementKind.NAMED_ACTOR),
+        pattern=pattern,
     )
     assert (
         sent_by(entry, entry.occasions[0])
@@ -260,7 +240,8 @@ def test_sent_by_reads_the_inner_object_of_a_nested_request():
     )
     pattern = ActivityPattern(activity_=TAtype.ACCEPT, object_=inner)
     entry = _entry(
-        entitlement=SenderEntitlementKind.NAMED_ACTOR, pattern=pattern
+        entitlement=SenderRule.in_case(SenderEntitlementKind.NAMED_ACTOR),
+        pattern=pattern,
     )
     assert (
         sent_by(entry, entry.occasions[0])
@@ -272,7 +253,10 @@ def test_sent_by_reads_the_inner_object_of_a_nested_request():
 def test_sent_by_adds_the_usual_senders():
     occasion = _occasion(usual_senders=(CVDRole.VENDOR, CVDRole.CASE_OWNER))
     entry = _entry(
-        occasion, entitlement=SenderEntitlementKind.ACTIVE_PARTICIPANT
+        occasion,
+        entitlement=SenderRule.in_case(
+            SenderEntitlementKind.ACTIVE_PARTICIPANT
+        ),
     )
     assert (
         sent_by(entry, occasion)
@@ -280,8 +264,53 @@ def test_sent_by_adds_the_usual_senders():
     )
 
 
+@pytest.mark.spec("MSM-08-005")
+def test_sent_by_joins_an_any_of_side_with_or():
+    entry = _entry(
+        entitlement=SenderRule.in_case(
+            SenderEntitlementKind.CASE_OWNER,
+            SenderEntitlementKind.CASE_MANAGER,
+        )
+    )
+    assert (
+        sent_by(entry, entry.occasions[0])
+        == "the case manager or the case owner"
+    )
+
+
+@pytest.mark.spec("MSM-08-005")
+def test_sent_by_words_the_case_manager_side_of_a_two_sided_rule():
+    entry = _entry(
+        entitlement=SenderRule(
+            at_case_manager=any_of(SenderEntitlementKind.ACTIVE_PARTICIPANT),
+            at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+        )
+    )
+    assert sent_by(entry, entry.occasions[0]) == "an active participant"
+
+
+@pytest.mark.spec("MSM-08-005")
+def test_sent_by_words_the_outside_case_side_of_a_pre_case_rule():
+    entry = _entry(
+        entitlement=SenderRule.before_case(SenderEntitlementKind.ANY_ACTOR)
+    )
+    assert sent_by(entry, entry.occasions[0]) == "any actor"
+
+
 def test_sent_by_refuses_an_undeclared_entitlement():
     entry = _entry(entitlement=None)
+    with pytest.raises(ValueError, match="declares no sender_entitlement"):
+        sent_by(entry, entry.occasions[0])
+
+
+def test_sent_by_refuses_a_declaration_that_is_not_a_rule():
+    """A bare kind, the pre-HP-01-008 shape, is not a declaration."""
+    entry = _entry()
+
+    class _BareKind:
+        sender_entitlement = SenderEntitlementKind.CASE_OWNER
+
+    entry = dataclasses.replace(entry, use_case_class=_BareKind)
     with pytest.raises(ValueError, match="declares no sender_entitlement"):
         sent_by(entry, entry.occasions[0])
 
@@ -297,11 +326,21 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     declared = getattr(entry.use_case_class, "sender_entitlement", None)
     if isinstance(declared, SenderExemption):
         base = NOT_YET_CHECKED
-    elif declared is SenderEntitlementKind.NAMED_ACTOR:
-        base = f"the addressee of the {answered_request(entry)}"
     else:
-        assert isinstance(declared, SenderEntitlementKind)
-        base = SENT_BY_WORDING[declared]
+        assert isinstance(declared, SenderRule)
+        side = (
+            declared.at_case_manager
+            or declared.outside_case
+            or declared.at_participant
+        )
+        words = [
+            f"the addressee of the {answered_request(entry)}"
+            if kind is SenderEntitlementKind.NAMED_ACTOR
+            else SENT_BY_WORDING[kind]
+            for kind in SenderEntitlementKind
+            if kind in side
+        ]
+        base = " or ".join(words)
     if not occasion.usual_senders:
         return base
     roles = ", ".join(

@@ -9,6 +9,8 @@
 #                     bugfix, Idea/Concern -> plan-issue)
 #   - Schedule      — the authoritative priority tier (PAD-03-001), read from
 #                     Project #24 on both the Epic and each leaf
+# and the Epic's own assignees: an assigned Epic is claimed by an epic run,
+# which holds its Tasks and Features (PAD-19-002).
 # Pipe into `PYTHONPATH= uv run bundle-fit` to apply fit; see shared/bundling.md.
 set -euo pipefail
 
@@ -21,6 +23,7 @@ gh api graphql -f query="{
   repository(owner:\"CERTCC\", name:\"Vultron\") {
     issue(number: ${EPIC_NUMBER}) {
       number title
+      assignees(first: 5) { nodes { login } }
       projectItems(first: 5) { nodes {
         project { number }
         fieldValueByName(name: \"Schedule\") {

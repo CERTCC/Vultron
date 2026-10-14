@@ -29,6 +29,7 @@ from vultron.core.models.actor import (
     VultronPerson as CoreVultronPerson,
     VultronService as CoreVultronService,
 )
+from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
@@ -196,6 +197,16 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         self.assertIs(WIRE_TYPE_MAP["Service"], as_VultronService)
         self.assertIs(WIRE_TYPE_MAP["Application"], as_VultronApplication)
         self.assertIs(WIRE_TYPE_MAP["Group"], as_VultronGroup)
+
+    def test_service_type_resolves_to_vultron_service_in_both_maps(self):
+        """Core and wire agree on what a ``Service`` row is (#4612).
+
+        The deleted ``CaseActor`` declared ``type: "Service"`` too, and by
+        import order it took ``CORE_TYPE_MAP["Service"]`` while
+        ``WIRE_TYPE_MAP["Service"]`` stayed ``VultronService``.
+        """
+        self.assertIs(CORE_TYPE_MAP["Service"], CoreVultronService)
+        self.assertIs(WIRE_TYPE_MAP["Service"], CoreVultronService)
 
     def test_actor_class_names_are_not_wire_type_map_keys(self):
         """VM-01-008: the wire ``type`` value is the only key (issue #2982).

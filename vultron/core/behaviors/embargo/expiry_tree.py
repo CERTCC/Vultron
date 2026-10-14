@@ -72,6 +72,9 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
     InviteExpiryNeedsApplyNode,
     RecordInviteExpiryNode,
 )
+from vultron.core.behaviors.embargo.nodes.late_accept import (
+    CommitLateAcceptAcknowledgementNode,
+)
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     ReinviteStaleAccepterNode,
 )
@@ -82,8 +85,6 @@ from vultron.core.models.rsvp_deadline import (
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
     INVITE_EXPIRED_EVENT_TYPE,
-    INVITE_EXPIRED_NOOP_EVENT_TYPE,
-    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 
@@ -286,7 +287,7 @@ def create_honour_late_accept_tree(
     the commit node persists the :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE` entry,
     and only then
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
-    applies ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``).
+    applies ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED``.
 
     Replicas learn the honour decision via
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`
@@ -333,44 +334,28 @@ def create_honour_late_accept_tree(
 def create_noop_ledger_entry_tree(
     *,
     case_id: str,
-    invite_id: str,
-    embargo_id: str,
-    accepting_actor_id: str,
-    published: str,
 ) -> py_trees.behaviour.Behaviour:
     """Build the CASE_MANAGER-gated no-op acknowledgement tree (EMB-17-004).
 
     Commits :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_EVENT_TYPE`
-    so replicas can replay the acknowledgement without writing a commit from
-    a non-manager store (BT-17-001, RSH-08-004, ADR-0118).
+    with the CASE_MANAGER's factory-built ``Ignore`` of the late ``Accept``
+    as its snapshot (CLP-07-013, VM-08-003), so replicas can replay the
+    acknowledgement without writing a commit from a non-manager store
+    (BT-17-001, RSH-08-004, ADR-0118).  The late Accept is read from
+    ``/activity``; the bridge needs the trigger-activity factory and the
+    wire-render port.
 
     Args:
         case_id: The case the Invite was for.
-        invite_id: The late Invite; the entry's object id.
-        embargo_id: The embargo the Invite proposed.
-        accepting_actor_id: The actor whose late Accept is acknowledged.
-        published: The answer's claimed time.
     """
-    commit_tree = create_commit_log_entry_tree(
-        case_id=case_id,
-        object_id=invite_id or case_id,
-        event_type=INVITE_EXPIRED_NOOP_EVENT_TYPE,
-        payload_snapshot={
-            "type": INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
-            "actor": accepting_actor_id,
-            "context": case_id,
-            "published": published,
-            "object": {
-                "type": "Invite",
-                "id": invite_id or case_id,
-                "object": {"type": "EmbargoEvent", "id": embargo_id},
-            },
-        },
-    )
     return create_case_manager_gated_tree(
         name="CommitNoopLedgerEntryBT",
         case_id=case_id,
-        children=[commit_tree],
+        children=[
+            CommitLateAcceptAcknowledgementNode(
+                case_id=case_id, name="CommitLateAcceptAcknowledgement"
+            )
+        ],
         body_name="CommitNoopLedgerEntry",
     )
 

@@ -109,6 +109,7 @@ from vultron.demo.helpers.notes import (
     participant_adds_note_to_case,
 )
 from vultron.demo.helpers.polling import (
+    BACKFILL_PROGRESS_CEILING,
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_COVERAGE_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,

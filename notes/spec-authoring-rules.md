@@ -4,29 +4,23 @@ status: active
 kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the five kinds and the MS-12
-  decision tree for choosing one (who must obey a rule decides its kind,
-  ADR-0134), the split rule for a spec that mixes kinds, the rule that a
-  kind change keeps its tests and markers (MS-12-011), and why copying
-  neighbouring entries is the wrong heuristic; the exact enum values
-  spec-lint accepts for `kind`, `priority`, and `rel_type`; keys that are
-  silently dropped; the PR-only marker-coverage and suppression growth
-  guards and the xfail pattern; the audit passes required when retiring a
-  name or splitting a compound requirement; priority tiers (MS-02-003/004);
-  and the per-requirement `verification_debt` marker and its owner and
-  terminal-state rules (MS-10-006..008); the rule that a verification clause
-  names a check that inspects its property (MS-10-009); the rule that a
-  guard against a mistake states the truth the mistake violates (MS-05-005);
-  and the CASE_MANAGER-versus-CaseActor naming discriminator.
+  decision tree (who must obey a rule decides its kind, ADR-0134), splitting a
+  spec that mixes kinds, what a kind change moves, and the scoping of MS-12-006;
+  the enum values spec-lint accepts for `kind`, `priority` and `rel_type`; `adr:`
+  versus `references:`; reading the item format off its fields (ADR-0101); the
+  PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
+  (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); guards that
+  state a domain truth (MS-05-005); removed requirements (MS-09); audit passes
+  for retiring a name or splitting a requirement; and the CASE_MANAGER-versus-
+  CaseActor naming discriminator.
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
-  - specs/triggerable-behaviors.yaml
   - specs/testability.yaml
-  - specs/docs-build-workflow.yaml
-  - specs/demo-ci.yaml
-  - specs/architecture.yaml (ARCH-25-007, ARCH-25-008)
+  - specs/architecture.yaml (ARCH-18-004)
 related_notes:
   - notes/specs-vs-adrs.md
+  - notes/documentation-strategy.md
   - notes/behavioral-conformance-specs.md
   - notes/testing-pitfalls.md
   - notes/architecture-ratchet-corpus.md
@@ -37,17 +31,11 @@ related_notes:
 # Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates
 
 Canonical write-ups for the mechanical spec-authoring pitfalls. `specs/AGENTS.md`
-keeps the short index; the decision of *what* belongs in a spec at all is in
-[notes/specs-vs-adrs.md](specs-vs-adrs.md).
-
----
-
-**Reading a lint or loader failure**: the mechanics of how these tools report a
-file they cannot read — and the three reasons a failure can arrive without
-naming its file — are in
+keeps the short index; whether a rule belongs in a spec at all is in
+[notes/specs-vs-adrs.md](specs-vs-adrs.md). If a lint or loader failure arrives
+as a traceback rather than an `[ERROR]` line, read
 [`vultron/metadata/AGENTS.md`](../vultron/metadata/AGENTS.md) § "Loader Failure
-Attribution". Read that first if the output you are looking at is a traceback
-rather than an `[ERROR]` line.
+Attribution" first.
 
 ---
 
@@ -55,381 +43,213 @@ rather than an `[ERROR]` line.
 
 ### Valid `kind:` Values
 
-The `kind:` field accepts exactly these values:
-
 ```text
 protocol  foundation  architecture  project  process
 ```
 
-`implementation` is **NOT** valid and causes spec-lint to reject the file at
-commit time. The error may look like a YAML syntax error — it is not.
+`implementation` is **not** valid; spec-lint rejects the file at commit time,
+and the error can read like a YAML syntax error.
 
 #### Who must obey a rule decides its kind
 
 Who must obey a rule decides its kind; naming code never does (MS-12-002,
-[ADR-0134](../docs/adr/0134-who-must-obey-a-rule-decides-its-spec-kind.md),
-which partially supersedes ADR-0038). The five kinds:
+[ADR-0134](../docs/adr/0134-who-must-obey-a-rule-decides-its-spec-kind.md)).
+The tiers are glossed on `SpecKind` in `vultron/metadata/specs/schema.py`:
 
-- **`protocol`** — the Vultron layer: Vultron's message forms on the wire
-  (including where ActivityStreams allows several forms and Vultron requires
-  one, e.g. Accept referencing the Offer), which messages are sent and when,
-  what a receiver does given its state (including on duplicate delivery), and
-  the state machines underlying those behaviors. State-machine states such as
-  `RM.CLOSED` are protocol constructs.
-- **`foundation`** — rules Vultron inherits from the standards beneath it:
-  ActivityStreams 2.0, ActivityPub, HTTP. Examples: addressing and delivery,
-  HTTP status codes, rules that only restate ActivityStreams (e.g. IDs are
-  opaque URIs). A tag records which standard — `as2`, `activitypub`, or `http`
-  — and spec-lint fails a `foundation` spec that carries none (MS-12-009). An
-  implementer reads `protocol` + `foundation`.
+- **`protocol`** — the Vultron layer: Vultron's message forms on the wire,
+  which messages are sent and when, what a receiver does given its state, and
+  the state machines behind them (`RM.CLOSED` is a protocol construct).
+- **`foundation`** — rules inherited from ActivityStreams 2.0, ActivityPub or
+  HTTP. It carries a tag naming the standard (`as2`, `activitypub`, `http`), and
+  spec-lint fails one without (MS-12-009).
 - **`architecture`** — recommended structure that carries over to other
-  languages but is not required for compliance. Behavior trees, and "keep
-  protocol behavior inside the behavior tree", are here.
-- **`project`** — this codebase only: deployment choices (e.g. the
-  CASE_MANAGER as a separate actor from the case owner), performance and
-  operating limits, how a receiver records what it receives, core internals.
-- **`process`** — how we run this project: CI, GitHub workflow, agent
-  conventions, docs standards, spec authoring rules.
+  languages but is not required for compliance (behavior trees).
+- **`project`** — this codebase only: deployment choices, operating limits, how
+  a receiver records what it receives, core internals.
+- **`process`** — how we run this project: CI, workflow, agent conventions,
+  docs standards, spec authoring.
 
 **The ledger caveat.** The CASE_MANAGER role and case-ledger sync are
-`protocol` for now. Re-judge them if the protocol moves to a federated design
-with no CASE_MANAGER; until then, do not relabel them on the grounds that a
-federated Vultron would not need them.
+`protocol`. Do not relabel them on the grounds that a federated Vultron would
+not need them; re-judge only if the protocol actually drops the CASE_MANAGER.
 
 #### Apply the decision tree, not the neighbouring entries
 
-The glosses above are a summary, not the rule. The authoritative rule is the
-decision tree in **MS-12** (`meta-specifications.yaml`). Split a mixed spec
-first (MS-12-010, below), then apply the questions in the order MS-12-005
-fixes and stop at the first match:
+The authoritative rule is the MS-12 tree. Split a mixed spec first (MS-12-010),
+then ask in MS-12-005's order and stop at the first match:
 
-1. About how the project is run — CI, workflow, agent conventions, docs
-   standards, spec authoring rules? → `process` (MS-12-001)
-2. Must only this codebase obey it — a deployment choice, an operating limit,
-   how a receiver records what it receives, a core internal? → `project`
-   (MS-12-002)
-3. Must every implementation obey it because Vultron inherits it from
-   ActivityStreams 2.0, ActivityPub, or HTTP? → `foundation`, tagged with the
-   standard (MS-12-009)
-4. Must every Vultron implementation, in any language, obey it to take part
-   in the protocol? → `protocol` (MS-12-003)
-5. None of the above — recommended structure, not required for compliance?
-   → `architecture` (MS-12-004)
+1. How the project is run? → `process` (MS-12-001)
+2. Only this codebase must obey it? → `project` (MS-12-002)
+3. Inherited from AS2, ActivityPub or HTTP? → `foundation`, tagged (MS-12-009)
+4. Every Vultron implementation must obey it? → `protocol` (MS-12-003)
+5. Otherwise, recommended structure → `architecture` (MS-12-004)
 
-A statement that names a file path, library, class, or BT node does **not**
-match step 2 for that reason. It is either a protocol rule spelled in this
-codebase's terms — reword it in protocol vocabulary — or a mixed spec — split
-it. Neither is relabeled.
+A statement that names a file path, library, class or BT node does **not** match
+step 2 for that reason: reword it in protocol vocabulary, or split it. Never
+relabel it. Never infer a `kind` by copying the entries around it either — that
+is how the protocol corpus filled with misclassified specs carrying
+`lint_suppress: [missing_story_reference]` (#2601). A spec that cannot be traced
+to a user story is usually misclassified, not story-less, so suppressing the
+story gate is almost never the fix; MS-12-007's PR-only growth guard fails any PR
+that adds a carrier. `spec-lint` prints the live carrier total.
 
 #### Split a spec that mixes kinds (MS-12-010)
 
-A spec that mixes kinds is split by what other participants can observe: the
-protocol half states what is emitted or observed; the project half states how
-our code does it. The **original ID keeps the protocol half**, reworded
-implementation-neutrally; the implementation detail gets a **new `project`
-ID** whose `relationships:` name the original. Keeping the original ID on the
-protocol half keeps its stories, test markers, and citations in place, so the
-PR-only growth guards (SR-05-005's uncovered protocol spec, MS-12-007's new
-`missing_story_reference`) do not trip. The new `project` ID needs no marker,
-but the markers already on the original stay where they are (MS-12-011).
-
-Worked example — default-embargo creation:
-
-- **Protocol (original ID):** other participants never observe the
-  intermediate Proposed state.
-- **Project (new ID, links back):** this codebase applies PROPOSE and ACCEPT
-  atomically in one behavior tree node.
-
-Do **not** infer a spec's `kind` by copying the entries around it. That heuristic
-is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
-adoption until 2026-09, and by then a large fraction of the `kind: protocol`
-corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
-corrected `kind` — code naming conventions, test-coverage requirements, and
-build-file formats all tagged as wire-protocol obligations. `spec-lint` prints
-the live carrier total (`[INFO] lint_suppress missing_story_reference: …`); it is
-computed from the specs, never committed. Suppressing the story-traceability gate
-is almost never the right response to it firing; a spec that cannot be traced to
-a user story is usually mis-classified, not story-less. MS-12-006 now makes the
-unambiguous cases a hard error, and MS-12-007's PR-only growth guard
-(`test_no_pr_adds_a_missing_story_suppression` in
-`test/architecture/test_spec_kind_ratchet.py`) fails any PR that adds a carrier,
-but neither detects a misclassification whose statement names no code. MS-12-008
-holds MS-12-006's own escape hatch, `protocol_kind_with_code_reference`, at no
-carrier at all, so a suppression cannot move from one code to the other unseen.
+Split along what other participants can observe. The **original ID keeps the
+protocol half**, reworded implementation-neutrally; how our code does it gets a
+**new `project` ID** whose `relationships:` name the original. Keeping the
+original ID on the protocol half keeps its stories, markers and citations in
+place, so the PR-only growth guards do not trip; the markers already on it stay
+(MS-12-011). Example — default-embargo creation: other participants never
+observe the intermediate Proposed state (protocol, original ID); this codebase
+applies PROPOSE and ACCEPT atomically in one node (project, new ID).
 
 #### Why MS-12-006 is scoped the way it is
 
-MS-12-006's rationale defers here, because the three scoping decisions are what
-keep it from becoming the problem it was written to solve. Each one was measured
-against the live corpus.
+MS-12-006's rationale and `vultron/metadata/specs/kind_classification.py` defer
+here. Each scoping choice keeps the check off specs that are already right:
 
-**It fires only on specs with no `stories:`.** Scanning every `kind: protocol`
-spec looks stricter and is much worse. A protocol spec that traces to a user
-story has already demonstrated it is protocol, and its `verification:` field
-names a `test/…py` path *because MS-10-003 obliges every MUST to carry one and
-MS-15-001 obliges the path to resolve*. Applied to the whole protocol corpus the
-detector flags roughly half of it, and the majority of those hits are specs that
-are fully SR-11-compliant, and what they name is the test that MS-10-003
-obliges, not how the rule is met. Gating on the absence of a story confines the
-check to the population where a codebase reference most often means the
-statement needs rewording or splitting.
+- **Only story-less specs.** A protocol spec that traces to a user story has
+  shown it is protocol, and its `verification:` names a `test/` path because
+  MS-10-003 and MS-15-001 oblige it. Scanning every protocol spec flagged about
+  half the corpus, mostly compliant specs.
+- **Only the `statement`.** Naming a test file in `verification:` says nothing
+  about whether the rule is protocol content (#3943).
+- **No bare `module`, `class`, `function`.** They read as domain English in
+  wire requirements ("a machine-readable failure class"). The miss of a few true
+  positives is the accepted blind spot.
+- **Reword or split, never relabel.** A message that prescribed a kind would
+  repeat the literal reading ADR-0134 rejected.
+- **`foundation` is scanned too.** A foundation statement naming our code also
+  says how we meet an inherited rule, so it is a mixed spec. The suppression
+  code keeps its `protocol_kind_with_code_reference` name, and MS-12-008 holds
+  its carriers at none.
 
-**The token list excludes bare `module`, `class`, and `function`.** Those read as
-ordinary domain English in wire requirements — "a machine-readable failure
-class", "the same action class", "the actor's function in the CVD process". Left
-in, they flag two dozen genuine protocol statements that need no rewording.
-`.py`, `vultron/`, `test/`, `scripts/`, `pytest`, `pydantic`, and `py_trees`
-carry no such second meaning.
-The cost of the omission is a handful of true positives the check will not catch;
-those are MS-12-006's acknowledged blind spot, not an oversight.
-
-**The error says reword or split, never relabel.** A code token in a protocol
-statement does not make the rule `project`: who must obey it decides that
-(MS-12-002). The token means the statement either spells a protocol rule in
-this codebase's terms, which is reworded, or also says how this codebase meets
-the rule, which is split (MS-12-010). A message that prescribed a kind would
-repeat the literal reading ADR-0134 rejected — PR #4520 (#3601) applied it and
-moved genuine protocol rules to `project`.
-
-**`foundation` is scanned too.** A `foundation` statement that names this
-codebase's code also says how this codebase meets an inherited rule, so it is a
-mixed spec: split it (MS-12-010). The suppression code keeps its
-`protocol_kind_with_code_reference` name, which specs already carry.
-
-The general lesson, from ISSUE-3480: **an enforced MUST advertises itself through
-full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
-half adoption reads to the next author as "no rule here" — worse than one at zero
-adoption, which at least reads as "not done yet".
+The general lesson (#3480): **an unenforced MUST anti-advertises.** A rule at half
+adoption reads as "no rule here", which is worse than one nobody has started.
 
 #### Relabeling a `kind:` moves more than the field
 
-A relabel pass (the MS-12 passes in #3600 and #3601) has three mechanical
-consequences, each with a tool:
-
 - **Anchors move.** A spec renders only on its own kind's docs page (SR-09-002),
-  so every prose link to `specs/protocol.md#xx-nn-nnn` dangles the moment the
-  item becomes `project`, and so does a group anchor once its last protocol item
-  leaves. Run `uv run python scripts/relink_requirement_anchors.py` after the
-  relabel; it repoints each link at the page its anchor now renders on.
-- **Verification travels with the spec (MS-10-008).** An unverified MUST or
-  MUST_NOT that changes kind gains its `verification:` in the same change; its
-  `verification_debt` marker names the old kind's owner, so spec-lint fails it
-  until the clause replaces the marker.
+  so `specs/protocol.md#…` links dangle after a relabel. Run
+  `uv run python scripts/relink_requirement_anchors.py` afterwards.
+- **Verification travels with the spec (MS-10-008).** An unverified MUST-tier
+  item that changes kind gains its `verification:` in the same change; its
+  `verification_debt` marker names the old kind's owner and fails.
 - **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
-  applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
-  each item in one pass, preserving every other line byte for byte. The
-  live uncovered total `spec-coverage` prints drops too, since a spec that
-  leaves `protocol` and `foundation` leaves that population. The marker-coverage
-  guard never counts a relabel out as an addition, and a relabel from
-  `protocol` to `foundation` keeps its marker; a relabel *into* either kind from
-  another needs a marker in the same PR.
-- **Tests and markers stay (MS-12-011).** A kind change never removes the tests
-  or `@pytest.mark.spec` markers that already verify the spec, whatever the
-  destination kind: a relabel from `protocol` to `project` keeps both, though
-  `project` does not require them. The PR-only guard
-  `test_no_pr_drops_a_marker_while_changing_a_kind` (in
-  `test/architecture/test_spec_coverage_ratchet.py`) fails a PR in which a
-  relabeled ID lost every marker it had at the merge base.
+  applies a `{spec_id: kind}` mapping and strips `missing_story_reference`,
+  preserving every other line.
+- **Tests and markers stay (MS-12-011),** whatever the destination kind.
+  `test_no_pr_drops_a_marker_while_changing_a_kind` in
+  `test/architecture/test_spec_coverage_ratchet.py` fails a relabeled ID that
+  lost every marker it had at the merge base. A relabel *into* `protocol` or
+  `foundation` from another kind needs a marker in the same PR.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
-
-The `priority:` field enum uses **underscores**: `MUST_NOT`, `SHOULD_NOT`.
-**Not spaces.** MS-02-002 prose writes "MUST NOT" with a space, but the Pydantic
-validator enum uses underscores. Using `MUST NOT` (space) breaks spec-lint with
-a FATAL registry load error.
-
-Valid values:
 
 ```text
 MUST  MUST_NOT  SHOULD  SHOULD_NOT  MAY
 ```
 
-Source: ISSUE-2393
+MS-02-002 prose writes "MUST NOT", but the enum uses underscores; `MUST NOT`
+(space) fails the registry load.
 
 ### Valid `rel_type` Values in Spec Relationships
-
-When adding a `relationships:` entry to a spec requirement, `rel_type` MUST be
-one of the enumerated values validated by `SpecFile`. Using an invalid value
-causes a Pydantic `ValidationError` at `spec-dump` time.
-
-**Valid `rel_type` values:**
 
 ```text
 implements, supersedes, extends, depends_on, conflicts, refines,
 derives_from, verifies, part_of, constrains, satisfies
 ```
 
-`related_to` is **NOT** valid. If the intent is a loose relationship, use
-`refines` with a clarifying `note:` field, or omit the relationship entirely if
-no normative link exists.
+`related_to` is **not** valid and fails at load. For a loose link, use `refines`
+with a `note:`, or omit the relationship.
 
-### `references:` Key in Spec YAML Is Silently Dropped by `spec-dump`
+### Link an ADR With `adr:`, Not `references:`
 
-The `StatementSpec` schema does not include a `references:` field; unknown YAML
-keys are silently discarded. The correct field for linking a spec entry to an
-ADR is `adr:`, which `spec-lint` validates against known ADR filenames. After
-adding any new key to a spec YAML, verify it appears in
-`PYTHONPATH= uv run spec-dump` output before treating it as persisted.
-
-Source: ISSUE-2237
+`adr:` is the field spec-lint validates against ADR files and `spec-dump --adr`
+walks (SR-07-017). `references:` takes free strings that nothing checks, so an
+ADR named there is invisible to both. Any other unknown key fails the load
+(`extra="forbid"`).
 
 ---
 
 ## Spec Item Format Is Field Presence, Not a Class You Pick
 
-(ADR-0101, CONCERN-3506)
+Read an item's format off its fields — `preconditions`, `steps`,
+`postconditions` — never off its class (ADR-0101). Today every item, bare or
+not, loads as `BehavioralSpec`, so an `isinstance` test is true of the whole
+corpus; #3520 makes a bare item resolve to `StatementSpec`. Write new checks over
+field presence, and test the negative directly: a fixture item with no
+behavioral field is not behavioral. Do not use the `behavioral` **tag** as the
+oracle; files hold behavioral items without it.
 
-`BehavioralSpec` subclasses `StatementSpec` and the fields it adds —
-`preconditions`, `steps`, `postconditions` — are all optional, so under Pydantic's
-smart union a spec item carrying none of them satisfied the `BehavioralSpec`
-branch. Every one of the corpus's items loaded as a `BehavioralSpec`, the large
-majority of them with no behavioral field at all. MS-13-001 and MS-13-002 were
-therefore phrased over a distinction the loaded model did not preserve.
-
-**What this cost.** `_is_behavioral_file()` in
-[`vultron/metadata/specs/docs_render.py`](../vultron/metadata/specs/docs_render.py)
-is a bare `isinstance` test, so it classified every spec file as behavioral —
-including the files that do not carry the `behavioral` tag. Every published spec
-page opened with a `## Behavioral Specifications` heading and its ECA blurb,
-applied to the whole corpus, and the non-behavioral bucket was always empty. The
-linter's two behavioral guards were vacuous — they worked only because each is
-`and`-ed with `bool(spec.steps)` — and the requirements graph labelled every node
-`type: "behavioral"`. The measured corpus figures are in ADR-0101, which is where
-a dated measurement belongs; do not copy them here (MS-16-002).
-
-**How to apply.** Read the format off the fields, never off the class name in
-your head, and write new checks over field presence. A `BehavioralSpec` now
-requires at least one of `preconditions`, `steps`, or `postconditions`; supply
-none and the item is a `StatementSpec`. That degradation is silent but it is *not*
-invisible — the class is observable in the requirements graph node's `type`, in
-which docs section the item renders, and in the linter's behavioral guards. If you
-mean an item to be behavioral, give it a behavioral field; nothing else records
-the intent. When you add a consumer that branches on behavioral-ness, assert the
-negative directly — a fixture item with no behavioral field must come back as a
-`StatementSpec` — rather than trusting that the union resolves the way the class
-hierarchy suggests. And do not reach for the `behavioral` **tag** as the oracle
-instead: `render_for_kind()` treats it as an `or` branch, and files hold
-behavioral items without carrying it.
-
-### `steps` Carries the Action of an ECA Rule, Not a Claim About Ordering
-
-MS-13-002 used to require `StatementSpec` for any requirement that "does not
-depend on step ordering". Read literally that condemns the house idiom of the
-behavioral conformance corpus: dozens of `RMB`/`EMB`/`CSB` items are single-step
-`BehavioralSpec`s whose one step *is* the required action ("emit CV to announce
-the transition"), and a one-element sequence asserts no order. The same applies
-to the many items carrying typed `preconditions` and no `steps`: that is the
-condition half of an ECA rule, not a format choice half-made.
-
-So do not flag `preconditions`-without-`steps` as a defect. The only shape that
-is reliably wrong is the inverse — an *ordered sequence flattened into `statement`
-prose* (`MUST execute the following sequence: (1) … (2) …`), which MS-05-001
-already forbids and which hides the start state, the ordering and the terminal
-conditions from conformance tooling. Note the residual judgement: an inline
-`(1) … (2) …` list is sometimes genuinely unordered — `SBT-01-002`'s three
-separate top-level trees, one per message-type use case; a set of assertions a
-test file must make — and converting one of those to `steps` would assert an order
-the requirement does not have. Dispose of such a hit with `lint_suppress`, not by
+Do not flag `preconditions` without `steps`: that is the condition half of an
+ECA rule, and a one-step `steps` list is the action, not a claim about order.
+The reliably wrong shape is an ordered sequence flattened into `statement`
+prose, which MS-05-001 forbids (#3521). An inline `(1) … (2) …` list is
+sometimes genuinely unordered; dispose of that hit with `lint_suppress`, not by
 inventing a sequence.
 
-### An Advisory Warning Is Not Enforcement Once the Corpus Outgrows It
+---
 
-`spec-lint`'s per-item `must_without_verification` warning named exactly the
-"MUST with nothing checking it" defect — and fired on MS-13-001 and MS-13-002
-themselves for as long as they went unenforced. As a per-item `[WARN]` it did
-not help, because well over half the corpus's MUST items had no `verification:`
-field, so that one warning produced the large majority of the run's `[WARN]`
-lines. A defect class
-at that volume is indistinguishable from background noise, and a newly-introduced
-instance is invisible.
-
-It is now a per-item rule with a per-kind summary. Every unverified MUST-tier
-requirement carries `verification_debt: '#N'`, naming the open issue that owns
-verifying it, and `spec-lint` fails any item with neither field (MS-10-006). The
-default output is one line per kind — the number of marked requirements,
-tallied by owner — with the IDs only under `--list-unverified` (MS-10-005). The
-number is computed from the markers, so a backfill lowers it without editing
-anything else, and the line still shows each backfill issue's progress.
-
-When you add a per-item advisory, decide up front what happens when it is
-routinely true: collapse it to a count plus an opt-in listing, mark each
-remaining hit with its owning issue, with a terminal state (see
-[A Ratchet Needs an Owner and a Terminal State](#a-ratchet-needs-an-owner-and-a-terminal-state)),
-or make it a hard error and
-dispose of every existing hit. Do not ship a rule at partial adoption: per the
-ISSUE-3480 learning, a requirement half-adopted reads as *no rule here*, which is
-worse than one nobody has started.
+## Priority Tiers and Verification Debt
 
 ### A Priority Gate Names a Tier, Not a Keyword
 
-RFC 2119 gives `MUST NOT` the same absolute strength as `MUST`, and `SHOULD NOT`
-the same strength as `SHOULD`. Every gate that selects requirements by priority
-must therefore select a *tier* (MS-02-003). In the code, that means asking the
-shared tier definition on `RFC2119Priority` — `spec.priority.is_must_tier` or
-`.tier` (MS-02-004) — never
-`spec.priority == RFC2119Priority.MUST`. A static test,
-`test/metadata/specs/test_priority_tier_gate.py`, fails on any comparison
-against an individual member or a priority string under
-`vultron/metadata/specs/` or `scripts/`; its allowlist holds exactly one entry,
-SR-11-003's selector, and fails if that entry stops matching, so retiring the
-exception also retires the allowlist.
+`MUST_NOT` is as absolute as `MUST`, and `SHOULD_NOT` as strong as `SHOULD`, so a
+gate that selects by priority selects a *tier* (MS-02-003). In code, ask
+`spec.priority.is_must_tier` or `.tier` (MS-02-004), never
+`== RFC2119Priority.MUST`; `test/metadata/specs/test_priority_tier_gate.py`
+fails the literal comparison under `vultron/metadata/specs/` and `scripts/`. Its
+allowlist holds SR-11-003's selector, the recorded exception, written once in
+`sr_11_003_gate_applies()`.
 
-The literal comparison is easy to write and fails silently: nothing errors, and
-the prohibitions simply drop out. That happened more than once before MS-02-003:
+The literal comparison fails silently: the prohibitions just drop out, as when
+a verification backfill reported the protocol tier complete with most
+`MUST_NOT`s unverified (#2535). Read "MUST" in a priority-scoped AC as the tier
+unless it excludes the negative form *and says why*.
 
-- `must_without_verification` was scoped to "MUST requirements" by the wording
-  of the issue that introduced it (#2466), and a unit test then pinned the
-  exclusion. The test read as a deliberate decision but only preserved the
-  wording of that AC. So the #2467 protocol-tier backfill reported the tier
-  complete while most protocol `MUST_NOT`s had no `verification:` at all
-  (#2535, #3612). The count now covers both keywords.
-- SR-11-003's story gate and SR-11-004's advisory had the same shape. The
-  second now covers `SHOULD_NOT` by selecting "below the MUST tier" rather than
-  naming keywords. SR-11-003 is the one recorded exception, still `MUST`-only
-  because extending it needs stories that do not exist yet (see its `note:`);
-  the exception is written once, in `sr_11_003_gate_applies()` in
-  `vultron/metadata/specs/lint.py`, and `scripts/backfill_stories.py` selects
-  through that predicate rather than carrying a second copy of it.
-- `spec-backstop` got it right (`priority in ("MUST", "MUST_NOT")`), but as a
-  second hand-written copy of the tiering, which is the drift MS-02-004's
-  single shared definition prevents. It now asks `is_must_tier`.
+### An Advisory That Is Routinely True Is Not Enforcement
 
-When a priority-scoped rule is proposed, read "MUST" in its AC as the tier
-unless the AC explicitly excludes the negative form *and says why*. If you find
-a test that asserts a negative form is excluded, trace it to a decision before
-you trust it.
+A per-item `[WARN]` that fires on most of the corpus is noise, and a new
+instance is invisible. When you add a per-item advisory, decide up front what
+happens when it is routinely true: collapse it to a count plus an opt-in
+listing and mark each hit with its owning issue (the shape of MS-10-005/006), or
+make it a hard error and dispose of every existing hit. Never ship it at partial
+adoption.
 
 ### A Ratchet Needs an Owner and a Terminal State
 
-The MS-10 verification rule (MS-10-006 through MS-10-008) is built so that it can
-only end at zero:
+The MS-10 verification rule is built so it can only end at zero:
 
-1. **The record is per requirement, not a count.** Each unverified MUST or
-   MUST_NOT carries its own `verification_debt` marker, so verifying one edits
-   only that requirement and two PRs conflict only when they edit the same one.
-   The earlier design pinned a per-kind count to its live value, which raced
-   every PR in flight (see `notes/testing-pitfalls.md`, "A Two-Sided Count Pin
-   Races Every Concurrent PR"). A requirement with both a marker and a
-   `verification:` clause fails as stale.
-2. **Each marker names an open owning issue.** The marker must name an owner of
-   its kind in `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner issue
-   (`Closes #N`) while a marker or the table still names it fails, so the
-   backfill that finishes an owner also removes its table entry. An owner closed
-   by hand is reported within the hour by one tracking issue and never fails
-   the build, since no PR caused it (ARCH-18-004;
-   `.github/workflows/verification-debt-owners.yml`).
-3. **Zero is terminal.** Once no requirement of a kind carries a marker, delete
-   that kind's owner entry; any marker of that kind is then a hard error, so the
-   kind cannot regrow debt. The planned growth guard (#4200), meant to reuse
-   the shared `added_since_base` helper in
-   `vultron/metadata/specs/growth_guard.py`, keeps new markers out while an
-   entry still exists.
-4. **A relabel carries its verification with it.** A relabelled requirement's
-   marker names the old kind's owner and fails; replace it with a
-   `verification:` clause in the same change (MS-10-008).
+1. **The record is per requirement, not a count.** Each unverified MUST-tier
+   item carries `verification_debt: '#N'`, so verifying one edits only that item;
+   a pinned count races every PR in flight (`notes/testing-pitfalls.md`). An
+   item with both a marker and a `verification:` fails as stale.
+2. **Each marker names an open owning issue** of its kind in
+   `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner while a marker still
+   names it fails; an owner closed by hand is reported by the
+   `verification-debt-owners` workflow and never fails the build (ARCH-18-004).
+3. **Zero is terminal.** When a kind has no markers, delete its owner entry;
+   a marker of that kind is then a hard error (MS-10-007). Nothing yet stops a
+   new marker while an entry exists; #4200 adds that guard on the shared
+   `added_since_base` helper.
+4. **A relabel carries its verification with it** (MS-10-008).
 
-Any new backlog-style ratchet should follow the same four rules unless it states
-why it cannot.
+A new backlog-style ratchet follows the same four rules unless it states why it
+cannot.
+
+### A Verification Clause Is a Claim About the Suite
+
+An unbacked `verification:` clause reads exactly like a backed one. MS-10-009
+requires it to name a check that exists and inspects the property the statement
+asserts; its rationale lists the clauses that did not. For each clause you write
+or review, ask: *if this requirement were violated, would the named check fail?*
+A build, lint or type-check that never examines the constrained artifact fails
+the question, and so does a test you have not opened — `mkdocs build --strict`
+never sees a link a build-time block prints, so assert on the built `site/`
+(`docs-links`) or the rendered string instead. MS-15-001 makes a named path
+resolve; a named test function is not checked (#4170), so open it.
 
 ---
 
@@ -437,416 +257,211 @@ why it cannot.
 
 ### A `protocol` or `foundation` Entry Requires a Same-PR Marker Test
 
-(SR-05-005, ISSUE-2117, ISSUE-4315, ISSUE-4528)
+Every rule an implementer must obey needs a test, whether Vultron defines it or
+inherits it (SR-05-004/005, ADR-0134). The PR-only guard
+`test_no_pr_adds_an_uncovered_implementer_spec`
+(`test/architecture/test_spec_coverage_ratchet.py`) fails on each `protocol` or
+`foundation` ID the branch adds to the uncovered set: a new spec with no marker,
+removal of an ID's last `@pytest.mark.spec`, or a relabel into either kind
+without one. It skips, with the reason shown, when no base ref resolves; CI
+fetches full history so it always runs there. No count is committed;
+`spec-coverage` prints the live total.
 
-The guard covers `kind: protocol` and `kind: foundation` together: every rule an
-implementer must obey needs a test, whether Vultron defines it or inherits it
-(ADR-0134). The story gate (SR-11-003, SR-11-004) covers `protocol` only for
-now: user stories for behavior Vultron inherits from ActivityStreams, ActivityPub
-and HTTP are not yet backfilled (#2717, #4513), and the gate widens to
-`foundation` once they are. MS-12-006 covers both kinds.
+**Fix:** add `@pytest.mark.spec("<new-id>")` to a test in the same PR.
 
-The PR-only growth guard
-(`test_no_pr_adds_an_uncovered_implementer_spec` in
-`test/architecture/test_spec_coverage_ratchet.py`) compares the set of uncovered
-`protocol` and `foundation` IDs at the merge base with `origin/main` (or
-`origin/$GITHUB_BASE_REF` in CI) against the working tree, and fails on each ID
-the branch added to it: a new spec of either kind with no marker, removal of an
-ID's last `@pytest.mark.spec` marker, or a relabel into either kind without one.
-A relabel from `protocol` to `foundation` stays in the set, so it keeps its
-marker and never fails the guard. A relabel out of both kinds or a retired spec
-leaves the set and never fails it.
-No count is committed, so there is no constant to lower or raise; `spec-coverage`
-prints the live total.
+The story gate (SR-11-003/004) still covers `protocol` only, because stories for
+inherited behavior are not written yet (#4513).
 
-**Fix:** add `@pytest.mark.spec("<new-id>")` to a test in the same PR, before
-the branch lands. Run `spec-coverage` to verify coverage after adding the
-marker. See SR-05-004, SR-05-005.
-
-The guard skips, with the reason in the pytest summary, when no base ref
-resolves (a shallow clone, or no `origin/main`). CI checks out with
-`fetch-depth: 0` so it always runs there. The shared helper is
-`vultron/metadata/specs/growth_guard.py` (`added_since_base`); the
-`missing_story_reference` guard (MS-12-007) uses it too, and any new per-item
-debt guard should (#4200 is the next).
-
-`spec-coverage` reports `protocol` and `foundation` IDs only. An ID of any other
-kind never appears in its output, covered or not, so an acceptance criterion reading
-"`spec-coverage` shows `<ID>` covered" cannot be met for one (#3565's AC-6
-asked this of VM-06-008). Write such a criterion as "a test carries
-`@pytest.mark.spec("<ID>")`" and check it with `grep`.
+`spec-coverage` reports `protocol` and `foundation` IDs only, so an AC reading
+"`spec-coverage` shows `<ID>` covered" cannot be met for any other kind. Write
+it as "a test carries `@pytest.mark.spec("<ID>")`" and check with `grep`.
 
 ### Use a Strict `xfail` for Not-Yet-Implemented Specs
 
-A new `kind: protocol` spec with no test carrying `@pytest.mark.spec("SPEC-ID")`
-fails the guard on the PR that adds it, even when the behavior is not built yet.
-
-Pattern for a spec whose implementation does not yet exist: write a test
-asserting the not-yet-implemented behavior, then mark it
+A new `protocol` or `foundation` spec whose behavior is not built yet still needs
+a marker. Write a test asserting the behavior and mark it:
 
 ```python
-@pytest.mark.xfail(strict=True, reason="SPEC-ID: <short description>. Tracked by Bug #N.")
+@pytest.mark.xfail(strict=True, reason="SPEC-ID: <short description>. Tracked by #N.")
 @pytest.mark.spec("SPEC-ID")
 ```
 
-Do NOT add a stub class — use an existing node or assertion that fails for the
-right reason. The xfail auto-promotes to passing once the feature lands, and the
-`reason=` links the test back to the implementation issue.
-
-Source: ISSUE-2606
+Do not add a stub class; use an existing node or assertion that fails for the
+right reason. The strict xfail fails loudly once the feature lands, prompting
+its removal, and `reason=` links the implementation issue.
 
 ---
 
-## A Spec States Current Understanding, Not Its Own Edit History
+## Writing Requirement Text
 
-`rationale:` and `verification:` are as normative-adjacent as `statement:` —
-agents read all three to infer what the project believes. So when a requirement
-changes, rewrite its supporting prose to describe the world as it is now.
-**Specs do not maintain their history**; `git log`, ADRs and `plan/history/` do.
+### A Spec States Current Understanding, Not Its Own Edit History
 
-The failure mode is specific. VM-01-004's rationale narrated its own amendment
-("This requirement previously stated that the key *is* the AS2 `type` value…")
-and, to make the point, cited the `as_VultronPerson` → `VultronPerson` dual key
-as an example of harmless divergence. The registry was later split in two, which
-made the type-value key form correct for one of them — but the rationale still
-read as a standing endorsement of the divergence, and its verification clause
-described a test asserting it. The bug in #2982 therefore looked like intended
-design to every agent who checked, for as long as the prose survived.
+`rationale:` and `verification:` are read as closely as `statement:`. When a
+requirement changes, reread both and delete any clause that only makes sense
+against the old version, especially an example chosen for the old framing:
+VM-01-004's narrated amendment read as a standing endorsement of the divergence
+it described (#2982). History belongs in the ADR the `adr:` field names. Do not
+describe a verification test that does not exist.
 
-**How to apply:** after changing a `statement:`, reread its `rationale:` and
-`verification:` and delete any clause that only makes sense against the
-superseded version — especially a concrete example chosen to illustrate the old
-framing. If the history matters, it belongs in the ADR the entry's `adr:` field
-points to. And do not describe a verification test that does not exist: write it,
-or describe the one that does.
+### A Guard States the Truth the Mistake Violates
 
-Source: ISSUE-2982
+When a requirement exists to stop an implementation mistake, state the domain
+truth the mistake violates, in the vocabulary of its kind; put the bug in
+`rationale:` and let the regression test verify the positive rule (MS-05-005).
+A bare ban reads as if the mistake were a live design option, and gets only a
+contrived story once the story gate covers `MUST_NOT` (#4517). Keeping only the
+test is not the fix: agents read specs more often than tests.
 
-## A Guard States the Truth the Mistake Violates
+Write "a participant's assertion about itself is about itself, not about
+another actor", not "the subject of a received-side RM write MUST be the
+sender" — the second is the code's correction in the code's terms. If the
+requirement mixes kinds, split it (MS-12-010). A coding mistake with nothing
+another participant can observe is not `protocol`, or is only a regression test.
 
-**Rule (MS-05-005):** when a requirement exists to stop an implementation
-mistake, state the domain truth the mistake violates, in the vocabulary of the
-requirement's kind. Don't write a ban on the mistake, or a correction of it in
-the code's terms. Put the bug that prompted it in `rationale:`, and let the
-regression test verify the positive rule. Such a requirement carries no marker,
-tag or field.
+### `protocol` Means RFC Content
 
-**Why:** a bare "MUST NOT do the obvious wrong thing" reads as if the wrong
-thing were a live design option, and once SR-11-003's story gate extends to
-protocol MUST_NOT (#4517) a ban on a mistake gets only a contrived story. The
-positive truth reads as design and has a natural story. Deleting the
-requirement and keeping only the test is not the fix: agents read specs more
-often than tests, and RSH-08-001's mistake recurred while only code and tests
-guarded it.
+`protocol` is what an RFC would contain: wire messages, the behaviors that lead
+to them, and state machines (MS-12-003). TCP fixes what two implementations
+exchange, not how one structures its endpoints; a MUST about an internal
+endpoint is `project` however firm it reads (EP-02-004). A `verification:` path
+does not make a spec `project`.
 
-**How to apply:** write "a participant's assertion about itself is about
-itself, not about another actor". Don't write "the subject of a received-side
-RM write MUST be the sender, never the receiver": it is a positive MUST, but it
-is the code's correction, in the code's terms, inside a `protocol` spec. If the
-requirement mixes kinds, split it per MS-12-005 (see
-[`protocol` Means RFC Content](#protocol-means-rfc-content)): the meaning is
-`protocol`, and how our code records it is `project`. A guard with no domain
-truth behind it, a pure coding mistake with nothing another participant can
-observe, is not `protocol` (MS-12-003), or is only a regression test.
+The statement still has to be code-free **as written**. A protocol rule that
+spells its concept in our identifiers — a dotted enum member
+(`CVDRole.CASE_OWNER`), a wire class's Python name (`as_CaseProposal`), a helper
+function, the `DataLayer` — stays `protocol` and is reworded, even where
+MS-12-006's token list does not flag it. Protocol vocabulary is not a codebase
+reference: AS2 types and field names, shorthands (`CP`, `ET`), state notation
+(`VFd···`) and bare semantic names (`INVITE_TO_EMBARGO_ON_CASE`) are fine.
 
-Source: CONCERN-4530
+### Name Which Member of a Population a Requirement Constrains
 
-## `protocol` Means RFC Content
+When a requirement constrains one of several similar things, name **which one**.
+An RFC 2119 verb on an unnamed member is often wrong under the plainer reading,
+producing a check that is vacuous or falsely rejecting:
 
-`protocol` is for what an RFC would contain: wire messages, the behaviours that
-lead to them, and state machines (MS-12-003). The TCP analogy is the test: TCP
-fixes what two implementations exchange, not how one implementation structures
-its endpoints or stores. A MUST about an internal endpoint is `project` however
-firm it reads; EP-02-004 (compare-and-set on the policy PUT) is the worked
-example. MS-12-006 scans the `statement` only, so a `verification:` that names a
-test file does not by itself make a spec `project`: MS-10-003 and MS-15-001
-oblige that path, and no protocol-tier variant of the verification convention
-is needed. #4312 re-adjudicated the specs #3600 had relabeled to `project` on
-the strength of their `verification:` path (#3943) and returned the RFC-content
-ones to `protocol`; those that mapped to no existing user story carry
-`missing_story_reference` again, debt that the story work in #2717 burns down.
+- **Timestamps.** A `CaseLedgerEntry` carries the CASE_MANAGER's commit stamp
+  and the participant's claimed `payloadSnapshot.published`; monotonicity on the
+  claimed field compares unsynchronised clocks (#2824).
+- **Registries.** "Unrecognized activity types" fits both the AS2 vocabulary
+  (reject, 422) and the semantic pattern registry (route to `UNKNOWN`); MV-01-006
+  names the registry (#3217).
+- **List kinds.** Count the kind of entry a rule is about, not the whole list
+  (#3207).
 
-The statement still has to be code-free **as written**. A rule that is RFC
-content but spells a protocol concept in this codebase's identifiers — a dotted
-enum member (`CVDRole.CASE_OWNER`, `CS_vf.vf`), a wire class's Python name
-(`as_CaseProposal`, `RmInviteToCaseActivity`), a helper function, the
-`DataLayer` — is still `protocol`: every implementation must obey it, and naming
-code does not change that (MS-12-002). Its statement is reworded, even where
-MS-12-006's narrow token list does not flag it. Protocol vocabulary is not a codebase
-reference: AS2 wire types and field names, the protocol shorthands (`CP`,
-`ET`), state notation (`VFd···`) and bare semantic names
-(`INVITE_TO_EMBARGO_ON_CASE`) all appear in protocol statements. The remedy for
-a code-spelled protocol rule is to reword the statement in protocol vocabulary,
-and the remedy for one that also says how this codebase meets it is to split it
-(MS-12-010). Neither is relabeled.
+**Corollary — name the enforcing side of a participant obligation.** A
+participant duty ("a participant MUST emit … in causal order") also says what
+the *receiver* does: enforce, flag, or nothing. A group heading is not enough;
+give the requirement a `note` naming the enforcing side and a `verification`
+at the vantage point that can observe it (for CLP-15, a whole-scenario
+`check_causal_edges`, since CLP-15-005 forbids per-assertion enforcement).
 
-Source: ISSUE-4195, ISSUE-4312, ISSUE-4528
+### Verify an "All-Members" Group Claim Against Each Member
+
+A group description that asserts a property of *all* its members goes stale when
+one member diverges, and then mis-specifies it normatively. Check each member
+against the code before relying on the claim: MSM-03 once gave `CV`/`CF`/`CD`
+the `CaseStatus` semantic when they carry participant-scoped VF/D state
+(ADR-0075).
+
+### Never Restate Counts in Cross-References
+
+See [notes/specs-vs-adrs.md](specs-vs-adrs.md) § "Never State Unverifiable,
+Drift-Prone Facts in Long-Lived Docs" (MS-16-001, MS-16-002).
+
+---
 
 ## Removed Requirements: Never Reuse an ID, Archive the Text
 
-A removed requirement is removed, not deprecated (MS-09-001): `deprecated: true`
-in `specs/` is a violation. Its ID is never reused (MS-09-004); a replacement
-rule gets a new ID, and citations are repointed (MS-09-003). CM-11-005 was reused
-with the opposite force, so every citation of it pointed at a rule it never meant.
-The removed text is parked as one file per ID under `plan/retired-specs/`
-(MS-09-005), outside `specs/` so it is never loaded into agent context.
-Retire with `uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]`
-(MS-09-006): it moves the text, writes the history entry, and lists the
-citations still to repoint. `spec-lint` fails on `deprecated:`/`superseded_by:`
-and on a re-declared archived ID (MS-09-007).
-Spec-versus-code conflicts found in an implementation PR follow
-the material test in
-[notes/agentic-workflow.md](agentic-workflow.md) § "Spec Text Conflicts With
-Code", and the PR body carries `## Spec amended`.
+A removed requirement is removed, not deprecated (MS-09-001), and its ID is
+never reused (MS-09-004): CM-11-005 was reused with the opposite force, so every
+citation pointed at a rule it never meant. Retire with
+`uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]` (MS-09-006):
+it parks the text in `plan/retired-specs/<ID>.md`, outside agent context
+(MS-09-005), writes the history entry, and lists the citations to repoint
+(MS-09-003). `spec-lint` fails `deprecated:`/`superseded_by:` and a re-declared
+archived ID (MS-09-007). A spec-versus-code conflict found in an implementation
+PR follows [notes/agentic-workflow.md](agentic-workflow.md) § "Spec Text
+Conflicts With Code", and the PR body carries `## Spec amended`.
 
-Source: ISSUE-4195
-
-## A Verification Clause Is a Claim About the Suite
-
-A `verification:` clause tells every later reader how the requirement is known
-to hold, and an unbacked clause reads exactly like a backed one. MS-10-009
-requires the clause to name a check that exists and that inspects the property
-the statement asserts. Five sessions found clauses that did not:
-
-| Requirement | What the clause named | Why it verified nothing |
-|---|---|---|
-| DEMOCI-11-009 | `mkdocs build --strict` renders the scenario table | Strict mode never sees a link a build-time block prints; the page shipped with nine `.md` links that 404 on the built site, on a green build (#3450) |
-| VM-01-004 | A test asserting the actor dual key | The test did not exist, and the stale wording licensed six bogus registry keys (#2982) |
-| DR-03-002 | Nothing | No clause, so nobody noticed it named the wrong component (#3827) |
-| MS-13-003 | Nothing | No check, half adoption, and the corpus read as having no rule; planning nearly invented a duplicate (#3480) |
-| ADR-0099's unknown-key rule (now ARCH-25-007, ARCH-25-008) | The epic's closed children | Graduated to `accepted` with two details unbuilt; a `lint_suppress` in the same commit hid the prose/status mismatch (#3888) |
-
-**How to apply:** for each clause you write or review, ask one question — *if
-this requirement were violated, would the named check fail?* A build, lint or
-type-check that never examines the constrained artifact fails the question, and
-so does a test whose name you have not opened. For a build-time-rendered page,
-assert on the built `site/` (`docs-links`, DOCBW-03-007) or on the rendered string
-in a unit test. MS-15-001 makes a named path resolve; a named test function is
-not yet checked (#4170), so open it. The question is part of `pr-triage`'s spec
-conformance phase.
-
-Source: ISSUE-3450, ISSUE-2982, ISSUE-3827, ISSUE-3480, ISSUE-3888
+---
 
 ## Audit Passes
 
 ### A Resolving Citation Is Not a Correct Citation — Scope `Implements:` by Topic
 
-Every `Implements:` docstring under `vultron/` resolves to *some* requirement,
-so an existence-only traceability check cannot see a wrong-topic citation. The
-trigger routers cited `TB-01-001` ("the system MUST use pytest") 236 times as
-the requirement they implement, because the Testability topic shares the `TB`
-prefix a trigger spec once used; `trigger_embargo.py` had 52 `TB-` and zero
-`TRIG-` citations and every one of them resolved (#3354).
+An existence-only traceability check cannot see a wrong-topic citation: trigger
+routers once cited `TB-01-001` ("the system MUST use pytest") because the `TB`
+prefix looked like a trigger spec (#3354). `TB` (Testability) requirements govern
+tests, and no module under `vultron/` may cite one (SR-04-011);
+`test/architecture/test_implements_citations_topic_scoped.py` fails on any
+`TB-NN-NNN` under `vultron/` and checks that every router `Implements:` ID
+resolves. Repointing is per-file judgment, not a prefix swap: `TRIG-02` splits by
+domain, so a blind `TB-02-001` → `TRIG-02-001` mints new wrong-but-resolving
+citations.
 
-**How to apply:**
+### Retiring a File or Label: Grep Specs for the Bare Name
 
-- `TB` (Testability) requirements govern tests. No module under `vultron/` may
-  cite one in an `Implements:` docstring; the ratchet that enforces this
-  (`test/architecture/test_implements_citations_topic_scoped.py`, SR-04-011, #3829) is
-  topic-scoped, not resolution-scoped — it fails on any `TB-NN-NNN` token
-  under `vultron/` by file and line, and separately checks that every
-  `Implements:` ID under the FastAPI routers resolves in the registry, so a
-  typo'd `TRIG` ID cannot replace a wrong `TB` one.
-- Repointing is per-file judgment, not a prefix swap. `TRIG-02` splits by
-  domain (`-001` report, `-002` embargo, `-004` case, `-005` participant,
-  `-006` demo-only), so a blind `TB-02-001` → `TRIG-02-001` mints fresh
-  wrong-but-resolving citations in four of five routers.
-- Once a registry row carries `spec_ids`, the check becomes an import-time
-  assertion over the table rather than a docstring scan.
-
-Source: ISSUE-3354
-
-### Retiring a File or Label Requires Auditing All Specs for Bare-Filename References
-
-`MS-15` (`_check_phantom_paths`) only flags backtick-quoted tokens containing a
-directory separator (e.g. `` `plan/PRIORITIES.md` ``). Bare filenames such as
-`PRIORITIES.md` or bare label names such as `group:unscheduled` written without
-backticks or without a `/` pass the lint check silently. When retiring any file,
-label, or convention, grep `specs/` for the bare name as well as the
-quoted/path form, and update every spec entry that references it — including
-`statement:`, `rationale:`, and cross-reference fields.
-
-Source: ISSUE-2011
+MS-15-001 flags only path-shaped tokens, so a bare filename (`PRIORITIES.md`) or
+label (`group:unscheduled`) passes silently. When retiring a file, label or
+convention, grep `specs/` for the bare name as well as the path form, in every
+field (#2011).
 
 ### A Grep-Corpus Guard Can Resolve Its Own Documentation
 
-Any lint check that validates spec prose against a *textual* scan of the source
-tree — the MS-15-004 phantom-symbol guard (`_check_phantom_symbols` in
-`vultron/metadata/specs/lint.py`) is the canonical case — can be blinded by its
-own docstrings and error messages. Naming a symbol in the check's own prose puts
-that token back into the scanned corpus, so the guard resolves it as "live" and
-stops flagging the very defect it was written to catch (verified directly:
-`'SEMANTICS_ACTIVITY_PATTERNS' in _SourceScan(Path('.')).symbols` became `True`
-once the docstring named it).
+A lint check that validates spec prose against a textual scan of the source tree
+(MS-15-004's `_check_phantom_symbols`) is blinded by its own prose: naming a
+symbol in the check's docstring puts it back in the scanned corpus, so the guard
+resolves it as live (#3022).
 
-**How to apply:**
-
-- When adding such a check, assert the negative directly — a test that a symbol
-  named *only* inside the linter's own source is still rejected — rather than
-  assuming the corpus excludes it.
-- Prefer **file-scoped** exclusions over **package-scoped** ones. A linter
-  package usually mixes prose (safe to exclude) with real spec-cited definitions
-  (must stay scanned): excluding all of `vultron/metadata/specs/` re-introduced
-  false positives for `SHOULD_NOT` (a real `RFC2119Priority` member in
-  `schema.py`) and `SCREAMING_SNAKE_CASE` (a token *shape* named in MS-15-004's
-  own statement).
-- Keep the two exclusion sets distinct and documented: the phantom-*ID* allowlist
-  excludes only `test/metadata/specs` (a stale spec ID cited by the linter is a
-  real defect, so `vultron/metadata/specs/` stays scanned), while the *symbol*
-  corpus additionally excludes `lint.py` (which names symbols as examples, not as
-  code the specs describe).
-
-Source: ISSUE-3022
+- Assert the negative directly: a symbol named only inside the linter's own
+  source is still rejected.
+- Prefer file-scoped exclusions to package-scoped ones: excluding all of
+  `vultron/metadata/specs/` hid real definitions such as `SHOULD_NOT`.
+- Keep the two exclusion sets distinct: the phantom-*ID* allowlist excludes only
+  `test/metadata/specs`, while the *symbol* corpus also excludes `lint.py`.
 
 ### A Retired-Symbol Sweep Is Not a Substitution — Check the Shape First
 
-An acceptance criterion phrased as a mechanical substitution ("replace all N
-occurrences of `OLD` with `NEW`") carries an unstated premise that the swap is
-meaning-preserving. When the replacement has a **different data shape**, a
-find-and-replace silently turns a stale requirement into a *wrong* one — strictly
-worse, because a wrong MUST reads as authoritative.
+A "replace `OLD` with `NEW`" AC assumes the swap preserves meaning. When the
+replacement has a different data shape, find-and-replace turns a stale
+requirement into a wrong one, which is worse because a wrong MUST reads as
+authoritative. A mapping that became a sequence (`SEMANTIC_REGISTRY` is a list in
+which every `MessageSemantics` value has an entry) inverts every statement about
+*keys*, *entries* or *containment* (#3022). State the intent in the issue
+("every reference names the live registry accurately"), not the mechanism.
 
-Concretely, `SEMANTICS_ACTIVITY_PATTERNS` was a
-`dict[MessageSemantics, ActivityPattern]`; `SEMANTIC_REGISTRY` is an ordered
-`list[SemanticEntry]` in which *every* `MessageSemantics` value has an entry —
-including the `UNKNOWN` / `UNKNOWN_UNRESOLVABLE_OBJECT` sentinels, whose entries
-carry `pattern=None`. Three specs phrased in dict terms had to be re-derived, not
-renamed: statements about a value having no "entry", about "keys", or about
-"containment" all invert when a mapping becomes a sequence.
+### Parallel Spec Splits: Check Every Parent
 
-**How to apply:** before auditing a corpus for a retired symbol, ask whether the
-replacement has the same shape. If a mapping became a sequence (or vice versa),
-treat every statement phrased in terms of *keys*, *entries*, or *containment* as
-a candidate for a semantic rewrite. When authoring such an issue, state the
-intent ("every reference names the live registry accurately"), not the mechanism.
+After sub-agents split compound requirements in parallel, check that each
+parent's statement was trimmed: agents often add the children and leave the
+parent text unchanged. Do not trust completion reports for this task (#2393).
 
-Source: ISSUE-3022
-
-### Sub-Agent Spec Splits: Re-Run the Violation Detection Script After the Parallel Pass
-
-After parallel sub-agents split compound spec requirements, re-run the
-compound-statement detection script. Agents frequently add new child entries but
-leave the original parent statement text unchanged (with all semicolons intact).
-The spec-lint failure surfaces the symptom; the detection script identifies which
-parent was not trimmed. Do not trust agent completion reports for this class of
-task.
-
-Source: ISSUE-2393
-
-### Name the Authority "CASE_MANAGER", Not "CaseActor" (CaseActor Is the Prototype Identity)
+### Name the Authority "CASE_MANAGER", Not "CaseActor"
 
 The authority for a case is a **role** — the participant holding
-`CVDRole.CASE_MANAGER` — not a dedicated component and not a fixed identity.
-Protocol-normative prose MUST name that authority **the CASE_MANAGER** (the role
-holder). Reserve **"CaseActor"** for the concrete prototype/demo actor that
-enacts the role, and **"case actor service"** for the provisioning endpoint that
-spawns `case-actor` identities (glossary; ADR-0088). Anything per-case in a
-CaseActor's *identity* (e.g., a per-case service URL derived from the case slug)
-is a category error: no container has registered that identity, so any call to
-it answers 404.
+`CVDRole.CASE_MANAGER` — not a component or a fixed identity (ADR-0088).
+Protocol prose names it **the CASE_MANAGER**. "CaseActor" is the concrete
+prototype actor that enacts the role, and "case actor service" the endpoint that
+spawns `case-actor` identities. Anything per-case in a CaseActor's *identity*
+(a per-case URL derived from the case slug) is a category error: no container
+registered it, so a call to it answers 404.
 
-When a spec says "CaseActor MUST create X" or "CaseActor MUST send Y", rewrite it
-to "the CASE_MANAGER MUST …" unless the requirement is genuinely about the
-prototype actor (a demo/scenario spec such as `multi-actor-demo.yaml`). A spec
-that mints an object to satisfy a role requirement — or that invites a reader to
-compare `actor_id` against a computed `case_actor_id` — will be faithfully
-implemented and faithfully wrong. Grep the spec corpus for MUST requirements
-whose subject is `CaseActor` to catch these before they hide defects.
+Applied naively, the rewrite over-reaches: a role has no URI or inbox. The
+discriminator:
 
-**Applied naively, the rewrite over-reaches.** The same actor is both the
-authority (a role) and a concrete node with a URI, an inbox, an outbox, a
-DataLayer and a container. A role has no URI or inbox, so renaming an
-*infrastructure* reference to `CASE_MANAGER` is the same category error as leaving
-an *authority* reference as `CaseActor`. The discriminator:
+- **"the CASE_MANAGER"** for a single-writer authority action or property:
+  commits ledger entries, writes shared EM/CS state, sets participant state at
+  bootstrap, authorizes a commit.
+- **"CaseActor"** for infrastructure and identity: its URI, inbox and outbox,
+  self-delivery to its own inbox, its DataLayer, container or co-location,
+  delegated-emit store scoping (ADR-0073), or the `case-actor` URL-shape
+  anti-pattern.
+- **"the actor enacting `CVDRole.CASE_MANAGER`"** when the text needs an actor
+  grounded in the role, such as one that can fail a hosting test.
 
-- **Write "the CASE_MANAGER"** when the subject performs a single-writer authority
-  action or holds an authority property: commits or authors canonical ledger
-  entries, writes shared EM/CS state, sets participant state at bootstrap, is the
-  sole authorized writer, authorizes a commit.
-- **Keep "CaseActor"** for infrastructure and identity: its URI or
-  `case_actor_id`, its inbox and outbox, HTTP-loopback self-delivery to its own
-  inbox, its DataLayer, its container or co-location, delegated-emit store
-  scoping (ADR-0073), a code identifier (`CheckIsOwnCaseActorNode`,
-  `VultronCaseActor`), the `CaseActor` domain type, or the `case-actor` URL-shape
-  anti-pattern a ratchet forbids.
-- **Write "the actor enacting `CVDRole.CASE_MANAGER`"** when the text needs an
-  actor grounded in the role — for example one that can fail a hosting test,
-  which a bare role cannot.
-
-The trap is a requirement that reads like authority but is delivery. The
-canonical-ledger self-delivery requirements in `outbox.yaml` sound like an
-authority obligation, yet every noun in them (own URI, own inbox, HTTP loopback)
-is the concrete actor's plumbing: the commit *authorization* is the role, the
-*delivery* of the self-copy is the actor. When in doubt on an
-infrastructure-flavoured line, keep `CaseActor`.
-
-A naming sweep is also a cheap way to surface stale premises, because it forces
-you to read the rationale the term sits in. Check a rewrite candidate's
-`refines:` and `adr:` parents for agreement, not only its wording: CM-20-001/004/
-005 claimed to refine CBT-01-003 while their rationale asserted its opposite.
-When two entries describe the same fact, make the laggard match the one that
-already applied the decision.
-
-Source: ISSUE-1872, ISSUE-3260, ISSUE-3342
-
-### Name Which Member of a Population a Requirement Constrains
-
-When a requirement constrains one member of a set of similar things — one of
-several timestamps on an object, one of several registries consulted on the same
-value, one of several *kinds* of entry in a list — it MUST name **which one**.
-An RFC 2119 verb applied to an unnamed member is not merely vague; it is often
-*wrong under the plainer reading a new implementer will take*, producing a check
-that is either vacuous or falsely rejecting:
-
-- **Timestamps (ISSUE-2824).** A `CaseLedgerEntry` carries both an envelope
-  `published` (the CASE_MANAGER's commit stamp) and a `payloadSnapshot.published`
-  (the asserting participant's claimed time). CLP-14/CLP-15 constrained "the
-  published timestamp" without saying which; applied to the claimed field,
-  CLP-14-003's monotonicity check compares two participants' unsynchronised
-  clocks — the wall-clock ordering ADR-0079 rejected — and rejects well-formed
-  assertions. The fix names the field in every entry.
-- **Registries (ISSUE-3217).** Two lookups act on an activity's `type`: the AS2
-  vocabulary (`parse_activity` → reject with HTTP 422) and the semantic pattern
-  registry (`find_matching_semantics` → route to `UNKNOWN`). MV-01-006 said
-  "unrecognized activity types" without naming the registry, so "reject" and
-  "route to UNKNOWN" both looked correct. The fix names the semantic pattern
-  registry and points the parse-time behaviour at MV-01-001.
-- **List kinds (ISSUE-3207).** ADR-0089's ratchet exclusion list holds two
-  *writer* exclusions plus a permanent non-writer over-catch. An AC that says
-  the list "ends at exactly two entries" (dropping *writer*) contradicts the
-  design that made the gate deliberately over-broad. Count the kind, not the
-  whole population.
-
-**Corollary — name the enforcing side of a participant obligation.** A
-requirement written as a participant duty ("a participant MUST emit … in causal
-order") MUST also say what the *receiver* does about it: enforce, flag, or
-nothing. A group heading is not a substitute — CLP-15's *Participant Assertion
-Timestamp Obligations* heading did not stop four entries from being read as
-CASE_MANAGER duties, and seven `xfail(strict=True)` stubs were written against a
-per-assertion enforcement that CLP-15-005 forbids and a stateless commit boundary
-cannot perform. Give such a requirement a `note` naming the enforcing side and a
-`verification` pointing at the vantage point (e.g. a whole-scenario
-`check_causal_edges`) from which the obligation is actually observable.
-
-Source: ISSUE-2824, ISSUE-3217, ISSUE-3207
-
-### Verify an "All-Members" Group Claim Against Each Member
-
-The verification-side companion to the rule above. When a spec **group
-description** asserts a property of *all* its members ("All CS shorthands share
-the `ADD_CASE_STATUS_TO_CASE` semantic"), check each member against the code
-before relying on the generalization. Group descriptions are written once and
-rarely revisited when one member's behaviour later diverges, so a stale "all"
-claim silently mis-specifies the members that changed. MSM-03-001/002/003
-inherited exactly this: the group generalized a `CaseStatus` semantic onto `CV`/
-`CF`/`CD`, which actually carry participant-scoped VF/D state
-(`as_ParticipantStatus`, ADR-0075) — so the group asserted, normatively, the
-opposite of an invariant the domain model enforces. An implementer following it
-faithfully would have dropped the vendor identity.
-
-Source: MSM-03-001/002/003 (promoted from notes/message-type-reference.md)
-
-### Never Restate Counts in Cross-References
-
-See [notes/specs-vs-adrs.md](specs-vs-adrs.md) § "Never State Unverifiable,
-Drift-Prone Facts in Long-Lived Docs" (MS-16-001, generalised by MS-16-002).
+The trap is a requirement that reads like authority but is delivery: the
+self-copy of a canonical ledger entry is the actor's plumbing, while the commit
+*authorization* is the role. When in doubt on an infrastructure line, keep
+`CaseActor`. A naming sweep also surfaces stale premises: check a candidate's
+`refines:` and `adr:` parents agree with it, not only its wording.

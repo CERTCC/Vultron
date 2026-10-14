@@ -69,17 +69,35 @@ flowchart TB
 Embargo Proposal (EP) is implemented in ActivityStreams as `Invite(Event)`.
 The same activity carries a revision, Embargo Revision Proposal (EV); a receiver tells the two apart from the case's EM state rather than from the activity (MSM-02).
 
-1. Send `Invite(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `context`.
+1. Mint the proposed `EmbargoEvent` with `Create(Event)`, naming the case in `context`, or the report before a case exists.
+   Then send `Invite(Event)` with that `EmbargoEvent` as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/create-embargo-event.md" %}
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
+
 2. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(Event))`, or Embargo Proposal Rejection (ER), `Reject(Invite(Event))`.
    Either answer records only that participant's own consent, the Case Owner's included; the case stays at `EM.PROPOSED`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-acceptance.md" %}
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-rejection.md" %}
+
 3. As Case Owner, send `Accept(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `target`, once you judge the proposal has carried.
    The case moves to `EM.ACTIVE`, and your own consent to the terms is recorded with it.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/activate-embargo.md" %}
+
 4. Send `Announce(Event)` so every participant has the terms in hand.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 
 To turn the proposal down, send `Reject(Event)` with the same `object` and `target` as Case Owner instead.
 The case returns to `EM.NONE` and the negotiation is open again.
 Propose revised terms with another `Invite(Event)`.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/reject-embargo-proposal.md" %}
 
 Propose one set of terms at a time.
 That is how the protocol resolves competing terms, not a workaround: there is no poll across candidate embargoes ([ADR-0100](../../../adr/0100-no-multi-candidate-embargo-poll.md)).
@@ -111,6 +129,24 @@ The other participants still receive the Invite and answer it, and only those th
     An embargo-eligible case begins with an active embargo even when no proposal exchange is visible, because a Protocol Default applies when no proposal and no actor default does.
     A Reporter who wants other terms states them on the report Offer rather than by a proposal exchange; see [How to Report a Vulnerability](report_vulnerability.md#submit-a-report) and the `report-with-embargo` demo there.
     See [Default Embargoes](../../../topics/process_models/em/defaults.md).
+
+---
+
+## Answer an embargo already in force
+
+The Case Owner can activate an embargo before every participant has answered its Invite.
+Once the embargo is in force it is no longer an open proposal, but a participant that has not answered can still answer it.
+
+1. Find the `Invite(Event)` you received for the embargo in force.
+2. Call `accept-embargo` or `reject-embargo` with that Invite's ID as `proposal_id`.
+   You send the same `Accept(Invite(Event))` or `Reject(Invite(Event))` as for an open proposal, addressed to the CASE_MANAGER.
+
+You can answer this way while your consent row for the embargo in force is `INVITED` or `TIMED_OUT`.
+An Accept sent after the reply deadline is honored, because the terms you agree to are the terms in force (EMB-17-002).
+The trigger reports not found when you hold no such Invite, or when your row is already `AGREED` or `DECLINED`.
+
+Name the Invite.
+A call without `proposal_id` answers only an open proposal and never the embargo in force (EP-09-012), so it reports not found when no proposal is open.
 
 ---
 

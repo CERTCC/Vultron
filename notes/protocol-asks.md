@@ -28,6 +28,9 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/embargo-lifecycle.md
   - notes/participant-embargo-consent.md
+  - notes/selective-disclosure.md
+  - notes/bt-canonical-reference.md
+  - notes/call-out-configuration.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/core/models
@@ -36,7 +39,7 @@ relevant_packages:
 # Protocol Asks and Outstanding-Ask Registers
 
 Normative requirements: `specs/protocol-asks.yaml` (ASK-01 through ASK-08).
-Decision record: ADR-0080. Source: CONCERN-2829 (planning group G01).
+Decision record: ADR-0080.
 
 ## The one-sentence version
 
@@ -46,46 +49,24 @@ it comes, starts new work.
 
 ## Why there is nothing to suspend
 
-The recurring instinct is to make the behavior tree wait: return `RUNNING`, hold
-the tree, resume it when the answer arrives. The framework cannot do this, and
-the evidence is unambiguous:
+The behavior tree cannot wait for an answer. `BTBridge.execute_tree()` treats
+root `RUNNING` as "keep ticking" until `max_iterations` (default 100), then logs
+`ERROR` and returns `FAILURE`, and `bt.shutdown()` discards the tree after every
+invocation, so there is nothing to resume. Divide the work at the question:
+asking is one behavior, acting on the answer is another.
 
-- `BTBridge.execute_tree()` ticks in `while iteration < max_iterations`
-  (default 100) and treats root `RUNNING` as "keep ticking". Exhausting the loop
-  logs `ERROR` and returns `FAILURE`.
-- `finally: bt.shutdown()` discards the tree at the end of every invocation, so
-  there is no instance to resume.
-- No py_trees node in `vultron/` returns `Status.RUNNING`. EDF-04-002
-  used to require `RUNNING` while awaiting input; it had zero implementations,
-  and any node that had complied would have busy-looped and then failed.
+Two mechanisms keep any node from returning `RUNNING` (BT-18-011):
 
-So the design that looked blocked on a missing framework feature was never on
-that path. Dividing the work at the question — asking is one behavior, acting on
-the answer is another — needs no suspension at all.
-
-### The invariant is enforced, not just observed (BT-18-011)
-
-The "nothing returns `RUNNING`" claim above is now a ratcheted invariant, not a
-lucky grep result — the original `grep -r "return Status.RUNNING"` missed a form
-like `return random.choice((Status.SUCCESS, Status.RUNNING))`, which two demo
-call-out nodes used until #3194 made them synchronous. Two complementary
-mechanisms hold the line (BT-18-011):
-
-- **Runtime guard at the call-out seam.** A call-out backend is injected from
-  *outside* the repo (`CallOutBackendFactory`, BT-23-004), so a static scan
-  cannot see it. `SynchronousCallOut`
-  (`vultron/core/behaviors/call_out/guard.py`) is a name-transparent py_trees
-  decorator that ticks its child and, on a `RUNNING` return, raises
-  `CallOutContractError` — a plain `RuntimeError`, **not** a `VultronError`, so
-  `BTBridge` classifies it as `internal_error=True` (a wiring bug) rather than a
-  protocol `FAILURE`. It is applied uniformly in `CallOutBundle.__post_init__`
-  (`bundles/base.py`), so every factory a bundle hands out is guarded with no
-  change at the ~15 tree-builder call sites. Unwrap with `unwrap_call_out()`.
-- **Static ratchet for in-repo nodes.** `test/architecture/test_no_running_status.py`
-  fails if any node under `vultron/` returns the py_trees `Status.RUNNING`. It
-  keys on the enum name `Status`, so the legacy simulator's `NodeStatus.RUNNING`
-  (`vultron/bt/`, a different engine with a continuous-tick model where RUNNING
-  is legitimate) is correctly out of scope.
+- **Runtime guard at the call-out seam.** Backends are injected from outside the
+  repo (BT-23-004), so `SynchronousCallOut`
+  (`vultron/core/behaviors/call_out/guard.py`), applied to every factory a
+  `CallOutBundle` hands out, raises `CallOutContractError` on `RUNNING`. It is a
+  plain `RuntimeError`, not a `VultronError`, so `BTBridge` reports a wiring bug
+  (`internal_error=True`), not a protocol `FAILURE`.
+- **Static ratchet for in-repo nodes.**
+  `test/architecture/test_no_running_status.py` keys on the py_trees `Status`
+  enum, so the legacy simulator's `NodeStatus.RUNNING` (`vultron/bt/`) is out of
+  scope.
 
 ## Conversation-state routing
 
@@ -103,20 +84,16 @@ GatedAction  (first fitting branch wins)
 
 ### Why not just replay the original message
 
-Tempting and wrong: on reply, feed the triggering activity back through the
-inbox so the same tree runs again and passes the gate. The first run already
-appended state and committed a ledger entry, and CLP-13-001 requires an
-idempotency guard that detects a duplicate to return `FAILURE` and write
-nothing. The replayed tree therefore dies at its first guard, before reaching
-the gate. Disjoint branches avoid this by never attempting the completed work in
-the first place.
+The first run already appended state and committed a ledger entry, and the
+CLP-13-001 idempotency guard returns `FAILURE` on the duplicate, so a replayed
+tree dies at its first guard before reaching the gate. Disjoint branches never
+re-attempt completed work.
 
 ### Why not split the tree in two
 
-Also tempting: an ask half and an act half, with the reply handler invoking the
-act half. It works, but two halves drift; one routing tree cannot disagree with
-itself. The reply still gets its own tree (it is a different inbound message
-with its own dispatch key) — but the *state* question lives in one place.
+An ask half and an act half drift apart; one routing tree cannot disagree with
+itself. The reply still gets its own tree (its own dispatch key), but the *state*
+question lives in one place.
 
 ## Prior art: this is built, once, by hand
 
@@ -158,17 +135,13 @@ not inventing a mechanism.
 | Nothing enumerates | Deadlines cannot be swept; a Case Owner cannot see decisions they owe |
 | Bespoke throughout | Every node is hand-written for one flow; the next instance costs the same |
 
-The third gap is why `RequireCaseOwnerApprovalNode` is a deny-always stub. The
-mechanism was known; generalising it was never done, so the second instance cost
-more than anyone wanted to pay.
+The third gap is why `RequireCaseOwnerApprovalNode` is still a deny-always stub.
 
 ## Rules worth internalising
 
-**Authority comes from the stored ask, never the reply.** ADR-0026 states this
-for participant roles and calls it a security boundary: read the roles from the
-stored `Offer`, not from the `CaseParticipant` embedded in the received
-`Accept`, or the accepting actor can escalate what it grants itself. ASK-01-004
-generalises it to every ask.
+**Authority comes from the stored ask, never the reply** (ASK-01-004). Read the
+granted roles from the stored `Offer`, not from the `CaseParticipant` embedded in
+the received `Accept`, or the accepting actor can escalate what it grants itself.
 
 **Expiry consequence is per ask kind and is not configurable.** Admitting a
 participant stays useful when authorized late; adopting a case status does not —
@@ -222,34 +195,26 @@ not survive N simultaneous Invites of one event type — the ask-kind registry
 (#2884) is where that gets fixed, not a per-call-site workaround.
 
 **The pending-assertion store has a second client.** Embargo triggers that do
-not hold the CASE_MANAGER role emit their proposal, answer or termination to
-the manager and record it in the pending-assertion store; they write no EM
-state (EP-09-008). Every asker records through one helper,
-`record_pending_assertion()` in `vultron/core/models/pending_assertion.py`
-(SYNC-11-002, ASK-04-008). The received-side teardown ask the P/X/A cascade
-sends records through it as well, from the send node's `_on_queued` hook, and
-a guard node ahead of the send makes the triggers' suppression check through
-the shared `suppressed_repeat_reason()` (#4147). An embargo repeat carries a
-fresh activity id, so its entry also carries a `subject_id` — the terms a
-proposal offers, the proposal an answer names, the embargo a teardown ends —
-and `SvcEmbargoTriggerBase._suppressed_duplicate()` checks
-`pending_for_subject()` (through `suppressed_repeat_reason()`) before the tree
-runs: a repeat inside the window is reported with no activity and queues
-nothing. The store stays what it is — a
-duplicate suppressor that never holds case state (CLP-06-002). An announced
-commit clears the entry (SYNC-11-003); a refused proposal is never committed,
-so the received CASE_MANAGER's `Reject` of it closes the entry instead
-(`close_refused_embargo_proposal`, `received/_pending_refusal.py`), and a
-`Reject` from anyone else closes nothing.
+not hold the CASE_MANAGER role emit their proposal, answer or termination to the
+manager, write no EM state (EP-09-008), and record it in the pending-assertion
+store. Every asker records through `record_pending_assertion()` and checks
+repeats through `suppressed_repeat_reason()`
+(`vultron/core/models/pending_assertion.py`, ASK-04-008), including the P/X/A
+cascade's teardown ask. An embargo repeat carries a fresh activity id, so its
+entry carries a `subject_id` (the offered terms, the answered proposal, or the
+ended embargo) and a repeat inside the window queues nothing. The store stays a
+duplicate suppressor that never holds case state (CLP-06-002). An announced commit
+clears the entry (SYNC-11-003); a refused proposal is never committed, so only
+the CASE_MANAGER's received `Reject` of it closes the entry
+(`close_refused_embargo_proposal`, `received/_pending_refusal.py`).
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-001), so a stalled decision is visible to
 participants. Consequently an ask must carry nothing undisclosable to them
 (ASK-06-002); private rationale goes in a directed `Note`, which CLP-05-001
 already establishes as a delivery shape. Delivering the *fact* of an ask while
-directing its *detail* would need redaction with proofs — `notes/stub-objects.md`
-describes redaction as future work, and committing a stub instead would break
-CLP-02-003 and CLP-07-012.
+directing its *detail* would need redaction with proofs, which Vultron does not have
+(design: `notes/selective-disclosure.md`); committing a stub instead would break CLP-02-003 and CLP-07-012.
 
 ## Expiry has no clock, and that is deliberate
 
@@ -261,11 +226,10 @@ mechanisms, neither a loop inside core:
    peer's own retry is the clock, and that retry is also what lets the answerer
    recover (CP-05-006).
 2. **A Sentinel seam** — a general-purpose `reap-expired-asks` trigger
-   (ASK-05-002). Per `notes/coordination-agents.md`, a Sentinel *"operates
-   exclusively on the call-in surface"* and **has no BT call-out point**, so
-   reaping belongs to an external watcher, not to core. The same endpoint makes
-   expiry testable causally instead of by elapsed time, which EDF-06-001
-   requires.
+   (ASK-05-002). A Sentinel works on the call-in surface and has no BT call-out
+   point (`notes/coordination-agents.md`), so reaping belongs to an external
+   watcher, not to core. The endpoint also makes expiry testable causally, not by
+   elapsed time (EDF-06-001).
 
 Reaping never re-emits (ASK-05-004), mirroring CLP-06-005: a timeout is a
 signal, not an instruction to retry. Only the tree knows whether the action is
@@ -274,18 +238,15 @@ still wanted.
 ## Processing faults
 
 `Create(ProcessingFault)` tells an **authenticated** sender that its message
-could not be processed. This discharges the deferral ADR-0049 recorded — that
-ADR declined to port the RE/EE/CE/GE/GI message family from the simulation but
-explicitly asked that sender notification be *"designed on its own merits"*
-later. One fault object type is not that family, so ADR-0049's decision stands.
+could not be processed. It is one object type, not a port of the simulator's
+RE/EE/CE/GE/GI message family, which ADR-0049 declined.
 
 Design points that are easy to get wrong:
 
 - **`Create`, not `Reject`.** `Reject` presupposes something rejectable;
   unreadable traffic provides no such object. `Create(<minted object>)` is the
   established idiom (`Create(CaseProposal)`).
-- **A dedicated object type, not a reason field.** SE-08-003 prefers a dedicated
-  object type over field-level discrimination — the lesson CONCERN-2322 taught.
+- **A dedicated object type, not a reason field** (SE-08-003).
 - **A pointer, never a required echo.** When a payload fails validation, a typed
   copy of it cannot be constructed, because constructing it is what failed.
   Echoing sender-supplied content is also a reflection hazard.
@@ -322,64 +283,34 @@ fault is protocol history; the *diagnosis* is not.
 
 ## Pitfalls
 
-**A single shared emit seam now exists.** `_EmitSingleActivityBase._emit_through_seam()`
-(in `behaviors/helpers.py`) is the one place all BT node outbox writes go through
-(implemented by #2881). The four previously independent private helpers have been
-replaced by `_call_factory()` / `_on_success()` overrides on `_EmitSingleActivityBase`
-subclasses:
-
-```text
-case/nodes/actor.py                        EmitInviteActorToCaseNode._call_factory()
-case/nodes/case_participant_received.py    EmitParticipantMoveNoticeNode._call_factory()
-case/nodes/delegation.py                   EmitRejectCaseParticipantRoleNode._call_factory()
-case/nodes/suggest_actor/accept_offer.py   EmitAcceptCaseParticipantOfferNode._call_factory()
-```
-
-`_FaultMixin.emit_processing_fault()` (added in #2989) covers the
-`Create(ProcessingFault)` NACK path specifically; it does NOT go through
-`_emit_through_seam()` (it uses a separate outbox path).
-
-The shared seam is the prerequisite for ASK-04-008 (correlation hook) and
-OX-14-001 (dead-letter link) from CONCERN-2657. Those hooks belong in
-`_emit_through_seam()` — the seam is the single place to add them.
-
-Architecture ratchet `test/architecture/test_no_direct_outbox_append_in_bt_node_update.py`
-prevents future direct `outbox_append` in BT node `update()` methods.
+**Every BT node outbox write goes through one seam:**
+`_EmitSingleActivityBase._emit_through_seam()` (`vultron/core/behaviors/helpers.py`);
+subclasses override `_call_factory()` / `_on_success()`. The ASK-04-008
+correlation hook and the OX-14-001 dead-letter link belong there.
+`test/architecture/test_no_direct_outbox_append_in_bt_node_update.py` forbids a
+direct `outbox_append` in a node's `update()`. The `Create(ProcessingFault)` NACK
+(`_FaultMixin.emit_processing_fault()`) uses a separate outbox path.
 
 **Delivery receipt is not agreement.** "Your message arrived" and "I agree to
 what your message said" are different layers and must not be conflated.
-CONCERN-2657 is the former; everything else here is the latter. The ledger keeps
+The ledger keeps
 recording what an actor decided and observed at the time it happened
 (OX-14-002) — gating a commit on delivery would make an actor's own history
 hostage to the network, invert CLP-10-006's ordering, and raise an unanswerable
 partial-delivery question. What was missing is the *link* from a dead-lettered
 activity to the entry claiming its event happened (OX-14-001).
 
-**`Question` is not the verb for an authorization ask.** `as_Question` is an
-`IntransitiveActivity` — it has **no `object`**, as the code comment says
-outright. The thing being asked about has nowhere to live, and
-`find_protocol_pair` keys on an object ID. So `Offer` is the verb for "may I".
-
-The old form of this rule finished with "`Question` for *which one*", citing
-`choose_preferred_embargo` as the live instance. **That instance is gone** —
-ADR-0100 retired the multi-candidate embargo poll (#3469), because a `Question`
-pattern can discriminate only on `context` and had no answer form. Do not read
-the surviving half as a licence to reach for `Question` when a choice needs
-making: Vultron resolves competing embargo terms as *sequential* `Invite`s in
-earliest-expiration order (EP-08), and nothing else in the protocol currently
-needs a poll.
-
-One `as_Question` remains — `bootstrap_replay_question_activity` (CBT-03-004),
-asking a peer to resend a missing bootstrap `Create(VulnerabilityCase)`. It is
-**not** a working precedent to copy. It has no `ActivityPattern`, no
-`MessageSemantics` and no received-side handler, so it is emitted and dropped,
-and whether a replay request should be a `Question` at all — rather than
-something that fits the state-change-notification model these notes are built
-on — is open (#3471). If you need a request/response exchange, design it as a
-protocol ask per this file and ADR-0080; do not add a second `Question`.
+**`Question` is not the verb for an ask.** `as_Question` is an
+`IntransitiveActivity` with no `object`, so the thing asked about has nowhere to
+live and `find_protocol_pair`, which keys on an object ID, cannot pair it. Use
+`Offer` for "may I". Do not use `Question` to make a choice either: competing
+embargo terms resolve as sequential `Invite`s in earliest-expiration order (EP-08,
+ADR-0100). The one remaining `as_Question`, `bootstrap_replay_question_activity`
+(CBT-03-004), has no pattern, semantics or handler, so it is emitted and dropped;
+it is not a precedent (#3471). Design a request/response exchange as a protocol
+ask.
 
 **Do not relax a gate to make a blocked path proceed** (RSH-07-005).
 `STATUS_AUTHORIZATION_PERMISSIVE` is for trusted-participant and demo
-deployments. Using it to route around an unreachable gate converts a protocol
-guarantee back into a configuration posture, which is the defect CONCERN-2092
-filed.
+deployments; using it to route around an unreachable gate turns a protocol
+guarantee into a configuration posture.

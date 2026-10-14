@@ -57,12 +57,12 @@ ENTRIES: list[SemanticEntry] = [
                     "record to the case"
                 ),
                 anchor="create-case-participant",
+                heading="Create case participant",
                 description=(
                     "Mints a participant record that pairs an actor with its "
                     "roles in the case. It precedes the Add."
                 ),
                 example="create_participant",
-                howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -79,6 +79,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner reinstates a removed Participant",
                 anchor="add-case-participant-to-case",
+                heading="Add case participant to case",
                 description=(
                     "Asks the Case Manager to reinstate the participant record"
                     " named by the object. The Participant becomes active "
@@ -105,6 +106,7 @@ ENTRIES: list[SemanticEntry] = [
                     "participation"
                 ),
                 anchor="remove-case-participant-from-case",
+                heading="Remove case participant from case",
                 description=(
                     "Asks the Case Manager to remove the participant record "
                     "named by the object. The removed Participant receives a "

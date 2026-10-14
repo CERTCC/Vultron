@@ -48,6 +48,8 @@ from pathlib import Path
 
 import vultron.wire.as2.vocab as vocab_pkg
 from vultron.metadata.base import repo_root
+from vultron.metadata.generated_files import stale_paths, write_generated
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
     VULTRON_NS_URI,
@@ -106,16 +108,9 @@ def _all_object_subclasses() -> set[type]:
     """
     _import_all_vocab()
 
-    def descend(cls: type) -> set[type]:
-        found: set[type] = set()
-        for sub in cls.__subclasses__():
-            found.add(sub)
-            found |= descend(sub)
-        return found
-
     return {
         cls
-        for cls in descend(as_Object)
+        for cls in all_subclasses(as_Object)
         if cls.__module__.startswith(VOCAB_PACKAGE)
     }
 
@@ -201,20 +196,17 @@ def render_context_json() -> str:
 
 def is_stale(root: Path | None = None) -> bool:
     """True when the committed file differs from the generated document."""
-    target = (root or repo_root()) / CONTEXT_JSONLD_PATH
-    current = target.read_text(encoding="utf-8") if target.is_file() else ""
-    return current != render_context_json()
+    base = root or repo_root()
+    desired = {CONTEXT_JSONLD_PATH: render_context_json()}
+    return any(stale_paths(base, desired))
 
 
 def write_context(root: Path | None = None) -> bool:
     """Rewrite the artifact if stale; return whether a write occurred."""
-    target = (root or repo_root()) / CONTEXT_JSONLD_PATH
-    desired = render_context_json()
-    current = target.read_text(encoding="utf-8") if target.is_file() else ""
-    if current == desired:
+    if not is_stale(root):
         return False
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(desired, encoding="utf-8")
+    target = (root or repo_root()) / CONTEXT_JSONLD_PATH
+    write_generated(target, render_context_json())
     return True
 
 

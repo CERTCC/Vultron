@@ -15,9 +15,9 @@
 
 Each type's serialized form validates as itself and is refused as every
 other, so a message that carries one where another is expected fails to
-parse instead of being read as the wrong object.  ``CaseActor`` is checked
-too, though neither CM-05-001 nor CM-05-013 claims it as a distinct type:
-it is an ordinary actor holding the CASE_MANAGER role (#4605).
+parse instead of being read as the wrong object.  The case actor, an
+ordinary ``VultronService`` holding the CASE_MANAGER role (#4612), is checked
+too, though neither CM-05-001 nor CM-05-013 claims it as a distinct type.
 """
 
 from itertools import permutations
@@ -25,9 +25,9 @@ from itertools import permutations
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.models.actor import VultronService
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.participant_status import ParticipantStatus
@@ -50,7 +50,7 @@ def _instances() -> dict[str, CoreObject]:
         ),
         "VulnerabilityRecord": VulnerabilityRecord(name="CVE-2401-0001"),
         "CaseReference": CaseReference(url="https://example.org/advisory"),
-        "CaseActor": CaseActor(
+        "case actor (VultronService)": VultronService(
             id_="https://example.org/actors/case-manager", name="CM"
         ),
         "CaseParticipant": CaseParticipant(

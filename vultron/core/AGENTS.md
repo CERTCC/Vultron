@@ -146,8 +146,8 @@ object is an error mypy catches only after extraction.
 because the codebase was built wire-first. The wire layer imports and projects
 from core, never the reverse — which is why `VultronActivity.object_` is typed
 `Any | None`. Do **not** add new imports from `vultron/core/` into
-`vultron/wire/as2/`. Migration tracked in #539; full direction in
-[notes/domain-model-separation.md](../../notes/domain-model-separation.md).
+`vultron/wire/as2/`. Boundary rules:
+[notes/wire-core-boundary.md](../../notes/wire-core-boundary.md).
 
 ### Adding SemanticEntry: Use Domain Sub-Module, Not `__init__.py`
 
@@ -236,13 +236,11 @@ See [notes/bt-integration.md](../../notes/bt-integration.md) for:
 
 See [notes/bt-pitfalls.md](../../notes/bt-pitfalls.md) for:
 
-- py\_trees Blackboard Global State
+- No-Op Path Must Clear Output Blackboard Keys (the blackboard is process-global)
 - py\_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys
-- Duplicate Method Definitions Silently Shadow Correct BT Logic
-- BT Blackboard Key Naming
-- BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs
-- Note Attachment Idempotency: Check `case.notes`, Not DataLayer Existence
-- Close Bugs With Evidence, Not Assumption
+- Namespaced Inter-Node Handoff Keys
+- BT Failure Reason Propagation
+- Use DataLayer Outbox for Idempotency, Not Module-Level Sets
 
 See [notes/bt-canonical-reference.md](../../notes/bt-canonical-reference.md) for:
 

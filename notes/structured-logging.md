@@ -7,8 +7,8 @@ description: >
   Log-call shape (SL-01-005: literal template plus lazy positional args, never an
   f-string), how correlation fields reach a record (SL-02-003: boundary filter,
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
-  demotion list (SL-04-007), and per-module guidance for keeping INFO logs
-  readable as a CVD protocol story.
+  demotion list (SL-04-007), and where new narrative lines go so INFO logs read
+  as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
 related_notes:
@@ -16,305 +16,195 @@ related_notes:
   - notes/bt-integration.md
   - notes/lint-tooling.md
   - notes/devcontainer-tooling.md
+  - notes/demo-ci-diagnostics.md
+  - notes/bt-pitfalls.md
 ---
 
 # Structured Logging — Narrative Standard and Infrastructure Demotion Guide
 
-## Motivation
-
-Actor container INFO logs serve two audiences simultaneously: developers
-debugging a live run, and contributors reading a CI transcript to verify
-protocol correctness. Both audiences need the INFO log to read as a coherent
-story of what the protocol did — not a stream of persistence bookkeeping.
-
-The underlying requirement is SL-04-001: all state transitions MUST be logged
-at INFO. The concrete gap is that many state transitions are only visible at
-DEBUG (or not at all), while the INFO channel is dominated by infrastructure
-noise.
+Actor INFO logs must read as the story of what the protocol did, for developers
+debugging a run and for contributors checking a CI transcript: every state transition
+at INFO (SL-04-001), persistence bookkeeping at DEBUG.
 
 ---
 
 ## Log-Call Shape: Template Plus Lazy Arguments (SL-01-005)
 
 Every log call passes a **literal template** and its values as **positional
-arguments**, and nothing else:
+arguments**, never an f-string, `.format()`, or concatenation:
 
 ```python
-# Right
 logger.info("Actor %s engaged case %s", actor_id, case_id)
-self.logger.debug("BT structure:\n%s", tree_repr)
-
-# Wrong — the string is built before logging sees it
-logger.info(f"Actor {actor_id} engaged case {case_id}")
-logger.info("Actor {} engaged case {}".format(actor_id, case_id))
-logger.info("Actor " + actor_id + " engaged case " + case_id)
 ```
 
-This is not a style preference. Python's `logging` keeps `msg` and `args` apart
-on the record and formats them only when a handler actually emits, and the
-project relies on all three consequences of that split:
+`logging` keeps `msg` and `args` apart until a handler emits, and the project relies on
+all three consequences:
 
-- **The template is the event's identity.** Every "Actor %s engaged case %s"
-  shares one `msg`, so a test, a grep, or a log tool can group and assert on the
-  event. An f-string makes every line a unique string with no key.
-- **Rendering faults stay inside logging.** A value whose `__str__` raises, or a
-  `%d` handed a string, is reported by the logging machinery through
-  `Handler.handleError` and never raised into the caller. In an f-string the same
-  fault raises in the BT node, and `update()` is the only sanctioned catch in a
-  node (BT-HELPER-01).
-- **Rendering is deferred.** `str()` and `%` conversion of the arguments happen
-  only when a handler emits, so a filtered record never pays for them.
+- **The template is the event's identity**, so tests, greps, and log tools can group
+  and assert on it.
+- **Rendering faults stay inside logging** (`Handler.handleError`) instead of raising in
+  a BT node, where `update()` is the only sanctioned catch (BT-HELPER-01).
+- **Rendering is deferred**, so a filtered record never pays for `str()`.
 
-Only rendering is deferred. The argument *expressions* are still evaluated at
-the call, so lazy args do not make an expensive value free: `unicode_tree(tree)`
-in `vultron/core/behaviors/bridge.py` and a demo `logfmt(obj)` run whether or not
-the record is emitted. A guard whose only purpose was to avoid f-string
-formatting goes; a guard around a value produced by a call stays, with a
-one-line comment saying why (#3991 AC-3). Likewise an argument expression that
-raises (`case.id` on `None`) raises in the caller under either form; only faults
-in rendering move into logging.
+Only rendering is deferred: argument expressions still run at the call. A guard whose
+only purpose was avoiding f-string formatting goes; a guard around an expensive call
+(`unicode_tree(tree)`, a demo `logfmt(obj)`) stays, with a one-line comment saying why.
+Enforced by ruff `G001`–`G004`.
 
 **A plain `py_trees` node's `self.logger` cannot take lazy arguments.** It is
-`py_trees.logging.Logger`, whose level methods accept one pre-rendered message,
-so `self.logger.debug("tick %s", n)` raises `TypeError` inside `update()`; and
-ruff's `G` rules recognize a logger by its receiver name (`logger`, `log`,
-`self.logger`), not its type, so pre-rendering into an f-string fails the gate.
-Log through the stdlib logger that `vultron/core/behaviors/node_logger.py`'s
-`node_logger(node)` returns: the `DataLayer*` bases and the other Vultron node
-bases rebind `self.logger` to it, and a module-level helper that logs on a
-node's behalf binds `log = node_logger(node)` first and calls `log.error(...)`.
-Bind before calling: ruff cannot see a call on a call result, so
-`node_logger(node).error(f"...")` would pass `G004` and `TRY400` unchecked.
-mypy reports the original mistake as `Too many arguments for "debug" of
-"Logger"` where the receiver is typed.
+`py_trees.logging.Logger`, whose methods take one pre-rendered message, so
+`self.logger.debug("tick %s", n)` raises `TypeError`, and ruff identifies loggers by
+receiver name, so pre-rendering fails the gate. Log through the stdlib logger that
+`node_logger(node)` (`vultron/core/behaviors/node_logger.py`) returns; the Vultron node
+bases rebind `self.logger` to it. A module-level helper logging for a node binds
+`log = node_logger(node)` first: ruff cannot see a call on a call result, so
+`node_logger(node).error(f"...")` would pass `G004` unchecked.
 
-**A message built once for two consumers is passed as one `%s` argument.** A
-node that composes a `feedback_message` (or a result or error string) and also
-logs it logs `self.logger.warning("%s", self.feedback_message)`, not the bare
-variable and not a second copy of the template: the text has one source, and
-the log call still has a literal template. Banner lines such as `"=" * 80`
-format no values and are left as they are.
-
-The rule is decided in SL-01-005 and enforced by ruff rules `G001`–`G004`. The
-shape was decided under #3378; #3991 enabled the rules by deleting the
-provisional `G004` `ignore` entry ADR-0094 had recorded and rewriting every site.
-The `G004` finding count at the time is in ADR-0094, not here (MS-16-001).
+**A message built once for two consumers is one `%s` argument.** A node that composes a
+`feedback_message` and also logs it calls `self.logger.warning("%s", msg)`, so the text
+has one source and the call still has a literal template.
 
 ### `extra=` is not the other option
 
-The concern that stalled `G004` framed the choice as "lazy `%`-args *or*
-structured `extra=` fields". They answer different questions. The template rule
-decides how the **message text** gets its values. Correlation fields
-(`activity_id`, `actor_id`; SL-02) decide what **attributes** the record
-carries beside the message, and SL-02-003 puts them there through ambient
-context set once at the processing boundary and a `logging.Filter`, not through
-`extra=` at each call. Per-call `extra=` at hundreds of sites is the same
-duplication failure as f-strings, on the other side of the record.
-
-Two things follow for anyone rewriting a log line:
-
-- Naming an actor or case in the message is for the human reader and stays
-  (SL-04-006). It does not satisfy SL-02 (SL-02-004); the record attribute does.
-- Rendering is the formatter's job. Plain text today, structured output if a
-  consumer ever needs it, and neither requires touching a call site.
+The template rule decides how the **message text** gets its values. Correlation fields
+(`activity_id`, `actor_id`; SL-02) are record **attributes**, set by ambient context at
+the processing boundary and a `logging.Filter` (SL-02-003), not by per-call `extra=`,
+which would duplicate the same values at hundreds of sites. Naming an actor or case in
+the message is for the reader (SL-04-006) and does not satisfy SL-02 (SL-02-004).
+Output format is the formatter's job and never requires touching a call site.
 
 ---
 
 ## Narrative Template (SL-04-006)
 
-All BT leaf nodes and service-layer methods that write a protocol-visible state
-change SHOULD emit an INFO log following this template:
+A BT leaf node or service method that writes a protocol-visible state change SHOULD
+log at INFO:
 
 ```text
 Actor '<actor_id>' <verb> '<object_id>' (<STATE_A> → <STATE_B>)
 ```
 
-### Approved verbs by domain
+| Domain | Verb | Example | Helper |
+|---|---|---|---|
+| RM | `RM:` | `Actor 'finder' RM: RECEIVED → ACCEPTED for case 'c'` | `log_rm_transition()` |
+| CS/VFD, CS/PXA | `CS:` | `Actor 'vendor' CS: vfd → Vfd (fix ready) for case 'c'` | `log_cs_transition()` |
+| EM | `embargo` | `Actor 'finder' embargo PROPOSED → ACTIVE for case 'c'` | `log_em_transition()` |
+| Case | `engaged case` | `Actor 'finder' engaged case 'c' (RM VALID → ACCEPTED)` | `log_case_engagement()` |
+| Invite | `received case invite` | `Actor 'finder' received case invite for 'c' from 'coord'` | `log_invite_received()` |
+| BT failure | `BT execution` | `BT execution completed: Status.FAILURE after 3 ticks - <reason>` | none (`BTBridge`) |
 
-| Domain | Verb | Example |
-|---|---|---|
-| RM | `RM:` | `Actor 'finder' RM: RECEIVED → ACCEPTED for case 'case-uuid'` |
-| CS/VFD | `CS:` | `Actor 'vendor' CS: vfd → Vfd (fix ready) for case 'case-uuid'` |
-| CS/VFD | `CS:` | `Actor 'vendor' CS: Vfd → VFd (fix deployed) for case 'case-uuid'` |
-| CS/PXA | `CS:` | `Actor 'finder' CS: pxa → Pxa (publicly known) for case 'case-uuid'` |
-| EM | `embargo:` | `Actor 'finder' proposed embargo 'embargo-uuid' (EM NONE → PROPOSED)` |
-| EM | `embargo:` | `Actor 'finder' embargo PROPOSED → ACTIVE for case 'case-uuid'` |
-| EM | `embargo:` | `Actor 'finder' embargo ACTIVE → TERMINATED for case 'case-uuid'` |
-| Case | `case:` | `Actor 'finder' engaged case 'case-uuid' (RM VALID → ACCEPTED)` |
-| Invite | `invite:` | `Actor 'finder' received case invite for 'case-uuid' from 'coordinator'` |
-| BT failure | `BT:` | `Actor 'vendor' BT execution FAILURE for case 'case-uuid': <reason>` |
-
-The existing embargo-propose messages (`Actor X proposed embargo Y (EM NONE → PROPOSED)`)
-and demo-step emoji markers (`demo_step` / `demo_check`) already follow this
-pattern and MUST NOT be changed.
+`vultron/core/behaviors/narrative_log.py` owns the wording: call the helper rather than
+formatting the string at the call site, so it cannot drift (CS-22-001).
+`cs_event_label()` names every CS sub-dimension a transition advanced. There is
+deliberately no `log_bt_failure()`: `BTBridge.execute_tree` already emits one INFO
+record per terminal status. The existing embargo-propose messages and demo-step markers
+follow this pattern and MUST NOT be changed.
 
 ---
 
 ## Infrastructure Patterns to Demote to DEBUG (SL-04-007)
 
-The following patterns appeared at INFO as of the concern CONCERN-1968. Each
-MUST be at DEBUG or lower. Verify with a grep after any bulk refactor.
+Each pattern MUST be at DEBUG or lower. The executable form is
+`test/architecture/test_infrastructure_logs_not_at_info.py`; add a newly demoted pattern
+to its `DEMOTED_FRAGMENTS` rather than relying on a manual grep.
 
-| Pattern | File(s) | Why DEBUG |
-|---|---|---|
-| `BT structure:\n<tree>` (before every execution) | `vultron/core/behaviors/bridge.py:209` | BT scaffolding, not story |
-| `DataLayer stored/saved/updated X 'ID'` | `vultron/adapters/driven/datalayer_sqlite/crud.py:70,152,195,301` | Persistence internals; higher-level "Created X" messages above them are fine |
-| `Parsing activity from request body` / `Parsing activity from body` | `vultron/adapters/driving/fastapi/routers/actors/_inbox.py:64`, `vultron/wire/as2/parser.py:113` | HTTP handler internals; duplicate pair |
-| `Processing outbox for actor ...` | `vultron/adapters/driving/fastapi/outbox_handler.py:242` | Preamble; delivery result is the meaningful line |
-| `Dispatch: dispatched X activity_id=...` / `process_payload: outcome status=processed` / `run_inbox_pipeline: status=processed` | `vultron/core/behaviors/inbox/_process_payload.py:214`, `vultron/adapters/driving/fastapi/inbox_orchestration.py:370,386` | Mechanical pipeline completion repeats |
-| `EM FSM: Finished processing state X exit/enter callbacks` | `transitions` library logger (see below) | FSM internals; the `Actor X proposed embargo Y (EM A → B)` already captures this |
-| `Final BT state:\n<tree>` (after every execution) | `vultron/core/behaviors/bridge.py` | Same scaffolding as `BT structure` |
-| `sync adapter: queued Announce(CaseLedgerEntry) 'UUID' → ['actor']` | `vultron/adapters/driven/sync_activity_adapter.py:116` | Fires per recipient per entry |
-| `store_embedded_participants: stored participant 'UUID'` | `vultron/core/services/case_replica_seeding.py` | Fires per participant on every case announcement |
-| `SeedAnnouncedCaseNode: case already exists locally — skipping save` | `vultron/core/behaviors/case/nodes/announce.py:78` | Routine idempotency skip |
-| `discover_actors()` full logfmt() actor object at INFO | `vultron/demo/utils.py:280,283,286` | logfmt() actor object output at INFO; only the ID is meaningful — full formatted object → DEBUG |
+| Pattern | Why DEBUG |
+|---|---|
+| `Final BT state:` tree dump | BT scaffolding, not story |
+| `DataLayer stored/saved/updated X 'ID'` | Persistence internals; the higher-level "Created X" line is the story |
+| `Parsing activity from ...` | HTTP handler internals |
+| `Processing outbox for actor ...` | Preamble; the delivery result is the meaningful line |
+| `process_payload: outcome ...` / `run_inbox_pipeline: status=...` | Mechanical pipeline completion |
+| `sync adapter: queued Announce(CaseLedgerEntry) ...` | Fires per recipient per entry |
+| `store_embedded_participants: stored participant ...` | Fires per participant on every case announcement |
+| `... already exists locally` / `already stored — skipping` | Routine idempotency skips |
+| `discover_actors()` full `logfmt()` actor dump | Only the ID is meaningful |
+
+`transitions` library chatter (`Finished processing state X ...`, `Executed callback`)
+cannot be demoted at the call site: `suppress_third_party_info_noise()` in
+`vultron/logging_setup.py` pins those loggers to WARNING whenever the app level is
+above DEBUG, from both the server and the demo CLI. Add a new noisy library to `NOISY_INFO_LOGGERS` there.
+
+### Static wiring stays out of DEBUG too
+
+DEBUG is for run-time state. A line that restates code — identical every time the
+same tree is built — costs CI time and buries the lines that matter. In the CI
+demos, two such kinds were about 64% of every container's DEBUG bytes (#4600):
+
+- **py_trees port registration** (`Port 'x': Registered blackboard key ...`), one
+  line per port per tree build. Every `setup_ports(...)` call passes
+  `logger=port_wiring_logger()` (`vultron/core/behaviors/node_logger.py`), and the
+  same `suppress_third_party_info_noise()` call pins that logger at INFO through
+  `STATIC_WIRING_LOGGERS`. To see the wiring, set it to DEBUG after startup; the
+  pinning overwrites any level set earlier.
+  `test/architecture/test_setup_ports_use_port_wiring_logger.py` fails a call
+  that omits the logger.
+- **The pre-tick tree dump** is gone: before the first tick every node is unrun,
+  and `Final BT state:` repeats the same shape with each node's result.
+
+The per-node `X.tick()` / `X.stop(...)` lines stay. Their statuses repeat the final
+tree, but they bracket each node's own output, which is how a DataLayer read or an
+error line is attributed to the node that wrote it.
 
 ---
 
 ## Implementation Guidance
 
-### Use the shared helpers — do not hand-format the template
-
-`vultron/core/behaviors/narrative_log.py` owns the SL-04-006 template. Call the
-helper for the domain instead of formatting the string at the call site, so the
-wording cannot drift (CS-22-001):
-
-| Helper | Emits |
-|---|---|
-| `log_cs_transition()` | `Actor '<id>' CS: <A> → <B> (<event>) for case '<id>'` |
-| `log_em_transition()` | `Actor '<id>' embargo <A> → <B> for case '<id>'` |
-| `log_case_engagement()` | `Actor '<id>' engaged case '<id>' (RM <A> → <B>)` |
-| `log_invite_received()` | `Actor '<id>' received case invite for '<id>' from '<id>'` |
-| `log_rm_transition()` | `Actor '<id>' RM: <A> → <B> for case '<id>'` |
-
-There is deliberately **no** `log_bt_failure()` helper — see the BT-failure note
-above and the closing `NOTE` in `narrative_log.py`.
-
-`cs_event_label()` derives the event name (`fix ready`, `publicly known`, …) by
-diffing the `CS_vf`/`CS_d`/`CS_pxa` sub-dimensions, so a multi-step transition names
-every dimension that advanced.
-
-**No-op writes emit nothing.** `log_cs_transition()` and `log_em_transition()`
-return early when before == after: re-asserting the current state is not a
-protocol event and would reintroduce noise (SL-04-007).
-
 ### Where to add new log lines
 
-Add them in the **BT leaf node** that performs the state write, not in the
-use-case `execute()` wrapper. This mirrors the existing embargo proposal
-pattern (`AdvanceEMStateToProposedNode` etc.) and keeps protocol-significant
-logging co-located with the protocol-significant action.
+In the **BT leaf node** that performs the state write, not the use-case `execute()`,
+and at the **narrowest choke point that knows the before-state**:
 
-Prefer the **narrowest choke point that knows the before-state**. Two examples
-from the #1988 implementation:
+- RM: `CreateParticipantStatusNode` is the one write path for per-participant RM
+  state, and its `_log_transitions()` is the one RM log path
+  (`vultron/core/behaviors/case/nodes/participant/status.py`). A new RM-writing node
+  MUST route through it, or its transition is missing from the INFO narrative.
+- CS: `CreateParticipantStatusNode` writes both VFD and PXA snapshots;
+  `TransitionCStoFixReady` / `TransitionCStoFixDeployed` delegate to it and log only at
+  DEBUG, since they do not know the origin state.
 
-- RM: per-participant RM state has **two** write paths, and both log.
-  `update_participant_rm_state()` in `vultron/core/use_cases/_helpers.py` covers
-  the nodes that call it (`TransitionParticipantRMtoAccepted`,
-  `TransitionRMtoValid`, …), reading the before-state from the latest
-  `ParticipantStatus` and falling back to `RM.START`.
-  `CreateParticipantStatusNode` is the second path — the Leave closure writer
-  (`case/nodes/participant/rm_closure.py`, used by `leave/advance.py`) and
-  `add_participant_status_trigger_tree.py` set `rm_state=` on it directly
-  without going through the helper — so it logs the RM line itself. A new
-  RM-writing node MUST route through one of these two, or its transition will
-  be missing from the INFO narrative.
-- CS: `CreateParticipantStatusNode` is the shared writer for both VFD and PXA
-  snapshots. `TransitionCStoFixReady` / `TransitionCStoFixDeployed` delegate to
-  it and log only at DEBUG — they know the target state but not the origin.
-
-When a trigger use case needs the before-state, capture it in `_prepare()`
-**before** the BT mutates anything (see `SvcEngageCaseUseCase` and
-`current_participant_rm_state()`).
+A trigger use case that needs the before-state captures it in `_prepare()` before the BT
+mutates anything (see `SvcEngageCaseUseCase`).
 
 ### Checklist before adding a "log the reason" AC
 
-When an acceptance criterion asks for a new INFO line naming a failure reason or
-a state change, check the following before implementing it as a new log call:
+1. **Does a record already fire there?** Enrich it instead of adding a second INFO line
+   (for example, fold `get_failure_reason()` into `BTBridge.execute_tree`'s record).
+2. **Is the discriminator available at the call site?** A line scoped to "non-owner
+   actors" needs that predicate at every call site of the emitting function.
+3. **Is `case_id` actually passed?** If no production call site passes it, the field is
+   empty in every real line; find a frame that has the value.
+4. **Is the defect missing information or a missing line?** `"BT FAILURE for case ''"`
+   adds noise without signal.
 
-1. **Does an existing record already fire at that point?** `BTBridge.execute_tree`
-   already emits one INFO record for every terminal status. Folding `get_failure_reason()`
-   into that record avoids double-logging (two INFO lines per BT failure). The
-   BT-failure row in the table above is an example of this preference.
-2. **Is the discriminator available at the proposed call site?** An AC that scopes
-   a log line to "non-owner actors" or "non-CaseManager actors" requires that such
-   a predicate exists at the proposed emission point. Check how many call sites
-   the proposed function has (e.g. `execute_with_setup` has 52+) and whether they
-   all carry the needed context.
-3. **Is the `case_id` field available?** Verify with a grep; if no production call
-   site passes `case_id=`, the proposed field will be empty or missing in every
-   real log line. Find a frame that actually has the value.
-4. **Is the real defect the absence of information, or the absence of a line?** A
-   log line that reads `"BT FAILURE for case ''"` adds noise without signal.
-   Enriching an existing record with the missing reason is usually the better fix.
+### No-op and monotonicity guards for state-transition lines
 
-### No-op and monotonicity guards for state-transition log lines
+- **Guard the no-op.** Read the after-state back from storage rather than hardcoding the
+  target (BTs succeed via idempotent paths); if `before == after`, emit nothing.
+  `log_cs_transition()` and `log_em_transition()` do this; any new helper MUST.
+- **Guard monotonicity.** CS/RM/EM move forward only; a backward move is an anomaly,
+  logged at WARNING with a distinct label (`REGRESSION_LABEL`, `"state regression"`,
+  in `narrative_log.py`), not a normal transition line.
 
-Before emitting a state-transition narrative line:
+Running the same BT write twice and asserting the second emits nothing catches a
+missing no-op guard, a missing monotonicity guard, and a hardcoded target at once.
 
-- **Guard the no-op.** Read the after-state back from storage rather than
-  hardcoding the intended target — BTs can succeed via idempotent paths. If
-  `before == after`, emit nothing. Re-asserting a state is bookkeeping, not a
-  protocol event. `log_cs_transition()` and `log_em_transition()` already do this;
-  any new helper MUST as well.
-- **Guard the monotonicity violation.** CS/RM/EM events are forward-only. If the
-  new state is earlier in the sequence than the current state, this is an anomaly,
-  not a milestone — log it at `WARNING` with a distinct label (e.g.
-  `"RM regression detected"`) rather than emitting a normal transition line. A
-  silent backwards transition is much harder to diagnose than a logged one.
+---
 
-A cheap regression test: run the same BT write twice and assert the second call
-emits nothing (no-op path). This catches all three failure modes — missing no-op
-guard, missing monotonicity guard, and hardcoded target — in a single test.
+## Grep check after refactor
 
-### Third-party FSM noise
-
-The `transitions` library logs `Finished processing state X enter/exit
-callbacks.` and `Executed callback '<f>'` at INFO on every RM/EM/CS/PEC step.
-Because the messages come from library code, they cannot be demoted at the call
-site. `vultron/logging_setup.suppress_third_party_info_noise()` pins those
-loggers to `WARNING` whenever the app level is above DEBUG; it is called from
-both `configure_logging()` (server) and the demo CLI's `main()`. Add any future
-noisy library to `NOISY_INFO_LOGGERS` there.
-
-### Grep check after refactor
-
-This check is automated as
-`test/architecture/test_infrastructure_logs_not_at_info.py`, which walks
-`vultron/` with `ast` and fails when any demoted fragment appears in a
-`logger.info(...)` format string. Add new demoted patterns to its
-`DEMOTED_FRAGMENTS` tuple rather than relying on a manual grep.
-
-For a quick manual spot-check:
-
-```bash
-grep -rn "logger\.info.*DataLayer stored\|logger\.info.*DataLayer saved\|logger\.info.*BT structure\|logger\.info.*Processing outbox" vultron/
-```
-
-If any hits remain, they are regressions.
-
-## Relationship to SL specs
-
-| Spec | Rule |
-|---|---|
-| SL-01-005 | Log calls pass a literal template and lazy positional args; enforced by ruff `G001`–`G004` |
-| SL-02-003 | Correlation fields are record attributes set by a boundary filter, not per-call `extra=` |
-| SL-02-004 | An id in the message text does not satisfy SL-02; the record attribute does |
-| SL-04-001 | All state transitions MUST be logged at INFO — the missing messages above violate this |
-| SL-04-006 | Narrative template SHOULD; see table above |
-| SL-04-007 | Infrastructure patterns MUST NOT be at INFO; see demotion list above |
-
-## Designed Self-Healing Recovery Paths MUST NOT Log at ERROR
-
-A BT node whose failure is handled by a downstream fallback node (Selector
-sibling, reject-and-replay loop) is logging a self-healing event. Log at
-`WARNING` (recoverable) or `INFO`, not `ERROR`. `ERROR` is for conditions with
-no recovery path. Ask: is there a wired fallback that guarantees convergence?
-If yes, downgrade and name the recovery in the message.
-
-Source: ISSUE-2169
+The demotion list is enforced by
+`test/architecture/test_infrastructure_logs_not_at_info.py`, which walks `vultron/` with
+`ast`. Its docstring lists what it cannot see (inline `getLogger(...).info`, pre-built
+messages); extend the test rather than assume coverage.
 
 ## Bulk Logging-Level Refactors Need a Consistency Grep Pass
 
-Grep-check all matching functions before commit — a partial sweep leaves two
-conventions in the same module.
+Grep every matching function before commit: a partial sweep leaves two conventions in
+the same module.
+
+## Designed Self-Healing Recovery Paths MUST NOT Log at ERROR
+
+A node whose failure a wired fallback handles (a Selector sibling, a reject-and-replay
+loop) logs a self-healing event: use WARNING or INFO and name the recovery in the
+message. ERROR is for conditions with no recovery path (ISSUE-2169).

@@ -28,7 +28,6 @@ through CM-31-013 once.  These cover the edges around them (ADR-0116, #4081,
   member from the ``Accept(Invite)`` entry alone (CM-31-012).
 """
 
-import json
 from itertools import pairwise
 from typing import Any
 
@@ -57,12 +56,8 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
-)
-from vultron.core.behaviors.case.ledger_snapshots import (
-    build_create_case_participant_snapshot,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
@@ -96,6 +91,9 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.offer_case_participant import (
+    AcceptOfferCaseParticipantReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
@@ -662,11 +660,11 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         actor_id=MANAGER,
         case_id=CASE_ID,
         activity_id=stored.id_,
-        activity_blob=json.dumps(
-            build_create_case_participant_snapshot(
-                stored, MANAGER, CASE_ID, As2WireRenderAdapter()
-            )
-        ),
+        activity_blob=TriggerActivityAdapter(
+            case.dl
+        ).record_case_participant_created(
+            participant=stored, case_id=CASE_ID, actor=MANAGER
+        )[1],
         event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
         sync_port=SyncActivityAdapter(case.dl),
     )
@@ -877,7 +875,13 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     if factory is create_recommend_actor_to_case_received_tree:
         kwargs["recommended_id"] = VENDOR
     else:
-        kwargs |= {"invitee_id": VENDOR, "sender_id": OWNER}
+        kwargs |= {
+            "invitee_id": VENDOR,
+            "sender_id": OWNER,
+            "sender_rule": (
+                AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
+            ),
+        }
     names = [node.name for node in factory(**kwargs).children]
 
     # The Accept tree's guard also refuses a joined or closed actor

@@ -185,7 +185,7 @@ class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
                 case_id=self.case_id,
                 participant=record,
                 status=status,
-                wire_render_port=self._require_wire_render_port(),
+                trigger_activity=self._require_trigger_activity_port(),
             )
         except RuntimeError as exc:
             self.feedback_message = f"{self.name}: {exc}"

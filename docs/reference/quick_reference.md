@@ -85,6 +85,10 @@ Every message is emitted by the Participant whose state changed; the "Response E
 | `GK` | General Acknowledgment | General | Any valid GI message received | — |
 | `GE` | General Error | General | Any unexpected GI message received | `GI` |
 
+The table above is keyed by formal message.
+Vultron narrows the `RK` responses (VP-03-009, VP-03-011): `RK` acknowledges only `RS`, sent to the reporter, and once a case exists the CASE_MANAGER's ledger entry is the acknowledgment of every other `R*` message, including `RE`.
+The [occasion table](messages/index.md) on Message Types reads the other way: from a situation in a case to the ActivityStreams 2.0 (AS2) activity that conveys it, who may send it, and the section that documents it.
+
 !!! note "AS2 wire-format collapse"
 
     The [ActivityStreams 2.0](../howto/activitypub/activities/index.md)
@@ -181,6 +185,7 @@ Finder is not a protocol role: an actor that discovers a vulnerability and repor
 - **[Messages](formal_protocol/messages.md)** — message-type
   definitions, descriptions, and the combined "Message Type Redux"
   table.
+- **[Message Types](messages/index.md)** — the occasion table, from a situation in a case to the wire activity that conveys it.
 - **[Transitions](formal_protocol/transitions.md)** — complete
   sender and receiver transition functions, including error handling
   and cross-model interactions.

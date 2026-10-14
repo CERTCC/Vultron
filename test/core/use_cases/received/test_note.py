@@ -26,7 +26,7 @@ from test.core.use_cases.received.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import (
@@ -109,6 +109,7 @@ class TestNoteUseCases:
         stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
 
+    @pytest.mark.spec("CLP-07-013")
     def test_create_note_attaches_to_case_when_context_set(
         self, monkeypatch, make_payload
     ):
@@ -117,9 +118,12 @@ class TestNoteUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
+        # attributed_to anchors the per-case ledger genesis: the attachment
+        # is committed before it is made (CLP-07-013, CLP-08-005).
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn1",
             name="Context Case",
+            attributed_to="https://example.org/users/vendor",
         )
         # RSH-08-003/#3814: attaching the note to the case is now
         # CASE_MANAGER-gated, so the store's own actor must hold the role.
@@ -148,6 +152,14 @@ class TestNoteUseCases:
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
+        # CLP-07-013 (#4441): the attachment has its own committed entry.
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+        ]
+        assert [e.event_type for e in entries] == ["create_note"]
+        assert entries[0].log_object_id == activity.id_
 
     def test_create_note_attach_to_case_idempotent(
         self, monkeypatch, make_payload
@@ -197,7 +209,7 @@ class TestNoteUseCases:
             as_CaseParticipant,
         )
 
-        case_actor = CaseActor(
+        case_actor = VultronService(
             id_=case_actor_id,
             name="CaseActor",
             attributed_to="https://example.org/users/vendor",
@@ -669,7 +681,7 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le1"
 
-        case_actor = CaseActor(
+        case_actor = VultronService(
             id_=case_actor_id,
             name="CaseActor le1",
             attributed_to=author_id,
@@ -761,7 +773,7 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le2"
 
-        case_actor = CaseActor(
+        case_actor = VultronService(
             id_=case_actor_id,
             name="CaseActor le2",
             attributed_to=author_id,

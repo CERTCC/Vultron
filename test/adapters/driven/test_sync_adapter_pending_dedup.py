@@ -104,10 +104,8 @@ def test_same_mismatching_entry_is_rejected_under_one_id(dl):
 
 @pytest.mark.spec("ID-04-005")
 def test_a_sealed_reject_that_was_never_queued_is_queued_on_redelivery(dl):
-    from vultron.adapters.outbox_sealed_body import (
-        derived_activity_id,
-        is_sealed,
-    )
+    from vultron.adapters.outbox_sealed_body import is_sealed
+    from vultron.core.models.activity_ids import derived_activity_id
 
     adapter = SyncActivityAdapter(dl)
     entry = _entry(2)

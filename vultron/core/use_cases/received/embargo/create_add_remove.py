@@ -47,16 +47,16 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderMayAssertEmbargoNode,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class CreateEmbargoEventReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
 
@@ -122,7 +122,7 @@ class CreateEmbargoEventReceivedUseCase:
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
 

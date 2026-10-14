@@ -15,37 +15,20 @@
 Every change the CASE_MANAGER makes to the case file is its own ledger entry,
 and replicas copy the entries (ADR-0124, CLP-07-013).  Strict-``xfail`` tests
 for the requirements the plan added or reworded before the code that satisfies
-them exists.  Each flips to passing once the issue named in its reason lands;
-see ``notes/spec-authoring-rules.md`` § "Never Raise the Ceiling — Use a
-Strict ``xfail``".
+them exists.  Each strict xfail fails once the issue named in its reason
+lands, prompting its removal; see ``notes/spec-authoring-rules.md`` § "Use a Strict ``xfail`` for
+Not-Yet-Implemented Specs".
 """
 
 import pytest
 
 from test.architecture._ledger_commit_inventory import (
-    _commits,
     received_commit_semantics,
-)
-from vultron.core.behaviors.case.create_case_trigger_tree import (
-    create_case_trigger_bt,
 )
 from vultron.core.models.case import VulnerabilityCase
 
 
-@pytest.mark.spec("CLP-07-013")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CLP-07-013: the create-case trigger writes the case and its records with no entry. #4440.",
-)
-def test_create_case_trigger_commits_entries():
-    assert _commits(create_case_trigger_bt, set())
-
-
 @pytest.mark.spec("CLP-07-014")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CLP-07-014: recommendation_recommender_index is still a VulnerabilityCase field. Tracked in #4448 (source #4444).",
-)
 def test_case_bookkeeping_is_not_a_case_field():
     assert (
         "recommendation_recommender_index"
@@ -55,18 +38,10 @@ def test_case_bookkeeping_is_not_a_case_field():
 
 @pytest.mark.spec("CM-21-012")
 @pytest.mark.spec("CLP-02-012")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-21-012: the ownership-transfer Reject handler commits no entry. #4475.",
-)
 def test_ownership_transfer_reject_commits_an_entry():
     assert "reject_case_ownership_transfer" in received_commit_semantics()
 
 
 @pytest.mark.spec("CM-21-015")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-21-015: no received use case withdraws an ownership Offer. #4491.",
-)
 def test_ownership_transfer_withdrawal_commits_an_entry():
     assert "undo_case_ownership_transfer" in received_commit_semantics()

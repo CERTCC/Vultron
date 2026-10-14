@@ -35,6 +35,9 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    INVITE_ID_KIND,
+)
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
@@ -66,10 +69,16 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
 )
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
     ProtocolPair,
+)
+from vultron.core.use_cases.received.actor.offer_case_participant import (
+    AcceptOfferCaseParticipantReceivedUseCase,
+    OfferCaseParticipantReceivedUseCase,
+    RejectOfferCaseParticipantReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 
@@ -78,6 +87,22 @@ _RECOMMENDER = "https://example.org/actors/recommender"
 _RECOMMENDED = "https://example.org/actors/recommended"
 _CASE_ID = "https://example.org/cases/case-1"
 _SENDER = "https://example.org/actors/sender"
+_OFFER_RULE = OfferCaseParticipantReceivedUseCase.sender_entitlement
+_ACCEPT_RULE = AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
+_REJECT_RULE = RejectOfferCaseParticipantReceivedUseCase.sender_entitlement
+_MANAGER = "https://example.org/actors/case-manager"
+
+
+def _invite_id_as_manager(node: EmitInviteActorToCaseNode) -> str | None:
+    """The id *node* gives its Invite when the CASE_MANAGER runs it."""
+    node.actor_id = _MANAGER
+    return node._invite_id()
+
+
+def _derived_invite_id(recommendation_id: str) -> str:
+    return derived_activity_id(
+        INVITE_ID_KIND, _MANAGER, _CASE_ID, recommendation_id
+    )
 
 
 class TestEvaluateDefaultRolesNode:
@@ -496,6 +521,7 @@ class TestAcceptActorRecommendationReceivedTree:
             invitee_id=_RECOMMENDED,
             case_id=_CASE_ID,
             sender_id=_SENDER,
+            sender_rule=_ACCEPT_RULE,
         )
 
     def test_root_is_sequence(self):
@@ -534,6 +560,16 @@ class TestAcceptActorRecommendationReceivedTree:
         node = nodes[0]
         assert node.invitee_id == _RECOMMENDED
         assert node.case_id == _CASE_ID
+
+    @pytest.mark.spec("OX-06-002")
+    def test_the_invite_id_derives_from_the_accepted_recommendation(self):
+        """A retry of this tree for one recommendation rebuilds one Invite."""
+        node = next(
+            c
+            for c in self.tree.iterate()
+            if isinstance(c, EmitInviteActorToCaseNode)
+        )
+        assert _invite_id_as_manager(node) == _derived_invite_id(_REC_ID)
 
     @pytest.mark.spec("CM-11-015")
     @pytest.mark.spec("CM-16-006")
@@ -576,6 +612,7 @@ class TestRejectActorRecommendationReceivedTree:
             recommended_id=_RECOMMENDED,
             case_id=_CASE_ID,
             sender_id=_SENDER,
+            sender_rule=_REJECT_RULE,
         )
 
     def test_root_is_sequence(self):
@@ -891,6 +928,47 @@ class TestDuplicateDetectionTreeStructure:
     def test_selector_has_six_children(self):
         assert len(self._duplicate_selector().children) == 6
 
+    @pytest.mark.spec("OX-06-002")
+    def test_every_invite_id_derives_from_the_offer_it_answers(self):
+        """Owner-direct and re-invite Invites alike take the Offer's id."""
+        invites = [
+            n
+            for n in self.all_nodes
+            if isinstance(n, EmitInviteActorToCaseNode)
+        ]
+        assert len(invites) >= 2, (
+            "expected the reinvite and owner-direct emits"
+        )
+        assert {_invite_id_as_manager(n) for n in invites} == {
+            _derived_invite_id(_REC_ID)
+        }
+
+    @pytest.mark.spec("OX-06-002")
+    @pytest.mark.spec("CM-11-015")
+    def test_a_reinvite_from_a_new_offer_is_a_fresh_invite(self):
+        """A re-invite answers a new Offer, so its Invite gets a new id."""
+        later = create_recommend_actor_to_case_received_tree(
+            recommendation_id=f"{_REC_ID}-later",
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+        )
+        reinvite = next(
+            n
+            for n in later.iterate()
+            if isinstance(n, py_trees.composites.Sequence)
+            and n.name == "OwnerReinvite"
+        )
+        node = next(
+            c
+            for c in reinvite.children
+            if isinstance(c, EmitInviteActorToCaseNode)
+        )
+        assert _invite_id_as_manager(node) == _derived_invite_id(
+            f"{_REC_ID}-later"
+        )
+        assert _invite_id_as_manager(node) != _derived_invite_id(_REC_ID)
+
     @pytest.mark.spec("CM-11-015")
     def test_reinvite_arm_is_first_and_emits_without_creating_a_record(self):
         """Re-invite arm: owner, unanswered record, roles, Invite — and no new record."""
@@ -1204,6 +1282,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
                 invitee_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_ACCEPT_RULE,
             ),
             "AcceptActorRecommendationIfCaseManager",
         ),
@@ -1215,6 +1294,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
                 recommended_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_REJECT_RULE,
             ),
             "RejectActorRecommendationIfCaseManager",
         ),
@@ -1271,7 +1351,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
         ),
         (
             create_receive_offer_case_participant_tree,
-            dict(case_id=_CASE_ID),
+            dict(case_id=_CASE_ID, sender_id=_SENDER, sender_rule=_OFFER_RULE),
             SenderIsCaseManagerNode,
         ),
         (
@@ -1282,6 +1362,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
                 invitee_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_ACCEPT_RULE,
             ),
             SenderIsCaseOwnerNode,
         ),
@@ -1293,6 +1374,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
                 recommended_id=_RECOMMENDED,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
+                sender_rule=_REJECT_RULE,
             ),
             SenderIsCaseOwnerNode,
         ),

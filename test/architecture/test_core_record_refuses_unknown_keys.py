@@ -28,10 +28,10 @@ from pydantic import ValidationError
 import vultron.adapters.outbox_dead_letter
 import vultron.adapters.outbox_sealed_body  # noqa: F401
 from test.support.core_vocab import import_all_core_models
-from test.support.subclasses import all_subclasses
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject, CoreRecord, with_record_id
 from vultron.core.models.retired_stored_fields import RetiredFieldsRecord
+from vultron.subclasses import all_subclasses
 
 import_all_core_models()
 
@@ -44,6 +44,11 @@ _PROPOSAL = {
 #: Minimal valid data for each concrete record.  The abstract
 #: ``RetiredFieldsRecord`` base has no fields of its own to build from.
 _SAMPLES: dict[str, dict[str, Any]] = {
+    "ActorRecommendationRecord": {
+        "case_id": _URI,
+        "recommendation_id": _URI,
+        "recommender_id": _URI,
+    },
     "CaseProposalAdmissionRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "CaseProposalDeclineRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "PendingCreateCaseActivity": {**_PROPOSAL, "owner_uri": _URI},

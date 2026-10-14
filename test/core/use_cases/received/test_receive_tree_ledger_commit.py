@@ -18,13 +18,14 @@
 ``Reject(Offer)`` and ``TentativeReject(Offer)`` are canonical payload
 signatures, so the CASE_MANAGER ledgers each one it accepts and every other
 receiver skips the commit.  A receiver that refuses the activity commits
-nothing (CLP-10-009).  ``Announce(VulnerabilityCase)`` is the documented
-exemption: its tree has no commit stage.  ``Add(CaseParticipant)`` was the
-other until #4081 gave its entry a replica apply node; its tree now commits.
+nothing (CLP-10-009).  ``Announce(VulnerabilityCase)`` and the bootstrap
+``Create(VulnerabilityCase)`` are the documented exemptions: their trees have
+no commit stage.
 """
 
 from typing import cast
 
+import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -36,7 +37,13 @@ from vultron.core.behaviors.case.announce_case_received_tree import (
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
 )
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.behaviors.case.create_case_received_tree import (
+    create_create_case_received_tree,
+)
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    CommitCaseLedgerEntryNode,
+)
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
@@ -104,7 +111,7 @@ def _store(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
     dl.save(as_VulnerabilityReport(id_=REPORT_ID, name="r"))
-    dl.save(CaseActor(id_=MANAGER_ID, context=CASE_ID))
+    dl.save(VultronService(id_=MANAGER_ID, context=CASE_ID))
     case = as_VulnerabilityCase(
         id_=CASE_ID, name="4304", attributed_to=MANAGER_ID
     )
@@ -296,6 +303,13 @@ def test_add_case_participant_tree_commits():
     ]
 
 
+def _assert_no_commit_stage(tree: py_trees.behaviour.Behaviour) -> None:
+    """Neither the guarded commit subtree nor a bare commit node is present."""
+    nodes = list(tree.iterate())
+    assert "GuardedCommitCaseLedgerEntryBT" not in [n.name for n in nodes]
+    assert not any(isinstance(n, CommitCaseLedgerEntryNode) for n in nodes)
+
+
 @pytest.mark.spec("CLP-10-013")
 def test_announce_case_tree_has_no_commit_stage():
     """``Announce(VulnerabilityCase)`` is the documented exemption.
@@ -315,6 +329,20 @@ def test_announce_case_tree_has_no_commit_stage():
         case_id=CASE_ID, case_obj=case, request=event
     )
 
-    assert "GuardedCommitCaseLedgerEntryBT" not in [
-        node.name for node in tree.iterate()
-    ]
+    _assert_no_commit_stage(tree)
+
+
+@pytest.mark.spec("CLP-10-013")
+@pytest.mark.spec("CLP-02-013")
+def test_bootstrap_create_case_tree_has_no_commit_stage():
+    """The bootstrap ``Create(VulnerabilityCase)`` is exempt like its Announce.
+
+    Only the CASE_MANAGER sends it and only a participant receives it; the
+    case's genesis entry was committed where the CASE_MANAGER created the
+    case, so the participant's tree carries no commit stage.
+    """
+    case = as_VulnerabilityCase(id_=CASE_ID, name="4476")
+
+    tree = create_create_case_received_tree(case, CASE_ID, MANAGER_ID)
+
+    _assert_no_commit_stage(tree)

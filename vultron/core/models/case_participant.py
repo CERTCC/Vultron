@@ -427,16 +427,22 @@ class CaseParticipant(CoreObject):
         The one seeding shape for a participant that consents to the active
         embargo without an answer of its own (CM-14-003, CM-14-005, the
         Accept of the full-case Invite): apply ``AGREE`` where it is legal.
-        A participant that declined this embargo is left as it is, so the
-        content gate (CM-10-004) never admits an actor whose row says it is
-        not bound.  The caller passes the register's ``ACTIVE`` entry and
-        persists the record.
+        A participant that declined this embargo is left as it is: seeding is
+        not an answer the participant gave, so it never overrides one it did
+        give, and the content gate (CM-10-004) never admits an actor whose row
+        says it is not bound.  Only the participant's own Accept of the
+        embargo changes a decline (CM-18-003).  The caller passes the
+        register's ``ACTIVE`` entry and persists the record.
         """
-        self.apply_pec_transition_if_legal(
-            active_embargo_id,
-            PEC_Trigger.AGREE,
-            entry_status=EmbargoRegisterStatus.ACTIVE,
-        )
+        if (
+            self.consent_for(active_embargo_id)
+            is not EmbargoConsentState.DECLINED
+        ):
+            self.apply_pec_transition_if_legal(
+                active_embargo_id,
+                PEC_Trigger.AGREE,
+                entry_status=EmbargoRegisterStatus.ACTIVE,
+            )
         return self.is_signatory(active_embargo_id)
 
     @property
@@ -535,6 +541,23 @@ class CaseParticipant(CoreObject):
                 f"got {type(status).__name__}"
             )
         self.participant_statuses.append(status)
+
+    def withdraw_participant_statuses(self, status_ids: set[str]) -> None:
+        """Remove the statuses whose ids are in *status_ids* from the history.
+
+        The undo of :meth:`add_participant_status` for a write whose ledger
+        entry did not commit: a change with no committed entry MUST NOT be
+        made (CLP-07-013).  Any other status stays where it is.
+
+        Args:
+            status_ids: Ids of the statuses to remove; an id not in the
+                history is ignored.
+        """
+        self.participant_statuses = [
+            status
+            for status in self.participant_statuses
+            if status.id_ not in status_ids
+        ]
 
     def add_role(
         self, role: CVDRole, raise_when_present: bool = False

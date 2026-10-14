@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Integration tests for AnnounceLogEntryReceivedBT."""
 
+import json
 from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
@@ -16,18 +17,15 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.ledger_snapshots import (
-    build_create_case_participant_snapshot,
-)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -54,7 +52,10 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import (
+    announce_log_entry_activity,
+    create_participant_activity,
+)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -90,7 +91,7 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_actor(datalayer):
-    actor = CaseActor(
+    actor = VultronService(
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,
@@ -926,11 +927,15 @@ def _create_entry(
     record: CaseParticipant, log_index: int, prev_hash: str
 ) -> CaseLedgerEntry:
     """The CASE_MANAGER's ``create_case_participant`` entry carrying *record*."""
-    snapshot = build_create_case_participant_snapshot(
-        record,
-        "https://example.org/actors/manager",
-        CASE_ID,
-        As2WireRenderAdapter(),
+    snapshot = json.loads(
+        dump_outbound_body(
+            create_participant_activity(
+                record,
+                target=CASE_ID,
+                actor="https://example.org/actors/manager",
+                context=CASE_ID,
+            )
+        )
     )
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -1539,6 +1544,70 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         updated = datalayer.read(CASE_ID)
         assert updated is not None
         assert updated.attributed_to == OWNER_ACTOR_ID
+
+
+class TestAnnounceLogEntryOfOwnershipTransferReject:
+    """A replica applies no state change from a declined transfer (CM-21-012).
+
+    ``reject_case_ownership_transfer`` is declared ``NO_REPLICA_EFFECT``
+    (RSH-08-004): the entry closes the Offer, which every reader learns from
+    the ledger itself, and moves no owner or role.
+    """
+
+    @pytest.mark.spec("CM-21-012")
+    @pytest.mark.spec("RSH-08-004")
+    def test_reject_entry_is_persisted_and_ownership_unchanged(
+        self, bridge, datalayer, case_actor
+    ):
+        case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        roles: dict[str, list[CVDRole]] = {
+            OWNER_ACTOR_ID: [CVDRole.CASE_OWNER],
+            NEW_OWNER_ID: [],
+        }
+        for actor_id, case_roles in roles.items():
+            participant = CaseParticipant(
+                attributed_to=actor_id, context=CASE_ID, case_roles=case_roles
+            )
+            datalayer.create(participant)
+            case.actor_participant_index[actor_id] = participant.id_
+            case.case_participants.append(participant.id_)
+        datalayer.save(case)
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/reject-ownership",
+                event_type="reject_case_ownership_transfer",
+                payload_snapshot={"type": "Reject", "actor": NEW_OWNER_ID},
+                prev_log_hash=case.genesis_hash,
+            )
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert [
+            e.event_type
+            for e in datalayer.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ] == ["reject_case_ownership_transfer"]
+        updated = datalayer.read(CASE_ID)
+        assert isinstance(updated, VulnerabilityCase)
+        assert updated.attributed_to == OWNER_ACTOR_ID
+        for actor_id, case_roles in roles.items():
+            participant = datalayer.read(
+                updated.actor_participant_index[actor_id]
+            )
+            assert isinstance(participant, CaseParticipant)
+            assert (CVDRole.CASE_OWNER in participant.case_roles) is (
+                CVDRole.CASE_OWNER in case_roles
+            )
 
 
 # ---------------------------------------------------------------------------

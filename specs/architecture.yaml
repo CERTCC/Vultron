@@ -431,10 +431,7 @@ groups:
       subclasses, carrying only the URI of the inbox or outbox endpoint, and MUST
       never be `None` or empty: an absent, `None` or blank endpoint MUST be derived
       from the actor's `id_`. AS2 `OrderedCollection` wrapping is a wire-only
-      serialization concern and MUST NOT appear in core-branch actor types. The
-      core `CaseActor` is the one exception: it stores no `inbox`, and its local
-      `outbox` is a `VultronOutbox` tracking list; on the AS2 path both endpoint
-      URIs are derived from its id.
+      serialization concern and MUST NOT appear in core-branch actor types.
     rationale: >-
       Domain logic only ever needs to route to the inbox URI; the full collection shape
       is an AS2 protocol concern, not a domain concern. ActivityPub requires every actor

@@ -14,9 +14,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     reject_invite_to_embargo_tree,
 )
-from vultron.core.behaviors.embargo.nodes.proposal import (
-    ALREADY_DECLINED_PREFIX,
-)
 from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -30,6 +27,7 @@ from vultron.core.use_cases._helpers import (
     unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    embargo_answer_repeat_verdict,
     not_case_manager_refusal,
     verdict_from_bt,
 )
@@ -42,16 +40,16 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderIsInviteeNode,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.INVITEE
     )
 
@@ -131,6 +129,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             rejecting_actor_id=rejecting_actor_id,
             invite_id=invite_id or "",
             embargo_id=embargo_id,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -148,8 +147,12 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             activity=request,
         )
 
-        verdict = verdict_from_bt(
-            tree, result, label="RejectInviteToEmbargoBT"
+        # A repeat of a Reject already recorded is refused by the tree's
+        # repeat guard before the commit, and reported SKIPPED (CM-13-005,
+        # HP-01-003).
+        verdict = embargo_answer_repeat_verdict(
+            tree,
+            verdict_from_bt(tree, result, label="RejectInviteToEmbargoBT"),
         )
         if verdict.disposition is HandlerDisposition.APPLIED:
             # Only the CASE_MANAGER records an answer; a replica learns it
@@ -157,17 +160,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             refusal = not_case_manager_refusal(tree, self._dl, case_id)
             if refusal is not None:
                 verdict = refusal
-        if (
-            verdict.disposition is HandlerDisposition.REFUSED
-            and ALREADY_DECLINED_PREFIX in (verdict.reason or "")
-        ):
-            # The node named this Reject a repeat of one already recorded
-            # (#2255).  Keyed on the node's verdict, not on the store: a
-            # DECLINED actor's Reject of an *unknown* embargo is still a
-            # refusal (HP-01-003).
-            verdict = HandlerResult.skipped(
-                f"'{rejecting_actor_id}' already declined on case '{case_id}'"
-            )
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (invite '%s', case '%s')",

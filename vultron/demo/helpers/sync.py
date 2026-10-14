@@ -279,7 +279,6 @@ def wait_for_replica_ledger_coverage(
     late_joiner_timeout: float = LATE_JOINER_COVERAGE_TIMEOUT,
     default_timeout: float = LEDGER_COVERAGE_TIMEOUT,
     phase_label: str = "sync-verification phase",
-    causal: bool = True,
 ) -> list[DataLayerClient]:
     """Wait for every replica to hold the authority's ledger tail contiguously.
 
@@ -293,18 +292,16 @@ def wait_for_replica_ledger_coverage(
     complete" (EDF-06-005: one causal event, one recorded failure).
 
     This is the single implementation of the loop that every scenario module
-    used to carry twice — once as the causal gate before the notes phase and
-    once as the temporal check after case closure (DEMOMA-23-005, #3042).
+    used to carry as the causal gate before the notes phase (DEMOMA-23-005,
+    #3042).  The temporal check after case closure no longer covers the
+    authority's tail: a closed participant is sent nothing after its own
+    closure entries (CM-23-004), so each leaver's replica is checked against
+    its own closure instead (:func:`wait_for_replica_ledger_ending_at`).
 
-    Each per-replica wait runs inside its own demo context so a timeout is
-    recorded by the failure accumulator and the loop continues to the next
-    replica instead of propagating (DEMOCI-01-011):
-
-    - ``causal=True`` wraps in ``demo_gate`` — the wait is a precondition for
-      the steps that follow (EDF-06-005, DEMOCI-01-007).
-    - ``causal=False`` wraps in ``demo_check`` and labels the wait as temporal
-      (EDF-06-006): after case closure nothing depends on coverage except the
-      forensic ledger dump, which the harness runs regardless.
+    Each per-replica wait runs inside its own ``demo_gate`` — the wait is a
+    precondition for the steps that follow (EDF-06-005, DEMOCI-01-007) — so a
+    timeout is recorded by the failure accumulator and the loop continues to
+    the next replica instead of propagating (DEMOCI-01-011).
 
     Timeouts (EDF-06-008): the chain being bounded is the authority's outbox →
     ``Announce(CaseLedgerEntry)`` ``BackgroundTasks`` delivery → replica inbox,
@@ -315,7 +312,10 @@ def wait_for_replica_ledger_coverage(
     ``Announce`` per prior entry — and gets ``LATE_JOINER_COVERAGE_TIMEOUT``.
     Neither is below any budget a scenario carried before the loop was shared;
     a scenario that needs a different budget passes another named constant,
-    never a literal.
+    never a literal.  Each budget is how long a replica may go without
+    receiving another entry, not a total: a replica still draining a long
+    backfill keeps being waited for, up to ``BACKFILL_PROGRESS_CEILING``
+    (#4424).
 
     Args:
         auth_client: Client for the container whose ledger is authoritative
@@ -328,22 +328,17 @@ def wait_for_replica_ledger_coverage(
         late_joiner_timeout: Per-replica budget for late joiners.
         default_timeout: Per-replica budget for every other replica.
         phase_label: Names the phase in each context description.
-        causal: ``True`` for a ``demo_gate`` per replica, ``False`` for a
-            ``demo_check``.
 
     Returns:
         The replica clients whose wait passed, in *replicas* order — empty when
         the authority held nothing to cover. A caller gating a dependent step
-        on coverage (EDF-06-005) tests membership by identity; a temporal
-        caller ignores it.
+        on coverage (EDF-06-005) tests membership by identity.
     """
-    context = demo_gate if causal else demo_check
-    temporal = "" if causal else " — temporal wait (EDF-06-006)"
     entries = _get_log_entries_for_case(auth_client, case_id)
     if not entries:
-        with context(
+        with demo_gate(
             f"authority {auth_client.base_url} holds ledger entries to cover "
-            f"({phase_label}){temporal}"
+            f"({phase_label})"
         ):
             raise AssertionError(
                 f"Authority {auth_client.base_url} holds no CaseLedgerEntry "
@@ -363,7 +358,7 @@ def wait_for_replica_ledger_coverage(
     covered: list[DataLayerClient] = []
     for replica_client, label in replicas:
         is_late = _client_in(replica_client, late_joiners)
-        with context(f"{label} ledger coverage ({phase_label}){temporal}"):
+        with demo_gate(f"{label} ledger coverage ({phase_label})"):
             wait_for_contiguous_ledger_coverage(
                 client=replica_client,
                 case_id=case_id,
@@ -375,6 +370,64 @@ def wait_for_replica_ledger_coverage(
             logger.info("  %s ledger synchronized", label)
             covered.append(replica_client)
     return covered
+
+
+def wait_for_replica_ledger_ending_at(
+    client: DataLayerClient,
+    case_id: str,
+    tail_index: int,
+    timeout_seconds: float = LATE_JOINER_COVERAGE_TIMEOUT,
+) -> None:
+    """Wait until *client*'s replica holds ``0…tail_index``, then nothing more.
+
+    The closure-phase coverage wait for a participant that has left: it is
+    sent the entries recording its own closure and nothing after them
+    (CM-23-004), so its replica's ledger ends at the last of those, not at
+    the CASE_MANAGER's tail.  Waits for the contiguous prefix (SYNC-10-004),
+    then checks once that no later entry reached the replica.
+
+    The absence half is one read, so it is best-effort: no cause can be
+    awaited for an entry that should never arrive, and a wrongly sent entry
+    committed just before the read (the Case Owner's case, whose tail is
+    followed at once by the CASE_MANAGER's own closure and
+    ``case_fully_closed``) may still be in flight.  The backstops are the
+    recipient-selection unit tests (``test/core/participants/test_recipients.py``)
+    and the CI per-replica termination invariant, which reads each replica's
+    final export after the run.
+
+    Bounded by ``LATE_JOINER_COVERAGE_TIMEOUT`` by default (EDF-06-008): a
+    late joiner may still be draining its backfill when it leaves.  The
+    budget is a ceiling, so an early participant pays nothing for it.
+
+    Args:
+        client: DataLayerClient bound to the departed participant's replica.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        tail_index: The ``log_index`` of the last entry recording the
+            participant's own closure, as the CASE_MANAGER's ledger holds it.
+        timeout_seconds: Maximum time to wait for the prefix.
+
+    Raises:
+        AssertionError: If the prefix does not arrive in time, or the replica
+            holds an entry past *tail_index*.
+    """
+    wait_for_contiguous_ledger_coverage(
+        client=client,
+        case_id=case_id,
+        expected_tail_index=tail_index,
+        timeout_seconds=timeout_seconds,
+    )
+    beyond = sorted(
+        index
+        for e in _get_log_entries_for_case(client, case_id)
+        if isinstance(index := e.get("log_index"), int) and index > tail_index
+    )
+    if beyond:
+        raise AssertionError(
+            f"replica {client.actor_id!r} holds entries {beyond} of case"
+            f" {case_id!r} after logIndex={tail_index}, the last entry"
+            " recording its own closure; a closed participant is sent"
+            " nothing after it (CM-23-004)"
+        )
 
 
 def run_sync_verification_phase(

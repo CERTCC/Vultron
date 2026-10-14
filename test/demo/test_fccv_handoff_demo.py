@@ -252,8 +252,8 @@ class TestWaitForObjectStored:
 
         client = MagicMock()
         client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
-        client.dl_path.side_effect = lambda key="": (
-            f"/actors/an-actor/datalayer/{key}"
+        client.dl_path.side_effect = lambda key="", actor_id=None: (
+            f"/actors/{actor_id or 'an-actor'}/datalayer/{key}"
         )
         wait_for_object_stored(
             client=client,
@@ -263,8 +263,28 @@ class TestWaitForObjectStored:
         # The read must be actor-scoped, and must ask the client to build the
         # path rather than hand-writing it (ADR-0073): a MagicMock would happily
         # accept any string, so assert the delegation too.
-        client.dl_path.assert_called_with(self.OBJ_ID)
+        client.dl_path.assert_called_with(self.OBJ_ID, actor_id=None)
         client.get.assert_called_with(client.dl_path(self.OBJ_ID))
+
+    def test_polls_the_named_actors_store(self):
+        """``actor_id`` selects the recipient's store, not the client's own."""
+        from vultron.demo.helpers.polling import wait_for_object_stored
+
+        client = MagicMock()
+        client.get.return_value = {"id": self.OBJ_ID, "type": "Read"}
+        client.dl_path.side_effect = lambda key="", actor_id=None: (
+            f"/actors/{actor_id or 'an-actor'}/datalayer/{key}"
+        )
+        wait_for_object_stored(
+            client=client,
+            obj_id=self.OBJ_ID,
+            timeout_seconds=1.0,
+            actor_id="finder",
+        )
+        client.dl_path.assert_called_with(self.OBJ_ID, actor_id="finder")
+        client.get.assert_called_with(
+            f"/actors/finder/datalayer/{self.OBJ_ID}"
+        )
 
     def test_raises_on_timeout_when_object_absent(self):
         from vultron.demo.helpers.polling import wait_for_object_stored
@@ -775,8 +795,12 @@ class TestFccvHandoffMilestoneAssertions:
             )
         mock_m6.assert_called()
 
-    def test_phase_case_closure_calls_verify_case_closed(self):
-        """_phase_case_closure calls verify_case_closed at M7."""
+    def test_phase_case_closure_runs_the_closure_milestone(self):
+        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+
+        The milestone checks the CASE_MANAGER's store and each leaver's own
+        replica inside ``close_case_owner_last``; the scenario only names it.
+        """
         import contextlib
 
         finder_client = self._client()
@@ -804,11 +828,8 @@ class TestFccvHandoffMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed") as mock_m7,
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(
                 demo,
                 "demo_check",
@@ -833,7 +854,8 @@ class TestFccvHandoffMilestoneAssertions:
                 vendor_in_vendor=vendor_in_vendor,
                 case=case,
             )
-        mock_m7.assert_called()
+        mock_m7.assert_called_once()
+        assert mock_m7.call_args.kwargs.get("milestone") is None
 
     def test_phase_case_closure_c2_closes_last(self):
         """C2 (case owner post-handoff) must close after C1, Vendor, and Finder."""
@@ -862,11 +884,7 @@ class TestFccvHandoffMilestoneAssertions:
             patch.object(
                 ActorSession, "close_case", autospec=True
             ) as mock_close,
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed"),
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -1493,13 +1511,6 @@ class TestFccvHandoffDedicatedCaseActor:
             close = stack.enter_context(
                 patch.object(demo, "close_case_owner_last")
             )
-            for name in (
-                "wait_for_all_participants_rm_closed",
-                "verify_case_closed",
-                "wait_for_event_type_in_ledger",
-                "wait_for_replica_ledger_coverage",
-            ):
-                stack.enter_context(patch.object(demo, name))
             null_demo_contexts(stack, demo)
             demo._phase_case_closure(
                 finder_client=MagicMock(),

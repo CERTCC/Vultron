@@ -51,7 +51,7 @@ from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
 from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.enums.roles import CVDRole
 
 
@@ -136,7 +136,8 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
-            port_remappings={"suggested_roles": f"/{self._roles_key}"}
+            port_remappings={"suggested_roles": f"/{self._roles_key}"},
+            logger=port_wiring_logger(),
         )
 
     def _compute_roles(self) -> list[CVDRole]:

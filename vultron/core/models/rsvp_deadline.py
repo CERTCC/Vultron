@@ -49,21 +49,27 @@ invitee's row for that invitation's embargo, distinct from
 the ``Reject(Invite)`` entry of an explicit refusal (CM-28-005, ADR-0118).
 """
 
-INVITE_EXPIRED_SNAPSHOT_TYPE = "Expire"
+EXPIRE_SNAPSHOT_TYPE = "Expire"
+"""``payloadSnapshot.type`` of a CASE_MANAGER-authored expiry entry.
+
+Its object type tells the expiries apart: an ``Invite`` for the embargo Invite
+expiry (CM-28-009), an ``Offer`` for the ownership-transfer Offer expiry
+(CM-21-017).
+"""
+
+INVITE_EXPIRED_SNAPSHOT_TYPE = EXPIRE_SNAPSHOT_TYPE
 """``payloadSnapshot.type`` of the invite-expiry entry; its object is the Invite."""
 
 INVITE_EXPIRED_NOOP_EVENT_TYPE = "invite_to_embargo_on_case_expired_noop"
 """Ledger ``event_type`` for the CASE_MANAGER's no-op acknowledgement of a late Accept.
 
 Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives after the embargo
-has EXITED or when no embargo has started (EM NONE).  No PEC transition is applied
-(EMB-17-004, ADR-0118); replicas replay the entry via
+has EXITED or when no embargo has started (EM NONE).  Its snapshot is the
+CASE_MANAGER's factory-built ``Ignore`` of that Accept (CLP-07-013).  No PEC
+transition is applied (EMB-17-004, ADR-0118); replicas replay the entry via
 :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyInviteExpiryNoopFromLedgerNode`
 which recognises it and returns SUCCESS without touching any participant record.
 """
-
-INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE = "ExpireNoop"
-"""``payloadSnapshot.type`` of the no-op expiry-ack entry (EMB-17-004)."""
 
 HONOUR_LATE_ACCEPT_EVENT_TYPE = "honour_late_accept_invite_to_embargo_on_case"
 """Ledger ``event_type`` for the CASE_MANAGER's honouring of a late Accept.
@@ -186,9 +192,9 @@ __all__ = [
     "DEFAULT_RSVP_WINDOW",
     "HONOUR_LATE_ACCEPT_EVENT_TYPE",
     "HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE",
+    "EXPIRE_SNAPSHOT_TYPE",
     "INVITE_EXPIRED_EVENT_TYPE",
     "INVITE_EXPIRED_NOOP_EVENT_TYPE",
-    "INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE",
     "INVITE_EXPIRED_SNAPSHOT_TYPE",
     "RsvpDeadline",
     "RsvpDeadlineClamp",

@@ -43,8 +43,8 @@ from vultron.core.behaviors.report.nodes.case_creation import (
 )
 from vultron.core.behaviors.report.nodes.emit import _compute_report_addressees
 from vultron.core.models.activity import VultronOffer
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -56,14 +56,14 @@ from vultron.core.states.rm import RM
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario) -> CaseActor:
+def actor(bt_scenario: BTTestScenario) -> VultronService:
     """Create a test actor and persist it in the scenario DataLayer.
 
     Its id *is* the scenario's actor: every node here executes as ``actor.id_``,
     and a BT's store follows its executing actor (ADR-0073), so a generated id
     would run each node against an empty store.
     """
-    obj = CaseActor(id_=bt_scenario.actor_id, name="Test Actor")
+    obj = VultronService(id_=bt_scenario.actor_id, name="Test Actor")
     bt_scenario.dl.create(obj)
     return obj
 
@@ -81,7 +81,9 @@ def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
 
 @pytest.fixture
 def offer(
-    bt_scenario: BTTestScenario, report: VulnerabilityReport, actor: CaseActor
+    bt_scenario: BTTestScenario,
+    report: VulnerabilityReport,
+    actor: VultronService,
 ) -> VultronOffer:
     """Create a test offer and persist it in the scenario DataLayer."""
     obj = VultronOffer(actor=actor.id_, object_=report.id_)
@@ -103,7 +105,7 @@ def offer(
 
 def test_transition_rm_to_valid_same_state(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
@@ -127,7 +129,7 @@ def test_transition_rm_to_valid_same_state(
 
 def test_transition_rm_to_valid_invalid_jump(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
@@ -151,7 +153,7 @@ def test_transition_rm_to_valid_invalid_jump(
 
 def test_transition_rm_to_invalid_same_state(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -173,7 +175,7 @@ def test_transition_rm_to_invalid_same_state(
 
 def test_transition_rm_to_invalid_invalid_jump(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -195,7 +197,7 @@ def test_transition_rm_to_invalid_invalid_jump(
 
 def test_transition_rm_to_valid_from_invalid(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
@@ -220,7 +222,7 @@ def test_transition_rm_to_valid_from_invalid(
 
 def test_transition_rm_to_valid_no_participant_advance_when_link_blocked(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
@@ -269,7 +271,7 @@ def test_transition_rm_to_valid_no_participant_advance_when_link_blocked(
 
 def test_transition_rm_to_closed_valid_from_invalid(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -292,7 +294,7 @@ def test_transition_rm_to_closed_valid_from_invalid(
 
 def test_transition_rm_to_closed_same_state(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -314,7 +316,7 @@ def test_transition_rm_to_closed_same_state(
 
 def test_transition_rm_to_closed_valid_from_accepted(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -337,7 +339,7 @@ def test_transition_rm_to_closed_valid_from_accepted(
 
 def test_transition_rm_to_closed_valid_from_deferred(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -360,7 +362,7 @@ def test_transition_rm_to_closed_valid_from_deferred(
 
 def test_transition_rm_to_closed_fails_without_report_case_link(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -375,7 +377,7 @@ def test_transition_rm_to_closed_fails_without_report_case_link(
 @pytest.mark.spec("RMB-14-004")
 def test_transition_rm_to_closed_valid_from_received(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -399,7 +401,7 @@ def test_transition_rm_to_closed_valid_from_received(
 @pytest.mark.spec("VP-02-004")
 def test_transition_rm_to_closed_invalid_jump_from_valid(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -433,7 +435,7 @@ def test_transition_rm_to_closed_invalid_jump_from_valid(
 )
 def test_check_report_closable_follows_the_close_edges(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     rm_state: RM,
     expected: str,
@@ -450,7 +452,7 @@ def test_check_report_closable_follows_the_close_edges(
 
 def test_check_report_closable_fails_without_report_case_link(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckReportClosable fails when the report has no ReportCaseLink."""

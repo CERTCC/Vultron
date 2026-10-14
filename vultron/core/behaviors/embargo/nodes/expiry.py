@@ -298,7 +298,8 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
 
     The entry records that the CASE_MANAGER received a late ``Accept`` when
     no embargo was active (EM EXITED or NONE), acknowledged it, and made no
-    PEC change (EMB-17-004, ADR-0118).  The replay node recognises the entry
+    PEC change (EMB-17-004, ADR-0118); its snapshot is the CASE_MANAGER's
+    ``Ignore`` of that Accept.  The replay node recognises the entry
     and returns SUCCESS without touching any participant record, so the entry
     is not mis-routed and its chain position is persisted on every replica.
     Regime 2 (ADR-0087): a replica holding no copy of the case skips with
@@ -313,8 +314,13 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
         case = self._resolve_case_replica(entry.case_id)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
-        invitee_id = _extract_id_from_field(
-            entry.payload_snapshot.get("actor")
+        # The snapshot is the CASE_MANAGER's Ignore of the late Accept; the
+        # accepter is the Accept's own actor (EMB-17-004, CLP-07-013).
+        late_accept = entry.payload_snapshot.get("object")
+        invitee_id = (
+            _extract_id_from_field(late_accept.get("actor"))
+            if isinstance(late_accept, dict)
+            else None
         )
         self.feedback_message = (
             f"Replayed no-op expiry ack for"
@@ -330,7 +336,7 @@ class HonourLateAcceptNode(DataLayerActionWithPorts, StateWriteCapable):
     This is the **effect** node in
     :func:`~vultron.core.behaviors.embargo.expiry_tree.create_honour_late_accept_tree`.
     Called after the ledger entry is committed, it applies
-    ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``) by
+    ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED`` by
     delegating to
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`
     (CLP-10-006, BT-06-006, EMB-17-001, ADR-0118).
@@ -378,7 +384,7 @@ class ApplyHonourLateAcceptFromLedgerNode(_LedgerEffectNode):
 
     The entry's ``actor`` is the accepted participant; the entry's ``object``
     carries the Invite's id and the embargo's id.  The replica applies
-    ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``) by
+    ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED`` by
     calling
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`.
     Regime 2 (ADR-0087): a replica holding no copy of the case skips with

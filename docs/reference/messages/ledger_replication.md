@@ -31,70 +31,36 @@ For the acknowledgment semantics see
    with `context` = its last accepted hash, so the CASE_MANAGER can replay the
    gap (SYNC-03-001, SYNC-03-002).
 
-## Message mapping
+## Occasions
 
-```python exec="true" idprefix=""
-from vultron.metadata.msm.render import render_page
-
-print(render_page("ledger_replication", heading=False))
-```
+{% include-markdown "./_occasions/lookup-ledger_replication.md" %}
 
 ---
 
-## Announce Case Ledger Entry
+{% include-markdown "./_occasions/sections/announce-case-ledger-entry.md" %}
 
-- **Protocol role:** The CASE_MANAGER fans out a newly committed
-  `CaseLedgerEntry` to each participant actor for local DataLayer update
-  (SYNC-09-002).
-- **Triggering transition:** triggered internally after any event is recorded
-  to the log — not a protocol shorthand.
-- **Wire activity:** `Announce(CaseLedgerEntry)`.
+- **Triggering transition:** triggered internally after any event is recorded to the log — not a protocol shorthand.
 - **Spec:** SYNC-09-002.
-- **Pattern:** `AnnounceLogEntryPattern` in
-  `vultron/wire/as2/extractor/_instances.py`.
-- **Factory:** `announce_log_entry_activity` in
-  `vultron/wire/as2/factories/sync.py`.
+- **Pattern:** `AnnounceLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `announce_log_entry_activity` in `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [announce_case_ledger_entry.json](../examples/announce_case_ledger_entry.json).
 
-Each entry carries a content hash and the hash of its predecessor, forming a
-chain. A participant verifies the chain on receipt and holds any entry that
-arrives before its predecessor in the `LedgerGapBuffer`, applying it when the
-predecessor lands (ADR-0037).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import announce_case_ledger_entry, json2md
-
-print(json2md(announce_case_ledger_entry()))
-```
+Each entry carries a content hash and the hash of its predecessor, forming a chain.
+A participant verifies the chain on receipt and holds any entry that arrives before its predecessor in the `LedgerGapBuffer`, applying it when the predecessor lands (ADR-0037).
 
 ---
 
-## Reject Case Ledger Entry
+{% include-markdown "./_occasions/sections/reject-case-ledger-entry.md" %}
 
-- **Protocol role:** A participant sends this to the CASE_MANAGER when an
-  incoming `Announce(CaseLedgerEntry)`'s `prev_log_hash` does not match the
-  participant's local ledger tail. The `context` field carries the
-  participant's last accepted hash so the CASE_MANAGER can determine which
-  entries to replay (SYNC-03-001, SYNC-03-002).
-- **Triggering transition:** triggered by hash-chain mismatch detection —
-  not a protocol shorthand.
-- **Wire activity:** `Reject(CaseLedgerEntry)`.
+- **Context:** the `context` field carries the participant's last accepted hash so the CASE_MANAGER can determine which entries to replay (SYNC-03-001, SYNC-03-002).
+- **Triggering transition:** triggered by hash-chain mismatch detection — not a protocol shorthand.
 - **Spec:** SYNC-03-001, SYNC-03-002, SYNC-03-005.
-- **Pattern:** `RejectLogEntryPattern` in
-  `vultron/wire/as2/extractor/_instances.py`.
-- **Factory:** `reject_log_entry_activity` in
-  `vultron/wire/as2/factories/sync.py`.
+- **Pattern:** `RejectLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `reject_log_entry_activity` in `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [reject_case_ledger_entry.json](../examples/reject_case_ledger_entry.json).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_ledger_entry, json2md
-
-print(json2md(reject_case_ledger_entry()))
-```
-
-Buffering takes priority over rejection (ADR-0037). A `Reject` is sent only for an
-entry genuinely missing from the chain, never for one that is merely out of order,
-so an out-of-order delivery does not start a reject-and-replay cycle.
+Buffering takes priority over rejection (ADR-0037).
+A `Reject` is sent only for an entry genuinely missing from the chain, never for one that is merely out of order, so an out-of-order delivery does not start a reject-and-replay cycle.
 
 The CASE_MANAGER acts on a `Reject(CaseLedgerEntry)` only when its sender is an active participant in the case (SYNC-03-005, CM-10-004).
 From any other sender it reports `REFUSED`, records no replication state, and replays no entry and announces no case to that sender.
@@ -117,9 +83,7 @@ be computed from the seeded case (ADR-0059).
   `vultron/wire/as2/factories/case.py`.
 - **Spec:** SYNC-09-001.
 
-The activity and its rendered example are documented under *Announce
-Vulnerability Case* on
-[Case Management Messages](case_management.md).
+The activity and its rendered example are documented under [Announce vulnerability case](case_management.md#announce-vulnerability-case).
 
 ---
 

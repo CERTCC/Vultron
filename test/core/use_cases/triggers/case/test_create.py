@@ -23,17 +23,35 @@ Spec: specs/triggerable-behaviors.yaml TRIG-09.
 
 import pytest
 
+from test.support.ledger import (
+    creation_entry_sequence,
+    fail_commits,
+    ledger_entries,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.use_cases.triggers.case import SvcCreateCaseUseCase
 from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -65,6 +83,23 @@ def _activity_in_outbox(actor, dl: SqliteDataLayer) -> bool:
 
 #: A recipient for the ``Create``; without one nothing is queued (OX-08-001).
 _RECIPIENT = "https://example.org/actors/finder"
+
+
+def _use_case(
+    dl: SqliteDataLayer, request: CreateCaseTriggerRequest
+) -> SvcCreateCaseUseCase:
+    """The use case with the ports the trigger dispatcher composes it with.
+
+    Its tree commits the case's creation entries, which render through
+    ``wire_render_port`` and fan out through ``sync_port`` (CLP-07-013).
+    """
+    return SvcCreateCaseUseCase(
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
 
 
 def _get_outbox_activity_id(actor, dl: SqliteDataLayer) -> str | None:
@@ -103,11 +138,7 @@ class TestSvcCreateCaseUseCase:
         request = CreateCaseTriggerRequest(
             actor_id=self.actor.id_, name="Genesis Case", content="c"
         )
-        SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        _use_case(self.dl, request).execute()
 
         (case,) = [
             obj
@@ -130,11 +161,7 @@ class TestSvcCreateCaseUseCase:
             content="A test case for a vulnerability",
             to=[_RECIPIENT],
         )
-        result = SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        result = _use_case(self.dl, request).execute()
 
         # Verify case was persisted
         case_id = None
@@ -179,11 +206,7 @@ class TestSvcCreateCaseUseCase:
             report_id=report.id_,
             to=[_RECIPIENT],
         )
-        result = SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        result = _use_case(self.dl, request).execute()
 
         # Verify case was created
         case_id = None
@@ -213,11 +236,7 @@ class TestSvcCreateCaseUseCase:
             content="Test content",
         )
         with pytest.raises(VultronNotFoundError, match="Actor"):
-            SvcCreateCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-            ).execute()
+            _use_case(self.dl, request).execute()
 
     def test_create_case_raises_when_report_not_found(self):
         """SvcCreateCaseUseCase raises VultronNotFoundError when report_id not found."""
@@ -228,11 +247,7 @@ class TestSvcCreateCaseUseCase:
             report_id="https://example.org/nonexistent",
         )
         with pytest.raises(VultronNotFoundError, match="VulnerabilityReport"):
-            SvcCreateCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-            ).execute()
+            _use_case(self.dl, request).execute()
 
     def test_create_case_raises_when_report_wrong_type(self):
         """SvcCreateCaseUseCase raises VultronValidationError when report_id is
@@ -250,11 +265,7 @@ class TestSvcCreateCaseUseCase:
         with pytest.raises(
             VultronValidationError, match="not a VulnerabilityReport"
         ):
-            SvcCreateCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-            ).execute()
+            _use_case(self.dl, request).execute()
 
     def test_create_case_outbox_activity_addressed_to_case_actor(self):
         """Activity is addressed to the Case Actor only when ``to`` is set (PCR-08-001)."""
@@ -267,11 +278,7 @@ class TestSvcCreateCaseUseCase:
             to=[case_actor.id_],
         )
         before = set(self.dl.outbox_list())
-        SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        _use_case(self.dl, request).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "CreateCase must queue at least one outbox activity"
@@ -311,11 +318,7 @@ class TestSvcCreateCaseUseCase:
             name="Test Case Participant Roles",
             content="A test case for participant role registration",
         )
-        SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        _use_case(self.dl, request).execute()
 
         raw_case_id = None
         for obj in self.dl.list_objects("VulnerabilityCase"):
@@ -357,11 +360,7 @@ class TestSvcCreateCaseUseCase:
             content="Test content",
             to=[_RECIPIENT],
         )
-        result = SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        result = _use_case(self.dl, request).execute()
 
         # Verify activity ID is in result
         activity_dict = activity_of(result)
@@ -388,13 +387,272 @@ class TestSvcCreateCaseUseCase:
             content="Test content",
             to=to,
         )
-        result = SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        result = _use_case(self.dl, request).execute()
 
         assert result.case_id is not None
         assert self.dl.read(result.case_id) is not None
         assert activity_of(result).get("type") == "Create"
         assert self.dl.outbox_list() == []
+
+
+# ---------------------------------------------------------------------------
+# Creation ledger entries (CLP-07-013, #4440)
+# ---------------------------------------------------------------------------
+
+#: The record class each creation entry carries, and where in the snapshot.
+_CARRIED: dict[str, tuple[str, type[CoreObject]]] = {
+    "create_case": ("object", VulnerabilityCase),
+    "add_report_to_case": ("object", VulnerabilityReport),
+    "add_participant_status_to_participant": ("target", CaseParticipant),
+    "add_case_status_to_case": ("object", CaseStatus),
+}
+
+
+def _rebuild_case_file(
+    entries: list[CaseLedgerEntry],
+) -> dict[str, CoreObject]:
+    """Each record the ledger carries, by id, read from the entries alone.
+
+    A copy, as a replica's apply is (ADR-0124): every record comes from an
+    entry's snapshot and nothing is read from the store that wrote it.  A
+    later entry carrying the same record replaces the earlier copy.
+    """
+    records: dict[str, CoreObject] = {}
+    for entry in entries:
+        key, cls = _CARRIED[entry.event_type]
+        record = cls.model_validate(entry.payload_snapshot[key])
+        records[record.id_] = record
+    return records
+
+
+class TestCreateCaseTriggerLedger:
+    """The trigger commits the case's creation entries (CLP-07-013, #4440)."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.actor, self.dl = _make_actor_dl("Vendor Co")
+        self.report = as_VulnerabilityReport(name="Report", content="r")
+        self.dl.create(self.report)
+        yield
+        self.dl.clear_all()
+        reset_datalayer(self.actor.id_)
+
+    def _create(
+        self, *, report: bool = True, to: list[str] | None = None
+    ) -> VulnerabilityCase:
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            name="Ledgered Case",
+            content="c",
+            report_id=self.report.id_ if report else None,
+            to=to,
+        )
+        result = _use_case(self.dl, request).execute()
+        assert result.case_id is not None
+        case = self.dl.read_case(result.case_id)
+        assert isinstance(case, VulnerabilityCase)
+        return case
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CM-22-003")
+    @pytest.mark.parametrize("to", [None, [_RECIPIENT]], ids=["local", "sent"])
+    def test_commits_genesis_then_an_entry_per_record(self, to):
+        case = self._create(to=to)
+
+        entries = ledger_entries(self.dl, case.id_)
+
+        assert [e.event_type for e in entries] == [
+            "create_case",
+            "add_report_to_case",
+            "add_participant_status_to_participant",
+            "add_case_status_to_case",
+        ]
+        assert [
+            (e.event_type, e.log_object_id) for e in entries
+        ] == creation_entry_sequence(self.dl, case)
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_case_with_no_report_commits_no_report_entry(self):
+        case = self._create(report=False)
+
+        assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
+            "create_case",
+            "add_participant_status_to_participant",
+            "add_case_status_to_case",
+        ]
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_every_entry_is_authored_by_the_case_manager(self):
+        from vultron.core.participants.authority import (
+            resolve_case_manager_id,
+        )
+
+        case = self._create()
+        manager_id = resolve_case_manager_id(case, self.dl)
+
+        assert manager_id == self.actor.id_
+        assert {
+            e.payload_snapshot["actor"]
+            for e in ledger_entries(self.dl, case.id_)
+        } == {manager_id}
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_the_case_rebuilt_from_its_ledger_is_the_managers_case_file(
+        self,
+    ):
+        case = self._create(to=[_RECIPIENT])
+
+        rebuilt = _rebuild_case_file(ledger_entries(self.dl, case.id_))
+
+        assert rebuilt[case.id_] == case
+        file_ids = [
+            *(str(_as_id(p)) for p in case.case_participants),
+            *(str(_as_id(r)) for r in case.vulnerability_reports),
+        ]
+        for record_id in file_ids:
+            assert rebuilt[record_id] == self.dl.read(record_id), record_id
+        for status in case.case_statuses:
+            assert isinstance(status, CaseStatus)
+            assert rebuilt[status.id_] == status
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_the_create_is_the_only_outbox_item(self):
+        """The creator is the case's only participant, so no entry is sent.
+
+        The entries fan out to the case's other participants, of which a new
+        case has none; the ``Create`` is the one item queued.
+        """
+        self._create(to=[_RECIPIENT])
+
+        (activity_id,) = self.dl.outbox_list()
+        activity = self.dl.read(activity_id)
+        assert getattr(activity, "type_", None) == "Create"
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.parametrize(
+        "missing", ["wire_render_port", "sync_port"], ids=lambda m: m
+    )
+    def test_a_missing_port_refuses_before_anything_is_written(self, missing):
+        """A trigger that could not commit the entries writes no case.
+
+        The ports are a composition fault, so the tree refuses before its
+        first write rather than leaving a case its ledger never records.
+        """
+        ports: dict[str, object] = {
+            "wire_render_port": As2WireRenderAdapter(),
+            "sync_port": SyncActivityAdapter(self.dl),
+        }
+        del ports[missing]
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            name="Unwired Case",
+            content="c",
+            to=[_RECIPIENT],
+        )
+
+        # A composition fault is ours, not the client's: never a 422
+        # validation error (ARCH-20-001).
+        with pytest.raises(VultronBTInternalError, match=missing):
+            SvcCreateCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                **ports,  # type: ignore[arg-type]
+            ).execute()
+
+        assert self.dl.list_objects("VulnerabilityCase") == []
+        assert self.dl.list_objects("CaseLedgerEntry") == []
+        assert self.dl.outbox_list() == []
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_failed_genesis_commit_withdraws_the_case(self, monkeypatch):
+        """AC-3: a case whose genesis does not commit is not kept (#4442).
+
+        The trigger commits before it queues the ``Create``, so nothing about
+        the case was committed or sent: the case, the creator's participant
+        record and the unsent ``Create`` are removed and the trigger raises.  The report
+        it was created from was not the creation's write and stays.
+        """
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        fail_commits(monkeypatch, proposal_ledger)
+
+        with pytest.raises(
+            VultronValidationError, match="genesis create_case ledger commit"
+        ) as raised:
+            self._create(to=[_RECIPIENT])
+
+        assert "withdrawn" in str(raised.value)
+        assert self.dl.list_objects("VulnerabilityCase") == []
+        assert self.dl.list_objects("CaseParticipant") == []
+        assert self.dl.list_objects("ParticipantStatus") == []
+        assert self.dl.list_objects("CaseLedgerEntry") == []
+        assert self.dl.outbox_list() == []
+        assert self.dl.list_objects("Create") == [], "the unsent Create too"
+        assert self.dl.read(self.report.id_) is not None
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_failed_later_entry_fails_before_the_create_is_queued(
+        self, monkeypatch
+    ):
+        """After genesis the first failed entry stops the trigger (#4442).
+
+        No later entry is committed out of order, and the ``Create`` is not
+        sent for a case whose ledger is incomplete.
+        """
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        fail_commits(monkeypatch, proposal_ledger, allowed=1)
+
+        with pytest.raises(
+            VultronValidationError, match="creation entries stop there"
+        ) as raised:
+            self._create(to=[_RECIPIENT])
+
+        (case,) = self.dl.list_objects("VulnerabilityCase")
+        assert case.id_ in str(raised.value), "the error names the case"
+        assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
+            "create_case"
+        ]
+        assert self.dl.outbox_list() == []
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_the_trigger_and_proposal_trees_share_one_creation_commit():
+    """Both creation paths compose the same commit node (#4440 AC-2).
+
+    One node commits a new case's entries, so the two paths cannot drift
+    into different sequences for the same resulting case.
+    """
+    from vultron.core.behaviors.case.case_proposal_received_tree import (
+        create_case_proposal_received_tree,
+    )
+    from vultron.core.behaviors.case.create_case_trigger_tree import (
+        create_case_trigger_bt,
+    )
+    from vultron.core.behaviors.case.nodes import (
+        CommitNativeLedgerEntriesNode,
+    )
+
+    trigger = create_case_trigger_bt(
+        actor_id="https://example.org/actors/vendor",
+        case_name="n",
+        case_content="c",
+        report_id=None,
+        result_out={},
+        activity_builder=lambda case_id: (case_id, "{}"),
+        queue_for_delivery=True,
+    )
+    proposal = create_case_proposal_received_tree(
+        report_id=None,
+        proposal_id="https://example.org/proposals/p",
+        proposer_uri="https://example.org/actors/vendor",
+    )
+
+    for tree in (trigger, proposal):
+        commits = [
+            node
+            for node in tree.iterate()
+            if isinstance(node, CommitNativeLedgerEntriesNode)
+        ]
+        assert len(commits) == 1, tree.name

@@ -4,13 +4,15 @@ status: active
 kind: guidance
 description: >
   Design decisions and implementation guidance for the CaseParticipant
-  role-management API (add_role, remove_role, has_role, roles
-  property). Source: IDEA-26050401.
+  role-management API (roles property, add_role/remove_role), participant
+  lookup, the RM terminal-guard ordering, on-behalf assertion authority
+  (PRM-06), and the retired Finder role.
 related_specs:
   - specs/participant-role-management.yaml
   - specs/case-management.yaml
 related_notes:
   - notes/case-joining.md
+  - notes/demo-ci-diagnostics.md
 relevant_packages:
   - vultron/core/models/case_participant.py
   - vultron/wire/as2/vocab/objects/case_participant.py
@@ -23,19 +25,13 @@ relevant_packages:
 
 # Participant Role Management Design Notes
 
-## Decision Table
+## Read and Mutate Roles Through the API (PRM-01)
 
-| Question | Decision | Rationale |
-|---|---|---|
-| Where do new tests go? | New `test/core/models/test_participant.py` | Mirrors source layout; keeps `test_base.py` focused on the base model contract |
-| Should core code read `case_roles` directly? | No — use `roles` property | Decouples callers from storage field; allows future representation changes |
-| What does the `roles` property return? | `list[CVDRole]` | Keeps callers working with domain types; `.value` extraction stays at call sites |
-| Should the wire participant match the core participant interface? | Yes — they are one class (`as_CaseParticipant` is `CaseParticipant`, ADR-0099) | Callers should not need to know which layer they hold to manage roles |
-| Should wire-layer `model_validator` role inits use `add_role()`? | Yes | Routes all role mutations through the single invariant-check point |
-| Should an architecture test enforce the no-direct-mutation rule? | Yes, with ≤1 s budget | Machine-checkable enforcement; targeted scan stays fast |
-| Should an architecture test enforce the no-direct-read rule (`getattr(*, "case_roles")`)? | Yes — `test_no_getattr_case_roles_read_in_core()` added in PR #1443 | Complements the mutation ratchet; enforces PRM-01-003 |
-
----
+Core code reads roles via the `roles` property (`list[CVDRole]`) and mutates
+them only via `add_role()` / `remove_role()`, including in model validators, so
+every mutation passes the one invariant check and callers stay decoupled from
+the `case_roles` storage field. `test/architecture/test_participant_case_roles.py`
+fails on a direct `case_roles` read or mutation in core.
 
 ## Participant Lookup: Two Patterns, Chosen by Context
 
@@ -44,7 +40,7 @@ exist and they are not interchangeable:
 
 - **RM state mutation** (`update_participant_rm_state`): MUST use
   `actor_participant_index → dl.read()` exclusively (CM-19-003). Never read
-  inline objects from `case_participants`; they may be stale snapshots (#2233).
+  inline objects from `case_participants`; they may be stale snapshots.
 - **BT-level resolution** (`FindParticipantByActorIdNode`): check
   `actor_participant_index` first, then fall back to a `case_participants` scan
   for bootstrap compatibility. Fail only on index↔scan *contradictions*, never
@@ -80,7 +76,7 @@ never a way into a case — joining is the Invite flow
 on-behalf tree, ahead of the only write: it refuses, naming the target, when
 the target is not in `actor_participant_index` or lacks the asserted
 dimension's role (`VENDOR` for `v→V`, `DEPLOYER` for `d→D`). The tree has no
-node that creates or attaches a participant (#4047).
+node that creates or attaches a participant.
 
 The **Vendor-implies-V invariant** (PRM-06-002): a participant holding
 `CVDRole.VENDOR` cannot assert `CS_vf.vf` (vendor-unaware) — a vendor that
@@ -91,19 +87,12 @@ Implementation: `SvcAddOnBehalfStatusUseCase` in
 `vultron/core/use_cases/triggers/case/add_on_behalf_status.py`; BT guards
 in `vultron/core/behaviors/case/nodes/on_behalf_guards.py`.
 
----
-
 ## The Finder Role Is Retired (ADR-0078)
 
-Finder is not a CVD role in the Vultron taxonomy. None of the protocol state
-machines (RM, EM, CS, PEC) treats a Finder differently from a Reporter. An actor
-that finds a vulnerability and enters the protocol to report it is a Reporter,
-and holds `CVDRole.REPORTER`. There is no separate combined Finder-Reporter role.
-Who discovered the vulnerability is metadata, not a role: record it in the report
-content or in case notes. The formal protocol's process count is defined over
-Reporters, Vendors, Coordinators, Deployers and Others.
+No protocol state machine treats a Finder differently from a Reporter, so an
+actor that finds a vulnerability and reports it holds `CVDRole.REPORTER`. Who
+discovered it is metadata: record it in the report content or case notes.
 
-Issue #2677 removes `CVDRole.FINDER` and the Finder participant classes from the
-code; until then the value may still be met in demos and stored data. Do not
-build new behavior on the Finder role: new code that needs the reporting party
-uses `CVDRole.REPORTER`.
+`CVDRole.FINDER` still exists in code and stored data until #2677 removes it.
+Do not build new behavior on it: new code that needs the reporting party uses
+`CVDRole.REPORTER`.

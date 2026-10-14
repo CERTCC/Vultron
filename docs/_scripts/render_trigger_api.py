@@ -24,6 +24,7 @@ DOMAIN_GROUPS: list[dict] = [
         "title": "Report Management",
         "behaviors": [
             "submit-report",
+            "ack-report",
             "validate-report",
             "invalidate-report",
             "reject-report",
@@ -67,6 +68,8 @@ DOMAIN_GROUPS: list[dict] = [
             "offer-case-participant-role",
             "offer-case-ownership-transfer",
             "accept-case-ownership-transfer",
+            "reject-case-ownership-transfer",
+            "withdraw-case-ownership-transfer",
         ],
         "howto_link": "../../howto/activitypub/activities/manage_participants/",
         "howto_label": "How to Manage Case Participants",

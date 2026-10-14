@@ -9,8 +9,7 @@ Agent guidance for case-management BT nodes and subtrees in this package.
 
 ## Guarded Commit: Role-Gated Canonical Writes
 
-(ISSUE-1021, 2026-06-17; see `specs/case-ledger-processing.yaml` CLP-09 and
-`notes/case-ledger-authority.md` § "Commit Authorization and Coverage")
+(see `specs/case-ledger-processing.yaml` CLP-09-001/003/004)
 
 Any canonical-write node (e.g., `CommitCaseLedgerEntryNode`) that may be
 reached from more than one actor context MUST be wrapped in a role-gated
@@ -91,12 +90,14 @@ factory may be shared across trigger-side and received-side paths.
 
 (ISSUE-1325, 2026-07-13)
 
-> **Under review.** Proposed ADR-0119 (epic #4158) reverses this order: a
+> **Under review.** Proposed ADR-0119 (#4158) reverses this order: a
 > ledger entry records a completed act, so a sent activity is committed after
-> it is delivered to the outbox, and duplicate sends are prevented by an
-> outbox-id check instead. Until ADR-0119 is accepted, new code follows the
-> current specs (SYNC-09-002, SBT-04-004): commit before send. The ordering is
-> under review, not yet changed.
+> it is delivered to the outbox. The replacement duplicate-send protection is
+> already in place: `outbox_append` does not queue an id already pending
+> (OX-06-002), so a retry that rebuilds its activity under the first attempt's
+> id — derived from what it answers (`derived_activity_id`) — sends it once.
+> Until the order is reversed, new code follows the current specs
+> (SYNC-09-002, SBT-04-004): commit before send.
 
 When a BT subtree both commits a ledger correlation marker and records an
 outbox item, the ledger commit MUST happen first.
@@ -173,8 +174,8 @@ write boundary before any `dl.create()` / `dl.save()` call:
   through multiple VFD steps between status messages; strict adjacency applies
   only to local write nodes (CSB-16-001, AC-3).
 - **Architecture ratchet** (`test/architecture/test_vfd_rm_pxa_write_sites.py`):
-  AST-audits every `VfdDimension`/`RmDimension`/`PxaDimension` constructor
-  call in `vultron/core/behaviors/`.
+  AST-audits every `VfDimension`/`DDimension`/`RmDimension`/`PxaDimension`
+  constructor call in `vultron/core/behaviors/`.
 
 When writing or reviewing guard nodes that precede `CreateParticipantStatusNode`:
 the write node is a second line of defence, but upstream guards still matter —

@@ -614,7 +614,7 @@ groups:
       Between deliveries, silence and unreachability are observationally equivalent. Documenting this as a
       deliberate MAY-level property (rather than a defect) closes the liveness question raised by CONCERN-3006
       without foreclosing a future heartbeat mechanism (CaseActorHeartbeat is already sketched in
-      notes/sync-ledger-replication.md for the multi-node CASE_MANAGER cluster design).
+      notes/case-actor-cluster.md for the multi-node CASE_MANAGER cluster design).
     verification: >-
       No normative heartbeat requirement exists in specs/sync-ledger-replication.yaml;
       this entry records the absence as intentional.
@@ -657,17 +657,26 @@ groups:
   - id: MSM-06-001
     priority: MUST
     kind: process
-    statement: The shorthand-to-wire-form mapping tables in `docs/reference/messages/` MUST be rendered at build time from
-      the MSM spec registry joined against `SEMANTIC_REGISTRY`, and MUST NOT be hand-written markdown.
-    rationale: 'Hand-maintained mapping tables drift silently. The orphaned example JSON files under
-      `docs/reference/examples/` and the failing example blocks tracked by issue 2904 are what that drift looks like once
-      it has accumulated. Rendering from the registries makes divergence impossible rather than merely detectable.'
+    statement: The mapping tables in `docs/reference/messages/` MUST be committed `include-markdown` fragments generated
+      from `SEMANTIC_REGISTRY`, together with the occasion table YAML they are rendered from, and MUST NOT be hand-written
+      or rendered by a build-time `markdown_exec` block. A pre-commit `--check` hook MUST regenerate the YAML and every
+      fragment and fail on any difference from the committed files, including a committed fragment that nothing
+      generates.
+    rationale: 'Hand-maintained mapping tables drift silently, as the orphaned examples of issue 2904 showed. The tables
+      are generated and committed rather than rendered at build time because they are mostly links, and MkDocs neither
+      rewrites nor checks a `.md` link a `markdown_exec` block prints (ADR-0128). A generated file nothing compares with
+      a fresh generation is a hand-edited one; the hook makes divergence fail at commit time.'
     verification: >-
-      Inspection of `docs/reference/messages/*.md` confirms each mapping table is
-      produced by a `markdown_exec` block reading the spec and semantic registries,
-      following the `docs/reference/specs/*.md` pattern.
-    lint_suppress:
-    - phantom_path_ref
+      `uv run msm-occasions --check` exits 0, and
+      `test_committed_occasion_artifacts_are_in_sync` in
+      `test/metadata/test_msm_occasions.py` fails when the committed YAML or a
+      fragment under `docs/reference/messages/_occasions/` differs from a fresh
+      generation. `test_no_message_page_renders_its_table_at_build_time` in
+      the same module fails when any page under `docs/reference/messages/`
+      carries a `markdown_exec` block of its own, because each page includes
+      its table and its occasion sections as fragments. A wire example inside
+      an occasion section carries no link and is not a mapping table, so it
+      may still render at build time.
   - id: MSM-06-002
     priority: MUST
     kind: process
@@ -677,7 +686,7 @@ groups:
       collapse or an evolved mechanism gives it a second home.
     rationale: 'Without a completeness check a new registry entry can be added without ever being documented, so every entry
       needs one page that owns it. A bare "exactly one page" rule would be unsatisfiable, because the mapping is many-to-many
-      — see `notes/message-type-reference.md` for the entries that legitimately need a second home. A *primary* page keeps the
+      — see `docs/reference/messages/` for the entries that legitimately need a second home. A *primary* page keeps the
       completeness guarantee without contradicting MSM-06-003. The dispatch fallbacks are the intended exemptions.'
     verification: >-
       A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts exactly one primary-page
@@ -688,15 +697,21 @@ groups:
   - id: MSM-06-003
     priority: MUST
     kind: process
-    statement: Each mapping row MUST carry a status indicating whether the relationship is direct, a collapse of several
-      shorthands onto one wire activity, an expansion of one shorthand across several wire activities, or a mechanism that
-      evolved onto a different axis per MSM-05.
-    rationale: Reference material must state what is true, including divergence from the normative message set. A table that
-      shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about both
-      the collapses and the evolved mechanisms.
+    statement: Each occasion section on a message page MUST state its entry's mapping status, indicating whether the
+      relationship is direct, a collapse of several shorthands onto one wire activity, an expansion of one shorthand across
+      several wire activities, a mechanism that evolved onto a different axis per MSM-05, or none, and the Message Types
+      page MUST define each status value. The occasion table need not carry the status, because its columns serve a sender
+      choosing what to send.
+    rationale: Reference material must state what is true, including divergence from the normative message set. Documentation
+      that shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about
+      both the collapses and the evolved mechanisms. The status sits in each section, beside the formal definition it
+      qualifies, rather than in a table column a sender does not need.
     verification: >-
-      Inspection of the rendered pages confirms a status column is present and
-      populated for every row.
+      `test_every_section_links_its_mapping_status_to_its_definition` in
+      `test/metadata/test_msm_occasions.py` asserts that every generated
+      occasion section states its entry's status, linked to the definitions on
+      `docs/reference/messages/index.md`, and that the page defines every
+      `MappingStatus` value.
 - id: MSM-07
   title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
   description: >-
@@ -775,15 +790,15 @@ groups:
       Accept(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
       consent, whoever sends it, the case owner included: it MUST apply the PEC AGREE
       trigger to the sender's row for the accepted embargo, advancing it from UNINVITED,
-      INVITED or TIMED_OUT to AGREED, and MUST NOT change any embargo register entry. The
+      INVITED, DECLINED or TIMED_OUT to AGREED, and MUST NOT change any embargo register entry. The
       rule is the same whether the accepted embargo is the case's active embargo, a first
       proposal (EM PROPOSED) or a *proposed revision* of an embargo still in force: the
       accepted embargo's row is marked, and only that row. A participant is a signatory
       exactly when the row for the active embargo is AGREED, so accepting a proposed
       revision binds the participant to nothing new until the owner activates it
-      (MSM-07-008). A participant whose row for the accepted embargo is DECLINED records
-      nothing — AGREE is not legal from DECLINED (CM-18-003), so it is re-invited first —
-      and neither does one whose row's register entry is final (CM-18-003).
+      (MSM-07-008). An Accept from a DECLINED row is the participant changing its answer, so
+      the row moves directly to AGREED with no re-invite first (CM-18-003). A participant whose
+      row's register entry is final records nothing (CM-18-003).
     rationale: >-
       The case owner's decision for the case has its own activity (MSM-07-008, ADR-0122), so
       an Accept of an Invite means one thing whoever sends it and no handler branches on the
@@ -798,7 +813,7 @@ groups:
       marks exactly that embargo's row AGREED and moves no register entry, that the case
       owner's Accept of an Invite records only its own consent, that a signatory accepting a
       proposed revision keeps its AGREED row for the active embargo, and that a DECLINED
-      participant's Accept records nothing.
+      participant's Accept moves its row directly to AGREED.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -871,8 +886,8 @@ groups:
       (CM-18-003); if B ends later than A, implementations MUST NOT write any row to lapse
       anyone — a participant whose row for B is not AGREED is not a signatory to B and has
       lapsed if it had agreed to A (CM-18-001). The owner's row for B is AGREED unless it
-      already is, and an owner whose row for B is DECLINED cannot activate it: AGREE refuses
-      DECLINED, so the activation is refused and the owner is invited again first (ADR-0122).
+      already is; an owner whose row for B is DECLINED has changed its answer by activating B,
+      so its row moves directly to AGREED with no re-invite first (MSM-07-008, CM-18-003).
       Activating B advances no one else: a participant holding an AGREED row for B is its
       signatory by lookup, whether it is the proposer or an early acceptor. Only participants
       whose row for A is AGREED are carried over: a participant that had lapsed from an
@@ -988,11 +1003,11 @@ groups:
       other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST
       activate the named proposal's embargo register entry and supersede any entry in force
       in the same step, so the derived EM becomes ACTIVE (EA, or EC for a revision); MUST
-      mark the owner's row for the activated embargo AGREED unless it already is; and, when
+      mark the owner's row for the activated embargo AGREED unless it already is, a DECLINED
+      row included, since activating is the owner changing its answer (CM-18-003); and, when
       it replaces an embargo in force, MUST apply the MSM-07-005 consent rule. It MUST be
       refused before it is committed when the named embargo is not an open proposal of the
-      case, when CS is public, exploited or attacked (EMB-02-002), or when the owner's row for
-      the proposal is DECLINED (the owner is invited again first, CM-18-003).
+      case, or when CS is public, exploited or attacked (EMB-02-002).
     rationale: >-
       Giving the owner's decision its own activity retires the two-audience rule: an Accept of
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
@@ -1004,8 +1019,9 @@ groups:
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
       Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
       the owner's AGREED row and carries signatories over to a shorter revision, that a
-      replica replaying the committed entry converges, and that a non-owner sender, a
-      non-open proposal, P/X/A and a DECLINED owner are each refused with nothing committed.
+      replica replaying the committed entry converges, that a DECLINED owner's activation
+      moves its row to AGREED with one ledger entry, and that a non-owner sender, a non-open
+      proposal and P/X/A are each refused with nothing committed.
     relationships:
     - rel_type: derives_from
       spec_id: EP-09-005

@@ -28,6 +28,8 @@ from vultron.metadata.planning.bundle_fit import (
     coherence_hints,
     effective_schedule,
     eligibility,
+    epic_assignees,
+    epic_hold_reason,
     graphql_errors,
     main,
     parse_graphql,
@@ -383,6 +385,49 @@ class TestReviewCeiling:
         assert "budget" not in reason
 
 
+@pytest.mark.spec("PAD-19-002")
+class TestEpicClaim:
+    """PAD-19-002/003: an assigned Epic holds its Tasks and Features."""
+
+    def test_an_unassigned_epic_holds_nothing(self):
+        assert epic_hold_reason(10, []) is None
+
+    def test_the_reason_names_the_epic_and_its_assignee(self):
+        reason = epic_hold_reason(10, ["me"])
+        assert reason is not None
+        assert "#10" in reason and "me" in reason
+
+    @pytest.mark.parametrize("issue_type", ["Task", "Feature"])
+    def test_the_build_lane_is_held_as_not_workable_yet(self, issue_type):
+        bundle = select_bundle(
+            [task(1, issue_type=issue_type)], epic=10, epic_assignees=["me"]
+        )
+        assert bundle.members == []
+        (rejection,) = bundle.rejected
+        assert rejection.stage == "eligibility"
+        assert "epic run" in rejection.reason
+        assert "Not workable yet:\n  - #1: held by an epic run" in _render(
+            bundle
+        )
+
+    @pytest.mark.parametrize("issue_type", ["Bug", "Idea", "Concern"])
+    def test_other_lanes_stay_open(self, issue_type):
+        bundle = select_bundle(
+            [task(1, issue_type=issue_type)], epic=10, epic_assignees=["me"]
+        )
+        assert [c.number for c in bundle.members] == [1]
+
+    def test_a_held_epic_still_bundles_its_bugs(self):
+        """The build lane's hold must not pick /bugfix for it either."""
+        bundle = select_bundle(
+            [task(1), task(2, issue_type="Bug")],
+            epic=10,
+            epic_assignees=["me"],
+        )
+        assert bundle.workflow == "bugfix"
+        assert [c.number for c in bundle.members] == [2]
+
+
 class TestRejectionStages:
     """SKILL.md:54-58 reported only eligibility reasons, never fit reasons."""
 
@@ -563,6 +608,11 @@ class TestSharedQueryContract:
         _, leaf_scope = self._epic_and_leaf_scopes()
         assert self.SCHEDULE_FIELD in leaf_scope
 
+    def test_query_requests_the_epics_assignees(self):
+        """Without this, an epic run's claim is invisible and holds nothing."""
+        epic_scope, _ = self._epic_and_leaf_scopes()
+        assert "assignees(first:" in epic_scope
+
     def test_the_guards_ignore_the_scripts_own_documentation(self):
         """Ratchet on the ratchets above: prove they read the query, not prose.
 
@@ -640,6 +690,14 @@ class TestParseGraphQL:
                 }
             }
         }
+
+    def test_epic_assignees_are_extracted(self):
+        payload = self._payload()
+        assert epic_assignees(payload) == []
+        payload["data"]["repository"]["issue"]["assignees"] = {
+            "nodes": [{"login": "orchestrator"}]
+        }
+        assert epic_assignees(payload) == ["orchestrator"]
 
     def test_epic_number_and_schedule_are_extracted(self):
         epic, schedule, _ = parse_graphql(self._payload())
@@ -791,6 +849,16 @@ class TestCLI:
         data = json.loads(capsys.readouterr().out)
         assert [m["number"] for m in data["members"]] == [1]
         assert "budget" in data["rejected"][0]["reason"]
+
+    def test_epic_assignees_are_plumbed(self, monkeypatch, capsys):
+        payload = self._payload(self._leaf(1))
+        payload["data"]["repository"]["issue"]["assignees"] = {
+            "nodes": [{"login": "me"}]
+        }
+        assert self._run(monkeypatch, payload, ["--json"]) == 0
+        held = json.loads(capsys.readouterr().out)
+        assert held["members"] == []
+        assert held["rejected"][0]["stage"] == "eligibility"
 
     def test_max_members_flag_is_plumbed(self, monkeypatch, capsys):
         rc = self._run(

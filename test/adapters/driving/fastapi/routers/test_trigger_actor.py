@@ -829,6 +829,45 @@ def test_offer_case_ownership_transfer_drains_the_case_actors_outbox(
     assert drained == [(case_actor.id_, case_actor.id_)]
 
 
+@pytest.mark.spec("TRIG-11-007")
+def test_offer_case_ownership_transfer_route_passes_end_time(
+    client_triggers_invite, actor, case_for_invite, other_actor, drained
+):
+    """The route hands the body's end_time to the trigger: the Offer's
+    deadline to answer (CM-21-016)."""
+    from datetime import UTC, datetime, timedelta
+
+    case, _ = case_for_invite
+    deadline = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/offer-case-ownership-transfer",
+        json={
+            "case_id": case.id_,
+            "transferee_id": other_actor.id_,
+            "end_time": deadline.isoformat(),
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    end_time = resp.json()["activity"]["endTime"]
+    assert datetime.fromisoformat(end_time) == deadline
+
+
+@pytest.mark.spec("TRIG-11-007")
+def test_offer_case_ownership_transfer_route_refuses_a_past_end_time(
+    client_triggers_invite, actor, case_for_invite, other_actor
+):
+    case, _ = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/offer-case-ownership-transfer",
+        json={
+            "case_id": case.id_,
+            "transferee_id": other_actor.id_,
+            "end_time": "2020-01-01T00:00:00+00:00",
+        },
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
 @pytest.mark.spec("CM-24-001")
 def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
     client_triggers_invite, actor, case_for_invite, other_actor, drained

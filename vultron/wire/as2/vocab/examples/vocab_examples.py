@@ -73,6 +73,7 @@ from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     reengage_case,
     reject_case_ownership_transfer,
     reject_case_participant_role,
+    undo_case_ownership_transfer,
     update_case,
 )
 from vultron.wire.as2.vocab.examples.case_proposal import *  # noqa: F403
@@ -262,6 +263,10 @@ def main(outdir=None):
     # activity: reject case ownership transfer
     activity = reject_case_ownership_transfer()
     obj_to_file(activity, f"{outdir}/reject_case_ownership_transfer.json")
+
+    # activity: undo (withdraw) case ownership transfer
+    activity = undo_case_ownership_transfer()
+    obj_to_file(activity, f"{outdir}/undo_case_ownership_transfer.json")
 
     # activity: update case
     activity = update_case()

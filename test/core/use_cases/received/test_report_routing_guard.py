@@ -35,7 +35,7 @@ receiver" and pinned the receiver's RM moving (CONCERN-3473, #3812); they now
 pin the sender's, and still pin the store.
 
 The trees for these use cases do NOT contain ``GuardedCommitCaseLedgerEntryBT``
-(unlike the AckReport and CloseCase trees), so the routing assertion is on RM
+(unlike the CloseCase tree), so the routing assertion is on RM
 state rather than ledger entry presence.
 """
 

@@ -276,3 +276,46 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
     assert outcome.status == InboxOutcomeStatus.REJECTED
     assert outcome.failure_reason is not None
     assert "untrusted sender" in outcome.failure_reason
+
+
+@pytest.mark.spec("CLP-07-013", "CLP-02-013")
+def test_received_update_vulnerability_case_is_refused_unchanged(dl):
+    """#4443: a direct ``Update(VulnerabilityCase)`` has no received path.
+
+    The wire class stays, because a CASE_MANAGER-authored ledger entry may carry
+    an ``Update(VulnerabilityCase)`` snapshot, but no pattern routes one that
+    arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and the
+    inbox refuses it without touching the stored case.
+    """
+    from vultron.semantic_registry import (
+        find_matching_semantics,
+        use_case_map,
+    )
+    from vultron.wire.as2.factories import update_case_activity
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case_id = "https://example.org/cases/c-chain-update"
+    dl.create(as_VulnerabilityCase(id_=case_id, name="original name"))
+    update = update_case_activity(
+        as_VulnerabilityCase(id_=case_id, name="renamed by sender"),
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+    )
+    assert find_matching_semantics(update) is MessageSemantics.UNKNOWN
+    update_body = update.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+
+    outcome = _process(
+        dl, update_body, DirectActivityDispatcher(use_case_map=use_case_map())
+    )
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert outcome.failure_reason == "unrecognized activity semantics"
+    stored = dl.read(case_id)
+    assert stored is not None
+    assert stored.name == "original name"
+    assert dl.outbox_list() == []
+    assert dl.list_objects("CaseLedgerEntry") == []

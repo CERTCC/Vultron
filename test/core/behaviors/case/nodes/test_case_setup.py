@@ -142,7 +142,7 @@ class TestEnsureCaseActorHostedNode:
         from vultron.core.behaviors.case.nodes import (
             EnsureCaseActorHostedNode,
         )
-        from vultron.core.models.case_actor import CaseActor
+        from vultron.core.models.actor import VultronService
 
         monkeypatch.setenv(
             "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", case_actor_service_url
@@ -152,7 +152,7 @@ class TestEnsureCaseActorHostedNode:
             dl = SqliteDataLayer(
                 "sqlite:///:memory:", actor_id=self._VENDOR_ID
             )
-            dl.create(CaseActor(id_=self._VENDOR_ID, name="Vendor"))
+            dl.create(VultronService(id_=self._VENDOR_ID, name="Vendor"))
             result = BTBridge(datalayer=dl).execute_with_setup(
                 tree=EnsureCaseActorHostedNode(), actor_id=self._VENDOR_ID
             )

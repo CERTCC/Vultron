@@ -26,161 +26,61 @@ A forward move is recorded even when it skips states, and the CASE_MANAGER then 
 A backward move is refused and the recorded state stands (RSH-06-002), and the CASE_MANAGER tells the sender in a note that it refused the move (RSH-06-004).
 An activity and an `Add(ParticipantStatus)` that report the same move record it once (RSH-08-002).
 
-## Message mapping
+## Occasions
 
-```python exec="true" idprefix=""
-from vultron.metadata.msm.render import render_page
+{% include-markdown "./_occasions/lookup-rm.md" %}
 
-# heading=False omits render_page's "## <model> Messages" heading so it does
-# not duplicate this page's H1. The table is the #2998-rendered artifact.
-print(render_page("rm", heading=False))
-```
+{% include-markdown "./_occasions/sections/create-report.md" %}
 
-## Create Report
-
-- **Protocol role:** A Participant mints a vulnerability report object. This
-  wire activity has no formal shorthand; it precedes *Report Submission*.
 - **Triggering transition:** none (object construction, not a state change).
-- **Wire activity:** `Create(VulnerabilityReport)`.
-- **Who may send:**
-  Any actor, whether or not it takes part in any case.
-  The receiver does not refuse a new report on the sender's standing (HP-01-010).
-- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_report, json2md
+{% include-markdown "./_occasions/sections/report-submission.md" %}
 
-print(json2md(create_report()))
-```
-
-## RS — Report Submission
-
-- **Protocol role:** A message from one Participant to a new Participant
-  containing a vulnerability report.
 - **Triggering transition:** emitted when the sender is Accepted (sender ∈ A).
-- **Wire activity:** `Offer(VulnerabilityReport)`.
-- **Who may send:**
-  Any actor, whether or not it takes part in any case.
-  The receiver does not refuse a new report on the sender's standing; it acts only when it is in the Offer's `to` (HP-01-010, HP-09-001).
+- **Receiver:** the receiver does not refuse a new report on the sender's standing; it acts only when it is in the Offer's `to` (HP-01-010, HP-09-001).
 - **Proposed embargo terms:** the Offer may carry `proposedEmbargo`, an inline `EmbargoEvent` whose `context` is the report; the case owner compares it with its own default at case creation and the shorter wins (EP-04-003, EP-04-004).
-- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
-- **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
-  [Transitions](../formal_protocol/transitions.md).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import submit_report, json2md
+{% include-markdown "./_occasions/sections/report-acknowledgment.md" %}
 
-print(json2md(submit_report()))
-```
+- **Triggering transition:** receipt of `RS`; Vultron sends `RK` only to acknowledge a report submission (RMB-08-003).
+- **Receiver:** the reporter, which holds the Offer, accepts `RK` only from one of the Offer's addressees and refuses any other sender (RMB-08-004).
+  `RK` may go to the reporter at any time after the report arrives, whether or not a case exists, but never to the CASE_MANAGER, and it writes no ledger entry (RMB-08-003, PCR-08-001).
+- **Object:** the report's original `Offer`, not the report itself; a bare `Read(VulnerabilityReport)` matches no pattern.
+  `RK` survives as a dedicated wire activity because report submission is not ledger-replicated (MSM-01-008).
 
-## RI — Report Invalid
+{% include-markdown "./_occasions/sections/report-valid.md" %}
 
-- **Protocol role:** The Participant has designated the report as invalid.
-- **Triggering transition:** Received → Invalid (R → I).
-- **Wire activity:** `TentativeReject(Offer(VulnerabilityReport))`.
-  A participant that joined through an Invite sends `TentativeReject(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-013](../specs/protocol.md#vam-04-013)).
-- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
-- **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
-  [Transitions](../formal_protocol/transitions.md).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import invalidate_report, json2md
-
-print(json2md(invalidate_report()))
-```
-
-## RV — Report Valid
-
-- **Protocol role:** The Participant has designated the report as valid.
 - **Triggering transition:** Received or Invalid → Valid ({R,I} → V).
-- **Wire activity:** `Accept(Offer(VulnerabilityReport))`.
-  A participant that joined through an Invite sends `Accept(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
+- **Second wire form:** a participant that joined through an Invite sends `Accept(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)); see [Accept Full-Case Invite](case_management.md#accept-full-case-invite).
   It never validates the original report Offer ([CM-11-020](../specs/protocol.md#cm-11-020)).
-- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
-- **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
-  [Transitions](../formal_protocol/transitions.md).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import validate_report, json2md
+{% include-markdown "./_occasions/sections/report-invalid.md" %}
 
-print(json2md(validate_report()))
-```
+- **Triggering transition:** Received → Invalid (R → I).
+- **Second wire form:** a participant that joined through an Invite sends `TentativeReject(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-013](../specs/protocol.md#vam-04-013)); see [Tentatively reject Full-Case Invite](case_management.md#tentatively-reject-full-case-invite).
 
-## RD — Report/Case Deferred
+{% include-markdown "./_occasions/sections/report-closed.md" %}
 
-- **Protocol role:** The Participant is deferring further action on a report.
-- **Triggering transition:** Valid or Accepted → Deferred ({V,A} → D).
-- **Wire activity:** `Ignore(VulnerabilityCase)` — a case-participation
-  decision, not a report-validity judgment (MSM-01-004).
-- **How-to:** [How to Advance a Case Through Report Management](../../howto/activitypub/activities/manage_case.md).
-- **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
-  [Transitions](../formal_protocol/transitions.md).
+- **Triggering transition:** Received, Invalid, Deferred, or Accepted → Closed ({R,I,D,A} → C).
+- **Second wire form:** a participant that joined through an Invite closes with `Reject(Invite(Actor, target=VulnerabilityCase))` ([VAM-04-014](../specs/protocol.md#vam-04-014)); see [Reject Full-Case Invite](case_management.md#reject-full-case-invite).
+- **Stub Invite decline:** an invitee that declines its stub Invite sends `Reject(Invite(Actor, target=VulnerabilityCaseStub))`, which is not an `RC` message.
+  On receipt, the CASE_MANAGER moves the invitee's RM state to Closed ([CM-11-007](../specs/protocol.md#cm-11-007)); see [Reject invite to case](case_management.md#reject-invite-to-case).
+- **Fault axis:** the `Reject(Offer(VulnerabilityReport))` activity also appears as an ordinary refusal in the fault-and-acknowledgment mapping (MSM-05-003); see [Faults and Acknowledgments](faults_and_acknowledgements.md#asreject-is-overloaded).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import defer_case, json2md
+{% include-markdown "./_occasions/sections/report-accepted.md" %}
 
-print(json2md(defer_case()))
-```
-
-## RA — Report/Case Accepted
-
-- **Protocol role:** The Participant has accepted the report for further action.
 - **Triggering transition:** Valid or Deferred → Accepted ({V,D} → A).
-- **Wire activity:** `Join(VulnerabilityCase)` — a case-participation decision,
-  not a report-validity judgment (MSM-01-005).
-- **How-to:** [How to Advance a Case Through Report Management](../../howto/activitypub/activities/manage_case.md).
-- **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
-  [Transitions](../formal_protocol/transitions.md).
+- **Re-engagement:** re-engaging a deferred case emits the same activity.
+  There is no separate re-engagement wire form, because `DEFERRED` → `ACCEPTED` is a forward transition rather than a retraction of the earlier deferral.
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import engage_case, json2md
+{% include-markdown "./_occasions/sections/report-deferred.md" %}
 
-print(json2md(engage_case()))
-```
+- **Triggering transition:** Valid or Accepted → Deferred ({V,A} → D).
+- **Why a case verb:** deferring is a case-participation decision, not a report-validity judgment (MSM-01-004).
 
-Re-engaging a deferred case emits the same activity. There is no separate
-re-engagement wire form, because `DEFERRED` → `ACCEPTED` is a forward transition
-rather than a retraction of the earlier deferral.
+## Formal messages with no dedicated wire activity
 
-## RC — Report Closed
-
-- **Protocol role:** The Participant has closed the report.
-- **Triggering transition:** Received, Invalid, Deferred, or Accepted → Closed
-  ({R,I,D,A} → C).
-- **Wire activity:** `Reject(Offer(VulnerabilityReport))`.
-  A participant that joined through an Invite closes with `Reject(Invite(Actor, target=VulnerabilityCase))` ([VAM-04-014](../specs/protocol.md#vam-04-014)),
-  and an invitee that declines its stub Invite sends `Reject(Invite(Actor, target=VulnerabilityCaseStub))` ([CM-11-007](../specs/protocol.md#cm-11-007)).
-  The `Reject(Offer(VulnerabilityReport))` activity also
-  appears as an ordinary refusal in the fault-and-acknowledgment mapping
-  (MSM-05-003).
-- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
-- **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
-  [Transitions](../formal_protocol/transitions.md).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import close_report, json2md
-
-print(json2md(close_report()))
-```
-
-## RK — Report Acknowledgment
-
-- **Protocol role:** Acknowledges receipt of an RM message.
-- **Triggering transition:** any valid RM message.
-- **Wire activity:** `Read(Offer(VulnerabilityReport))`. `RK` survives as a
-  dedicated wire activity because report submission is not ledger-replicated
-  (MSM-01-008). The `object` is the report's original `Offer`, not the report
-  itself; a bare `Read(VulnerabilityReport)` matches no pattern.
-- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
-- **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import read_report, json2md
-
-print(json2md(read_report()))
-```
-
-## RE — Report Error
+### RE — Report Error
 
 - **Protocol role:** Indicates a Participant received an unexpected RM message.
 - **Triggering transition:** any unexpected RM message.

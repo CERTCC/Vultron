@@ -24,7 +24,7 @@ from __future__ import annotations
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
 from vultron.enums.roles import CVDRole
@@ -63,7 +63,7 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant + note."""
     dl = _make_dl()
 
-    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(

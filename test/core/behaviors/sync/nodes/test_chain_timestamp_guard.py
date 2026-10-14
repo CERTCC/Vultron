@@ -28,6 +28,7 @@ CLP-07-011.
 import logging
 from datetime import UTC, datetime, timedelta
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -44,6 +45,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 
 _ZERO_HASH: str = "0" * 64
+_ACT_UNDER_TEST = "https://example.org/activities/act-under-test"
 
 # The case is created an hour ago so a snapshot can be stamped either side of
 # it without tripping the staleness window (CLP-14-008, default seven days).
@@ -111,7 +113,7 @@ def _run(bridge, snapshot: dict[str, object], tail_index: int = -1):
     return bridge.execute_with_setup(
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
-            object_id="https://example.org/activities/act-under-test",
+            object_id=_ACT_UNDER_TEST,
             event_type="note_added",
             payload_snapshot=snapshot,
             name="CreateLogEntry",
@@ -418,6 +420,45 @@ def test_create_log_entry_node_rejects_stale_payload_published(
 
     assert result.status == Status.FAILURE
     assert "CLP-14-008" in result.feedback_message
+
+
+@pytest.mark.spec("OX-06-002")
+@pytest.mark.spec("CLP-14-008")
+def test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window(
+    bridge, datalayer, old_case
+):
+    """An act already recorded is reused, however old its claimed time.
+
+    A retry that rebuilds an activity under its first id carries the first
+    attempt's sealed body, and so its first ``published`` (OX-06-002,
+    ID-04-005).  The entry recorded then was validated then; refusing the
+    retry as stale would fail the tree for an act already on the ledger
+    instead of reusing that entry, and would add nothing to the replay
+    defence, because reuse records nothing new.
+    """
+    published = datetime.now(tz=UTC) - timedelta(days=30)
+    snapshot = _note_snapshot(PARTICIPANT_ACTOR_ID, published)
+    datalayer.save(
+        _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id=_ACT_UNDER_TEST,
+                event_type="note_added",
+                payload_snapshot=snapshot,
+                prev_log_hash=_ZERO_HASH,
+            )
+        )
+    )
+
+    result = _run(bridge, snapshot, tail_index=0)
+
+    assert result.status == Status.SUCCESS
+    blackboard = py_trees.blackboard.Client(name="assert-reused-entry")
+    for key in ("log_entry", "log_entry_preexisting"):
+        blackboard.register_key(key=key, access=py_trees.common.Access.READ)
+    assert blackboard.log_entry_preexisting is True
+    assert blackboard.log_entry.log_index == 0
 
 
 @pytest.mark.spec("CLP-14-009")

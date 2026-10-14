@@ -1843,8 +1843,8 @@ groups:
       actor: system
       action: >-
         As the CASE_MANAGER, cancel each open proposal via
-        reject_proposed_embargo_bt (AbandonEmbargoProposalsLifecycleNode →
-        CommitEmbargoAbandonmentNode)
+        reject_proposed_embargo_bt (AbandonEmbargoProposalsLifecycleNode
+        commits each proposal's ER, then cancels that proposal)
       expected: >-
         Each proposal's register entry is CANCELLED and EM derives NONE; one
         ER per open proposal is committed and replayed by every replica
@@ -1955,8 +1955,8 @@ groups:
       When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
       Accept and mark the participant's consent row for it AGREED, exactly as it would for an
       on-time Accept. A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`,
-      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → AGREED`), because
-      AGREE is not legal from DECLINED (CM-18-003).
+      ADR-0118), and so does one at DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
+      has changed its answer, so it is not re-invited first.
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
@@ -2185,7 +2185,11 @@ groups:
       When the CASE_MANAGER acknowledges a no-op late Accept (EMB-17-004), it
       MUST commit a distinct ledger entry of event type
       `invite_to_embargo_on_case_expired_noop` so that replicas can record the
-      acknowledgement without applying any PEC transition (RSH-08-004).
+      acknowledgement without applying any PEC transition (RSH-08-004). Its
+      payloadSnapshot MUST be the CASE_MANAGER's own factory-built
+      `Ignore(Accept(Invite(EmbargoEvent)))` carrying the late Accept inline,
+      in the AS2 shape a received activity is recorded in (CLP-07-009,
+      CLP-07-013, VM-08-003).
     rationale: >-
       Without a committed entry the replica has no record that the late Accept
       was received and acknowledged; its chain position would be missing,
@@ -2417,8 +2421,9 @@ groups:
     verification: >-
       `test_em_transition_table_is_declared_and_enforced` in
       `test/core/states/test_em_transition_table.py` asserts the table is
-      declared and a step whose EM move is not in it is refused; it is a strict
-      `xfail` until #4449 lands.
+      declared and a step whose EM move is not in it is refused, and
+      `test_a_refused_em_move_leaves_the_case_unchanged` that the refusal
+      writes nothing to the case.
     adr:
     - ADR-0130
     testable: true

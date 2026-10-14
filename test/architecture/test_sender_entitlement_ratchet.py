@@ -20,8 +20,12 @@ Enforces:
 2. No ``SenderEntitlementConditionNode`` subclass is defined outside
    ``vultron.core.behaviors.sender_entitlement``.
 3. Old node names no longer live in their former modules.
+4. A received tree builds its own ``sender_guard`` only when it is on the
+   allow-list of trees not yet composing the guard from the declared rule
+   (HP-01-008, #4437).
 """
 
+import ast
 import importlib
 import inspect
 import sys
@@ -29,10 +33,12 @@ from types import ModuleType
 
 import pytest
 
+from test.architecture import _corpus
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderExemption,
+    SenderRule,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.semantic_registry import SEMANTIC_REGISTRY
@@ -77,12 +83,12 @@ def test_use_case_has_sender_entitlement_declared(semantics, use_case_class):
         f"{use_case_class.__name__} (semantics={semantics.name}) "
         f"is missing the ``sender_entitlement`` ClassVar. "
         f"Add one to {inspect.getfile(use_case_class)} — "
-        f"use SenderEntitlementKind.<KIND> or exempt('#NNNN', 'reason')."
+        f"use a SenderRule (HP-01-008) or exempt('#NNNN', 'reason')."
     )
     declaration = use_case_class.sender_entitlement
-    assert isinstance(declaration, (SenderEntitlementKind, SenderExemption)), (
+    assert isinstance(declaration, (SenderRule, SenderExemption)), (
         f"{use_case_class.__name__}.sender_entitlement must be "
-        f"SenderEntitlementKind or SenderExemption, got {type(declaration)!r}"
+        f"SenderRule or SenderExemption, got {type(declaration)!r}"
     )
 
 
@@ -150,10 +156,6 @@ OLD_NAMES = [
         "CheckIsCaseOwnerNode",
     ),
     (
-        "vultron.core.behaviors.report.nodes.ack_conditions",
-        "CheckSenderIsExecutingActorNode",
-    ),
-    (
         "vultron.core.behaviors.sync.nodes.conditions",
         "VerifySenderIsCaseActorNode",
     ),
@@ -199,10 +201,159 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
     declaring = {
         use_case_class.__name__
         for _semantics, use_case_class in _received_entries()
-        if getattr(use_case_class, "sender_entitlement", None)
-        is SenderEntitlementKind.ANY_ACTOR
+        if isinstance(
+            declared := getattr(use_case_class, "sender_entitlement", None),
+            SenderRule,
+        )
+        and SenderEntitlementKind.ANY_ACTOR in declared.kinds
     }
     assert declaring == ANY_ACTOR_USE_CASES, (
         "Only the use cases receiving a new report may declare ANY_ACTOR "
         f"(HP-01-011); found {sorted(declaring)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# HP-01-008: trees still building their own sender guard (temporary)
+# ---------------------------------------------------------------------------
+
+_PIECE_2 = "#4437 (piece 2: one addressee kind, AC-3)"
+_PIECE_3 = "#4437 (piece 3: widened rules, AC-4)"
+_PIECE_4 = "#4437 (piece 4: ratchet, AC-5)"
+
+#: Received-tree builders that still pass their own ``sender_guard`` to
+#: ``create_receive_activity_tree`` instead of the declared ``sender_rule``,
+#: keyed by (module path, function), each naming the work that migrates it.
+#: The list only shrinks: a new entry, or a stale one, fails the test.
+SENDER_GUARD_ALLOW_LIST: dict[tuple[str, str], str] = {
+    (
+        "vultron/core/behaviors/case/accept_case_proposal_received_tree.py",
+        "create_accept_case_proposal_received_tree",
+    ): _PIECE_2,
+    (
+        "vultron/core/behaviors/case/reject_case_proposal_received_tree.py",
+        "create_reject_case_proposal_received_tree",
+    ): _PIECE_2,
+    (
+        "vultron/core/behaviors/case/ownership_transfer_tree.py",
+        "create_accept_ownership_transfer_tree",
+    ): _PIECE_2,
+    (
+        "vultron/core/behaviors/case/ownership_transfer_tree.py",
+        "create_reject_ownership_transfer_tree",
+    ): _PIECE_2,
+    (
+        "vultron/core/behaviors/case/ownership_transfer_tree.py",
+        "create_undo_ownership_transfer_tree",
+    ): _PIECE_2,
+    (
+        "vultron/core/behaviors/report/received_report_trees.py",
+        "create_ack_report_received_tree",
+    ): _PIECE_2,
+    (
+        "vultron/core/behaviors/note/remove_note_received_tree.py",
+        "create_remove_note_from_case_received_tree",
+    ): _PIECE_3,
+    (
+        "vultron/core/behaviors/embargo/announce_teardown_tree.py",
+        "invite_to_embargo_on_case_tree",
+    ): _PIECE_3,
+    (
+        "vultron/core/behaviors/embargo/announce_teardown_tree.py",
+        "remove_embargo_from_case_tree",
+    ): _PIECE_3,
+    (
+        "vultron/core/behaviors/case/case_participant_received_tree.py",
+        "create_add_case_participant_received_tree",
+    ): _PIECE_3,
+    (
+        "vultron/core/behaviors/case/case_participant_received_tree.py",
+        "create_remove_case_participant_received_tree",
+    ): _PIECE_3,
+    (
+        "vultron/core/behaviors/case/suggest_actor_tree.py",
+        "create_recommend_actor_to_case_received_tree",
+    ): _PIECE_3,
+    (
+        "vultron/core/behaviors/status/add_participant_status_tree.py",
+        "add_participant_status_tree",
+    ): _PIECE_3,
+    # Two-sided (CASE_OWNER at the CASE_MANAGER, CASE_MANAGER at a replica).
+    (
+        "vultron/core/behaviors/case/add_report_received_tree.py",
+        "create_add_report_to_case_received_tree",
+    ): _PIECE_4,
+    # The Invite may name no case, which needs an ``outside_case`` side.
+    (
+        "vultron/core/behaviors/case/invite_actor_to_case_received_tree.py",
+        "create_reject_invite_actor_to_case_received_tree",
+    ): _PIECE_4,
+}
+
+
+_FACTORY = "create_receive_activity_tree"
+
+
+def _may_pass_sender_guard(call: ast.Call) -> bool:
+    """*call* passes ``sender_guard=``, or splats keywords into the factory.
+
+    A ``**kwargs`` splat into the factory could carry ``sender_guard`` past a
+    keyword scan, so it counts as passing one.
+    """
+    func = call.func
+    name = (
+        func.attr
+        if isinstance(func, ast.Attribute)
+        else (func.id if isinstance(func, ast.Name) else None)
+    )
+    return any(
+        kw.arg == "sender_guard" or (kw.arg is None and name == _FACTORY)
+        for kw in call.keywords
+    )
+
+
+def _sender_guard_builders() -> set[tuple[str, str]]:
+    """Every (module path, function) whose body may pass ``sender_guard=``."""
+    found: set[tuple[str, str]] = set()
+    for path, tree in _corpus.files_mentioning(
+        "sender_guard", _FACTORY, under=_corpus.REPO_ROOT / "vultron"
+    ):
+        rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
+        for func in ast.walk(tree):
+            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if any(
+                isinstance(call, ast.Call) and _may_pass_sender_guard(call)
+                for call in ast.walk(func)
+            ):
+                found.add((rel, func.name))
+    return found
+
+
+def test_the_scan_counts_a_keyword_splat_into_the_factory() -> None:
+    """A ``**kwargs`` splat cannot carry ``sender_guard`` past the ratchet."""
+    # create_receive_activity_tree(**kwargs)
+    call = ast.Call(
+        func=ast.Name(id=_FACTORY),
+        args=[],
+        keywords=[ast.keyword(arg=None, value=ast.Name(id="kwargs"))],
+    )
+    assert _may_pass_sender_guard(call)
+
+
+@pytest.mark.spec("HP-01-008")
+def test_only_allow_listed_trees_build_their_own_sender_guard():
+    """A tree composes its sender guard from the rule unless allow-listed."""
+    found = _sender_guard_builders()
+    new = sorted(found - set(SENDER_GUARD_ALLOW_LIST))
+    stale = sorted(set(SENDER_GUARD_ALLOW_LIST) - found)
+    assert not new, (
+        "These received trees pass their own sender_guard; pass the use"
+        " case's sender_rule and a SenderCheckContext instead (HP-01-008):\n"
+        + "\n".join(f"  - {path}::{func}" for path, func in new)
+    )
+    assert not stale, (
+        "These allow-list entries no longer pass sender_guard; remove them"
+        " so the list only shrinks:\n"
+        + "\n".join(f"  - {path}::{func}" for path, func in stale)
     )

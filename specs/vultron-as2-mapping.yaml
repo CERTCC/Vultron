@@ -214,16 +214,6 @@ groups:
       matches this shape.
     stories:
     - story_2022_012
-  - id: VAM-03-002
-    priority: MUST
-    kind: protocol
-    statement: '`UPDATE_CASE` MUST be represented as `Update(VulnerabilityCase)`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `UpdateCasePattern`
-      is registered as `Update(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
-      update-case flow.
-    stories:
-    - story_2022_088
-    - story_2022_074
   - id: VAM-03-003
     priority: MUST
     kind: protocol
@@ -490,6 +480,23 @@ groups:
     stories:
     - story_2022_066
     - story_2022_006
+  - id: VAM-04-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UNDO_CASE_OWNERSHIP_TRANSFER` MUST be represented as
+      `Undo(Offer(VulnerabilityCase))`: the Case Owner's withdrawal of an open
+      ownership-transfer Offer (CM-21-015).
+    verification: >-
+      A unit test confirms that `Undo(Offer(VulnerabilityCase))` matches
+      `UndoCaseOwnershipTransferActivityPattern`, which wraps
+      `OfferCaseOwnershipTransferActivityPattern` inside an `Undo` outer pattern,
+      and resolves to `UNDO_CASE_OWNERSHIP_TRANSFER`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-015
+    stories:
+    - story_2022_050
 - id: VAM-05
   title: Embargo Management Messages
   specs:

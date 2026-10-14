@@ -43,6 +43,7 @@ from typing import ClassVar
 from pydantic import Field
 
 import vultron.wire.as2.vocab as _vocab
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.enums import as_ObjectType
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -93,18 +94,12 @@ def _declared_type_wire_classes() -> list[type[as_Base]]:
     ``as_VultronActorMixin``) declare none and are excluded — they are never the
     target of a ``type``-value lookup.
     """
-    found: list[type[as_Base]] = []
-
-    def walk(cls: type[as_Base]) -> None:
-        for sub in cls.__subclasses__():
-            if sub.__module__.startswith(
-                "vultron.wire.as2.vocab"
-            ) and declared_wire_type(sub):
-                found.append(sub)
-            walk(sub)
-
-    walk(as_Base)
-    return found
+    return [
+        cls
+        for cls in all_subclasses(as_Base)
+        if cls.__module__.startswith("vultron.wire.as2.vocab")
+        and declared_wire_type(cls)
+    ]
 
 
 def test_registries_are_populated() -> None:
@@ -231,20 +226,13 @@ def test_an_alias_declaration_keeps_the_class_out_of_the_registry() -> None:
 
 def _registrable_wire_classes() -> list[type[as_Base]]:
     """Return every wire class that passes the registration gate, deduplicated."""
-    found: dict[type[as_Base], None] = {}
-
-    def walk(cls: type[as_Base]) -> None:
-        for sub in cls.__subclasses__():
-            if (
-                sub.__module__.startswith("vultron.wire.as2.vocab")
-                and declares_registrable_type(sub)
-                and not is_wire_type_alias(sub)
-            ):
-                found[sub] = None
-            walk(sub)
-
-    walk(as_Base)
-    return list(found)
+    return [
+        cls
+        for cls in all_subclasses(as_Base)
+        if cls.__module__.startswith("vultron.wire.as2.vocab")
+        and declares_registrable_type(cls)
+        and not is_wire_type_alias(cls)
+    ]
 
 
 def test_no_unsanctioned_wire_type_collisions() -> None:

@@ -46,7 +46,10 @@ from vultron.core.behaviors.embargo.nodes import (
     embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
+from vultron.core.behaviors.sender_entitlement import (
+    SenderRule,
+)
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
@@ -60,6 +63,8 @@ def activate_embargo_on_case_tree(
     embargo_id: str,
     sender_actor_id: str,
     actor_config: ActorConfig | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's activation of a proposal (EA / EC).
 
@@ -69,7 +74,7 @@ def activate_embargo_on_case_tree(
         ├─ IntakeReceivedActivityNode
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
-        ├─ OwnerMayActivateEmbargoNode       # P/X/A clear, owner not DECLINED
+        ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
            ├─ CaptureActiveEmbargoNode       # snapshot signatories before
@@ -94,6 +99,8 @@ def activate_embargo_on_case_tree(
         sender_actor_id: Sender of the ``Accept``; must be the case owner.
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite the activation re-issues.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``ActivateEmbargoOnCaseBT`` Sequence.
@@ -107,8 +114,9 @@ def activate_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="ActivateEmbargoOnCaseBT",
         case_id=case_id,
-        sender_guard=SenderIsCaseOwnerNode(
-            sender_actor_id=sender_actor_id, case_id=case_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id, case_id=case_id
         ),
         precondition_guards=[
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
@@ -200,6 +208,8 @@ def reject_embargo_proposal_on_case_tree(
     embargo_id: str,
     sender_actor_id: str,
     actor_config: ActorConfig | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's rejection of a proposal (ER / EJ).
 
@@ -225,6 +235,8 @@ def reject_embargo_proposal_on_case_tree(
         case_id: ID of the VulnerabilityCase.
         embargo_id: ID of the proposed EmbargoEvent being rejected.
         sender_actor_id: Sender of the ``Reject``; must be the case owner.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``RejectEmbargoProposalOnCaseBT`` Sequence.
@@ -232,8 +244,9 @@ def reject_embargo_proposal_on_case_tree(
     root = create_receive_activity_tree(
         name="RejectEmbargoProposalOnCaseBT",
         case_id=case_id,
-        sender_guard=SenderIsCaseOwnerNode(
-            sender_actor_id=sender_actor_id, case_id=case_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id, case_id=case_id
         ),
         precondition_guards=[
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),

@@ -40,6 +40,7 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -102,10 +103,21 @@ class TestAckReportNoStandaloneStatus:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        AckReportReceivedUseCase(
+        # The vendor is the Offer's addressee, so its RK is admitted
+        # (RMB-08-004) and the assertion below is on an admitted run.
+        dl.create(
+            VultronOfferRecord(
+                offer_id="https://example.org/activities/offer-ack-1",
+                report_id="https://example.org/reports/r-ack-1",
+                offer_actor_id="https://example.org/actors/finder",
+                offer_to=["https://example.org/actors/vendor"],
+            )
+        )
+        result = AckReportReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
 
+        assert result.disposition is HandlerDisposition.APPLIED
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == [], (
             "AckReportReceivedUseCase must not create standalone "
@@ -134,14 +146,14 @@ class TestFullReportFlow:
     def _setup_dl(self):
         """Create a DataLayer pre-seeded with the report, vendor, and offer."""
         from vultron.core.models.activity import VultronOffer
-        from vultron.core.models.case_actor import CaseActor
+        from vultron.core.models.actor import VultronService
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,
         )
         report = VulnerabilityReport(id_=self.REPORT_ID)
-        vendor = CaseActor(id_=self.VENDOR_ID)
+        vendor = VultronService(id_=self.VENDOR_ID)
         offer = VultronOffer(
             id_=self.OFFER_ID,
             actor=self.FINDER_ID,
@@ -553,6 +565,29 @@ class TestValidateReportReceivedGuardedCommit:
         assert any(
             "no case found" in r.message.lower() for r in caplog.records
         ), "Expected debug log indicating skip due to missing case"
+
+    @pytest.mark.spec("HP-01-006")
+    def test_refuses_when_this_store_holds_no_case_for_the_report(self):
+        """No case for the report: REFUSED, with the reason naming why.
+
+        The declared rule's case sides need a case to check the sender
+        against, so the factory's guard refuses (HP-01-006, HP-01-008).
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=self.CASE_ACTOR_ID
+        )
+
+        result = ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "holds no case for it" in result.reason
 
     def test_skip_commit_when_receiving_actor_not_case_actor(self):
         """ValidateReportReceivedUseCase skips commit when receiving_actor != CaseActor.

@@ -54,7 +54,7 @@ References
 - Issue: #1817 / Source Idea: #1246
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-18-004
-- Notes: ``notes/bt-fuzzer-rm-id-assignment.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-id-assignment.md``
 """
 
 import logging
@@ -67,7 +67,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
 )
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.predicates.roles import has_cna_role
 
 if TYPE_CHECKING:
@@ -92,7 +92,7 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
     Reads ``actor_roles`` from the blackboard (written by the BT setup phase)
     and returns SUCCESS when :attr:`CVDRole.CVE_NUMBERING_AUTHORITY` is
     present.  No external call; no factory seam (ProtocolInternal per
-    ``notes/bt-fuzzer-rm-id-assignment.md``).
+    ``docs/developer/reference/bt-fuzzer/rm-id-assignment.md``).
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -109,7 +109,8 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
-            port_remappings={_ACTOR_ROLES_KEY: f"/{_ACTOR_ROLES_KEY}"}
+            port_remappings={_ACTOR_ROLES_KEY: f"/{_ACTOR_ROLES_KEY}"},
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:
@@ -152,7 +153,8 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
     blackboard (vulnerability has a publication intent recorded by a prior
     BT run).  No external call; no factory seam (ProtocolInternal).
 
-    Per ``notes/bt-fuzzer-rm-id-assignment.md`` § "IsOrWillBePubliclyDisclosed":
+    Per ``docs/developer/reference/bt-fuzzer/rm-id-assignment.md``
+    § "IsOrWillBePubliclyDisclosed":
     the blackboard key is written by the publication-intent BT step before the
     CVE ID assignment step runs in the same tick sequence.
     """
@@ -175,7 +177,8 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
         self.setup_ports(
             port_remappings={
                 _PUBLICATION_INTENT_SET_KEY: f"/{_PUBLICATION_INTENT_SET_KEY}"
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:

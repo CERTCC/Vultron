@@ -21,7 +21,7 @@ inbound protocol handling (intake archives each received activity first,
 CLP-10-017) for one of the four report-lifecycle activities:
 
 - ``CreateReport`` — store VulnerabilityReport
-- ``AckReport``    — forward the acknowledgement
+- ``AckReport``    — check the acknowledgement's sender
 - ``CloseReport``  — record the *sender's* RM → CLOSED
 - ``InvalidateReport`` — record the *sender's* RM → INVALID
 
@@ -42,14 +42,9 @@ import logging
 import py_trees
 
 from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
-from vultron.core.behaviors.case.nodes.conditions import (
-    CheckIsCaseManagerNode,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.replica_emit_exemptions import ACK_ECHO
-from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.report.nodes.storage import (
     StoreReportNode,
 )
@@ -63,8 +58,10 @@ from vultron.core.behaviors.report.validate_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
-    SenderIsExecutingActorNode,
+    SenderIsOfferAddresseeNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
     CloseReportReceivedEvent,
@@ -81,6 +78,8 @@ def create_validate_report_received_tree(
     offer_id: str,
     sender_actor_id: str,
     case_id: str | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the single-BT received-side tree for ValidateReport (ADR-0022).
 
@@ -145,6 +144,8 @@ def create_validate_report_received_tree(
         case_id: ID of the VulnerabilityCase linked to this report, which
             the sender guard, the RM adjudication and the guarded commit
             read; ``None`` when this store holds no case for the report.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``ValidateReportReceivedBT`` Sequence.
@@ -171,10 +172,9 @@ def create_validate_report_received_tree(
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
         case_id=case_id,
-        sender_guard=SenderIsActiveParticipantNode(
-            status_id="",
-            sender_actor_id=sender_actor_id,
-            case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id, case_id=case_id
         ),
         precondition_guards=[
             rm_declaration_guard(sender_actor_id, RM.VALID, case_id),
@@ -241,80 +241,42 @@ def create_report_received_tree(
 
 def create_ack_report_received_tree(
     request: AckReportReceivedEvent,
-    case_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the AckReportReceived workflow.
 
-    Handles receipt of a ``Read(Offer(Report))`` (AckReport) activity.
+    Handles receipt of a ``Read(Offer(Report))`` (AckReport, RK).  RK goes
+    from an actor the ``Offer(VulnerabilityReport)`` was addressed to, to the
+    reporter, and never to the CASE_MANAGER (RMB-08-003), so the tree has no
+    case context, no ledger commit and nothing to emit.
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
 
-    1. Intake archives the ``Read`` as received (CLP-10-017); the per-tree
-       ``StoreActivityNode`` it once carried duplicated intake and was
-       removed (CLP-10-019).
-    2. Guarded commit (only when ``case_id`` is provided and the receiving
-       actor holds ``CVDRole.CASE_MANAGER``) — records receipt before any
-       effects run (CLP-10-006).
-    3. Forward the ack to the CASE_MANAGER — only when it is the executing
-       actor's *own* ack and that actor is not itself the CASE_MANAGER.
+    1. Intake archives the ``Read`` as received (CLP-10-017), so a refused
+       acknowledgement still leaves its record (CLP-10-018).
+    2. ``SenderIsOfferAddresseeNode`` refuses a sender that is not an
+       addressee of the Offer this store recorded (RMB-08-004, HP-01-006).
 
-    Step 3 serves the own-inbox pattern: an actor that acknowledges a report
-    by posting the ``Read`` to its own inbox relies on this tree to forward
-    it.  The received side *does* carry a TriggerActivityPort
-    (``ACK_REPORT`` is wired for it), so ``EmitAckReportActivity`` really
-    emits, authored as the blackboard ``actor_id``.  Hence the two skips:
-
-    - another actor's ack must not be re-emitted under this actor's name;
-    - the CASE_MANAGER has just committed the ack, and a forward would be
-      addressed to itself and loop back through HTTP delivery to its own
-      inbox (OX-12-001) under a fresh id, forever (#2667).
-
-    ``NoEmitFallback`` still absorbs an emit failure (no routable recipient,
-    or no port in a caller that did not wire one).
+    An acknowledgement changes no state (RMB-08-001), so an admitted RK
+    writes nothing past intake.
 
     Args:
         request: The parsed inbound domain event.
-        case_id: ID of the VulnerabilityCase linked to this report.  When
-            provided, a guarded-commit subtree is inserted first so the
-            receiving CaseActor can write a canonical ledger entry.
 
     Returns:
         Root node of the ``AckReportReceivedBT`` Sequence.
     """
-    activity_id = request.activity_id or ""
-    offer_id = request.offer_id or activity_id
-    report_id = request.report_id or ""
-
-    maybe_emit = py_trees.composites.Selector(
-        name="MaybeEmitAckToCaseActor",
-        memory=False,
-        children=[
-            py_trees.decorators.Inverter(
-                name="SkipIfAckFromAnotherActor",
-                child=SenderIsExecutingActorNode(
-                    sender_actor_id=request.actor_id
-                ),
-            ),
-            CheckIsCaseManagerNode(case_id=case_id, name="SkipIfCaseManager"),
-            EmitAckReportActivity(
-                offer_id=offer_id,
-                report_id=report_id,
-            ),
-            py_trees.behaviours.Success(name="NoEmitFallback"),
-        ],
-    )
-
     root = create_receive_activity_tree(
         name="AckReportReceivedBT",
-        case_id=case_id,
+        case_id=None,
         precondition_guards=[],
-        replica_effects=[maybe_emit],
-        replica_emit_exemption=ACK_ECHO,
+        sender_guard=SenderIsOfferAddresseeNode(
+            offer_id=request.offer_id, sender_actor_id=request.actor_id
+        ),
     )
     logger.debug(
-        "Created AckReportReceivedBT for activity=%s case=%s",
-        activity_id,
-        case_id,
+        "Created AckReportReceivedBT for activity=%s offer=%s",
+        request.activity_id,
+        request.offer_id,
     )
     return root
 

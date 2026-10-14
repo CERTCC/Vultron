@@ -203,7 +203,7 @@ The case manager instead asks whether the accepted embargo is still the case's c
 |---|---|
 | The case's current embargo | Honor it; record the Participant's consent row as `ACCEPTED`, exactly as for an on-time Accept — directly from `EXPIRED`, after a fresh invitation from `DECLINED` (EMB-17-002) |
 | A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
-| An embargo the case no longer has | Acknowledge as a no-op. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
+| An embargo the case no longer has | Acknowledge as a no-op: record its own `Ignore` of the late `Accept`, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008, EMB-17-010) |
 
 Note what none of the three rows does: remove the accepting actor.
 Answering late is not a protocol violation.
@@ -222,6 +222,17 @@ When the case manager is the only Participant, the announcement is skipped rathe
 On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-006).
 No consent row is written for this: the active embargo is cleared, and the case is the fact.
 The embargo is over for everyone at once, which is the one thing about the EM scope that is genuinely global.
+
+### The case status EM copy is read-only
+
+A `CaseStatus` carries one EM copy — a stamped read of the case's embargo register.
+That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` is a frozen model (SDO-03-006, EMB-18-001).
+Every in-place write path raises at runtime: `status.em = …` and `status.em.state = …` raise a `ValidationError`, and the flat `status.em_state = …` raises an `AttributeError`, because `em_state` has no setter.
+
+The only writer is the case itself.
+When its embargo register changes — through any `EmbargoLifecycle` operation — the case replaces its current status with a `model_copy` carrying the new `EmDimension`.
+Nothing else may write that copy.
+A status with a different EM state is built by construction or by `model_copy(update={"em": EmDimension(state=…)})`; assignment through an existing instance always raises.
 
 ---
 

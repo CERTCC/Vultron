@@ -54,7 +54,7 @@ References
 ----------
 - ADR-0030: ``docs/adr/0030-publish-leaf-draft-review-submit-pipeline.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-20-004
-- Notes: ``notes/bt-fuzzer-nodes-report-management.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-publication.md``
   § "Production Collapse 4: Publish leaf → draft-review-submit pipeline"
 - Precedent: ``vultron.core.behaviors.report.publication_tree``
   (Production Collapse 2, ADR-0028)
@@ -72,7 +72,7 @@ from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.publication import (
@@ -147,7 +147,8 @@ class _NeedsRevisionGate(BehaviourWithPorts):
     def setup(self, **kwargs: Any) -> None:
         """Wire input port to the shared review-decision blackboard key."""
         self.setup_ports(
-            port_remappings={REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"}
+            port_remappings={REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"},
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:

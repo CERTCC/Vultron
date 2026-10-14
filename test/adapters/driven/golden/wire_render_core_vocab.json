@@ -1,13 +1,4 @@
 {
-  "CaseActor": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
-    "id": "urn:test:caseactor:golden",
-    "inbox": "urn:test:caseactor:golden/inbox",
-    "outbox": "urn:test:caseactor:golden/outbox",
-    "published": "2026-01-02T03:04:05+00:00",
-    "type": "Service",
-    "updated": "2026-01-02T03:04:05+00:00"
-  },
   "CaseLedgerEntry": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "caseId": "urn:test:case_id:1",
@@ -118,7 +109,6 @@
     "parentCases": [],
     "pendingEmbargoProposalIndex": {},
     "published": "2026-01-02T03:04:05+00:00",
-    "recommendationRecommenderIndex": {},
     "siblingCases": [],
     "type": "VulnerabilityCase",
     "updated": "2026-01-02T03:04:05+00:00",

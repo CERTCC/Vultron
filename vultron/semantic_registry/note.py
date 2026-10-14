@@ -55,9 +55,12 @@ ENTRIES: list[SemanticEntry] = [
                     "the case"
                 ),
                 anchor="create-note",
+                heading="Create note",
                 description=(
-                    "Mints a note for the case. It precedes the Add that "
-                    "attaches it."
+                    "Mints a note for the case. When the note's context "
+                    "names the case, the Case Manager attaches it and "
+                    "records the attachment in the case ledger, so the Add "
+                    "that follows changes nothing more."
                 ),
                 example="create_note",
                 howto=HowToGuide.STATUS_UPDATES,
@@ -78,6 +81,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant posts a note to the case",
                 anchor="add-note-to-case",
+                heading="Add note to case",
                 description=(
                     "Attaches the note to the case named by the target, for "
                     "example to ask or answer a question."
@@ -103,6 +107,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the case"
                 ),
                 anchor="remove-note-from-case",
+                heading="Remove note from case",
                 description=(
                     "Removes the note from the case named by the target."
                 ),

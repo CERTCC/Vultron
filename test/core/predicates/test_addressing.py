@@ -15,6 +15,7 @@
 import pytest
 
 from vultron.core.predicates.addressing import (
+    distinct_recipients,
     is_addressed_to,
     normalise_actor_id,
     same_actor_id,
@@ -63,3 +64,30 @@ def test_is_addressed_to(recipients: list[str], expected: bool) -> None:
 @pytest.mark.parametrize("spelling", [VENDOR, VENDOR + "/"])
 def test_normalise_actor_id_drops_trailing_slash(spelling: str) -> None:
     assert normalise_actor_id(spelling) == VENDOR
+
+
+@pytest.mark.parametrize(
+    ("recipients", "expected"),
+    [
+        ([VENDOR], [VENDOR]),
+        ([VENDOR, VENDOR + "/"], [VENDOR]),
+        ([None, "", VENDOR], [VENDOR]),
+        (
+            [VENDOR, "https://example.org/actors/finder"],
+            [VENDOR, "https://example.org/actors/finder"],
+        ),
+        ([], []),
+    ],
+    ids=[
+        "one",
+        "two-spellings-one-actor",
+        "drops-empty",
+        "two-actors",
+        "empty",
+    ],
+)
+@pytest.mark.spec("EP-09-010")
+def test_distinct_recipients(
+    recipients: list[str | None], expected: list[str]
+) -> None:
+    assert distinct_recipients(recipients) == expected

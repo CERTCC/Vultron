@@ -145,8 +145,8 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         who have not agreed to it have lapsed by derivation (CM-18-001).
         Whoever holds an ``AGREED`` row for B — its proposer, for one — is a
         signatory by lookup, with nothing to advance.  An owner whose row for
-        *embargo_id* is ``DECLINED`` cannot activate it, in either mode: it is
-        invited again first.
+        *embargo_id* is ``DECLINED`` has changed its answer by activating it:
+        its row moves straight to ``AGREED``, in either mode (MSM-07-008).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -166,8 +166,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
                 ``EmbargoEvent``.
             VultronInvalidStateTransitionError: In ``STRICT`` mode, if
                 *embargo_id* is not an open proposal of the case or P/X/A is
-                set; in either mode, if the owner's row for it is
-                ``DECLINED``.
+                set.
         """
         case = self._read_case(case_id)
 
@@ -183,7 +182,6 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             self._assert_pxa_embargo_eligible(
                 case.current_status.pxa.state, case_id, "activate embargo"
             )
-        self._assert_owner_may_activate(case, embargo_id)
 
         if not self._activate_entry(
             case,

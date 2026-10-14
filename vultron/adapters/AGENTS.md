@@ -34,7 +34,7 @@
   not declared on the model when the route returns a non-Response value. The
   `AS2JSONResponse` pattern above bypasses this filtering entirely (FastAPI
   docs: returning a `Response` subclass skips response_model filtering).
-  See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structure-fastapi-patterns.md)
+  See [notes/codebase-structure.md](../../notes/codebase-structure.md)
   § FastAPI response\_model Filtering.
 
 ---
@@ -61,7 +61,7 @@ wrap every workflow step and verification block. See
 
 Scenario demos MUST puppeteer via trigger endpoints, not spoof inboxes
 directly. See
-[notes/event-driven-control-flow.md](../../notes/event-driven-control-flow.md).
+[vultron/demo/AGENTS.md](../demo/AGENTS.md).
 
 ---
 
@@ -85,16 +85,12 @@ for:
   raw URL path segment. Violating this reads a *different actor's* store, so
   outbound activities are silently dropped (BUG-2026040901).
 
-See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structure-fastapi-patterns.md) for:
-
-- Circular Imports
-- FastAPI response\_model Filtering
-- Health Check Readiness Gap
-- Docker Health Check Coordination
-- The Formatter Can Invalidate Inline Type-Checker Suppressions
-
 See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
 
+- Circular Imports: Shared Helpers in `use_cases/_helpers.py`
+- FastAPI response\_model Filtering
+- Docker Health Check Coordination
+- The Formatter Can Invalidate Inline Type-Checker Suppressions
 - Actor IDs Must Always Be Full URIs
 - Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox
 

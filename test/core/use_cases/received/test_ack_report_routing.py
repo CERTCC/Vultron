@@ -10,10 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Unit tests for AckReportReceivedUseCase CaseActor ledger routing.
+"""Unit tests for who may send an AckReport (RK) and where it goes.
 
-Pins the pre-flight guard (CLP-10-003): only the CaseActor writes a
-``ack_report`` ledger entry; other actors skip it silently.
+RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to, to
+the reporter, which checks the sender against its own record of the Offer
+(RMB-08-004).  Nobody sends RK to the CASE_MANAGER, so the handler forwards
+nothing and commits no ledger entry (RMB-08-003).
 """
 
 from __future__ import annotations
@@ -22,22 +24,19 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import AckReportReceivedEvent
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.use_cases.received.report import AckReportReceivedUseCase
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Offer,
-    as_Read,
-)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -53,6 +52,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 CASE_ACTOR_ID = "https://example.org/actors/case-actor-ack"
 VENDOR_ID = "https://example.org/actors/vendor-ack"
 FINDER_ID = "https://example.org/actors/finder-ack"
+STRANGER_ID = "https://example.org/actors/stranger-ack"
 REPORT_ID = "https://example.org/reports/r-ack-test"
 OFFER_ID = "https://example.org/activities/offer-ack"
 CASE_ID = "https://example.org/cases/c-ack-test"
@@ -63,67 +63,63 @@ CASE_ID = "https://example.org/cases/c-ack-test"
 # ---------------------------------------------------------------------------
 
 
-def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
-    """*owner_id*'s replica of the case, with the CaseActor as CASE_MANAGER.
+def _make_store(
+    owner_id: str, *, offer_record: bool = True, case: bool = True
+) -> SqliteDataLayer:
+    """*owner_id*'s store holding the report and, optionally, more.
 
-    The owner is a parameter because these tests turn on *who executes*, and a
-    BT's store follows its executing actor (ADR-0073).  Seeding one fixed store
-    and executing as somebody else leaves the tree reading an empty one, so the
-    role gate fails for want of a case rather than for want of the role — and a
-    "does not commit" assertion then passes without the gate being exercised.
-
-    Every owner gets the same objects, including the case, so the gate always has
-    a case to resolve the CASE_MANAGER from.
+    ``offer_record`` seeds the record of the Finder's Offer to the Vendor,
+    which the Finder (the reporter) and the Vendor (its addressee) both hold.
+    ``case`` seeds a case for the report with the CaseActor as CASE_MANAGER,
+    so a test can show that an RK forwards nothing to it even when it exists.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
-
-    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
-    dl.save(ca_svc)
-
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="AckReport Routing Test", attributed_to=CASE_ACTOR_ID
-    )
-    case.vulnerability_reports.append(REPORT_ID)
-
-    cm_participant = as_CaseParticipant(
-        attributed_to=CASE_ACTOR_ID,
-        context=CASE_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    dl.create(cm_participant)
-    case.case_participants.append(cm_participant.id_)
-    case.actor_participant_index[CASE_ACTOR_ID] = cm_participant.id_
-    dl.save(case)
-
-    # Persist the offer so the emit node can read it.
-    report_obj = as_VulnerabilityReport(id_=REPORT_ID, name="Test Vuln Report")
-    dl.save(report_obj)
-    offer = as_Offer(actor=FINDER_ID, object_=report_obj.id_, target=VENDOR_ID)
-    offer = as_Offer(id_=OFFER_ID, actor=FINDER_ID, object_=report_obj.id_)
-    dl.create(offer)
-
+    dl.save(as_VulnerabilityReport(id_=REPORT_ID, name="Test Vuln Report"))
+    if offer_record:
+        dl.create(
+            VultronOfferRecord(
+                offer_id=OFFER_ID,
+                report_id=REPORT_ID,
+                offer_actor_id=FINDER_ID,
+                offer_to=[VENDOR_ID],
+            )
+        )
+    if case:
+        dl.save(VultronService(id_=CASE_ACTOR_ID, context=CASE_ID))
+        vul_case = as_VulnerabilityCase(
+            id_=CASE_ID, name="AckReport Test", attributed_to=CASE_ACTOR_ID
+        )
+        vul_case.vulnerability_reports.append(REPORT_ID)
+        manager = as_CaseParticipant(
+            attributed_to=CASE_ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(manager)
+        vul_case.case_participants.append(manager.id_)
+        vul_case.actor_participant_index[CASE_ACTOR_ID] = manager.id_
+        dl.save(vul_case)
     return dl
 
 
 def _make_ack_event(
-    receiving_actor_id: str | None = CASE_ACTOR_ID,
-    sender_id: str = VENDOR_ID,
+    sender_id: str, receiving_actor_id: str
 ) -> AckReportReceivedEvent:
-    """Construct an AckReportReceivedEvent (Read(Offer(Report))) from *sender_id*."""
+    """An AckReportReceivedEvent (``Read(Offer(Report))``) from *sender_id*."""
     report_obj = VulnerabilityReport(id_=REPORT_ID)
     offer_obj = VultronActivity(
         id_=OFFER_ID,
         type_="Offer",
         actor=FINDER_ID,
         object_=report_obj,
-        context=CASE_ID,
+        to=[VENDOR_ID],
     )
     read_activity = VultronActivity(
-        id_="https://example.org/activities/read-ack",
+        id_=f"https://example.org/activities/read-ack-{len(sender_id)}",
         type_="Read",
         actor=sender_id,
         object_=offer_obj,
-        context=CASE_ID,
+        to=[FINDER_ID],
     )
     return AckReportReceivedEvent(
         semantic_type=MessageSemantics.ACK_REPORT,
@@ -136,6 +132,15 @@ def _make_ack_event(
     )
 
 
+def _run(dl: SqliteDataLayer, event: AckReportReceivedEvent) -> HandlerResult:
+    return AckReportReceivedUseCase(
+        dl=dl,
+        request=event,
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
 def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
     return [
         getattr(e, "event_type", "")
@@ -143,158 +148,96 @@ def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
     ]
 
 
+def _written(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
+    """Per-table row growth between two ``count_all()`` snapshots."""
+    return {
+        table: after.get(table, 0) - before.get(table, 0)
+        for table in set(before) | set(after)
+        if after.get(table, 0) != before.get(table, 0)
+    }
+
+
+#: What intake writes for one received RK: its record of the ``Read``, nothing
+#: else (CLP-10-017).
+INTAKE_ONLY = {"ReceivedActivityRecord": 1}
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
 
-class TestAckReportLedgerRouting:
-    """CaseActor-guarded commit tests for AckReportReceivedUseCase."""
+class TestAckReportSender:
+    """The reporter admits RK only from an addressee of its Offer."""
 
-    def test_caseactor_commits_ack_report_ledger_entry(self):
-        """Guarded commit fires when receiving_actor_id == case_actor_id.
+    @pytest.mark.spec("RMB-08-004")
+    @pytest.mark.spec("HP-01-006")
+    def test_offer_addressee_is_admitted(self):
+        dl = _make_store(FINDER_ID)
+        before = dl.count_all()
 
-        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry
-        when it receives an AckReport activity.
-        """
-        dl = _make_case_store(CASE_ACTOR_ID)
-        result = AckReportReceivedUseCase(
-            dl=dl,
-            request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-        assert result.disposition == HandlerDisposition.APPLIED
+        result = _run(dl, _make_ack_event(VENDOR_ID, FINDER_ID))
 
-        event_types = _ledger_event_types(dl)
-        assert "ack_report" in event_types, (
-            "Expected a CaseLedgerEntry with event_type='ack_report';"
-            f" found: {event_types}"
-        )
+        assert result.disposition is HandlerDisposition.APPLIED
+        # An acknowledgement changes no state (RMB-08-001).
+        assert _written(before, dl.count_all()) == INTAKE_ONLY
+        assert dl.outbox_list() == []
 
-    def test_non_caseactor_does_not_commit_ledger_entry(self):
-        """Guarded commit does NOT fire when receiving_actor_id != case_actor_id.
+    @pytest.mark.spec("RMB-08-004")
+    @pytest.mark.spec("HP-01-006")
+    def test_sender_that_is_not_an_addressee_is_refused(self):
+        dl = _make_store(FINDER_ID)
+        before = dl.count_all()
 
-        Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
-        """
-        dl = _make_case_store(VENDOR_ID)
-        AckReportReceivedUseCase(
-            dl=dl,
-            request=_make_ack_event(receiving_actor_id=VENDOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = _run(dl, _make_ack_event(STRANGER_ID, FINDER_ID))
 
-        event_types = _ledger_event_types(dl)
-        assert "ack_report" not in event_types, (
-            "Non-CaseActor receiving actor must NOT write an ack_report"
-            f" ledger entry; found: {event_types}"
-        )
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "not an addressee" in (result.reason or "")
+        assert _written(before, dl.count_all()) == INTAKE_ONLY
+        assert dl.outbox_list() == []
 
-    def test_no_receiving_actor_id_uses_store_owner_for_commit(self):
-        """When receiving_actor_id is absent, the store owner processes the Ack.
+    @pytest.mark.spec("RMB-08-004")
+    def test_store_without_a_record_of_the_offer_refuses(self):
+        dl = _make_store(FINDER_ID, offer_record=False, case=False)
+        before = dl.count_all()
 
-        The store is owned by the CaseActor, so the guarded commit fires and the
-        ``ack_report`` ledger entry IS written (store-owner fallback, CLP-10-005).
-        """
-        dl = _make_case_store(CASE_ACTOR_ID)
-        AckReportReceivedUseCase(
-            dl=dl,
-            request=_make_ack_event(receiving_actor_id=None),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = _run(dl, _make_ack_event(VENDOR_ID, FINDER_ID))
 
-        event_types = _ledger_event_types(dl)
-        assert "ack_report" in event_types, (
-            "Store-owner fallback (CaseActor) MUST write an ack_report"
-            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
-        )
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "No record of Offer" in (result.reason or "")
+        assert _written(before, dl.count_all()) == INTAKE_ONLY
+        assert dl.outbox_list() == []
 
 
-def _queued_reads(dl: SqliteDataLayer) -> list[as_Read]:
-    """The ``Read`` activities queued in *dl*'s outbox."""
-    queued = [dl.read(activity_id) for activity_id in dl.outbox_list()]
-    return [a for a in queued if isinstance(a, as_Read)]
+class TestAckReportIsNotSentToTheCaseManager:
+    """No RK is forwarded to the CASE_MANAGER or ledgered (RMB-08-003)."""
 
+    @pytest.mark.spec("RMB-08-003")
+    def test_own_ack_is_not_forwarded_to_the_case_manager(self):
+        """The Vendor's own ``Read`` in its own inbox emits nothing (#2667)."""
+        dl = _make_store(VENDOR_ID)
 
-class TestAckReportEcho:
-    """Who re-emits an AckReport, and to whom (#2667).
+        result = _run(dl, _make_ack_event(VENDOR_ID, VENDOR_ID))
 
-    ``EmitAckReportActivity`` exists for the legacy own-inbox pattern: an
-    actor that acknowledges a report by posting the ``Read`` to its *own*
-    inbox relies on this tree to forward it to the CASE_MANAGER.  Any other
-    receiver is hearing someone else's acknowledgement and must not echo it
-    under its own name — and the CASE_MANAGER, which the echo is addressed
-    to, would otherwise address one to itself, re-deliver it over HTTP to
-    its own inbox (OX-12-001) with a fresh id, and loop.
-    """
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert dl.outbox_list() == []
+        assert _ledger_event_types(dl) == []
 
-    @pytest.mark.parametrize(
-        "receiver", [CASE_ACTOR_ID, FINDER_ID], ids=["case_manager", "finder"]
-    )
-    def test_ack_from_other_actor_emits_nothing(self, receiver: str):
-        dl = _make_case_store(receiver)
-        AckReportReceivedUseCase(
-            dl=dl,
-            request=_make_ack_event(receiving_actor_id=receiver),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+    @pytest.mark.spec("RMB-08-003")
+    def test_case_manager_commits_no_ledger_entry(self):
+        """The CASE_MANAGER holds no record of the Offer, so it refuses RK."""
+        dl = _make_store(CASE_ACTOR_ID, offer_record=False)
 
-        assert _queued_reads(dl) == []
+        result = _run(dl, _make_ack_event(VENDOR_ID, CASE_ACTOR_ID))
 
-    def test_own_ack_is_forwarded_to_case_manager(self):
-        """The vendor's own ``Read`` in its own inbox still reaches the CM."""
-        dl = _make_case_store(VENDOR_ID)
-        AckReportReceivedUseCase(
-            dl=dl,
-            request=_make_ack_event(receiving_actor_id=VENDOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert _ledger_event_types(dl) == []
+        assert dl.outbox_list() == []
 
-        reads = _queued_reads(dl)
-        assert len(reads) == 1
-        assert reads[0].actor == VENDOR_ID
-        assert reads[0].to == [CASE_ACTOR_ID]
+    @pytest.mark.spec("RMB-08-003")
+    def test_reporter_commits_no_ledger_entry_even_with_a_case(self):
+        dl = _make_store(FINDER_ID)
 
-    def test_case_manager_still_commits_without_echo(self):
-        """Skipping the echo at the CM does not skip its ledger commit."""
-        dl = _make_case_store(CASE_ACTOR_ID)
-        AckReportReceivedUseCase(
-            dl=dl,
-            request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        _run(dl, _make_ack_event(VENDOR_ID, FINDER_ID))
 
-        assert "ack_report" in _ledger_event_types(dl)
-        assert _queued_reads(dl) == []
-
-    def test_case_manager_own_ack_is_not_forwarded_to_itself(self):
-        """The CM's own ``Read`` in its own inbox commits and is not echoed.
-
-        Sender, receiver and CASE_MANAGER are one actor, so the foreign-sender
-        skip does not apply; only ``SkipIfCaseManager`` stops the forward that
-        would address the CM itself and loop via loopback delivery (#2667).
-        """
-        dl = _make_case_store(CASE_ACTOR_ID)
-        AckReportReceivedUseCase(
-            dl=dl,
-            request=_make_ack_event(
-                receiving_actor_id=CASE_ACTOR_ID, sender_id=CASE_ACTOR_ID
-            ),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        assert "ack_report" in _ledger_event_types(dl)
-        assert _queued_reads(dl) == []
+        assert _ledger_event_types(dl) == []

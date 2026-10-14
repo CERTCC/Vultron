@@ -29,23 +29,11 @@ Defined in `vultron/core/models/case.py`.
 | `notes` | URIs of notes attached to the case |
 | `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
 | `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it, for open proposals only |
-| `recommendation_recommender_index` | Map: actor-recommendation URI → the participant who made it |
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](specs/protocol.md#clp-08-002)) |
 | `stub_summary` | Owner-chosen, human-readable description of the case used as the `summary` of the `VulnerabilityCaseStub` carried in a stub Invite. Must be set before emitting an `Invite(Actor, target=VulnerabilityCaseStub)` — the factory raises if absent ([CM-17-010](specs/protocol.md#cm-17-010), [MV-10-001](specs/protocol.md#mv-10-001)) |
 | `parent_cases`, `child_cases`, `sibling_cases` | URIs of related cases, held as IDs only (ADR-0017); no protocol flow sets them yet. A case split will set `parent_cases` on the child and `child_cases` on the parent, and leaves `sibling_cases` unwritten (ADR-0125) |
 | `active_participants` | Computed, not stored: the ids of the inline participant records that `is_active_participant` finds active, in roster order. Sent on the wire as `activeParticipants` only; the AS2 form leaves it out while any `case_participants` entry is a bare URI, so it is never a partial list. A received value that contradicts the recomputed one is refused (CM-31-003, ARCH-23-005) |
-
-## `CaseActor`
-
-Defined in `vultron/core/models/case_actor.py`.
-
-| Field | Description |
-|---|---|
-| `type_` | Always `Service` |
-| `outbox` | The actor's outbox; kept locally and not sent on the wire |
-
-The `CaseActor` is also registered in the case as a `CaseActorParticipant`, which holds both `CVDRole.COORDINATOR` and `CVDRole.CASE_MANAGER` (ADR-0051).
 
 ## `CaseParticipant`
 
@@ -71,7 +59,7 @@ Stored in `VulnerabilityCase.case_statuses`.
 
 | Field | Description |
 |---|---|
-| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0122) |
+| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a read-only copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0122). Assigning it, or its `state`, raises (SDO-03-006) |
 | `pxa` | `PxaDimension` — the Publication/eXploit/Active-attacks (PXA) state |
 | `context` | The URI of the case this status belongs to |
 | `attributed_to` | The actor who reported this status (optional) |
@@ -141,11 +129,6 @@ classDiagram
         genesis_hash str
     }
 
-    class CaseActor {
-        type_ Service
-        outbox VultronOutbox
-    }
-
     class CaseParticipant {
         id_ URI
         case_roles list~CVDRole~
@@ -182,7 +165,6 @@ classDiagram
     VulnerabilityCase "1" *--> "0..*" CaseStatus : case_statuses
     CaseParticipant "1" *--> "0..*" ParticipantStatus : participant_statuses
     CaseParticipant --> CVDRole : case_roles
-    CaseActor ..> CaseParticipant : registered as CaseActorParticipant
 ```
 
 ## See also
