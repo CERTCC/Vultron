@@ -16,6 +16,7 @@ related_notes:
   - notes/specs-vs-adrs.md
   - notes/spec-authoring-rules.md
   - notes/coordination-agents.md
+  - notes/site-information-architecture.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
@@ -30,7 +31,7 @@ Work flows through skills: `work-issue` routes an issue by type to `build`,
 `review-priorities` (run in order by `reflect-cycle`) fold what the builds
 learned back into specs, notes and priorities. Keep `build` and `bugfix` as two
 skills: `bugfix` investigates and writes the failing test first, `build` selects
-from the priority queue. Their shared phases are tracked in #3582.
+from the priority queue.
 
 ---
 

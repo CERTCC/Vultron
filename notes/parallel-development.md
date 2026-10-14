@@ -258,19 +258,7 @@ tier, and non-Epic issues with no Epic ancestor, which need a parent (PAD-12).
 Views are board settings, not process: Schedule (Epics by tier, with progress),
 Issues (`Status` columns grouped by type), PRs (by `Ship stage`), and Needs you
 (PRs at `Needs you` or `Ready to merge`, `needs-info`, `ready-for-human` and
-`stale-claim` issues). #3718 creates them.
-
-### Where the tooling lags the process
-
-Epic #3708 builds the process above. Until its children close, work with these
-facts:
-
-- `claim-issue.sh` creates the claim branch locally and sets no `Status`, and the
-  sweeper scans only `task/*` branches (#3714).
-- Nothing writes `Status` (#3713), and PRs are not board items.
-- Non-Epic issues still carry `Schedule` values, new ones default to `Someday`,
-  and `bundle-fit` lets an explicit leaf tier beat its Epic's; do not set a leaf
-  tier (#3710, #3711).
+`stale-claim` issues).
 
 ## Load When
 

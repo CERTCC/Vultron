@@ -8,6 +8,7 @@ description: >
   levels and their check, the working record's door, generated landing pages
   and coverage matrix, and how docs remediation is partitioned.
 related_notes:
+  - notes/agentic-workflow.md
   - notes/diataxis-framework.md
   - notes/site-coverage-matrix.md
   - notes/documentation-strategy.md

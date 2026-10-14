@@ -38,11 +38,8 @@ claim as an assertion and verify it against its authority before committing
 
 **Reason.** In place, a diagram is page furniture; on a page whose job is to
 justify a design, each arrow becomes a falsifiable claim. A faithful copy
-satisfies "all content accounted for" while republishing a falsehood. Two
-witnesses: a Diátaxis extraction under `docs/` exposed wrong AS2 verb
-attributions copied across three how-to pages (#3002, #3395), and a naming
-sweep over `specs/` exposed CM-20 requirements contradicting CBT-01-003
-(#3342). The mechanism is not specific to `docs/`.
+satisfies "all content accounted for" while republishing a falsehood. The
+mechanism is not specific to `docs/`: it applies to a sweep over `specs/` too.
 
 A ratchet for the claim class you moved is the best outcome of a sweep, not a
 substitute for reading: `test/architecture/test_docs_activity_verbs.py` holds

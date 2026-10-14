@@ -535,8 +535,7 @@ groups:
       satisfies perfectly while propagating a false statement to a second location with more
       authority than it had in the first. Such a defect is invisible in the source context and
       becomes falsifiable only once it is read as a first-class assertion in the destination. Two
-      sessions confirmed the mechanism (#3002 under `docs/`, #3342 over `specs/`); witnesses and
-      defect detail in `notes/documentation-sweeps.md`.
+      sessions confirmed the mechanism (#3002 under `docs/`, #3342 over `specs/`).
     verification: >-
       For any diff that adds a block to a `docs/` page which appears verbatim or near-verbatim
       elsewhere under `docs/` (or removes it from another page in the same change), each claim in
