@@ -82,7 +82,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-from ._base import _case_for_wire, _seal, _to_wire
+from ._base import _already_sealed, _case_for_wire, _seal, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -492,8 +492,11 @@ class _ActorsMixin:
         participant into an Offer(as_CaseParticipant) addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
-        (CM-16-004).
+        (CM-16-004).  An Offer already built under *id_* is returned as
+        sealed, without storing a second inline participant.
         """
+        if (built := _already_sealed(self._dl, id_)) is not None:
+            return built
         extra: dict[str, Any] = {"actor": actor, "to": to}
         if id_ is not None:
             extra["id_"] = id_
@@ -779,6 +782,7 @@ class _ActorsMixin:
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         target = as_Actor(id_=target_actor_id)
@@ -790,9 +794,10 @@ class _ActorsMixin:
             id_=offer_id,
             actor=vendor_id,
         )
-        activity = accept_case_participant_role_activity(
-            offer=offer, actor=actor, to=to
-        )
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = accept_case_participant_role_activity(offer=offer, **extra)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:

@@ -64,10 +64,14 @@ class _CasesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(as_VulnerabilityCase)`` activity."""
         case = _case_for_wire(self._dl, case_id)
-        activity = create_case_activity(case=case, actor=actor, to=to)
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = create_case_activity(case=case, **extra)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
