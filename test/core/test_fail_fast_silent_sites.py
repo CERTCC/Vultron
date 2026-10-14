@@ -34,7 +34,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.dispatcher import DirectActivityDispatcher
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     MessageSemantics,
@@ -69,7 +69,7 @@ def datalayer():
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    actor = CaseActor(id_=ACTOR_ID, name="Vendor Co")
+    actor = VultronService(id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl
 

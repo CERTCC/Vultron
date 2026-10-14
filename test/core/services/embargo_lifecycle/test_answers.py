@@ -1245,10 +1245,10 @@ def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
 
 @pytest.mark.spec("MSM-07-003")
 @pytest.mark.spec("CM-18-003")
-def test_declined_participant_accepting_records_nothing(
+def test_declined_participant_accepting_changes_its_answer(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """AGREE is not legal from DECLINED, so no row changes (#4003)."""
+    """An Accept after a decline moves the row straight to AGREED (CM-18-003)."""
     owner, dl = owner_and_dl
     decliner = _make_actor(dl, "Decliner")
     case, (_owner_p, decliner_p) = _make_case(
@@ -1264,10 +1264,12 @@ def test_declined_participant_accepting_records_nothing(
         case_id=case.id_, embargo_id=active.id_, actor_id=decliner.id_
     )
 
-    assert result.participant_changes == []
-    assert result.case_changed is False
-    assert _consents_of(dl, decliner_p.id_) == {active.id_: "DECLINED"}
-    assert not _is_signatory(dl, case.id_, decliner_p.id_)
+    assert [
+        (c.consent_before, c.consent_after) for c in result.participant_changes
+    ] == [("DECLINED", "AGREED")]
+    assert result.case_changed is True
+    assert _consents_of(dl, decliner_p.id_) == {active.id_: "AGREED"}
+    assert _is_signatory(dl, case.id_, decliner_p.id_)
 
 
 @pytest.mark.spec("EMB-18-003")
@@ -1402,27 +1404,21 @@ def _shorter_revision_case(dl: SqliteDataLayer, owner: as_Service):
 
 
 @pytest.mark.spec("EP-05-001", "CM-18-003")
-def test_carry_over_lifts_a_declined_revision_row_but_agree_does_not(
+def test_carry_over_lifts_a_declined_revision_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
     """Agreeing to N days binds every shorter period, a declined one included.
 
-    The finder agreed to A and declined the shorter B.  Its own Accept of B
-    records nothing (AGREE refuses DECLINED); the owner's activation of B
-    applies CARRY_OVER, which lifts the DECLINED row to AGREED (ADR-0122).
+    The finder agreed to A and declined the shorter B, and does not change
+    its answer.  The owner's activation of B applies CARRY_OVER, which lifts
+    the DECLINED row to AGREED (ADR-0122).
     """
     owner, dl = owner_and_dl
-    case, finder, _owner_p, finder_p, _active_id, revision_id = (
+    case, _finder, _owner_p, finder_p, _active_id, revision_id = (
         _shorter_revision_case(dl, owner)
     )
     _seed_consent(dl, finder_p.id_, revision_id, ECS.DECLINED)
     lifecycle = EmbargoLifecycle(persistence=dl)
-
-    own_accept = lifecycle.accept_embargo_invite(
-        case_id=case.id_, embargo_id=revision_id, actor_id=finder.id_
-    )
-    assert own_accept.participant_changes == []
-    assert _consent_of(dl, finder_p.id_, revision_id) == "DECLINED"
 
     activation = lifecycle.activate_embargo(
         case_id=case.id_, embargo_id=revision_id, actor_id=owner.id_

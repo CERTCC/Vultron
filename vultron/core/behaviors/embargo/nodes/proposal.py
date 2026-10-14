@@ -26,9 +26,11 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
+)
+from vultron.core.services.embargo_lifecycle.pec import (
+    find_actor_participant,
 )
 from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.states.participant_embargo_consent import (
@@ -40,9 +42,10 @@ from vultron.errors import (
 )
 
 #: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
-#: that is a repeat of a Reject already recorded.  The received reject use
-#: case reads it to report ``SKIPPED`` rather than ``REFUSED`` (HP-01-003) —
-#: the node's own verdict, not the store's state, names the repeat.
+#: that is a repeat of a Reject already recorded.  The ledger replay
+#: (``ApplyEmbargoRejectionFromLedgerNode``) reads it as a no-op; on the
+#: received side the tree's repeat guard stops a repeat before the commit
+#: (CM-13-005, HP-01-003).
 ALREADY_DECLINED_PREFIX = "Already declined"
 
 
@@ -270,15 +273,12 @@ class RecordParticipantRejectionNode(
     def _already_declined(self, case: VulnerabilityCase) -> bool:
         """True when the rejecting actor's row for the embargo is already DECLINED."""
         assert self.datalayer is not None
-        participant_id = case.actor_participant_index.get(
-            self.rejecting_actor_id
-        )
-        participant = (
-            self.datalayer.read(participant_id) if participant_id else None
+        resolved = find_actor_participant(
+            self.datalayer, case, self.rejecting_actor_id
         )
         return (
-            isinstance(participant, CaseParticipant)
-            and participant.consent_for(self.embargo_id)
+            resolved is not None
+            and resolved[1].consent_for(self.embargo_id)
             == EmbargoConsentState.DECLINED
         )
 
@@ -304,8 +304,10 @@ class RecordParticipantRejectionNode(
             return Status.FAILURE
 
         if not result.participant_changes and self._already_declined(case):
-            # A repeat of a Reject already recorded (HP-01-003, #2255): the
-            # handler reads this FAILURE's prefix as SKIPPED.
+            # A repeat of a Reject already recorded (HP-01-003, #2255).  The
+            # received tree's repeat guard stops one before the commit
+            # (CM-13-005, #4597); the ledger replay reads this FAILURE's
+            # prefix as a no-op.
             self.feedback_message = (
                 f"{ALREADY_DECLINED_PREFIX}: '{self.rejecting_actor_id}'"
                 f" had declined embargo '{self.embargo_id}' on case"

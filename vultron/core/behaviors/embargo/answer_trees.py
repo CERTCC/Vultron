@@ -45,12 +45,18 @@ from vultron.core.behaviors.embargo.nodes import (
     RejectIsNotWithdrawalNode,
     ValidateCaseExistsNode,
 )
+from vultron.core.behaviors.embargo.nodes.answer_repeat import (
+    case_manager_admits_embargo_answer_guard,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
+)
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,7 +100,17 @@ def accept_invite_to_embargo_tree(
         sender_context=SenderCheckContext(
             sender_id=accepting_actor_id, case_id=case_id, invite_id=invite_id
         ),
-        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
+        precondition_guards=[
+            ValidateCaseExistsNode(case_id=case_id),
+            # A repeat of an Accept already recorded commits nothing and
+            # announces nothing (CM-13-005, HP-01-003).
+            case_manager_admits_embargo_answer_guard(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                answering_actor_id=accepting_actor_id,
+                answer=EmbargoConsentState.AGREED,
+            ),
+        ],
         manager_effects=[
             RecordParticipantAcceptanceNode(
                 case_id=case_id,
@@ -136,6 +152,7 @@ def reject_invite_to_embargo_tree(
         ├─ IntakeReceivedActivityNode
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
+        ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
@@ -175,6 +192,14 @@ def reject_invite_to_embargo_tree(
         ),
         precondition_guards=[
             IsRejectableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
+            # A repeat of a Reject already recorded commits nothing and
+            # announces nothing (CM-13-005, HP-01-003).
+            case_manager_admits_embargo_answer_guard(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                answering_actor_id=rejecting_actor_id,
+                answer=EmbargoConsentState.DECLINED,
+            ),
             RejectIsNotWithdrawalNode(
                 case_id=case_id,
                 embargo_id=embargo_id,

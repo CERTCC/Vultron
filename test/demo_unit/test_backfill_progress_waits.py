@@ -25,6 +25,7 @@ The clock is faked: ``time.sleep`` advances ``time.monotonic``, so each test
 is deterministic and runs instantly.
 """
 
+from typing import Any, NamedTuple
 from unittest.mock import MagicMock
 
 import pytest
@@ -89,7 +90,7 @@ def _full_case_invite():
 class _Store:
     """A real invitee store, read through the real DataLayer routes.
 
-    The fakes are not hand-written dicts: the whole-store dump and the
+    The fakes are not hand-written dicts: the type-filtered dump and the
     ``CaseLedgerEntrys/`` collection are what the routes serve for these saved
     objects, so a change to either serialization reaches these tests.
     """
@@ -106,8 +107,15 @@ class _Store:
         archive_received(self.dl, _full_case_invite())
         return self
 
-    def whole_dump(self) -> dict[str, dict]:
-        return get_datalayer_contents(datalayer=self.dl)
+    def invite_dump(self) -> dict[str, dict]:
+        """The dump the full-case Invite poll reads: Invite types only."""
+        return get_datalayer_contents(
+            datalayer=self.dl, types=list(polling._RECEIVED_INVITE_TYPES)
+        )
+
+    def invite_poll(self) -> "_PollReads":
+        """Both reads one Invite poll makes, as of now."""
+        return _PollReads(self.invite_dump(), self.ledger_collection())
 
     def ledger_collection(self) -> dict[str, dict]:
         # The route is unannotated; it serves DataLayer.by_type's mapping.
@@ -117,16 +125,23 @@ class _Store:
         return collection
 
 
+class _PollReads(NamedTuple):
+    """What the two reads of one full-case Invite poll return."""
+
+    invites: dict[str, dict]
+    ledger: dict[str, dict]
+
+
 def _backfill(
     count: int, *, reads_per_entry: int, read, invite: bool = False
-) -> list[dict[str, dict]]:
+) -> list[Any]:
     """Snapshots of a store applying *count* entries, one at a time.
 
     Each stage is read *reads_per_entry* times (one read per poll), so with
     the 0.5 s poll interval an entry lands every ``reads_per_entry / 2`` s.
     """
     store = _Store()
-    snapshots: list[dict[str, dict]] = []
+    snapshots: list[Any] = []
     for applied in range(count):
         snapshots += [read(store)] * reads_per_entry
         store.add_entries(applied, applied + 1)
@@ -150,6 +165,29 @@ def _client(dumps: list[dict[str, dict]]) -> MagicMock:
         except StopIteration:
             pass
         return last[0]
+
+    client.get.side_effect = _get
+    return client
+
+
+def _invite_poll_client(polls: list[_PollReads]) -> MagicMock:
+    """A client whose successive Invite polls see *polls*, then the last.
+
+    A poll is one read of the Invite types and, when that finds nothing, one
+    of the ledger collection; both come from the same snapshot, and the next
+    Invite read moves on to the next one.
+    """
+    client = MagicMock()
+    client.base_url = "http://vendor2:7999"
+    client.dl_path.side_effect = lambda path="": f"/datalayer/{path}"
+    remaining = iter(polls)
+    current: list[_PollReads] = [polls[0]]
+
+    def _get(path: str, **_kwargs: Any) -> dict[str, dict]:
+        if path.endswith("CaseLedgerEntrys/"):
+            return current[0].ledger
+        current[0] = next(remaining, current[0])
+        return current[0].invites
 
     client.get.side_effect = _get
     return client
@@ -270,10 +308,10 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
         """A backfill longer than the budget no longer outruns the gate (#4424)."""
         # One entry applied every 2 s for 40 entries: 80 s, four times the
         # 20 s budget that failed in CI, with the Invite behind the last one.
-        dumps = _backfill(
-            40, reads_per_entry=4, read=_Store.whole_dump, invite=True
+        polls = _backfill(
+            40, reads_per_entry=4, read=_Store.invite_poll, invite=True
         )
-        client = _client(dumps)
+        client = _invite_poll_client(polls)
         start = clock[0]
 
         found = find_full_case_invite_for_actor(
@@ -287,8 +325,8 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
         assert clock[0] - start > FULL_CASE_REPLY_TIMEOUT
 
     def test_fails_once_the_backfill_stops_advancing(self, clock):
-        client = _client(
-            _backfill(3, reads_per_entry=1, read=_Store.whole_dump)
+        client = _invite_poll_client(
+            _backfill(3, reads_per_entry=1, read=_Store.invite_poll)
         )
         start = clock[0]
 
@@ -302,11 +340,11 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
     def test_another_cases_ledger_is_not_progress(self, clock):
         """Only the invited case's backfill delays its Invite."""
         store = _Store()
-        dumps = []
+        polls = []
         for index in range(100):
             store.add_entries(index, index + 1, case_id=OTHER_CASE_ID)
-            dumps.append(store.whole_dump())
-        client = _client(dumps)
+            polls.append(store.invite_poll())
+        client = _invite_poll_client(polls)
         start = clock[0]
 
         with pytest.raises(AssertionError):
@@ -318,8 +356,8 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
 
     def test_a_backfill_that_never_ends_fails_at_the_ceiling(self, clock):
         # A new entry on every 0.5 s poll, for longer than the 30 s ceiling.
-        client = _client(
-            _backfill(100, reads_per_entry=1, read=_Store.whole_dump)
+        client = _invite_poll_client(
+            _backfill(100, reads_per_entry=1, read=_Store.invite_poll)
         )
         start = clock[0]
 
@@ -337,12 +375,12 @@ class TestFullCaseInviteWaitFollowsTheBackfill:
     def test_a_progress_reading_that_raises_does_not_hide_the_invite(
         self, clock, monkeypatch
     ):
-        def _broken(_dump: dict, _case_id: str) -> int:
+        def _broken(_client: object, _case_id: str) -> int:
             raise RuntimeError("progress reading failed")
 
         monkeypatch.setattr(polling, "_count_case_ledger_entries", _broken)
-        client = _client(
-            [_Store().add_entries(0, 3).add_invite().whole_dump()]
+        client = _invite_poll_client(
+            [_Store().add_entries(0, 3).add_invite().invite_poll()]
         )
 
         assert (

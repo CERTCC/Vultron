@@ -20,9 +20,14 @@ Shared scripts and reference documents referenced by multiple skills.
 | Script | Purpose | Usage |
 |---|---|---|
 | `sync-check.sh` | Verify worktree is synced to `origin/main` | `bash .agents/skills/shared/sync-check.sh` |
-| `claim-issue.sh` | Sync + create branch + assign + post claim comment. Extra members are claimed onto the one branch named for `<N>`; all numbers are validated before anything is mutated | `bash .agents/skills/shared/claim-issue.sh <N> <prefix> <slug> [<OTHERS>...]` |
-| `query-epic-subissues.sh` | Emit an Epic's leaf sub-issues with the eligibility fields plus `issueType` and the Project #24 `Schedule` tier. Pipe into the `bundle-fit` console script, which applies fit and owns the rules | `bash .agents/skills/shared/query-epic-subissues.sh <EPIC> \| PYTHONPATH= uv run bundle-fit` |
+| `claim-issue.sh` | Sync, have GitHub create the linked claim branch (the lock: a `null` `linkedBranch` means already claimed, PAD-04-001), then `announce-claim.sh` each member (an Epic member is only commented on: its assignee means an epic run). Extra members are claimed onto the one branch named for `<N>`; all numbers are validated, and checked with `epic-hold.sh`, before anything is mutated. Exit 3 = held by an epic run | `bash .agents/skills/shared/claim-issue.sh [--epic-run <EPIC>] <N> <prefix> <slug> [<OTHERS>...]` |
+| `announce-claim.sh` | The one claim announcement: assign `@me`, comment, and set `Status = In Progress` for non-Epics (PAD-04-002). Called by `claim-issue.sh` and `claim-epic.sh` | `bash .agents/skills/shared/announce-claim.sh <N> <message>` |
+| `epic-hold.sh` | Exit 3 if `<N>` is a Task or Feature whose nearest Epic is claimed by an epic run other than `<EPIC_RUN>` (PAD-19-002/003) | `bash .agents/skills/shared/epic-hold.sh <N> [<EPIC_RUN>]` |
+| `claim-epic.sh` | Claim an Epic for an epic run (`work-epic-tasks`): refuse if already assigned, else `announce-claim.sh` (PAD-19-001) | `bash .agents/skills/shared/claim-epic.sh <EPIC>` |
+| `release-epic.sh` | End an epic run: unassign the Epic and post the summary comment (PAD-19-004) | `bash .agents/skills/shared/release-epic.sh <EPIC> <summary>` |
+| `query-epic-subissues.sh` | Emit an Epic's assignees and its leaf sub-issues with the eligibility fields plus `issueType` and the Project #24 `Schedule` tier. Pipe into the `bundle-fit` console script, which applies fit and owns the rules | `bash .agents/skills/shared/query-epic-subissues.sh <EPIC> \| PYTHONPATH= uv run bundle-fit` |
 | `add-to-project.sh` | Add issue to Project #24 with Schedule | `bash .agents/skills/shared/add-to-project.sh <N> [Focus\|Now\|Next\|Later\|Someday]` |
+| `set-board-field.sh` | Put an issue on Project #24 and set its `Schedule` or `Status` | `bash .agents/skills/shared/set-board-field.sh <N> <schedule\|status> <option>` |
 | `sync-epic-schedules.sh` | Raise open descendants of scheduled Epics to their Epic's Schedule tier (raise-only, from Someday/unset/off-board; reports children above the Epic, at Later, or at a non-tier value). Dry run unless `--apply` | `bash .agents/skills/shared/sync-epic-schedules.sh [--apply] [--tiers "Focus Now Next"] [<EPIC>...]` |
 | `query-now-epics.sh` | List open Epics with Schedule=Now | `bash .agents/skills/shared/query-now-epics.sh` |
 | `board-id.sh` | Resolve any board node/field/option/issue-type ID **by name** (TTL-cached) | `bash .agents/skills/shared/board-id.sh <category> [<Name>]` |
@@ -50,7 +55,7 @@ recorded in the PR pipeline artifacts.
 
 ## Board IDs — never hardcode them
 
-GitHub board IDs (repo node ID, project node ID, Schedule field/option IDs,
+GitHub board IDs (repo node ID, project node ID, Schedule and Status field/option IDs,
 issue-type IDs) are **server-generated and mutable** — editing a ProjectV2
 single-select field's options rotates every option ID. Any value pasted into a
 skill drifts stale and silently mis-schedules issues (this has bitten us
@@ -67,6 +72,8 @@ should contain a raw ID.
 | Project #24 node ID | `bash .agents/skills/shared/board-id.sh project` |
 | Schedule field ID | `bash .agents/skills/shared/board-id.sh schedule-field` |
 | A Schedule option ID | `bash .agents/skills/shared/board-id.sh schedule Now` (or `Focus`/`Next`/`Later`/`Someday`/`Completed`) |
+| Status field ID | `bash .agents/skills/shared/board-id.sh status-field` |
+| A Status option ID | `bash .agents/skills/shared/board-id.sh status "In Progress"` (or `Backlog`/`Ready`/`In Review`/`Done`; case-insensitive) |
 | An issue-type ID | `bash .agents/skills/shared/board-id.sh issue-type Epic` (or `Task`/`Bug`/`Feature`/`Idea`/`Concern`) |
 | Whole cache as JSON | `bash .agents/skills/shared/board-id.sh --dump` |
 

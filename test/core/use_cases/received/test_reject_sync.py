@@ -371,7 +371,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         """Missing entries are replayed once the case's CASE_MANAGER resolves.
 
         The sender address comes from the role (ADR-0088, ARCH-24-004). This
-        used to be satisfied by an ``as_CaseActor`` whose ``context`` was the
+        used to be satisfied by a case actor ``Service`` whose ``context`` was the
         case id — a hosting signal that no longer answers.
         """
         manager_dl.save(entry0)

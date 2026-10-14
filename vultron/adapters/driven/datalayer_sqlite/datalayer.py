@@ -357,9 +357,9 @@ class SqliteDataLayer:
         """Remove and return the oldest activity ID from the inbox."""
         return queues.inbox_pop(self)
 
-    def outbox_append(self, activity_id: str) -> None:
-        """Append an activity ID to this actor's outbox queue."""
-        queues.outbox_append(self, activity_id)
+    def outbox_append(self, activity_id: str) -> bool:
+        """Queue *activity_id* in this actor's outbox unless it is pending (OX-06-002)."""
+        return queues.outbox_append(self, activity_id)
 
     def outbox_list(self) -> list[str]:
         """Return all activity IDs in this actor's outbox, in insertion order."""

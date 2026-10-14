@@ -26,7 +26,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import AckReportReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -85,7 +85,7 @@ def _make_store(
             )
         )
     if case:
-        dl.save(CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID))
+        dl.save(VultronService(id_=CASE_ACTOR_ID, context=CASE_ID))
         vul_case = as_VulnerabilityCase(
             id_=CASE_ID, name="AckReport Test", attributed_to=CASE_ACTOR_ID
         )

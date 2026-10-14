@@ -30,7 +30,6 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle.pec import (
     _PecEffectsMixin,
-    owner_declined_embargo,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
@@ -39,7 +38,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
-from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
 
@@ -87,28 +85,6 @@ class _PecActivationMixin(_PecEffectsMixin):
             )
         return changes
 
-    def _assert_owner_may_activate(
-        self, case: VulnerabilityCase, embargo_id: str
-    ) -> None:
-        """Refuse an activation the case owner has declined (ADR-0122).
-
-        Activation records the owner's ``AGREE``, which ``DECLINED`` refuses
-        (CM-18-003): an owner that declined the proposal as a participant is
-        invited again before it can activate it.  Called before anything is
-        written, in either mode, so replay refuses what the CASE_MANAGER
-        would have refused.
-
-        Raises:
-            VultronInvalidStateTransitionError: If the owner's row for
-                *embargo_id* is ``DECLINED``.
-        """
-        if owner_declined_embargo(self._persistence, case, embargo_id):
-            raise VultronInvalidStateTransitionError(
-                f"Case owner '{_as_id(case.attributed_to)}' declined embargo"
-                f" '{embargo_id}' on case '{_as_id(case)}': it is invited"
-                " again before it can activate it (CM-18-003)."
-            )
-
     def _consent_at_activation(
         self,
         case: VulnerabilityCase,
@@ -128,8 +104,10 @@ class _PecActivationMixin(_PecEffectsMixin):
 
         - The owner's row for the activated embargo is ``AGREED``: an
           activation is the owner agreeing to the terms, so the owner is
-          never lapsed by it.  A row that is already ``AGREED`` is left as it
-          is (ADR-0122).
+          never lapsed by it.  A ``DECLINED`` row moves straight to
+          ``AGREED``: the owner has changed its answer, so it is not invited
+          again first (MSM-07-008).  A row that is already ``AGREED`` is left
+          as it is (ADR-0122).
         - Replacing A with a B that ends no later than A carries A's
           signatories over (:meth:`_carry_signatories_over`); a longer B
           carries nobody, and the signatories who have not agreed to it have

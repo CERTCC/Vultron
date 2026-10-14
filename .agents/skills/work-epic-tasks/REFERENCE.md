@@ -8,6 +8,10 @@ worktree paths. Update it at every state change. On re-invocation for the same
 Epic, load it and compare with GitHub (issue, PR, branch state). **GitHub
 wins**; tell the user about any mismatch and do not guess.
 
+The Epic claim is not in the status file: GitHub records it as the Epic's
+assignee. A resumed run claims the Epic again (step 3), because the last run
+released it (step 6).
+
 ## Stall detection
 
 You cannot see inside a background agent. Check the worktree at intervals
@@ -34,5 +38,6 @@ keep their worktrees until resolved.
 
 ## Report sections
 
-Completed · Parked (with the open question) · Excluded (with reason) · Plan
-changes · New issues (type, source task, blocking?) · Worktrees left behind.
+Completed · Parked (with the open question) · Excluded (with reason) · Taken
+elsewhere (planned Bugs another agent claimed first) · Plan changes · New issues
+(type, source task, blocking?) · Worktrees left behind.

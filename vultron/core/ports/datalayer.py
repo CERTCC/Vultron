@@ -168,7 +168,13 @@ class DataLayer(Protocol):
 
     def inbox_pop(self) -> str | None: ...
 
-    def outbox_append(self, activity_id: str) -> None: ...
+    def outbox_append(self, activity_id: str) -> bool:
+        """Queue *activity_id* unless it is already pending; ``True`` if queued.
+
+        The outbox-id idempotency check (OX-06-002, ADR-0119): an id already
+        waiting in this outbox is not queued a second time.
+        """
+        ...
 
     def outbox_list(self) -> list[str]: ...
 

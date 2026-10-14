@@ -40,8 +40,10 @@ from vultron.demo.helpers.polling import (
     assert_received_from,
     case_manager_store,
     find_case_invite_for_actor,
+    find_cp_offer_for_case,
     find_embargo_invite_for_actor,
     find_full_case_invite_for_actor,
+    find_ownership_transfer_offer_for_actor,
     wait_for_case_attributed_to,
     wait_for_case_em_state,
     wait_for_case_participants,
@@ -1084,3 +1086,75 @@ class TestWaitForParticipantEmbargoAccepted:
     def test_times_out_naming_the_accepted_embargoes(self):
         with pytest.raises(AssertionError, match=r"current=.*INVITED"):
             self._wait(False)
+
+
+# ---------------------------------------------------------------------------
+# Store-scan finders read only the types the awaited object is stored as
+# (#4600): the whole-store dump rehydrated and serialized every object on the
+# container being polled — a late joiner applying its backfill — twice a
+# second, at a cost that grew with the store.
+# ---------------------------------------------------------------------------
+
+_RECEIVED_INVITE_TYPES = ["ReceivedActivityRecord", "Invite"]
+
+_STORE_SCAN_FINDERS = [
+    pytest.param(
+        lambda c, **kw: find_case_invite_for_actor(c, CASE_ID, ACTOR_B, **kw),
+        _RECEIVED_INVITE_TYPES,
+        id="case-invite",
+    ),
+    pytest.param(
+        lambda c, **kw: find_full_case_invite_for_actor(
+            c, CASE_ID, ACTOR_B, **kw
+        ),
+        _RECEIVED_INVITE_TYPES,
+        id="full-case-invite",
+    ),
+    pytest.param(
+        lambda c, **kw: find_embargo_invite_for_actor(
+            c, "http://example.com/embargoes/e1", ACTOR_B, **kw
+        ),
+        _RECEIVED_INVITE_TYPES,
+        id="embargo-invite",
+    ),
+    pytest.param(
+        lambda c, **kw: find_ownership_transfer_offer_for_actor(
+            c, CASE_ID, ACTOR_B, **kw
+        ),
+        ["Offer"],
+        id="ownership-transfer-offer",
+    ),
+    pytest.param(
+        lambda c, **kw: find_cp_offer_for_case(c, CASE_ID, **kw),
+        ["Offer"],
+        id="case-participant-offer",
+    ),
+]
+
+
+class TestStoreScanFindersReadOnlyTheirTypes:
+    @staticmethod
+    def _recording_client() -> MagicMock:
+        client = MagicMock()
+        client.base_url = "http://vendor:7999"
+        client.dl_path.side_effect = lambda key="", actor_id=None: (
+            f"/actors/vendor/datalayer/{key}"
+        )
+        client.get.return_value = {}
+        return client
+
+    @pytest.mark.parametrize(("finder", "types"), _STORE_SCAN_FINDERS)
+    def test_never_reads_the_whole_store(self, finder, types):
+        client = self._recording_client()
+
+        with pytest.raises(AssertionError):
+            finder(client, timeout_seconds=0.05, poll_interval=0.01)
+
+        assert client.get.call_args_list, "the finder never read the store"
+        for call in client.get.call_args_list:
+            path = call.args[0]
+            if path == "/actors/vendor/datalayer/":
+                assert call.kwargs.get("params") == {"type": types}, call
+            else:
+                # Only a typed collection may be read unfiltered.
+                assert path.endswith("s/"), call
