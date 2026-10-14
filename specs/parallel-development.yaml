@@ -4,7 +4,7 @@ description: >-
   Requirements for coordinating multiple parallel AI agents and human developers via
   GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming protocol,
   size labeling, orphan recovery, bundle selection and execution, and revised workflows
-  for the build, ingest-idea, review-priorities, and update-plan skills, and the
+  for the build, plan-issue, review-priorities, and update-plan skills, and the
   two paths through GitHub Project #24: Schedule on Epics, and a Status path for
   every other Issue and a ship stage for PRs, both mirrored from facts, and where
   the build-to-merge pipeline places its local test gates.
@@ -559,7 +559,7 @@ groups:
         verification_debt: '#2571'
         statement: >-
           After writing `specs/<topic>.yaml` and `notes/<topic>.md`, the
-          `ingest-idea` skill MUST open a docs-only PR carrying the
+          `plan-issue` skill MUST open a docs-only PR carrying the
           `specs-notes` label before creating the implementation GitHub Issue.
           This ensures spec and notes files are on `main` and referenceable
           from Issues before any implementation work begins.
@@ -568,7 +568,7 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          After the docs-only PR is opened, `ingest-idea` MUST create a
+          After the docs-only PR is opened, `plan-issue` MUST create a
           GitHub Issue with: a title and description derived from the spec,
           the `size:` label derived from the AC count per PAD-05-001, and a
           link to the spec file in the body. The Issue MUST be added to
@@ -579,7 +579,7 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          `ingest-idea` MUST NOT begin implementation work. It MUST stop after
+          `plan-issue` MUST NOT begin implementation work. It MUST stop after
           creating the Issue. Implementation work begins only when the Issue
           is Ready (PAD-16-004) and is selected under its Epic's `Schedule`
           tier on GitHub Project #24.
