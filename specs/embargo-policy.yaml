@@ -1148,7 +1148,7 @@ groups:
       revisions open, where a later default selection could pick a revision of a dead
       embargo as the earliest-expiring candidate (#3836). The register now enforces it: a
       step that leaves an entry `TERMINATED` while another is `PROPOSED` is refused
-      (ADR-0122 invariant 3), so `EmbargoLifecycle.terminate_active_embargo` applies
+      (ADR-0122), so `EmbargoLifecycle.terminate_active_embargo` applies
       `TERMINATE` and the `CANCEL` of every proposal as one step. It applies on every
       replica without extra work: the teardown replay node (`ClearActiveEmbargoNode`) runs
       the same method in `OBSERVED` mode (#3914).
