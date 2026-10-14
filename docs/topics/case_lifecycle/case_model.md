@@ -29,12 +29,13 @@ It gathers everything the case is about: its participants, the reports it covers
 `VulnerabilityCase` does not carry Report Management (RM) state directly — that belongs to each participant, through their `ParticipantStatus` history.
 Only Embargo Management (EM) state and the case-wide Publication/eXploit/Active-attacks (PXA) state are recorded at the case level, through the `CaseStatus` history.
 
-## `CaseActor`
+## Case Actor
 
 ActivityStreams 2.0 defines five actor types: Person, Organization, Group, Application, and **Service**.
-A `CaseActor` is a **Service** actor — it represents software infrastructure, not a human or organizational CVD stakeholder.
+A Case Actor is a **Service** actor — it represents software infrastructure, not a human or organizational CVD stakeholder.
+The prototype has no dedicated class for it: it is an ordinary `VultronService` named `CaseActor`.
 
-In the prototype, each case has one `CaseActor`, and it is the participant that holds the `CASE_MANAGER` role.
+In the prototype, each case has one Case Actor, and it is the participant that holds the `CASE_MANAGER` role.
 It is also a `CaseParticipant` (as a `CaseActorParticipant`, per ADR-0051): it holds both `CVDRole.COORDINATOR` and `CVDRole.CASE_MANAGER` and moves through the RM states like every other participant.
 Embargo proposals, status updates, notes, and participant invitations all go to it, so that the ledger captures a causally ordered record of the whole coordination.
 
@@ -94,7 +95,7 @@ A `VulnerabilityCase` aggregates:
 - An append-only `CaseStatus` history recording EM and PXA state over time
 - An append-only case ledger anchored at the case's genesis hash
 
-The participant holding `CASE_MANAGER` — in the prototype, the `CaseActor` — writes the ledger for the case and relays messages between participants.
+The participant holding `CASE_MANAGER` — in the prototype, the Case Actor — writes the ledger for the case and relays messages between participants.
 
 ## See also
 

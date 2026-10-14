@@ -26,7 +26,7 @@ from test.core.use_cases.received.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import (
@@ -209,7 +209,7 @@ class TestNoteUseCases:
             as_CaseParticipant,
         )
 
-        case_actor = CaseActor(
+        case_actor = VultronService(
             id_=case_actor_id,
             name="CaseActor",
             attributed_to="https://example.org/users/vendor",
@@ -681,7 +681,7 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le1"
 
-        case_actor = CaseActor(
+        case_actor = VultronService(
             id_=case_actor_id,
             name="CaseActor le1",
             attributed_to=author_id,
@@ -773,7 +773,7 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le2"
 
-        case_actor = CaseActor(
+        case_actor = VultronService(
             id_=case_actor_id,
             name="CaseActor le2",
             attributed_to=author_id,

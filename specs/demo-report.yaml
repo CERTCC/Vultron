@@ -247,8 +247,8 @@ groups:
     statement: >-
       The tool MUST build a URI-to-display-name map during timeline construction
       by scanning all payload snapshots for actor objects (type
-      `Organization`, `Person`, `Service`, `Application`, `Group`, `Actor`,
-      `CaseActor`) that carry both an `id` (URI) and a non-empty `name` field.
+      `Organization`, `Person`, `Service`, `Application`, `Group`, `Actor`)
+      that carry both an `id` (URI) and a non-empty `name` field.
     rationale: >-
       Actor URIs may be UUID-based when the actor was created with a generated
       identifier rather than a slug.  Without name resolution, `friendly_actor_name`

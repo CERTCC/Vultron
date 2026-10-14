@@ -34,8 +34,8 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -57,7 +57,7 @@ PARTICIPANT_ID = f"{CASE_ID}/participants/invitee"
 def scenario() -> BTTestScenario:
     s = BTTestScenario(actor_id=MANAGER_ID)
     s.seed(
-        CaseActor(id_=MANAGER_ID, name="Vendor Co"),
+        VultronService(id_=MANAGER_ID, name="Vendor Co"),
         VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=MANAGER_ID
         ),
@@ -202,7 +202,7 @@ class TestRefusals:
 
     def test_missing_case_fails(self) -> None:
         scenario = BTTestScenario(actor_id=MANAGER_ID)
-        scenario.seed(CaseActor(id_=MANAGER_ID, name="Vendor Co"))
+        scenario.seed(VultronService(id_=MANAGER_ID, name="Vendor Co"))
 
         result = _run(scenario, ["VENDOR"])
 

@@ -1489,7 +1489,7 @@ class TestActorNameResolution:
                     {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
                     {
                         "id": _UUID_ACTOR_URI,
-                        "type": "CaseActor",
+                        "type": "Service",
                         "name": "CaseManager",
                     },
                 ],

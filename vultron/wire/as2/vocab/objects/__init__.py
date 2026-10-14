@@ -35,9 +35,6 @@ _discover_modules()
 # ---------------------------------------------------------------------------
 # Explicit re-exports of as_-prefixed wire vocabulary classes (ARCH-14-001)
 # ---------------------------------------------------------------------------
-from vultron.wire.as2.vocab.objects.case_actor import (  # noqa: E402
-    as_CaseActor,
-)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (  # noqa: E402
     as_CaseLedgerEntry,
 )
@@ -96,7 +93,6 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (  # noqa: E402
 # Backward-compatibility aliases — existing imports keep working unchanged.
 # Callers should migrate to the as_-prefixed names (ARCH-14-001).
 # ---------------------------------------------------------------------------
-CaseActor = as_CaseActor
 CaseLedgerEntry = as_CaseLedgerEntry
 CaseParticipant = as_CaseParticipant
 CaseParticipantRef = as_CaseParticipantRef

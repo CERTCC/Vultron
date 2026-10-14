@@ -1799,10 +1799,11 @@ groups:
       The CS participant-specific axes (RM, VFD) are owned by each participant's
       `CaseParticipant` record and are intentionally excluded from this restriction.
     verification: >-
-      Inspection of `vultron/core/models/case_actor.py` confirms that
-      canonical case state is encapsulated within the CaseActor, and
+      Inspection of the CASE_MANAGER-gated commit path
+      (`CommitCaseLedgerEntryNode`) confirms that canonical case state is
+      written only by the actor enacting `CVDRole.CASE_MANAGER`, and
       integration tests in `test/demo/` confirm no use-case handler writes
-      to canonical state outside the actor boundary.
+      to canonical state outside that boundary.
     relationships:
     - rel_type: refines
       spec_id: VP-02-001

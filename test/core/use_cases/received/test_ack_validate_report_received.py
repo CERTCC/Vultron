@@ -146,14 +146,14 @@ class TestFullReportFlow:
     def _setup_dl(self):
         """Create a DataLayer pre-seeded with the report, vendor, and offer."""
         from vultron.core.models.activity import VultronOffer
-        from vultron.core.models.case_actor import CaseActor
+        from vultron.core.models.actor import VultronService
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,
         )
         report = VulnerabilityReport(id_=self.REPORT_ID)
-        vendor = CaseActor(id_=self.VENDOR_ID)
+        vendor = VultronService(id_=self.VENDOR_ID)
         offer = VultronOffer(
             id_=self.OFFER_ID,
             actor=self.FINDER_ID,

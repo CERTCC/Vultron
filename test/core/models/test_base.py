@@ -11,9 +11,9 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
     VultronOffer,
 )
+from vultron.core.models.actor import VultronService
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -28,7 +28,7 @@ DOMAIN_OBJECT_CLASSES = [
     CaseParticipant,
     CaseStatus,
     EmbargoEvent,
-    CaseActor,
+    VultronService,
     VultronActivity,
     VultronOffer,
     VultronAccept,
@@ -146,7 +146,7 @@ def test_domain_object_expected_as_types():
         EmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
         == "EmbargoEvent"
     )
-    assert CaseActor().type_ == "Service"
+    assert VultronService().type_ == "Service"
     _test_actor = "https://example.org/actors/test"
     assert VultronOffer(actor=_test_actor).type_ == "Offer"
     assert VultronAccept(actor=_test_actor).type_ == "Accept"

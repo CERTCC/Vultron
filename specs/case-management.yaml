@@ -544,11 +544,11 @@ groups:
     kind: protocol
     statement: >-
       The system MUST distinguish the following domain objects as separate, non-interchangeable
-      types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference, CaseActor,
+      types: VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference,
       CaseParticipant, and ParticipantStatus. Each of these types MUST NOT be substituted for
       another at any API boundary, persistence layer, or wire message.
     verification: Static analysis (mypy) confirms that `VulnerabilityReport`,
-      `VulnerabilityCase`, `VulnerabilityRecord`, `CaseReference`, `CaseActor`,
+      `VulnerabilityCase`, `VulnerabilityRecord`, `CaseReference`,
       `CaseParticipant`, and `ParticipantStatus` are declared as distinct non-interchangeable
       types.
     lint_suppress:
