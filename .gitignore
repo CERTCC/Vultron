@@ -175,3 +175,7 @@ graphify-out/
 # Agent worktrees (created by the Agent tool's worktree isolation).
 # Untracked and machine-local; never part of a commit.
 .claude/worktrees/
+
+# Vite cache / deps for the ui/ demo (ui/ does not exist on main)
+ui/.vite/
+ui/node_modules/
