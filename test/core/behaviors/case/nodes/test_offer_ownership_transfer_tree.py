@@ -33,7 +33,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_offer_ownership_transfer_tree,
 )
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -144,7 +144,7 @@ def test_forward_offer_replies_to_the_recorded_offer(
     assert result.status == Status.SUCCESS
     (forward_id,) = bt_scenario.dl.outbox_list()
     forward = bt_scenario.dl.read(forward_id)
-    assert getattr(forward, "in_reply_to", None) == OFFER_ID
+    assert _as_id(getattr(forward, "in_reply_to", None)) == OFFER_ID
 
 
 @pytest.mark.spec("CM-21-005")

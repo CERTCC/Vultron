@@ -3421,12 +3421,15 @@ groups:
       and the Reject commit. A forward that names nothing it stands for leaves the
       CASE_MANAGER guessing: matching by time lets a late answer to one Offer close
       a newer Offer to the same transferee recorded in the same second. `inReplyTo`
-      is the AS2 field for "this activity responds to that one".
+      is the AS2 field that points one activity at the one it follows from, and
+      `context` is not free to carry the link: it already names the case.
     verification: >-
       A test marked `CM-21-018` runs the forward and asserts its `inReplyTo` is the
       recorded Offer's id; a test delivers an answer to an earlier Offer's forward
       after a later Offer to the same transferee is recorded in the same second and
-      asserts the later Offer stays open.
+      asserts the later Offer stays open; a test delivers an answer naming a forward
+      with no `inReplyTo`, and one linked to another transferee's Offer, and asserts
+      each is refused with no ledger commit and no outbound activity.
     relationships:
     - rel_type: refines
       spec_id: CM-21-005
