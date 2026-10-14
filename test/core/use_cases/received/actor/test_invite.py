@@ -22,7 +22,11 @@ from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
 from test.support.embargo_register import activate
+from test.support.ledger_records import with_ledger_records
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -183,7 +187,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         dl.create(activity)
         return activity.id_, _outbound_blob(activity)
 
-    trigger_activity = MagicMock()
+    trigger_activity = with_ledger_records(MagicMock(), dl)
     trigger_activity.announce_vulnerability_case.return_value = (
         f"{case.id_}/announce/1"
     )
@@ -782,6 +786,7 @@ class TestInviteActorUseCases:
             event.model_copy(update={"receiving_actor_id": case_actor_id}),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         entries = [
@@ -844,6 +849,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         case = dl.read(case.id_)
@@ -908,6 +914,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         case = dl.read(case.id_)
@@ -973,6 +980,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
@@ -1055,6 +1063,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
@@ -1165,6 +1174,7 @@ class TestInviteActorUseCases:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         entries = [
@@ -1397,7 +1407,7 @@ class TestInviteActorUseCases:
         participant_case.case_participants.append(participant.id_)
         dl.save(participant_case)
 
-        trigger_activity = MagicMock()
+        trigger_activity = with_ledger_records(MagicMock(), dl)
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
         )
@@ -1525,7 +1535,7 @@ class TestInviteActorUseCases:
             payload_snapshot={"index": 1},
         )
 
-        trigger_activity = MagicMock()
+        trigger_activity = with_ledger_records(MagicMock(), dl)
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
         )
@@ -1550,7 +1560,7 @@ class TestInviteActorUseCases:
         # backfill sends entries 0 and 1 that the invitee missed.
         assert [entry.log_index for entry in announced_entries] == [2, 0, 1]
 
-    def test_accept_invite_backfill_runs_when_announce_port_missing(
+    def test_accept_invite_backfill_runs_when_the_announce_cannot_be_sent(
         self, make_payload
     ):
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -1631,13 +1641,19 @@ class TestInviteActorUseCases:
         )
 
         sync_port = MagicMock()
+        # The port builds the CASE_MANAGER's own entries, but the Announce
+        # cannot be built: the accept tree logs that and goes on (MV-10-003).
+        trigger_activity = with_ledger_records(MagicMock(), dl)
+        trigger_activity.announce_vulnerability_case.side_effect = (
+            RuntimeError("announce unavailable")
+        )
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
             sync_port=sync_port,
-            trigger_activity=None,
+            trigger_activity=trigger_activity,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1648,7 +1664,7 @@ class TestInviteActorUseCases:
         # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
         # the new accept_invite entry (2) to all participants via sync_port,
         # then the vendor's VF status (3) follows.
-        # This holds even when trigger_activity (announce port) is missing.
+        # This holds even when the Announce could not be sent.
         assert [entry.log_index for entry in announced_entries] == [
             0,
             1,
@@ -1707,6 +1723,7 @@ class TestAcceptInviteRolesAC4:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         reloaded_case = cast(Any, dl.read(case.id_))
@@ -1765,6 +1782,7 @@ class TestAcceptInviteRolesAC4:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED, (
@@ -1866,6 +1884,7 @@ class TestInviteDispositions:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1888,6 +1907,7 @@ class TestInviteDispositions:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1916,6 +1936,7 @@ class TestInviteDispositions:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1941,6 +1962,7 @@ class TestInviteDispositions:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1971,6 +1993,7 @@ class TestInviteDispositions:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED, (
@@ -2035,6 +2058,7 @@ class TestInviteDispositions:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED
@@ -2053,6 +2077,7 @@ class TestInviteDispositions:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -2074,6 +2099,7 @@ class TestInviteDispositions:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -2104,6 +2130,7 @@ class TestInviteDispositions:
             event,
             sync_port=sync_port,
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -2146,12 +2173,14 @@ class TestInviteDispositions:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         second = AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert first.disposition == HandlerDisposition.APPLIED

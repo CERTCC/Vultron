@@ -42,6 +42,9 @@ from test.core.use_cases.received.conftest import (
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
@@ -2060,6 +2063,7 @@ class TestEmitCaseStatusUpdateNodePromotion:
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=EMIT_ACTOR_ID)
         assert result.status == Status.SUCCESS

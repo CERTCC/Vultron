@@ -48,6 +48,7 @@ from test.core.use_cases.received.actor.test_invite import (
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.ledger_records import with_ledger_records
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -137,13 +138,18 @@ class _JoiningCase:
         )
 
 
+#: ``route_received``'s default port: the real adapter over the store, as the
+#: inbox wires it.  Pass ``None`` to route with no trigger-activity port.
+REAL_PORT: Any = object()
+
+
 def route_received(
     dl: SqliteDataLayer,
     activity: as_Activity,
     *,
     receiving_actor_id: str,
     sync_port: Any = None,
-    trigger_activity: Any = None,
+    trigger_activity: Any = REAL_PORT,
     actor_config: Any = None,
 ) -> HandlerResult:
     """Route *activity* as the inbox does: match semantics, run its use case.
@@ -156,6 +162,13 @@ def route_received(
         update={"receiving_actor_id": receiving_actor_id}
     )
     use_case_class = use_case_map()[find_matching_semantics(activity)]
+    # The CASE_MANAGER's own entries are built by the port (VM-08-003): a
+    # mock port gets the real ledger-record methods, and the default is the
+    # real adapter, as the inbox wires it.
+    if isinstance(trigger_activity, MagicMock):
+        trigger_activity = with_ledger_records(trigger_activity, dl)
+    elif trigger_activity is REAL_PORT:
+        trigger_activity = TriggerActivityAdapter(dl)
     ports: dict[str, Any] = {
         "sync_port": sync_port if sync_port is not None else MagicMock(),
         "trigger_activity": trigger_activity,

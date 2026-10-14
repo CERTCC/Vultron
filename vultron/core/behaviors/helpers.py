@@ -716,6 +716,23 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
             raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
         return self.wire_render_port
 
+    def _require_trigger_activity_port(self) -> "TriggerActivityPort":
+        """Return the trigger-activity port, or raise if the tree lacks it.
+
+        For a node that records the CASE_MANAGER's own act: its ledger entry
+        is the factory-built activity's sealed blob (VM-08-003), so without
+        the port there is nothing to commit and no fallback.  A missing port
+        is a composition fault, never the sender's doing, so it raises
+        :class:`~vultron.errors.VultronWiringError` rather than returning a
+        FAILURE an enclosing Selector could read as a guard that did not
+        pass (ARCH-15-001).
+        """
+        if self.trigger_activity_factory is None:
+            raise VultronWiringError(
+                f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE}"
+            )
+        return self.trigger_activity_factory
+
     def _require_case(
         self, case_id: "str | None"
     ) -> "tuple[VulnerabilityCase, Status | None]":

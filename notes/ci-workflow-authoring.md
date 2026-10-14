@@ -21,106 +21,69 @@ related_specs:
 
 # CI and GitHub Actions Workflow Authoring Pitfalls
 
-Migrated out of the root `AGENTS.md` pitfalls list. Root keeps one-line
-pointers; the full write-ups live here.
-
 ## A Red CI Job Is Not Evidence That Its Assertions Ran
 
 A job that dies in an earlier step (artifact download, dependency setup,
 container build) never reaches pytest, so its red status says nothing about what
-the tests assert. Open the log and identify the failing *step* before concluding
-a test is wrong, unsatisfiable, or "can never pass". A permanently-red
-`<scenario> Invariant Harness` job was misread this way in CONCERN-2243: it
-failed at `actions/download-artifact` on every run, so the assertion blamed for
-the failure had never once executed. Note the inverse trap too — an all-skipped
-pytest run exits 0 and reports **green** while checking nothing.
+the tests assert. Open the log and find the failing *step* before concluding a
+test is wrong or "can never pass" (CONCERN-2243). The inverse trap: an
+all-skipped pytest run exits 0 and reports **green** while checking nothing.
+See [notes/demo-ci-invariants.md](demo-ci-invariants.md) for reading a red
+Invariant Harness job.
 
-See [notes/demo-ci-invariants.md](demo-ci-invariants.md) § "Reading a Red
-Invariant Harness Job".
+## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 
-Source: CONCERN-2243
+Any workflow that triggers on `push: branches: [main]` or on `schedule:` MUST end
+with the `.github/actions/notify-failure` composite action, or failures on `main`
+and unattended runs go unseen. It needs two steps: one on failure (file or update
+a `ci:main-failure` issue, CISEC-05-001) and one on success (close it,
+CISEC-05-002).
 
-## New Push-to-`main` or Scheduled Workflows MUST Wire the `notify-failure` Composite Action
-
-Any workflow that triggers on `push: branches: [main]` or on `schedule:` MUST
-include `.github/actions/notify-failure` as a final step (CISEC-05-001). Without
-it, failures on `main` or unattended scheduled runs go undetected until someone
-manually audits the Actions tab. Two separate steps are required: one on failure
-(file/update a `ci:main-failure` issue, CISEC-05-001) and one on success (close
-the issue for recovery visibility, CISEC-05-002).
-
-Source: CONCERN-2132
+The workflow MUST grant `issues: write` (CISEC-02-002). A root-level
+`permissions: contents: read` block MUST become a map that also lists
+`issues: write`, or the action's issue calls fail with 403.
 
 ## Events Raised With `GITHUB_TOKEN` Never Trigger Other Workflows
 
-Anything a workflow does with its own `GITHUB_TOKEN` — filing an issue, adding a
-label, pushing a commit — raises events that GitHub deliberately does not
-dispatch to other workflows, to prevent recursive runs. So a bot-filed issue
-cannot be typed by applying a `bug` label and waiting for
-`label-to-issue-type.yml`: that workflow never fires for it. Nor can
-`gh issue create` set an issue type. A workflow that needs a typed issue must resolve
-the type's node ID by name via the `issueTypes` GraphQL field and apply it with
-the `updateIssue` mutation itself, failing the step if the type does not exist
-(CISEC-05-007). The `notify-failure` composite action does this in both of its
-notify arms; until it did, every `ci:main-failure` issue it filed was untyped.
+GitHub does not dispatch events a workflow raises with its own `GITHUB_TOKEN`
+(filing an issue, adding a label, pushing a commit) to other workflows, to
+prevent recursion. So a bot-filed issue cannot be typed by labelling it and
+waiting for `label-to-issue-type.yml`, and `gh issue create` cannot set a type.
+A workflow that needs a typed issue resolves the type's node ID by name through
+the `issueTypes` GraphQL field and applies it with `updateIssue` itself, failing
+the step if the type does not exist (CISEC-05-007); `notify-failure` does this.
 
-Source: ISSUE-4038
+## PyYAML Parses a Bare `on:` Key as `True`
 
-## PyYAML Parses Bare `on:` Mapping Key as Python `True`
+PyYAML (YAML 1.1) loads a workflow's bare `on:` key as the boolean `True`, so
+`wf_data.get("on", {})` is always `{}`, and a `parametrize` over it yields zero
+cases: the tests SKIP instead of FAIL. Read triggers through
+`test/ci/_workflows.py::triggers()`, which checks both keys (ISSUE-2184).
 
-PyYAML (YAML 1.1) resolves the bare token `on` as boolean `True` when it appears
-as a mapping key. A GitHub Actions workflow file starting with `on:` is loaded by
-`yaml.safe_load()` as `{True: {...}, 'name': '...', 'jobs': {...}}` — NOT
-`{'on': {...}}`. Any test or tool that reads workflow YAML and queries the
-trigger block must use `wf_data.get(True, wf_data.get("on", {}))`. If you use
-only `wf_data.get("on", {})` the result is always `{}` and any
-`pytest.mark.parametrize` fixture over it silently produces zero cases — all
-parametrized tests SKIP instead of FAIL.
+## Matrix Booleans Fail Differently in Job-Level and Step-Level `if:`
 
-Source: ISSUE-2184
+- **Job-level `if:`** is evaluated before the matrix expands, so `matrix` does
+  not exist. The workflow fails at startup with zero jobs and no logs, which
+  reads as noise rather than a regression (DEMOCI-06-004).
+- **Step-level `if:`** sees `matrix`, but GitHub coerces JSON `false` to the
+  string `"false"`, so `matrix.full_suite_only == false` is always false and the
+  filter silently does nothing (CONCERN-2327).
 
-## GHA Matrix Boolean Fields Fail Differently at Job-Level vs. Step-Level `if:`
+Fix for both: filter before matrix expansion. The `scenarios` job in
+`demo-integration.yml` runs `jq 'select(.full_suite_only == false)'` over
+`.github/demo-scenarios.json` and exposes the result as a job output that the
+downstream jobs expand with `fromJSON()` (DEMOCI-06-007, DEMOCI-06-008).
 
-Two distinct failure modes when a boolean field from the matrix (e.g.
-`full_suite_only: false`) is referenced in a GitHub Actions `if:` expression:
+## Multi-Line `python3 -c` in a `run: |` Block Fails `actionlint`
 
-1. **Job-level `if:`**: the `matrix` context does not exist yet — GitHub
-   evaluates job-level `if:` conditions *before* expanding the matrix. The
-   workflow is rejected with a startup failure: zero jobs scheduled, no logs, no
-   per-job status, and the run name is reported as the file path. The failure
-   reads as noise, not a regression (DEMOCI-06-004, ISSUE-2118).
-2. **Step-level `if:`**: the `matrix` context IS available, but GitHub coerces
-   JSON boolean `false` to the string `"false"`. The comparison
-   `matrix.full_suite_only == false` then always evaluates to `false` because a
-   string never equals a boolean, silently defeating the intended filter
-   (CONCERN-2327).
+A Python line indented less than the block's first content line ends the YAML
+block scalar early, and `actionlint` fails with `could not find expected ':'`.
+Collapse the script to a semicolon-separated one-liner, or write it to a file in
+a prior step (ISSUE-2312).
 
-Fix for both: resolve the boolean filter *before* matrix expansion using a
-dedicated `scenarios` job that calls `jq 'select(.full_suite_only == false)'` on
-the JSON source and exposes a filtered matrix as a job output. Both downstream
-jobs expand `fromJSON()` of that output — the boolean comparison lives in `jq`,
-which understands JSON natively. See DEMOCI-06-004, DEMOCI-06-007, DEMOCI-06-008
-and [notes/demo-ci-scenario-coverage.md](demo-ci-scenario-coverage.md).
+## Apostrophes in a Single-Quoted YAML String
 
-Sources: CONCERN-2327, ISSUE-2118
-
-## GH Actions `python3 -c` Multi-Line Block Fails `actionlint`
-
-When embedding multi-line Python in a `run: |` block via `python3 -c "..."`, all
-Python lines must stay within the block's indentation level. A line at a lower
-indentation than the block's first content line terminates the YAML block scalar
-early; `actionlint` then fails with `could not find expected ':'`. Fix: collapse
-to a semicolon-separated one-liner, or write to a file in a prior step.
-
-Source: ISSUE-2312
-
-## YAML Single-Quoted String: Double Apostrophes or Use `>-`
-
-Inside a single-quoted YAML value, apostrophes must be escaped as `''` (two
-single quotes). A bare `'s` (possessive) or contraction terminates the string
-early; the parser fails with an opaque "did not find expected key" error
-pointing at the column of the apostrophe, not at a syntax-level message.
-Alternatively, convert the field to a `>-` block scalar and use apostrophes
-freely.
-
-Source: ISSUE-2393
+Inside a single-quoted YAML value an apostrophe must be doubled (`''`). A bare
+`'s` ends the string, and the parser reports an opaque "did not find expected
+key" at the apostrophe's column. Double it, or use a `>-` block scalar
+(ISSUE-2393).

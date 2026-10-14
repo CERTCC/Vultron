@@ -38,13 +38,6 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
 - **Triggering transition:** none — object construction precedes protocol state.
 - **Example artifact:** [create_case.json](../examples/create_case.json).
 
-{% include-markdown "./_occasions/sections/update-case.md" %}
-
-- **Routing:** the CASE_MANAGER fans the changed case out through the ledger ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
-  A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to its peers.
-- **Triggering transition:** none — metadata change, not a state transition.
-- **Example artifact:** [update_case.json](../examples/update_case.json).
-
 {% include-markdown "./_occasions/sections/add-report-to-case.md" %}
 
 - **Triggering transition:** none — a report can be added at any Report Management (RM) state.
@@ -95,6 +88,16 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/protocol.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [reject_case_ownership_transfer.json](../examples/reject_case_ownership_transfer.json).
+
+{% include-markdown "./_occasions/sections/withdraw-case-ownership-transfer.md" %}
+
+- **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-015](../specs/protocol.md#cm-21-015)).
+  The CASE_MANAGER acts on it only when it comes from the Case Owner that made an open offer it recorded.
+  It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer: the proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../specs/protocol.md#cm-21-014)).
+  A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded and nothing sent.
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names the `offer_id` it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Triggering transition:** none — roster operation.
+- **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 
 {% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
@@ -215,3 +218,16 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
   The notice is not ledgered.
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
+
+## Update Case { #update-case }
+
+`Update(VulnerabilityCase)` is not an occasion: it is not a message any actor sends.
+
+- **Protocol role:** it is reserved as the snapshot shape of a ledger entry.
+  Every change the CASE_MANAGER makes to the case file must be its own ledger entry ([CLP-07-013](../specs/protocol.md#clp-07-013)), and an `Update` carrying the case in full is the shape such an entry takes for a change to a case field.
+  The prototype does not yet commit an `Update(VulnerabilityCase)` entry: the canonical-entry check does not yet admit that signature.
+  Once it does, replicas copy the entry from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
+- **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
+- **Triggering transition:** none — metadata change, not a state transition.
+- **Example artifact:** [update_case.json](../examples/update_case.json), the snapshot shape as the case actor would author it.

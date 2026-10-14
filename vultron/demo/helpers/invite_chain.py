@@ -71,7 +71,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__name__)
 
 FULL_CASE_REPLY_TIMEOUT = 20.0
-"""Seconds to wait for the full-case Invite and for ledger coverage (CM-11-010)."""
+"""Seconds the invitee's ledger copy may go without advancing (CM-11-010).
+
+Bounds the wait for the full-case Invite and for ledger coverage before the
+reply.  It is a stall budget, not a total: the Invite is queued behind the
+join backfill, so both waits restart it each time another replayed entry
+lands and give up only when the backfill stops advancing (#4424).  Twenty
+seconds is several times the slowest single-entry apply seen in CI.
+"""
 
 DEMO_STUB_SUMMARY = "Vulnerability report — details shared after acceptance."
 """The owner-chosen summary every demo stub Invite carries (CM-17-010)."""
@@ -149,8 +156,9 @@ def run_case_invite_chain(
         replica_timeout: Seconds to wait for the case replica; the polling
             default when ``None``.
         expect_emitted_by: When given, verify the delivered Invite's sender.
-        reply_timeout: Seconds to wait for the full-case Invite and for the
-            invitee's ledger copy to reach its floor before the reply.
+        reply_timeout: Seconds the invitee's ledger copy may go without
+            advancing while the chain waits for the full-case Invite and for
+            that copy to reach its floor before the reply.
         then: Runs inside the gate after the chain completes, so it is skipped
             when the invite was never delivered.
     """
@@ -340,9 +348,13 @@ def reply_to_full_case_invite(
     """Assert the full-case Invite arrives, then answer it (CM-11-010/011).
 
     After the join the CASE_MANAGER sends the full-case Invite, queued after
-    the replay.  Every invitee judges the case by replying to it, whatever its
-    role, so the chain waits for the Invite and answers it with
-    ``accept-full-case-invite`` (RM Received to Valid).  The reply trigger
+    the replay, so the invitee holds it only once its inbox has applied every
+    replayed entry ahead of it.  Both waits below therefore follow the
+    backfill: *timeout* is how long the invitee's ledger copy may go without
+    advancing, not a total (#4424).  Every invitee judges the case by
+    replying to it, whatever its role, so the chain waits for the Invite and
+    answers it with ``accept-full-case-invite`` (RM Received to Valid).  The
+    reply trigger
     fails closed until the invitee's own ledger copy reaches the Invite's
     floor (SYNC-10-004), so the reply is gated on ledger coverage first
     (ADR-0058).  The invitee never answers the reporter's report Offer

@@ -8,7 +8,7 @@ Records the sender's own consent to the proposed terms. The embargo becomes acti
 - **Send:** `Accept(Invite(Event)[context=VulnerabilityCase])`
 - **Sent by:** the invitee
 - **Distinguished by:** EM state `PROPOSED`
-- **How-to:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
+- **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
 - **Formal definition:** [Embargo Proposal Acceptance (EA)](../../../formal_protocol/messages.md#em-message-types)
 - **Mapping status:** [collapse](../../index.md#mapping-status)
 

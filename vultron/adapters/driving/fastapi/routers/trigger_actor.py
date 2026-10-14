@@ -46,6 +46,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     RejectCaseInviteRequest,
     RejectCaseOwnershipTransferRequest,
     SuggestActorToCaseRequest,
+    WithdrawCaseOwnershipTransferRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptActorRecommendationTriggerRequest,
@@ -60,6 +61,7 @@ from vultron.core.use_cases.triggers.requests import (
     RejectFullCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
     TentativeRejectFullCaseInviteTriggerRequest,
+    WithdrawCaseOwnershipTransferTriggerRequest,
 )
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -438,6 +440,7 @@ def trigger_offer_case_ownership_transfer(
             case_id=body.case_id,
             transferee_id=body.transferee_id,
             content=body.content,
+            end_time=body.end_time,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,
@@ -510,6 +513,44 @@ def trigger_reject_case_ownership_transfer(
     """
     return run_trigger(
         RejectCaseOwnershipTransferTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/withdraw-case-ownership-transfer",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Withdraw an open case ownership transfer offer.",
+    description=(
+        "Emits an Undo(Offer(VulnerabilityCase)) from the offering Case "
+        "Owner to the case's CASE_MANAGER, which ledgers and broadcasts the "
+        "withdrawal if the offer is still open.  The ownership transfer "
+        "offer must already exist in the actor's DataLayer (TRIG-11-006, "
+        "CM-21-015)."
+    ),
+    operation_id="actors_trigger_withdraw_case_ownership_transfer",
+    response_model=ActivityResult,
+)
+def trigger_withdraw_case_ownership_transfer(
+    actor_id: str,
+    body: WithdrawCaseOwnershipTransferRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the withdraw-case-ownership-transfer behavior for the given actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
+        TRIG-03-002, TRIG-04-001, TRIG-12-001; TRIG-11-006
+    """
+    return run_trigger(
+        WithdrawCaseOwnershipTransferTriggerRequest(
             actor_id=actor_id, offer_id=body.offer_id
         ),
         dispatcher=dispatcher,

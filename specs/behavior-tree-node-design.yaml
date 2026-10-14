@@ -113,7 +113,7 @@ groups:
       Case)` messages arriving in parallel futures), two tree instances share the same blackboard namespace. A flat key like
       `suggested_roles` written by the first instance is silently overwritten by the second before the first instance reads
       it — causing the wrong role list to be emitted to the Case Owner. Namespacing by the execution-scoped ID (e.g., `suggested_roles_abc123`)
-      guarantees collision-free per-execution storage. See `notes/bt-integration.md` § "Namespaced Inter-Node Handoff Keys".
+      guarantees collision-free per-execution storage. See `notes/bt-pitfalls.md` § "Namespaced Inter-Node Handoff Keys".
       Discovered in CONCERN-1335.
     relationships:
     - rel_type: refines
@@ -745,8 +745,8 @@ groups:
     rationale: >-
       The dimension objects' transition() machinery (SDO-02-002) and the
       is_valid_*_transition() helpers in vultron/core/states/ enforce forward-only
-      state machine rules, but constructing VfdDimension(state=target) directly
-      bypasses them. A BT guard upstream is necessary but not sufficient: if the
+      state machine rules, but constructing VfDimension(state=target) or DDimension(state=target)
+      directly bypasses them. A BT guard upstream is necessary but not sufficient: if the
       guard is too weak (as in issue #1825) or absent (as in the trigger path),
       an illegal state jump reaches the write boundary unchecked. Validating at
       the write node makes illegal transitions fail-closed regardless of guard

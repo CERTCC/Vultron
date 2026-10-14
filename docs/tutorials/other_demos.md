@@ -189,12 +189,14 @@ vultron-demo transfer-ownership
 
 This demo shows case ownership transfer.
 The current owner (the vendor) offers the case to a coordinator, who either **accepts**, so the case's `attributedTo` moves to the coordinator, or **rejects**, so ownership stays with the vendor.
+A third path has the vendor **withdraw** the offer before the coordinator answers, so ownership again stays with the vendor.
+In the accept path the offer carries a deadline to answer, and the demo checks that the offer the coordinator receives names it; the coordinator answers in time.
 
 Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer or its refusal and every participant learns of it.
 
 ```mermaid
 ---
-title: transfer-ownership — accept and reject paths
+title: transfer-ownership — accept, reject and withdraw paths
 ---
 sequenceDiagram
     participant V as Vendor
@@ -209,6 +211,9 @@ sequenceDiagram
     else Coordinator rejects
         C-->>CA: Reject Case Ownership Transfer<br/>Reject(Offer)
         Note over CA: Ledgers the Reject, ownership unchanged
+    else Vendor withdraws
+        V-->>CA: Withdraw Case Ownership Transfer<br/>Undo(Offer)
+        Note over CA: Ledgers the withdrawal, ownership unchanged
     end
 ```
 
@@ -343,11 +348,13 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 {% include-markdown "../howto/activitypub/activities/_demo_acknowledge.md" %}
 
 This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
+The finder submits through its `submit-report` trigger, so it holds the Offer and accepts the acknowledgment because the vendor is the Offer's addressee.
+The vendor sends the acknowledgment through its `ack-report` trigger, which addresses the finder alone and never the CASE_MANAGER, even though a case already exists.
 Three paths are demonstrated:
 
-1. **Acknowledge only** — acknowledge, then notify the finder.
-2. **Acknowledge then validate** — acknowledge, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the finder.
-3. **Acknowledge then invalidate** — acknowledge, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, then notify the finder.
+1. **Acknowledge only** — the vendor sends the acknowledgment to the finder.
+2. **Acknowledge then validate** — the acknowledgment, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the finder.
+3. **Acknowledge then invalidate** — the acknowledgment, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, then notify the finder.
 
 ```mermaid
 ---
@@ -358,9 +365,9 @@ sequenceDiagram
     participant V as Vendor
 
     F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    V->>V: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
+    V->>F: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
     alt Path 1 — Acknowledge only
-        V-->>F: Notify finder (acknowledged)
+        Note over F,V: done
     else Path 2 — Acknowledge then validate
         V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
         V-->>F: Notify finder (validated)

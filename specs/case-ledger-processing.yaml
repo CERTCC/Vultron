@@ -83,7 +83,7 @@ groups:
     statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a
       normalized immutable snapshot of it, containing all fields required for deterministic
       replay'
-    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that
+    verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
       each committed `CaseLedgerEntry` contains a non-empty `payloadSnapshot` that
       round-trips through `model_validate` on the corresponding wire vocabulary class.'
     stories:
@@ -205,20 +205,28 @@ groups:
       Every activity the CASE_MANAGER admits at the case layer is a case event and
       MUST be ledgered (CLP-02-001), except the following, which are not case events:
       activities processed before a case exists (report submission, case proposal
-      intake); a replica's receipt of `Announce(CaseLedgerEntry)`, which applies an
+      intake); RK, which answers the reporter's Offer outside the case and is never
+      sent to the CASE_MANAGER (RMB-08-003); a replica's receipt of
+      `Announce(CaseLedgerEntry)`, which applies an
       entry rather than asserting one; activities about the ledger itself, namely the
       CASE_MANAGER's refusal notice (CLP-05-001) and a replica's
-      `Reject(CaseLedgerEntry)` asking for redelivery; the activities CLP-10-013
-      deliberately leaves unledgered, namely the owner's `Update(VulnerabilityCase)`
-      and a replica's receipt of `Announce(VulnerabilityCase)` (ADR-0111); and a
-      message no pattern matches or whose object cannot be resolved. The list is
-      closed: a new kind of activity that carries no entry MUST be added here
-      first.
+      `Reject(CaseLedgerEntry)` asking for redelivery; the activity CLP-10-013
+      deliberately leaves unledgered, namely a replica's receipt of
+      `Announce(VulnerabilityCase)` (ADR-0111); an activity only the CASE_MANAGER
+      sends, received by a participant (the bootstrap `Create(VulnerabilityCase)`,
+      its `Accept` of a role-delegation offer, its `Announce(EmbargoEvent)`
+      notice): a participant never commits (CLP-09-001), so such an activity is
+      ledgered, if it is a case event, where the CASE_MANAGER sends it
+      (CLP-09-003); a `Create(ProcessingFault)` NACK (ADR-0080), which reports on
+      message handling rather than changing the case; and a message no pattern
+      matches or whose object cannot be resolved. The list is closed: a new kind
+      of activity that carries no entry MUST be added here first.
     rationale: >-
       Whether something is ledgered was decided handler by handler, so a handler
       that "changed nothing" committed nothing and nobody noticed. A closed list
       turns each exception into a recorded decision and gives the CLP-09-003
-      coverage test a fixed set of grounds for exemption.
+      coverage test a fixed set of grounds for exemption. A handler that runs
+      only at a participant has no commit to reach.
     verification: >-
       The CLP-09-003 coverage test, marked `CLP-02-013`, exempts a routed use case
       only on one of these grounds or by naming an open issue.
@@ -468,7 +476,7 @@ groups:
     rationale: The payload snapshot is the replication substrate; receivers must be
       able to reconstitute the asserted activity from the snapshot alone without an
       out-of-band lookup.
-    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that
+    verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
       for every committed `CaseLedgerEntry`, the `payloadSnapshot` field contains
       a valid AS2 activity that revalidates through its wire vocabulary class via
       `model_validate` without transformation.'
@@ -627,7 +635,7 @@ groups:
       and the commit boundary MUST accept it, at any nesting depth, while refusing every other
       bare string in an inline-object slot.
     verification: >-
-      `test/core/behaviors/case/test_ledger_snapshots.py` confirms that nested objects such as
+      `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that nested objects such as
       `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in
       committed snapshots. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a
       bare `target` naming the entry's case is accepted (top level and nested) and a bare `target`
@@ -876,16 +884,18 @@ groups:
       second participant), authorization for the commit MUST be evaluated per invocation
       against the active actor's role, and MUST NOT be assumed from the use-case class's
       identity or from the fact that earlier invocations were authorized
-    rationale: 'The `ack_report` flow in the two/three-actor demo invokes the same
-      use case once with the case actor as receiver and once with the finder as a
-      relay target; only the case-actor invocation may commit. This is the same shape
-      of bug that produced the original hash-chain fork in issue #923, and it recurs
-      at every new dual-invocation call site unless authorization is re-evaluated
-      per invocation rather than per use-case class.'
-    verification: Integration tests in `test/demo/test_acknowledge_demo.py` confirm
-      that when the same use-case class is invoked for both the CASE_MANAGER and a relay
-      target for the same activity, only the CASE_MANAGER invocation produces a canonical
-      ledger entry.
+    rationale: 'The rule was found in the `ack_report` flow of the demo, which once
+      invoked one use case with the case actor as receiver and again with the
+      finder as a relay target; only the case-actor invocation could commit (RK
+      no longer reaches the CASE_MANAGER, RMB-08-003). The same shape of bug
+      produced the hash-chain fork in issue #923, and it recurs at every new
+      dual-invocation call site unless authorization is re-evaluated per
+      invocation.'
+    verification: Unit tests such as
+      `test/core/use_cases/received/test_note_routing_guard.py` run the same
+      use-case class with the CASE_MANAGER and with another participant as the
+      receiver of one activity and confirm that only the CASE_MANAGER invocation
+      produces a canonical ledger entry.
     stories:
     - story_2022_045
     - story_2022_046
@@ -1166,22 +1176,28 @@ groups:
       `case_id`, so that a canonical ledger entry is committed for each admitted
       activity, exactly when the received activity's `(type, object)` pair is a
       canonical payload signature (`_CANONICAL_PAYLOAD_SIGNATURES`); a tree whose
-      received activity has no canonical signature — `Update(VulnerabilityCase)`, the
+      received activity has no canonical signature — the
       `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004) — MUST pass
       `case_id=None` and omit the commit stage rather than commit an entry the
-      canonical-entry check would refuse. One canonical signature is exempt from
+      canonical-entry check would refuse. A canonical signature is exempt from
       the commit and also passes `case_id=None` — `Announce(VulnerabilityCase)`,
       which only the CASE_MANAGER sends and only a participant replica, never the
-      CASE_MANAGER itself, receives (PCR-03-004).
+      CASE_MANAGER itself, receives (PCR-03-004). The bootstrap
+      `Create(VulnerabilityCase)` a participant receives MUST likewise pass
+      `case_id=None`, because only the CASE_MANAGER sends it, and the case's
+      genesis entry is committed where the CASE_MANAGER creates the case
+      (CLP-02-013).
     rationale: 'Amended with ADR-0111: the rule as first written required a commit for
       every factory-built tree, which the CASE_MANAGER refused for an
       `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
-      (#3870). ADR-0111 (#3936) records that an owner''s `Update(VulnerabilityCase)`
-      is deliberately not a ledgered assertion: no production code sends it, it
-      has no protocol story, and `Announce(CaseLedgerEntry)` fan-out already
-      carries every ledgered case change (ADR-0108). The `Announce(VulnerabilityCase)`
-      receiver is never the CASE_MANAGER, so a `case_id` would only make the
-      commit gate skip (#4304). `Add(CaseParticipant)` was exempt until #4081 made
+      (#3870). ADR-0111 (#3936) recorded that an owner''s `Update(VulnerabilityCase)`
+      is not a ledgered assertion: no production code sends it, it has no protocol
+      story, and `Announce(CaseLedgerEntry)` fan-out already carries every ledgered
+      case change (ADR-0108). Its received path then changed the case with no
+      entry, which CLP-07-013 forbids, so it was removed (#4443). The
+      `Announce(VulnerabilityCase)` receiver is never the CASE_MANAGER, so a
+      `case_id` would only make the commit gate skip (#4304).
+      `Add(CaseParticipant)` was exempt until #4081 made
       it the Case Owner''s reinstatement request: its commit landed together with
       its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
       RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
@@ -1205,13 +1221,12 @@ groups:
       contained `ValidateRMTransitionNode` after `GuardedCommit`, masked by a `_rm_was_carried_forward()`
       workaround. `add_case_status_tree` previously used a plain `py_trees.Sequence`
       with no commit at all. Both were corrected in ISSUE-2254.'
-    verification: '`create_update_case_received_tree` passes `case_id=None` and its
-      structure test asserts no `GuardedCommitCaseLedgerEntryBT` child; a tree for a
-      canonical signature passes `case_id` and the ordering ratchet finds the commit
-      after the guards. A receive-side test per committing tree asserts the CASE_MANAGER
-      commits the entry once, any other receiver skips it, and a refused activity
-      leaves no entry; the `Announce(VulnerabilityCase)` tree is asserted to have
-      no commit child.'
+    verification: 'A tree for a canonical signature passes `case_id` and the
+      ordering ratchet finds the commit after the guards. A receive-side test per
+      committing tree asserts the CASE_MANAGER commits the entry once, any other
+      receiver skips it, and a refused activity
+      leaves no entry; the `Announce(VulnerabilityCase)` and bootstrap
+      `Create(VulnerabilityCase)` trees are asserted to have no commit child.'
     adr:
     - ADR-0111
     relationships:

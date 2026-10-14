@@ -51,8 +51,8 @@ PER_DIRECTORY_TARGET = 200
 # Lower these as the files are condensed; never raise one.  Adding a new entry
 # means the ratchet failed to do its job.
 KNOWN_OVERAGE: dict[str, int] = {
-    "vultron/core/AGENTS.md": 250,
-    "vultron/core/behaviors/AGENTS.md": 203,
+    "vultron/core/AGENTS.md": 248,
+    "vultron/core/behaviors/AGENTS.md": 202,
 }
 
 # Directories whose AGENTS.md files are agent-tooling copies, not repo guidance.

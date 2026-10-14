@@ -3,11 +3,11 @@ title: "Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mappi
 status: active
 kind: guidance
 description: >-
-  Design guidance for the consolidated per-message-type reference pages: why the
-  formal message set and the AS2 wire vocabulary are different shapes, how the
-  many-to-many mapping is rendered, where the fault and acknowledgement
-  mechanisms diverged from their specified form, and the occasions declared on
-  each registry entry that the lookup table is generated from (ADR-0128).
+  Rules for writing about and changing the message-type reference pages: the
+  formal message set and the AS2 wire vocabulary are different shapes, which
+  name the reader gets, the mermaid node-id ratchet, what the evolved fault and
+  acknowledgement mechanisms mean, keeping the Diátaxis quadrants apart, and
+  the example-rendering and dispatchability gates, and the occasion rules.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
@@ -15,8 +15,11 @@ related_specs:
   - specs/diataxis-requirements.yaml
   - specs/project-documentation.yaml
   - specs/received-status-handling.yaml
-  - specs/handler-protocol.yaml
+  - specs/rm-behavior.yaml
+  - specs/participant-case-replica.yaml
+  - specs/vultron-protocol-spec.yaml
 related_notes:
+  - notes/message-occasion-table.md
   - notes/activitystreams-semantics.md
   - notes/received-status-authorization.md
   - notes/case-state-model.md
@@ -30,144 +33,50 @@ related_notes:
 
 # Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them
 
-Source: IDEA-605. ADRs: [ADR-0083](../docs/adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md),
-[ADR-0128](../docs/adr/0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
-(occasions; generated pages).
+ADR: [ADR-0083](../docs/adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md).
+The mapping itself — collapses, expansions, and the evolved fault and
+acknowledgement mechanisms — is documented in `docs/reference/messages/` and
+explained in `docs/topics/activity_vocabulary_design.md`; do not restate it here.
+The occasion table's remaining plan is `notes/message-occasion-table.md`.
 
-## The core fact: the two message sets are different shapes
+## The two message sets are different shapes
 
-Vultron has two message vocabularies, and they do not correspond one-to-one.
+The **formal message set** (`docs/reference/formal_protocol/messages.md`) is
+partitioned by state machine; the **AS2 wire vocabulary** is the
+`SEMANTIC_REGISTRY` (`vultron/semantic_registry/`). The mapping is many-to-many
+both ways, and much of the wire vocabulary has no formal counterpart. Never treat
+a shorthand and a wire activity as two names for one thing:
+`specs/message-semantics-mapping.yaml` (MSM) is the normative bridge, so read it
+before claiming a shorthand maps to a wire form.
 
-- The **formal message set** (`docs/reference/formal_protocol/messages.md`) is
-  28 shorthand symbols, partitioned by *which state machine* the message belongs
-  to: RM `{RS,RI,RV,RD,RA,RC,RK,RE}`, EM `{EP,ER,EA,EV,EJ,EC,ET,EK,EE}`,
-  CS `{CV,CF,CD,CP,CX,CA,CK,CE}`, General `{GI,GK,GE}`.
-- The **AS2 wire vocabulary** is the `SEMANTIC_REGISTRY`
-  (`vultron/semantic_registry/`), whose entries pair an `ActivityPattern` with a
-  `MessageSemantics` value, an event class, a use case, and a phrase.
+- **RM moves have two wire expressions, and that is not an anomaly (ADR-0108).**
+  The *act* is the report-scoped activity (`Accept(Offer(Report))` = `RV`); the
+  *declaration of resulting state* is `rm_state` on a participant-status
+  broadcast. A disagreement is flagged (RSH-06), not resolved by preferring one
+  (RSH-08-002). Do not propose retiring either form.
+- **`EP` is `Invite(Event)[context=VulnerabilityCase]` and nothing else**
+  (MSM-02-001). `Create(Event)` mints terms and `Announce(Event)` reports the
+  terms in force; neither proposes, so neither is tagged `EP`.
+- **`GI` is an open umbrella** (MSM-04-001/002). Do not write as though the
+  current split-off set is complete, and do not count it in prose (MS-16-002).
+  `(GI)` identifies no activity: name the act in plain language and cite `GI`
+  once per page. Actor suggestion is a `GI` expansion, not case management.
+- **Case proposal is pre-case bootstrap and ledger replication is the carrier
+  substrate**; document neither as case management. `unknown` and
+  `unknown_unresolvable_object` are dispatcher fallbacks, never message types.
 
-The mapping between them is **many-to-many in both directions**, and roughly
-half the wire vocabulary has no formal counterpart at all. Do not assume a
-shorthand and a wire activity are interchangeable names for one thing; that
-assumption is what produced the MSM-03 defect described below.
+## Which name the reader gets
 
-`specs/message-semantics-mapping.yaml` (MSM) is the normative bridge. Read it
-before writing anything that claims a shorthand maps to a wire form.
+An activity has three names: the formal message (`RV`, "Report Valid"), the
+prototype class or pattern (`RmValidateReport`), and the AS2 wire form
+(`Accept(Offer(VulnerabilityReport))`). Semantics are not recoverable from the
+wire form (`Accept`/`TentativeReject`/`Reject` of the same offer mean valid,
+invalid, closed), so replacing a protocol name with its wire form deletes a layer.
 
-### Collapses: many shorthands, one wire activity
-
-| Shorthands | Single wire activity | Discriminator |
-|---|---|---|
-| `CP` `CX` `CA` | `Add(CaseStatus)[target=VulnerabilityCase]` | `as_CaseStatus.pxa_state` |
-| `CV` `CF` | `Add(ParticipantStatus)[target=CaseParticipant]` | `as_ParticipantStatus.vf_state` |
-| `CD` | `Add(ParticipantStatus)[target=CaseParticipant]` | `as_ParticipantStatus.d_state` |
-| `EV` `EJ` `EC` | folded into `EP` / `ER` / `EA` respectively | context, not structure |
-| `RI` `RV` `RD` `RA` `RC` | *also* `Add(ParticipantStatus)`, via `rm_state` | payload, parallel to the dedicated report activities |
-
-The last row is the one that surprises people, and it is **not an anomaly**
-(ADR-0108). RM state changes have **two** wire expressions because a move has
-two layers: the **act** — the dedicated report-scoped activity
-(`Accept(Offer(Report))` = `RV`, `TentativeReject(...)` = `RI`,
-`Reject(...)` = `RC`), which answers the finder's offer and carries what it
-answers — and the **declaration of resulting state**, the `rm_state` field of a
-participant-status broadcast, which is the participant's own statement about
-itself. One move producing both messages is expected; the declaration is
-supposed to agree with what the act implied, and when it does not the receiver
-flags the gap (RSH-06) rather than preferring one message over the other
-(RSH-08-002). Neither form is "the" authoritative encoding: authority is a
-property of the pipeline (mover announces → CASE_MANAGER adjudicates and commits
-→ replicas apply the ledger), and the CASE_MANAGER applies the same RM
-acceptance rule whichever message carried the declaration (RSH-06-006). Do not
-propose retiring either form to "resolve" the row. `RA` and `RD` additionally
-appear as case-shaped activities (`Join(VulnerabilityCase)` and
-`Ignore(VulnerabilityCase)`), because engaging or deferring is a
-case-participation decision rather than a report-validity judgment (MSM-01-005
-for `RA`, MSM-01-004 for `RD`).
-
-### Expansions: one shorthand, many wire activities
-
-| Shorthand | Wire activities |
-|---|---|
-| `GI` | `create_note`, `add_note_to_case`, `remove_note_from_case`, and the actor-suggestion handshake (`offer_actor_to_case`, `offer_case_participant`, ±accept/reject) |
-
-`GI`'s example list in `messages.md` explicitly includes "suggesting a potential
-Participant to be added to a case", so actor suggestion is a `GI` expansion —
-**not** case management. Filing it under case management is a recurring
-mis-classification.
-
-**`EP` is not an expansion.** It is `Invite(Event)[context=VulnerabilityCase]` and
-nothing else (MSM-02-001). `Create(Event)` mints embargo terms, the same kind of step
-as `Create(VulnerabilityReport)` before `Offer`, and `Announce(Event)` tells
-participants which terms are in force; neither proposes anything, so neither carries
-a shorthand. Tagging them `EP` because they sit near a proposal in the process is the
-mis-classification to avoid; `_mapping.py`, `em.md` and `messages/index.md` made it
-until #4419.
-
-**Why `GI` expands at all, which nothing recorded before #3456.** `GI` was a
-*placeholder*, and it is defined negatively: messages that no formal state machine
-tracks but that participants need in order to coordinate. The formal protocol
-deliberately did not attempt to enumerate them, so it lumped them together under one
-shorthand. Building this prototype surfaced specific needs inside that category, and
-where a need turned out to be a recognizable communication pattern that existing AS2
-vocabulary could already express, it was split off and given its own activity. The set
-split off so far is enumerated in MSM-04-001 and MSM-04-002 — read it there rather than
-restating a count here, which would drift the moment another is split off (MS-16-002).
-
-Two consequences follow, and both matter when writing about these activities:
-
-- **The list is open, not a finished decomposition.** A further coordination need that
-  matches available AS2 vocabulary can be split off the same way. Do not write as though
-  the current set is complete.
-- **Citing `(GI)` does not identify an activity.** It says only "this is one of the
-  non-state-change messages", which is equally true of six others. Name the act in plain
-  language and cite `GI` once per page as the umbrella, rather than after each activity.
-
-**The `Create(X)` + `Add(X → Y)` split is itself an expansion with no formal
-counterpart.** Every object gains two activities: one to mint it, one to attach
-it. The formal protocol models neither, so an implementation that collapses the
-pair loses no protocol-level information. That reconciliation now lives in
-`docs/topics/activity_vocabulary_design.md`, extracted from the prose that used
-to worry about it in `status_updates.md`, `manage_participants.md`,
-`invite_actor.md`, and `initialize_case.md` (#3002).
-
-### No formal counterpart at all
-
-Roughly half the registry is case and roster mechanics the formal protocol never
-modelled as messages: case lifecycle, participant roster, invitations, role
-delegation (ADR-0039), ownership transfer (ADR-0053), case proposal (ADR-0023),
-and ledger replication (SYNC). Two of these are **not** case management and
-should not be documented as such:
-
-- **Case proposal** is *pre-case* bootstrap. No case object exists yet.
-- **Ledger replication** is the substrate that *carries* other messages. It is
-  not itself a protocol message.
-
-`unknown` and `unknown_unresolvable_object` are dispatcher fallbacks, not
-message types. Exclude them from message-type reference material.
-
-### Three names, and which one the reader gets
-
-Any given activity can be named three ways, and they are not interchangeable:
-
-| Layer | Example | Answers |
-|---|---|---|
-| Formal protocol message | `RV` — "Report Valid" | *What protocol act is this?* |
-| Prototype class or pattern | `RmValidateReport` | implementation-level restatement of the same act |
-| AS2 wire form | `Accept(Offer(VulnerabilityReport))` | *What JSON goes on the wire?* |
-
-**The semantics are not recoverable from the wire form.**
-`Accept(Offer(VulnerabilityReport))`, `TentativeReject(Offer(VulnerabilityReport))` and
-`Reject(Offer(VulnerabilityReport))` are *valid*, *invalid* and *closed*, and nothing in
-the wire form says which. Replacing a protocol name with its wire form therefore deletes
-a layer rather than translating one — the mistake #3456 was originally filed to make.
-
-Reader-facing docs pair the protocol layer with the wire layer and omit the prototype
-layer entirely: **`<semantic name>` is implemented in ActivityStreams as `<wire form>`**,
-then the steps, then the JSON. This is specified as DF-09-010, and recorded as a
-corollary of ADR-0083 under "Which name the reader gets" — the two vocabularies being
-different shapes is exactly why the reader needs both names. Which semantic name to use
-depends on how the shorthand relates to the wire form, which `MappingStatus` already
-records:
+Reader-facing docs pair the semantic name with the wire form and omit the
+prototype layer: **`<semantic name>` is implemented in ActivityStreams as `<wire
+form>`**, then the steps, then the JSON (DF-09-010). The semantic name follows the
+row's `MappingStatus`:
 
 | `MappingStatus` | Semantic name to use |
 |---|---|
@@ -176,448 +85,173 @@ records:
 | `expansion` | Plain language per act; cite the umbrella code once per page, never per activity |
 | `none` | Plain language, taken from the heading `docs/reference/messages/` already gives it |
 
-Two shapes need care beyond the table. `RA`/`RD` name the *report* while their wire verbs
-(`Join`/`Ignore(VulnerabilityCase)`) name the *case*: state the act and its consequence
-separately, because joining the case is what you do and the RM transition is what follows
-(MSM-01-004, MSM-01-005). And `Leave(VulnerabilityCase)` is the canonical RM closure per
-ADR-0050 yet has no formal name at all, while `RC` is bound to
-`Reject(Offer(VulnerabilityReport))` — say so rather than presenting the pair as tidy.
+Two shapes need care. `RA`/`RD` name the *report* while their wire verbs
+(`Join`/`Ignore(VulnerabilityCase)`) name the *case*: state the act and the RM
+consequence separately (MSM-01-004/005). `Leave(VulnerabilityCase)` is the
+canonical RM closure (ADR-0050) yet has no formal name, while `RC` is bound to
+`Reject(Offer(VulnerabilityReport))`; say so rather than presenting a tidy pair.
 
-### The prototype name survives as an identifier, not as prose
+## The prototype name survives as a mermaid node id
 
-An activity is declared twice — as a class in `vultron/wire/as2/vocab/activities/`
-and as an `ActivityPattern` in `vultron/wire/as2/extractor/_instances.py` — and
-the two names often differ. `_CreateStatusForParticipantActivity` is
-`CreateParticipantStatusPattern`. Some activities have only one of the two:
-`CreateNote` is a pattern with no class, because a note is minted with a bare
-`as:Create` rather than a Vultron subclass. Neither list is a superset.
+An activity is declared as a class in `vultron/wire/as2/vocab/activities/` and as
+an `ActivityPattern` in `vultron/wire/as2/extractor/_instances.py`; the names often
+differ and neither list is a superset. Use that name as the mermaid **node id**
+(never rendered) and put the reader-facing pair in the label.
+`test/architecture/test_docs_activity_verbs.py` rejects an id in neither list and
+checks the label's wire form against the registered pattern; it checks only
+`subgraph as:Verb` membership, not prose mentions.
 
-Those names are still what identifies an activity to the tooling, so they remain the
-mermaid **node id** — an edge handle that is never rendered — while the node *label*
-carries the reader-facing pair. The pairing ratchet
-(`test/architecture/test_docs_activity_verbs.py`) reads the id and rejects a name in
-neither list, which is how `CreateStatus` — a plausible-looking name belonging to no
-system — was caught. It also checks that the label's wire-form line is the form the
-registered pattern actually produces. Prose that merely mentions a name is left alone;
-only a `subgraph as:Verb` membership claim is checked, because declaring a name there
-asserts the activity exists.
+## Evolved mechanisms are not "unimplemented"
 
-## The mechanisms that evolved rather than went missing
+MSM records `RE`, `EE`, `CE`, `EK`, `CK` as having no AS2 wire representation:
+true per shorthand, false per purpose. Faults are partitioned by failure mode and
+acknowledgement is cumulative via the hash chain
+(`docs/reference/messages/faults_and_acknowledgements.md`).
 
-MSM currently records `RE`, `EE`, `CE`, `EK`, and `CK` as having "no AS2 wire
-representation." That is true *per shorthand* and misleading *per purpose*: the
-work those shorthands describe is done, by mechanisms partitioned on a different
-axis. Do not read those MSM entries as "unimplemented."
+- **`as:Reject` is overloaded**: a receiver cannot infer "error" from the verb.
+  The embargo rejection's registry name is `reject_invite_to_embargo_on_case`
+  (`reject_embargo` names only BT and factory helpers), and
+  `reject_case_ledger_entry` is the ledger NAK (MSM-05-002), not a refusal.
+- **Never cite the `RmError`/`EmError`/`CsError`/`GmError` taxonomy**
+  (MSM-05-004): those types never existed. `VultronError` in `vultron/errors.py`
+  is an unrelated Python exception base.
+- Do not add per-message `EK`/`CK` for ledger-carried state; hash-chain continuity
+  already acknowledges it.
+- **`RK` is a reply outside the case** (RMB-08-003, RMB-08-004, #4325, #4560):
+  an addressee of the report's `Offer` sends it to the reporter, at any time
+  after the report arrives, case or no case. It is never sent or forwarded to
+  the CASE_MANAGER and never ledgered, so PCR-08-001 states it as an exception.
+  The reporter checks the sender against its own record of the Offer, so the
+  declared kind is `NAMED_ACTOR` and "Sent by" carries the addressee wording.
+  No other `R*` message, `RE` included, is acknowledged with `RK`: once a case
+  exists, the CASE_MANAGER's ledger entry is the acknowledgment (VP-03-009,
+  VP-03-011, narrowing the formal protocol).
 
-### Faults: partitioned by failure mode, not by state machine
+## Keep the three quadrants apart
 
-The formal protocol partitions errors by **which model** the bad message
-belonged to (`RE`/`EE`/`CE`/`GE`). The implementation partitions by **why it
-failed**, which is orthogonal and arguably the better axis:
+DF-01-003: rationale goes to `docs/topics/activity_vocabulary_design.md`, encoding
+facts and JSON examples to `docs/reference/messages/`, task sequences to the
+how-to tree.
 
-| Mechanism | Meaning |
-|---|---|
-| `Create(ProcessingFault)` | received and **not understood** |
-| `as:Reject` | received and understood but **declined** |
-| `Create(Note)` / `Add(Note → Case)` | some other problem **needing explanation** |
+- A wire example **copied** into a how-to page is a quadrant collapse; one
+  **included** from the same fragment the reference renders is not (ADR-0128).
+- Decide whether a how-to page has a task by whether it names an action the
+  reader takes, not by its directory; a page with none is retired, not reshaped.
+- Collapse signals: a noun-phrase title in the how-to tree (DF-04-003 wants "How
+  to [Action]"), no imperatives or steps, mostly design rationale, or a
+  `not_normative.md` banner. A missing banner is no evidence either way.
+- Cross-link domain rationale that already has a home instead of duplicating it.
 
-Two consequences for implementers:
+## Examples
 
-- `as:Reject` is **overloaded**. It carries legitimate protocol rejections
-  (`close_report`, `reject_invite_to_embargo_on_case`,
-  `reject_invite_actor_to_case`, `reject_case_proposal`,
-  `reject_case_ownership_transfer`) as well as error semantics. A receiver cannot
-  infer "error" from the verb alone. Note that the shorthand `reject_embargo`
-  is *not* a registry name — the embargo rejection is
-  `reject_invite_to_embargo_on_case`; `reject_embargo` names only the BT and
-  factory helpers (`reject_embargo_trigger_bt`, `em_reject_embargo_activity`).
-  `reject_case_ledger_entry` is deliberately excluded from this list: it is the
-  ledger NAK of MSM-05-002, not an ordinary refusal.
-- `docs/howto/activitypub/activities/error.md` previously depicted a phantom
-  four-way wire taxonomy (`RmError`/`EmError`/`CsError`/`GmError` as `as:Reject`
-  discriminated by `as:inReplyTo`). **None of those types ever existed** — not in
-  the ontology, not in code. That diagram has been removed and `error.md` now
-  describes the correct fault trichotomy (PR #3215, issue #3005). The
-  discriminator field `ActivityPattern.in_reply_to_` has also been removed from
-  the model — it was declared but used by zero registered patterns. MSM-05-004
-  remains a `MUST NOT` against citing the phantom taxonomy. Do not cite the old
-  diagram as describing the wire format.
+- Examples are `markdown_exec` blocks calling
+  `vultron.wire.as2.vocab.examples.vocab_examples`; follow the generated sections
+  under `docs/reference/messages/_occasions/sections/` and
+  `docs/reference/activitypub/objects.md`.
+  `docs/reference/specs/protocol.md` is the exemplar for **mapping tables**
+  (`render_for_kind`), not for examples. Tables are committed `include-markdown`
+  fragments instead (ADR-0128, § Occasions), because MkDocs does not rewrite links
+  printed from an exec block; an example carries no link, so it stays an exec block.
+- A new example function needs a matching `obj_to_file` call in
+  `vocab_examples.main()`, or `test/architecture/test_vocab_examples_current.py`
+  fails. The generator randomizes IDs and timestamps, so generate into a temp
+  directory and copy across only the files you added.
+- **An example must be dispatchable.** Set every discriminator field its
+  `ActivityPattern` requires (`object_`, `target_`, `context_`); there is no
+  `origin_` field, so `origin` never affects dispatch.
+  `test/architecture/test_vocab_examples_dispatchable.py` requires each example
+  to match exactly one pattern and asserts its collected count (DF-09-009).
+- **Do not narrow the collector.** It takes every function with zero *required*
+  parameters returning an `as_Activity`; requiring zero parameters or
+  `as_TransitiveActivity` silently skipped real examples, the false-clean
+  signal DF-09-009 forbids.
+- **A green dispatchability run covers only the example corpus**, not every
+  activity Vultron emits: a factory with no exported example is invisible to it
+  (#3471). Add an example to cover a factory; widening the argument rule does not.
+- Keep `_KNOWN_UNDISPATCHABLE` and its collected-names guard even while empty; a
+  new entry needs the per-entry strict xfail the table's comment describes.
 
-Beware a name collision: `VultronError` in `vultron/errors.py` is a **Python
-exception base class**, unrelated to the wire type of the same name in that
-diagram.
+## Occasions (ADR-0128, MSM-08)
 
-### Acknowledgement: cumulative and implicit, not per-message
-
-`RK` is a real wire activity (`Read(Offer(VulnerabilityReport))`, MSM-01-008).
-`EK`, `CK`, and `GK` have no per-message equivalent because acknowledgement
-moved axis for replicated state: ledger sync acknowledges **cumulatively and
-implicitly** via hash-chain continuity.
-
-A participant that receives `Announce(CaseLedgerEntry)` whose `prev_log_hash`
-matches its local tail says nothing — the match *is* the acknowledgement. It
-speaks up only on a mismatch, sending `Reject(CaseLedgerEntry)`, whereupon the
-CASE_MANAGER replays all entries after the last accepted hash
-(`RejectLedgerEntryReceivedUseCase`, `vultron/core/use_cases/received/sync.py`).
-
-This is negative acknowledgement with gap-fill replay — structurally closer to
-TCP's cumulative ACK/SACK than to a per-message positive ack. Adding per-message
-`EK`/`CK` on top would be redundant for ledger-carried state.
-
-## Diátaxis: these pages are an extraction, not a new surface
-
-`docs/howto/activitypub/activities/` was a **partial collapse** — it ran against
-DF-01-003 (pages SHOULD NOT combine multiple Diátaxis content types; where a
-combined view is unavoidable, the parts MUST be separated and each MUST link to
-the canonical page of its own type). Those pages neither separated nor linked, so
-they did not qualify for the escape clause. Each page mixed three quadrants, and
-each quadrant went to its own tree:
-
-| Content | Actual quadrant | Destination | Status |
-|---|---|---|---|
-| Design rationale, why-this-verb, alternatives weighed, activity-graph diagrams | Explanation | `docs/topics/activity_vocabulary_design.md` | done (#3002) |
-| AS2 encoding facts, rendered JSON examples | Reference | `docs/reference/messages/` | done (#2999, #3001, #3003) |
-| Task sequences and the `vultron-demo <scenario>` runs | How-to | stays, retitled "How to …" | done (#3003) |
-
-The How-to half is not just the retitled remainder. Each guide now carries
-prerequisites, an ordered activity sequence with conditional branches, a table of
-what to verify, and links out to its Reference and Explanation counterparts — and
-nothing else. The wire examples left with the `_*.md` partials that rendered them —
-copies of reference content, which is what made them a collapse. A how-to step may
-show the activity it sends again once that example is the *same* fragment the
-reference section renders (ADR-0128): one source rendered in two places, separated
-and linking to its canonical page, is DF-01-003's escape clause, not a collapse.
-
-`ledger_replication.md` was retired rather than reshaped, because every sentence
-on it described a pattern or a factory and none of it named an action a reader
-takes — ledger fan-out is automatic. Apply that test rather than the page's
-directory when deciding whether a how-to page has a task in it.
-
-The Explanation half landed as a single page rather than several, because the
-rationale is one argument: ActivityStreams supplies the verbs, so every Vultron
-choice is either a verb selection, a decision not to mint a type, or a decision
-that a distinction the wire draws has no protocol counterpart. Splitting it per
-source page would have separated claims that only make sense together. Domain
-rationale that already had a home was cross-linked rather than duplicated —
-default-embargo reasoning to `topics/process_models/em/defaults.md`,
-ledger-buffering reasoning to `topics/case_lifecycle/case_ledger_sync.md`, and
-the Actor/`CaseParticipant` distinction to `reference/activitypub/objects.md`.
-
-Four signals identified the collapse, and they generalize to any tree suspected of
-one:
-
-- **Noun-phrase titles in the how-to tree.** "Status Updates and Comments" and
-  "Acknowledging Other Messages" name a subject, not a task, where DF-04-003
-  requires "How to [Action]".
-- **No imperatives and no steps.** A page with nothing for the reader to do is not
-  in the Action half of the compass whatever directory it sits in.
-- **A page that passes the bath test.** `acknowledge.md` was almost entirely
-  design rationale, which is Explanation by definition.
-- **A normativity disclaimer.** Nearly every page carried
-  `{% include-markdown "not_normative.md" %}`, which is an author saying the
-  content is discursive. The banners came off in #3003 for exactly that reason:
-  a task guide has nothing to disclaim.
-
-The banner signal inverts where you would expect it to. The two pages *without*
-it, `error.md` and `acknowledge.md`, had the least task-shaped content of any —
-so read its absence as no evidence either way, not as evidence of task shape.
-
-So the reference pages are the Reference half of un-blurring an existing
-collapse. Treating them as a fourth parallel surface would deepen the collapse
-instead of resolving it.
-
-## Occasions: the unit of the lookup table (ADR-0128, #4418, #4429)
-
-A builder's question runs the other way from the mapping tables: not "what wire
-form does `CF` take?" but "a fix is ready — what do I send?" ADR-0128 answers it
-with one table keyed by **occasion**: a situation in a case that a sender conveys
-with a wire activity, sometimes narrowed by a distinguishing field value or state
-context (glossary, Messaging and Protocol). One semantic type has one or more
-occasions —
-`Add(CaseStatus)` has three — so the table has one row per (occasion, wire activity)
-pair: When… | Send | Send to | Sent by | Distinguished by | Details. The formal
-shorthand is only the Details link text; the formal protocol is linked, not
-leading.
-
-Where each fact lives, so nothing derivable is typed by hand. The occasions,
-the page and the two derivations landed in #4429; the addressee is #4438:
-
-| Fact | Owner |
-|---|---|
-| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes, section heading (when no own shorthand) | `SemanticEntry.occasions` |
-| formal message name | `ProtocolShorthand.formal_name`, held to `formal_protocol/messages.md` by a test |
-| wire summary | the entry's `ActivityPattern`, rendered as today |
-| send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
-| sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
-| page | `SemanticEntry.page`, a `MessagePage` value |
-| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
-| "Seen in" | the include directives on workflow pages |
-
-The value objects are in `vultron/semantic_registry/_occasion.py`. An occasion
-names its example by `vocab_examples` function name rather than holding the
-function, so the dispatch registry does not import the example corpus at server
-start; `test/test_semantic_registry_occasions.py` resolves every name and checks
-the example dispatches to its own entry. The derived mapping rows put a page's
-rows in registry order, which is dispatch order, not reading order.
-
-Deriving the status corrected three rows on `rm.md`. MSM-01-002, MSM-01-003 and
-MSM-01-006 give `RI`, `RV` and `RC` a second wire form, the full-case Invite reply
-of a participant that joined through an Invite, so those shorthands are
-expansions, not direct mappings. `Create(ProcessingFault)` and
-`Reject(CaseLedgerEntry)` declare `evolved`. The `Add(ParticipantStatus)`
-occasions are distinguished by `vf_state` and `d_state`: `rm_state`
-distinguishes none of `CV`, `CF` and `CD`, so no occasion names it, and its RM
-role is the second-home row on `rm.md`.
-
-### The generated artifacts (#4430)
-
-`uv run msm-occasions --write` (`vultron/metadata/msm/occasions.py`) projects
-the registry into `vultron/metadata/msm/occasions.yaml` and into fragments under
-`docs/reference/messages/_occasions/`: `lookup.md` (the whole table, one `##`
-group per page, lifecycle first and then mechanics), `lookup-<page>.md` (one
-page's slice) and `sections/<anchor>.md` (one section per occasion). The table
-fragments avoid the name `*table*.md`, which `lint-docs` exempts as generated,
-because their cells are occasion prose it must check (DF-09-007). The
-`msm-occasions-sync` pre-commit hook runs `--check`, and
-`test_committed_occasion_artifacts_are_in_sync` is the CI backstop (MSM-06-001,
-revised by #4430). `_mapping.py` holds the YAML's Pydantic models and
-`load_occasion_table`, which reports failures through `file_loading.py` (MS-17),
-locating a schema fault deep in the file by `yaml_node_positions`.
-The occasion requirements are MSM-08.
-
-Four choices there are not obvious from the code:
-
-- **Fragments render from the YAML, re-parsed, not from the registry.** So the
-  YAML carries every fact a fragment shows, and the later "Send to" (#4438) and
-  "Seen in" (#4432) columns are a field on `OccasionRow` plus a renderer change.
-- **The fragments are in `exclude_docs`.** Built alone, a table's links would be
+- Occasions are declared on `SemanticEntry` (value objects in
+  `vultron/semantic_registry/_occasion.py`), and `MappingStatus` and the
+  discriminator are derived from them by `vultron/metadata/msm/_mapping.py`; do
+  not enter either by hand.
+- **An occasion names its example by `vocab_examples` function name**, not by
+  holding the function, so the dispatch registry never imports the example
+  corpus at server start. `test/test_semantic_registry_occasions.py` resolves
+  every name and checks the example dispatches to its own entry.
+- **Each occasion's example shows its own distinguisher** (MSM-08-003): a
+  dispatch check alone passes an example carrying another occasion's field value.
+- Derived mapping rows follow registry order, which is dispatch order, not
+  reading order.
+- **The occasion table is generated; never edit it by hand.** `uv run
+  msm-occasions --write` projects the registry into
+  `vultron/metadata/msm/occasions.yaml` and the fragments under
+  `docs/reference/messages/_occasions/`; the `msm-occasions-sync` hook runs
+  `--check`, and `test/metadata/test_msm_occasions.py` is the CI backstop
+  (MSM-06-001).
+- **Fragments render from the re-parsed YAML, not from the registry**, so the
+  YAML carries every fact a fragment shows; a new column is a field on
+  `OccasionRow` plus a renderer change.
+- **The fragments are in `exclude_docs`**: built alone, a table's links would be
   checked against the wrong page, and each fragment would publish a URL.
-  `include-markdown` reads excluded files from disk, so the links are checked on
-  the host page, and `docs-frontmatter` treats an excluded file no page
-  includes as neither page nor fragment.
-- **The example stays an exec block inside the section fragment.** Its JSON
-  carries no link, and its IDs are minted per run, so a committed copy could
-  never pass `--check`.
-- **A pipe in a table's "Send" cell is a `<code>` element with entities.**
-  Python-Markdown keeps a backtick span whole and shows `\|` literally, GFM
-  splits the cell at a bare `|`, and `markdownlint --fix` rewrites an
-  unprotected `(Event)[context=…]` as a reversed link.
+  `include-markdown` reads them from disk, so the links are checked on the host
+  page.
+- **The table fragments avoid the name `*table*.md`**: `lint-docs` exempts that
+  name as generated, and their cells are occasion prose it must check (DF-09-007).
+- **The example stays an exec block inside the section fragment**: its IDs are
+  minted per run, so a committed copy could never pass `--check`.
+- **A pipe in a "Send" cell is a `<code>` element with entities.**
+  Python-Markdown shows `\|` literally inside a backtick span, GFM splits the
+  cell at a bare `|`, and `markdownlint --fix` rewrites an unprotected
+  `(Event)[context=…]` as a reversed link.
+- **The formal message name is `ProtocolShorthand.formal_name`**, held to
+  `docs/reference/formal_protocol/messages.md` by
+  `test/test_semantic_registry_occasions.py`.
+- **An expansion's rows link by section heading, with no shorthand**
+  (DF-09-010, MSM-08-008). That covers `GI` and also `RV`, `RI` and `RC`, which
+  the Full-Case Invite replies carry; the link text and the heading are one
+  string (the formal name and code when the shorthand is the occasion's own,
+  otherwise the occasion's declared `heading`).
+- **How the pages include them**: `messages/index.md` opens with `lookup.md`;
+  each message page includes its slice, then one section per occasion in the
+  slice's dispatch order (`em.md` keeps its reading order). Hand-written text (the
+  introduction, an addendum, sections for shorthands with no wire activity) stays
+  around the includes; an addendum follows the section's JSON example, which is
+  the section's last block.
+- **Include paths start with `./`**: `include-markdown` resolves a path with no
+  `./` or `../` prefix against `docs/`, so `"_occasions/lookup.md"` finds nothing.
+- **The mapping status is in the generated section, not the table** (MSM-06-003):
+  the table's columns serve a sender.
+- `test/metadata/test_msm_occasions.py` checks each page includes its slice once,
+  each section once and on no other page, and no page has an exec block of its
+  own (MSM-06-001, MSM-08-004); `mkdocs build --strict` and `docs-links` check
+  the rendered links.
 
-### The pages that include them (#4431)
+### How-to embeds and "Seen in" (#4432)
 
-`messages/index.md` opens with `lookup.md`, and each message page includes its
-slice and then one section per occasion. Hand-written text stays on the page
-around the includes: the introduction, an addendum after a section (triggering
-transition, second wire forms, refusal rules), and the sections for the
-shorthands with no dedicated wire activity. An addendum follows the section's
-JSON example, because the example is the section's last block. Sections follow
-the slice's dispatch order except on `em.md`, which keeps its earlier reading order
-and groups the Case Owner's two decisions under one heading with
-`heading-offset=1`.
-
-Two details are easy to get wrong:
-
-- **Include paths start with `./`.** `include-markdown` resolves a path without
-  a `./` or `../` prefix against `docs/`, not against the including page, so
-  `"_occasions/lookup.md"` finds nothing.
-- **The mapping status is in the section, not the table.** MSM-06-003 used to
-  ask for a status column on the old per-page mapping tables. The occasion
-  table's columns serve a sender, so each generated section states its
-  entry's status, linked to the definitions on `messages/index.md`; the spec
-  was revised to say so. `render.py` and its `render_page` went with the old
-  tables.
-
-`test_msm_occasions.py` checks the pages over their sources: each page includes
-its slice once, each section once and on no other page, every included section
-is a row of the slice, and no page has an exec block of its own (MSM-06-001,
-MSM-08-004). `mkdocs build --strict` and `docs-links` check that the links and
-anchors resolve once rendered.
-
-### Planning decisions (#4418)
-
-**"Sent by" is the receiver's rule, not the CVD convention.** The column states
-the `sender_entitlement` the received use case declares, because that is what
-another implementation must satisfy, and it cannot drift. It is often broader
-than the convention: any active participant may send `Add(ParticipantStatus)`
-with `vf_state` `VF`, though a vendor is the one with a fix. An occasion may add
-a "usually" note, typed as `CVDRole` values, so the row reads "an active
-participant (usually: vendor)" (MSM-08-005). The wording per kind, which
-moves onto the kind itself (MSM-08-010) so no table like this one is kept by hand:
-
-| `SenderEntitlementKind` | "Sent by" |
-|---|---|
-| `CASE_MANAGER` | the case manager |
-| `CASE_OWNER` | the case owner |
-| `ACTIVE_PARTICIPANT` | an active participant |
-| `INVITEE` | the invitee |
-| `NAMED_ACTOR` (the addressee kind) | the addressee of the *request*, e.g. "the addressee of the case proposal" |
-| author (planned, #4433) | the author of the *object*, e.g. "the note's author" |
-| `EXECUTING_ACTOR` | the receiving actor itself |
-| `ANY_ACTOR` (a new report only, HP-01-010) | any actor |
-| `SenderExemption` | not yet checked |
-
-About half the received use cases are exempt today, so the column fills in
-only as the exemptions close; do not paper over that with hand-written values.
-
-### Planning decisions (#4433): positions and the shape of a sender rule
-
-ADR-0129 settles where positions within one exchange live, and what a declared
-sender rule must say for "Sent by" to be derived for every occasion.
-
-**Positions are entitlement kinds, not roles and not a second list.** "The
-invitee" or "the addressee of a case proposal" holds that position only
-relative to one exchange; the same coordinator receives one report and sends
-the next, and a report precedes any case, so there is no participant record to
-hold it. `CVDRole` values are durable facts persisted on
-`CaseParticipant.roles`, so no position joins `CVDRole` (HP-01-009). A separate
-exchange-position enum was rejected: no occasion was found whose rule is broad
-but whose usual sender is a position, because once a case exists the report
-receiver holds `CASE_OWNER`. So the "usually" note stays `CVDRole`-only, and a
-position a new rule needs (the author of a note) becomes a kind. A position
-that is the addressee of a request, such as the ownership-transfer transferee,
-is the addressee kind below, not a new kind.
-
-**One addressee kind, worded from the exchange.** The actor a request was
-addressed to is one kind whatever the request, other than an Invite, so one
-guard serves the case proposal answers, the ownership-transfer answers and any
-later addressee rule. Its wording takes the request from the answered
-activity's object type, so the cell is identified without a kind per request
-type (MSM-08-010). The invitee stays its own kind: it is checked against the
-`to` of the Invite the receiver recorded, not against an addressee the receiver
-wrote on its own record, and "invitee" is already the protocol's term
-(EP-09-010, CM-11-017). The addressee kind is today's `NAMED_ACTOR` as the
-case-proposal answers use it; the sync check that a ledger `Reject` comes from
-the local CaseActor, which also declares `NAMED_ACTOR`, is the CASE_MANAGER
-standing and moves to that kind.
-
-**A declaration is the full rule, per addressee side.** Today some declarations
-are a floor and the rest lives in the tree: `Remove(Note)` declares "an active
-participant", while CM-30-001 entitles the note's author or the Case Owner, and
-the embargo `Invite(Event)` declares one kind while `SenderMayAssertEmbargoNode`
-checks two sides through its `manager_arm`. A declaration becomes a value
-composed of kinds: "any of" several, stated per addressee (the CASE_MANAGER, a
-participant, or an actor outside any case before a case exists). The factory
-builds the guard from it alone (HP-01-008).
-
-**Each occasion names its addressee; "Sent by" and "Send to" are derived.** One
-wire activity can carry occasions with different senders. A participant
-proposing an embargo sends `Invite(Event)` with `target` the case `to` the
-CASE_MANAGER; the CASE_MANAGER asking a participant about a proposal, on the
-Case Owner's behalf, sends `Invite(Event)` with `context` the case `to` that
-participant. Both match one registry entry and one use case. The occasion's
-addressee picks the side of the rule that gives its sender, and renders as the
-row's "Send to" (MSM-08-009). The replica side of a rule is not a separate
-concern for this table: the table serves emitters, and the CASE_MANAGER appears
-as a sender only on its own occasions (such as ledger announcements, the Invites
-it sends, and `Offer(CaseParticipant)`).
-
-**One grammar for "When…".** Every occasion's "when" is the sender's situation,
-from the sender's side — for mechanics and a `Create` that precedes an `Add` too:
-"the case manager has committed a case event" for `Announce(CaseLedgerEntry)`,
-"a replicated entry does not chain onto the receiver's ledger" for
-`Reject(CaseLedgerEntry)`. So every wire activity keeps at least one row.
-
-**Occasion prose is docs prose.** The "when", description and notes fields live
-in Python but render on reference pages *and* in how-to guides, so a fragment
-must satisfy both hosts (DF-09-008): style guide sentence rules, glossary terms,
-and no "you" (MSM-08-007). The details link names the formal message and code,
-"Fix Readiness (CF)", because the row's "Send" cell already gives the wire form
-and DF-09-010 wants the pair (MSM-08-008). An expansion is the exception: the
-`GI` rows link by section heading, because "General Inquiry (GI)" would label
-every row of the expansion alike, and DF-09-010 lets the heading stand in. `RV`,
-`RI` and `RC` are expansions too (the Full-Case Invite replies carry them), so
-their rows link by heading with no shorthand, as DF-09-010 says; no exception
-is made for them (maintainer, #4430). The link text and the section heading are
-one string: the formal name and code when the shorthand is the occasion's own,
-otherwise the occasion's declared `heading`.
-
-**Each occasion's example shows its own distinguisher.** Until #4429 the CV, CF
-and CD sections of `cs.md` rendered the same `add_status_to_participant()`
-example, which dispatches correctly and carries `vf_state` `Vf`, the vendor
-awareness value, so the CF and CD sections showed a value that is not theirs.
-A dispatch check alone passes that, so MSM-08-003 also requires the example to
-carry a field-value distinguisher. A state context is the receiver's state, not payload, so no
-example carries it.
-
-**A distinguisher is typed.** Either a field value checked against the field's
-enum (`vf_state` = `VF`), or a state context naming a state machine and its
-states (the EM state that separates `EP` from `EV` on `Invite(Event)`)
-(MSM-08-002).
-
-## Examples are rendered at build time
-
-The examples are `markdown_exec` blocks calling
-`vultron.wire.as2.vocab.examples.vocab_examples`, inside each generated
-occasion section. Build-time rendering cannot go stale, and an example carries
-no link. The tables are the part that moved: they are committed
-`include-markdown` fragments (#4430), because MkDocs does not rewrite a `.md`
-link printed from an exec block (`vultron/metadata/AGENTS.md`, Generate vs.
-Check) — and a lookup table is mostly links.
-
-Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
-exemplar for the **mapping tables** — a thin `markdown_exec` shell over
-`vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
-examples. For the **examples** themselves, follow the generated sections under
-`docs/reference/messages/_occasions/sections/` and
-`docs/reference/activitypub/objects.md`, which call `vocab_examples`. A wire
-example *copied* into the how-to tree is a collapse re-forming; one *included*
-from the occasion's fragment is not (see the Diátaxis section above).
-
-A new example function needs a matching `obj_to_file` call in
-`vocab_examples.main()` or `test_vocab_examples_current.py` fails on the file-list
-mismatch. Note that the generator randomizes IDs and timestamps on every run, so
-running it in place rewrites every committed artifact: generate into a temp
-directory and copy across only the files you added.
-
-**An example must be dispatchable, and "well-formed" does not imply it.** Set the
-discriminator fields the activity's `ActivityPattern` requires — `object_`,
-`target_`, `context_` — and note that `ActivityPattern` has **no `origin_`
-field**, so `origin` is never consulted for dispatch no matter how well it reads.
-`test/architecture/test_vocab_examples_dispatchable.py` is the ratchet: every
-example activity must match exactly one registered pattern. It found three examples
-that matched none (#3438, #3439, #3433), each rendered on a reference page and each
-committed as a JSON artifact, because the two pre-existing gates ask only whether
-an example *executes* and whether its *filename* is committed — never whether a
-receiver could route it.
-
-Its collector is deliberately permissive about shape, because both narrower rules
-had already hidden a target: requiring zero *parameters* rather than zero
-*required* parameters skipped the four `report.py` examples that take a defaulted
-`verbose` (`submit_report` among them), and requiring `as_TransitiveActivity`
-rather than `as_Activity` skipped `choose_preferred_embargo`, an `as_Question`. A
-gate that silently resolves fewer targets than it claims is the false-clean signal
-DF-09-009 exists to forbid, so the collected count is itself asserted.
-
-**Its reach stops at the example corpus, and that hid a live defect.** The
-collector scans the `vocab_examples` module plus `submit_report_tutorial` — so a
-factory that is never exported as an example is invisible to it, no matter what
-its signature looks like. That is how `bootstrap_replay_question_activity` stayed
-undispatchable without the gate noticing, while the poll beside it was caught: the
-poll had an example, and unlike the poll the replay request is actually emitted
-(#3471). The near-miss diagnosis to avoid: the collector also skips anything with
-*required* arguments, and this factory takes three, so "widen the gate past
-zero-required-argument examples" looks like the fix. It is not — that factory
-lives in `vultron/wire/as2/factories/case.py` and the collector never walks it, so
-relaxing the argument rule would not reach it. Adding an example would. The
-standing cost is that "every example is dispatchable" is not "every activity we
-emit is dispatchable"; do not read a green run as the latter.
-
-Of the three defects this gate first found, two are now closed by repair
-(#3438, #3439) and the third is closed by **retirement**: ADR-0100 removes the
-multi-candidate embargo poll (#3469), so its entry goes away with the example
-itself rather than being fixed into a passing case. That leaves
-`_KNOWN_UNDISPATCHABLE` **empty** once #3469 lands — the first time this gate has
-had no exemptions. An empty exemption map is the goal state, not a signal the map
-is unused: keep it and its collected-names guard, because the next undispatchable
-example is what they exist to catch. The per-entry `xfail(strict=True)` test that
-forced an exemption out once its example became dispatchable went with the last
-entry, because a `parametrize` over an empty table collects as a permanent SKIP —
-a green line that means nothing. The first new entry MUST bring that strict xfail
-back with it; the table's own comment says so.
-
-The generator's output path is now resolved from the file's own location
-(`Path(__file__).parents[5]`), so it works regardless of the caller's working
-directory. A drift check in `test/architecture/test_vocab_examples_current.py`
-fails when the committed JSON file list diverges from what the generator produces
-(#3004). The `markdown_exec` frozen-model bug that blocked all example blocks was
-fixed in #2904.
+- **A how-to step that sends an occasion includes
+  `_occasions/embeds/<anchor>.md`, never the section.** The embed is a
+  generated variant of the same YAML row: an `!!! info` box with no heading,
+  holding the sender's facts, a **Reference** link to the canonical section and
+  the example in a collapsed `??? example`. Do not cut the section with
+  `start=`/`end=` and wrap it by hand: the collapse and the link would be typed
+  per step. The formal definition, mapping status and notes stay in the section.
+- **An embed has no heading**, so a host gains no `{ #anchor }` or TOC entry
+  that could collide with the reference page's.
+- **"Seen in" is read from include directives, never typed.**
+  `embedding_pages` reads every `docs/` page outside the fragment directory
+  with `include_directives(..., existing=False)`, so a directive counts before
+  its embed exists and one `--write` settles it; the fragments include nothing,
+  so `--check` cannot loop. The hook watches all of `docs/` and `mkdocs.yml`.
+  The row's `howto` link became `seen_in` (`format_version` 2).
+- **Refused or skipped hosts**: an embed on any message page is refused (the
+  page carries the section), as is one in a fragment another page includes
+  whole (the reader sees the host); a `draft_docs`/`exclude_docs` page is
+  skipped, since production withholds it.
+- **A declared guide must embed its occasion.** `derive_table` fails when
+  `Occasion.howto` names a guide that does not include the embed. Declare the
+  guide whose step sends the occasion, or none: `Create(CaseParticipant)` is the
+  CASE_MANAGER's ledger entry for an inert record and no guide's step sends it
+  (#4576). Two steps send an activity no occasion fits yet (#4578).

@@ -75,7 +75,7 @@ from vultron.wire.as2.extractor._instances import (
     RemoveNoteFromCasePattern,
     ReportSubmissionPattern,
     TentativeRejectInviteActorToFullCasePattern,
-    UpdateCaseActivityPattern,
+    UndoCaseOwnershipTransferActivityPattern,
     ValidateReportPattern,
 )
 from vultron.wire.as2.extractor._pattern import ActivityPattern
@@ -124,6 +124,7 @@ __all__ = [
     "OfferCaseOwnershipTransferActivityPattern",
     "OfferCaseParticipantRolePattern",
     "RejectCaseOwnershipTransferActivityPattern",
+    "UndoCaseOwnershipTransferActivityPattern",
     "RejectCaseParticipantRolePattern",
     "RejectCaseProposalPattern",
     "RejectInviteActorToCasePattern",
@@ -137,6 +138,5 @@ __all__ = [
     "RemoveEmbargoEventFromCasePattern",
     "RemoveNoteFromCasePattern",
     "ReportSubmissionPattern",
-    "UpdateCaseActivityPattern",
     "ValidateReportPattern",
 ]

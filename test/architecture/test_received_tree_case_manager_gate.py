@@ -101,7 +101,6 @@ _Site = tuple[str, str]
 _C = "vultron/core/behaviors/case"
 _E = "vultron/core/behaviors/embargo"
 _N = "vultron/core/behaviors/note"
-_R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
 
 # ---------------------------------------------------------------------------
@@ -141,6 +140,13 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (f"{_E}/expiry_tree.py", "create_invite_expiry_tree"),
         (f"{_E}/expiry_tree.py", "create_noop_ledger_entry_tree"),
         (f"{_E}/expiry_tree.py", "create_reinvite_stale_accepter_tree"),
+        # The ownership-transfer Offer's lazy expiry (CM-21-017): the
+        # CASE_MANAGER's own act, run before the received tree, like the
+        # embargo Invite expiry above.
+        (
+            f"{_C}/ownership_expiry_tree.py",
+            "create_ownership_offer_expiry_tree",
+        ),
         (f"{_E}/nodes/relay.py", "case_manager_admits_proposal_guard"),
         (
             f"{_C}/nodes/case_participant_received.py",
@@ -187,6 +193,12 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "vultron.core.behaviors.case.nodes.lifecycle",
             "CommitCaseLedgerEntryNode",
         ),
+        # Mints the CASE_MANAGER's ownership-transfer Offer expiry entry and
+        # fans it out (CM-21-017); sends nothing else.
+        (
+            "vultron.core.behaviors.case.nodes.ownership_offer_expiry",
+            "ExpireOverdueOwnershipOfferNode",
+        ),
         (
             "vultron.core.behaviors.case.nodes.proposal_ledger",
             "CommitNativeLedgerEntriesNode",
@@ -222,11 +234,6 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
 # replica_emit_exemptions.py)
 REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        (
-            "ACK_ECHO",
-            f"{_R}/received_report_trees.py",
-            "create_ack_report_received_tree",
-        ),
         (
             "CASE_PROPOSAL",
             f"{_C}/case_proposal_received_tree.py",

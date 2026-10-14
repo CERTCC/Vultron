@@ -255,6 +255,15 @@ class ActorSession:
             )
         return self._post("submit-report", body)
 
+    def ack_report(
+        self, *, offer_id: str, note: str | None = None
+    ) -> WireTriggerResult:
+        """Acknowledge the offered report to its reporter (ack-report, RK)."""
+        body: dict[str, Any] = {"offer_id": offer_id}
+        if note is not None:
+            body["note"] = note
+        return self._post("ack-report", body)
+
     def validate_report(
         self, *, offer_id: str, note: str | None = None
     ) -> WireTriggerResult:
@@ -372,15 +381,24 @@ class ActorSession:
         )
 
     def offer_case_ownership_transfer(
-        self, *, transferee_id: str, content: str | None = None
+        self,
+        *,
+        transferee_id: str,
+        content: str | None = None,
+        end_time: datetime | None = None,
     ) -> WireActivityResult:
-        """Offer ownership of the bound case to *transferee_id* (offer-case-ownership-transfer)."""
+        """Offer ownership of the bound case to *transferee_id* (offer-case-ownership-transfer).
+
+        *end_time*, when given, is the deadline to answer (TRIG-11-007).
+        """
         body: dict[str, Any] = {
             "case_id": self._require_case_id(),
             "transferee_id": transferee_id,
         }
         if content is not None:
             body["content"] = content
+        if end_time is not None:
+            body["end_time"] = end_time.isoformat()
         return cast(
             WireActivityResult,
             self._post(
@@ -411,6 +429,19 @@ class ActorSession:
             WireActivityResult,
             self._post(
                 "reject-case-ownership-transfer",
+                {"offer_id": offer_id},
+                result_cls=WireActivityResult,
+            ),
+        )
+
+    def withdraw_case_ownership_transfer(
+        self, *, offer_id: str
+    ) -> WireActivityResult:
+        """Withdraw an open case-ownership-transfer offer (withdraw-case-ownership-transfer)."""
+        return cast(
+            WireActivityResult,
+            self._post(
+                "withdraw-case-ownership-transfer",
                 {"offer_id": offer_id},
                 result_cls=WireActivityResult,
             ),

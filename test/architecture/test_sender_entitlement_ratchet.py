@@ -150,10 +150,6 @@ OLD_NAMES = [
         "CheckIsCaseOwnerNode",
     ),
     (
-        "vultron.core.behaviors.report.nodes.ack_conditions",
-        "CheckSenderIsExecutingActorNode",
-    ),
-    (
         "vultron.core.behaviors.sync.nodes.conditions",
         "VerifySenderIsCaseActorNode",
     ),

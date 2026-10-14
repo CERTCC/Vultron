@@ -21,12 +21,10 @@ Provides:
 - :class:`EmitOfferCaseOwnershipTransferNode` — emits
   ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
   offering actor to the specified transferee.
-- :class:`EmitAcceptCaseOwnershipTransferNode` — emits
-  ``Accept(Offer(VulnerabilityCase))`` from the accepting actor to the
-  CASE_MANAGER (CM-21-006).
-- :class:`EmitRejectCaseOwnershipTransferNode` — emits
-  ``Reject(Offer(VulnerabilityCase))`` from the declining actor to the
-  CASE_MANAGER (CM-21-010).
+- :class:`EmitAcceptCaseOwnershipTransferNode`,
+  :class:`EmitRejectCaseOwnershipTransferNode` and
+  :class:`EmitWithdrawCaseOwnershipTransferNode` — the replies to an Offer,
+  defined in ``ownership_offer_reply_emit.py`` and re-exported here.
 - :class:`AcceptCaseOwnershipTransferNode` — applies the accepted
   ownership transfer to the DataLayer: updates ``case.attributed_to``
   and grants ``CVDRole.CASE_OWNER`` to the new owner's participant record.
@@ -40,10 +38,16 @@ BTND-07-003.
 """
 
 import logging
-from typing import Any, ClassVar
+from datetime import datetime
+from typing import Any
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.ownership_offer_reply_emit import (
+    EmitAcceptCaseOwnershipTransferNode,
+    EmitRejectCaseOwnershipTransferNode,
+    EmitWithdrawCaseOwnershipTransferNode,
+)
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -66,7 +70,9 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
 
     Calls ``trigger_activity_factory.offer_case_ownership_transfer()`` with
     ``actor=self.actor_id``, ``case_id``, and ``transferee_id``, then queues
-    the resulting activity in the actor's outbox (TRIG-11-001).
+    the resulting activity in the actor's outbox (TRIG-11-001).  An
+    ``end_time`` becomes the Offer's activity-level ``end_time``, the deadline
+    to answer it (TRIG-11-007, CM-21-016); without one the Offer carries none.
     """
 
     def __init__(
@@ -77,12 +83,14 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         content: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
+        end_time: datetime | None = None,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.content = content
         self.requesting_actor_id = requesting_actor_id
+        self.end_time = end_time
 
     def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
@@ -109,6 +117,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             content=self.content,
             to=case_actor_id,
             attributed_to=authorship.attributed_to,
+            end_time=self.end_time,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -117,94 +126,6 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             self.actor_id,
             self.case_id,
             self.transferee_id,
-        )
-
-
-class _EmitOwnershipAnswerNode(_EmitSingleActivityBase):
-    """Emit the transferee's answer to an ownership-transfer Offer.
-
-    The answer — ``Accept`` or ``Reject`` of ``Offer(VulnerabilityCase)`` —
-    is addressed to the case's CASE_MANAGER, never to the offerer: the Offer
-    reached the transferee through the CASE_MANAGER, which records the answer
-    and broadcasts it (CM-21-006, CM-21-010).  Subclasses name the port method
-    that builds the activity (:meth:`_build_answer`) and the verb they log.
-    """
-
-    _verb: ClassVar[str]
-    """Past-tense verb for the success log line; each subclass sets it."""
-
-    def __init__(
-        self,
-        offer_id: str,
-        case_id: str,
-        captured: dict | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(captured=captured, name=name)
-        self.offer_id = offer_id
-        self.case_id = case_id
-
-    def _build_answer(self, to: list[str] | None) -> tuple[str, str]:
-        """Build and persist the answer through the trigger-activity port."""
-        raise NotImplementedError
-
-    def _call_factory(self) -> tuple[str, str]:
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        assert self.datalayer is not None
-        # Regime 3 (ADR-0087): optional addressing enrichment only — a missing
-        # local case leaves `to=None` and the answer is still emitted.
-        # Unguarded by design (conformance allowlist).
-        case = self.datalayer.read_case(self.case_id)
-        case_actor_id: list[str] | None = None
-        if case is not None:
-            cm_id = resolve_case_manager_id(case, self.datalayer)
-            if cm_id:
-                case_actor_id = [cm_id]
-        return self._build_answer(case_actor_id)
-
-    def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        self.logger.info(
-            "Actor '%s' %s case ownership transfer offer '%s'",
-            self.actor_id,
-            self._verb,
-            self.offer_id,
-        )
-
-
-class EmitAcceptCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
-    """Emit ``Accept(Offer(VulnerabilityCase))`` to the CASE_MANAGER.
-
-    Calls ``trigger_activity_factory.accept_case_ownership_transfer()``
-    with ``actor=self.actor_id`` and ``offer_id``, then queues the resulting
-    activity in the actor's outbox (TRIG-11-002, CM-21-006).
-    """
-
-    _verb = "accepted"
-
-    def _build_answer(self, to: list[str] | None) -> tuple[str, str]:
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        return self.trigger_activity_factory.accept_case_ownership_transfer(
-            actor=self.actor_id, offer_id=self.offer_id, to=to
-        )
-
-
-class EmitRejectCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
-    """Emit ``Reject(Offer(VulnerabilityCase))`` to the CASE_MANAGER.
-
-    Calls ``trigger_activity_factory.reject_case_ownership_transfer()``
-    with ``actor=self.actor_id`` and ``offer_id``, then queues the resulting
-    activity in the actor's outbox (TRIG-11-005, CM-21-010).
-    """
-
-    _verb = "rejected"
-
-    def _build_answer(self, to: list[str] | None) -> tuple[str, str]:
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        return self.trigger_activity_factory.reject_case_ownership_transfer(
-            actor=self.actor_id, offer_id=self.offer_id, to=to
         )
 
 
@@ -221,6 +142,12 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
 
     Logs WARNING and returns FAILURE when ``trigger_activity_factory`` is absent
     from the blackboard — this leaves all outboxes untouched.
+
+    The forward carries the received Offer's ``end_time``, so the transferee,
+    which holds and answers the forward, knows its deadline (CM-21-016).  The
+    forward is an activity this node mints, so its timestamps serialise in
+    UTC (CS-13-005); the received Offer's own offset stays on its ledger
+    entry.
     """
 
     def __init__(
@@ -230,11 +157,13 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         original_actor_id: str,
         captured: dict | None = None,
         name: str | None = None,
+        end_time: datetime | None = None,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.original_actor_id = original_actor_id
+        self.end_time = end_time
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -269,6 +198,7 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
             actor=authorship.actor,
             to=[self.transferee_id],
             attributed_to=authorship.attributed_to,
+            end_time=self.end_time,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -487,3 +417,14 @@ class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
         return recorded_ownership_offer(
             self.datalayer, self.case_id, self.offer_id, self.actor_id
         ).transferee_id
+
+
+__all__ = [
+    "AcceptCaseOwnershipTransferNode",
+    "AcceptRecordedOwnershipOfferNode",
+    "EmitAcceptCaseOwnershipTransferNode",
+    "EmitOfferCaseOwnershipTransferNode",
+    "EmitRejectCaseOwnershipTransferNode",
+    "EmitWithdrawCaseOwnershipTransferNode",
+    "ForwardOfferToTransfereeNode",
+]

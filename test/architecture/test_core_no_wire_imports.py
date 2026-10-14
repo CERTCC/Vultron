@@ -54,6 +54,7 @@ from test.architecture import _corpus
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import CreateReportReceivedEvent
 from vultron.core.models.events.base import VultronEvent
+from vultron.subclasses import all_subclasses
 
 _WIRE_MODULE = "vultron.wire"
 
@@ -139,17 +140,9 @@ def _event_subclasses() -> frozenset[type[VultronEvent]]:
     defined elsewhere in the session is excluded by module — otherwise the
     check would depend on collection order.
     """
-    found: set[type[VultronEvent]] = set()
-    pending: list[type[VultronEvent]] = list(VultronEvent.__subclasses__())
-    while pending:
-        cls = pending.pop()
-        if cls in found:
-            continue
-        found.add(cls)
-        pending.extend(cls.__subclasses__())
     return frozenset(
         cls
-        for cls in found
+        for cls in all_subclasses(VultronEvent)
         if cls.__module__ == _EVENTS_PACKAGE
         or cls.__module__.startswith(_EVENTS_PACKAGE + ".")
     )

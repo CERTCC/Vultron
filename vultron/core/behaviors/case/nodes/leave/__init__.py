@@ -34,6 +34,11 @@ by semantic concern (BTND-07-004):
   every embargo Invite still awaiting a reply before ``case_fully_closed``
   (CM-23-014).
 
+- :mod:`.fully_closed` — :class:`CommitCaseFullyClosedNode`, which commits
+  ``case_fully_closed`` as the CASE_MANAGER's own factory-built
+  ``Update(VulnerabilityCase)`` carrying the closed case (CM-23-002 step 3,
+  CLP-07-013).
+
 - :mod:`.decline` — :class:`EmitRejectCloseCaseNode`, the ``as:Reject`` arm for
   an owner close blocked by a live embargo (CM-23-011), and the optional reply
   to a Leave that arrives after ``case_fully_closed`` (CM-23-013).
@@ -51,6 +56,9 @@ from vultron.core.behaviors.case.nodes.leave.decline import (
     LATE_LEAVE_DECLINE,
     EmitRejectCloseCaseNode,
 )
+from vultron.core.behaviors.case.nodes.leave.fully_closed import (
+    CommitCaseFullyClosedNode,
+)
 from vultron.core.behaviors.case.nodes.leave.record import (
     CommitRMClosureEntriesNode,
 )
@@ -61,6 +69,7 @@ from vultron.core.behaviors.case.nodes.leave.settle import (
 __all__ = [
     "AdvanceCaseActorToRMClosedNode",
     "AdvanceParticipantToRMClosedNode",
+    "CommitCaseFullyClosedNode",
     "CommitRMClosureEntriesNode",
     "EmitRejectCloseCaseNode",
     "ExpirePendingInvitesOnCloseNode",

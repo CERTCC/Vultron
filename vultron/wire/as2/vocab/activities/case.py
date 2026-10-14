@@ -35,6 +35,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_Reject,
     as_TentativeReject,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
@@ -67,6 +68,22 @@ class _AddReportToCaseActivity(as_Add):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+    # The report's Offer provenance, carried on the CASE_MANAGER's
+    # ``add_report_to_case`` entry for the case's participants, who were never
+    # sent the Offer (CP-01-007, CM-11-020).  The same pair, and the same
+    # wire keys, as ``as_CaseProposal.offer_id``/``offer_actor_id``.
+    offer_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerId",
+        serialization_alias="offerId",
+        description="URI of the Offer(VulnerabilityReport) the report arrived in.",
+    )
+    offer_actor_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerActorId",
+        serialization_alias="offerActorId",
+        description="URI of the actor that sent the Offer named by offer_id.",
+    )
 
 
 # add CaseParticipant to VulnerabilityCase
@@ -131,6 +148,12 @@ class _AddNoteToCaseActivity(as_Add):
 # update a VulnerabilityCase
 class _UpdateCaseActivity(as_Update):
     """Update a VulnerabilityCase.
+
+    Reserved as the snapshot shape of a CASE_MANAGER-authored case-field ledger
+    entry (CLP-07-013). It is not a message any actor sends: it has no
+    ``ActivityPattern`` and no ``MessageSemantics``, so an inbox refuses a
+    received one as unrecognized (#4443). Do not add a received route.
+
     object_: as_VulnerabilityCase
     """
 
@@ -295,6 +318,21 @@ class _RejectCaseOwnershipTransferActivity(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
 
     - object_: the _OfferCaseOwnershipTransferActivity being rejected (inline
+      typed object required — bare string IDs are rejected at construction time)
+    """
+
+    object_: _OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _UndoCaseOwnershipTransferActivity(as_Undo):
+    """The offerer is withdrawing its offer to transfer ownership of the case.
+
+    Sent by the Case Owner that made the Offer, addressed to the CASE_MANAGER
+    (CM-21-015).
+
+    - object_: the _OfferCaseOwnershipTransferActivity being withdrawn (inline
       typed object required — bare string IDs are rejected at construction time)
     """
 

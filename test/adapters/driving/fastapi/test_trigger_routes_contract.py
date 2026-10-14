@@ -101,6 +101,7 @@ _FLUSH = "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler"
 #: The smallest body each verb's request model accepts.  Keyed by verb; the
 #: coverage test below fails when a registry row has no entry here.
 _BODIES: dict[str, dict[str, Any]] = {
+    "ack-report": {"offer_id": "urn:uuid:offer"},
     "validate-report": {"offer_id": "urn:uuid:offer"},
     "invalidate-report": {"offer_id": "urn:uuid:offer"},
     "reject-report": {"offer_id": "urn:uuid:offer", "note": "Out of scope."},
@@ -142,6 +143,7 @@ _BODIES: dict[str, dict[str, Any]] = {
     },
     "accept-case-ownership-transfer": {"offer_id": "urn:uuid:offer"},
     "reject-case-ownership-transfer": {"offer_id": "urn:uuid:offer"},
+    "withdraw-case-ownership-transfer": {"offer_id": "urn:uuid:offer"},
     "add-note-to-case": {
         "case_id": _CASE,
         "note_name": "Note",

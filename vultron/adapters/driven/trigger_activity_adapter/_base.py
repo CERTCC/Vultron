@@ -252,6 +252,21 @@ def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
     return outbound_activity_id(activity), body
 
 
+def _seal_record(
+    dl: CaseOutboxPersistence, activity: BaseModel
+) -> tuple[str, str]:
+    """Seal the CASE_MANAGER's ledger-record *activity*; return ``(id, body)``.
+
+    A record is no message: nothing queues it and nothing reads it back as
+    an activity, because the ledger entry carries it (VM-08-003).  So it is
+    not stored as an activity, where a scan for the messages sent (one
+    ``Create(VulnerabilityCase)`` per case, CP-09-009) would count it; only
+    its body is sealed.  Sealing is write-once per id, so a re-run under the
+    same derived id hands back the body the first run sealed (ID-04-004).
+    """
+    return _seal(dl, activity)
+
+
 class _TriggerAdapterBase:
     """Base class providing DataLayer access to trigger adapter mixins.
 

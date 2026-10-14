@@ -22,6 +22,7 @@ import pytest
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -29,10 +30,13 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.participants.recipients import (
     case_content_participants,
     case_content_recipients,
+    closed_participant_ledger_cutoff,
+    entry_records_own_closure,
     inactive_joined_participants,
     inert_participants,
     invitation_recipients,
     is_case_content_recipient,
+    ledger_entry_recipients,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -102,28 +106,18 @@ def _embargoed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
     return case
 
 
-@pytest.mark.spec("CM-10-004")
-def test_case_content_reaches_only_active_participants(
+@pytest.mark.spec("CM-10-004", "CM-23-004")
+def test_case_content_reaches_only_active_open_participants(
     dl: SqliteDataLayer,
 ) -> None:
+    """Inert participants and a closed signatory are sent no case content."""
     case = _embargoed_case(dl)
     assert case_content_recipients(case, dl, excluding={_SENDER}) == [
-        _SIGNATORY,
-        _CLOSED,
+        _SIGNATORY
     ]
 
 
-@pytest.mark.spec("CM-23-004")
-def test_skip_closed_also_leaves_out_closed_participants(
-    dl: SqliteDataLayer,
-) -> None:
-    case = _embargoed_case(dl)
-    assert case_content_recipients(
-        case, dl, excluding={_SENDER}, skip_closed=True
-    ) == [_SIGNATORY]
-
-
-@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("CM-10-004", "CM-23-004")
 def test_with_no_embargo_every_joined_open_participant_is_active(
     dl: SqliteDataLayer,
 ) -> None:
@@ -132,7 +126,7 @@ def test_with_no_embargo_every_joined_open_participant_is_active(
     _seat(dl, case, _INVITED, consent=EmbargoConsentState.DECLINED)
     _seat(dl, case, _UNJOINED, joined=False)
     _seat(dl, case, _CLOSED, rm_state=RM.CLOSED)
-    assert case_content_recipients(case, dl) == [_SIGNATORY, _INVITED, _CLOSED]
+    assert case_content_recipients(case, dl) == [_SIGNATORY, _INVITED]
 
 
 @pytest.mark.spec("CM-10-007")
@@ -147,11 +141,30 @@ def test_invitations_reach_inert_participants_but_not_closed_ones(
     ]
 
 
-def test_inert_participants_is_the_roster_minus_the_active(
+@pytest.mark.spec("CM-23-004")
+def test_inert_participants_is_the_roster_minus_the_content_recipients(
     dl: SqliteDataLayer,
 ) -> None:
     case = _embargoed_case(dl)
-    assert inert_participants(case, dl) == {_INVITED, _UNJOINED}
+    assert inert_participants(case, dl) == {_INVITED, _UNJOINED, _CLOSED}
+
+
+@pytest.mark.spec("CM-23-004")
+def test_closed_participant_has_no_stream_to_pause(
+    dl: SqliteDataLayer,
+) -> None:
+    """A closed, withheld participant is not paused: it is sent nothing."""
+    case = _embargoed_case(dl)
+    _seat(
+        dl,
+        case,
+        "https://example.org/actors/closed-invited",
+        consent=EmbargoConsentState.INVITED,
+        rm_state=RM.CLOSED,
+    )
+    assert inactive_joined_participants(case, dl, excluding={_SENDER}) == [
+        _INVITED
+    ]
 
 
 @pytest.mark.spec("CM-10-004")
@@ -252,3 +265,151 @@ def test_removed_participant_gets_no_case_content(
     # Joined but not active, so its ledger stream is paused for backfill.
     assert inactive_joined_participants(case, dl) == [_REMOVED]
     assert _REMOVED in case.actor_participant_index
+
+
+# ---------------------------------------------------------------------------
+# CM-23-004: a closed participant receives its own closure entries only
+# ---------------------------------------------------------------------------
+
+
+def _entry(
+    log_index: int,
+    event_type: str,
+    *,
+    object_id: str,
+    actor: str = _SENDER,
+) -> CaseLedgerEntry:
+    return CaseLedgerEntry(
+        case_id=_CASE_ID,
+        log_index=log_index,
+        log_object_id=object_id,
+        event_type=event_type,
+        payload_snapshot={"type": "Add", "actor": actor},
+        prev_log_hash="0" * 64,
+        entry_hash=f"{log_index:064d}",
+    )
+
+
+def _close_case_entry(log_index: int, leaver: str) -> CaseLedgerEntry:
+    return _entry(
+        log_index,
+        "close_case",
+        object_id=f"{_CASE_ID}/activities/leave-{log_index}",
+        actor=leaver,
+    )
+
+
+def _status_entry(log_index: int, status_id: str) -> CaseLedgerEntry:
+    return _entry(
+        log_index,
+        "add_participant_status_to_participant",
+        object_id=status_id,
+    )
+
+
+def _closed_status_id(record: CaseParticipant) -> str:
+    status_id = record.participant_statuses[-1].id_
+    assert status_id
+    return status_id
+
+
+@pytest.mark.spec("CM-23-004", "CM-23-001")
+def test_leaver_receives_the_entries_recording_its_own_closure(
+    dl: SqliteDataLayer,
+) -> None:
+    """Its close_case entry and its closure steps reach a closed leaver."""
+    case = _embargoed_case(dl)
+    closed = dl.read(case.actor_participant_index[_CLOSED])
+    assert isinstance(closed, CaseParticipant)
+    for entry in (
+        _close_case_entry(5, _CLOSED),
+        _status_entry(6, _closed_status_id(closed)),
+    ):
+        assert ledger_entry_recipients(
+            case, dl, entry, excluding={_SENDER}
+        ) == [_SIGNATORY, _CLOSED]
+
+
+@pytest.mark.spec("CM-23-004", "CM-23-002")
+def test_closed_participant_receives_nothing_about_anyone_else(
+    dl: SqliteDataLayer,
+) -> None:
+    """Later entries, another actor's closure and case_fully_closed skip it."""
+    case = _embargoed_case(dl)
+    signatory = dl.read(case.actor_participant_index[_SIGNATORY])
+    assert isinstance(signatory, CaseParticipant)
+    for entry in (
+        _close_case_entry(7, _SIGNATORY),
+        _status_entry(8, _closed_status_id(signatory)),
+        _entry(9, "case_fully_closed", object_id=f"{_CASE_ID}/leave-9"),
+        _entry(10, "add_note_to_case", object_id=f"{_CASE_ID}/notes/n1"),
+    ):
+        assert ledger_entry_recipients(
+            case, dl, entry, excluding={_SENDER}
+        ) == [_SIGNATORY]
+
+
+@pytest.mark.spec("CM-23-004", "CM-10-004", "CM-31-001")
+@pytest.mark.parametrize("why_inert", ["embargo-withheld", "removed"])
+def test_own_closure_entries_never_widen_entitlement(
+    dl: SqliteDataLayer, why_inert: str
+) -> None:
+    """A closed participant that is inert is not sent its closure either.
+
+    Inert because the active embargo withholds it, or because it was
+    removed (CM-31-001): neither its ``close_case`` entry nor its closure
+    status entry reaches it.
+    """
+    case = _embargoed_case(dl)
+    actor_id = "https://example.org/actors/closed-inert"
+    inert_closed = _seat(
+        dl,
+        case,
+        actor_id,
+        consent=(
+            EmbargoConsentState.INVITED
+            if why_inert == "embargo-withheld"
+            else EmbargoConsentState.AGREED
+        ),
+        rm_state=RM.CLOSED,
+    )
+    if why_inert == "removed":
+        inert_closed.removal_activity = f"{_CASE_ID}/activities/remove-1"
+        dl.save(inert_closed)
+    for entry in (
+        _close_case_entry(5, actor_id),
+        _status_entry(6, _closed_status_id(inert_closed)),
+    ):
+        assert entry_records_own_closure(entry, actor_id, inert_closed)
+        assert ledger_entry_recipients(
+            case, dl, entry, excluding={_SENDER}
+        ) == [_SIGNATORY]
+
+
+@pytest.mark.spec("CM-23-004")
+def test_closed_participant_ledger_cutoff_is_its_last_own_closure_entry(
+    dl: SqliteDataLayer,
+) -> None:
+    case = _embargoed_case(dl)
+    closed = dl.read(case.actor_participant_index[_CLOSED])
+    assert isinstance(closed, CaseParticipant)
+    entries = [
+        _entry(0, "create_case", object_id=_CASE_ID),
+        _close_case_entry(1, _CLOSED),
+        _status_entry(2, _closed_status_id(closed)),
+        _entry(3, "case_fully_closed", object_id=f"{_CASE_ID}/leave-3"),
+    ]
+    assert closed_participant_ledger_cutoff(case, dl, _CLOSED, entries) == 2
+    assert (
+        closed_participant_ledger_cutoff(case, dl, _CLOSED, entries[:1]) == -1
+    )
+    # No cutoff for a participant that has not closed, or one not listed.
+    assert (
+        closed_participant_ledger_cutoff(case, dl, _SIGNATORY, entries) is None
+    )
+    assert (
+        closed_participant_ledger_cutoff(
+            case, dl, "https://example.org/actors/stranger", entries
+        )
+        is None
+    )

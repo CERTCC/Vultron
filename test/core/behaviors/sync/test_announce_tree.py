@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Integration tests for AnnounceLogEntryReceivedBT."""
 
+import json
 from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
@@ -16,11 +17,8 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.ledger_snapshots import (
-    build_create_case_participant_snapshot,
-)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -54,7 +52,10 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.factories import (
+    announce_log_entry_activity,
+    create_participant_activity,
+)
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -926,11 +927,15 @@ def _create_entry(
     record: CaseParticipant, log_index: int, prev_hash: str
 ) -> CaseLedgerEntry:
     """The CASE_MANAGER's ``create_case_participant`` entry carrying *record*."""
-    snapshot = build_create_case_participant_snapshot(
-        record,
-        "https://example.org/actors/manager",
-        CASE_ID,
-        As2WireRenderAdapter(),
+    snapshot = json.loads(
+        dump_outbound_body(
+            create_participant_activity(
+                record,
+                target=CASE_ID,
+                actor="https://example.org/actors/manager",
+                context=CASE_ID,
+            )
+        )
     )
     return _to_persistable_entry(
         HashChainLedgerRecord(

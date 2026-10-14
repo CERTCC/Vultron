@@ -2,12 +2,12 @@
 
 ## Create note { #create-note }
 
-Mints a note for the case. It precedes the Add that attaches it.
+Mints a note for the case. When the note's context names the case, the Case Manager attaches it and records the attachment in the case ledger, so the Add that follows changes nothing more.
 
 - **When…** a Participant has written a note it is about to post to the case
 - **Send:** `Create(Note)`
 - **Sent by:** not yet checked
-- **How-to:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
+- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)
 

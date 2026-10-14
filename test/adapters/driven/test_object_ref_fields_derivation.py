@@ -25,6 +25,7 @@ from vultron.adapters.driven.db_record import (
     object_ref_fields,
 )
 from vultron.metadata.base import repo_root
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 #: The set that ``_AS_OBJECT_REF_FIELDS`` held before #2936, kept here as the
@@ -43,14 +44,7 @@ def _all_wire_object_classes() -> set[type]:
     ):
         importlib.import_module(module.name)
 
-    def descend(cls: type) -> set[type]:
-        found: set[type] = set()
-        for sub in cls.__subclasses__():
-            found.add(sub)
-            found |= descend(sub)
-        return found
-
-    return descend(as_Object)
+    return all_subclasses(as_Object)
 
 
 def test_derived_activity_properties_equal_previous_constant():

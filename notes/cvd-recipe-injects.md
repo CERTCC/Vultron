@@ -47,10 +47,9 @@ source: IDEA-1223
 
 # CVD Recipe Scenario Injects
 
-This file classifies the 21 CERT Guide to CVD "Recipe Cards" from
+This file classifies the CERT Guide to CVD "Recipe Cards" from
 `https://certcc.github.io/CERT-Guide-to-CVD/howto/coordination/cvd_recipes/`
-as Vultron scenario injects. Local source: `wip_notes/cvd_recipes.md` and
-`wip_notes/recipes/`.
+as Vultron scenario injects.
 
 Each recipe maps to one or more Vultron protocol dimensions (RM, EM, CS). The
 classification answers: *is this inject implementable today?*
@@ -65,17 +64,16 @@ classification answers: *is this inject implementable today?*
 | B | Needs protocol/infra work | Requires new demo actors, new protocol flows, or features not yet built |
 | C | Out of scope | Not Vultron-protocol-visible; vendor-internal policy; no new state transitions |
 
-A "B → A" tier means the recipe was re-triaged from B to A in G16
-(#2844); its per-recipe entry stays under the Tier B heading with the
-re-triage rationale. "(sequenced)" means authorable once the named
-prerequisite Tasks land.
+A "B → A" tier means the recipe is listed under Tier B but is authorable
+with today's protocol; its entry says why. "(sequenced)" means authorable once
+the named prerequisite Tasks land.
 
 ---
 
 ## Tier A — Implementable Now
 
 These recipes produce scenario injects that exercise existing Vultron state
-machines. Each has a corresponding Task issue under epic #1160.
+machines. Each has a Task under epic #1160; the summary table gives its number.
 
 ### x02 — Evidence of active exploitation during embargo
 
@@ -91,13 +89,12 @@ machines. Each has a corresponding Task issue under epic #1160.
 `A=True`. Verify that demo actors proceed to the Public Awareness phase without
 waiting for the nominal embargo expiry date.
 
-**Vultron issue**: Tracked as a Task under epic #1160.
-
 ---
 
 ### x06 — Vendor stops responding
 
-**Recipe card**: Roles: Reporter. Phase: Reporting, Validation, Remediation, Public Awareness.
+**Recipe card**: Roles: Reporter. Phase: Reporting, Validation, Remediation,
+Public Awareness.
 
 **Protocol mapping**:
 
@@ -108,8 +105,6 @@ waiting for the nominal embargo expiry date.
 **Inject design**: After case creation and embargo establishment, the Vendor
 actor's trigger endpoint is not called. The Reporter actor waits past the
 embargo date, then exercises the `close_case` / publication path unilaterally.
-
-**Vultron issue**: Tracked as a Task under epic #1160.
 
 ---
 
@@ -126,8 +121,6 @@ embargo date, then exercises the `close_case` / publication path unilaterally.
 **Inject design**: After report submission and validation, the Vendor actor sends
 a `Reject(Report)` rather than `Accept(Report)`. Verify Reporter can proceed
 through the rest of the CVD lifecycle unilaterally.
-
-**Vultron issue**: Tracked as a Task under epic #1160.
 
 ---
 
@@ -149,13 +142,12 @@ configurable policy whether to accept or decline. Two sub-cases:
 1. Vendor cooperative → embargo extended (EM:REVISE → EM:ACTIVE with new date)
 2. Vendor not acting in good faith → Reporter declines, proceeds to publication
 
-**Vultron issue**: Tracked as a Task under epic #1160.
-
 ---
 
 ### x10 — Reporter stops responding
 
-**Recipe card**: Roles: Vendor. Phase: Reporting, Validation, Remediation, Public Awareness.
+**Recipe card**: Roles: Vendor. Phase: Reporting, Validation, Remediation,
+Public Awareness.
 
 **Protocol mapping**:
 
@@ -166,8 +158,6 @@ configurable policy whether to accept or decline. Two sub-cases:
 **Inject design**: After initial report submission, the Reporter actor's trigger
 endpoint is not called again. Vendor proceeds through validation, fix
 development, and publication without Reporter involvement.
-
-**Vultron issue**: Tracked as a Task under epic #1160.
 
 ---
 
@@ -184,8 +174,6 @@ development, and publication without Reporter involvement.
 **Inject design**: Inject a CS status update mid-scenario that sets `P=True`
 before the embargo expires. Verify all demo actors transition to the Public
 Awareness phase and that the embargo is correctly exited.
-
-**Vultron issue**: Tracked as a Task under epic #1160.
 
 ---
 
@@ -204,19 +192,12 @@ Awareness phase and that the embargo is correctly exited.
 submits the same vulnerability. Vendor actor receives both reports, verifies
 independence (or overlap), and may accelerate the embargo timeline.
 
-**Vultron issue**: Tracked as a Task under epic #1160.
-
-**Prerequisite (found in #2844)**: a report added to an existing case is
-stored only on the receiving replica and never written to the canonical case
-ledger, so later joiners and ledger resyncs do not see it. The Task is blocked
-by the core fix (#3665). The same fix blocks the two-reporter consolidation scenario
-(#1231).
-
 ---
 
 ### x18 — Incompatible disclosure policies across vendors
 
-**Recipe card**: Roles: Reporter, Vendor, Coordinator. Phase: Reporting, Validation, Remediation.
+**Recipe card**: Roles: Reporter, Vendor, Coordinator. Phase: Reporting,
+Validation, Remediation.
 
 **Protocol mapping**:
 
@@ -230,32 +211,14 @@ policy and Vendor2 has a longer one. Verify that the EM negotiation (REVISE
 cycles) can resolve the conflict, or that the coordinator elects to shorten the
 embargo to match the fast-mover's policy.
 
-**Vultron issue**: Tracked as a Task under epic #1160.
-
 ---
 
 ## Tier B — Needs Protocol Work or New Demo Infrastructure
 
-These recipes were originally filed as needing features or actor configurations
-not yet available. Each has a corresponding Idea issue.
-
-### Re-triage (G16, #2844, 2026-09-24)
-
-The Tier B gap statements were written in July 2026 (#2051) and several had
-gone stale by the time they were sorted. The re-triage checked each against the
-code and specs of the day and reached a different verdict for three of the six.
-
-| Recipe | Verdict | Why |
-|---|---|---|
-| x03 | Blocked — party discovery | Unchanged. Ejected from G08 (#2836) to G13 (#2841), which is deferred. |
-| x05 | Blocked — pseudonymity | No pseudonym or redacted-view mechanism exists (#2562, G13, deferred). |
-| x12 | Authorable, sequenced | Needs a case created already public, which EP-04-008 specifies but is not built. Task #3673. |
-| x16 | Authorable now | The multi-vendor invite and suggest flows already exist. The gap statement was stale. Task #3674. |
-| x17 | Blocked — admission | An outsider has no protocol act for asking to join a case (#3670). |
-| x21 | Authorable now | A mid-case coordinator invite plus ownership transfer is exactly `fvcv-handoff`. The gap statement was stale. Task #3675. |
-
-**Do not re-derive these gaps from the entries below.** The *Gap* lines record
-what the re-triage found, not what the original filing said.
+These recipes need protocol features or actor configurations that do not
+exist yet, except the "B → A" entries, whose *Gap* line explains why they are
+authorable now. The *Gap* lines are checked against the code; do not re-derive
+them from the recipe cards.
 
 ### x03 — Unable to engage vendor contact
 
@@ -303,17 +266,14 @@ vulnerability it learned of publicly and the case is created with P already
 set. EP-04-008 then requires the case to stay at `EM.NONE`, with no embargo
 ever created.
 
-**Why sequenced, not approximated**: today every case is created at the
-default CS and receives a default embargo (`InitializeDefaultEmbargoNode` has
-no eligibility guard). Self-reporting and then publishing immediately would
-record the history as vendor-aware-then-public and create an embargo only to
-tear it down, which inverts the point of the recipe. The scenario waits for
-case creation to honour P at creation (#3390, which skips the protocol default
-embargo when P/X/A is already set) and for the vendor-only scenario it builds
-on.
+**Why sequenced, not approximated**: self-reporting and then publishing
+would record the history as vendor-aware-then-public and create an embargo
+only to tear it down, which inverts the point of the recipe. Case creation
+already skips the default embargo when P, X or A is set (EP-04-008); the
+scenario waits only for the vendor-only scenario it builds on.
 
 **Vultron issue**: Task #3673 under epic #1160, blocked by the vendor-only
-scenario (#3667) and #3390.
+scenario (#3667).
 
 ---
 
@@ -322,9 +282,8 @@ scenario (#3667) and #3390.
 **Protocol mapping**: The originating vendor knows which downstream vendors are
 affected and brings them in as MPCVD participants.
 
-**Gap (none — stale)**: The original statement said existing demos don't model
-an upstream-invites-downstream pattern with policy synchronisation. Both halves
-exist:
+**Gap**: none. The upstream-invites-downstream pattern and policy
+synchronisation both exist:
 
 - **Multi-vendor invites**: `fvv` has the owning vendor invite a second vendor.
   `fcvcv` and `fvcv-extension` have a non-owner participant suggest one.
@@ -366,7 +325,7 @@ a late invite, which other scenarios already cover, not self-identification.
 **Protocol mapping**: The parties in a failing case bring in a Coordinator
 mid-case to mediate.
 
-**Gap (none for the owner-initiated form — stale)**: `fvcv-handoff` already
+**Gap**: none for the owner-initiated form. `fvcv-handoff` already
 invites a Coordinator into an active case and transfers ownership to it
 (CM-21). The recipe adds only a failure precursor, such as an x06-style stall
 or an x08/x19 extension deadlock.

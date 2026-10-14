@@ -43,6 +43,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
     AcceptEmbargoRequest,
+    AckReportRequest,
     AddNoteToCaseRequest,
     AddObjectToCaseRequest,
     AddOnBehalfStatusRequest,
@@ -68,6 +69,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     SyncLogEntryRequest,
     TerminateEmbargoRequest,
     ValidateReportRequest,
+    WithdrawCaseOwnershipTransferRequest,
 )
 
 ResultT_co = TypeVar("ResultT_co", bound=TriggerResult, covariant=True)
@@ -118,6 +120,10 @@ class OfferTriggerRequest(
     TriggerRequest[ActivityResult], ReportTriggerRequest
 ):
     """Trigger request that requires an ``offer_id``."""
+
+
+class AckReportTriggerRequest(OfferTriggerRequest, AckReportRequest):
+    pass
 
 
 class ValidateReportTriggerRequest(OfferTriggerRequest, ValidateReportRequest):
@@ -417,12 +423,23 @@ class RejectCaseOwnershipTransferTriggerRequest(
     """
 
 
+class WithdrawCaseOwnershipTransferTriggerRequest(
+    TriggerRequest[ActivityResult], WithdrawCaseOwnershipTransferRequest
+):
+    """Trigger request to withdraw an open case ownership transfer offer.
+
+    Emits ``Undo(Offer(VulnerabilityCase))`` from the requesting actor,
+    addressed to the case's CASE_MANAGER (TRIG-11-006, CM-21-015).
+    """
+
+
 __all__ = [
     "AcceptActorRecommendationTriggerRequest",
     "AcceptCaseInviteTriggerRequest",
     "AcceptCaseOwnershipTransferTriggerRequest",
     "AcceptFullCaseInviteTriggerRequest",
     "AcceptEmbargoTriggerRequest",
+    "AckReportTriggerRequest",
     "AddNoteToCaseTriggerRequest",
     "AddObjectToCaseTriggerRequest",
     "AddOnBehalfStatusTriggerRequest",
@@ -455,5 +472,6 @@ __all__ = [
     "TerminateEmbargoTriggerRequest",
     "TriggerRequest",
     "ValidateReportTriggerRequest",
+    "WithdrawCaseOwnershipTransferTriggerRequest",
     "result_type_of",
 ]

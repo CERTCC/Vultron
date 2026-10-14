@@ -173,8 +173,9 @@ The demo waits until the Case Actor has recorded the Finder's departure.
 The Vendor then closes its participation.
 Because the Vendor is the Case Owner, the Case Actor closes the case: it advances the Vendor and itself to `RM.CLOSED` and records that the case is fully closed.
 The Case Owner leaves last because the Case Actor records nothing a participant sends after the case is fully closed.
+A participant that has closed receives the entries that record its own closure and nothing after them, so neither copy holds every closure: the Finder's copy does not learn that the Vendor left, and the Vendor's copy does not receive the Case Actor's own closure or the record that the case is fully closed.
 
-**M7 verified when:** the Case Actor's ledger records both departures before the case is fully closed, and every participant on both copies is `RM.CLOSED`.
+**M7 verified when:** the Case Actor's ledger records both departures before the case is fully closed, every participant is `RM.CLOSED` in the Case Actor's own store, and each copy ends at its own participant's closure.
 
 ---
 
@@ -191,7 +192,7 @@ Use the milestone lines as anchor points when reading the output.
 | `✅ M4:` | Both copies show CS includes `F` (fix ready) |
 | `✅ M5:` | Both copies show CS includes `F` (fix ready); the Vendor stops at `VFd` |
 | `✅ M6:` | Both copies show `CS.VFdPxa` and `EM.EXITED`; the Vendor is public-aware |
-| `✅ M7:` | Every departure recorded before the case is fully closed; all participants `RM.CLOSED` on both copies |
+| `✅ M7:` | Every departure recorded before the case is fully closed; all participants `RM.CLOSED` in the Case Actor's store; each copy ends at its own closure |
 
 Between milestones, look for these log line prefixes:
 
