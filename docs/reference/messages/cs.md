@@ -23,7 +23,8 @@ dimensions in multi-party CVD; those dimensions are always participant-specific
 Vendor nor Deployer.
 
 The `Add` carries the new status object inline.
-This implementation does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)` ahead of the `Add`: an inbox refuses either one as an unrecognized activity and changes nothing.
+This implementation does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)` ahead of the `Add`.
+An inbox refuses either one as an unrecognized activity and changes nothing.
 Whether the protocol should support that separate `Create` is an [open question](../../topics/future_work/open_questions.md).
 
 ## Occasions

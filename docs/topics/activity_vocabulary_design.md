@@ -169,7 +169,8 @@ It does not collapse two messages into one; it dispatches as unrecognized, and t
 
 So the conclusion is narrower than "either verb will do".
 An implementation is free to decide that a given object needs no separate minting step, and to send only the `Add` that attaches it, with the object inline.
-This implementation makes that choice for every status: it does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)`, and an inbox refuses either one as an unrecognized activity.
+This implementation makes that choice for every status: it does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)`.
+An inbox refuses either one as an unrecognized activity.
 It makes the same choice for an embargo proposal, which carries its `EmbargoEvent` inline on the `Invite`.
 That is a choice the prototype made, not a requirement of the protocol.
 What no implementation can do is merge the two verbs into one activity and expect a Vultron peer to understand it.
