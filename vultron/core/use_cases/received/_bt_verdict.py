@@ -59,6 +59,7 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
     NoOpenOwnershipOfferNode,
+    OwnershipOfferOpenNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
@@ -73,9 +74,6 @@ from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsOwnershipOfferPartyNode,
-)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -83,7 +81,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronBTInternalError
+from vultron.errors import VultronBTInternalError, VultronWiringError
 
 _N = TypeVar("_N", bound=py_trees.behaviour.Behaviour)
 
@@ -121,6 +119,24 @@ def find_named(
         if node.name == name:
             return node
     return None
+
+
+def named_node_status(
+    tree: py_trees.behaviour.Behaviour | _HasRoot, name: str
+) -> Status:
+    """The last status of the node called *name* in *tree*.
+
+    For nodes that share a class and differ only by their place in the tree,
+    such as the two CASE_MANAGER sender checks of the announce tree.
+
+    Raises:
+        VultronWiringError: *tree* has no node called *name*, so the caller's
+            verdict would silently skip the branch it reads.
+    """
+    node = find_named(tree, name)
+    if node is None:
+        raise VultronWiringError(f"no node called {name!r} in the tree")
+    return node.status
 
 
 def _any_with_status(
@@ -238,8 +254,7 @@ def reference_edit_verdict(
 
 def _redelivery_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
-    guard_type: type[SenderIsOwnershipOfferPartyNode]
-    | type[NoOpenOwnershipOfferNode],
+    guard_type: type[OwnershipOfferOpenNode] | type[NoOpenOwnershipOfferNode],
     verdict: HandlerResult,
     fallback: str,
 ) -> HandlerResult:
@@ -275,16 +290,17 @@ def ownership_answer_verdict(
 ) -> HandlerResult:
     """Report a redelivered reply to an ownership-transfer Offer as ``SKIPPED``.
 
-    The reply's sender guard — a
-    :class:`~vultron.core.behaviors.sender_entitlement.SenderIsOwnershipOfferPartyNode`,
-    for the transferee's Accept or Reject or the offerer's withdrawal — fails
-    with ``is_redelivery`` set when the reply is the one already ledgered as
-    closing its Offer, so nothing is re-applied.  That is the benign no-op of
-    a redelivery, not a refusal (HP-01-003, CM-21-011, CM-21-015).
+    The reply's open-Offer guard — an
+    :class:`~vultron.core.behaviors.case.nodes.ownership_offer_guard.OwnershipOfferOpenNode`,
+    run right after the sender check, for the transferee's Accept or Reject
+    or the offerer's withdrawal — fails with ``is_redelivery`` set when the
+    reply is the one already ledgered as closing its Offer, so nothing is
+    re-applied.  That is the benign no-op of a redelivery, not a refusal
+    (HP-01-003, CM-21-011, CM-21-015).
     """
     return _redelivery_verdict(
         tree,
-        SenderIsOwnershipOfferPartyNode,
+        OwnershipOfferOpenNode,
         verdict,
         "ownership-transfer reply redelivered",
     )

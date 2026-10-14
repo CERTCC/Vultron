@@ -42,15 +42,23 @@ an Offer can also close without an answer (#4490):
   `undo_case_ownership_transfer` and broadcasts it like a Reject
   (`UndoCaseOwnershipTransferReceivedUseCase`,
   `create_undo_ownership_transfer_tree`); ownership is unchanged.
-  - **Who may withdraw.** The guard is `SenderIsOwnershipOffererNode`: the sender
-    must be the participant the recorded Offer speaks for and still hold
-    `CASE_OWNER`. That is its `attributedTo` only when the CASE_MANAGER is its
-    `actor` (the delegated shape, CM-24-002), else its `actor`. An `attributedTo`
-    on an Offer a participant sent itself is an unchecked claim, ignored as the
-    Offer handler ignores it when forwarding (`RecordedOwnershipOffer.offerer_id`).
-  - **Closed and redelivered.** It shares `SenderIsOwnershipOfferPartyNode` with the
-    transferee's guard, so a withdrawal of a closed Offer is `REFUSED` and a
-    redelivery of the Undo that closed it is `SKIPPED` (HP-01-003).
+  - **Who may withdraw.** The rule is `CASE_OWNER` at the CASE_MANAGER, which the
+    factory checks against the recorded Offer with `SenderIsOwnershipOffererNode`:
+    the sender must be the participant the Offer speaks for. That is its
+    `attributedTo` only when the CASE_MANAGER is its `actor` (the delegated shape,
+    CM-24-002), else its `actor`. An `attributedTo` on an Offer a participant sent
+    itself is an unchecked claim, ignored as the Offer handler ignores it when
+    forwarding (`RecordedOwnershipOffer.offerer_id`). The offerer must still hold
+    `CASE_OWNER`; that is standing too, so an offerer whose Offer an Accept closed
+    is refused for it before the Offer's state is read (#4437). A redelivery of the
+    Undo that closed the Offer is a duplicate, so the role is not re-checked for
+    it: it stays `SKIPPED` even after a later Offer moved ownership on
+    (HP-01-003).
+  - **Closed and redelivered.** The reply trees share the open-Offer guard
+    (`OwnershipOfferOpenNode`, `case/nodes/ownership_offer_guard.py`), which runs
+    right after the sender check: a withdrawal of a closed Offer is `REFUSED` and a
+    redelivery of the Undo that closed it is `SKIPPED` (HP-01-003). A sender with
+    no standing is refused before the Offer's state is read (#4437).
   - **Ledger.** `undo_case_ownership_transfer` is `NO_REPLICA_EFFECT`, for the
     Reject's reason (RSH-08-004). `("Undo", "Offer")` is a canonical, owner-authored
     payload signature.
@@ -63,7 +71,7 @@ an Offer can also close without an answer (#4490):
     activity snapshot with the offset it arrived with (CS-13-005), so the
     ledgered Offer carries it; `RecordedOwnershipOffer.end_time` reads it back in
     UTC. The CASE_MANAGER's forward carries it to the transferee.
-  - **Two readers, one deadline.** `SenderIsOwnershipOfferPartyNode` refuses a
+  - **Two readers, one deadline.** `OwnershipOfferOpenNode` refuses a
     reply at or after `end_time` even when no expiry entry exists, so a lost
     expiry commit never admits a late answer; the expiry step runs first and
     normally makes the guard refuse it as closed instead. Both compare against

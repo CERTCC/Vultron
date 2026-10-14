@@ -26,10 +26,7 @@ from vultron.core.behaviors.embargo.nodes import (
     IsActivateEmbargoEventNode,
     IsRejectEmbargoProposalEventNode,
 )
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseManagerNode,
-    SenderIsNamedActorNode,
-)
+from vultron.core.behaviors.sender_entitlement import SenderIsCaseManagerNode
 from vultron.core.behaviors.sync.nodes import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyCaseStatusFromLedgerNode,
@@ -180,13 +177,24 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     ]
 
 
+#: The CASE_MANAGER's sender check on its own announcement echoed back to it.
+SENDER_IS_OWN_CASE_MANAGER = "SenderIsOwnCaseManager"
+
+#: A participant's sender check on an announcement from the CASE_MANAGER.
+SENDER_IS_CASE_MANAGER = "SenderIsCaseManager"
+
+
 def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
+    # At the CASE_MANAGER an announcement is its own, echoed back: the sender
+    # must be the CASE_MANAGER itself.  That is CASE_MANAGER standing, read
+    # from the same resolve_case_manager_id identity CheckIsCaseManager just
+    # matched against this actor (HP-01-009, #4437).
     case_actor_subtree = py_trees.composites.Sequence(
         name="CaseActorSubtree",
         memory=False,
         children=[
             CheckIsCaseManagerNode(name="CheckIsCaseManager"),
-            SenderIsNamedActorNode(name="SenderIsNamedActor"),
+            SenderIsCaseManagerNode(name=SENDER_IS_OWN_CASE_MANAGER),
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
         ],
     )
@@ -393,7 +401,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 name="CheckIsNotCaseManager",
                 child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
             ),
-            SenderIsCaseManagerNode(name="SenderIsCaseManager"),
+            SenderIsCaseManagerNode(name=SENDER_IS_CASE_MANAGER),
             entry_processing,
         ],
     )

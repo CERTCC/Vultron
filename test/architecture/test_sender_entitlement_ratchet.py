@@ -163,6 +163,12 @@ OLD_NAMES = [
         "vultron.core.behaviors.sync.nodes.conditions",
         "VerifySenderIsOwnIdNode",
     ),
+    # The CASE_MANAGER's check on its own echoed announcement is the
+    # CASE_MANAGER kind's node, not a named-actor node (HP-01-009, #4437).
+    (
+        "vultron.core.behaviors.sender_entitlement",
+        "SenderIsNamedActorNode",
+    ),
 ]
 
 
@@ -217,7 +223,6 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 # HP-01-008: trees still building their own sender guard (temporary)
 # ---------------------------------------------------------------------------
 
-_PIECE_2 = "#4437 (piece 2: one addressee kind, AC-3)"
 _PIECE_3 = "#4437 (piece 3: widened rules, AC-4)"
 _PIECE_4 = "#4437 (piece 4: ratchet, AC-5)"
 
@@ -226,30 +231,6 @@ _PIECE_4 = "#4437 (piece 4: ratchet, AC-5)"
 #: keyed by (module path, function), each naming the work that migrates it.
 #: The list only shrinks: a new entry, or a stale one, fails the test.
 SENDER_GUARD_ALLOW_LIST: dict[tuple[str, str], str] = {
-    (
-        "vultron/core/behaviors/case/accept_case_proposal_received_tree.py",
-        "create_accept_case_proposal_received_tree",
-    ): _PIECE_2,
-    (
-        "vultron/core/behaviors/case/reject_case_proposal_received_tree.py",
-        "create_reject_case_proposal_received_tree",
-    ): _PIECE_2,
-    (
-        "vultron/core/behaviors/case/ownership_transfer_tree.py",
-        "create_accept_ownership_transfer_tree",
-    ): _PIECE_2,
-    (
-        "vultron/core/behaviors/case/ownership_transfer_tree.py",
-        "create_reject_ownership_transfer_tree",
-    ): _PIECE_2,
-    (
-        "vultron/core/behaviors/case/ownership_transfer_tree.py",
-        "create_undo_ownership_transfer_tree",
-    ): _PIECE_2,
-    (
-        "vultron/core/behaviors/report/received_report_trees.py",
-        "create_ack_report_received_tree",
-    ): _PIECE_2,
     (
         "vultron/core/behaviors/note/remove_note_received_tree.py",
         "create_remove_note_from_case_received_tree",

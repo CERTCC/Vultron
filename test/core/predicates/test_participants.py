@@ -180,6 +180,7 @@ class TestAllParticipantsRmClosed:
         assert all_participants_rm_closed([p]) is False
 
 
+@pytest.mark.spec("PRM-06-002")
 class TestVendorVfInvariantOk:
     """vendor_vf_invariant_ok: VENDOR participant cannot hold CS_vf.vf (ADR-0121, PRM-06-002)."""
 

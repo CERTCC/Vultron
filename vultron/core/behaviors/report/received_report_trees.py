@@ -58,10 +58,12 @@ from vultron.core.behaviors.report.validate_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
-    SenderIsOfferAddresseeNode,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    ReportOfferRequest,
+    SenderCheckContext,
+)
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
     CloseReportReceivedEvent,
@@ -241,6 +243,8 @@ def create_report_received_tree(
 
 def create_ack_report_received_tree(
     request: AckReportReceivedEvent,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the AckReportReceived workflow.
 
@@ -253,14 +257,16 @@ def create_ack_report_received_tree(
 
     1. Intake archives the ``Read`` as received (CLP-10-017), so a refused
        acknowledgement still leaves its record (CLP-10-018).
-    2. ``SenderIsOfferAddresseeNode`` refuses a sender that is not an
-       addressee of the Offer this store recorded (RMB-08-004, HP-01-006).
+    2. The sender guard the factory composes from *sender_rule* refuses a
+       sender that is not an addressee of the Offer this store recorded
+       (``SenderIsOfferAddresseeNode``; RMB-08-004, HP-01-006).
 
     An acknowledgement changes no state (RMB-08-001), so an admitted RK
     writes nothing past intake.
 
     Args:
         request: The parsed inbound domain event.
+        sender_rule: The use case's declared sender rule (HP-01-008).
 
     Returns:
         Root node of the ``AckReportReceivedBT`` Sequence.
@@ -269,8 +275,10 @@ def create_ack_report_received_tree(
         name="AckReportReceivedBT",
         case_id=None,
         precondition_guards=[],
-        sender_guard=SenderIsOfferAddresseeNode(
-            offer_id=request.offer_id, sender_actor_id=request.actor_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=request.actor_id,
+            request=ReportOfferRequest(offer_id=request.offer_id),
         ),
     )
     logger.debug(
