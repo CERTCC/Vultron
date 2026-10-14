@@ -300,31 +300,54 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Wire-format datetime fields MUST serialize to RFC 3339 / ISO 8601 format with an
-      explicit offset; a naive or offset-free value MUST NOT reach the wire. A timestamp
-      this node generates MUST serialize with a UTC offset (`Z` or `+00:00`). A
-      timestamp carried from a peer MUST serialize with the explicit offset it arrived
-      with, which need not be UTC (CLP-15-007).
+      A wire timestamp this node generates MUST serialize with a UTC offset (`Z` or
+      `+00:00`). A timestamp carried from a peer MUST serialize with the explicit
+      offset it arrived with, which need not be UTC (CLP-15-007).
     rationale: >-
-      An explicit offset is what makes timestamps comparable as instants. UTC is the
-      form every node can write without configuration. A carried timestamp is part of an
-      activity recorded verbatim (CLP-07-011) and compared byte for byte across
-      replicas, so converting `+05:00` to `Z` would keep the instant and break the
-      record. #4164 owns pinning both halves (resolves CONCERN-3808).
+      UTC is the form every node can write without configuration. A carried timestamp
+      is part of an activity recorded verbatim (CLP-07-011) and compared byte for byte
+      across replicas, so converting `+05:00` to `Z` would keep the instant and break
+      the record. #4164 owns pinning both halves (resolves CONCERN-3808). That every
+      wire timestamp carries an explicit offset at all is the ActivityStreams rule
+      CS-13-006 holds, split from this spec (MS-12-010).
     verification: >-
       `test_carried_non_utc_offset_round_trips_through_storage` asserts that an
       inbound `+05:00` `endTime` round-trips through parse, storage and
-      serialization unchanged, `test_minted_timestamp_serialises_with_a_utc_offset`
-      asserts a time this node mints serializes with `Z` or `+00:00`, and the
-      CS-13-001 tests assert a naive value is normalized to UTC before it can reach
-      the wire.
+      serialization unchanged, and `test_minted_timestamp_serialises_with_a_utc_offset`
+      asserts a time this node mints serializes with `Z` or `+00:00`.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-15-007
     - rel_type: depends_on
       spec_id: CLP-07-011
+    - rel_type: depends_on
+      spec_id: CS-13-006
     lint_suppress:
     - missing_story_reference
+  - id: CS-13-006
+    priority: MUST
+    kind: foundation
+    statement: >-
+      Wire-format datetime fields MUST serialize as RFC 3339 date-times with an
+      explicit offset; a naive or offset-free value MUST NOT reach the wire.
+    rationale: >-
+      ActivityStreams 2.0 requires every date-time value to follow RFC 3339's
+      `date-time` form, whose offset is mandatory. An explicit offset is what makes
+      timestamps comparable as instants. Split from CS-13-005 (MS-12-010), which keeps
+      Vultron's rules on which offset a timestamp carries.
+    verification: >-
+      In `test/wire/as2/test_timestamp_offsets.py`,
+      `test_a_naive_time_reaches_the_wire_as_an_rfc3339_date_time` and
+      `test_a_naive_inbound_time_is_serialised_with_an_offset` assert that a naive
+      value, built locally or received, serializes as an RFC 3339 date-time with an
+      offset, and `test_minted_timestamp_serialises_with_a_utc_offset` asserts the
+      same of a time this node mints. The CS-13-001 tests assert a naive value is
+      normalized to UTC before it can reach the wire.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-13-005
+    tags:
+    - as2
 - id: CS-14
   title: Wire Model Configuration
   specs:

@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 # python
+import json
 from typing import cast
 
 import pytest
@@ -78,6 +79,7 @@ def test_created_actors_fixture_has_expected_count(created_actors):
     assert len(created_actors) == 6  # matches _actor_classes in conftest
 
 
+@pytest.mark.spec("HTTP-03-001")
 def test_get_actors_list_returns_all_actors(client_actors, created_actors):
     resp = client_actors.get("/actors/")
     assert resp.status_code == status.HTTP_200_OK
@@ -96,6 +98,7 @@ def test_get_actor_by_id_returns_actor_object(client_actors, created_actors):
         assert data["id"].endswith(actor.id_)
 
 
+@pytest.mark.spec("HTTP-03-005")
 def test_get_actor_not_found_returns_404(client_actors):
     resp = client_actors.get("/actors/nonexistent-actor-id")
     assert resp.status_code == status.HTTP_404_NOT_FOUND
@@ -104,6 +107,7 @@ def test_get_actor_not_found_returns_404(client_actors):
 @pytest.mark.spec("IE-02-003")
 @pytest.mark.spec("IE-02-004")
 @pytest.mark.spec("IE-07-001")
+@pytest.mark.spec("HTTP-03-006")
 @pytest.mark.parametrize(
     "method", ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
 )
@@ -127,6 +131,7 @@ def test_non_post_on_inbox_path_returns_405(
         assert resp.headers["allow"] == "POST"
 
 
+@pytest.mark.spec("HTTP-03-003")
 def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
     for actor in created_actors:
         note = as_Note(content="This is a test note.")
@@ -153,6 +158,103 @@ def test_post_non_activity_to_actor_inbox_returns_422(
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
+def _inbox_path(actor_id: str) -> str:
+    return f"/actors/{_route_key(actor_id)}/inbox/"
+
+
+def _create_note_body(actor_id: str) -> str:
+    activity = as_Create(object_=as_Note(content="hello"), actor=actor_id)
+    return json.dumps(jsonable_encoder(activity, exclude_none=True))
+
+
+@pytest.mark.spec("HTTP-01-001")
+@pytest.mark.spec("HTTP-01-002")
+@pytest.mark.parametrize(
+    "media_type",
+    [
+        "application/activity+json",
+        'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+    ],
+)
+def test_inbox_accepts_both_activitystreams_media_types(
+    client_actors, created_actors, media_type
+):
+    """Both media types ActivityPub names for delivery are accepted."""
+    actor = created_actors[0]
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        content=_create_note_body(actor.id_),
+        headers={"Content-Type": media_type},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+@pytest.mark.spec("HTTP-03-007")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "HTTP-03-007: the inbox enforces no request body size limit, so an "
+        "oversized body is not answered 413. Tracked by #4596."
+    ),
+)
+def test_oversized_inbox_body_answers_413(client_actors, created_actors):
+    """A body over the 1 MB default limit (HTTP-02-001) is answered 413."""
+    actor = created_actors[0]
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        content=b" " * (2 * 1024 * 1024)
+        + _create_note_body(actor.id_).encode(),
+        headers={"Content-Type": "application/activity+json"},
+    )
+    assert resp.status_code == status.HTTP_413_CONTENT_TOO_LARGE
+
+
+@pytest.mark.spec("HTTP-03-008")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "HTTP-03-008: the inbox does not check Content-Type, so a body sent "
+        "with a media type other than ActivityStreams is not answered 415. "
+        "Tracked by #4666."
+    ),
+)
+def test_inbox_body_with_a_non_as2_media_type_answers_415(
+    client_actors, created_actors
+):
+    """A well-formed activity sent as ``text/plain`` is refused with 415."""
+    actor = created_actors[0]
+    resp = client_actors.post(
+        _inbox_path(actor.id_),
+        content=_create_note_body(actor.id_),
+        headers={"Content-Type": "text/plain"},
+    )
+    assert resp.status_code == status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+
+
+#: Placeholder burst size; #4667 sets the real limit and rewrites the test.
+_RATE_LIMIT_BURST = 100
+
+
+@pytest.mark.spec("HTTP-03-010")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "HTTP-03-010: the API enforces no rate limit, so no request is ever "
+        "answered 429. Tracked by #4667."
+    ),
+)
+def test_a_burst_over_the_rate_limit_answers_429(
+    client_actors, created_actors
+):
+    """A burst of requests from one client draws at least one 429."""
+    path = f"/actors/{_route_key(created_actors[0].id_)}/profile"
+    codes = {
+        client_actors.get(path).status_code for _ in range(_RATE_LIMIT_BURST)
+    }
+    assert status.HTTP_429_TOO_MANY_REQUESTS in codes
+
+
+@pytest.mark.spec("IE-02-001")
 def test_get_actor_profile_returns_discovery_fields(
     client_actors, created_actors
 ):

@@ -52,6 +52,7 @@ def test_parse_activity_returns_typed_activity_for_valid_body():
 
 
 @pytest.mark.spec("IE-07-001")
+@pytest.mark.spec("HTTP-03-004")
 def test_parse_activity_raises_400_when_type_missing():
     with pytest.raises(HTTPException) as exc_info:
         parse_activity({"actor": _ACTOR_URI, "object": {}})

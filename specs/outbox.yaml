@@ -107,9 +107,15 @@ groups:
     statement: Handlers that generate response activities MUST add them to the actor's outbox
   - id: OX-02-002
     priority: MUST
-    kind: project
-    verification_debt: '#2575'
+    kind: foundation
     statement: Each outbox activity MUST conform to ActivityStreams 2.0 structure
+    verification: >-
+      `test_handle_outbox_item_delivers_an_activitystreams_activity` in
+      `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` confirms
+      that the body the outbox delivers for a factory-built activity parses as an
+      ActivityStreams activity.
+    tags:
+    - as2
   - id: OX-02-003
     priority: MUST
     kind: project
@@ -133,8 +139,11 @@ groups:
   specs:
   - id: OX-03-001
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: Activities in an actor's outbox MUST be delivered to recipient inboxes
+    rationale: >-
+      ActivityPub's delivery rule: a server posts each activity in an actor's outbox
+      to the inbox of every addressee. Vultron inherits it.
     verification: Integration tests in `test/demo/` confirm that activities queued in an actor's outbox are delivered
       via HTTP POST to each recipient's inbox endpoint.
     stories:
@@ -145,6 +154,8 @@ groups:
     - story_2022_098
     - story_2022_099
     - story_2022_100
+    tags:
+    - activitypub
   - id: OX-03-002
     priority: MUST
     kind: project
