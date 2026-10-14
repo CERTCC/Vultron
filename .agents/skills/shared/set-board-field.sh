@@ -23,8 +23,12 @@ esac
 BOARD_ID="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/board-id.sh"
 PROJECT_ID=$(bash "$BOARD_ID" project)
 FIELD_ID=$(bash "$BOARD_ID" "${FIELD}-field")
+case "$FIELD" in
+  schedule) VALID="Focus|Now|Next|Later|Someday" ;;
+  status) VALID="Backlog|Ready|In Progress|In Review|Done" ;;
+esac
 if ! OPTION_ID=$(bash "$BOARD_ID" "$FIELD" "$OPTION"); then
-  echo "❌ Unknown ${FIELD} value: $OPTION" >&2
+  echo "❌ Unknown ${FIELD} value: $OPTION (use ${VALID})" >&2
   exit 1
 fi
 

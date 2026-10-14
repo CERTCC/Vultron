@@ -6,6 +6,10 @@
 # field (an Epic carries no Status, PAD-16-012). While it holds, the Epic's open
 # Tasks and Features are held for this run (epic-hold.sh, bundle-fit).
 #
+# The assignee check and the assignment are two calls, not one atomic step, so
+# two runs started at the same moment can both pass. Runs are started by a
+# person, so this is accepted rather than locked (PAD-19-001).
+#
 # Exit codes: 0 claimed; 1 not an Epic, already claimed, or API error.
 set -euo pipefail
 
@@ -18,8 +22,7 @@ if [[ ! "${EPIC}" =~ ^[0-9]+$ ]]; then
 fi
 
 DATA=$(gh issue view "${EPIC}" --repo CERTCC/Vultron --json state,assignees)
-TYPE=$(bash "${SHARED}/query-issue-type.sh" "${EPIC}" \
-  | jq -r '.data.repository.issue.issueType.name // ""')
+TYPE=$(bash "${SHARED}/query-issue-type.sh" --name "${EPIC}")
 if [ "${TYPE}" != "Epic" ]; then
   echo "❌ #${EPIC} is a ${TYPE:-untyped issue}, not an Epic." >&2
   exit 1
@@ -35,7 +38,7 @@ if [ -n "${LOGINS}" ]; then
   exit 1
 fi
 
-bash "${SHARED}/announce-claim.sh" "${EPIC}" "$(cat <<MSG
+bash "${SHARED}/announce-claim.sh" --epic-run "${EPIC}" "$(cat <<MSG
 Epic run started by \`work-epic-tasks\`. Its open Tasks and Features are held for
 this run until it is released; Bugs, Ideas, and Concerns stay open to other agents.
 MSG

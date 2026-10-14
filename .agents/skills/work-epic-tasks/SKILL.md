@@ -138,8 +138,8 @@ bash .agents/skills/shared/release-epic.sh <EPIC> "<summary>"
 
 Running the skill again claims the Epic again and resumes from the status file.
 
-List completed (PR, merge), parked, excluded, taken elsewhere, plan changes, and new issues
-(type, producing task, blocking or not). Add the run's net issues per
+List completed (PR, merge), parked, excluded, taken elsewhere, plan changes,
+and new issues (type, producing task, blocking or not). Add the run's net issues per
 `completeness-doctrine.md` § "Net Issues: Close More Than You Open": closed,
 opened by reason (`excursion` excluded), dedup/`wontfix` closures on their own
 line. Report the numbers without a verdict; call out any `opened:deferred` as a

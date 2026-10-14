@@ -125,17 +125,10 @@ git fetch origin "${BRANCH}"
 git switch -c "${BRANCH}" "origin/${BRANCH}"
 
 # Every bundle member is announced onto the one branch (PAD-15-009). An Epic
-# (planned by plan-issue) gets the comment only: its assignee is the epic-run
-# claim (PAD-19-001), and assigning it here would hold its Tasks indefinitely.
+# member (plan-issue planning it) is commented on but not assigned: see
+# announce-claim.sh.
 claim() {
-  local message="Claimed on branch \`${BRANCH}\`.$2" type
-  type=$(bash "${SHARED}/query-issue-type.sh" "$1" \
-    | jq -r '.data.repository.issue.issueType.name // ""')
-  if [ "${type}" = "Epic" ]; then
-    gh issue comment "$1" --repo CERTCC/Vultron --body "${message}"
-  else
-    bash "${SHARED}/announce-claim.sh" "$1" "${message}"
-  fi
+  bash "${SHARED}/announce-claim.sh" "$1" "Claimed on branch \`${BRANCH}\`.$2"
   CLAIMED+=("$1")
 }
 

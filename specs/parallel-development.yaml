@@ -776,8 +776,8 @@ groups:
           A work bundle MUST be selected in two stages: eligibility (open,
           unassigned, no `stale-claim`, `needs-info`, or `ready-for-human`
           label, all `blockedBy` CLOSED, leaf, not held by an epic run per
-          PAD-19-002), then fit. Clearing eligibility MUST NOT by itself make an Issue a bundle
-          member.
+          PAD-19-002), then fit. Clearing eligibility MUST NOT by itself make
+          an Issue a bundle member.
         rationale: >-
           Selection was eligibility-only and took the first five candidates in
           sub-issue order, so an Idea, a `Someday` Concern and two `size:L`
@@ -1403,7 +1403,10 @@ groups:
         rationale: >-
           An Epic carries no `Status` (PAD-16-012) and no claim branch, and the
           assignee is a fact GitHub keeps rather than a marker someone must
-          maintain. Refusing an assigned Epic stops two runs on one Epic.
+          maintain. Refusing an assigned Epic stops a second run on one Epic.
+          The check and the assignment are two calls, so two runs started at
+          the same moment can both pass; runs are started by a person, so that
+          race is accepted rather than locked.
         verification: >-
           `test/metadata/test_claim_scripts.py::TestEpicClaim`: `claim-epic.sh`
           assigns and comments without setting `Status` or creating a branch,
@@ -1441,8 +1444,7 @@ groups:
         verification: >-
           `test/metadata/test_claim_scripts.py`: `claim-issue.sh` exits 3 for a
           held Task, and claims it when `--epic-run` names its Epic but not
-          another one; `bundle-fit --epic-run` is covered in
-          `test/metadata/test_bundle_fit.py::TestCLI`.
+          another one.
         relationships:
         - rel_type: refines
           spec_id: PAD-19-002
@@ -1466,11 +1468,12 @@ groups:
         statement: >-
           The stale-claim sweeper (PAD-10) MUST flag an assigned Epic with
           `stale-claim`, and comment on it, when the claim is older than 3 days
-          and none of its children has an open Pull Request or claim-branch
-          activity within 3 days.
+          and none of the issues it holds (its descendants whose nearest Epic
+          it is) has an open Pull Request or claim-branch activity within 3
+          days.
         rationale: >-
           A run that crashes before its release step leaves the Epic assigned.
-          The children's activity, not the Epic's, shows whether the run is
+          The held issues' activity, not the Epic's, shows whether the run is
           still working.
         verification: >-
           `test/ci/test_stale_claim_sweeper.py` pins the Epic staleness

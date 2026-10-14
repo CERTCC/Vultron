@@ -45,18 +45,15 @@ HELD_WORKFLOW = "build"
 
 
 def epic_hold_reason(
-    epic: int | None,
-    epic_assignees: Sequence[str],
-    epic_run: int | None = None,
+    epic: int | None, epic_assignees: Sequence[str]
 ) -> str | None:
     """Why the Epic's Tasks and Features are held, or ``None`` if they are not.
 
-    An assigned Epic is claimed by an epic run (PAD-19-001). Every agent runs as
-    the same GitHub user, so the assignee cannot tell that run from a stray
-    session; only the run itself, naming the Epic in ``epic_run``, is let
-    through (PAD-19-003).
+    An assigned Epic is claimed by an epic run (PAD-19-001). Selection never
+    serves that run: it builds the issues its approved plan names, through
+    ``claim-issue.sh --epic-run`` (PAD-19-003).
     """
-    if not epic_assignees or (epic is not None and epic_run == epic):
+    if not epic_assignees:
         return None
     where = f"#{epic}" if epic is not None else "the Epic"
     return (
@@ -199,7 +196,6 @@ def select_bundle(
     epic: int | None = None,
     epic_schedule: str | None = None,
     epic_assignees: Sequence[str] = (),
-    epic_run: int | None = None,
     workflow: str | None = None,
     budget: int = DEFAULT_BUDGET,
     max_members: int = DEFAULT_MAX_MEMBERS,
@@ -212,7 +208,7 @@ def select_bundle(
     bundle = Bundle(epic=epic, epic_schedule=epic_schedule, budget=budget)
     eligible, bundle.rejected = eligibility(
         candidates,
-        epic_hold=epic_hold_reason(epic, epic_assignees, epic_run),
+        epic_hold=epic_hold_reason(epic, epic_assignees),
     )
 
     # Fit, part 1: reject what no skill can execute, then what a human has

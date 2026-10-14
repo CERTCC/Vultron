@@ -385,18 +385,15 @@ class TestReviewCeiling:
         assert "budget" not in reason
 
 
-@pytest.mark.spec("PAD-19-002", "PAD-19-003")
+@pytest.mark.spec("PAD-19-002")
 class TestEpicClaim:
     """PAD-19-002/003: an assigned Epic holds its Tasks and Features."""
 
     def test_an_unassigned_epic_holds_nothing(self):
         assert epic_hold_reason(10, []) is None
 
-    def test_the_epic_run_itself_is_not_held(self):
-        assert epic_hold_reason(10, ["me"], epic_run=10) is None
-
-    def test_a_run_for_another_epic_is_still_held(self):
-        reason = epic_hold_reason(10, ["me"], epic_run=11)
+    def test_the_reason_names_the_epic_and_its_assignee(self):
+        reason = epic_hold_reason(10, ["me"])
         assert reason is not None
         assert "#10" in reason and "me" in reason
 
@@ -417,12 +414,6 @@ class TestEpicClaim:
     def test_other_lanes_stay_open(self, issue_type):
         bundle = select_bundle(
             [task(1, issue_type=issue_type)], epic=10, epic_assignees=["me"]
-        )
-        assert [c.number for c in bundle.members] == [1]
-
-    def test_the_epic_run_sees_its_own_tasks(self):
-        bundle = select_bundle(
-            [task(1)], epic=10, epic_assignees=["me"], epic_run=10
         )
         assert [c.number for c in bundle.members] == [1]
 
@@ -859,9 +850,7 @@ class TestCLI:
         assert [m["number"] for m in data["members"]] == [1]
         assert "budget" in data["rejected"][0]["reason"]
 
-    def test_epic_assignees_and_epic_run_are_plumbed(
-        self, monkeypatch, capsys
-    ):
+    def test_epic_assignees_are_plumbed(self, monkeypatch, capsys):
         payload = self._payload(self._leaf(1))
         payload["data"]["repository"]["issue"]["assignees"] = {
             "nodes": [{"login": "me"}]
@@ -870,13 +859,6 @@ class TestCLI:
         held = json.loads(capsys.readouterr().out)
         assert held["members"] == []
         assert held["rejected"][0]["stage"] == "eligibility"
-
-        assert (
-            self._run(monkeypatch, payload, ["--json", "--epic-run", "3329"])
-            == 0
-        )
-        run = json.loads(capsys.readouterr().out)
-        assert [m["number"] for m in run["members"]] == [1]
 
     def test_max_members_flag_is_plumbed(self, monkeypatch, capsys):
         rc = self._run(

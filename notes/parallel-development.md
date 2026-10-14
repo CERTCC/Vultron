@@ -5,9 +5,9 @@ kind: guidance
 description: >
   How multiple AI agents and human developers coordinate through GitHub Issues:
   the issue hierarchy, label taxonomy, bundle selection, task claiming, the
-  Epic claim an epic run holds, stale-claim and merge-conflict recovery, the shared-`.git` pruning danger, and
-  the two paths through GitHub Project #24 (Schedule on Epics; Status and PR
-  ship stage mirrored from facts).
+  Epic claim an epic run holds, stale-claim and merge-conflict recovery, the
+  shared-`.git` pruning danger, and the two paths through GitHub Project #24
+  (Schedule on Epics; Status and PR ship stage mirrored from facts).
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
@@ -132,7 +132,8 @@ Sweeper (stale_claim_sweeper.yml, weekly or on demand):
   → add stale-claim label
   → comment: "Orphaned claim on branch <branch>. Human review needed."
   For each Epic that is assigned (an epic run), was claimed > 3 days ago, and
-  none of whose children has an open PR or claim-branch activity in 3 days:
+  none of whose held issues (descendants down to a nested Epic) has an open
+  PR or claim-branch activity in 3 days:
   → add stale-claim label, comment
   (logic and tests: .github/scripts/stale_claim_sweeper.py)
 

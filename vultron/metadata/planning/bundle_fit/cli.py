@@ -42,13 +42,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--project-number", type=int, default=PLANNING_PROJECT_NUMBER
     )
-    parser.add_argument(
-        "--epic-run",
-        type=int,
-        metavar="EPIC",
-        help="the Epic whose epic run is selecting; its claim then holds "
-        "nothing back for this caller (PAD-19-003)",
-    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
@@ -96,7 +89,6 @@ def main(argv: list[str] | None = None) -> int:
         epic=epic,
         epic_schedule=epic_schedule,
         epic_assignees=epic_assignees(payload),
-        epic_run=args.epic_run,
         workflow=args.workflow,
         budget=args.budget,
         max_members=args.max_members,

@@ -304,6 +304,18 @@ class TestClaimIssue:
         assert not any("--add-assignee" in c for c in calls)
         assert not _status_set(calls)
 
+    def test_an_unreadable_hold_check_fails_closed(self, box: Sandbox):
+        """epic-hold.sh must not read a broken reply as "free"."""
+        box.issue(TASK)
+        box.rules.insert(
+            0,
+            {"match": [f"issue(number: {TASK})", "parent {"], "stdout": "{"},
+        )
+        result = box.run("claim-issue.sh", str(TASK), "task", "slug")
+        assert result.returncode == 1
+        assert "Could not check" in result.stderr
+        assert box.remote_branches() == []
+
     def test_a_bug_under_a_claimed_epic_is_not_held(self, box: Sandbox):
         box.issue(BUG, "Bug", epic_assignees=["me"])
         result = box.run("claim-issue.sh", str(BUG), "bug", "slug")

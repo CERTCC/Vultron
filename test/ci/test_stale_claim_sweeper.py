@@ -81,8 +81,7 @@ def test_issue_claim_staleness(
 ) -> None:
     assert (
         _sweeper.is_stale_issue_claim(
-            last_commit=last_commit,
-            claimed_at=claimed_at,
+            activity=_sweeper.claim_activity(last_commit, claimed_at),
             has_open_pr=has_open_pr,
             cutoff=CUTOFF,
         )
@@ -118,6 +117,32 @@ def test_epic_claim_staleness(
         )
         is expected
     )
+
+
+@pytest.mark.spec("PAD-19-005")
+def test_an_epic_run_owns_descendants_down_to_a_nested_epic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sweeper holds what epic-hold.sh holds: nearest-Epic descendants."""
+    tree = {
+        1: [
+            {"number": 2, "type": {"name": "Task"}},
+            {"number": 5, "type": {"name": "Epic"}},
+        ],
+        2: [{"number": 3, "type": {"name": "Task"}}],
+        3: [],
+        5: [{"number": 6, "type": {"name": "Task"}}],
+    }
+
+    def paginated(endpoint: str) -> list[dict[str, object]]:
+        return tree[
+            int(endpoint.split("/issues/")[1].split("/", maxsplit=1)[0])
+        ]
+
+    monkeypatch.setattr(_sweeper, "_paginated", paginated)
+    sweeper = object.__new__(_sweeper.Sweeper)
+    sweeper.repo = "o/r"
+    assert sweeper._owned_by_run(1) == {2, 3}
 
 
 def test_workflow_triggers_and_permissions() -> None:

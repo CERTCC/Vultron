@@ -37,13 +37,19 @@ case "$TYPE" in
   *) exit 0 ;;  # only the build lane is held (PAD-19-002)
 esac
 
-# The nearest ancestor whose type is Epic, as "<number> <login,login>".
-read -r EPIC LOGINS < <(jq -r '
+# The nearest ancestor whose type is Epic, as "<number> <login,login>", or
+# nothing when there is none. A jq failure is an error, never "free".
+if ! NEAREST=$(jq -r '
   [.data.repository.issue | recurse(.parent // empty) | select(.number != null)]
   | map(select(.issueType.name == "Epic")) | first // empty
-  | "\(.number) \([.assignees.nodes[].login] | join(","))"' <<<"$DATA") || true
+  | "\(.number) \([.assignees.nodes[].login] | join(","))"' <<<"$DATA"); then
+  echo "❌ epic-hold: unreadable reply for #${ISSUE_NUMBER}." >&2
+  exit 2
+fi
+EPIC="${NEAREST%% *}"
+LOGINS="${NEAREST#* }"
 
-if [ -z "${EPIC:-}" ] || [ -z "${LOGINS:-}" ]; then
+if [ -z "${NEAREST}" ] || [ -z "${LOGINS}" ]; then
   exit 0
 fi
 if [ "$EPIC_RUN" = "$EPIC" ]; then
