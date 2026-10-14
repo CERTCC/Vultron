@@ -34,6 +34,12 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
+    OfferParty,
+)
+from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    OwnershipOfferOpenNode,
+)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
 )
@@ -41,6 +47,7 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseManagerNode,
     SenderIsOwnershipTransfereeNode,
 )
 from vultron.core.models.activity import VultronActivity
@@ -48,6 +55,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
+)
+from vultron.core.use_cases.received.actor.ownership import (
+    AcceptCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 
@@ -114,6 +124,7 @@ def _accept_tree():
         offer_id=OFFER_ID,
         sender_id=TRANSFEREE_ID,
         answer_id=OFFER_ID,
+        sender_rule=AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement,
     )
 
 
@@ -122,12 +133,25 @@ def _sender_admitted():
     """Admit the sender and name the transferee as the recorded Offer would.
 
     These tests are about the commit gate, not the Offer lookup; the sender
-    guard and the lookup are tested through the use case in
+    guard, the open-Offer guard and the lookup are tested through the use case in
     ``test/core/use_cases/received/actor/test_ownership.py``.
     """
     with (
         patch.object(
             SenderIsOwnershipTransfereeNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        # The replica's side of the rule: the sender is the CASE_MANAGER.
+        patch.object(
+            SenderIsCaseManagerNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        patch.object(
+            OwnershipOfferOpenNode,
             "update",
             autospec=True,
             return_value=Status.SUCCESS,
@@ -218,4 +242,29 @@ def test_accept_ownership_transfer_no_double_commit(
         f"Expected exactly 1 CommitCaseLedgerEntryNode.update call for "
         f"CaseActor; got {mock_commit.call_count}. "
         f"A count > 1 means the double-write bug (ISSUE-2252) is back."
+    )
+
+
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_open_offer_guard_raises_when_the_offer_is_not_recorded(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """The sender check runs first and finds the Offer, so the open-Offer
+    guard not finding it is a local anomaly: an internal error, never a
+    refusal of the sender."""
+    _seed_case(bt_scenario)
+    guard = OwnershipOfferOpenNode(
+        case_id=CASE_ID,
+        offer_id=OFFER_ID,
+        reply_id="https://example.org/activities/accept-2252",
+        sender_id=TRANSFEREE_ID,
+        party=OfferParty.TRANSFEREE,
+    )
+
+    result = bt_scenario.run(guard, actor_id=CASE_ACTOR_ID)
+
+    bt_scenario.assert_failure(
+        result,
+        reason="the Offer the sender check found is gone",
+        allow_internal=True,
     )

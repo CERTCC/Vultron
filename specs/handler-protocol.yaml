@@ -263,7 +263,8 @@ groups:
       against an addressee the receiver recorded, and is the protocol's established term
       (EP-09-010), so it stays a kind of its own. See ADR-0129.
     verification: >-
-      A unit test asserts that no entitlement kind's name is a `CVDRole` member, and that
+      A unit test asserts that no position kind's name is a `CVDRole` member (the role
+      kinds, `CASE_MANAGER` and `CASE_OWNER`, are named for the roles they check), and that
       every sender-entitlement condition node in the sender-entitlement module is the guard
       of exactly one declared kind, so a position checked by a node no kind names fails.
     lint_suppress:

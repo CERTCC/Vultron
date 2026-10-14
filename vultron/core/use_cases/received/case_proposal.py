@@ -351,8 +351,9 @@ class AcceptCaseProposalReceivedUseCase:
     """
 
     # The sender must be the actor the vendor addressed the proposal to,
-    # as recorded on the report case link (CP-06-005).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # as recorded on the report case link (CP-06-005).  The proposal
+    # precedes the case, so the rule is for an actor outside any case.
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -391,6 +392,7 @@ class AcceptCaseProposalReceivedUseCase:
         tree = create_accept_case_proposal_received_tree(
             report_id=report_id,
             case_actor_id=case_actor_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -436,7 +438,8 @@ class RejectCaseProposalReceivedUseCase:
     Spec: CP-06-002, CP-06-004.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # As for the Accept: the addressee of the proposal (CP-06-005).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -479,6 +482,7 @@ class RejectCaseProposalReceivedUseCase:
             report_id=report_id,
             sender_actor_id=request.actor_id,
             rejection_reason=rejection_reason,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
