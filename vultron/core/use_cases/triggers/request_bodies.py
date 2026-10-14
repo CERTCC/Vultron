@@ -152,9 +152,12 @@ class AcceptEmbargoRequest(CaseTriggerRequest):
 
     TRIG-03-001: Must include case_id to identify the target case.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    Optional proposal_id identifies the specific EmProposeEmbargoActivity to accept;
-    if omitted, the earliest-expiring open proposal for the case is used
-    (EP-08-002) — never the first recorded.
+    Optional proposal_id identifies the specific EmProposeEmbargoActivity to accept:
+    an open proposal, or the actor's received Invite for the embargo in force
+    while its consent row for that embargo is INVITED or TIMED_OUT
+    (EP-09-012).  If omitted, the earliest-expiring open proposal for the
+    case is used (EP-08-002) — never the first recorded, and never the
+    embargo in force.
     """
 
     proposal_id: NonEmptyString | None = None
@@ -166,9 +169,12 @@ class RejectEmbargoRequest(CaseTriggerRequest):
 
     TRIG-03-001: Must include case_id to identify the target case.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
-    Optional proposal_id identifies the specific EmProposeEmbargoActivity to reject;
-    if omitted, the earliest-expiring open proposal for the case is used
-    (EP-08-002) — never the first recorded.
+    Optional proposal_id identifies the specific EmProposeEmbargoActivity to reject:
+    an open proposal, or the actor's received Invite for the embargo in force
+    while its consent row for that embargo is INVITED or TIMED_OUT
+    (EP-09-012).  If omitted, the earliest-expiring open proposal for the
+    case is used (EP-08-002) — never the first recorded, and never the
+    embargo in force.
     """
 
     proposal_id: NonEmptyString | None = None

@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
     exempt,
 )
 
@@ -54,7 +55,7 @@ class AddReportToCaseReceivedUseCase:
     already lists is ``SKIPPED``.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
 

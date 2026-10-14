@@ -36,10 +36,19 @@ Entitlement kinds
   It is a declared rule, not an exemption, and has no condition node: there is
   no standing to check, so no tree composes a sender guard for it.
 
-A kind names the entitlement at the CASE_MANAGER, where the assertion is
-adjudicated.
-For the embargo messages a replica other than the CASE_MANAGER accepts the
-same message only from the CASE_MANAGER (PCR-03-001), whatever the kind.
+Sender rules
+------------
+A received use case declares a ``SenderRule`` (HP-01-008, ADR-0129): per
+addressee side (the CASE_MANAGER, a participant, an actor outside any case),
+an any-of set of kinds.  ``SenderRule.in_case(kind)`` states the same kinds at
+the CASE_MANAGER and at a participant; ``SenderRule.before_case(kind)`` states
+the side for an activity sent before any case exists.  The receive-tree
+factory composes the guard from the rule
+(``vultron.core.behaviors.sender_guard.compose_sender_guard``).
+
+Some trees still build their own guard and pass it as ``sender_guard``; their
+declarations are not yet the full rule.  The allow-list in
+``test/architecture/test_sender_entitlement_ratchet.py`` names them (#4437).
 
 Exemption
 ---------
@@ -80,6 +89,10 @@ Nodes
   the CASE_MANAGER (``CASE_OWNER`` kind; CM-21-015, PCR-03-001)
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
   merged from ``CheckIsCaseOwnerNode``
+- ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
+  leaves empty (HP-01-008)
+- ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
+  standing the side accepts (HP-01-008)
 
 Helper predicate
 ----------------
@@ -117,8 +130,8 @@ from vultron.core.participants.ownership_offer import (
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
+    distinct_recipients,
     is_addressed_to,
-    normalise_actor_id,
     same_actor_id,
 )
 from vultron.core.predicates.roles import has_case_owner_role
@@ -155,10 +168,12 @@ def _log_entry_from(activity: Any, node_name: str) -> CaseLedgerEntry:
 
 
 class SenderEntitlementKind(Enum):
-    """The required sender role for a received activity.
+    """One sender standing a :class:`SenderRule` may require.
 
     Each kind corresponds to one condition node in this module, except
     ``ANY_ACTOR``, which requires no standing and so has no guard.
+    A use case never declares a kind on its own: it declares a
+    :class:`SenderRule` composed of kinds (HP-01-008).
     """
 
     CASE_MANAGER = auto()
@@ -202,8 +217,88 @@ class SenderExemption:
     reason: str = ""
 
 
-#: Union type for the per-use-case ``sender_entitlement`` class variable.
-SenderEntitlement = SenderEntitlementKind | SenderExemption
+def any_of(*kinds: SenderEntitlementKind) -> frozenset[SenderEntitlementKind]:
+    """The kinds one side of a :class:`SenderRule` admits, any one sufficing."""
+    return frozenset(kinds)
+
+
+def in_declaration_order(
+    kinds: frozenset[SenderEntitlementKind],
+) -> list[SenderEntitlementKind]:
+    """*kinds* in the enum's declaration order, so composition and wording
+    are deterministic."""
+    return [kind for kind in SenderEntitlementKind if kind in kinds]
+
+
+@dataclass(frozen=True)
+class SenderRule:
+    """The full sender rule a received use case declares (HP-01-008, ADR-0129).
+
+    Each field is one addressee side: the standing a sender needs when the
+    activity is addressed to the CASE_MANAGER, to a participant, or, for an
+    activity sent before a case exists, to an actor outside any case.
+    A side holds an any-of set of kinds: the sender is entitled when it holds
+    any one of them.  An empty side admits no sender, so an activity addressed
+    to that side is refused.
+
+    The receive-tree factory composes the guard from the rule alone
+    (:func:`vultron.core.behaviors.sender_guard.compose_sender_guard`).
+
+    Attributes:
+        at_case_manager: Kinds that entitle a sender at the CASE_MANAGER.
+        at_participant: Kinds that entitle a sender at any other participant.
+        outside_case: Kinds that entitle a sender of an activity that names no
+            case, addressed to an actor outside any case.
+
+    Raises:
+        ValueError: The rule states no side, a side holds something other than
+            a :class:`SenderEntitlementKind`, or ``ANY_ACTOR`` shares a side
+            with another kind (it already admits every sender).
+    """
+
+    at_case_manager: frozenset[SenderEntitlementKind] = frozenset()
+    at_participant: frozenset[SenderEntitlementKind] = frozenset()
+    outside_case: frozenset[SenderEntitlementKind] = frozenset()
+
+    def __post_init__(self) -> None:
+        sides = (self.at_case_manager, self.at_participant, self.outside_case)
+        if not any(sides):
+            raise ValueError("A SenderRule must state at least one side")
+        for side in sides:
+            if not isinstance(side, frozenset) or not all(
+                isinstance(kind, SenderEntitlementKind) for kind in side
+            ):
+                raise ValueError(
+                    "Each side of a SenderRule is a frozenset of"
+                    f" SenderEntitlementKind members, got {side!r}"
+                )
+            if SenderEntitlementKind.ANY_ACTOR in side and len(side) > 1:
+                raise ValueError(
+                    "ANY_ACTOR admits every sender, so it cannot share a side"
+                    f" with other kinds: {sorted(k.name for k in side)}"
+                )
+
+    @classmethod
+    def in_case(cls, *kinds: SenderEntitlementKind) -> "SenderRule":
+        """The same kinds entitle a sender at the CASE_MANAGER and at a participant."""
+        return cls(
+            at_case_manager=any_of(*kinds), at_participant=any_of(*kinds)
+        )
+
+    @classmethod
+    def before_case(cls, *kinds: SenderEntitlementKind) -> "SenderRule":
+        """The kinds entitle the sender of an activity sent before any case exists."""
+        return cls(outside_case=any_of(*kinds))
+
+    @property
+    def kinds(self) -> frozenset[SenderEntitlementKind]:
+        """Every kind the rule names, on any side."""
+        return self.at_case_manager | self.at_participant | self.outside_case
+
+
+#: Union type for the per-use-case ``sender_entitlement`` class variable: a
+#: full sender rule, or an exemption naming the issue that owns the check.
+SenderEntitlement = SenderRule | SenderExemption
 
 
 def exempt(tracking_issue: str, reason: str = "") -> SenderExemption:
@@ -958,14 +1053,8 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         invite = (
             self.datalayer.read(self._invite_id) if self._invite_id else None
         )
-        recipients = list(
-            dict.fromkeys(
-                normalise_actor_id(rid)
-                for rid in (
-                    _as_id(r) for r in (getattr(invite, "to", None) or [])
-                )
-                if rid
-            )
+        recipients = distinct_recipients(
+            _as_id(r) for r in (getattr(invite, "to", None) or [])
         )
         if len(recipients) == 1 and same_actor_id(sender, recipients[0]):
             if self._case_id is None:
@@ -1290,6 +1379,76 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
 
 
 # ---------------------------------------------------------------------------
+# Condition node: a side the declared rule leaves empty
+# ---------------------------------------------------------------------------
+
+
+class NoSenderAdmittedNode(SenderEntitlementConditionNode):
+    """Guard for a side a :class:`SenderRule` leaves empty: it admits no one.
+
+    The factory composes it when the receiver is on a side the use case's
+    rule names no kind for, such as a participant receiving an activity only
+    the CASE_MANAGER may be sent (HP-01-008).  It always fails, naming the
+    side, so the tree ends ``REFUSED`` with nothing written.
+
+    Spec: HP-01-006, HP-01-008.
+    """
+
+    def __init__(self, side: str, name: str | None = None) -> None:
+        """Create the guard.
+
+        Args:
+            side: Plain-language name of the empty side, e.g.
+                ``"a participant other than the CASE_MANAGER"``.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._side = side
+
+    def update(self) -> Status:
+        self.feedback_message = (
+            f"No sender is entitled to send this activity to {self._side}"
+            " — REFUSED (HP-01-006, HP-01-008)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class SenderHoldsNoneOfNode(SenderEntitlementConditionNode):
+    """The last arm of an any-of side: the sender held none of its kinds.
+
+    The factory appends it to the selector of an any-of side (HP-01-008), so
+    a refused sender's reason names every standing the side accepts rather
+    than only the last kind tried (HP-01-006, BT-13-001).  It always fails.
+
+    Spec: HP-01-006, HP-01-008.
+    """
+
+    def __init__(
+        self,
+        kinds: frozenset[SenderEntitlementKind],
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            kinds: The kinds the side accepts, any one sufficing.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._kinds = in_declaration_order(kinds)
+
+    def update(self) -> Status:
+        names = ", ".join(kind.name for kind in self._kinds)
+        self.feedback_message = (
+            f"Sender holds none of the standings this activity accepts"
+            f" ({names}) — REFUSED (HP-01-006, HP-01-008)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
 # Condition node: CASE_OWNER
 # ---------------------------------------------------------------------------
 
@@ -1436,6 +1595,9 @@ __all__ = [
     "SenderEntitlementKind",
     "SenderExemption",
     "SenderEntitlement",
+    "SenderRule",
+    "any_of",
+    "in_declaration_order",
     "exempt",
     # Helper predicate
     "is_case_owner",
@@ -1451,4 +1613,6 @@ __all__ = [
     "SenderIsOfferAddresseeNode",
     "SenderIsCaseOwnerNode",
     "SenderIsNoteAuthorNode",
+    "NoSenderAdmittedNode",
+    "SenderHoldsNoneOfNode",
 ]

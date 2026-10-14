@@ -40,6 +40,9 @@ from vultron.core.behaviors.embargo.owner_decision_tree import (
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
+from vultron.core.use_cases.received.embargo.owner_decision import (
+    ActivateEmbargoOnCaseReceivedUseCase,
+)
 
 CASE_ID = "https://example.org/cases/c1"
 EMBARGO_ID = "https://example.org/embargoes/e1"
@@ -92,7 +95,10 @@ def test_invite_tree_indexes_once_per_arm() -> None:
 @pytest.mark.spec("BT-17-008")
 def test_activate_embargo_backfill_is_the_factory_gate() -> None:
     tree = activate_embargo_on_case_tree(
-        case_id=CASE_ID, embargo_id=EMBARGO_ID, sender_actor_id=ACTOR_ID
+        case_id=CASE_ID,
+        embargo_id=EMBARGO_ID,
+        sender_actor_id=ACTOR_ID,
+        sender_rule=ActivateEmbargoOnCaseReceivedUseCase.sender_entitlement,
     )
 
     gate = tree.children[-1]

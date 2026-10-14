@@ -145,7 +145,7 @@ still treats that Reject as withdrawal (`_assert_rejectable` in
 `vultron/core/services/embargo_lifecycle/pec.py`) until #4388 adds `Leave`; do
 not build on it. Answering the embargo in force names its relayed
 `Invite(EmbargoEvent)`, never the full-case Invite, and never falls back to it
-when no Invite is named (EP-09-012, #4373).
+when no Invite is named (EP-09-012, #4373; see § "Answering the Embargo in Force").
 
 Only the owner's decision changes the embargo on the case, through
 `Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009). Every
@@ -326,6 +326,37 @@ the withheld suffix in log order. The predicate is the shared selection in
 [sync-ledger-replication.md](sync-ledger-replication.md) § "Fan-Out Recipients
 and the Embargo Gate". Invites are addressed directly, so the pause cannot lock a
 participant out of accepting.
+
+---
+
+## Answering the Embargo in Force (EP-09-012)
+
+Activation takes a proposal out of `pending_embargo_proposal_index` (EP-08-003),
+so the accept and reject triggers cannot reach the embargo in force through it.
+A participant whose row for that embargo is still `INVITED` or `TIMED_OUT` still
+answers it, because the receive side marks the row of whatever embargo the
+`Accept(Invite(EmbargoEvent))` names, active or not (MSM-07-003, EMB-17-002).
+
+`_resolve_embargo_proposal` (`vultron/core/use_cases/triggers/_helpers.py`) looks
+in the open-proposal index first, then reads a named id as the actor's received
+Invite (`read_received_activity`). It accepts only an `Invite` whose sole `to`
+recipient is the actor (EP-09-010), whose object is the active embargo, held
+under its own id too (the answer wraps that copy), and for which the actor's row
+is `INVITED` or `TIMED_OUT`. Anything else raises `VultronNotFoundError`.
+
+- The answer goes through the relayed `Invite(EmbargoEvent)`, never the
+  full-case Invite, whose replies move only RM state (CM-11-011).
+- A joiner that accepts the stub Invite is already `AGREED` for the active
+  embargo (CM-11-001); only a participant that never answered a relayed
+  `Invite(EmbargoEvent)` (EP-09-011) needs this path.
+- **The caller names the Invite.** With no name the trigger picks among open
+  proposals only (EP-08-002) and never falls back to the embargo in force: a
+  fallback could consent to terms the caller did not mean.
+- Do not re-add the active embargo to the open-proposal index to make the
+  trigger find it; that breaks EP-08-003 and EP-08-002's selection.
+- **Withdrawing is not answering.** A signatory leaves through
+  `Leave(EmbargoEvent)` (EP-09-013, MSM-07-010, #4388), which needs no Invite.
+  The reject trigger never withdraws (MSM-07-004; ADR-0122).
 
 ---
 
