@@ -1630,7 +1630,7 @@ class TestLeaveCommitsEachClosureStep:
     def test_crash_in_step_commit_is_an_internal_error_not_a_warning(
         self, monkeypatch
     ):
-        """Best-effort covers a refused commit, never a bug in the commit.
+        """A refused commit fails the node; a bug in the commit raises.
 
         A crash inside the nested commit tree is carried across the hop as
         an internal error, so the received verdict does not log it as a
@@ -1657,6 +1657,49 @@ class TestLeaveCommitsEachClosureStep:
         assert _case_file(dl, VENDOR_ID) == before, (
             "a crashed commit records nothing, so its step is taken back too"
         )
+
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_raise_while_building_a_step_entry_takes_the_steps_back(
+        self, monkeypatch
+    ):
+        """Any raise part-way through the commits withdraws the steps left.
+
+        The V -> D entry commits; building the D -> C activity then raises.
+        The committed step stays, the uncommitted one is taken back, and the
+        fault propagates rather than leave a step the ledger lacks.
+        """
+        original = TriggerActivityAdapter.record_participant_status_added
+        built: list[str] = []
+
+        def _raise_on_second(self, *args, **kwargs):
+            built.append(kwargs["status"].id_)
+            if len(built) == 2:
+                raise RuntimeError("simulated factory fault")
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(
+            TriggerActivityAdapter,
+            "record_participant_status_added",
+            _raise_on_second,
+        )
+        dl = _make_full_dl()
+        _seed_rm(dl, VENDOR_ID, RM.VALID)
+
+        with pytest.raises(Exception, match="simulated factory fault"):
+            _close(
+                dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+            )
+
+        assert _participant_rm_states(dl, VENDOR_ID)[-2:] == [
+            RM.VALID,
+            RM.DEFERRED,
+        ]
+        assert _ledger_shape(dl) == [
+            ("close_case", VENDOR_ID, None),
+            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
+        ]
+        assert dl.read(built[1]) is None, "the withdrawn status is deleted"
 
 
 class TestCaseFullyClosedIsTheCaseManagersOwnAct:
@@ -2569,6 +2612,10 @@ class TestCaseActorRMClosedRecordingFailsClosed:
 
         assert result.disposition != HandlerDisposition.APPLIED, (
             "a closure the ledger cannot record is not reported as applied"
+        )
+        assert "could not commit" in (result.reason or ""), (
+            "the verdict names the failed commit, not the role check"
+            f" (got {result.reason!r})"
         )
         assert _case_file(dl, CASE_ACTOR_ID) == before
         assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID)

@@ -585,6 +585,7 @@ class TestCreateCaseTriggerLedger:
         assert "withdrawn" in str(raised.value)
         assert self.dl.list_objects("VulnerabilityCase") == []
         assert self.dl.list_objects("CaseParticipant") == []
+        assert self.dl.list_objects("ParticipantStatus") == []
         assert self.dl.list_objects("CaseLedgerEntry") == []
         assert self.dl.outbox_list() == []
         assert self.dl.list_objects("Create") == [], "the unsent Create too"
@@ -605,10 +606,11 @@ class TestCreateCaseTriggerLedger:
 
         with pytest.raises(
             VultronValidationError, match="creation entries stop there"
-        ):
+        ) as raised:
             self._create(to=[_RECIPIENT])
 
         (case,) = self.dl.list_objects("VulnerabilityCase")
+        assert case.id_ in str(raised.value), "the error names the case"
         assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
             "create_case"
         ]

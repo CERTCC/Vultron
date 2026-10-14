@@ -334,6 +334,40 @@ def test_a_later_failed_commit_keeps_only_the_committed_cancels(monkeypatch):
 
 
 @pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("EMB-18-001")
+def test_a_cancel_the_register_refuses_commits_no_entry(monkeypatch):
+    """The pre-check runs the register's own rule, not a copy of it.
+
+    A register that would refuse the second proposal's cancel step refuses
+    it before the first ER is committed, so no entry records an abandonment
+    the case never applies (CLP-07-013).
+    """
+    from vultron.errors import VultronInvalidStateTransitionError
+
+    case, dl, proposals = _proposed_case("abandon-register-refuses")
+    _first, second = proposals
+    before = cast(VulnerabilityCase, dl.read(case.id_)).model_dump(mode="json")
+    original = VulnerabilityCase.apply_embargo_register_step
+
+    def _refuse_second(self, changes, **kwargs):
+        if any(change.embargo_id == second for change in changes):
+            raise VultronInvalidStateTransitionError("simulated refusal")
+        return original(self, changes, **kwargs)
+
+    monkeypatch.setattr(
+        VulnerabilityCase, "apply_embargo_register_step", _refuse_second
+    )
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
+
+    assert _abandonment_entries(dl, case.id_) == []
+    assert (
+        cast(VulnerabilityCase, dl.read(case.id_)).model_dump(mode="json")
+        == before
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
 def test_each_cancel_follows_its_own_entry():
     """Commit, then write, per proposal: the ledger holds each ER before the
     cancel it records is in the case (CLP-07-013)."""

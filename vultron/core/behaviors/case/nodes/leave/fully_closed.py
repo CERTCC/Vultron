@@ -48,9 +48,8 @@ class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
     does not already hold (CM-23-016).
 
     A missing trigger-activity factory raises (see the base class) rather
-    than failing the owner arm, which the enclosing ``OwnerOrNonOwnerEffects``
-    Selector would read as "the sender is not the Case Owner" and succeed
-    down the non-owner path: a half-closed case reported as SUCCESS.
+    than failing the owner arm: a missing port is a composition fault, not
+    a refused commit (ARCH-15-001).
 
     Per CM-23-002, CM-23-013, CLP-07-013, VM-08-003, ADR-0085, ADR-0124.
     """

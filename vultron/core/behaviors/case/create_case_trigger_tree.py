@@ -199,7 +199,14 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     commits before it queues the ``Create``.  The case, the participant
     records it names and the unqueued ``Create`` are then removed, so the
     case file is as it was before the trigger (CLP-07-013).  The report the
-    case was created from is not the creation's write and stays.
+    case was created from is not the creation's write and stays.  So do the
+    sealed outbound bodies the activity factory kept for the ``Create`` and
+    the genesis activity: they are the delivery adapter's bookkeeping, not
+    case-file state, nothing queued refers to them, and the core layer has
+    no port to them (ARCH-01-001).
+
+    A participant record, the ``Create`` or the case that cannot be deleted
+    raises: a withdrawal that leaves part of the case behind is not one.
 
     Once the genesis entry has committed, the case cannot be withdrawn: the
     ledger records it.  The node then removes nothing.
@@ -238,6 +245,12 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         except (NoDataAvailable, NotImplementedError):
             pass
 
+    def _delete(self, table: str, record_id: str) -> None:
+        """Delete one record of the withdrawn case, or raise."""
+        assert self.datalayer is not None
+        if not self.datalayer.delete(table, record_id):
+            raise VultronNotFoundError(table, record_id)
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -245,7 +258,10 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         reason = self._commit.feedback_message or "creation commit failed"
         case, failure = self._require_case(self._case_id_bb)
         if failure is not None:
-            return failure  # Regime 1: nothing written to withdraw (ADR-0087)
+            # Regime 1: nothing written to withdraw (ADR-0087).  The commit's
+            # reason is still the creation's failure, so it is kept.
+            self.feedback_message = f"{reason}; {self.feedback_message}"
+            return failure
         if recorded_entries_for_case(case_id=case.id_, dl=self.datalayer):
             self.feedback_message = reason
             return Status.FAILURE
@@ -254,11 +270,13 @@ class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             if not isinstance(participant, CaseParticipant):
                 raise VultronNotFoundError("CaseParticipant", participant_id)
             for status in participant.participant_statuses:
+                # A status may be held only inline on its participant, with
+                # no row of its own; the participant's deletion removes it.
                 self.datalayer.delete("ParticipantStatus", status.id_)
-            self.datalayer.delete("CaseParticipant", participant_id)
+            self._delete("CaseParticipant", participant_id)
         if self._activity_id_bb:
-            self.datalayer.delete("Create", self._activity_id_bb)
-        self.datalayer.delete("VulnerabilityCase", case.id_)
+            self._delete("Create", self._activity_id_bb)
+        self._delete("VulnerabilityCase", case.id_)
         self.feedback_message = (
             f"{reason}; nothing was committed or sent, so the case was"
             " withdrawn (CLP-07-013)"

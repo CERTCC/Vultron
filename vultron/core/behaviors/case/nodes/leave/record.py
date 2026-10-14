@@ -148,6 +148,9 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
         self._closing_actor_id = closing_actor_id
         self._case_id = case_id
         self._closure_steps = closure_steps
+        # How many of the closure steps have a committed entry; the steps
+        # after them are the ones a raise part-way must take back.
+        self._steps_committed = 0
 
     def _withdraw(self, participant_id: str, unrecorded: list[str]) -> None:
         """Take back the *unrecorded* steps and log that they were."""
@@ -247,12 +250,28 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
                 list(self._closure_steps),
             )
 
-        return self._record_steps(participant_id, participant)
+        # The sole try/except (BT-HELPER-01): whatever raises part-way
+        # through the commits -- the factory, the snapshot, a nested crash --
+        # every step not yet committed is taken back before the fault
+        # propagates, so no step outlives its missing entry (CLP-07-013).
+        self._steps_committed = 0
+        try:
+            return self._record_steps(participant_id, participant)
+        except Exception:
+            self._withdraw(
+                participant_id,
+                list(self._closure_steps)[self._steps_committed :],
+            )
+            raise
 
     def _record_steps(
         self, participant_id: str, participant: CaseParticipant
     ) -> Status:
-        """Commit one entry per closure step, withdrawing any that fail."""
+        """Commit one entry per closure step, withdrawing any that fail.
+
+        A refusal withdraws here; a raise is withdrawn by :meth:`update`,
+        which reads :attr:`_steps_committed`.
+        """
         assert self.datalayer is not None
         recorded: list[str] = []
         steps = list(self._closure_steps)
@@ -266,13 +285,10 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
                     participant_id,
                     unrecorded,
                 )
-            try:
-                reason = self._commit_status(status, participant)
-            except VultronBTInternalError:
-                self._withdraw(participant_id, unrecorded)
-                raise
+            reason = self._commit_status(status, participant)
             if reason is not None:
                 return self._refuse(reason, participant_id, unrecorded)
+            self._steps_committed = index + 1
             recorded.append(participant_status_rm_state(status).name)
 
         self.logger.info(

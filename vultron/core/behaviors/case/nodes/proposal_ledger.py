@@ -45,11 +45,12 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
 
-class _EntryNotCommitted(Exception):
+class _EntryNotCommitted(VultronError):
     """A creation entry the commit tree did not commit (CLP-07-013)."""
 
 

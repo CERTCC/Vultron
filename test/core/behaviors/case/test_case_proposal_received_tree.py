@@ -2787,6 +2787,44 @@ class TestADR0041GenesisCommitFailure:
         assert committed_event_types(dl, case.id_) == ["create_case"]
         assert len(attempted) == 2, "nothing is tried after the failed entry"
 
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CP-05-008")
+    def test_a_redelivery_after_a_failed_later_entry_commits_the_rest(
+        self, make_payload, monkeypatch
+    ):
+        """The remedy the proposal path relies on: redelivery completes it.
+
+        After a later entry fails, the records it carries stay in the store
+        (the ``Create`` is already queued, CP-09-009).  A redelivered proposal
+        commits every entry the first delivery left out, so the ledger ends
+        with the sequence an uninterrupted creation commits.
+        """
+        from test.support.ledger import (
+            creation_entry_sequence,
+            ledger_entries,
+        )
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        with monkeypatch.context() as patch:
+            fail_commits(patch, proposal_ledger, allowed=1)
+            first = _run_full_bt(make_payload, dl)
+        assert first.disposition is not HandlerDisposition.APPLIED
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+        assert committed_event_types(dl, case.id_) == ["create_case"]
+
+        result = _run_full_bt(make_payload, dl)
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        expected = creation_entry_sequence(dl, case)
+        assert len(expected) > 1, expected
+        entries = ledger_entries(dl, case.id_)
+        assert [
+            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+        ] == expected
+
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""
         from py_trees.common import Status
