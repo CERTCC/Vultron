@@ -564,17 +564,19 @@ groups:
     kind: project
     statement: >-
       This codebase MUST model VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord,
-      CaseReference, CaseActor, CaseParticipant, and ParticipantStatus as separate types and
-      MUST NOT substitute one for another at any API boundary or in the persistence layer.
+      CaseReference, CaseParticipant, and ParticipantStatus as separate types and MUST NOT
+      substitute one for another at any API boundary or in the persistence layer.
     rationale: >-
       How this codebase meets CM-05-001; split from it so CM-05-001 states only what other
-      participants observe (MS-12-010).
+      participants observe (MS-12-010). CaseActor is not in this list: it is at most a
+      convenience preset for an ordinary actor holding the CASE_MANAGER role, not a distinct
+      type (#4605).
     verification: >-
       Static analysis (mypy) confirms that `VulnerabilityReport`, `VulnerabilityCase`,
-      `VulnerabilityRecord`, `CaseReference`, `CaseActor`, `CaseParticipant`, and
-      `ParticipantStatus` are declared as distinct types that no typed signature accepts in
-      place of one another, and `test/core/models/test_distinct_domain_types.py` confirms
-      that each type's serialized form is refused when parsed as any of the other six.
+      `VulnerabilityRecord`, `CaseReference`, `CaseParticipant`, and `ParticipantStatus` are
+      declared as distinct types that no typed signature accepts in place of one another,
+      and `test/core/models/test_distinct_domain_types.py` confirms that each type's
+      serialized form is refused when parsed as any of the others.
     relationships:
     - rel_type: implements
       spec_id: CM-05-001

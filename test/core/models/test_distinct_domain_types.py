@@ -11,11 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The seven CVD domain object types are not interchangeable (CM-05-001).
+"""The six CVD domain object types are not interchangeable (CM-05-001).
 
 Each type's serialized form validates as itself and is refused as every
 other, so a message that carries one where another is expected fails to
-parse instead of being read as the wrong object.
+parse instead of being read as the wrong object.  ``CaseActor`` is checked
+too, though neither CM-05-001 nor CM-05-013 claims it as a distinct type:
+it is an ordinary actor holding the CASE_MANAGER role (#4605).
 """
 
 from itertools import permutations
