@@ -5025,6 +5025,43 @@ groups:
     stories:
     - story_2022_014
     - story_2022_027
+  - id: CM-28-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST expire every `INVITED` consent row of the case whose RSVP deadline
+      has passed, each through the CM-28-009 expiry entry and its `TIME_OUT` effect, before it
+      commits the case owner's decision on an embargo proposal (MSM-07-008, MSM-07-009) and
+      whenever it processes any other received embargo activity for the case. The sweep MUST run
+      only after the activity's sender gate admits it (HP-01-006), so a refused activity writes
+      nothing, and it applies equally when the owner's own trigger runs on the actor that holds
+      `CVDRole.CASE_MANAGER` (EP-09-008).
+    rationale: >-
+      Expiry evaluated only on a late `Accept` and at owner close (CM-23-014) never records an
+      invitee that does not answer: its row stays `INVITED` until the case closes, so the case
+      owner, who learns of a timeout from the expiry entry's fan-out (MSM-07-007), decides on
+      the embargo without knowing about it (EP-09-006). The owner's decision is the moment the
+      timeout matters, and embargo activities are the acts that read the consent rows (CM-28-007),
+      so sweeping there keeps expiry lazy and needs no scheduler (CM-28-008).
+    verification: >-
+      A test lets an invitation pass its deadline unanswered, delivers the owner's
+      `Accept(EmbargoEvent, target=Case)` to the CASE_MANAGER and asserts the
+      `invite_to_embargo_on_case_expired` entry is committed before the activation entry and the
+      invitee's row reads `TIMED_OUT`; a test delivers the same activity from a non-owner and
+      asserts no expiry entry is committed; a test asserts a row whose deadline has not passed
+      stays `INVITED`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-007
+    - rel_type: depends_on
+      spec_id: CM-28-009
+    - rel_type: depends_on
+      spec_id: CM-28-014
+    adr:
+    - ADR-0118
+    stories:
+    - story_2022_014
+    - story_2022_027
 
 - id: CM-27
   title: Case Collection Mutation Discipline

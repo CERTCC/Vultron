@@ -6,7 +6,8 @@ description: >
   Rules for per-participant embargo consent, recorded as one row per
   (participant, embargo register entry): which writes create and move rows,
   what is derived rather than stored, why only the CASE_MANAGER sets consent,
-  pocket veto and RSVP deadlines, late accepts, and the content gate.
+  pocket veto and RSVP deadlines, the expiry sweep before an owner decision,
+  how the owner learns of a decline or timeout, late accepts, and the content gate.
 related_specs:
   - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
@@ -306,6 +307,23 @@ commit leaves the row `INVITED`. A non-manager writes nothing and gets `REFUSED`
 from the gate. Replicas replay each entry through the same service method the
 manager used (`honour_late_accept()`, `record_invite_expiry()`), reading no
 clock: a replica learns an expiry and never computes one.
+
+### Sweep due expiries before the owner decides (CM-28-015)
+
+An invitee that never answers sends nothing, so a late-`Accept` check never sees
+it: its row stays `INVITED` until owner close expires it (CM-23-014). The
+CASE_MANAGER therefore expires every overdue `INVITED` row of the case before it
+commits the owner's decision, and on every other received embargo activity, after
+the sender gate (CM-28-015). Reuse the owner-close settle step's commit → effect
+pair, filtered to rows past their deadline, rather than writing a second expiry
+path (`create_commit_and_record_expiry_tree`).
+
+### The ledger fan-out is the owner's notification (MSM-07-007)
+
+The owner learns of a `DECLINED` or `TIMED_OUT` answer from the entry's
+`Announce(CaseLedgerEntry)`: it is an active participant, so
+`ledger_entry_recipients` always includes it. Do not add a separate notification
+activity: it would duplicate the announcement, which EP-09-009 forbids (#4548).
 
 ### Clamp, don't reject (EP-07-002, EP-07-003)
 

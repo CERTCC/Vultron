@@ -971,13 +971,17 @@ groups:
       change itself. A lapse has no timer path (CM-18-002): a lapsed participant is re-invited, and
       the deadline attaches to that invitation. The CASE_MANAGER MUST author a case-ledger entry
       recording the expiry (CM-28-005) so the consent change is visible in the canonical ledger, but
-      no additional protocol wire activity is required.
+      no additional protocol wire activity is required. The case owner learns of the expiry, as of
+      an explicit refusal (MSM-07-004), from that entry's `Announce(CaseLedgerEntry)` fan-out; no
+      separate notification activity is sent to the owner.
     rationale: >-
       Inaction cannot produce an outbound message because there is no actor-observable event to
       report. The expiry is a derived conclusion from (the row's rsvp_deadline, now); the ledger entry
       is the record of that conclusion, not a message sent by the silent participant. Requiring a
       wire message would demand the system speak on behalf of a participant who has said nothing,
-      which contradicts the Actor Knowledge Model (AKM).
+      which contradicts the Actor Knowledge Model (AKM). The owner is an active participant, so the
+      fan-out already reaches it; a second message for the same entry would be the acknowledgement
+      EP-09-009 forbids.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms detect_and_apply_expiry()
       applies PEC_Trigger.TIME_OUT without emitting an outbound wire activity, that a
