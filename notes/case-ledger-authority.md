@@ -319,11 +319,11 @@ what changed, so a retry hands back the first sealed body (ID-04-004).
   `log_index` and breaks "`log_index` order is causal order".
 - **Every creation entry is required.** The first entry that fails to commit
   stops the sequence and the node returns FAILURE, so no later entry lands out
-  of order (CLP-07-013, #4442). On the proposal path the node runs after the
-  `Create` is queued (CM-14-011, CP-09-009), so the failure is surfaced, not
-  prevented. The trigger path commits before it queues the `Create` (the creator
-  is the only participant, so nothing fans out), and a failed genesis withdraws
-  the case.
+  of order (CLP-07-013, #4442). On both paths the node runs after the `Create`
+  is queued (CM-14-011, CP-09-009, SYNC-09-002), so the failure is surfaced, not
+  prevented. Only the trigger path can undo a failed genesis: it withdraws the
+  still-pending `Create` from the outbox (`outbox_withdraw`) and the case with it,
+  and keeps the case once delivery has taken the `Create`.
 - **Step 4 names the vendor** because the vendor set the genesis status.
   `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so
   single-actor deployments (vendor is the CASE_MANAGER) validate too. That

@@ -2215,7 +2215,7 @@ groups:
       When the CASE_MANAGER re-invites a late accepter to the case's current
       embargo (EMB-17-003), it MUST commit the fresh `Invite(EmbargoEvent)` as a
       distinct ledger entry of event type `invite_to_embargo_on_case_reinvite`
-      before it queues the Invite, and a replica MUST replay the entry by
+      once it has queued the Invite (SYNC-09-002), and a replica MUST replay the entry by
       applying the invitee's PEC `INVITE` and recording the Invite's `endTime`
       as its RSVP deadline, without moving EM state (CM-28-013, RSH-08-004).
     rationale: >-

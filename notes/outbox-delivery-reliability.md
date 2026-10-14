@@ -7,8 +7,9 @@ description: >
   per-recipient lanes under a per-actor drain lock, batch interruption, store
   sessions under concurrent delivery, retry budgets that must stay finite,
   immediate dead-lettering of a refused sealed body (OX-13-013),
-  request-derived ids for responses, and the outbox-id idempotency check
-  (OX-06-002).
+  request-derived ids for responses, the outbox-id idempotency check
+  (OX-06-002), and why the send-then-commit order (SYNC-09-002) makes a derived
+  id mandatory for a send a retry can rebuild.
 related_specs:
   - specs/outbox.yaml
   - specs/sync-ledger-replication.yaml
@@ -145,6 +146,13 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
   append, so queue the same id and body again and let the receiver deduplicate
   (ID-04-005); skipping on "sealed" alone loses the response after a crash between the
   two writes. `requeue_if_sealed` in `vultron/adapters/outbox_sealed_body.py` does both.
+- A sent act is committed after its outbox write (SYNC-09-002, ADR-0119), so the
+  outbox is the only thing that stops a retry sending it again. A retry that rebuilds
+  the activity under a fresh id defeats it: any emit node whose tree can run again
+  after its commit failed — a redelivered request, a resumed tree, a level-triggered
+  node — MUST derive the id. A node that cannot tell from the store that its send
+  is unrecorded (the stub re-issue reads stored Invites) must look for the sent,
+  unrecorded activity itself and commit it (`ReissueStubInvitesNode`).
 - Call `outbox_append` and read its result; never test `id in outbox_list()` first.
   The append itself leaves a pending id alone (OX-06-002), atomically, and returns
   `False`. It only sees what is pending: a delivered id is queued again.

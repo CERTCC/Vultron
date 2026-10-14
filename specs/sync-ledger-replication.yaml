@@ -408,11 +408,32 @@ groups:
   - id: SYNC-09-002
     priority: MUST
     kind: protocol
-    statement: External Vultron messages (activities sent to Participant Actors or other protocol participants) MUST only
-      be emitted after the associated `CaseLedgerEntry` is committed
+    statement: >-
+      A node MUST commit the `CaseLedgerEntry` that records a Vultron message it
+      sends only after the message has been written to its own outbox, and MUST NOT
+      commit it before that write. `Announce(CaseLedgerEntry)` is the one message
+      sent after its commit: it delivers a committed entry, and is not an act the
+      ledger records.
+    rationale: >-
+      A ledger entry records a completed act, and a send is complete once the
+      message is in the sender's outbox, whose delivery and retries are the
+      outbox's job. An entry committed before the send records an intention that
+      may never become true, and committing first put fan-out ahead of the
+      `Create(VulnerabilityCase)` it referred to (#3033, #2898). A retry after a
+      send whose commit failed must not send twice; the outbox, not the ledger,
+      prevents that (OX-06-002).
     verification: >-
-      Integration tests in `test/demo/` confirm that outbound protocol activities are
-      only emitted after the corresponding CaseLedgerEntry is confirmed as committed.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`,
+      `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_the_full_case_invite_is_recorded_after_the_accepts_entries`,
+      `test/core/behaviors/embargo/nodes/test_relay.py::TestRelayEmbargoInviteToEachNode::test_each_invite_is_queued_before_it_is_committed`,
+      `test/core/use_cases/triggers/embargo/test_terminate.py::test_manager_teardown_is_queued_before_it_is_committed`,
+      `test/core/use_cases/triggers/case/test_create.py::TestCreateCaseTriggerLedger::test_the_create_is_queued_before_the_creation_entries`
+      and
+      `test/core/behaviors/case/nodes/test_delegation.py::TestAutoAcceptIsSentThenRecorded`
+      record each outbox write and each commit in order and assert that every sent
+      activity is queued before the entry recording it.
+    adr:
+    - ADR-0119
     stories:
     - story_2022_045
     - story_2022_081

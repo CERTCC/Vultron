@@ -287,15 +287,27 @@ groups:
       - id: SBT-04-004
         priority: MUST
         kind: project
-        verification_debt: '#2574'
         statement: >-
           Fan-out MUST only occur after the log entry is durably persisted
-          (committed). External activities MUST NOT be emitted before the
-          associated CaseLedgerEntry is committed.
+          (committed). An emit node whose activity the ledger records MUST
+          append the activity to the outbox before it runs the commit tree
+          that records it, and MUST NOT run that commit first.
+        rationale: >-
+          The fan-out is the record's delivery, so it follows the record; the
+          activity the record describes is the act, so it precedes it
+          (ADR-0119).
+        verification: >-
+          `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+          observes the ledger at the Invite's outbox append and asserts no
+          entry for it is committed yet;
+          `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`
+          asserts the queue write precedes the entry.
+        adr:
+          - ADR-0119
         relationships:
           - rel_type: implements
             spec_id: SYNC-09-002
-            note: Emit-after-commit invariant
+            note: Send-then-commit order (ADR-0119)
 
   - id: SBT-05
     title: Port Injection via Blackboard
