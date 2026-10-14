@@ -17,6 +17,7 @@ related_notes:
   - notes/lint-tooling.md
   - notes/case-bootstrap-trust.md
   - notes/structured-logging.md
+  - notes/demo-scenario-authoring.md
 related_specs:
   - specs/tech-stack.yaml
 ---
