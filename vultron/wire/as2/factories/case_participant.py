@@ -35,7 +35,6 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,
     _AddStatusToParticipantActivity,
     _CreateParticipantActivity,
-    _CreateStatusForParticipantActivity,
     _RemoveParticipantFromCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -88,40 +87,6 @@ def create_participant_activity(
         )
         raise VultronActivityConstructionError(
             "create_participant_activity: invalid arguments"
-        ) from exc
-
-
-def create_status_for_participant_activity(
-    status: as_ParticipantStatus,
-    target: as_CaseParticipantRef | None = None,
-    **kwargs,
-) -> as_Create:
-    """Build a Create(as_ParticipantStatus, target=as_CaseParticipant).
-
-    Args:
-        status: The ``as_ParticipantStatus`` being created.
-        target: The ``as_CaseParticipant`` (or its URI) for whom the
-            status is being created.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
-
-    Returns:
-        An ``as_Create`` whose ``object_`` is the status.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    try:
-        return _CreateStatusForParticipantActivity(
-            object_=status, target=case_target_ref(target), **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "create_status_for_participant_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "create_status_for_participant_activity: invalid arguments"
         ) from exc
 
 

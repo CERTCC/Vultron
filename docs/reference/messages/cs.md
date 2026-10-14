@@ -22,13 +22,14 @@ dimensions in multi-party CVD; those dimensions are always participant-specific
 (ADR-0075). `vf_state` and `d_state` are absent for participants that are neither
 Vendor nor Deployer.
 
+The `Add` carries the new status object inline.
+This implementation does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)` ahead of the `Add`.
+An inbox refuses either one as an unrecognized activity and changes nothing.
+Whether the protocol should support that separate `Create` is an [open question](../../topics/future_work/open_questions.md).
+
 ## Occasions
 
 {% include-markdown "./_occasions/lookup-cs.md" %}
-
-{% include-markdown "./_occasions/sections/create-case-status.md" %}
-
-- **Triggering transition:** none (object construction).
 
 {% include-markdown "./_occasions/sections/public-awareness.md" %}
 
@@ -41,10 +42,6 @@ Vendor nor Deployer.
 {% include-markdown "./_occasions/sections/attacks-observed.md" %}
 
 - **Triggering transition:** a → A (case-scoped).
-
-{% include-markdown "./_occasions/sections/create-participant-status.md" %}
-
-- **Triggering transition:** none (object construction).
 
 {% include-markdown "./_occasions/sections/vendor-awareness.md" %}
 

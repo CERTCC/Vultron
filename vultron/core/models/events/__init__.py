@@ -52,7 +52,6 @@ from vultron.core.models.events.case_context import (
 )
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
-    CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.models.events.case_proposal import (
@@ -64,7 +63,6 @@ from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
-    CreateEmbargoEventReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
@@ -89,8 +87,6 @@ from vultron.core.models.events.report import (
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
-    CreateCaseStatusReceivedEvent,
-    CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
@@ -144,13 +140,11 @@ AnyReceivedEvent = (
     | RejectCaseProposalReceivedEvent
     |
     # case_participant
-    CreateCaseParticipantReceivedEvent
-    | AddCaseParticipantToCaseReceivedEvent
+    AddCaseParticipantToCaseReceivedEvent
     | RemoveCaseParticipantFromCaseReceivedEvent
     |
     # embargo
-    CreateEmbargoEventReceivedEvent
-    | ActivateEmbargoOnCaseReceivedEvent
+    ActivateEmbargoOnCaseReceivedEvent
     | RejectEmbargoProposalOnCaseReceivedEvent
     | RemoveEmbargoEventFromCaseReceivedEvent
     | AnnounceEmbargoEventToCaseReceivedEvent
@@ -164,9 +158,7 @@ AnyReceivedEvent = (
     | RemoveNoteFromCaseReceivedEvent
     |
     # status
-    CreateCaseStatusReceivedEvent
-    | AddCaseStatusToCaseReceivedEvent
-    | CreateParticipantStatusReceivedEvent
+    AddCaseStatusToCaseReceivedEvent
     | AddParticipantStatusToParticipantReceivedEvent
     |
     # sync
@@ -227,11 +219,9 @@ __all__ = [
     "AcceptCaseProposalReceivedEvent",
     "RejectCaseProposalReceivedEvent",
     # case_participant
-    "CreateCaseParticipantReceivedEvent",
     "AddCaseParticipantToCaseReceivedEvent",
     "RemoveCaseParticipantFromCaseReceivedEvent",
     # embargo
-    "CreateEmbargoEventReceivedEvent",
     "ActivateEmbargoOnCaseReceivedEvent",
     "RejectEmbargoProposalOnCaseReceivedEvent",
     "RemoveEmbargoEventFromCaseReceivedEvent",
@@ -244,9 +234,7 @@ __all__ = [
     "AddNoteToCaseReceivedEvent",
     "RemoveNoteFromCaseReceivedEvent",
     # status
-    "CreateCaseStatusReceivedEvent",
     "AddCaseStatusToCaseReceivedEvent",
-    "CreateParticipantStatusReceivedEvent",
     "AddParticipantStatusToParticipantReceivedEvent",
     # unknown
     "UnknownReceivedEvent",

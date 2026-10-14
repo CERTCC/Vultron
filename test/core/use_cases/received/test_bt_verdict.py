@@ -177,7 +177,7 @@ def test_find_named_locates_a_composite_by_name():
 
 
 def test_applied_or_raise_raises_on_any_failure():
-    """A store-only tree's failure is a local fault, never a refusal."""
+    """An intake-only tree's failure is a local fault, never a refusal."""
     tree = _ran(_Fixed("Store", Status.FAILURE, "write failed"))
     with pytest.raises(VultronBTInternalError, match="write failed"):
         applied_or_raise(
