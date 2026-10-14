@@ -52,7 +52,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.models.events import (
     is_case_bootstrap,
     resolve_case_context_id,
@@ -122,7 +122,8 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
                 KEY_OUTCOME_STATUS: f"/{KEY_OUTCOME_STATUS}",
                 KEY_FAILURE_REASON: f"/{KEY_FAILURE_REASON}",
                 **self._domain_port_remappings(),
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def _record_outcome(

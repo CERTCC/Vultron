@@ -72,7 +72,7 @@ from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.publication import (
@@ -147,7 +147,8 @@ class _NeedsRevisionGate(BehaviourWithPorts):
     def setup(self, **kwargs: Any) -> None:
         """Wire input port to the shared review-decision blackboard key."""
         self.setup_ports(
-            port_remappings={REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"}
+            port_remappings={REVIEW_DECISION_KEY: f"/{REVIEW_DECISION_KEY}"},
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:
