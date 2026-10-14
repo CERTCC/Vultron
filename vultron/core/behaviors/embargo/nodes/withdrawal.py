@@ -35,9 +35,6 @@ Each check calls the shared predicates in
 refusal also calls, so the guard and the write cannot drift.
 """
 
-from collections.abc import Callable
-from typing import ClassVar
-
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -66,12 +63,6 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
-#: A shared refusal predicate: ``(persistence, case, actor_id, embargo_id)``
-#: to the refusal reason, or ``None`` when the message is admitted.
-_RefusalPredicate = Callable[
-    [CasePersistence, VulnerabilityCase, str, str], "str | None"
-]
-
 
 class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):
     """Shared frame of the two read-only refusal guards in this module.
@@ -84,8 +75,6 @@ class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):
     commit (CLP-10-009): a message the effect would refuse is never committed,
     and no replica is sent an entry it cannot replay (SYNC-12-001).
     """
-
-    _refusal: ClassVar[_RefusalPredicate]
 
     def __init__(
         self,
@@ -108,14 +97,18 @@ class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        refusal = type(self)._refusal(
-            self.datalayer, case, self.subject_actor_id, self.embargo_id
-        )
+        refusal = self._refusal(self.datalayer, case)
         if refusal is None:
             return Status.SUCCESS
         self.feedback_message = refusal
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+    def _refusal(
+        self, datalayer: CasePersistence, case: VulnerabilityCase
+    ) -> str | None:
+        """The shared predicate's refusal reason, or ``None``."""
+        raise NotImplementedError
 
 
 class IsWithdrawableEmbargoNode(_EmbargoRefusalGuardNode):
@@ -126,7 +119,12 @@ class IsWithdrawableEmbargoNode(_EmbargoRefusalGuardNode):
     (MSM-07-010).
     """
 
-    _refusal = staticmethod(embargo_withdrawal_refusal)
+    def _refusal(
+        self, datalayer: CasePersistence, case: VulnerabilityCase
+    ) -> str | None:
+        return embargo_withdrawal_refusal(
+            datalayer, case, self.subject_actor_id, self.embargo_id
+        )
 
     def __init__(
         self,
@@ -147,7 +145,12 @@ class RejectIsNotWithdrawalNode(_EmbargoRefusalGuardNode):
     passes.
     """
 
-    _refusal = staticmethod(reject_is_withdrawal_refusal)
+    def _refusal(
+        self, datalayer: CasePersistence, case: VulnerabilityCase
+    ) -> str | None:
+        return reject_is_withdrawal_refusal(
+            datalayer, case, self.subject_actor_id, self.embargo_id
+        )
 
     def __init__(
         self,
