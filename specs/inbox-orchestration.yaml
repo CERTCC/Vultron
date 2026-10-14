@@ -67,7 +67,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The inbox orchestration module MUST be located at `vultron/core/behaviors/inbox/`.
-    rationale: Placement in core/ satisfies the hexagonal architecture constraint (ADR-0009 Rule 1) and enables the module
+    rationale: Placement in core/ satisfies the hexagonal architecture constraint that core imports no framework
+      (ARCH-01-001, ADR-0009) and enables the module
       to be used by FastAPI, CLI, and test adapters equally.
     tags:
     - code-style
@@ -175,7 +176,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The FastAPI inbox path MUST supply adapter implementations to `process_payload` at construction time.
-    rationale: Policy logic in the router violates ADR-0009 Rule 1 and makes the orchestration untestable without a running
+    rationale: Policy logic in the router binds it to the web framework, against the hexagonal layering that keeps policy in a
+      framework-free core (ARCH-01-001, ADR-0009), and makes the orchestration untestable without a running
       FastAPI app.
     tags:
     - tooling
@@ -191,7 +193,8 @@ groups:
       Activity before the HTTP 202 is returned (and before the background task is scheduled) MAY
       live at the route level when synchronous refusal is required — see IE-11-001 and ADR-0068.
     rationale: >-
-      Policy in the router violates ADR-0009 Rule 1 and makes the orchestration untestable without
+      Policy in the router binds it to the web framework, against the hexagonal layering that keeps
+      policy in a framework-free core (ARCH-01-001, ADR-0009), and makes the orchestration untestable without
       a running FastAPI app. The narrow exception for synchronous pre-202 guards exists because such
       guards must act before the background task is scheduled, which requires route-level placement.
       ADR-0068 documents this tradeoff.
