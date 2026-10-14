@@ -29,6 +29,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -143,4 +147,42 @@ class TestSenderIsActiveParticipantNode:
             case_id="https://example.org/cases/nonexistent",
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+@pytest.fixture
+def closed_sender_dl(populated_dl):
+    """The vendor's closure recorded: its RM is ``CLOSED`` (CM-23-001)."""
+    closed = CaseParticipant(
+        id_=PARTICIPANT_ID,
+        context=CASE_ID,
+        attributed_to=ACTOR_ID,
+        participant_statuses=[
+            ParticipantStatus(
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        ],
+    )
+    populated_dl.save(closed)
+    return populated_dl
+
+
+class TestClosedSenderRefused:
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CM-23-018: the active-participant sender guard accepts a"
+        " sender at RM CLOSED. Tracked by #4615.",
+    )
+    @pytest.mark.spec("CM-23-018")
+    def test_closed_sender_fails(self, closed_sender_dl):
+        node = SenderIsActiveParticipantNode(
+            status_id=STATUS_ID,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = BTBridge(datalayer=closed_sender_dl).execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
         assert result.status == Status.FAILURE
