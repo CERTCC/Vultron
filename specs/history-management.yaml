@@ -425,7 +425,7 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Skill documentation (`ingest-idea`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
+    statement: Skill documentation (`plan-issue`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
       interface for `append-history`. The frontmatter-in-stdin pattern MUST NOT be used.
 - id: HM-08
   title: GitHub Comment Output Mode

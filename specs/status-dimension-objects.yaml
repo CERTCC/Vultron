@@ -1,7 +1,7 @@
 id: SDO
 title: Status Dimension Objects
 description: Normative requirements for per-machine dimension objects decomposed from CaseStatus and ParticipantStatus. Each
-  independent state machine (EM, PXA, RM, VFD, PEC) is represented by a lightweight Pydantic BaseModel that holds its state
+  independent state machine (EM, PXA, RM, VF, D) is represented by a lightweight Pydantic BaseModel that holds its state
   enum and owns immutable transition() validation and guard methods.
 scope:
 - prototype
@@ -17,7 +17,7 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Each status dimension (EM, PXA, RM, VFD) MUST be implemented as a lightweight Pydantic BaseModel subclass
+    statement: Each status dimension (EM, PXA, RM, VF, D) MUST be implemented as a lightweight Pydantic BaseModel subclass
       (not a CoreObject subclass) that holds exactly one state enum field and, except EM, owns the transition validation and
       guard methods for that machine. EM has no transitions of its own, and `EmDimension` holds the copy of the EM state that the
       case derives from its embargo register (ADR-0122).
@@ -25,6 +25,7 @@ groups:
       registration or AS2 id_. See ADR-0036.
     adr:
     - ADR-0036
+    - ADR-0075
     - ADR-0122
   - id: SDO-01-002
     priority: MUST_NOT
@@ -170,7 +171,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'ParticipantStatus MUST carry its participant-level state as embedded dimension object fields, not flat
-      enum fields: a required rm: RmDimension, an optional vf: VfDimension (present for a VENDOR participant) and an
+      enum fields: an always-present rm: RmDimension, an optional vf: VfDimension (present for a VENDOR participant) and an
       optional d: DDimension (present for a DEPLOYER participant); a participant with both roles carries both. It carries
       no embargo consent (CM-18-001, ADR-0122).'
     rationale: Same rationale as SDO-03-001. VF and D are separate machines (ADR-0075), and each applies only to the
