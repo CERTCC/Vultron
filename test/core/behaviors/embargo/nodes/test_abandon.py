@@ -33,7 +33,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
 from test.support.embargo_register import propose, write_consent_rows
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_event_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -277,6 +277,120 @@ def test_an_unreadable_invite_fails_before_anything_moves():
     assert updated.proposed_embargo_ids == list(proposals)
     assert committed_event_types(dl, case.id_) == []
     assert _queued(dl) == []
+
+
+def _fail_commits_after(monkeypatch: pytest.MonkeyPatch, allowed: int) -> None:
+    """Let the first *allowed* abandonment commits through, then fail each.
+
+    The stand-in is the commit tree itself, so the real
+    ``commit_emitted_activity`` sees a failed commit and raises.
+    """
+    from vultron.core.behaviors.sync import commit_tree
+
+    fail_commits(
+        monkeypatch,
+        commit_tree,
+        allowed=allowed,
+        when=lambda kw: kw.get("event_type") == EMBARGO_ABANDONMENT_EVENT_TYPE,
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("EMB-16-001")
+def test_a_failed_commit_leaves_the_case_unchanged(monkeypatch):
+    """AC-3: no ER commits, so no proposal is cancelled (#4442)."""
+    case, dl, proposals = _proposed_case("abandon-commit-fails")
+    before = cast(VulnerabilityCase, dl.read(case.id_)).model_dump(mode="json")
+    _fail_commits_after(monkeypatch, allowed=0)
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.model_dump(mode="json") == before
+    assert updated.current_status.em.state == EM.PROPOSED
+    assert updated.proposed_embargo_ids == list(proposals)
+    assert _abandonment_entries(dl, case.id_) == []
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("EP-09-007")
+def test_a_later_failed_commit_keeps_only_the_committed_cancels(monkeypatch):
+    """The first ER commits and its proposal is cancelled; the second stays.
+
+    The CASE_MANAGER then holds exactly what a replica that replayed the one
+    committed entry holds.
+    """
+    case, dl, proposals = _proposed_case("abandon-second-fails")
+    first, second = proposals
+    _fail_commits_after(monkeypatch, allowed=1)
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.proposed_embargo_ids == [second]
+    assert updated.current_status.em.state == EM.PROPOSED
+    (entry,) = _abandonment_entries(dl, case.id_)
+    assert entry.payload_snapshot["object"]["id"] == proposals[first]
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("EMB-18-001")
+def test_a_cancel_the_register_refuses_commits_no_entry(monkeypatch):
+    """The pre-check runs the register's own rule, not a copy of it.
+
+    A register that would refuse the second proposal's cancel step refuses
+    it before the first ER is committed, so no entry records an abandonment
+    the case never applies (CLP-07-013).
+    """
+    from vultron.errors import VultronInvalidStateTransitionError
+
+    case, dl, proposals = _proposed_case("abandon-register-refuses")
+    _first, second = proposals
+    before = cast(VulnerabilityCase, dl.read(case.id_)).model_dump(mode="json")
+    original = VulnerabilityCase.apply_embargo_register_step
+
+    def _refuse_second(self, changes, **kwargs):
+        if any(change.embargo_id == second for change in changes):
+            raise VultronInvalidStateTransitionError("simulated refusal")
+        return original(self, changes, **kwargs)
+
+    monkeypatch.setattr(
+        VulnerabilityCase, "apply_embargo_register_step", _refuse_second
+    )
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
+
+    assert _abandonment_entries(dl, case.id_) == []
+    assert (
+        cast(VulnerabilityCase, dl.read(case.id_)).model_dump(mode="json")
+        == before
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_each_cancel_follows_its_own_entry():
+    """Commit, then write, per proposal: the ledger holds each ER before the
+    cancel it records is in the case (CLP-07-013)."""
+    from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+
+    case, dl, _proposals = _proposed_case("abandon-order", days=(60, 15, 30))
+    order: list[tuple[str, object]] = []
+    original = EmbargoLifecycle.abandon_embargo_proposals
+
+    def _spy(self, **kwargs):
+        order.append(
+            ("cancel", len(_abandonment_entries(dl, kwargs["case_id"])))
+        )
+        return original(self, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(EmbargoLifecycle, "abandon_embargo_proposals", _spy)
+        assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
+
+    assert order == [("cancel", 1), ("cancel", 2), ("cancel", 3)]
+    assert (
+        cast(VulnerabilityCase, dl.read(case.id_)).proposed_embargo_ids == []
+    )
 
 
 def _drop(dl: SqliteDataLayer, obj_id: str) -> None:

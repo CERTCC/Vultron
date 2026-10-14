@@ -535,8 +535,7 @@ groups:
       satisfies perfectly while propagating a false statement to a second location with more
       authority than it had in the first. Such a defect is invisible in the source context and
       becomes falsifiable only once it is read as a first-class assertion in the destination. Two
-      sessions confirmed the mechanism (#3002 under `docs/`, #3342 over `specs/`); witnesses and
-      defect detail in `notes/documentation-sweeps.md`.
+      sessions confirmed the mechanism (#3002 under `docs/`, #3342 over `specs/`).
     verification: >-
       For any diff that adds a block to a `docs/` page which appears verbatim or near-verbatim
       elsewhere under `docs/` (or removes it from another page in the same change), each claim in
@@ -630,8 +629,7 @@ groups:
     rationale: >-
       The working record is a different kind of content, not a greater depth of the same
       content. It is also the bulk of the navigated site, which is what makes the tree read as
-      accretion; for the measured proportions see the dated baseline in
-      `notes/site-information-architecture.md`. Research pages are *not* working record — they
+      accretion. Research pages are *not* working record — they
       are reader-facing material for `process-researcher` and do carry a level (ADR-0102) — so
       they are outside this requirement. User stories are working record because each one
       records a requirement the implementation was traced against, read when a question
@@ -707,7 +705,8 @@ groups:
       completeness, which is derivable and therefore checked — the split DEMOCI-11-007
       already makes between what is generated and what is checked. The declaration is
       required rather than defaulted so a sub-section cannot be left undecided by omission.
-      The per-page decisions and their reasons are in `notes/site-information-architecture.md`.
+      Each index's decision is its `contents:` frontmatter, pinned by
+      `test/metadata/docs/test_site_sync.py`.
     verification: >-
       The generator's `--check` mode (`uv run docs-site --check`) runs as a pre-commit hook
       and in CI, failing when a generated landing page differs from what frontmatter
@@ -734,8 +733,7 @@ groups:
       navigation and reaches it through `traceability.md`. The same navigation
       meanwhile enumerates the decision records, the case states and the generated
       code pages inline. Same shape of content, opposite treatment; the routing-
-      page treatment is the one to generalize. Measured sizes: `notes/site-
-      information-architecture.md`.
+      page treatment is the one to generalize.
     verification: >-
       Inspection of `mkdocs.yml` confirms large sibling leaf sets appear as a single group
       entry, and that a routing page links every member so no page becomes unreachable.

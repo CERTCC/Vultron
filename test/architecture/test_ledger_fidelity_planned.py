@@ -15,9 +15,9 @@
 Every change the CASE_MANAGER makes to the case file is its own ledger entry,
 and replicas copy the entries (ADR-0124, CLP-07-013).  Strict-``xfail`` tests
 for the requirements the plan added or reworded before the code that satisfies
-them exists.  Each flips to passing once the issue named in its reason lands;
-see ``notes/spec-authoring-rules.md`` § "Never Raise the Ceiling — Use a
-Strict ``xfail``".
+them exists.  Each strict xfail fails once the issue named in its reason
+lands, prompting its removal; see ``notes/spec-authoring-rules.md`` § "Use a Strict ``xfail`` for
+Not-Yet-Implemented Specs".
 """
 
 import pytest

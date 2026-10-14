@@ -36,6 +36,7 @@ related_notes:
   - notes/outbox-delivery-reliability.md
   - notes/participant-case-replica.md
   - notes/demo-ci-diagnostics.md
+  - notes/rfc-review-rubric.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
@@ -316,10 +317,13 @@ what changed, so a retry hands back the first sealed body (ID-04-004).
   default embargo is set before PEC state is fixed, so the single snapshot already
   carries the true consent value. A second entry shifts every downstream
   `log_index` and breaks "`log_index` order is causal order".
-- **Fail fast on genesis, best-effort after.** If step 1 fails, the node returns
-  FAILURE and the handler or trigger reports it. The node runs after the `Create`
-  is queued (CM-14-011, CP-09-009), so the failure is surfaced, not prevented.
-  Steps 2–4 warn and continue.
+- **Every creation entry is required.** The first entry that fails to commit
+  stops the sequence and the node returns FAILURE, so no later entry lands out
+  of order (CLP-07-013, #4442). On the proposal path the node runs after the
+  `Create` is queued (CM-14-011, CP-09-009), so the failure is surfaced, not
+  prevented. The trigger path commits before it queues the `Create` (the creator
+  is the only participant, so nothing fans out), and a failed genesis withdraws
+  the case.
 - **Step 4 names the vendor** because the vendor set the genesis status.
   `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so
   single-actor deployments (vendor is the CASE_MANAGER) validate too. That

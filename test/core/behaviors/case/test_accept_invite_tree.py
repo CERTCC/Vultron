@@ -43,7 +43,12 @@ from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.use_cases.received.actor.invite import (
+    AcceptInviteActorToCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
+
+_ACCEPT_INVITE_RULE = AcceptInviteActorToCaseReceivedUseCase.sender_entitlement
 
 _ACTOR_ID = "https://example.org/actors/invitee"
 _EMBARGO_ID = "https://example.org/embargoes/embargo-001"
@@ -441,6 +446,7 @@ def test_accept_tree_has_no_participant_creating_node() -> None:
         case_id=_CM21_CASE_ID,
         invitee_id=_CM21_INVITEE_ID,
         invite_id=f"{_CM21_CASE_ID}/invitations/1",
+        sender_rule=_ACCEPT_INVITE_RULE,
     )
     names = {type(n).__name__ for n in tree.iterate()}
     assert "InviteeHasParticipantRecordNode" in names
@@ -471,6 +477,7 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
         case_id="https://example.org/cases/gate",
         invitee_id="https://example.org/actors/invitee",
         invite_id="https://example.org/cases/gate/invitations/1",
+        sender_rule=_ACCEPT_INVITE_RULE,
     )
     gates = [
         n
@@ -537,6 +544,7 @@ def test_case_announce_and_backfill_precede_the_first_committing_effect():
         case_id="https://example.org/cases/order",
         invitee_id="https://example.org/actors/late-joiner",
         invite_id="https://example.org/cases/order/invitations/1",
+        sender_rule=_ACCEPT_INVITE_RULE,
     )
     leaves = [
         type(n)

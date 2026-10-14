@@ -24,13 +24,19 @@ Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, ADR-0051.
 """
 
 import json
-import logging
 from typing import cast
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.case.nodes.participant.rm_closure import (
+    withdraw_closure_steps,
+)
+from vultron.core.behaviors.helpers import (
+    TRIGGER_FACTORY_UNAVAILABLE,
+    DataLayerActionWithPorts,
+)
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -42,12 +48,10 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.roles import has_case_manager_role
-from vultron.errors import VultronBTInternalError
-
-logger = logging.getLogger(__name__)
+from vultron.errors import VultronBTInternalError, VultronWiringError
 
 
-class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
+class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
     """Record each RM closure step a Leave caused, one ledger entry per step.
 
     The advance node just before this one (:class:`~.advance
@@ -101,16 +105,26 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
     already exists for the same object (the status id), and the node no-ops
     when the advance wrote nothing (the actor was already ``RM.CLOSED``).
 
-    **Recording is best-effort** (CM-23-001, AC-5 of #4210).  Every way this
-    node can fail to produce an entry returns SUCCESS with a WARNING rather
-    than FAILURE — see :meth:`_best_effort` for why.  Only the framework regime
-    guards (``_require_datalayer_and_actor``, ``_require_case``) still fail,
-    because a missing store or case fails ``case_fully_closed`` too and there
-    is no closure left to protect.  A nested commit that reports
-    ``internal_error`` is a bug, not a refusal, so it raises
-    :class:`~vultron.errors.VultronBTInternalError` instead of warning.
+    **A step with no committed entry is taken back** (CLP-07-013, CM-23-001).
+    The advance writes each step before this node commits it, the order
+    CLP-07-013 gives a consequence, so a commit that fails leaves a step the
+    ledger lacks.  On every such path the node withdraws each step not yet
+    committed (:func:`~vultron.core.behaviors.case.nodes.participant
+    .rm_closure.withdraw_closure_steps`) and fails: a refused commit returns
+    FAILURE, a missing trigger-activity port raises
+    :class:`~vultron.errors.VultronWiringError`, and a nested commit that
+    reports ``internal_error`` raises
+    :class:`~vultron.errors.VultronBTInternalError`.  Steps already committed
+    stay, because the ledger records them.  The Leave is then not applied:
+    the owner arm stops before ``case_fully_closed``, and a redelivered Leave
+    walks the closure again from the state the ledger records.
 
-    Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, ADR-0051.
+    The commits skip ``CheckLedgerFreshnessNode``, as the ``case_fully_closed``
+    commit does: a gapped local prefix fails that check by design
+    (SYNC-10-001/002), and it must not block case closure (CM-23-002).
+
+    Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, CLP-07-013,
+    ADR-0051.
     """
 
     def __init__(
@@ -134,45 +148,29 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
         self._closing_actor_id = closing_actor_id
         self._case_id = case_id
         self._closure_steps = closure_steps
+        # How many of the closure steps have a committed entry; the steps
+        # after them are the ones a raise part-way must take back.
+        self._steps_committed = 0
 
-    def _best_effort(self, reason: str) -> Status:
-        """Log *reason* as a WARNING and return SUCCESS.
+    def _withdraw(self, participant_id: str, unrecorded: list[str]) -> None:
+        """Take back the *unrecorded* steps and log that they were."""
+        assert self.datalayer is not None
+        withdraw_closure_steps(self.datalayer, participant_id, unrecorded)
+        message = (
+            f"{self.name}: withdrew {len(unrecorded)} RM closure step(s) of"
+            f" '{self._closing_actor_id}' on case '{self._case_id}' that the"
+            " ledger does not record (CLP-07-013)"
+        )
+        self.logger.warning("%s", message)
 
-        Recording an entry must not cost the case its closure (CM-23-001).
-        On owner Leave, CM-23-002 places these entries between the advances
-        (steps 1 and 2) and ``case_fully_closed`` (step 3), and
-        ``create_close_case_received_tree`` runs those as one Sequence — so a
-        FAILURE here skips steps 3 and 4 entirely: the case is never recorded
-        as fully closed and nothing fans out.  It is worse than a plain abort, because the enclosing
-        ``OwnerOrNonOwnerEffects`` Selector reads a failed owner arm as "the
-        sender is not the Case Owner" and succeeds down the non-owner path, so
-        the half-closed case reports SUCCESS with an empty failure reason.
-
-        A missing entry costs the replicas their view of *one* transition, which
-        is ISSUE-2505 in miniature; a missing ``case_fully_closed`` costs every
-        replica the case's write-boundary marker.  The lesser loss wins,
-        loudly.
-        ``_commit_one`` in :mod:`..case_proposal_received_tree` makes the same
-        call for the same event type, reserving hard failure for the
-        load-bearing genesis entry.
-
-        This is also why a gapped local ledger cannot block closure:
-        ``create_commit_log_entry_tree`` opens with ``CheckLedgerFreshnessNode``,
-        which fails by design on a gapped prefix (SYNC-10-001/002) — a condition
-        the protocol tolerates elsewhere and must keep tolerating here.
-
-        Logs through the **module-level** ``logger`` as well as ``self.logger``.
-        ``py_trees.behaviour.Behaviour.logger`` is a ``py_trees.logging.Logger``,
-        which writes to the console directly and never reaches the stdlib
-        ``logging`` tree — so on its own it is invisible to deployment logs and
-        CI artifacts. A silently-dropped entry is exactly what ISSUE-2505 was;
-        best-effort is only defensible if the miss is actually observable.
-        ``_commit_one`` uses the module logger for the same reason.
-        """
+    def _refuse(
+        self, reason: str, participant_id: str, unrecorded: list[str]
+    ) -> Status:
+        """Withdraw the *unrecorded* steps, then report *reason* as FAILURE."""
+        self._withdraw(participant_id, unrecorded)
         self.feedback_message = f"{self.name}: {reason}"
-        logger.warning("%s", self.feedback_message)
         self.logger.warning("%s", self.feedback_message)
-        return Status.SUCCESS
+        return Status.FAILURE
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -190,26 +188,41 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        if self.trigger_activity_factory is None:
-            # The entry's snapshot is the factory-built activity's sealed blob
-            # (VM-08-003), so without the port there is nothing to commit:
-            # skip the entry rather than commit an empty payload.  Loudly:
-            # ISSUE-2505 was masked for months by a silently absent port on
-            # the genesis commit path.
-            #
-            # Deliberately *not* _require_trigger_activity_port(): elsewhere
-            # a missing port is a wiring fault that raises, but this entry
-            # sits inside CM-23-002's closure Sequence, and _best_effort()
-            # explains why losing the entry is the lesser loss.
-            return self._best_effort(
-                "no TriggerActivityPort — cannot build the RM closure"
-                f" Add(ParticipantStatus) activities of"
-                f" '{self._closing_actor_id}', so they are not recorded"
-            )
-
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
+
+        participant_id = case.actor_participant_index.get(
+            self._closing_actor_id
+        )
+        participant = (
+            self.datalayer.read(participant_id) if participant_id else None
+        )
+        if participant_id is None or not isinstance(
+            participant, CaseParticipant
+        ):
+            # The advance found this record to write the steps on, so it
+            # vanishing in between is a fault, not a refusal: there is
+            # nothing left to take the steps back from.
+            raise VultronBTInternalError(
+                f"{self.name}: participant record of closing actor"
+                f" '{self._closing_actor_id}' on case '{self._case_id}' is"
+                f" gone; its {len(self._closure_steps)} closure step(s)"
+                " cannot be recorded or withdrawn"
+            )
+
+        if self.trigger_activity_factory is None:
+            # The entry's snapshot is the factory-built activity's sealed blob
+            # (VM-08-003), so without the port there is nothing to commit.  A
+            # composition fault, not a refusal: the steps are withdrawn and
+            # the fault raised (ARCH-15-001), as
+            # _CommitCaseManagerActivityBase does for the closure itself.
+            self._withdraw(participant_id, list(self._closure_steps))
+            raise VultronWiringError(
+                f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to build the RM"
+                f" closure Add(ParticipantStatus) activities of"
+                f" '{self._closing_actor_id}' on case '{self._case_id}'"
+            )
 
         if not self._receiver_is_case_manager(case):
             # Authority gate (CLP-09-001, BT-17-005/006), which requires every
@@ -226,49 +239,56 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
             # the co-hosted actor, so the guard reports "not foreign" and would
             # let a non-CASE_MANAGER mint a canonical index in its own log.
             #
-            # Quiet SUCCESS, not a warning: a receiver that is not the
-            # CASE_MANAGER has nothing to record here, which is ordinary, not
-            # a miss.
-            self.logger.debug(
-                "%s: receiving actor '%s' is not the CASE_MANAGER for case"
-                " '%s' — no canonical entry to author",
-                self.name,
-                self.actor_id,
-                self._case_id,
+            # The steps the advance wrote have no entry to back them, so they
+            # are withdrawn: an actor that cannot record a closure step does
+            # not keep it (CLP-07-013).
+            return self._refuse(
+                f"receiving actor '{self.actor_id}' is not the CASE_MANAGER"
+                f" for case '{self._case_id}', so it cannot author the RM"
+                f" closure entries of '{self._closing_actor_id}'",
+                participant_id,
+                list(self._closure_steps),
             )
-            return Status.SUCCESS
 
-        return self._record_steps(case)
+        # The sole try/except (BT-HELPER-01): whatever raises part-way
+        # through the commits -- the factory, the snapshot, a nested crash --
+        # every step not yet committed is taken back before the fault
+        # propagates, so no step outlives its missing entry (CLP-07-013).
+        self._steps_committed = 0
+        try:
+            return self._record_steps(participant_id, participant)
+        except Exception:
+            self._withdraw(
+                participant_id,
+                list(self._closure_steps)[self._steps_committed :],
+            )
+            raise
 
-    def _record_steps(self, case: VulnerabilityCase) -> Status:
-        """Commit one entry per closure step, best-effort (CM-23-001)."""
+    def _record_steps(
+        self, participant_id: str, participant: CaseParticipant
+    ) -> Status:
+        """Commit one entry per closure step, withdrawing any that fail.
+
+        A refusal withdraws here; a raise is withdrawn by :meth:`update`,
+        which reads :attr:`_steps_committed`.
+        """
         assert self.datalayer is not None
-        participant_id = case.actor_participant_index.get(
-            self._closing_actor_id
-        )
-        if participant_id is None:
-            return self._best_effort(
-                f"closing actor '{self._closing_actor_id}' not in"
-                f" actor_participant_index for case '{self._case_id}'"
-            )
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return self._best_effort(
-                f"participant '{participant_id}' for closing actor"
-                f" '{self._closing_actor_id}' not found or wrong type"
-            )
-
         recorded: list[str] = []
-        for status_id in self._closure_steps:
+        steps = list(self._closure_steps)
+        for index, status_id in enumerate(steps):
+            unrecorded = steps[index:]
             status = self.datalayer.read(status_id)
             if not isinstance(status, ParticipantStatus):
-                return self._best_effort(
+                return self._refuse(
                     f"closure step '{status_id}' of"
-                    f" '{self._closing_actor_id}' not found or wrong type"
+                    f" '{self._closing_actor_id}' not found or wrong type",
+                    participant_id,
+                    unrecorded,
                 )
             reason = self._commit_status(status, participant)
             if reason is not None:
-                return self._best_effort(reason)
+                return self._refuse(reason, participant_id, unrecorded)
+            self._steps_committed = index + 1
             recorded.append(participant_status_rm_state(status).name)
 
         self.logger.info(
@@ -309,7 +329,7 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
 
         Returns:
             ``None`` once the entry is committed; otherwise the reason it was
-            not, for :meth:`_best_effort`.
+            not, for :meth:`_refuse`.
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
@@ -341,25 +361,26 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
                 object_id=str(status_id),
                 event_type="add_participant_status_to_participant",
                 payload_snapshot=snapshot,
+                # A gapped local prefix must not block case closure
+                # (CM-23-002, SYNC-10-001/002), as for case_fully_closed.
+                check_freshness=False,
             ),
             actor_id=self.actor_id,
         )
         if result.internal_error:
-            # A crash in the nested commit is our fault, not a refusal the
-            # best-effort rule covers: carry the nested bridge's
-            # classification across the hop rather than log it as a WARNING
-            # (CONCERN-3019, #4113; the same idiom as the settle step).
+            # A crash in the nested commit is our fault, not a refusal: carry
+            # the nested bridge's classification across the hop rather than
+            # report it as a refused commit (CONCERN-3019, #4113; the same
+            # idiom as the settle step).
             raise VultronBTInternalError(
                 f"{self.name}: nested commit of the RM.{rm_name} entry of"
                 f" '{self._closing_actor_id}' for case '{self._case_id}'"
                 f" failed: {result.feedback_message}"
             )
         if result.status != Status.SUCCESS:
-            # The reachable one: CheckLedgerFreshnessNode opens the commit tree
-            # and fails on a gapped local prefix by design (SYNC-10-001/002).
             return (
                 f"could not commit the RM.{rm_name} entry of"
-                f" '{self._closing_actor_id}' for case '{self._case_id}'"
-                f" (best-effort): {result.feedback_message}"
+                f" '{self._closing_actor_id}' for case '{self._case_id}':"
+                f" {result.feedback_message}"
             )
         return None

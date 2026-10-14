@@ -68,6 +68,7 @@ from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
     exempt,
 )
 from vultron.core.models.events.case_proposal import (
@@ -351,7 +352,7 @@ class AcceptCaseProposalReceivedUseCase:
 
     # The sender must be the actor the vendor addressed the proposal to,
     # as recorded on the report case link (CP-06-005).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -435,7 +436,7 @@ class RejectCaseProposalReceivedUseCase:
     Spec: CP-06-002, CP-06-004.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.NAMED_ACTOR
     )
 

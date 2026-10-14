@@ -15,6 +15,7 @@ related_notes:
   - notes/wire-core-boundary.md
   - notes/case-joining.md
   - notes/selective-disclosure.md
+  - notes/participant-embargo-consent.md
 relevant_packages:
   - vultron/wire/as2
 ---

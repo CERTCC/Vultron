@@ -27,6 +27,8 @@ related_notes:
   - notes/lifecycle-staged-types.md
   - notes/case-ledger-authority.md
   - notes/sync-ledger-replication.md
+  - notes/documentation-strategy.md
+  - notes/rfc-review-rubric.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management

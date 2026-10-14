@@ -95,7 +95,10 @@ from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
+from vultron.core.behaviors.sender_entitlement import (
+    SenderRule,
+)
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 
 class MaybeSignEmbargoConsentNode(py_trees.composites.Selector):
@@ -150,6 +153,8 @@ def create_accept_invite_actor_to_case_tree(
     case_id: str,
     invitee_id: str,
     invite_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Return the BT for handling an inbound ``Accept(Invite(actor, case))``.
 
@@ -204,6 +209,8 @@ def create_accept_invite_actor_to_case_tree(
             reply's sender).
         invite_id: ID of the recorded stub Invite being accepted; its roles,
             not the reply's embedded copy, become the participant's.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Configured ``Sequence`` ready for execution via
@@ -212,10 +219,12 @@ def create_accept_invite_actor_to_case_tree(
     return create_receive_activity_tree(
         name="AcceptInviteActorToCaseBT",
         case_id=case_id,
-        sender_guard=SenderIsInviteeNode(
-            invite_id=invite_id,
-            sender_actor_id=invitee_id,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=invitee_id,
             case_id=case_id,
+            invite_id=invite_id,
+            invite_is_case_join=True,
         ),
         precondition_guards=[
             CheckInviteeNotAlreadyParticipantNode(

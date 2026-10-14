@@ -24,6 +24,7 @@ related_notes:
   - notes/demo-interactive-ui.md
   - notes/embargo-default-semantics.md
   - notes/testing-pitfalls.md
+  - notes/call-out-configuration.md
 ---
 
 # Configuration Management — Implementation Notes

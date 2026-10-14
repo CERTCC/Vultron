@@ -883,8 +883,8 @@ class TestSiteSync:
         )
 
     def test_committed_generated_pages_are_the_decided_set(self):
-        """The decision table in ``notes/site-information-architecture.md``
-        § "Sub-section index decisions" is what this set pins (#3617)."""
+        """Pins the indexes decided as ``contents: generated`` (#3617); the
+        decision table is archived in ``plan/history/2610/note/``."""
         indexes = discover_section_indexes(repo_root())
         assert {p.path for p in indexes.generated} == {
             "tutorials/index.md",

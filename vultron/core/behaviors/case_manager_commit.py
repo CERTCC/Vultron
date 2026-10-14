@@ -89,14 +89,6 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         """The entry's ``log_object_id``: the activity itself, by default."""
         return activity_id
 
-    def _build_all(self, to: list[str] | None) -> list[tuple[str, str]]:
-        """Return every ``(activity_id, sealed_blob)`` this decision commits.
-
-        One decision is one activity, except an abandonment, which answers
-        every open proposal at once (EMB-16-001) and overrides this.
-        """
-        return [self._build(to)]
-
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -123,27 +115,25 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
             if self._notify_participants
             else []
         )
-        committed = []
-        for activity_id, blob in self._build_all(to or None):
-            # A nested commit inherits the outer execution's ``/sync_port``,
-            # so the entry is announced to every participant replica
-            # (SYNC-02-002).
-            commit_emitted_activity(
-                datalayer=dl,
-                actor_id=actor_id,
-                case_id=self._case_id,
-                activity_id=self._ledger_object_id(activity_id),
-                activity_blob=blob,
-                event_type=self._event_type,
-                check_freshness=self._CHECK_LEDGER_FRESHNESS,
-            )
-            if to:
-                self._emit_through_seam(activity_id, blob)
-            committed.append(activity_id)
-        self.committed_activity_ids = committed
+        # One decision is one activity.
+        activity_id, blob = self._build(to or None)
+        # A nested commit inherits the outer execution's ``/sync_port``, so
+        # the entry is announced to every participant replica (SYNC-02-002).
+        commit_emitted_activity(
+            datalayer=dl,
+            actor_id=actor_id,
+            case_id=self._case_id,
+            activity_id=self._ledger_object_id(activity_id),
+            activity_blob=blob,
+            event_type=self._event_type,
+            check_freshness=self._CHECK_LEDGER_FRESHNESS,
+        )
+        if to:
+            self._emit_through_seam(activity_id, blob)
+        self.committed_activity_ids = [activity_id]
         self.feedback_message = (
             f"CASE_MANAGER committed '{self._event_type}' entry for"
-            f" {', '.join(repr(i) for i in committed)} on case"
+            f" {activity_id!r} on case"
             f" '{self._case_id}' ({len(to)} participant(s) addressed)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)

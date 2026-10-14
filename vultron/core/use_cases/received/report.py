@@ -59,8 +59,8 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
@@ -165,7 +165,7 @@ def _case_id_for_report(
 
 class CreateReportReceivedUseCase:
     # A new report precedes any case, so any actor may send one (HP-01-010).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
         SenderEntitlementKind.ANY_ACTOR
     )
 
@@ -207,7 +207,7 @@ class CreateReportReceivedUseCase:
 class SubmitReportReceivedUseCase:
     # A new report precedes any case, so any actor may send one (HP-01-010);
     # only its addressing is checked (HP-01-005, HP-09-001).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
         SenderEntitlementKind.ANY_ACTOR
     )
 
@@ -274,7 +274,7 @@ class SubmitReportReceivedUseCase:
 class ValidateReportReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
@@ -331,6 +331,7 @@ class ValidateReportReceivedUseCase:
             offer_id=offer_id,
             sender_actor_id=sender_actor_id,
             case_id=case_id,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -366,7 +367,7 @@ class ValidateReportReceivedUseCase:
 class InvalidateReportReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
@@ -425,7 +426,7 @@ class AckReportReceivedUseCase:
     # RK goes from an actor the Offer(Report) was addressed to, to the
     # reporter, which holds the Offer and checks the sender against it; it is
     # never sent to the CASE_MANAGER (RMB-08-003, RMB-08-004).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -468,7 +469,7 @@ class AckReportReceivedUseCase:
 class CloseReportReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
