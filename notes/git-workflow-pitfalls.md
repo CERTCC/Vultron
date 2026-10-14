@@ -13,6 +13,7 @@ related_notes:
   - notes/specs-vs-adrs.md
   - notes/devcontainer-tooling.md
   - notes/flaky-tests.md
+  - notes/ci-workflow-authoring.md
 related_specs:
   - specs/project-documentation.yaml
   - specs/build-workflow.yaml

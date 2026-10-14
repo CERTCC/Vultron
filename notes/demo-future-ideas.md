@@ -42,9 +42,11 @@ related_notes:
 
 Scenarios are named by the sequence of actor roles involved:
 
-- **R** = Reporter (preferred; replaces the older **F** = Finder convention for new scenarios), **V** = Vendor, **C** = Coordinator, **D** = Deployer
+- **R** = Reporter (preferred; replaces the older **F** = Finder convention for
+  new scenarios), **V** = Vendor, **C** = Coordinator, **D** = Deployer
 - Numbers distinguish multiple actors of the same role (V1, V2, C1, C2)
-- Existing scenario names that use **F** (FV, FCV, FCVCV, etc.) are not renamed retroactively; new scenarios use **R**
+- Existing scenario names that use **F** (FV, FCV, FCVCV, etc.) are not renamed
+  retroactively; new scenarios use **R**
 
 ## Planned scenario register
 
@@ -76,11 +78,11 @@ no spec group belong in the sections below.
 
 ## Planned scenarios with no spec group
 
-Nothing below is in either register: none of these has a spec group, so
-DEMOCI-11-010 does not govern them and none has a name in the registry's
-grammar yet. A scenario earns a row in the [planned scenario
-register](#planned-scenario-register) when its spec group is written, and a
-`@scenario` decorator when its demo is.
+Nothing below is in either register. Except for the in-process fuzz row (see
+below the table), none of these has a spec group, so DEMOCI-11-010 does not
+govern them and none has a name in the registry's grammar yet. A scenario earns
+a row in the [planned scenario register](#planned-scenario-register) when its
+spec group is written, and a `@scenario` decorator when its demo is.
 
 | Scenario | Tracking issue | What it would demonstrate | Status |
 |---|---|---|---|

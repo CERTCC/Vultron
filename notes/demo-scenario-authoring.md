@@ -25,6 +25,7 @@ related_notes:
   - notes/case-proposal.md
   - notes/ownership-transfer.md
   - notes/devcontainer-tooling.md
+  - notes/activitystreams-semantics.md
 relevant_packages:
   - vultron/demo
 ---

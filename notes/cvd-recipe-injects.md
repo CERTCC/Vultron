@@ -93,7 +93,8 @@ waiting for the nominal embargo expiry date.
 
 ### x06 — Vendor stops responding
 
-**Recipe card**: Roles: Reporter. Phase: Reporting, Validation, Remediation, Public Awareness.
+**Recipe card**: Roles: Reporter. Phase: Reporting, Validation, Remediation,
+Public Awareness.
 
 **Protocol mapping**:
 
@@ -145,7 +146,8 @@ configurable policy whether to accept or decline. Two sub-cases:
 
 ### x10 — Reporter stops responding
 
-**Recipe card**: Roles: Vendor. Phase: Reporting, Validation, Remediation, Public Awareness.
+**Recipe card**: Roles: Vendor. Phase: Reporting, Validation, Remediation,
+Public Awareness.
 
 **Protocol mapping**:
 
@@ -194,7 +196,8 @@ independence (or overlap), and may accelerate the embargo timeline.
 
 ### x18 — Incompatible disclosure policies across vendors
 
-**Recipe card**: Roles: Reporter, Vendor, Coordinator. Phase: Reporting, Validation, Remediation.
+**Recipe card**: Roles: Reporter, Vendor, Coordinator. Phase: Reporting,
+Validation, Remediation.
 
 **Protocol mapping**:
 

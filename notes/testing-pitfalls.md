@@ -35,6 +35,7 @@ related_notes:
   - notes/spec-authoring-rules.md
   - notes/architecture-ratchet-corpus.md
   - notes/outbox-delivery-reliability.md
+  - notes/sync-ledger-replication.md
 relevant_packages:
   - pytest
   - pytest-xdist
@@ -371,8 +372,11 @@ Include at least one non-sender peer, or the assertion is vacuous.
 
 ### Happy-Path DL Seed Must Include `origin` Activities for `dl.read()` Calls
 
-Assert `len(outbox) >= N` with the expected count, not just `>= 1`. See
-[notes/datalayer-design.md](datalayer-design.md).
+Seed every object the use case reads, `origin` activities included, or the happy
+path fails before it reaches the code under test. Then assert `len(outbox) >= N`
+with the expected count, not just `>= 1`. See
+[datalayer-design.md](datalayer-design.md) § "Happy-Path DL Seeds Must Include
+Everything a Use Case Reads".
 
 ### `MagicMock` Requires `spec=` When Code Uses `isinstance()` Guards
 

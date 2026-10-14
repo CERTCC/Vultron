@@ -40,10 +40,10 @@ variable and a sync hook such as `docs-site-sync` then checks the worktree again
 
 ## `uv run` Fails With "Permission Denied": Rebuild, or `UV_NO_SYNC=1`
 
-A root-owned `.venv` makes `uv run` fail at its pre-run sync. Images built
-since #2713 are fixed; rebuild an older one with `./start-dev.sh <slot> --rebuild`.
-Until then, prefix the command with `UV_NO_SYNC=1`, which skips only the sync
-and is safe because the venv is already built.
+A root-owned `.venv` makes `uv run` fail at its pre-run sync. Rebuild the image
+with `./start-dev.sh <slot> --rebuild`. If you cannot rebuild, prefix the command
+with `UV_NO_SYNC=1`, which skips only the sync and is safe because the venv is
+already built (#2713).
 
 ## Run `ruff` Bare
 

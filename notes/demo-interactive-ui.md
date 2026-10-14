@@ -93,8 +93,7 @@ exchange that tells a story.
 
 ## Prior Art — `origin/feature/demo-ui`
 
-As of 2026-09-08 (tip `4398ed7be`, forked from `main` at `ff4b39cbc`,
-2026-09-03), about 16k lines, authored by Greg Strom:
+About 16k lines:
 
 - **`ui/`** — React 19 + TypeScript + Vite + `@xyflow/react` (ReactFlow).
   `DemoSelector.tsx` toggles two modes:
@@ -115,8 +114,8 @@ As of 2026-09-08 (tip `4398ed7be`, forked from `main` at `ff4b39cbc`,
 - **Housekeeping before landing**: file-mode flips on several `.sh`
   scripts, a deleted `docs/reference/codebase/.codebase-scan.txt`, and
   stale `ui/LOG_REPLAY_README.md` content (old `case-log.jsonl` file names
-  and event types). Several files are very large (`caseLedgerMapper.ts`
-  1709 lines, `vendorActions.ts` 1642 lines).
+  and event types). Several files are very large (`caseLedgerMapper.ts`,
+  `vendorActions.ts`).
 
 ---
 

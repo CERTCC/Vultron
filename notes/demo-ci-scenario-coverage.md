@@ -137,8 +137,8 @@ on the participant's RM state in the scenario script, not by the harness.
 | V → A (report accepted / engaged) | linear | all scenarios |
 | A → C (case closed) | linear | all scenarios |
 | R → C (stub Invite rejected) | non-linear | `fcv-reject` (CM-11-007) |
-| R → I, I → V (invalidated, then re-validated) | non-linear | none — `fvcv-handoff` Variation A, #2050 |
-| A → D, D → A (deferred, then resumed) | non-linear | none — `fcvcv` Variation B, #2050 |
+| R → I, I → V (invalidated, then re-validated) | non-linear | none — planned for `fvcv-handoff` in #2050 |
+| A → D, D → A (deferred, then resumed) | non-linear | none — planned for `fcvcv` in #2050 |
 | I → C (closed from invalid) | non-linear | none |
 | V → D (deferred without accepting) | non-linear | none |
 
