@@ -65,7 +65,7 @@ _FVCV_HANDOFF_EXPECTED_EVENT_TYPES = [
     # DEMOMA-16-005: the Coordinator accepts the ownership transfer and becomes
     # CASE_OWNER (TRIG-11-002, CM-21-007). The scenario already blocks on this
     # entry reaching the *Finder's* replica — ADR-0053's own validation
-    # criterion — so Invariant 5 is asserting behaviour the demo guarantees, not
+    # criterion; so Invariant 5 is asserting behaviour the demo guarantees, not
     # adding a new requirement. It was missing here while
     # test_fccv_handoff_invariants.py asserted the same type, which is the
     # one-harness-only divergence DEMOMA-16-008 exists to prevent

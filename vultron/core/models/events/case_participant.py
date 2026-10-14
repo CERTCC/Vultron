@@ -12,22 +12,6 @@ else:
     CaseParticipant = object
 
 
-class CreateCaseParticipantReceivedEvent(VultronEvent):
-    """Actor created a CaseParticipant record within a VulnerabilityCase."""
-
-    semantic_type: Literal[MessageSemantics.CREATE_CASE_PARTICIPANT] = (
-        MessageSemantics.CREATE_CASE_PARTICIPANT
-    )
-
-    @property
-    def participant_id(self) -> str | None:
-        return self.object_id
-
-    @property
-    def participant(self) -> "CaseParticipant | None":
-        return cast("CaseParticipant | None", self.object_)
-
-
 class AddCaseParticipantToCaseReceivedEvent(VultronEvent):
     """Actor added a CaseParticipant to a VulnerabilityCase."""
 

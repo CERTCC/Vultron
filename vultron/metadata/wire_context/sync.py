@@ -152,7 +152,7 @@ def vultron_context_terms() -> dict[str, str]:
     both are mapped to ``vultron:<term>`` (VM-10-002):
 
     - wire classes annotated ``_vocab_ns == VocabNamespace.VULTRON``;
-    - core classes registered in ``WIRE_TYPE_MAP``.  Under ADR-0099 detail 3
+    - core classes registered in ``WIRE_TYPE_MAP``.  Under ARCH-25-003 (ADR-0099)
       the paired ``as_*`` classes are aliases of their core classes, which are
       not ``as_Object`` subclasses and carry no ``_vocab_ns`` — so the
       annotation walk alone would silently drop ``CaseParticipant``,

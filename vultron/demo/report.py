@@ -165,7 +165,7 @@ def _dimension_state(
     """Extract a single state-machine dimension value from candidate dicts.
 
     Handles all three live shapes: the bare state value a dimension serializes
-    to since ADR-0099 detail 5 / SDO-01-004 (``{"rm": "..."}``), the ADR-0036
+    to since ARCH-25-005 (ADR-0099) / SDO-01-004 (``{"rm": "..."}``), the ADR-0036
     one-key mapping (``{"rm": {"state": "..."}}``), and the legacy flat wire
     spelling (``{"rmState": "..."}``).  Missing one of them makes every affected
     row report ``None``, which is the #2232 / #2262 failure shape — see

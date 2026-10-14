@@ -15,7 +15,7 @@
 
 """ID-to-object materialisation: `rehydrate()` owns it (VM-06-007, #3486).
 
-ADR-0099 detail 9 says an object slot holds the whole object, not an ID, and
+ARCH-25-009 (ADR-0099) says an object slot holds the whole object, not an ID, and
 that reading resolves an IRI reference to the referenced object, with an
 unresolvable reference deferred or refused.  These tests pin the owner of that
 resolution and the split between deferring and refusing.
@@ -129,7 +129,7 @@ def dl(recorded_activity: as_Activity) -> FakeDataLayer:
 def test_bare_id_in_list_object_slot_is_resolved(
     dl: FakeDataLayer, recorded_activity: as_Activity
 ) -> None:
-    """After ADR-0099 detail 3, VulnerabilityCase.case_activity is list[str].
+    """After ARCH-25-003 (ADR-0099), VulnerabilityCase.case_activity is list[str].
 
     Activity IDs are string references — no resolution needed.  The data is
     returned unchanged and no dl.read() is fired.
@@ -241,7 +241,7 @@ def test_materialised_activity_carries_its_own_actor(
 ) -> None:
     """Regression guard: activities are NOT synthesized with a fabricated actor.
 
-    Before ADR-0099 detail 3, ``as_VulnerabilityCase.from_core`` built a stub
+    Before ARCH-25-003 (ADR-0099), ``as_VulnerabilityCase.from_core`` built a stub
     ``as_Activity(id_=activity_id, actor=case_owner_or_id)``, misattributing
     activities not performed by the case owner.  After ADR-0099, case_activity
     is ``list[str]`` — activities stay as URI references, never resolved or
@@ -341,7 +341,7 @@ def test_unresolvable_activity_id_is_kept_as_string(
 
 
 # ---------------------------------------------------------------------------
-# The other half of detail 9: a slot that admits a URI defers instead
+# The other half of ARCH-25-009: a slot that admits a URI defers instead
 # ---------------------------------------------------------------------------
 
 
@@ -446,14 +446,14 @@ def test_reference_resolving_to_a_core_object_is_materialised() -> None:
     """A core object may now occupy the slot, so it is placed rather than refused.
 
     **This asserted the exact opposite, and the inversion is the point of
-    ADR-0099 detail 3.** DL-05-004 / ADR-0034 make ``dl.read()`` return *core*
+    ARCH-25-003 (ADR-0099).** DL-05-004 / ADR-0034 make ``dl.read()`` return *core*
     objects for every ``CORE_VOCABULARY`` type, so a slot typed with the wire
     class could never be filled from the data layer — the resolved object was the
     wrong shape and materialisation had to refuse. The old refusal message said as
-    much: "this slot is materialisable only once ADR-0099 detail 3 retargets it at
+    much: "this slot is materialisable only once ARCH-25-003 (ADR-0099) retargets it at
     the core class".
 
-    Detail 3 has now done that. ``as_ParticipantStatus.case_status`` names
+    ARCH-25-003 has now done that. ``as_ParticipantStatus.case_status`` names
     ``CaseStatus``, which is what ``dl.read()`` returns, so the normal path
     succeeds. Keeping the refusal would have meant refusing every well-formed
     read — the guard firing on the healthy case instead of the broken one.
@@ -570,7 +570,7 @@ def test_core_dimension_slots_are_not_treated_as_references() -> None:
 
     ``CaseStatus.em`` is annotated ``EmDimension`` — a ``BaseModel`` that admits
     no ``str`` branch — so the "admits a model but not ``str``" rule would
-    classify it as an object-only slot. Since ADR-0099 detail 5 a dimension
+    classify it as an object-only slot. Since ARCH-25-005 (ADR-0099) a dimension
     *serializes to a bare state value*, so classifying it that way sends
     ``dl.read("NONE")`` and refuses a perfectly good core object. Only
     ``as_Object`` slots are in scope.

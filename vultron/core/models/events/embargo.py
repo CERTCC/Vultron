@@ -20,22 +20,6 @@ else:
     EmbargoEvent = object
 
 
-class CreateEmbargoEventReceivedEvent(VultronEvent):
-    """Actor created an EmbargoEvent."""
-
-    semantic_type: Literal[MessageSemantics.CREATE_EMBARGO_EVENT] = (
-        MessageSemantics.CREATE_EMBARGO_EVENT
-    )
-
-    @property
-    def embargo_id(self) -> str | None:
-        return self.object_id
-
-    @property
-    def embargo(self) -> "EmbargoEvent | None":
-        return cast("EmbargoEvent | None", self.object_)
-
-
 class _OwnerEmbargoDecisionEvent(VultronEvent):
     """The case owner's decision on an embargo proposal (ADR-0122).
 

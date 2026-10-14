@@ -16,22 +16,6 @@ else:
     ParticipantStatus = object
 
 
-class CreateCaseStatusReceivedEvent(VultronEvent):
-    """Actor created a CaseStatus record for a VulnerabilityCase."""
-
-    semantic_type: Literal[MessageSemantics.CREATE_CASE_STATUS] = (
-        MessageSemantics.CREATE_CASE_STATUS
-    )
-
-    @property
-    def status_id(self) -> str | None:
-        return self.object_id
-
-    @property
-    def status(self) -> "CaseStatus | ParticipantStatus | None":
-        return cast("CaseStatus | ParticipantStatus | None", self.object_)
-
-
 class AddCaseStatusToCaseReceivedEvent(VultronEvent):
     """Actor added a CaseStatus to a VulnerabilityCase."""
 
@@ -54,22 +38,6 @@ class AddCaseStatusToCaseReceivedEvent(VultronEvent):
     @property
     def case(self) -> "VulnerabilityCase | None":
         return cast("VulnerabilityCase | None", self.target)
-
-
-class CreateParticipantStatusReceivedEvent(VultronEvent):
-    """Actor created a ParticipantStatus record."""
-
-    semantic_type: Literal[MessageSemantics.CREATE_PARTICIPANT_STATUS] = (
-        MessageSemantics.CREATE_PARTICIPANT_STATUS
-    )
-
-    @property
-    def status_id(self) -> str | None:
-        return self.object_id
-
-    @property
-    def status(self) -> "CaseStatus | ParticipantStatus | None":
-        return cast("CaseStatus | ParticipantStatus | None", self.object_)
 
 
 class AddParticipantStatusToParticipantReceivedEvent(VultronEvent):

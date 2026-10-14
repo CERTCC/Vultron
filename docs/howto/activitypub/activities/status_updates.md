@@ -6,7 +6,7 @@ level: 400
 # How to Post a Status Update or a Case Note
 
 Use this guide to tell the other participants something: that your fix is ready, that the vulnerability is now public, or anything that needs narrative rather than a state change.
-Each of these follows the same two-step shape — `as:Create` mints the object and `as:Add` attaches it.
+A status update is one `as:Add` that carries the new status inline and attaches it; a note is drafted with `as:Create` and then attached with `as:Add`.
 You finish with the update committed to the case ledger and replicated to every participant.
 
 ---
@@ -28,9 +28,8 @@ Use a participant status for anything that is true of you rather than of the cas
 Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemented in ActivityStreams as `Add(ParticipantStatus)`.
 Which one you are sending is determined by the field you set, not by a different activity.
 
-In every case, first send `Create(ParticipantStatus)` carrying the new value, then send `Add(ParticipantStatus)` targeting your own participant record.
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/create-participant-status.md" %}
+In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
+This implementation does not support a separate `Create(ParticipantStatus)` before it, and an inbox refuses one as an unrecognized activity.
 
 ### Report that a vendor now knows
 
@@ -65,9 +64,8 @@ Use a case status for public awareness, exploit publication, and observed attack
 Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`.
 All three set `pxa_state`; which one you are sending is determined by which letter in it changes case.
 
-In every case, first send `Create(CaseStatus)` carrying the new `pxa_state` and naming the case in `context`, then send `Add(CaseStatus)` naming the case in `target`.
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/create-case-status.md" %}
+In every case, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxa_state`, inline as its `object`.
+This implementation does not support a separate `Create(CaseStatus)` before it, and an inbox refuses one as an unrecognized activity.
 
 ### Report that the vulnerability is public
 
@@ -91,12 +89,6 @@ That is Attacks Observed (CA).
 {% include-markdown "../../../reference/messages/_occasions/embeds/attacks-observed.md" %}
 
 The state change hangs off the `Add`, because that is the activity that asserts the attachment.
-
-!!! warning "The case goes in `context` on the `Create` and `target` on the `Add`"
-
-    That asymmetry is what the two patterns discriminate on: `Create(CaseStatus)` is recognized by its `context`, `Add(CaseStatus)` by its `target`.
-    A `Create(CaseStatus)` that names the case in `target` instead matches neither pattern — it dispatches as unrecognized and the state change never happens.
-    Send the `Add`, with the status inline if you prefer one activity to two.
 
 ---
 

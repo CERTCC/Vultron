@@ -111,7 +111,7 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
 
         if is_em_exited(em_before):
             # The register accepts no change once its embargo has ended
-            # (ADR-0122 invariant 4).
+            # (ADR-0122).
             self.feedback_message = (
                 f"Case '{self._case_id}' is at EM {em_before.name}, which"
                 " admits no embargo proposal (EP-09-001)"

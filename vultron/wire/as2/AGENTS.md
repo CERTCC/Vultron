@@ -70,7 +70,7 @@ come before general ones:
 
 | # | Group | Example semantics |
 |---|---|---|
-| 1 | Embargo events | `CREATE_EMBARGO_EVENT`, `INVITE_TO_EMBARGO`, `ACCEPT_INVITE_TO_EMBARGO` |
+| 1 | Embargo events | `INVITE_TO_EMBARGO`, `ACCEPT_INVITE_TO_EMBARGO`, `REMOVE_EMBARGO_EVENT_FROM_CASE` |
 | 2 | Reports | `CREATE_REPORT`, `SUBMIT_REPORT`, `ACK_REPORT`, `VALIDATE_REPORT`, ... |
 | 3 | Cases | `CREATE_CASE`, `ENGAGE_CASE`, `DEFER_CASE`, ... |
 | 4 | Case membership | `INVITE_ACTOR_TO_CASE`, `ACCEPT_INVITE_ACTOR_TO_CASE`, ... |
@@ -79,7 +79,7 @@ come before general ones:
 | 7 | Case log entries | `ANNOUNCE_LOG_ENTRY`, `REJECT_LOG_ENTRY` |
 | 8 | Vulnerability case announcements | `ANNOUNCE_VULNERABILITY_CASE` |
 | 9 | Notes | `CREATE_NOTE`, `ADD_NOTE_TO_CASE`, `REMOVE_NOTE_FROM_CASE` |
-| 10 | Participants | `CREATE_CASE_PARTICIPANT`, `ADD_CASE_PARTICIPANT`, ... |
+| 10 | Participants | `ADD_CASE_PARTICIPANT_TO_CASE`, `REMOVE_CASE_PARTICIPANT_FROM_CASE` |
 | 11 | Fallback sentinels | `UNKNOWN_UNRESOLVABLE_OBJECT`, `UNKNOWN` |
 
 When adding a new pattern, place it in the correct group. If it is more
@@ -118,9 +118,8 @@ suspenders for edge cases the runtime guard might miss).
 
 `ActivityPattern` declares `activity_`, `strict`, `to_`, `object_`, `target_` and
 `context_` — and **no `origin_` field**, so `origin` is never consulted for
-dispatch however well it reads (#3438). A field may be a **tuple of types** (any-of):
-`CreateEmbargoEventPattern` admits a case or a report subject that way (VAM-05-001). Set the discriminator fields the pattern actually
-requires. A well-formed example is not necessarily a dispatchable one: an example
+dispatch however well it reads (#3438). Set the discriminator fields the pattern
+actually requires. A well-formed example is not necessarily a dispatchable one: an example
 that matches no pattern is silently dropped by a receiver, and the reference page
 rendering it documents a wire form that does not work.
 

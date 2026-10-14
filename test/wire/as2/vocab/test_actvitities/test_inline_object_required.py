@@ -35,7 +35,6 @@ from vultron.wire.as2.vocab.activities.case import (
     _AddReportToCaseActivity,
     _AddStatusToCaseActivity,
     _CreateCaseActivity,
-    _CreateCaseStatusActivity,
     _OfferCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
     _RmAcceptInviteToCaseActivity,
@@ -52,7 +51,6 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,
     _AddStatusToParticipantActivity,
     _CreateParticipantActivity,
-    _CreateStatusForParticipantActivity,
     _RemoveParticipantFromCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
@@ -393,12 +391,6 @@ class TestNoneObjectRejected(unittest.TestCase):
     def test_create_case_rejects_missing(self):
         self._assert_missing_rejected(_CreateCaseActivity)
 
-    def test_create_case_status_rejects_none(self):
-        self._assert_none_rejected(_CreateCaseStatusActivity)
-
-    def test_create_case_status_rejects_missing(self):
-        self._assert_missing_rejected(_CreateCaseStatusActivity)
-
     def test_add_note_to_case_rejects_none(self):
         self._assert_none_rejected(_AddNoteToCaseActivity)
 
@@ -529,19 +521,13 @@ class TestNoneObjectRejected(unittest.TestCase):
     def test_remove_embargo_from_case_rejects_missing(self):
         self._assert_missing_rejected(_RemoveEmbargoFromCaseActivity)
 
-    # --- case_participant.py (5 classes) ---
+    # --- case_participant.py (4 classes) ---
 
     def test_create_participant_rejects_none(self):
         self._assert_none_rejected(_CreateParticipantActivity)
 
     def test_create_participant_rejects_missing(self):
         self._assert_missing_rejected(_CreateParticipantActivity)
-
-    def test_create_status_for_participant_rejects_none(self):
-        self._assert_none_rejected(_CreateStatusForParticipantActivity)
-
-    def test_create_status_for_participant_rejects_missing(self):
-        self._assert_missing_rejected(_CreateStatusForParticipantActivity)
 
     def test_add_status_to_participant_rejects_none(self):
         self._assert_none_rejected(_AddStatusToParticipantActivity)

@@ -73,7 +73,7 @@ def _to_wire_object(core_obj: Any, object_id: str) -> Any:
     """Check that a stored object of any type can be carried, and return it.
 
     For callers that do not know the object's type in advance
-    (``add_object_to_case`` accepts any stored object). Under ADR-0099 detail 3
+    (``add_object_to_case`` accepts any stored object). Under ARCH-25-003 (ADR-0099)
     a ``CoreObject`` *is* its own wire form, so an ``as_Object`` or a
     ``CoreObject`` is returned unchanged; nothing is converted.
 

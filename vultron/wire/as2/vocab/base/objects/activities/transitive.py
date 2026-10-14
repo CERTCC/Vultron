@@ -130,7 +130,7 @@ class as_Offer(as_TransitiveActivity):
     # would otherwise drop the proposal silently (ADR-0096).  The event's
     # ``context`` is the report URI until the CASE_MANAGER rewrites it at case
     # creation (EP-04-009).  ``as_ObjectRef`` admits the core ``EmbargoEvent``
-    # the parser expands the inline dict to (ADR-0099 detail 3).
+    # the parser expands the inline dict to (ARCH-25-003, ADR-0099).
     proposed_embargo: as_ObjectRef = Field(
         default=None,
         validation_alias="proposedEmbargo",

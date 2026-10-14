@@ -139,7 +139,7 @@ class CaseLedgerEntry(CoreObject):
         """Compute ``id_`` from ``case_id`` and ``log_index``.
 
         Both field names are read in either spelling, because an entry parsed
-        off the wire (ADR-0099 detail 3) carries the AS2 keys; reading only the
+        off the wire (ARCH-25-003, ADR-0099) carries the AS2 keys; reading only the
         Python names left a wire-parsed entry with a random id instead of its
         ledger coordinates.
         """

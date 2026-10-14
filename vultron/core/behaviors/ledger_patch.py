@@ -29,7 +29,7 @@ restated by each:
 Every field is named as a **core** field, and the AS2 snapshot key it
 corresponds to is read from the field's own alias through
 :mod:`vultron.core.models.wire_keys`.  Core logic therefore types no AS2
-spelling (ADR-0099 detail 2) and there is no hand-written table to drift from
+spelling (ARCH-25-002, ADR-0099) and there is no hand-written table to drift from
 the models.
 
 Spec: ``specs/received-status-handling.yaml`` RSH-05-004, RSH-05-009,

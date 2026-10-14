@@ -346,7 +346,7 @@ class TestToWireObject:
         ],
     )
     def test_core_object_is_carried_as_itself(self, core_obj):
-        """A ``CoreObject`` is its own wire form (ADR-0099 detail 3).
+        """A ``CoreObject`` is its own wire form (ARCH-25-003, ADR-0099).
 
         No counterpart is resolved by class name: that lookup matched
         ``WIRE_TYPE_MAP`` only by coincidence (``VulnerabilityCase``) and
