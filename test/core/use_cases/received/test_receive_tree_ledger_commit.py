@@ -50,7 +50,10 @@ from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.events.report import CloseReportReceivedEvent
+from vultron.core.models.events.report import (
+    CloseReportReceivedEvent,
+    InvalidateReportReceivedEvent,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -278,9 +281,12 @@ class TestCloseAndInvalidateReportCommit:
         act, so a repeated Close is refused (CM-23-018) rather than skipped.
         """
         dl = _store(MANAGER_ID)
-        event = extract_event(
-            rm_invalidate_report_activity(_offer(), actor=FINDER_ID)
-        ).model_copy(update={"receiving_actor_id": MANAGER_ID})
+        event = cast(
+            InvalidateReportReceivedEvent,
+            extract_event(
+                rm_invalidate_report_activity(_offer(), actor=FINDER_ID)
+            ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
+        )
 
         first = InvalidateReportReceivedUseCase(
             dl, event, **_ports(dl)
