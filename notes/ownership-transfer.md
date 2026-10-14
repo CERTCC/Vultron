@@ -152,7 +152,8 @@ address the Accept to the offerer.
 through the guarded commit, and forwards via `ForwardOfferToTransfereeNode` passed as
 `manager_effects`, so the factory wraps it in the CASE_MANAGER gate (BT-17-008). The
 forwarded Offer has `actor=case_actor_id`, `attributed_to=` the original offerer,
-`target` and `to=[transferee_id]` (CM-21-005).
+`target` and `to=[transferee_id]` (CM-21-005), and `in_reply_to=` the recorded
+Offer's id (CM-21-018).
 
 - **Take the offerer from `attributed_to`, not `actor_id`** (#3012). The inbound Offer
   is delegated, so its `actor` is the CASE_MANAGER; reading `actor_id` attributes the
