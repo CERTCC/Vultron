@@ -15,6 +15,13 @@
 
 """Read what a store's canonical case ledger holds, for test assertions."""
 
+from collections.abc import Callable
+from types import ModuleType
+from typing import Any
+
+import py_trees
+import pytest
+
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -68,3 +75,36 @@ def creation_entry_sequence(
         for status in case.case_statuses
     ]
     return sequence
+
+
+def fail_commits(
+    monkeypatch: pytest.MonkeyPatch,
+    module: ModuleType,
+    *,
+    allowed: int = 0,
+    when: Callable[[dict[str, Any]], bool] = lambda _kwargs: True,
+) -> list[str]:
+    """Make *module*'s ledger commits fail, after *allowed* of them succeed.
+
+    Replaces ``create_commit_log_entry_tree`` as *module* names it with a
+    tree that fails, so the code under test sees a refused commit exactly as
+    it would see a real one.  Only commits whose keyword arguments satisfy
+    *when* are counted and failed; any other commit runs as normal.
+
+    Returns:
+        The ``object_id`` of every counted commit, in order, as it is made.
+    """
+    original: Callable[..., py_trees.behaviour.Behaviour] = (
+        module.create_commit_log_entry_tree
+    )
+    seen: list[str] = []
+
+    def _tree(*args: Any, **kwargs: Any) -> py_trees.behaviour.Behaviour:
+        if when(kwargs):
+            seen.append(kwargs["object_id"])
+            if len(seen) > allowed:
+                return py_trees.behaviours.Failure(name="ForcedCommitFailure")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module, "create_commit_log_entry_tree", _tree)
+    return seen

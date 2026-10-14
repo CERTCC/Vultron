@@ -22,7 +22,6 @@ from vultron.core.behaviors.embargo.nodes.abandon import (
     ABANDONED_PROPOSALS_KEY,
     AbandonEmbargoProposalsLifecycleNode,
     ApplyEmbargoAbandonmentFromLedgerNode,
-    CommitEmbargoAbandonmentNode,
     LeaveAbandonmentToCaseManagerNode,
     ReadOpenEmbargoProposalsNode,
 )
@@ -214,7 +213,6 @@ __all__ = [
     "ABANDONED_PROPOSALS_KEY",
     "ReadOpenEmbargoProposalsNode",
     "AbandonEmbargoProposalsLifecycleNode",
-    "CommitEmbargoAbandonmentNode",
     "LeaveAbandonmentToCaseManagerNode",
     "ApplyEmbargoAbandonmentFromLedgerNode",
     "case_manager_admits_proposal_guard",

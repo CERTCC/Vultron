@@ -3546,9 +3546,11 @@ groups:
       applying those status entries, in ledger order, from the Announce(CaseLedgerEntry)
       fan-out.  A replica
       MUST NOT work out a closure path from its own stored state, and applying the
-      close_case entry MUST NOT change any participant's RM state.  A status entry
-      that cannot be committed is logged at WARNING and does not abort the
-      closure, as for the CASE_MANAGER's own closure (CM-23-005).
+      close_case entry MUST NOT change any participant's RM state.  A status
+      entry that cannot be committed leaves its RM transition unwritten: the
+      CASE_MANAGER MUST take back each transition whose entry did not commit and
+      MUST NOT report the Leave as applied, for the leaving participant and for
+      its own closure alike (CM-23-005, CLP-07-013).
     rationale: >-
       The Leave round-trip makes the CASE_MANAGER the authority for closure and
       prevents ghost-departures from lost messages: a participant cannot
@@ -3564,8 +3566,10 @@ groups:
       that a replica which accepts each of those entries ends with the same per-actor
       status history as the CASE_MANAGER and writes no step the ledger lacks; that a
       replica whose participant-status effect refuses an entry (RSH-05-021) logs a
-      WARNING and still writes no step of its own; and that applying the close_case
-      entry alone changes no participant's RM state.
+      WARNING and still writes no step of its own; that a status entry whose
+      commit is forced to fail leaves the CASE_MANAGER's participant record and
+      status records unchanged and the Leave not applied; and that applying the
+      close_case entry alone changes no participant's RM state.
     adr:
     - ADR-0050
     stories:

@@ -37,9 +37,53 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM, RM_CLOSURE_RUNGS, rm_closure_path
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
+
+
+def withdraw_closure_steps(
+    datalayer: CasePersistence,
+    participant_id: str,
+    status_ids: list[str],
+) -> None:
+    """Take back closure steps whose ledger entries did not commit.
+
+    A change with no committed entry MUST NOT be made (CLP-07-013).  The
+    CASE_MANAGER writes each closure step before it commits the step's
+    entry (the order CLP-07-013 gives a consequence), so a refused commit
+    leaves a step the ledger lacks.  This removes each named status from
+    the participant's history and deletes the status record, leaving the
+    participant exactly as it was before those steps were written.
+
+    Only the *uncommitted* steps are named: a step whose entry committed is
+    a legal transition the ledger records and stays.  The withdrawn steps
+    are always the tail of the history, because the walk appends them in
+    path order and nothing writes the participant between the walk and its
+    record.
+
+    Args:
+        datalayer: The store holding the participant and its statuses.
+        participant_id: The closing actor's participant record.
+        status_ids: The ids of the statuses to take back.
+
+    Raises:
+        VultronNotFoundError: The participant record is not in the store, so
+            the steps cannot be taken back.
+    """
+    if not status_ids:
+        return
+    participant = datalayer.read(participant_id)
+    if not isinstance(participant, CaseParticipant):
+        raise VultronNotFoundError(
+            "CaseParticipant",
+            participant_id,
+        )
+    participant.withdraw_participant_statuses(set(status_ids))
+    datalayer.save(participant)
+    for status_id in status_ids:
+        datalayer.delete("ParticipantStatus", status_id)
 
 
 class RMClosureWriter:
@@ -55,7 +99,9 @@ class RMClosureWriter:
 
     A failed step stops the walk.  The steps already written stay: each is a
     legal transition on its own, and a retry continues the path from the state
-    the actor has reached.
+    the actor has reached.  A step whose ledger entry then fails to commit is
+    taken back with :func:`withdraw_closure_steps`, so the store never holds a
+    step the ledger lacks (CLP-07-013).
 
     The closing actor is an argument of :meth:`close`, not of the writer, so
     one writer serves every actor its owner closes and no call inherits the

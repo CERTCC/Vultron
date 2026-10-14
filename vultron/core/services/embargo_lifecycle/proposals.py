@@ -75,6 +75,18 @@ def _assert_abandonable(
         )
 
 
+def _cancel_changes(
+    case: VulnerabilityCase, embargo_ids: list[str]
+) -> list[RegisterChange]:
+    """The register step that cancels each of *embargo_ids* still open."""
+    open_ids = set(case.proposed_embargo_ids)
+    return [
+        RegisterChange(embargo_id=embargo_id, trigger=RegisterTrigger.CANCEL)
+        for embargo_id in dict.fromkeys(embargo_ids)
+        if embargo_id in open_ids
+    ]
+
+
 class _ProposalOperationsMixin(_PecActivationMixin):
     """``propose_embargo`` and ``abandon_embargo_proposals``."""
 
@@ -192,6 +204,33 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             participant_changes=[],
         )
 
+    def check_abandonable(
+        self, *, case_id: str, embargo_ids: list[str]
+    ) -> None:
+        """Raise unless a ``STRICT`` abandonment of *embargo_ids* would apply.
+
+        Writes nothing.  A caller that commits the abandonment's entries
+        before it writes the abandonment checks here first, so no entry is
+        committed for an abandonment the case then refuses (CLP-07-013).
+        The check is the write itself, on a copy of the case: the same
+        licence check, then one cancel step per proposal in the order the
+        caller applies them, so the register's own rules are checked too.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronValidationError: An id is not an open proposal of the
+                case, or *embargo_ids* is empty.
+            VultronInvalidStateTransitionError: An embargo is in force, or
+                the register refuses a cancel step.
+        """
+        case = self._read_case(case_id)
+        _assert_abandonable(case, embargo_ids)
+        trial = case.model_copy(deep=True)
+        for embargo_id in dict.fromkeys(embargo_ids):
+            trial.apply_embargo_register_step(
+                _cancel_changes(trial, [embargo_id]), threat_signal=True
+            )
+
     def abandon_embargo_proposals(
         self,
         *,
@@ -242,14 +281,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             # leaves the case untouched (EMB-18-003).
             _assert_abandonable(case, embargo_ids)
 
-        open_ids = set(case.proposed_embargo_ids)
-        changes = [
-            RegisterChange(
-                embargo_id=embargo_id, trigger=RegisterTrigger.CANCEL
-            )
-            for embargo_id in dict.fromkeys(embargo_ids)
-            if embargo_id in open_ids
-        ]
+        changes = _cancel_changes(case, embargo_ids)
         case_mutated = bool(changes) and self._apply_register_step(
             case,
             changes,
