@@ -46,7 +46,8 @@ NOISY_INFO_LOGGERS: tuple[str, ...] = ("transitions",)
 #: The port-wiring logger receives py_trees' one-line-per-port registration
 #: record from every typed-ports node on every tree build: over half of each
 #: container's DEBUG output in the CI demos, identical on every build of the
-#: same node class (#4600).  Set it to DEBUG by hand to see the wiring.
+#: same node class (#4600).  To see the wiring, set it to DEBUG after the entry
+#: point has run: this pinning overwrites any earlier level.
 STATIC_WIRING_LOGGERS: tuple[str, ...] = (PORT_WIRING_LOGGER_NAME,)
 
 

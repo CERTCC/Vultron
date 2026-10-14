@@ -787,16 +787,6 @@ def test_no_tree_dump_before_ticking(bridge, test_actor_id, caplog):
     assert not [r for r in caplog.records if "BT structure" in r.message]
 
 
-def test_bt_structure_not_emitted_at_info(bridge, test_actor_id, caplog):
-    """No 'BT structure' record reaches an INFO-only handler (SL-04-007)."""
-    import logging
-
-    with caplog.at_level(logging.INFO):
-        bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
-
-    assert not [r for r in caplog.records if "BT structure" in r.message]
-
-
 def _completion_records(caplog):
     import logging
 

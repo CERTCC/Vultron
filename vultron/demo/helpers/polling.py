@@ -1024,8 +1024,10 @@ def _count_case_ledger_entries(client: DataLayerClient, case_id: str) -> int:
     """Count *case_id*'s ledger entries in *client*'s store.
 
     Read from the ``CaseLedgerEntrys/`` collection, which serves the stored
-    rows by field name (``case_id``) without rehydrating them — a late
-    joiner's ledger copy is the bulk of its store while the backfill runs.
+    rows by field name (``case_id``) without rehydrating them, the same read
+    :func:`wait_for_contiguous_ledger_coverage` makes.  It still transfers every
+    entry, ``payload_snapshot`` included, on each poll; only the rehydration
+    and the rest of the store are saved (#4600).
     """
     raw = client.get(client.dl_path("CaseLedgerEntrys/"))
     if not isinstance(raw, dict):
@@ -1057,7 +1059,8 @@ def find_full_case_invite_for_actor(
     each poll that finds more of the case's ledger entries in the invitee's
     store restarts *timeout_seconds*, so a long backfill under CI load is
     waited for and a stalled one fails (#4424).  The count comes from the
-    unrehydrated ledger collection, not a store dump (#4600).
+    unrehydrated ledger collection, not a store dump (#4600), which saves
+    rehydration but still moves every entry per poll.
 
     Args:
         client: DataLayerClient connected to the invitee container.

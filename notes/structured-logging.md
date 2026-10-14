@@ -134,7 +134,8 @@ demos, two such kinds were about 64% of every container's DEBUG bytes (#4600):
   line per port per tree build. Every `setup_ports(...)` call passes
   `logger=port_wiring_logger()` (`vultron/core/behaviors/node_logger.py`), and the
   same `suppress_third_party_info_noise()` call pins that logger at INFO through
-  `STATIC_WIRING_LOGGERS`. Set it to DEBUG by hand to see the wiring.
+  `STATIC_WIRING_LOGGERS`. To see the wiring, set it to DEBUG after startup; the
+  pinning overwrites any level set earlier.
   `test/architecture/test_setup_ports_use_port_wiring_logger.py` fails a call
   that omits the logger.
 - **The pre-tick tree dump** is gone: before the first tick every node is unrun,

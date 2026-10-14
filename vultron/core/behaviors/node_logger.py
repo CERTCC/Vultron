@@ -56,7 +56,8 @@ def port_wiring_logger() -> logging.Logger:
     every container's DEBUG output (#4600).  Routing it here lets the entry
     points keep it at INFO (:data:`vultron.logging_setup.STATIC_WIRING_LOGGERS`)
     while the rest of the BT stays at DEBUG; py_trees' port-conversion warnings
-    still come through at WARNING.  Set this logger to DEBUG by hand to see the
-    wiring.
+    still come through at WARNING.  To see the wiring, set this logger to DEBUG
+    after the entry point has configured logging, which overwrites any earlier
+    level.
     """
     return logging.getLogger(PORT_WIRING_LOGGER_NAME)

@@ -29,8 +29,9 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -132,7 +133,10 @@ def get_report(
 
 @router.get(
     "/",
-    description="Returns the entire contents of the datalayer.",
+    description=(
+        "Returns the entire contents of the datalayer, or, given one or more"
+        " `type` parameters, only the objects of those types."
+    ),
     operation_id="datalayer_list",
 )
 def get_datalayer_contents(
@@ -150,9 +154,12 @@ def get_datalayer_contents(
     types, each serialized exactly as the whole-store dump serializes it.  A
     poll that looks for one kind of object reads only that kind: rehydrating
     and serializing the whole store on every poll slowed the container it
-    polled as the store grew (#4600).
+    polled as the store grew (#4600).  A type the store holds no object of
+    contributes nothing, so an unknown or misspelled name yields an empty
+    mapping rather than an error: the store cannot tell a type it has no rows
+    for from one that does not exist.
     """
-    data: Any
+    data: dict[str, PersistableModel] | list[StorableRecord]
     if types:
         data = {
             obj.id_: obj
