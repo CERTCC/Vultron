@@ -28,6 +28,7 @@ from vultron.core.behaviors.embargo.nodes.reinvite import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
     exempt,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
@@ -129,7 +130,7 @@ class _CaseOwnerParticipantMoveUseCase[
     # The declared kind names the floor; the tree's role-scoped sender guard
     # (the Case Owner at the manager, the CASE_MANAGER at a replica) is the
     # full rule, and the only place it is defined (HP-01-006/007).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
 

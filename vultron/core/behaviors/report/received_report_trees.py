@@ -59,7 +59,9 @@ from vultron.core.behaviors.report.validate_tree import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
     SenderIsOfferAddresseeNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
     CloseReportReceivedEvent,
@@ -76,6 +78,8 @@ def create_validate_report_received_tree(
     offer_id: str,
     sender_actor_id: str,
     case_id: str | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the single-BT received-side tree for ValidateReport (ADR-0022).
 
@@ -140,6 +144,8 @@ def create_validate_report_received_tree(
         case_id: ID of the VulnerabilityCase linked to this report, which
             the sender guard, the RM adjudication and the guarded commit
             read; ``None`` when this store holds no case for the report.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``ValidateReportReceivedBT`` Sequence.
@@ -166,10 +172,9 @@ def create_validate_report_received_tree(
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
         case_id=case_id,
-        sender_guard=SenderIsActiveParticipantNode(
-            status_id="",
-            sender_actor_id=sender_actor_id,
-            case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id, case_id=case_id
         ),
         precondition_guards=[
             rm_declaration_guard(sender_actor_id, RM.VALID, case_id),

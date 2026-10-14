@@ -54,7 +54,12 @@ from vultron.core.models.events.case import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.case.engage_defer import (
+    DeferCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
+
+DEFER_RULE = DeferCaseReceivedUseCase.sender_entitlement
 
 
 def _make_participant_in_valid_state(
@@ -354,7 +359,9 @@ def test_create_defer_case_tree_returns_sequence(
     case_with_participant, actor_id
 ):
     tree = create_defer_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
     )
     assert tree is not None
     assert tree.name == "DeferCaseBT"
@@ -405,7 +412,9 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
     tree = create_defer_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
     )
     # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
     assert tree.children[0].name == "IntakeReceivedActivityNode"
@@ -535,7 +544,9 @@ def test_defer_case_tree_success(
     """
     case = case_with_manager_in_cm_store
     request = _make_defer_request(case, actor_id)
-    tree = create_defer_case_tree(case_id=case.id_, actor_id=actor_id)
+    tree = create_defer_case_tree(
+        case_id=case.id_, actor_id=actor_id, sender_rule=DEFER_RULE
+    )
     result = BTBridge(
         datalayer=case_manager_datalayer,
         trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
@@ -563,7 +574,9 @@ def test_defer_case_tree_fails_no_participant(
     """DeferCaseBT fails when actor has no CaseParticipant in the case."""
     request = _make_defer_request(case_without_participant, actor_id)
     tree = create_defer_case_tree(
-        case_id=case_without_participant.id_, actor_id=actor_id
+        case_id=case_without_participant.id_,
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
     )
     result = bridge.execute_with_setup(
         tree=tree, actor_id=actor_id, activity=request
@@ -583,7 +596,9 @@ def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     )
     request = _make_defer_request(case, actor_id)
     tree = create_defer_case_tree(
-        case_id="https://example.org/cases/nonexistent", actor_id=actor_id
+        case_id="https://example.org/cases/nonexistent",
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
     )
     result = bridge.execute_with_setup(
         tree=tree, actor_id=actor_id, activity=request
@@ -744,7 +759,9 @@ def test_defer_case_tree_idempotent(
 
     def _run() -> Status:
         request = _make_defer_request(case, actor_id)
-        tree = create_defer_case_tree(case_id=case.id_, actor_id=actor_id)
+        tree = create_defer_case_tree(
+            case_id=case.id_, actor_id=actor_id, sender_rule=DEFER_RULE
+        )
         return (
             BTBridge(
                 datalayer=case_manager_datalayer,

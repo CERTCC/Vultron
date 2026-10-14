@@ -80,6 +80,11 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
     ReplicaEmitExemption,
 )
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    SenderCheckContext,
+    compose_sender_guard,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.errors import VultronWiringError
 
@@ -344,6 +349,30 @@ def _post_close_stage(
     ]
 
 
+def _sender_guard_stage(
+    name: str,
+    sender_guard: py_trees.behaviour.Behaviour | None,
+    sender_rule: SenderRule | None,
+    sender_context: SenderCheckContext | None,
+) -> py_trees.behaviour.Behaviour | None:
+    """The tree's sender guard: composed from the rule, or the tree's own."""
+    if sender_rule is None:
+        if sender_context is not None:
+            raise VultronWiringError(
+                f"{name}: sender_context is given without a sender_rule"
+            )
+        return sender_guard
+    if sender_guard is not None:
+        raise VultronWiringError(
+            f"{name}: pass sender_rule or sender_guard, not both (HP-01-008)"
+        )
+    if sender_context is None:
+        raise VultronWiringError(
+            f"{name}: sender_rule needs a sender_context (HP-01-008)"
+        )
+    return compose_sender_guard(sender_rule, sender_context)
+
+
 def create_receive_activity_tree(
     name: str,
     case_id: str | None,
@@ -351,6 +380,8 @@ def create_receive_activity_tree(
     case_may_be_absent: bool = False,
     *,
     sender_guard: "py_trees.behaviour.Behaviour | None" = None,
+    sender_rule: SenderRule | None = None,
+    sender_context: SenderCheckContext | None = None,
     replica_effects: list[py_trees.behaviour.Behaviour] | None = None,
     replica_emit_exemption: ReplicaEmitExemption | None = None,
     manager_effects: list[py_trees.behaviour.Behaviour] | None = None,
@@ -401,11 +432,17 @@ def create_receive_activity_tree(
     It runs first so a guard that refuses the assertion still leaves the
     receiver holding what arrived (CLP-10-018).
 
-    When ``sender_guard`` is provided it is placed immediately after intake
-    and before the caller's ``precondition_guards``.
-    The sender guard is the per-use-case sender-entitlement check declared via
+    The sender guard is placed immediately after intake and before the
+    caller's ``precondition_guards``.
+    It is the per-use-case sender-entitlement check declared via
     ``sender_entitlement`` on the use-case class (ADR-0115, HP-01-006): a
     failed guard ends the tree with ``REFUSED`` and nothing is written or sent.
+    With ``sender_rule`` the factory composes the guard from the declared
+    rule and ``sender_context``, for the receiver's addressee side
+    (:func:`~vultron.core.behaviors.sender_guard.compose_sender_guard`,
+    HP-01-008).  A tree not yet migrated passes its own ``sender_guard``
+    instead; those trees are on the allow-list in
+    ``test/architecture/test_sender_entitlement_ratchet.py`` (#4437).
 
     Precondition guards are read-only checks that may return FAILURE to abort
     the tree before any protocol effect.
@@ -463,7 +500,12 @@ def create_receive_activity_tree(
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
         sender_guard: Optional sender-entitlement condition node, placed
-            immediately after intake (HP-01-006, ADR-0115).
+            immediately after intake (HP-01-006, ADR-0115).  Allow-listed
+            trees only; others pass ``sender_rule``.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the guard from it (HP-01-008).
+        sender_context: The sender and the records the rule's kinds are
+            checked against; required with ``sender_rule``.
         replica_effects: Ungated effects, run on every replica after the
             commit.
         replica_emit_exemption: The registered decision that lets an
@@ -490,7 +532,9 @@ def create_receive_activity_tree(
             is unregistered, an emit-capable node sits in ``replica_effects``
             without one (BT-17-008), or a refusal effect is not emit-capable or
             holds a state writer (CLP-10-022), or an exempt tree passes a
-            ``post_close_reply`` (CM-23-013).
+            ``post_close_reply`` (CM-23-013), or the sender arguments are
+            inconsistent: ``sender_rule`` without ``sender_context`` or with
+            ``sender_guard`` (HP-01-008).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, ``specs/behavior-tree-integration.yaml``
@@ -521,8 +565,11 @@ def create_receive_activity_tree(
             post_close_reply or [],
         )
     )
-    if sender_guard is not None:
-        children.append(sender_guard)
+    guard = _sender_guard_stage(
+        name, sender_guard, sender_rule, sender_context
+    )
+    if guard is not None:
+        children.append(guard)
     if refusal_effects:
         children.append(
             _refusal_stage(

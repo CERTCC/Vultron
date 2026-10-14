@@ -52,9 +52,9 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderMayAssertEmbargoNode,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def resolve_proposer_id(
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
