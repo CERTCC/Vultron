@@ -8,8 +8,8 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
@@ -53,7 +53,7 @@ def case_obj(datalayer):
 
 @pytest.fixture
 def case_actor(datalayer):
-    actor = CaseActor(
+    actor = VultronService(
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,

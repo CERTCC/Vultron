@@ -18,6 +18,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
@@ -32,7 +33,6 @@ from vultron.core.use_cases.received.actor.announce import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
-from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -64,7 +64,7 @@ def case():
 
 @pytest.fixture()
 def case_actor():
-    return as_CaseActor(
+    return VultronService(
         id_=_CASE_ACTOR_ID,
         attributed_to=_OWNER_ID,
         context=_CASE_ID,
@@ -79,7 +79,7 @@ def _anchor_expected_authority(
 
     PCR-03-004 fails closed, so a test that expects an Announce to be *admitted*
     must establish an anchor first.  These fixtures used to get one for free from
-    an ``as_CaseActor`` whose ``context`` was the case id — the legacy
+    a case actor ``Service`` whose ``context`` was the case id — the legacy
     ``Service``-hosting scan.  ADR-0088 retired hosting location as a signal of
     anything protocol-salient (ARCH-24-004), so the anchor moves to the invite
     record ``InviteActorToCaseReceivedUseCase`` actually writes: locally derived,
@@ -131,7 +131,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         Neither a completed VultronReportCaseLink nor a VultronPendingCaseInbox
         invite anchor is present, so the authority check MUST fail closed.  A
-        hosting `as_CaseActor` Service is no longer a third source — ADR-0088
+        hosting case actor `Service` is no longer a third source — ADR-0088
         retired it (ARCH-24-004), which is why it is not set up here.
         """
         import logging
@@ -177,7 +177,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         that a row survives.  The previous version of this test seeded the case
         itself and then asserted only ``dl.read(_CASE_ID) is not None``, which is
         true by construction: it passed whether the announce was applied,
-        ignored, or rejected outright.  Its anchor was an ``as_CaseActor``
+        ignored, or rejected outright.  Its anchor was a case actor ``Service``
         carrying ``context``, the hosting signal ADR-0088 retires, so once that
         path was removed the announce was in fact being *rejected* on both calls
         and the test still passed.
@@ -485,7 +485,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         """DataLayer with an invite trust anchor naming _CASE_ACTOR_ID.
 
         Required by PCR-03-004: the authority check rejects an Announce when no
-        trust anchor exists.  This used to seed an ``as_CaseActor`` whose
+        trust anchor exists.  This used to seed a case actor ``Service`` whose
         ``context`` was the case id and rely on the legacy ``Service`` scan in
         ``_find_case_actor_id``; ADR-0088 retired that path (ARCH-24-004), so the
         anchor is now the locally recorded invite record instead.

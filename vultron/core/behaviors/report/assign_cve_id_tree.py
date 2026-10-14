@@ -67,7 +67,7 @@ from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
 )
-from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.predicates.roles import has_cna_role
 
 if TYPE_CHECKING:
@@ -109,7 +109,8 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
-            port_remappings={_ACTOR_ROLES_KEY: f"/{_ACTOR_ROLES_KEY}"}
+            port_remappings={_ACTOR_ROLES_KEY: f"/{_ACTOR_ROLES_KEY}"},
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:
@@ -176,7 +177,8 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
         self.setup_ports(
             port_remappings={
                 _PUBLICATION_INTENT_SET_KEY: f"/{_PUBLICATION_INTENT_SET_KEY}"
-            }
+            },
+            logger=port_wiring_logger(),
         )
 
     def update(self) -> Status:

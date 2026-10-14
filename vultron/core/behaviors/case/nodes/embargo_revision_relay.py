@@ -321,11 +321,12 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
             # failed, or the run stopped before the receipt.  Queue the sealed
             # Invite again; an Invite delivered twice under one id is one
             # Invite to its receiver.
-            dl.outbox_append(marker.proposal_id)
+            queued = dl.outbox_append(marker.proposal_id)
             self._record_queued(marker.proposal_id)
             self.logger.info(
-                "%s: re-queued committed Invite '%s' for revision '%s'",
+                "%s: %s committed Invite '%s' for revision '%s'",
                 self.name,
+                "re-queued" if queued else "found already pending (OX-06-002)",
                 marker.proposal_id,
                 marker.embargo_id,
             )

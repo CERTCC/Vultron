@@ -34,11 +34,15 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    embargo_answer_repeat_verdict,
     not_case_manager_refusal,
     verdict_from_bt,
 )
@@ -46,7 +50,10 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     run_pxa_refusal_tree,
 )
-from vultron.core.use_cases.received._sender_preflight import door_refusal
+from vultron.core.use_cases.received._sender_preflight import (
+    door_refusal,
+    repeat_answer_skip,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -392,6 +399,19 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         ) is not None:
             return refusal
 
+        if (
+            repeat := repeat_answer_skip(
+                self._dl,
+                receiving_actor_id,
+                case_id=case_id,
+                embargo_id=embargo_id,
+                answering_actor_id=accepting_actor_id,
+                answer=EmbargoConsentState.AGREED,
+                sync_port=self._sync_port,
+            )
+        ) is not None:
+            return repeat
+
         # EMB-02-002: MUST NOT process EA to transition EM to Active when P/X/A
         # is set; MUST emit ER instead.
         if (
@@ -449,8 +469,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             activity=request,
         )
 
-        verdict = verdict_from_bt(
-            tree, result, label="AcceptInviteToEmbargoBT"
+        verdict = embargo_answer_repeat_verdict(
+            tree,
+            verdict_from_bt(tree, result, label="AcceptInviteToEmbargoBT"),
         )
         if verdict.disposition is HandlerDisposition.APPLIED:
             # Only the CASE_MANAGER records an answer; a replica learns it

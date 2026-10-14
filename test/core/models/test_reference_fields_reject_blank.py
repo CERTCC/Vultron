@@ -35,7 +35,6 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronOutbox
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_register import EmbargoRegisterEntry
@@ -120,7 +119,6 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         "VulnerabilityCase.case_activity",
         lambda v: VulnerabilityCase(id_=CASE, case_activity=[v]),
     ),
-    ("VultronOutbox.items", lambda v: VultronOutbox(items=[v])),
     (
         "VultronOfferRecord.offer_to",
         lambda v: VultronOfferRecord(

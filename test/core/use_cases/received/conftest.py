@@ -16,7 +16,7 @@ import pytest
 # imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -231,7 +231,9 @@ def make_embargo_case_with_actor(
     author_id: str,
     extra_participants: list[str] | None = None,
     case_manager_actor_id: str | None = None,
-) -> tuple[SqliteDataLayer, CaseActor, as_VulnerabilityCase, as_EmbargoEvent]:
+) -> tuple[
+    SqliteDataLayer, VultronService, as_VulnerabilityCase, as_EmbargoEvent
+]:
     """Return (dl, case_actor, case, embargo) for embargo received-side tests.
 
     Also creates ``as_CaseParticipant`` objects so actor → participant lookups
@@ -252,7 +254,7 @@ def make_embargo_case_with_actor(
     ledger_holder_id = case_manager_actor_id or case_actor_id
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ledger_holder_id)
 
-    case_actor = CaseActor(
+    case_actor = VultronService(
         id_=case_actor_id,
         name=f"CaseActor for {case_id}",
         attributed_to=author_id,

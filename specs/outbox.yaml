@@ -199,6 +199,35 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ID-02-001
+  - id: OX-06-002
+    priority: MUST
+    kind: project
+    statement: >-
+      An actor's outbox MUST hold at most one pending entry per activity id: queuing an
+      activity whose id is already pending in that outbox MUST NOT add a second entry, and the
+      queuing operation MUST report whether it added one. An id that is no longer pending MUST be
+      queued again when asked, under the same id. An emitting tree whose retry rebuilds its
+      activity under the id the earlier attempt used therefore sends that activity once.
+    rationale: >-
+      A retry after a partial failure must not send an act twice. When the retry rebuilds the
+      activity under its first id (ID-04-004), the outbox alone can tell it is already on its way,
+      whatever the order of commit and send (ADR-0119). The check is in the queue
+      operation so no caller can omit it. A delivered id is queued again and the receiver drops it
+      by id (ID-02-001), as for a re-sent response (CP-05-006).
+    verification: >-
+      `test/adapters/driven/test_sqlite_inbox_outbox.py` asserts a pending id is not queued again,
+      also by concurrent writers on a file-backed store, that a popped id is, and that the enqueue
+      callback fires only for a new row;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` retries
+      the owner-direct invite after an attempt that queued its Invite without committing it and
+      asserts one outbox entry and one ledger entry;
+      `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py::test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window`
+      asserts the rebuilt act reuses its recorded entry however old its claimed time.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-06-001
+    - rel_type: depends_on
+      spec_id: ID-02-001
 - id: OX-07
   title: Outbound Body Sealing and Relay
   specs:

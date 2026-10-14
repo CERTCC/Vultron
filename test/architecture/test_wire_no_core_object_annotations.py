@@ -77,8 +77,7 @@ def test_promoted_core_classes_are_exactly_as2_representable() -> None:
     `attributed_to` on four promoted types — something the old rule, and a
     filename-level examples check, both passed straight through.
 
-    A field that genuinely cannot go on the wire is declared in
-    ``local_only_fields`` and dropped from the payload; anything else leaking a
+    A promoted class carries no field that cannot go on the wire, so any
     snake_case key is a field nobody gave an AS2 spelling.
     """
     offenders: list[str] = []
@@ -104,9 +103,8 @@ def test_promoted_core_classes_are_exactly_as2_representable() -> None:
         if not (isinstance(cls, type) and issubclass(cls, CoreObject)):
             continue
         examined += 1
-        local = cls.local_only_fields
         for name, field in cls.model_fields.items():
-            if name in local or field.exclude:
+            if field.exclude:
                 continue  # never reaches the wire
             alias = field.serialization_alias or generator(name)
             if snake.search(alias):
@@ -117,8 +115,7 @@ def test_promoted_core_classes_are_exactly_as2_representable() -> None:
         "these promoted classes put Python field names on the wire instead of "
         "AS2 property names (ADR-0099 detail 3):\n"
         + "\n".join(f"  {o}" for o in sorted(offenders))
-        + "\n\nGive the field an AS2 spelling, or declare it in "
-        "local_only_fields if it cannot go on the wire at all."
+        + "\n\nGive the field an AS2 spelling."
     )
 
 

@@ -32,8 +32,8 @@ from vultron.core.behaviors.case.case_actor_identity import (
 from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -1366,12 +1366,9 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # computes the id from this node's own base URL — so the same-authority
     # guard would never fire, and the `or dl` fall-back keeps a port that
     # cannot clone (a test double) working exactly as before.
-    actor_obj = CaseActor(
-        id_=case_actor_id,
-        name=f"CaseActor for {case_id}",
-        attributed_to=case_actor_id,
-        context=case_id,
-    )
+    # One actor per container, not per case (ADR-0088): no `context` naming a
+    # case and no `attributed_to`.
+    actor_obj = VultronService(id_=case_actor_id, name="CaseActor")
     own_store = store_for_actor(dl, case_actor_id) or dl
     try:
         own_store.create(actor_obj)

@@ -455,8 +455,8 @@ discriminator:
   bootstrap, authorizes a commit.
 - **"CaseActor"** for infrastructure and identity: its URI, inbox and outbox,
   self-delivery to its own inbox, its DataLayer, container or co-location,
-  delegated-emit store scoping (ADR-0073), the `CaseActor` domain type, or the
-  `case-actor` URL-shape anti-pattern.
+  delegated-emit store scoping (ADR-0073), or the `case-actor` URL-shape
+  anti-pattern.
 - **"the actor enacting `CVDRole.CASE_MANAGER`"** when the text needs an actor
   grounded in the role, such as one that can fail a hosting test.
 

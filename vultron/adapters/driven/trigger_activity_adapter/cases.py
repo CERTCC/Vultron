@@ -20,7 +20,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from vultron.adapters.outbox_sealed_body import derived_activity_id
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import (
     VultronActivityConstructionError,

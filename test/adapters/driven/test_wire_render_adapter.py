@@ -29,10 +29,9 @@ from datetime import UTC, timedelta
 import pytest
 
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
-from vultron.core.models.actor import VultronPerson
+from vultron.core.models.actor import VultronPerson, VultronService
 from vultron.core.models.base import VULTRON_CONTEXT_URI
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_reference import CaseReference
@@ -292,7 +291,7 @@ def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
 
 def test_render_succeeds_for_case_actor(adapter):
     """CaseActor IS the wire counterpart after ADR-0099 detail 3 (#3487)."""
-    obj = CaseActor()
+    obj = VultronService()
     result = adapter.render(obj)
     assert isinstance(result, dict)
     assert result.get("type") == "Service"
