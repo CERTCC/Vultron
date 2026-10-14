@@ -80,10 +80,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     commit stops the sequence, so no later entry is committed out of order,
     and the node returns FAILURE.  The records those entries carry were
     written before this node ran, so the failure is surfaced, not prevented.
-    The one case it can also undo is a failed genesis on the create-case
-    trigger path (*withdraw_case_on_genesis_failure*): nothing is committed
-    and the ``Create`` is not yet queued, so the case the tree wrote is
-    removed and the case file is as it was before the trigger.
+    The one case that can be undone is a failed genesis on the create-case
+    trigger path, where nothing is committed and the ``Create`` is not yet
+    queued: that tree withdraws the case after this node fails
+    (``WithdrawUncommittedCaseNode``).
 
     On the proposal path it runs *after* the accept flow has queued its
     ``Create(VulnerabilityCase)`` (``EmitCreateVulnerabilityCaseNode``):
@@ -107,32 +107,12 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
         name: str | None = None,
-        *,
-        withdraw_case_on_genesis_failure: bool = False,
     ) -> None:
-        """Create the node.
-
-        Args:
-            owner_uri: The case owner, the author of the case-status entry.
-            report_id: The report the case was created from, if any.
-            offer_id: The report's ``Offer``, when the proposal carried it.
-            offer_actor_id: That ``Offer``'s actor.
-            name: Node name.
-            withdraw_case_on_genesis_failure: Remove the case and the
-                participant records it names when the genesis entry fails
-                to commit.  Only the create-case trigger passes it: it
-                commits before it queues the ``Create``, so nothing about
-                the case has been committed or sent.  The proposal path
-                queues its ``Create`` first (CP-09-009) and must not.
-        """
         super().__init__(name=name or self.__class__.__name__)
         self._owner_uri = owner_uri
         self._report_id = report_id
         self._offer_id = offer_id
         self._offer_actor_id = offer_actor_id
-        self._withdraw_case_on_genesis_failure = (
-            withdraw_case_on_genesis_failure
-        )
         self._case_id_bb: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -434,36 +414,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
     def _genesis_failed(self, case: VulnerabilityCase, reason: str) -> Status:
-        """Report a failed genesis entry, withdrawing the case if allowed."""
-        if self._withdraw_case_on_genesis_failure:
-            self._withdraw_case(case)
-            self.feedback_message = (
-                f"genesis create_case ledger commit failed for case"
-                f" '{case.id_}' ({reason}); nothing was committed or sent, so"
-                " the case was withdrawn (CLP-07-013)"
-            )
-        else:
-            self.feedback_message = (
-                f"genesis create_case ledger commit failed for case"
-                f" '{case.id_}' ({reason}) — the CASE_MANAGER ledger has no"
-                " root; the creation messages were already queued (CP-09-009)"
-            )
+        """Report a failed genesis entry as FAILURE."""
+        self.feedback_message = (
+            f"genesis create_case ledger commit failed for case"
+            f" '{case.id_}' ({reason}) — the CASE_MANAGER ledger has no root"
+        )
         logger.error("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
-
-    def _withdraw_case(self, case: VulnerabilityCase) -> None:
-        """Remove the case and every participant record it names.
-
-        Called only when no entry for the case was committed, so no replica
-        holds any of it and the case file returns to what it was before the
-        creation (CLP-07-013).  The report the case was created from is not
-        the creation's write and stays.
-        """
-        assert self.datalayer is not None
-        for participant_id in case.actor_participant_index.values():
-            participant = self.datalayer.read(participant_id)
-            if isinstance(participant, CaseParticipant):
-                for status in participant.participant_statuses:
-                    self.datalayer.delete("ParticipantStatus", status.id_)
-            self.datalayer.delete("CaseParticipant", participant_id)
-        self.datalayer.delete("VulnerabilityCase", case.id_)

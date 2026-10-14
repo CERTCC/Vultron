@@ -24,7 +24,6 @@ Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, ADR-0051.
 """
 
 import json
-import logging
 from typing import cast
 
 from py_trees.common import Status
@@ -37,6 +36,7 @@ from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
     DataLayerActionWithPorts,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -50,10 +50,8 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.roles import has_case_manager_role
 from vultron.errors import VultronBTInternalError, VultronWiringError
 
-logger = logging.getLogger(__name__)
 
-
-class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
+class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
     """Record each RM closure step a Leave caused, one ledger entry per step.
 
     The advance node just before this one (:class:`~.advance
@@ -160,9 +158,6 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
             f" '{self._closing_actor_id}' on case '{self._case_id}' that the"
             " ledger does not record (CLP-07-013)"
         )
-        # The module logger reaches the stdlib logging tree; the py_trees
-        # logger alone writes only to the console (ISSUE-2505).
-        logger.warning("%s", message)
         self.logger.warning("%s", message)
 
     def _refuse(
@@ -171,7 +166,6 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
         """Withdraw the *unrecorded* steps, then report *reason* as FAILURE."""
         self._withdraw(participant_id, unrecorded)
         self.feedback_message = f"{self.name}: {reason}"
-        logger.warning("%s", self.feedback_message)
         self.logger.warning("%s", self.feedback_message)
         return Status.FAILURE
 

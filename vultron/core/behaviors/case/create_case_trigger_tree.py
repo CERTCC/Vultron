@@ -41,7 +41,9 @@ from vultron.core.behaviors.sync.nodes.port_guard import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError
 
 
 class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
@@ -188,6 +190,83 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
+class WithdrawUncommittedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
+    """Withdraw a new case none of whose creation entries committed.
+
+    Runs only after ``CommitNativeLedgerEntriesNode`` fails, and always
+    returns FAILURE, carrying that node's reason.  When no entry for the case
+    is in the ledger, nothing about it was committed or sent: the trigger
+    commits before it queues the ``Create``.  The case, the participant
+    records it names and the unqueued ``Create`` are then removed, so the
+    case file is as it was before the trigger (CLP-07-013).  The report the
+    case was created from is not the creation's write and stays.
+
+    Once the genesis entry has committed, the case cannot be withdrawn: the
+    ledger records it.  The node then removes nothing.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "activity_id": PortInformation(data_type=str, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id", "activity_id": "/activity_id"}
+
+    def __init__(
+        self, commit: CommitNativeLedgerEntriesNode, name: str | None = None
+    ) -> None:
+        """Create the node.
+
+        Args:
+            commit: The commit node this one follows; its feedback is the
+                reason the creation failed.
+            name: Node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._commit = commit
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = ""
+        self._activity_id_bb = ""
+        try:
+            self._case_id_bb = self.get_input("case_id")
+            self._activity_id_bb = self.get_input("activity_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        reason = self._commit.feedback_message or "creation commit failed"
+        case = self.datalayer.read_case(self._case_id_bb)
+        if case is None or recorded_entries_for_case(
+            case_id=case.id_, dl=self.datalayer
+        ):
+            self.feedback_message = reason
+            return Status.FAILURE
+        for participant_id in case.actor_participant_index.values():
+            participant = self.datalayer.read(participant_id)
+            if not isinstance(participant, CaseParticipant):
+                raise VultronNotFoundError("CaseParticipant", participant_id)
+            for status in participant.participant_statuses:
+                self.datalayer.delete("ParticipantStatus", status.id_)
+            self.datalayer.delete("CaseParticipant", participant_id)
+        if self._activity_id_bb:
+            self.datalayer.delete("Create", self._activity_id_bb)
+        self.datalayer.delete("VulnerabilityCase", case.id_)
+        self.feedback_message = (
+            f"{reason}; nothing was committed or sent, so the case was"
+            " withdrawn (CLP-07-013)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 def create_case_trigger_bt(
     *,
     actor_id: str,
@@ -232,11 +311,14 @@ def create_case_trigger_bt(
             result_out=result_out,
         ),
     ]
+    commit = CommitNativeLedgerEntriesNode(
+        owner_uri=actor_id, report_id=report_id
+    )
     children.append(
-        CommitNativeLedgerEntriesNode(
-            owner_uri=actor_id,
-            report_id=report_id,
-            withdraw_case_on_genesis_failure=True,
+        py_trees.composites.Selector(
+            name="CommitOrWithdrawCase",
+            memory=False,
+            children=[commit, WithdrawUncommittedCaseNode(commit=commit)],
         )
     )
     if queue_for_delivery:

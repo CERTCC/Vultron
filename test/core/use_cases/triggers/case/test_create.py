@@ -569,8 +569,8 @@ class TestCreateCaseTriggerLedger:
         """AC-3: a case whose genesis does not commit is not kept (#4442).
 
         The trigger commits before it queues the ``Create``, so nothing about
-        the case was committed or sent: the case and the creator's
-        participant record are removed and the trigger raises.  The report
+        the case was committed or sent: the case, the creator's participant
+        record and the unsent ``Create`` are removed and the trigger raises.  The report
         it was created from was not the creation's write and stays.
         """
         from vultron.core.behaviors.case.nodes import proposal_ledger
@@ -587,6 +587,7 @@ class TestCreateCaseTriggerLedger:
         assert self.dl.list_objects("CaseParticipant") == []
         assert self.dl.list_objects("CaseLedgerEntry") == []
         assert self.dl.outbox_list() == []
+        assert self.dl.list_objects("Create") == [], "the unsent Create too"
         assert self.dl.read(self.report.id_) is not None
 
     @pytest.mark.spec("CLP-07-013")

@@ -272,8 +272,10 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
             em_before=results[0].em_before,
             em_after=results[-1].em_after,
             case_changed=any(r.case_changed for r in results),
-            case_embargo_changed=False,
-            participant_changes=[],
+            case_embargo_changed=any(r.case_embargo_changed for r in results),
+            participant_changes=[
+                change for r in results for change in r.participant_changes
+            ],
         )
 
 
