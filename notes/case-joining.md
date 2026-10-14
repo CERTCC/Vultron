@@ -44,6 +44,7 @@ relevant_packages:
   - vultron/core/behaviors/sync/nodes/participant_removal_effect.py
   - vultron/core/behaviors/case/nodes/participant_reinstatement.py
   - vultron/core/behaviors/embargo/nodes/reinvite.py
+  - vultron/core/behaviors/sender_entitlement.py
   - vultron/core/states/rm.py
   - vultron/wire/as2/factories/case.py
 ---
@@ -105,12 +106,27 @@ is about (`entry_records_own_closure()`), and a replay answering a closed peer's
 
 ## Authority to act
 
-Acting on a case — suggest an actor, add a note, reject a ledger entry, change the
-roster — requires an *active* participant: no actor acts on content it may not see. An
-inert participant may only reply to the Invites addressed to it. A `CLOSED`
-participant may act on nothing further and is sent no Invites (CM-11-015). The
+Acting on a case — suggest an actor, add a note, change the roster — requires an
+*active* participant: no actor acts on content it may not see. An inert participant may
+only reply to the Invites addressed to it. A `CLOSED` participant may act on nothing
+further, except the two acts below, and is sent no Invites (CM-11-015). The
 CASE_MANAGER is held to the predicate as a recipient; its authority to *commit* comes
 from its role (CLP-09).
+
+- **A sender at RM `CLOSED` is refused, not just unsent-to (CM-23-018).** The
+  `ACTIVE_PARTICIPANT` standing is "active and closure not recorded", asked through
+  one shared predicate by every guard node for that kind. The bare active check is
+  not enough: it leaves `CLOSED` out on purpose, because recipients need it.
+  A closed participant would otherwise write to a case it can no longer see
+  (CM-23-004), and CM-23-013 stops writes only at `case_fully_closed`.
+- **Two acts stay open to a closed sender.** `Reject(CaseLedgerEntry)` gets a replay
+  capped at its own closure entries (`closed_participant_ledger_cutoff()`). Its guard
+  stays the bare active check (SYNC-03-005), so its use case must not declare
+  `ACTIVE_PARTICIPANT`. A second `Leave` is `SKIPPED`, with no entry, whatever its
+  activity id.
+- **A repeat is decided by its effect, not its id (ID-05-003).** An act whose effect
+  is already in place is a no-op, even under a new activity id: you cannot leave
+  twice.
 
 ## Edge cases
 
