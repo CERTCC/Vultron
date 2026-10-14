@@ -252,8 +252,8 @@ class TestWaitForObjectStored:
 
         client = MagicMock()
         client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
-        client.dl_path.side_effect = lambda key="": (
-            f"/actors/an-actor/datalayer/{key}"
+        client.dl_path.side_effect = lambda key="", actor_id=None: (
+            f"/actors/{actor_id or 'an-actor'}/datalayer/{key}"
         )
         wait_for_object_stored(
             client=client,
@@ -263,8 +263,28 @@ class TestWaitForObjectStored:
         # The read must be actor-scoped, and must ask the client to build the
         # path rather than hand-writing it (ADR-0073): a MagicMock would happily
         # accept any string, so assert the delegation too.
-        client.dl_path.assert_called_with(self.OBJ_ID)
+        client.dl_path.assert_called_with(self.OBJ_ID, actor_id=None)
         client.get.assert_called_with(client.dl_path(self.OBJ_ID))
+
+    def test_polls_the_named_actors_store(self):
+        """``actor_id`` selects the recipient's store, not the client's own."""
+        from vultron.demo.helpers.polling import wait_for_object_stored
+
+        client = MagicMock()
+        client.get.return_value = {"id": self.OBJ_ID, "type": "Read"}
+        client.dl_path.side_effect = lambda key="", actor_id=None: (
+            f"/actors/{actor_id or 'an-actor'}/datalayer/{key}"
+        )
+        wait_for_object_stored(
+            client=client,
+            obj_id=self.OBJ_ID,
+            timeout_seconds=1.0,
+            actor_id="finder",
+        )
+        client.dl_path.assert_called_with(self.OBJ_ID, actor_id="finder")
+        client.get.assert_called_with(
+            f"/actors/finder/datalayer/{self.OBJ_ID}"
+        )
 
     def test_raises_on_timeout_when_object_absent(self):
         from vultron.demo.helpers.polling import wait_for_object_stored
