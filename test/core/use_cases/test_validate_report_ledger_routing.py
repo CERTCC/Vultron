@@ -39,7 +39,11 @@ from __future__ import annotations
 
 import pytest
 
-from test.support.embargo_register import register, write_consent_rows
+from test.support.embargo_register import (
+    agree_to_active_embargo,
+    register,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -400,12 +404,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
         dl.create(cm_participant)
         case.case_participants.append(cm_participant.id_)
         case.actor_participant_index[self.CASE_ACTOR_ID] = cm_participant.id_
-        # The sender must be a participant of the case the CaseActor manages:
-        # its declaration is refused before the commit otherwise (HP-01-006),
-        # and RM.RECEIVED is the state it holds before validate-report.
+        # The sender must be an active participant of the case the CaseActor
+        # manages: its declaration is refused before the commit otherwise
+        # (HP-01-006, CM-10-004, CM-23-018), so it is a signatory to the
+        # embargo in force.  RM.RECEIVED is the state it holds before
+        # validate-report.
         _add_participant_at_received(dl, case, self.VENDOR_ID)
         dl.save(case)
         write_consent_rows(dl, case)
+        agree_to_active_embargo(dl, case, self.VENDOR_ID)
         dl.create(
             VultronReportCaseLink(
                 report_id=self.REPORT_ID, rm_state=RM.RECEIVED

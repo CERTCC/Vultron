@@ -58,6 +58,7 @@ from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
+    SenderIsActiveLedgerParticipantNode,
     SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -204,6 +205,23 @@ def _case_of(ctx: SenderCheckContext, what: str) -> str:
     return ctx.case_id
 
 
+def _case_owner_node(
+    ctx: SenderCheckContext,
+) -> py_trees.behaviour.Behaviour:
+    """The ``CASE_OWNER`` check: the Offer's maker for an ownership-transfer
+    reply (CM-21-015), otherwise the holder of the role."""
+    if isinstance(ctx.request, OwnershipOfferRequest):
+        return SenderIsOwnershipOffererNode(
+            case_id=_case_of(ctx, "an ownership-transfer Offer"),
+            offer_id=ctx.request.offer_id,
+            sender_actor_id=ctx.sender_id,
+            reply_id=ctx.request.reply_id,
+        )
+    return SenderIsCaseOwnerNode(
+        sender_actor_id=ctx.sender_id, case_id=ctx.case_id
+    )
+
+
 def _kind_node(
     kind: SenderEntitlementKind, ctx: SenderCheckContext
 ) -> py_trees.behaviour.Behaviour:
@@ -212,6 +230,12 @@ def _kind_node(
         return SenderIsActiveParticipantNode(
             status_id="", sender_actor_id=ctx.sender_id, case_id=ctx.case_id
         )
+    if kind is SenderEntitlementKind.LEDGER_PEER:
+        # Reads the sender and the case from the ledger activity on the
+        # blackboard (SYNC-03-005).
+        return SenderIsActiveLedgerParticipantNode(
+            name="SenderIsActiveLedgerParticipant"
+        )
     if kind is SenderEntitlementKind.CASE_MANAGER:
         return SenderIsCaseManagerNode(
             case_id=ctx.case_id,
@@ -219,16 +243,7 @@ def _kind_node(
             required=ctx.case_manager_required,
         )
     if kind is SenderEntitlementKind.CASE_OWNER:
-        if isinstance(ctx.request, OwnershipOfferRequest):
-            return SenderIsOwnershipOffererNode(
-                case_id=_case_of(ctx, "an ownership-transfer Offer"),
-                offer_id=ctx.request.offer_id,
-                sender_actor_id=ctx.sender_id,
-                reply_id=ctx.request.reply_id,
-            )
-        return SenderIsCaseOwnerNode(
-            sender_actor_id=ctx.sender_id, case_id=ctx.case_id
-        )
+        return _case_owner_node(ctx)
     if kind is SenderEntitlementKind.NAMED_ACTOR:
         return _addressee_node(ctx)
     if kind is SenderEntitlementKind.AUTHOR:

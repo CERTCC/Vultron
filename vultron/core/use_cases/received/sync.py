@@ -397,13 +397,17 @@ class RejectLedgerEntryReceivedUseCase:
 
     Only an active participant's rejection is acted on, and only at the
     case's CASE_MANAGER: any other receiver reports ``REFUSED`` and sends
-    nothing (SYNC-03-005, HP-01-005).
+    nothing (SYNC-03-005, HP-01-005).  A participant at RM ``CLOSED`` keeps
+    this one act, so the use case declares the ``LEDGER_PEER`` standing, not
+    ``ACTIVE_PARTICIPANT``: its rejection is answered with a replay that
+    stops at the entries recording its own closure (CM-23-004, CM-23-018).
 
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-03-005, SYNC-04-001, SYNC-04-002.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-03-005, SYNC-04-001, SYNC-04-002,
+    CM-23-018.
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.LEDGER_PEER
     )
 
     def __init__(

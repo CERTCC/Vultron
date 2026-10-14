@@ -3,4 +3,4 @@
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
 | the Case Manager has committed a case event to the case ledger | `Announce(CaseLedgerEntry)` | the case manager | — | [Announce case ledger entry](../ledger_replication.md#announce-case-ledger-entry) |
-| a received ledger entry does not chain onto the Participant's own ledger | `Reject(CaseLedgerEntry)` | an active participant | — | [Reject case ledger entry](../ledger_replication.md#reject-case-ledger-entry) |
+| a received ledger entry does not chain onto the Participant's own ledger | `Reject(CaseLedgerEntry)` | an active participant, including one that has left the case | — | [Reject case ledger entry](../ledger_replication.md#reject-case-ledger-entry) |

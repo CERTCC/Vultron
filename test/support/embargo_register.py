@@ -30,6 +30,7 @@ from vultron.core.states.embargo_register import (
     RegisterTrigger,
     TerminationReason,
 )
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 EmbargoRef = str | EmbargoEvent
 
@@ -130,8 +131,42 @@ def write_consent_rows(dl: CasePersistence, case: VulnerabilityCase) -> None:
             dl.save(record)
 
 
+def agree_to_active_embargo(
+    dl: CasePersistence, case: VulnerabilityCase, *actor_ids: str
+) -> None:
+    """Make each of *actor_ids* a signatory to *case*'s active embargo.
+
+    Its row for the embargo in force moves to ``AGREED`` through the one
+    consent-write path (``apply_pec_transition``, CM-18-005), so the actor is
+    an active participant (CM-10-004).  For a fixture whose sender must be
+    entitled to act on an embargoed case (CM-23-018).  Call it after
+    :func:`write_consent_rows`, which gives each participant its rows.  An
+    actor that already agreed is left as it is.
+
+    Raises:
+        AssertionError: *case* has no embargo in force, or an actor is not
+            on its roster.
+    """
+    embargo_id = case.active_embargo_id
+    assert embargo_id is not None, f"case '{case.id_}' has no active embargo"
+    for actor_id in actor_ids:
+        participant_id = case.actor_participant_index.get(actor_id)
+        assert participant_id is not None, f"'{actor_id}' is not on the roster"
+        record = dl.read(participant_id)
+        assert isinstance(record, CaseParticipant), participant_id
+        if record.is_signatory(embargo_id):
+            continue
+        record.apply_pec_transition(
+            embargo_id,
+            PEC_Trigger.AGREE,
+            entry_status=EmbargoRegisterStatus.ACTIVE,
+        )
+        dl.save(record)
+
+
 __all__ = [
     "activate",
+    "agree_to_active_embargo",
     "cancel_on_threat",
     "propose",
     "register",

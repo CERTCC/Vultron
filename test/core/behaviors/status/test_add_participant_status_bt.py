@@ -1408,11 +1408,13 @@ class TestRejectionValidatorBeforeCommit:
     def test_partial_accept_with_closed_rm_succeeds_and_produces_ledger_entry(
         self, make_payload
     ):
-        """Participant is RM.CLOSED; incoming status advances vfd but asserts
-        a backwards rm (VALID ≺ CLOSED).
+        """Participant is RM.ACCEPTED; incoming status advances vfd but asserts
+        a backwards rm (VALID ≺ ACCEPTED).
 
-        FilterParticipantStatusDimensionsNode refuses rm and carries CLOSED
-        forward; vfd advance is accepted (partial accept → SUCCESS).
+        FilterParticipantStatusDimensionsNode refuses rm and carries ACCEPTED
+        forward; vfd advance is accepted (partial accept → SUCCESS).  The
+        sender is not at RM.CLOSED: a closed sender is refused before any
+        dimension is filtered (CM-23-018).
         GuardedCommit fires and produces one CaseLedgerEntry.
         ValidateRMTransitionNode is SKIPPED (validate_rm=False), so the
         carried-forward CLOSED rm no longer causes a post-commit FAILURE.
@@ -1443,7 +1445,7 @@ class TestRejectionValidatorBeforeCommit:
         existing_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/existing",
             context=CASE_ID,
-            rm=RmDimension(state=RM.CLOSED),
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         vendor_participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
@@ -1459,7 +1461,7 @@ class TestRejectionValidatorBeforeCommit:
         dl.create(vendor_participant)
         dl.create(existing_status)
 
-        # Incoming status: rm=VALID (backwards from CLOSED), vfd advances to Vfd
+        # Incoming status: rm=VALID (backwards from ACCEPTED), vfd advances to Vfd
         incoming_status = as_ParticipantStatus(
             id_=STATUS_ID,
             context=CASE_ID,

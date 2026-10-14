@@ -38,7 +38,11 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.embargo_register import activate, write_consent_rows
+from test.support.embargo_register import (
+    activate,
+    agree_to_active_embargo,
+    write_consent_rows,
+)
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -67,9 +71,12 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.rm import RM, RMDeclaration
@@ -155,11 +162,25 @@ _HANDLERS: dict[RM, _Handler] = {
 def _seed(dl: SqliteDataLayer, current: RM) -> None:
     """The CASE_MANAGER's replica, with the sender recorded at *current*."""
     seed_case(dl, current_status(current, CS_vf.Vf, CS_pxa.pxa), None)
-    # DUR-07-004: the validate path needs an embargo on the case.
+    # DUR-07-004: the validate path needs an embargo on the case.  The
+    # CASE_MANAGER's store holds the embargo and the report the case names,
+    # so a broadcast to the active sender can carry them (EMB-18-003).
+    dl.create(
+        VulnerabilityReport(id_=REPORT_ID, name="Shared RM table report")
+    )
+    embargo = EmbargoEvent(
+        id_=f"{CASE_ID}/embargoes/shared-table",
+        context=CASE_ID,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
     case = cast(VulnerabilityCase, dl.read(CASE_ID))
-    activate(case, f"{CASE_ID}/embargoes/shared-table")
+    activate(case, embargo)
     dl.save(case)
     write_consent_rows(dl, case)
+    # The sender acts on the case, so it must be an active participant: a
+    # signatory to the embargo in force (CM-10-004, CM-23-018).
+    agree_to_active_embargo(dl, case, ACTOR_ID)
 
 
 def _deliver(
@@ -235,6 +256,36 @@ class TestActivityTypedHandlersApplyTheSharedRule:
 
         # Same as the Add(ParticipantStatus) path.
         assert_anomaly_flagged_and_noted(case, dl, caplog.records)
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestClosedSenderIsRefusedBeforeTheRule:
+    """A sender at RM CLOSED may not act, so the rule never runs (CM-23-018).
+
+    Its declaration is refused by the sender guard: nothing is recorded,
+    nothing is committed, and no RSH-06-004 note is sent.
+    """
+
+    @pytest.mark.spec("CM-23-018")
+    @pytest.mark.parametrize(
+        "case", cases_declaring(*_HANDLERS, sender_closed=True)
+    )
+    def test_closed_sender_is_refused_with_nothing_sent(
+        self, case: RMDeclarationCase, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, case.current)
+        before = status_count(dl)
+        tail = ledger_tail_position(CASE_ID, dl)
+
+        result = _deliver(dl, case.declared, make_payload)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-018" in (result.reason or ""), result.reason
+        assert recorded_rm(dl) == RM.CLOSED
+        assert status_count(dl) == before, "a refusal writes nothing"
+        assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
+        assert queued_notes(dl) == []
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -364,12 +415,12 @@ class TestAnomalyFlagDoesNotLeakAcrossRuns:
         self, store_for, make_payload
     ):
         dl = store_for(CASE_MANAGER_ID)
-        _seed(dl, RM.VALID)
-        _deliver(dl, RM.CLOSED, make_payload)
+        _seed(dl, RM.RECEIVED)
+        _deliver(dl, RM.DEFERRED, make_payload)
         assert len(queued_notes(dl)) == 1, "precondition: one gap note"
 
-        # The sender is now recorded CLOSED: a restated CLOSED confirms.
-        result = _deliver(dl, RM.CLOSED, make_payload)
+        # The sender is now recorded DEFERRED: a restated DEFERRED confirms.
+        result = _deliver(dl, RM.DEFERRED, make_payload)
 
         assert result.disposition is HandlerDisposition.SKIPPED, result.reason
         assert len(queued_notes(dl)) == 1, "the confirmation posts no note"
@@ -438,23 +489,23 @@ class TestRefusedRegressionIsNoted:
         self, store_for, make_payload
     ):
         dl = store_for(CASE_MANAGER_ID)
-        _seed(dl, RM.CLOSED)
+        _seed(dl, RM.ACCEPTED)
         tail = ledger_tail_position(CASE_ID, dl)
 
-        result = _deliver(dl, RM.DEFERRED, make_payload)
+        result = _deliver(dl, RM.INVALID, make_payload)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert recorded_rm(dl) == RM.CLOSED
+        assert recorded_rm(dl) == RM.ACCEPTED
         assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
         assert len(queued_notes(dl)) == 1
 
     @pytest.mark.spec("CLP-10-022")
-    @pytest.mark.parametrize("declared", [RM.DEFERRED, RM.INVALID])
+    @pytest.mark.parametrize("declared", [RM.VALID, RM.INVALID])
     def test_a_redelivered_refusal_posts_no_second_note(
         self, declared: RM, store_for, make_payload
     ):
         dl = store_for(CASE_MANAGER_ID)
-        _seed(dl, RM.CLOSED)
+        _seed(dl, RM.ACCEPTED)
         event = make_payload(_HANDLERS[declared].build(ACTOR_ID))
 
         def deliver() -> Any:
@@ -485,9 +536,9 @@ class TestRefusedRegressionIsNoted:
     ):
         """The redelivery skip is per activity, not per sender or case."""
         dl = store_for(CASE_MANAGER_ID)
-        _seed(dl, RM.CLOSED)
+        _seed(dl, RM.ACCEPTED)
 
-        first = _deliver(dl, RM.DEFERRED, make_payload)
+        first = _deliver(dl, RM.VALID, make_payload)
         second = _deliver(dl, RM.INVALID, make_payload)
 
         assert first.disposition is HandlerDisposition.REFUSED
@@ -535,8 +586,8 @@ class TestRefusedRegressionIsNoted:
         not be noted again.
         """
         dl = store_for(CASE_MANAGER_ID)
-        _seed(dl, RM.CLOSED)
-        _deliver(dl, RM.DEFERRED, make_payload)
+        _seed(dl, RM.ACCEPTED)
+        _deliver(dl, RM.VALID, make_payload)
         assert len(queued_notes(dl)) == 1, "precondition: one regression note"
 
         result = _deliver(dl, RM.INVALID, make_payload, sender=STRANGER_ID)

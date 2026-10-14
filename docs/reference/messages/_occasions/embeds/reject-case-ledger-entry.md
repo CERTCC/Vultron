@@ -6,7 +6,7 @@
 
     - **When…** a received ledger entry does not chain onto the Participant's own ledger
     - **Send:** `Reject(CaseLedgerEntry)`
-    - **Sent by:** an active participant
+    - **Sent by:** an active participant, including one that has left the case
     - **Reference:** [Reject case ledger entry](../../ledger_replication.md#reject-case-ledger-entry)
 
     ??? example "Example activity"

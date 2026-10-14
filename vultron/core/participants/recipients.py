@@ -54,6 +54,10 @@ The report-flow ``Create(Case)`` does not come here:
 the actor, the report and the offer rather than the roster, and every one of
 them is seated at case initialization.
 
+The sender check reads the same records: :func:`may_act_on_case` is the one
+predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-018), so a
+sender may act on a case exactly when it would be sent its content.
+
 This module is the one place in ``vultron/core/`` that lists roster actor
 IDs for addressing; ``test/architecture/test_active_participant_recipient_selection.py``
 holds every other module to that.
@@ -504,7 +508,9 @@ def is_case_content_recipient(
     than chosen from the roster: the ledger replay a
     ``Reject(CaseLedgerEntry)`` asks for and the genesis case seed (#4042).
     The joiner's case copy and ledger backfill (#4048) gate on it too, and
-    the sender guards read it as "the case vouches for this sender".
+    so does the sender guard of that ``Reject(CaseLedgerEntry)``
+    (SYNC-03-005).  Every other sender guard asks :func:`may_act_on_case`
+    instead (CM-23-018).
 
     It does not apply the RM ``CLOSED`` filter of
     :func:`case_content_recipients`: a closed participant may still be owed
@@ -517,3 +523,37 @@ def is_case_content_recipient(
         return False
     record = _resolve_record(case, dl, participant_id)
     return record is not None and case.is_active_participant(record)
+
+
+# ---------------------------------------------------------------------------
+# Sender standing: who may act on a case (CM-23-018)
+# ---------------------------------------------------------------------------
+
+
+def may_act_on_case(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> bool:
+    """True when *actor_id* may act on *case* as a sender (CM-23-018).
+
+    The one predicate behind the ``ACTIVE_PARTICIPANT`` sender standing
+    (HP-01-007, HP-01-009): every guard for that standing asks it.  The
+    sender is an active participant (CM-10-004) whose closure is not
+    recorded, the same test :func:`case_content_recipients` applies to a
+    recipient (:func:`_receives_case_content`).  No actor acts on content it
+    may not see: an inert or removed participant is refused, and so is a
+    participant at RM ``CLOSED``, which has left the case.
+
+    Two acts stay open to a closed sender, and neither asks this predicate.
+    Its ``Reject(CaseLedgerEntry)`` is checked with
+    :func:`is_case_content_recipient` (SYNC-03-005) and answered with a
+    replay capped by :func:`closed_participant_ledger_cutoff`.  A repeated
+    ``Leave(VulnerabilityCase)`` is ``SKIPPED`` by effect (ID-05-003).
+
+    An actor the case does not list, or whose record does not resolve, may
+    not act: the case cannot vouch for it.
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        return False
+    record = _resolve_record(case, dl, participant_id)
+    return record is not None and _receives_case_content(case, record)

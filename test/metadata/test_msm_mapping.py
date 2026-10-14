@@ -199,6 +199,10 @@ def test_ep_is_carried_only_by_the_embargo_invite():
         (SenderEntitlementKind.CASE_MANAGER, "the case manager"),
         (SenderEntitlementKind.CASE_OWNER, "the case owner"),
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
+        (
+            SenderEntitlementKind.LEDGER_PEER,
+            "an active participant, including one that has left the case",
+        ),
         (SenderEntitlementKind.INVITEE, "the invitee"),
         (SenderEntitlementKind.ANY_ACTOR, "any actor"),
     ],

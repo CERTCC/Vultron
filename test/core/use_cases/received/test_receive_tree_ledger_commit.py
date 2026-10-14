@@ -232,10 +232,17 @@ class TestCloseAndInvalidateReportCommit:
                 False,
                 RM.RECEIVED,
             ),
-            # Closed is terminal: declaring INVALID afterwards is backward.
+            # Declaring INVALID after ACCEPTED is backward.
             (
                 InvalidateReportReceivedUseCase,
                 rm_invalidate_report_activity,
+                True,
+                RM.ACCEPTED,
+            ),
+            # A sender at RM CLOSED has left and may not act (CM-23-018).
+            (
+                CloseReportReceivedUseCase,
+                rm_close_report_activity,
                 True,
                 RM.CLOSED,
             ),
@@ -244,6 +251,7 @@ class TestCloseAndInvalidateReportCommit:
             "close-sender_not_a_participant",
             "invalidate-sender_not_a_participant",
             "invalidate-backward_declaration",
+            "close-sender_already_closed",
         ],
     )
     def test_refused_declaration_commits_nothing(
@@ -264,7 +272,30 @@ class TestCloseAndInvalidateReportCommit:
         assert _committed(dl) == []
 
     def test_redelivered_activity_commits_once(self):
-        """A repeat of the same activity is skipped and adds no entry."""
+        """A repeat of the same activity is skipped and adds no entry.
+
+        Invalidate, not Close: once the sender is at RM CLOSED it may not
+        act, so a repeated Close is refused (CM-23-018) rather than skipped.
+        """
+        dl = _store(MANAGER_ID)
+        event = extract_event(
+            rm_invalidate_report_activity(_offer(), actor=FINDER_ID)
+        ).model_copy(update={"receiving_actor_id": MANAGER_ID})
+
+        first = InvalidateReportReceivedUseCase(
+            dl, event, **_ports(dl)
+        ).execute()
+        second = InvalidateReportReceivedUseCase(
+            dl, event, **_ports(dl)
+        ).execute()
+
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert second.disposition is HandlerDisposition.SKIPPED
+        assert _committed(dl).count("invalidate_report") == 1
+
+    @pytest.mark.spec("CM-23-018")
+    def test_a_repeated_close_from_the_closed_sender_is_refused(self):
+        """The sender's first Close records its closure; a repeat is refused."""
         dl = _store(MANAGER_ID)
         event = cast(
             CloseReportReceivedEvent,
@@ -277,7 +308,8 @@ class TestCloseAndInvalidateReportCommit:
         second = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
 
         assert first.disposition is HandlerDisposition.APPLIED
-        assert second.disposition is HandlerDisposition.SKIPPED
+        assert second.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-018" in (second.reason or "")
         assert _committed(dl).count("close_report") == 1
 
 

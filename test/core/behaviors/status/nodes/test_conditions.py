@@ -169,20 +169,47 @@ def closed_sender_dl(populated_dl):
     return populated_dl
 
 
-class TestClosedSenderRefused:
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CM-23-018: the active-participant sender guard accepts a"
-        " sender at RM CLOSED. Tracked by #4615.",
+@pytest.fixture
+def inert_sender_dl(populated_dl):
+    """The vendor is invited but has not joined, so it is inert (CM-10-004)."""
+    inert = CaseParticipant(
+        id_=PARTICIPANT_ID,
+        context=CASE_ID,
+        attributed_to=ACTOR_ID,
+        joined=False,
     )
+    populated_dl.save(inert)
+    return populated_dl
+
+
+@pytest.fixture
+def removed_sender_dl(populated_dl):
+    """The vendor carries the removal fact (CM-31-001)."""
+    removed = CaseParticipant(
+        id_=PARTICIPANT_ID,
+        context=CASE_ID,
+        attributed_to=ACTOR_ID,
+        removal_activity="https://example.org/activities/remove-vendor",
+    )
+    populated_dl.save(removed)
+    return populated_dl
+
+
+class TestClosedSenderRefused:
+    """CM-23-018: the guard refuses every sender that may not act on the case."""
+
     @pytest.mark.spec("CM-23-018")
-    def test_closed_sender_fails(self, closed_sender_dl):
+    @pytest.mark.parametrize(
+        "store", ["closed_sender_dl", "inert_sender_dl", "removed_sender_dl"]
+    )
+    def test_sender_that_may_not_act_fails(self, store, request):
         node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        result = BTBridge(datalayer=closed_sender_dl).execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
+        result = BTBridge(
+            datalayer=request.getfixturevalue(store)
+        ).execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
+        assert "REFUSED" in node.feedback_message

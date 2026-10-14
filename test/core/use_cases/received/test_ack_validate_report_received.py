@@ -44,6 +44,8 @@ from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
     SubmitReportReceivedUseCase,
@@ -222,9 +224,15 @@ class TestFullReportFlow:
         )
         dl.save(embargo)
         # The sender's participants carry a row for every register entry
-        # (ADR-0122); neither has answered this embargo.
+        # (ADR-0122).  The vendor agreed to the embargo in force, so it is an
+        # active participant that may act on the case (CM-10-004, CM-23-018).
         for participant in (case_manager, vendor_participant):
             participant.write_uninvited_rows([embargo.id_])
+        vendor_participant.apply_pec_transition(
+            embargo.id_,
+            PEC_Trigger.AGREE,
+            entry_status=EmbargoRegisterStatus.ACTIVE,
+        )
         case = as_VulnerabilityCase.model_construct(
             id_=self.CASE_ID,
             name="Flow test case",

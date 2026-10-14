@@ -44,6 +44,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
+    SenderIsActiveLedgerParticipantNode,
     SenderIsCaseOwnerNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
@@ -63,9 +64,13 @@ from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
     compose_sender_guard,
 )
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -533,6 +538,118 @@ def test_author_without_a_case_is_a_wiring_error() -> None:
             SenderRule.before_case(Kind.AUTHOR),
             SenderCheckContext(sender_id=VENDOR, authored_object_id=NOTE_ID),
         )
+
+
+# ---------------------------------------------------------------------------
+# CM-23-018: every ACTIVE_PARTICIPANT guard refuses a sender that may not act
+# ---------------------------------------------------------------------------
+
+_VENDOR_PARTICIPANT_ID = f"{CASE_ID}/participants/vendor"
+
+
+def _leave(record: CaseParticipant) -> None:
+    """The vendor's closure recorded: its RM is ``CLOSED`` (CM-23-001)."""
+    record.participant_statuses.append(
+        ParticipantStatus(
+            context=CASE_ID,
+            attributed_to=VENDOR,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+    )
+
+
+def _uninvite(record: CaseParticipant) -> None:
+    """The vendor has not joined, so it is inert (CM-10-004)."""
+    record.joined = False
+
+
+def _remove(record: CaseParticipant) -> None:
+    """The vendor carries the removal fact (CM-31-001)."""
+    record.removal_activity = f"{CASE_ID}/activities/remove-vendor"
+
+
+_MAY_NOT_ACT = pytest.mark.parametrize(
+    "standing",
+    [_leave, _uninvite, _remove],
+    ids=["closed", "inert", "removed"],
+)
+
+
+def _store_where_vendor(
+    standing: Callable[[CaseParticipant], None] | None,
+) -> BTTestScenario:
+    """The CASE_MANAGER's store, the vendor's record changed by *standing*."""
+    scenario = _store_with_note(VENDOR)
+    if standing is not None:
+        record = scenario.dl.read(_VENDOR_PARTICIPANT_ID)
+        assert isinstance(record, CaseParticipant)
+        standing(record)
+        scenario.dl.save(record)
+    return scenario
+
+
+def _vendor_guards() -> list[py_trees.behaviour.Behaviour]:
+    """Each guard of the ACTIVE_PARTICIPANT standing, for the vendor."""
+    composed = [
+        compose_sender_guard(
+            SenderRule.in_case(kind),
+            SenderCheckContext(
+                sender_id=VENDOR, case_id=CASE_ID, authored_object_id=NOTE_ID
+            ),
+        )
+        for kind in (Kind.ACTIVE_PARTICIPANT, Kind.AUTHOR)
+    ]
+    return [
+        *(guard for guard in composed if guard is not None),
+        SenderMayAssertEmbargoNode(
+            case_id=CASE_ID,
+            sender_actor_id=VENDOR,
+            manager_arm=Kind.ACTIVE_PARTICIPANT,
+        ),
+    ]
+
+
+_GUARD_IDS = ["active-participant", "note-author", "embargo-manager-arm"]
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.parametrize("index", range(3), ids=_GUARD_IDS)
+def test_each_active_participant_guard_admits_an_active_open_sender(
+    index: int,
+) -> None:
+    """Control: the vendor, active and not closed, is admitted by each guard."""
+    guard = _vendor_guards()[index]
+    result = _store_where_vendor(None).run(
+        guard, activity=SimpleNamespace(actor_id=VENDOR)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.SUCCESS, result.feedback_message
+
+
+@pytest.mark.spec("CM-23-018", "CM-10-004")
+@_MAY_NOT_ACT
+@pytest.mark.parametrize("index", range(3), ids=_GUARD_IDS)
+def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(
+    index: int, standing: Callable[[CaseParticipant], None]
+) -> None:
+    """A closed, an inert and a removed sender each fail every guard."""
+    guard = _vendor_guards()[index]
+    result = _store_where_vendor(standing).run(
+        guard, activity=SimpleNamespace(actor_id=VENDOR)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("CM-23-018", "SYNC-03-005")
+def test_ledger_peer_kind_composes_the_resync_guard() -> None:
+    """``LEDGER_PEER`` is guarded by the bare active check of SYNC-03-005."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.LEDGER_PEER),
+        SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+    )
+    assert isinstance(guard, SenderIsActiveLedgerParticipantNode)
+    assert guard.guards_kind is Kind.LEDGER_PEER
 
 
 # ---------------------------------------------------------------------------

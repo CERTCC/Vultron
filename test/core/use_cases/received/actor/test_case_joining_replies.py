@@ -670,6 +670,13 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
     )
 
     build = {"join": rm_engage_case_activity, "ignore": rm_defer_case_activity}
+    # Only an active participant may act on the case (CM-10-004, CM-23-018):
+    # the invitee joins by accepting the stub before it engages or defers.
+    joining_case.route(
+        rm_accept_invite_to_case_activity(
+            joining_case.stub_invite, actor=joining_case.invitee_id
+        )
+    )
     _advance_invitee_to(joining_case, RM.VALID)
 
     result = joining_case.route(
