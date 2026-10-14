@@ -631,3 +631,21 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
         and str(obj.event_type) == INVITE_EXPIRED_NOOP_EVENT_TYPE
     ]
     assert len(noop_entries) == 1
+
+    # The entry is the CASE_MANAGER's own factory-built Ignore of the late
+    # Accept, carried inline, recorded from its sealed blob (CLP-07-013,
+    # VM-08-003) -- not a snapshot attributed to the accepter (#3743).
+    (committed,) = [
+        obj
+        for obj in dl_mgr.list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry)
+        and str(obj.event_type) == INVITE_EXPIRED_NOOP_EVENT_TYPE
+    ]
+    snapshot = committed.payload_snapshot
+    assert snapshot["type"] == "Ignore"
+    assert snapshot["actor"] == MANAGER
+    assert snapshot["object"]["type"] == "Accept"
+    assert snapshot["object"]["id"] == accept.id_
+    assert snapshot["object"]["actor"] == BYSTANDER
+    assert snapshot == read_sealed_body_dict(dl_mgr, committed.log_object_id)
+    assert noop_entries[0].payload_snapshot == snapshot

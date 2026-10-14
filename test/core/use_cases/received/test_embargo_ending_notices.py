@@ -967,4 +967,5 @@ def test_owed_notice_without_a_trigger_factory_is_an_internal_fault() -> None:
             ),
             receiving_actor_id=MANAGER,
             sync_port=SyncActivityAdapter(manager.dl),
+            trigger_activity=None,
         )

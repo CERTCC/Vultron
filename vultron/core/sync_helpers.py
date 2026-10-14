@@ -233,10 +233,9 @@ def ledger_position_refusal(
 
 
 #: Top-level snapshot fields that may be stamped when a snapshot is *built*
-#: rather than carried from the assertion it records.  The CaseActor stamps its
-#: own snapshots' ``published`` with ``now_utc`` at build time (CLP-14-002,
-#: :mod:`~vultron.core.behaviors.case.ledger_snapshots`), so rebuilding one for
-#: a retry yields a new value.  Treating it as part of what an entry asserts
+#: rather than carried from the assertion it records.  The CaseActor's own
+#: activities carry its clock as ``published`` at build time (CLP-14-002), so
+#: building one afresh for a retry yields a new value.  Treating it as part of what an entry asserts
 #: makes idempotency a race against the clock — ``now_utc`` truncates to whole
 #: seconds, so a retry that lands in the next second appends a duplicate while
 #: one in the same second does not.

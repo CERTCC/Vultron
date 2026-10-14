@@ -433,7 +433,7 @@ The exact count of `add_participant_status_to_participant` and `add_case_status_
 | 26 | `close_case` | Vendor | 6 |
 | 27 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
 | 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
-| 29 | `case_fully_closed` | Vendor (owner closure) | 6 |
+| 29 | `case_fully_closed` | Case Actor (its own `Update(VulnerabilityCase)` closing the case on the Vendor's departure) | 6 |
 
 The ledger ends at `case_fully_closed`: the Finder left first, so no participant act follows the owner closure.
 

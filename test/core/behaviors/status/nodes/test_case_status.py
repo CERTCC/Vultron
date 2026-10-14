@@ -27,6 +27,9 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_status_snapshot import (
@@ -64,6 +67,7 @@ def bridge(dl):
         datalayer=dl,
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     )
 
 
@@ -93,6 +97,7 @@ def populated_bridge(populated_dl):
         datalayer=populated_dl,
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(populated_dl),
+        trigger_activity=TriggerActivityAdapter(populated_dl),
     )
 
 
@@ -130,6 +135,7 @@ class TestCheckCaseStatusIdempotencyNode:
             datalayer=populated_dl,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
         )
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
@@ -251,6 +257,7 @@ class TestEmitCaseStatusUpdateNode:
             datalayer=populated_dl,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
         )
         case_before = populated_dl.read(CASE_ID)
         assert isinstance(case_before, CoreCase)
@@ -264,15 +271,16 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case_after, CoreCase)
         assert len(case_after.case_statuses) == initial_count + 1
 
-    @pytest.mark.spec("ARCH-20-001")
-    @pytest.mark.spec("CLP-07-009")
-    def test_missing_render_port_commits_and_persists_nothing(
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.spec("VM-08-003")
+    def test_missing_trigger_activity_port_commits_and_persists_nothing(
         self, populated_dl
     ):
-        """No port: no AS2 snapshot can be built, so nothing is written.
+        """No port: no ``Add(CaseStatus)`` can be built, so nothing is written.
 
-        The node does not dump the ``CaseStatus`` itself; the missing port is a
-        composition fault, and no status is appended without its entry.
+        The entry is the factory-built activity's sealed blob (VM-08-003); the
+        missing port is a composition fault, and no status is appended without
+        its entry.
         """
         case_before = populated_dl.read(CASE_ID)
         assert isinstance(case_before, CoreCase)
@@ -281,6 +289,7 @@ class TestEmitCaseStatusUpdateNode:
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
         result = BTBridge(
             datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(populated_dl),
         ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
@@ -302,6 +311,7 @@ class TestEmitCaseStatusUpdateNode:
             datalayer=populated_dl,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
         )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
@@ -337,6 +347,7 @@ class TestEmitCaseStatusUpdateNode:
             datalayer=populated_dl,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
         )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
@@ -396,10 +407,15 @@ class TestEmitCaseStatusUpdateNode:
         bb.register_key(
             key="wire_render_port", access=py_trees.common.Access.WRITE
         )
+        bb.register_key(
+            key="trigger_activity_factory",
+            access=py_trees.common.Access.WRITE,
+        )
         bb.datalayer = populated_dl
         bb.actor_id = ACTOR_ID
         bb.is_leader = lambda: False
         bb.wire_render_port = As2WireRenderAdapter()
+        bb.trigger_activity_factory = TriggerActivityAdapter(populated_dl)
 
         try:
             node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
@@ -418,5 +434,7 @@ class TestEmitCaseStatusUpdateNode:
                 "/actor_id",
                 "wire_render_port",
                 "/wire_render_port",
+                "trigger_activity_factory",
+                "/trigger_activity_factory",
             ]:
                 storage.pop(key, None)
