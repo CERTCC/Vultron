@@ -64,7 +64,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
     ("Reject", "Offer"),  # close_report (RC)
-    ("Read", "Offer"),  # ack_report (RK, ADR-0021)
+    # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
     # The Case Owner's withdrawal of an ownership-transfer Offer (CM-21-015),
     # the only Undo(Offer) semantic today; a second one would share this
     # signature.  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.

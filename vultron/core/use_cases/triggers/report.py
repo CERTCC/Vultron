@@ -30,6 +30,7 @@ from typing import Any, cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.report.trigger_report_trees import (
+    create_ack_report_trigger_tree,
     create_close_case_trigger_tree,
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
@@ -44,6 +45,7 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import OfferResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.use_cases.triggers._base import (
     SvcActivityTriggerBase,
     SvcBTTriggerBase,
@@ -52,6 +54,7 @@ from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AckReportTriggerRequest,
     CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
@@ -108,12 +111,52 @@ def _require_offer_addressed_to(
     that Offer, so the record's ``offer_to`` does not name it; it judges the
     case by replying to the full-case Invite (CM-11-011, ADR-0121).
     """
-    if actor_id not in offer_record.offer_to:
+    if not is_addressed_to(actor_id, offer_record.offer_to):
         raise VultronValidationError(
             f"{trigger} refused: actor '{actor_id}' was not sent offer "
             f"'{offer_record.offer_id}'. A participant that joined the case "
             "through an Invite judges the case by replying to the full-case "
             "Invite, not by answering the original report Offer (CM-11-020)."
+        )
+
+
+class SvcAckReportUseCase(SvcActivityTriggerBase):
+    """Acknowledge a report Offer by emitting RK to the reporter.
+
+    RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
+    to the reporter, at any time after the report arrived, whether or not a
+    case exists: it answers the reporter's Offer outside the case, so it is
+    the stated exception to PCR-08-001.  Nobody sends it to the CASE_MANAGER
+    (RMB-08-003).  An actor the Offer was not sent to is refused before
+    anything is emitted.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(AckReportTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._offer, self._report = _resolve_offer_and_report(
+            request.offer_id, self._dl
+        )
+        _require_offer_addressed_to(self._actor_id, self._offer, "ack-report")
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        request = cast(AckReportTriggerRequest, self._request)
+        return create_ack_report_trigger_tree(
+            offer_id=self._offer.offer_id,
+            report_id=self._report.id_,
+            note=request.note,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        request = cast(AckReportTriggerRequest, self._request)
+        logger.info(
+            "Actor '%s' acknowledged offer '%s' (report '%s'); note: %s",
+            self._actor_id,
+            self._offer.offer_id,
+            self._report.id_,
+            request.note,
         )
 
 

@@ -46,7 +46,6 @@ from pydantic import BaseModel, ConfigDict
 from vultron.primitives import NonEmptyString
 
 __all__ = [
-    "ACK_ECHO",
     "CASE_PROPOSAL",
     "CASE_STATUS",
     "EMBARGO_INVITE_ANSWER",
@@ -74,17 +73,6 @@ class ReplicaEmitExemption(BaseModel):
     reason: NonEmptyString
     covers: frozenset[NonEmptyString]
 
-
-ACK_ECHO: Final = ReplicaEmitExemption(
-    name="ack-echo",
-    reason=(
-        "AckReport forwards the executing actor's own Read(Offer) to the"
-        " CASE_MANAGER. The tree skips another actor's ack and skips at the"
-        " CASE_MANAGER itself, so the emit speaks only for its author and is"
-        " never addressed to itself (BT-17-008, #2667)."
-    ),
-    covers=frozenset({"EmitAckReportActivity"}),
-)
 
 OFFER_ROLE: Final = ReplicaEmitExemption(
     name="offer-role",
@@ -199,7 +187,6 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
         {
             exemption.name: exemption
             for exemption in (
-                ACK_ECHO,
                 OFFER_ROLE,
                 CASE_PROPOSAL,
                 CASE_STATUS,

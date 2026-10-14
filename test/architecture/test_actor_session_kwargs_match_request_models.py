@@ -39,6 +39,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
     AcceptEmbargoRequest,
+    AckReportRequest,
     AddNoteToCaseRequest,
     CaseTriggerRequest,
     CloseCaseRequest,
@@ -71,6 +72,7 @@ from vultron.demo.actor_session import ActorSession
 #: a new verb to declare which model bounds its keywords.
 METHOD_TO_MODEL = {
     "submit_report": SubmitReportRequest,
+    "ack_report": AckReportRequest,
     "validate_report": ValidateReportRequest,
     "invalidate_report": InvalidateReportRequest,
     "close_report": CloseReportRequest,
