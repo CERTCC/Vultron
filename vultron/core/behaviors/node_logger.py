@@ -21,6 +21,11 @@ and its level methods take a single pre-rendered message. A literal template
 with lazy positional arguments (SL-01-005) therefore raises ``TypeError`` when
 handed to it. Vultron nodes log through the stdlib logger this module returns
 instead, named ``<module>.<class>`` after the node's class.
+
+py_trees' typed-ports layer logs one line per port as a node registers its
+blackboard keys.  Those lines restate the node class's declared ports on every
+tree build, so Vultron nodes hand ``setup_ports`` the shared
+:func:`port_wiring_logger` rather than their own (#4600).
 """
 
 import logging
@@ -37,3 +42,21 @@ def node_logger(node: py_trees.behaviour.Behaviour) -> logging.Logger:
     """
     cls = type(node)
     return logging.getLogger(f"{cls.__module__}.{cls.__name__}")
+
+
+#: The logger py_trees' typed-ports layer writes to for Vultron nodes.
+PORT_WIRING_LOGGER_NAME = "vultron.core.behaviors.port_wiring"
+
+
+def port_wiring_logger() -> logging.Logger:
+    """Return the logger to pass as ``setup_ports(logger=...)``.
+
+    Port registration is wiring, not run-time state: one DEBUG line per port,
+    identical on every build of the same node class, and in CI over half of
+    every container's DEBUG output (#4600).  Routing it here lets the entry
+    points keep it at INFO (:data:`vultron.logging_setup.STATIC_WIRING_LOGGERS`)
+    while the rest of the BT stays at DEBUG; py_trees' port-conversion warnings
+    still come through at WARNING.  Set this logger to DEBUG by hand to see the
+    wiring.
+    """
+    return logging.getLogger(PORT_WIRING_LOGGER_NAME)

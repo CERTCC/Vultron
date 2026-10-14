@@ -16,6 +16,7 @@ related_notes:
   - notes/bt-integration.md
   - notes/lint-tooling.md
   - notes/devcontainer-tooling.md
+  - notes/demo-ci-diagnostics.md
 ---
 
 # Structured Logging — Narrative Standard and Infrastructure Demotion Guide
@@ -108,7 +109,7 @@ to its `DEMOTED_FRAGMENTS` rather than relying on a manual grep.
 
 | Pattern | Why DEBUG |
 |---|---|
-| `BT structure:` / `Final BT state:` tree dumps | BT scaffolding, not story |
+| `Final BT state:` tree dump | BT scaffolding, not story |
 | `DataLayer stored/saved/updated X 'ID'` | Persistence internals; the higher-level "Created X" line is the story |
 | `Parsing activity from ...` | HTTP handler internals |
 | `Processing outbox for actor ...` | Preamble; the delivery result is the meaningful line |
@@ -122,6 +123,26 @@ to its `DEMOTED_FRAGMENTS` rather than relying on a manual grep.
 cannot be demoted at the call site: `suppress_third_party_info_noise()` in
 `vultron/logging_setup.py` pins those loggers to WARNING whenever the app level is
 above DEBUG, from both the server and the demo CLI. Add a new noisy library to `NOISY_INFO_LOGGERS` there.
+
+### Static wiring stays out of DEBUG too
+
+DEBUG is for run-time state. A line that restates code — identical every time the
+same tree is built — costs CI time and buries the lines that matter. In the CI
+demos, two such kinds were about 64% of every container's DEBUG bytes (#4600):
+
+- **py_trees port registration** (`Port 'x': Registered blackboard key ...`), one
+  line per port per tree build. Every `setup_ports(...)` call passes
+  `logger=port_wiring_logger()` (`vultron/core/behaviors/node_logger.py`), and the
+  same `suppress_third_party_info_noise()` call pins that logger at INFO through
+  `STATIC_WIRING_LOGGERS`. Set it to DEBUG by hand to see the wiring.
+  `test/architecture/test_setup_ports_use_port_wiring_logger.py` fails a call
+  that omits the logger.
+- **The pre-tick tree dump** is gone: before the first tick every node is unrun,
+  and `Final BT state:` repeats the same shape with each node's result.
+
+The per-node `X.tick()` / `X.stop(...)` lines stay. Their statuses repeat the final
+tree, but they bracket each node's own output, which is how a DataLayer read or an
+error line is attributed to the node that wrote it.
 
 ---
 

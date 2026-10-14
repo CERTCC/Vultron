@@ -17,9 +17,9 @@ Provides a backend API router for basic Vultron data layer operations.
 """
 
 import logging
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.db_record import Record, record_to_object
@@ -137,6 +137,7 @@ def get_report(
 )
 def get_datalayer_contents(
     datalayer: DataLayer = Depends(get_actor_dl),
+    types: Annotated[list[str] | None, Query(alias="type")] = None,
 ) -> dict[str, Any]:
     """Return every stored object, keyed by id, as plain JSON.
 
@@ -144,8 +145,22 @@ def get_datalayer_contents(
     so the whole-store dump is not an AS2 document and is served as
     ``application/json`` rather than through ``AS2JSONResponse``
     (ARCH-20-006).
+
+    One or more ``type`` query parameters narrow the dump to objects of those
+    types, each serialized exactly as the whole-store dump serializes it.  A
+    poll that looks for one kind of object reads only that kind: rehydrating
+    and serializing the whole store on every poll slowed the container it
+    polled as the store grew (#4600).
     """
-    data = datalayer.all()
+    data: Any
+    if types:
+        data = {
+            obj.id_: obj
+            for type_key in types
+            for obj in datalayer.list_objects(type_key)
+        }
+    else:
+        data = datalayer.all()
     if not isinstance(data, dict):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
