@@ -291,23 +291,50 @@ SENDER_GUARD_ALLOW_LIST: dict[tuple[str, str], str] = {
 }
 
 
+_FACTORY = "create_receive_activity_tree"
+
+
+def _may_pass_sender_guard(call: ast.Call) -> bool:
+    """*call* passes ``sender_guard=``, or splats keywords into the factory.
+
+    A ``**kwargs`` splat into the factory could carry ``sender_guard`` past a
+    keyword scan, so it counts as passing one.
+    """
+    func = call.func
+    name = (
+        func.attr
+        if isinstance(func, ast.Attribute)
+        else (func.id if isinstance(func, ast.Name) else None)
+    )
+    return any(
+        kw.arg == "sender_guard" or (kw.arg is None and name == _FACTORY)
+        for kw in call.keywords
+    )
+
+
 def _sender_guard_builders() -> set[tuple[str, str]]:
-    """Every (module path, function) whose body passes ``sender_guard=``."""
+    """Every (module path, function) whose body may pass ``sender_guard=``."""
     found: set[tuple[str, str]] = set()
     for path, tree in _corpus.files_mentioning(
-        "sender_guard", under=_corpus.REPO_ROOT / "vultron"
+        "sender_guard", _FACTORY, under=_corpus.REPO_ROOT / "vultron"
     ):
         rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
         for func in ast.walk(tree):
             if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             if any(
-                isinstance(call, ast.Call)
-                and any(kw.arg == "sender_guard" for kw in call.keywords)
+                isinstance(call, ast.Call) and _may_pass_sender_guard(call)
                 for call in ast.walk(func)
             ):
                 found.add((rel, func.name))
     return found
+
+
+def test_the_scan_counts_a_keyword_splat_into_the_factory() -> None:
+    """A ``**kwargs`` splat cannot carry ``sender_guard`` past the ratchet."""
+    call = ast.parse("create_receive_activity_tree(name, **kwargs)").body[0]
+    assert isinstance(call, ast.Expr) and isinstance(call.value, ast.Call)
+    assert _may_pass_sender_guard(call.value)
 
 
 @pytest.mark.spec("HP-01-008")

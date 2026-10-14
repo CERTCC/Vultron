@@ -43,6 +43,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderExemption,
     SenderRule,
+    in_declaration_order,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.base import repo_root
@@ -201,8 +202,9 @@ def rule_wording(rule: SenderRule, entry: SemanticEntry) -> str:
     CASE_MANAGER's is the one a participant's message is addressed to.
     """
     side = rule.at_case_manager or rule.outside_case or rule.at_participant
-    ordered = sorted(side, key=list(SenderEntitlementKind).index)
-    return " or ".join(_kind_wording(kind, entry) for kind in ordered)
+    return " or ".join(
+        _kind_wording(kind, entry) for kind in in_declaration_order(side)
+    )
 
 
 def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
@@ -217,18 +219,19 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     Raises:
         ValueError: When the use case declares no sender entitlement.
     """
-    declared: SenderRule | SenderExemption | None = getattr(
+    declared: object = getattr(
         entry.use_case_class, "sender_entitlement", None
     )
-    if declared is None:
-        raise ValueError(
-            f"{entry.use_case_class.__name__} declares no sender_entitlement"
-            " (HP-01-007)"
-        )
-    if isinstance(declared, SenderExemption):
-        wording = NOT_YET_CHECKED
-    else:
-        wording = rule_wording(declared, entry)
+    match declared:
+        case SenderExemption():
+            wording = NOT_YET_CHECKED
+        case SenderRule():
+            wording = rule_wording(declared, entry)
+        case _:
+            raise ValueError(
+                f"{entry.use_case_class.__name__} declares no"
+                " sender_entitlement (HP-01-007)"
+            )
     if not occasion.usual_senders:
         return wording
     usual = ", ".join(

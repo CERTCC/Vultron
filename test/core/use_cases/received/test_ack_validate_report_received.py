@@ -566,6 +566,29 @@ class TestValidateReportReceivedGuardedCommit:
             "no case found" in r.message.lower() for r in caplog.records
         ), "Expected debug log indicating skip due to missing case"
 
+    @pytest.mark.spec("HP-01-006")
+    def test_refuses_when_this_store_holds_no_case_for_the_report(self):
+        """No case for the report: REFUSED, with the reason naming why.
+
+        The declared rule's case sides need a case to check the sender
+        against, so the factory's guard refuses (HP-01-006, HP-01-008).
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=self.CASE_ACTOR_ID
+        )
+
+        result = ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "holds no case for it" in result.reason
+
     def test_skip_commit_when_receiving_actor_not_case_actor(self):
         """ValidateReportReceivedUseCase skips commit when receiving_actor != CaseActor.
 

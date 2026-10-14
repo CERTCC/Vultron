@@ -27,6 +27,8 @@ Composition:
   ``outside_case`` side.
 - Otherwise, when the CASE_MANAGER and participant sides name the same kinds,
   the guard is those kinds' any-of selector, whoever receives the activity.
+  An any-of selector ends with :class:`SenderHoldsNoneOfNode`, so a refused
+  sender's reason names every kind the side accepts.
 - Otherwise the guard dispatches on the receiver's side::
 
       SenderRuleGuard (Sequence)
@@ -49,11 +51,13 @@ from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderEntitlementKind,
+    SenderHoldsNoneOfNode,
     SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
     SenderIsInviteeNode,
     SenderRule,
+    in_declaration_order,
 )
 from vultron.errors import VultronWiringError
 
@@ -102,6 +106,11 @@ def _kind_node(
             sender_actor_id=ctx.sender_id, case_id=ctx.case_id
         )
     if kind is SenderEntitlementKind.INVITEE:
+        if ctx.invite_id is None:
+            raise VultronWiringError(
+                "compose_sender_guard: an INVITEE kind needs the recorded"
+                " Invite's id in SenderCheckContext.invite_id (HP-01-008)"
+            )
         return SenderIsInviteeNode(
             invite_id=ctx.invite_id,
             sender_actor_id=ctx.sender_id,
@@ -126,19 +135,16 @@ def _any_of(
         return NoSenderAdmittedNode(side=side)
     if SenderEntitlementKind.ANY_ACTOR in kinds:
         return None
-    nodes = [_kind_node(kind, ctx) for kind in sorted(kinds, key=_order)]
+    nodes = [_kind_node(kind, ctx) for kind in in_declaration_order(kinds)]
     if len(nodes) == 1:
         return nodes[0]
+    # The last arm fails naming every kind, so the refusal reason is the
+    # side's whole rule rather than the last kind tried (BT-13-001).
     return py_trees.composites.Selector(
         name="AnyOfSenderKinds",
         memory=False,
-        children=nodes,
+        children=[*nodes, SenderHoldsNoneOfNode(kinds)],
     )
-
-
-def _order(kind: SenderEntitlementKind) -> int:
-    """Declaration order of the enum, so composition is deterministic."""
-    return list(SenderEntitlementKind).index(kind)
 
 
 def _or_pass(
@@ -164,14 +170,14 @@ def compose_sender_guard(
 
     Raises:
         VultronWiringError: The rule names a kind with no factory guard yet
-            (``NAMED_ACTOR``).
+            (``NAMED_ACTOR``), or an ``INVITEE`` kind without ``invite_id``.
     """
     if ctx.case_id is None:
         return _any_of(
             rule.outside_case,
             ctx,
-            "an actor outside any case (the activity names no case this"
-            " store holds)",
+            "a receiver that holds no case for it (the activity names no"
+            " case this store holds)",
         )
     if rule.at_case_manager == rule.at_participant:
         return _any_of(rule.at_case_manager, ctx, "a case actor")

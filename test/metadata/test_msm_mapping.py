@@ -18,6 +18,7 @@ two disagreed for ``EP`` (MSM-08-006 rationale).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import dataclasses
 from typing import Any, ClassVar
 
 import pytest
@@ -298,6 +299,18 @@ def test_sent_by_words_the_outside_case_side_of_a_pre_case_rule():
 
 def test_sent_by_refuses_an_undeclared_entitlement():
     entry = _entry(entitlement=None)
+    with pytest.raises(ValueError, match="declares no sender_entitlement"):
+        sent_by(entry, entry.occasions[0])
+
+
+def test_sent_by_refuses_a_declaration_that_is_not_a_rule():
+    """A bare kind, the pre-HP-01-008 shape, is not a declaration."""
+    entry = _entry()
+
+    class _BareKind:
+        sender_entitlement = SenderEntitlementKind.CASE_OWNER
+
+    entry = dataclasses.replace(entry, use_case_class=_BareKind)
     with pytest.raises(ValueError, match="declares no sender_entitlement"):
         sent_by(entry, entry.occasions[0])
 

@@ -91,6 +91,8 @@ Nodes
   merged from ``CheckIsCaseOwnerNode``
 - ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
   leaves empty (HP-01-008)
+- ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
+  standing the side accepts (HP-01-008)
 
 Helper predicate
 ----------------
@@ -218,6 +220,14 @@ class SenderExemption:
 def any_of(*kinds: SenderEntitlementKind) -> frozenset[SenderEntitlementKind]:
     """The kinds one side of a :class:`SenderRule` admits, any one sufficing."""
     return frozenset(kinds)
+
+
+def in_declaration_order(
+    kinds: frozenset[SenderEntitlementKind],
+) -> list[SenderEntitlementKind]:
+    """*kinds* in the enum's declaration order, so composition and wording
+    are deterministic."""
+    return [kind for kind in SenderEntitlementKind if kind in kinds]
 
 
 @dataclass(frozen=True)
@@ -1410,6 +1420,40 @@ class NoSenderAdmittedNode(SenderEntitlementConditionNode):
         return Status.FAILURE
 
 
+class SenderHoldsNoneOfNode(SenderEntitlementConditionNode):
+    """The last arm of an any-of side: the sender held none of its kinds.
+
+    The factory appends it to the selector of an any-of side (HP-01-008), so
+    a refused sender's reason names every standing the side accepts rather
+    than only the last kind tried (HP-01-006, BT-13-001).  It always fails.
+
+    Spec: HP-01-006, HP-01-008.
+    """
+
+    def __init__(
+        self,
+        kinds: frozenset[SenderEntitlementKind],
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            kinds: The kinds the side accepts, any one sufficing.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._kinds = in_declaration_order(kinds)
+
+    def update(self) -> Status:
+        names = ", ".join(kind.name for kind in self._kinds)
+        self.feedback_message = (
+            f"Sender holds none of the standings this activity accepts"
+            f" ({names}) — REFUSED (HP-01-006, HP-01-008)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 # ---------------------------------------------------------------------------
 # Condition node: CASE_OWNER
 # ---------------------------------------------------------------------------
@@ -1559,6 +1603,7 @@ __all__ = [
     "SenderEntitlement",
     "SenderRule",
     "any_of",
+    "in_declaration_order",
     "exempt",
     # Helper predicate
     "is_case_owner",
@@ -1575,4 +1620,5 @@ __all__ = [
     "SenderIsCaseOwnerNode",
     "SenderIsNoteAuthorNode",
     "NoSenderAdmittedNode",
+    "SenderHoldsNoneOfNode",
 ]

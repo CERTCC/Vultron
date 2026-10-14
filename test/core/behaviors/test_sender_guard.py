@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderEntitlementKind,
+    SenderHoldsNoneOfNode,
     SenderIsCaseOwnerNode,
     SenderRule,
     any_of,
@@ -164,6 +165,22 @@ def test_two_sided_rule_admits_exactly_each_sides_kinds(
     assert _admits(TWO_SIDED, receiver, sender) is admitted
 
 
+@pytest.mark.spec("HP-01-006")
+def test_any_of_refusal_names_every_kind_the_side_accepts() -> None:
+    guard = compose_sender_guard(
+        ANY_OF, SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID)
+    )
+    assert isinstance(guard, py_trees.composites.Selector)
+    assert isinstance(guard.children[-1], SenderHoldsNoneOfNode)
+    result = _store(MANAGER).run(
+        guard, activity=SimpleNamespace(actor_id=VENDOR)
+    )
+    assert result.status == Status.FAILURE
+    reason = BTBridge.get_failure_reason(guard)
+    assert "none of the standings" in reason
+    assert "CASE_MANAGER, CASE_OWNER" in reason
+
+
 @pytest.mark.spec("HP-01-008")
 def test_an_empty_side_admits_no_one() -> None:
     rule = SenderRule(at_case_manager=any_of(Kind.CASE_OWNER))
@@ -201,7 +218,16 @@ def test_case_rule_refuses_an_activity_that_names_no_case() -> None:
     assert isinstance(guard, NoSenderAdmittedNode)
     result = _store(MANAGER).run(guard)
     assert result.status == Status.FAILURE
-    assert "an actor outside any case" in BTBridge.get_failure_reason(guard)
+    reason = BTBridge.get_failure_reason(guard)
+    assert "a receiver that holds no case for it" in reason
+
+
+def test_invitee_without_an_invite_id_is_a_wiring_error() -> None:
+    with pytest.raises(VultronWiringError, match="invite_id"):
+        compose_sender_guard(
+            SenderRule.in_case(Kind.INVITEE),
+            SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+        )
 
 
 def test_named_actor_has_no_factory_guard_yet() -> None:
@@ -221,7 +247,7 @@ def test_named_actor_has_no_factory_guard_yet() -> None:
 def test_factory_refusal_names_the_missing_standing() -> None:
     tree = create_receive_activity_tree(
         name="RuleTreeBT",
-        case_id=None,
+        case_id=CASE_ID,
         precondition_guards=[],
         sender_rule=TWO_SIDED,
         sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
@@ -258,6 +284,19 @@ def test_factory_rejects_a_rule_and_a_guard_together() -> None:
             sender_guard=NoSenderAdmittedNode(side="nobody"),
             sender_rule=ANY_OF,
             sender_context=SenderCheckContext(sender_id=VENDOR),
+        )
+
+
+def test_factory_rejects_a_context_naming_another_case() -> None:
+    with pytest.raises(VultronWiringError, match="names case"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=None,
+            precondition_guards=[],
+            sender_rule=ANY_OF,
+            sender_context=SenderCheckContext(
+                sender_id=VENDOR, case_id=CASE_ID
+            ),
         )
 
 

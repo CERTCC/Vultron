@@ -351,6 +351,7 @@ def _post_close_stage(
 
 def _sender_guard_stage(
     name: str,
+    case_id: str | None,
     sender_guard: py_trees.behaviour.Behaviour | None,
     sender_rule: SenderRule | None,
     sender_context: SenderCheckContext | None,
@@ -369,6 +370,11 @@ def _sender_guard_stage(
     if sender_context is None:
         raise VultronWiringError(
             f"{name}: sender_rule needs a sender_context (HP-01-008)"
+        )
+    if sender_context.case_id != case_id:
+        raise VultronWiringError(
+            f"{name}: sender_context names case {sender_context.case_id!r}"
+            f" but the tree's case is {case_id!r} (HP-01-008)"
         )
     return compose_sender_guard(sender_rule, sender_context)
 
@@ -534,7 +540,8 @@ def create_receive_activity_tree(
             holds a state writer (CLP-10-022), or an exempt tree passes a
             ``post_close_reply`` (CM-23-013), or the sender arguments are
             inconsistent: ``sender_rule`` without ``sender_context`` or with
-            ``sender_guard`` (HP-01-008).
+            ``sender_guard``, or a ``sender_context`` naming another case than
+            ``case_id`` (HP-01-008).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, ``specs/behavior-tree-integration.yaml``
@@ -566,7 +573,7 @@ def create_receive_activity_tree(
         )
     )
     guard = _sender_guard_stage(
-        name, sender_guard, sender_rule, sender_context
+        name, case_id, sender_guard, sender_rule, sender_context
     )
     if guard is not None:
         children.append(guard)
