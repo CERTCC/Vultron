@@ -490,7 +490,7 @@ groups:
     statement: A CVD case SHALL NOT have more than one active embargo at a time
     verification: >-
       The embargo register refuses any step, and any constructed case, that
-      would leave more than one entry `ACTIVE` (ADR-0122 invariant 1,
+      would leave more than one entry `ACTIVE` (ADR-0122,
       `register_invariant_violations` in
       `vultron/core/states/embargo_register.py`);
       `test/core/models/test_embargo_register.py` asserts both refusals.

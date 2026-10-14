@@ -1925,9 +1925,10 @@ groups:
     priority: MUST
     kind: project
     statement: 'ActorConfig MUST expose an `auto_create_case` boolean field with a default value of `True`.'
-    rationale: Receivers that follow the Option 3 protocol path (send Read(Offer(Report)) before deciding to accept or reject)
-      require the ability to delay case creation. The default (True) preserves the original ADR-0015 Option 4 "always create
-      at RM.RECEIVED" behavior for all existing actors and demos.
+    rationale: Receivers that acknowledge a report (send Read(Offer(Report)), VAM-02-003) before deciding to accept or reject
+      it require the ability to delay case creation. The default (True) keeps a case started at every `Offer(Report)` receipt,
+      at RM.RECEIVED (CM-22-001; CM-12-001 where the receiver is the CASE_MANAGER), for all existing actors and
+      demos.
     verification: Inspection of `vultron/core/` confirms that `ActorConfig` declares an
       `auto_create_case` boolean field defaulting to `True`.
     relationships:
@@ -4748,8 +4749,8 @@ groups:
       A participant that did not answer made no decision, and code, logs, demos and replicas read
       the consent row, not ledger provenance (ADR-0118). An expired participant is re-invitable
       (CM-18-003), excluded from embargoed content like any non-signatory (CM-10-004), and made a
-      signatory by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065
-      part 5, which chose `DECLINED`.
+      signatory by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065's
+      choice to record a lapsed invitation as `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
       (`Invite(Actor, VulnerabilityCaseStub)`) carries embargo terms but changes
@@ -5894,7 +5895,7 @@ groups:
       that case's ID, its new end time or the fact of termination, and the rationale.
     rationale: >-
       A notice informs and proposes nothing: a case's embargo changes only through its own
-      negotiation (ADR-0125, decision part 7). Committing it to the receiving ledger delivers
+      negotiation (ADR-0125). Committing it to the receiving ledger delivers
       it through the shared recipient selection, so the participants of one case learn of
       another's change without ever being addressed by it, and learn nothing else of that
       case.

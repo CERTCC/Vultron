@@ -1278,7 +1278,7 @@ groups:
     rationale: >-
       Once the embargo exits, no consent row binds anyone: with no `ACTIVE`
       register entry nobody is a signatory, and a register with a `TERMINATED`
-      entry accepts no further change (ADR-0122 invariant 4), so no later
+      entry accepts no further change (ADR-0122), so no later
       invitation to the terminated embargo can rebind anyone. The position is
       derived from the case, so it is not copied onto each participant record.
     testable: true
