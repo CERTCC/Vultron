@@ -173,7 +173,7 @@ class TestClosedSenderRefused:
     @pytest.mark.xfail(
         strict=True,
         reason="CM-23-018: the active-participant sender guard accepts a"
-        " sender at RM CLOSED. Tracked by Concern #4556.",
+        " sender at RM CLOSED. Tracked by #4615.",
     )
     @pytest.mark.spec("CM-23-018")
     def test_closed_sender_fails(self, closed_sender_dl):
