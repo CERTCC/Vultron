@@ -40,6 +40,7 @@ class NotACaseEvent(StrEnum):
     """The closed CLP-02-013 grounds for routing an activity with no entry."""
 
     PRE_CASE = "processed before a case exists"
+    OUTSIDE_THE_CASE = "RK, a reply to the reporter outside the case"
     REPLICA_APPLY = "a replica applying an entry, not asserting one"
     LEDGER_MECHANICS = "an activity about the ledger itself"
     NOT_LEDGERED_BY_CLP_10_013 = "left unledgered by CLP-10-013 (ADR-0111)"
@@ -53,6 +54,9 @@ class NotACaseEvent(StrEnum):
 EXEMPT: dict[str, NotACaseEvent | str] = {
     "create_report": NotACaseEvent.PRE_CASE,
     "submit_report": NotACaseEvent.PRE_CASE,
+    # RK answers the reporter's Offer outside the case and never reaches the
+    # CASE_MANAGER (RMB-08-003).
+    "ack_report": NotACaseEvent.OUTSIDE_THE_CASE,
     "create_case_proposal": NotACaseEvent.PRE_CASE,
     # The proposer's receipt of the answer to its proposal: case proposal
     # intake, before the proposer holds any case (CP-06-001, CP-06-002).

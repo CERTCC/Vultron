@@ -61,7 +61,6 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
-    exempt,
 )
 
 logger = logging.getLogger(__name__)
@@ -423,13 +422,11 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
-    # RK's sender is the recipient of the RS it acknowledges, the actor the
-    # Offer(Report) was addressed to (RMB-01-001, VP-03-009).  No spec says
-    # how the CASE_MANAGER, which holds no OfferRecord (CP-01-007), checks
-    # that; #4325 holds the question.
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4325",
-        "the CASE_MANAGER side of the RK sender rule is not yet specified",
+    # RK goes from an actor the Offer(Report) was addressed to, to the
+    # reporter, which holds the Offer and checks the sender against it; it is
+    # never sent to the CASE_MANAGER (RMB-08-003, RMB-08-004).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -437,14 +434,12 @@ class AckReportReceivedUseCase:
         dl: CasePersistence,
         request: AckReportReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: AckReportReceivedEvent = request
         self._sync_port = sync_port
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -453,13 +448,9 @@ class AckReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Resolve case_id for the guarded-commit subtree.
-        tree = create_ack_report_received_tree(
-            request, case_id=_case_id_for_report(self._dl, request.report_id)
-        )
+        tree = create_ack_report_received_tree(request)
         bridge = BTBridge(
             datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )

@@ -6,7 +6,7 @@ Acknowledges receipt of the submitted report. Report submission is not replicate
 
 - **When…** a report receiver has read a submitted report
 - **Send:** `Read(Offer(VulnerabilityReport))`
-- **Sent by:** not yet checked (usually: vendor, coordinator)
+- **Sent by:** the addressee of the vulnerability report (usually: vendor, coordinator)
 - **Seen in:** [How to Acknowledge a Report](../../../../howto/activitypub/activities/acknowledge.md), [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Formal definition:** [Report Acknowledgment (RK)](../../../formal_protocol/messages.md#rm-message-types)
 - **Mapping status:** [direct](../../index.md#mapping-status)

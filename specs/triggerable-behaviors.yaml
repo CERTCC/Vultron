@@ -50,7 +50,7 @@ groups:
   - id: TRIG-02-001
     priority: SHOULD
     kind: protocol
-    statement: 'The following RM behaviors SHOULD be individually triggerable via the trigger API: validate-report, invalidate-report, reject-report, close-report, submit-report'
+    statement: 'The following RM behaviors SHOULD be individually triggerable via the trigger API: validate-report, invalidate-report, reject-report, close-report, submit-report, ack-report'
   - id: TRIG-02-002
     priority: SHOULD
     kind: protocol
