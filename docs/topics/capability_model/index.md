@@ -323,6 +323,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 ### Report lifecycle
 
 - `submit-report` — create and offer a vulnerability report to a recipient
+- `ack-report` — acknowledge a received report to its sender
 - `validate-report` — mark a received report as valid
 - `invalidate-report` — mark a received report as invalid
 - `reject-report` — hard-close a report before validation completes

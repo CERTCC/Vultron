@@ -1428,6 +1428,7 @@ def wait_for_object_stored(
     obj_id: str,
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
+    actor_id: str | None = None,
 ) -> None:
     """Poll *client*'s DataLayer until *obj_id* appears.
 
@@ -1445,6 +1446,9 @@ def wait_for_object_stored(
         obj_id: Full URI of the object to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
+        actor_id: Whose store to poll.  Defaults to *client*'s own actor;
+            name the recipient when it is not the actor *client* is bound to
+            (ADR-0073).
 
     Raises:
         AssertionError: If *obj_id* does not appear within *timeout_seconds*.
@@ -1454,7 +1458,7 @@ def wait_for_object_stored(
 
     def _check() -> bool:
         try:
-            data = client.get(client.dl_path(obj_id))
+            data = client.get(client.dl_path(obj_id, actor_id=actor_id))
             if data:
                 logger.info(
                     "Object %s found in DataLayer at %s",

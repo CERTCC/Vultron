@@ -24,6 +24,7 @@ from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 
 
@@ -323,17 +324,21 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
 
 
 class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
-    """Emit RmAckReportActivity (Read(Offer(Report))) to the CaseActor's inbox.
+    """Emit RmReadReportActivity (``Read(Offer(Report))``, RK) to the reporter.
 
-    Per ADR-0021 CLP-10-001: when a vendor acknowledges a report, the AckReport
-    activity must be addressed to the CaseActor so the CaseActor can commit
-    a canonical ledger entry.
+    RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
+    to the reporter, and never to the CASE_MANAGER (RMB-08-003), so unlike its
+    siblings this node does not route through the case: its one recipient is
+    the Offer's actor, read from this store's ``VultronOfferRecord``
+    (DL-06-001).  ``content`` is the trigger's optional note, carried on the
+    RK (TRIG-03-003).
     """
 
     def __init__(
         self,
         offer_id: str,
         report_id: str,
+        content: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
@@ -343,6 +348,33 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             captured=captured,
             name=name,
         )
+        self.content = content
+
+    def _compute_addressees(self) -> list[str] | None:
+        """Address RK to the reporter alone; ``None`` fails the emit.
+
+        Overrides the case routing of the base: RK goes to the actor of the
+        recorded Offer, never to the CASE_MANAGER (RMB-08-003).  ``None`` is
+        the base's failure signal, returned when this store holds no record
+        of the Offer or when the executing actor is itself the reporter.
+        """
+        assert self.datalayer is not None and self.actor_id is not None
+        offer_record = self.datalayer.read(
+            VultronOfferRecord.build_id(self.offer_id)
+        )
+        if not isinstance(offer_record, VultronOfferRecord):
+            self.feedback_message = (
+                f"no record of offer '{self.offer_id}' to acknowledge"
+            )
+        elif same_actor_id(offer_record.offer_actor_id, self.actor_id):
+            self.feedback_message = (
+                f"actor '{self.actor_id}' is the reporter of offer"
+                f" '{self.offer_id}' and cannot acknowledge it to itself"
+            )
+        else:
+            return [offer_record.offer_actor_id]
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return None
 
     def _call_report_factory(
         self, actor_id: str, addressees: list[str]
@@ -353,6 +385,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             offer_id=self.offer_id,
             actor=actor_id,
             to=addressees,
+            content=self.content,
         )
 
 

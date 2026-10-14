@@ -45,6 +45,7 @@ def _all_wire_object_classes() -> set[type]:
 
     def descend(cls: type) -> set[type]:
         found: set[type] = set()
+        sub: type
         for sub in cls.__subclasses__():
             found.add(sub)
             found |= descend(sub)

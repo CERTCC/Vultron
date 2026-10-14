@@ -54,8 +54,10 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport as CoreReport
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
@@ -395,6 +397,22 @@ def _make_ack_report_event() -> AckReportReceivedEvent:
     )
 
 
+def _record_offer_to_sender(dl: SqliteDataLayer) -> None:
+    """Record the acknowledged Offer as addressed to the RK's sender.
+
+    The receiver admits RK only from an addressee of an Offer it recorded
+    (RMB-08-004).
+    """
+    dl.create(
+        VultronOfferRecord(
+            offer_id=ACTIVITY_ID,
+            report_id=REPORT_ID,
+            offer_actor_id="https://example.org/actors/finder",
+            offer_to=[ACTOR_ID],
+        )
+    )
+
+
 def _make_close_report_event() -> CloseReportReceivedEvent:
     return CloseReportReceivedEvent(
         semantic_type=MessageSemantics.CLOSE_REPORT,
@@ -484,6 +502,7 @@ class TestCreateReportReceivedUseCase:
 class TestAckReportReceivedTree:
     def test_happy_path_archives_activity(self, dl):
         """Full BT archives the AckReport activity via intake → SUCCESS."""
+        _record_offer_to_sender(dl)
         event = _make_ack_report_event()
         tree = create_ack_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
@@ -496,6 +515,7 @@ class TestAckReportReceivedTree:
 
     def test_does_not_create_participant_status(self, dl):
         """AckReportReceivedBT must NOT create standalone ParticipantStatus."""
+        _record_offer_to_sender(dl)
         event = _make_ack_report_event()
         tree = create_ack_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
@@ -509,6 +529,7 @@ class TestAckReportReceivedTree:
 
     def test_idempotent_run_succeeds(self, dl):
         """Second BT execution is idempotent — no-op SUCCESS."""
+        _record_offer_to_sender(dl)
         event = _make_ack_report_event()
         bridge = BTBridge(datalayer=dl)
         for _ in range(2):
@@ -526,6 +547,7 @@ class TestAckReportReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
         )
+        _record_offer_to_sender(dl)
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
 
@@ -537,11 +559,25 @@ class TestAckReportReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
         )
+        _record_offer_to_sender(dl)
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == []
+
+    def test_use_case_refuses_a_sender_the_offer_was_not_sent_to(self):
+        """No record of the Offer naming the sender: REFUSED (RMB-08-004)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=ACTOR_ID,
+        )
+        result = AckReportReceivedUseCase(
+            dl, _make_ack_report_event()
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
 
 # ---------------------------------------------------------------------------
