@@ -53,9 +53,9 @@ import pytest
 
 from test.support.core_vocab import import_all_core_models
 from test.support.model_keys import accepted_keys, dumped_keys
-from test.support.subclasses import all_subclasses
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
@@ -462,15 +462,9 @@ class TestCoreTypeMapHierarchy:
 
         import_all_core_models()
 
-        def walk(cls: type[CoreRecord]) -> set[type[CoreRecord]]:
-            found = set(cls.__subclasses__())
-            for sub in cls.__subclasses__():
-                found |= walk(sub)
-            return found
-
         records = {
             cls
-            for cls in walk(CoreRecord)
+            for cls in all_subclasses(CoreRecord)
             if not issubclass(cls, CoreObject)
             and not cls.__module__.startswith("test")
             and typing.get_origin(cls.model_fields["type_"].annotation)
