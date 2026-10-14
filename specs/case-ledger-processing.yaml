@@ -83,7 +83,7 @@ groups:
     statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a
       normalized immutable snapshot of it, containing all fields required for deterministic
       replay'
-    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that
+    verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
       each committed `CaseLedgerEntry` contains a non-empty `payloadSnapshot` that
       round-trips through `model_validate` on the corresponding wire vocabulary class.'
     stories:
@@ -470,7 +470,7 @@ groups:
     rationale: The payload snapshot is the replication substrate; receivers must be
       able to reconstitute the asserted activity from the snapshot alone without an
       out-of-band lookup.
-    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that
+    verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
       for every committed `CaseLedgerEntry`, the `payloadSnapshot` field contains
       a valid AS2 activity that revalidates through its wire vocabulary class via
       `model_validate` without transformation.'
@@ -629,7 +629,7 @@ groups:
       and the commit boundary MUST accept it, at any nesting depth, while refusing every other
       bare string in an inline-object slot.
     verification: >-
-      `test/core/behaviors/case/test_ledger_snapshots.py` confirms that nested objects such as
+      `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that nested objects such as
       `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in
       committed snapshots. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a
       bare `target` naming the entry's case is accepted (top level and nested) and a bare `target`

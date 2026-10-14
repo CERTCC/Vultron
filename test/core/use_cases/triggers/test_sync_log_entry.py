@@ -25,6 +25,8 @@ Covers, against a real in-memory store (``notes/triggers-test-coverage.md``):
   ``VultronCanonicalEntryError`` instead of pretending it committed.
 """
 
+import json
+
 import pytest
 
 from test.support.trigger_results import recipient_ids
@@ -33,7 +35,11 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import SyncLogEntryResult
 from vultron.core.use_cases.triggers.requests import (
@@ -103,6 +109,7 @@ def _run(dl: SqliteDataLayer, request: SyncLogEntryTriggerRequest):
         dl,
         request,
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -161,9 +168,53 @@ def test_fans_the_entry_out_to_the_peer_participant(actor_and_dl):
     assert _PEER_ID in recipients
 
 
-def test_does_not_require_a_trigger_activity_port():
-    """The commit tree emits through ``sync_port``, not the activity factory."""
-    assert SvcSyncLogEntryUseCase._requires_trigger_activity is False
+@pytest.mark.spec("VM-08-003")
+def test_requires_a_trigger_activity_port():
+    """The entry is the factory-built Announce's sealed blob (#3743)."""
+    assert SvcSyncLogEntryUseCase._requires_trigger_activity is True
+
+
+@pytest.mark.spec("VM-08-003")
+@pytest.mark.spec("CLP-07-013")
+def test_the_entry_is_the_case_managers_factory_built_announce(actor_and_dl):
+    actor, dl = actor_and_dl
+    case = _seed_case(dl, actor.id_)
+
+    result = _run(
+        dl,
+        SyncLogEntryTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            object_id=case.id_,
+            event_type="sync_shape",
+        ),
+    )
+
+    entry = dl.read(result.log_entry_id)
+    assert isinstance(entry, CaseLedgerEntry)
+    snapshot = entry.payload_snapshot
+    assert snapshot["type"] == "Announce"
+    assert snapshot["actor"] == actor.id_
+    assert snapshot["object"]["id"] == case.id_
+    sealed = read_sealed_body(dl, snapshot["id"])
+    assert sealed is not None and json.loads(sealed.body) == snapshot
+
+
+def test_a_repeated_request_commits_one_entry(actor_and_dl):
+    """The Announce's id is derived from the request (ID-04-004)."""
+    actor, dl = actor_and_dl
+    case = _seed_case(dl, actor.id_)
+    request = SyncLogEntryTriggerRequest(
+        actor_id=actor.id_,
+        case_id=case.id_,
+        object_id=case.id_,
+        event_type="sync_twice",
+    )
+
+    first = _run(dl, request)
+    second = _run(dl, request)
+
+    assert first.log_entry_id == second.log_entry_id
 
 
 def test_unknown_requester_is_not_found(actor_and_dl):

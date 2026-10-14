@@ -33,6 +33,8 @@ The adapter is composed from domain-focused mixin classes:
 - :mod:`.actors` — Actor invitations, recommendations, participant management,
   and CASE_MANAGER delegation
 - :mod:`.embargo` — Embargo proposal, acceptance, rejection, and termination
+- :mod:`.ledger` — the CASE_MANAGER's own case-file changes, recorded in the
+  case ledger
 
 See also:
     - ``vultron/core/ports/trigger_activity.py`` — port Protocol
@@ -45,6 +47,7 @@ from .actors import _ActorsMixin
 from .cases import _CasesMixin
 from .embargo import _EmbargoMixin
 from .fault import _FaultMixin
+from .ledger import _LedgerRecordsMixin
 from .notes import _NotesMixin
 from .proposals import _ProposalsMixin
 from .reports import _ReportsMixin
@@ -60,6 +63,7 @@ class TriggerActivityAdapter(
     _ActorsMixin,
     _EmbargoMixin,
     _FaultMixin,
+    _LedgerRecordsMixin,
     _TriggerAdapterBase,
 ):
     """Driven adapter for constructing and persisting outbound wire activities.

@@ -70,6 +70,12 @@ _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/actors/case-actor"
 
+#: Ledger records that carry the case as stored, its participants and reports
+#: by id: each of those has an entry of its own, so a replica copying the
+#: record holds the case as the CASE_MANAGER does (ADR-0124).  A record is no
+#: message, so it seeds no recipient (CBT-01-007 does not apply).
+_CASE_AS_STORED = frozenset({"record_case_created"})
+
 #: Port methods that build a domain *object*, not an outbound activity.
 _NOT_AN_ACTIVITY = frozenset({"create_note", "requeue_embargo_refusal"})
 
@@ -175,6 +181,17 @@ class _World:
         )
         return proposal_id
 
+    def late_accept(self) -> dict[str, Any]:
+        """A participant's embargo Accept, as the CASE_MANAGER receives it."""
+        _, blob = self.adapter.accept_embargo(
+            proposal_id=self.proposal_id(),
+            case_id=self.case_id,
+            actor=_PEER,
+            to=[_ACTOR],
+        )
+        accept: dict[str, Any] = json.loads(blob)
+        return accept
+
     def case_proposal(self) -> dict[str, Any]:
         _, blob = self.adapter.create_case_proposal(
             actor=_PEER,
@@ -263,6 +280,43 @@ RECIPES: dict[str, Recipe] = {
     "reject_close_case": lambda w: w.adapter.reject_close_case(
         case_id=w.case_id, actor=_ACTOR, close_sender=_PEER
     ),
+    "record_case_fully_closed": lambda w: w.adapter.record_case_fully_closed(
+        case_id=w.case_id, actor=_CASE_ACTOR
+    ),
+    "record_case_created": lambda w: w.adapter.record_case_created(
+        case_id=w.case_id, actor=_CASE_ACTOR
+    ),
+    "record_report_added_to_case": lambda w: (
+        w.adapter.record_report_added_to_case(
+            report_id=str(w.report.id_),
+            case_id=w.case_id,
+            actor=_CASE_ACTOR,
+            offer_id=w.offer_id(),
+            offer_actor_id=_PEER,
+        )
+    ),
+    "record_participant_status_added": lambda w: (
+        w.adapter.record_participant_status_added(
+            status=w.status,
+            participant=w.participant,
+            case_id=w.case_id,
+            actor=_CASE_ACTOR,
+        )
+    ),
+    "record_case_status_added": lambda w: w.adapter.record_case_status_added(
+        status=w.case.current_status, case_id=w.case_id, actor=_CASE_ACTOR
+    ),
+    "record_case_participant_created": lambda w: (
+        w.adapter.record_case_participant_created(
+            participant=w.participant, case_id=w.case_id, actor=_CASE_ACTOR
+        )
+    ),
+    "record_case_announced": lambda w: w.adapter.record_case_announced(
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        event_type="demo_event",
+        object_id=w.case_id,
+    ),
     "add_object_to_case": lambda w: w.adapter.add_object_to_case(
         actor=_ACTOR, object_id=w.note_id, case_id=w.case_id
     ),
@@ -307,6 +361,11 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_PEER,
         to=[_ACTOR],
+    ),
+    "ignore_late_embargo_accept": lambda w: (
+        w.adapter.ignore_late_embargo_accept(
+            case_id=w.case_id, actor=_CASE_ACTOR, late_accept=w.late_accept()
+        )
     ),
     "activate_embargo": lambda w: w.adapter.activate_embargo(
         embargo_id=str(w.embargo.id_),
@@ -568,7 +627,11 @@ def test_the_activity_is_sealed_complete(world, method):
     # reports as objects — the recipient seeds its replica from them, and the
     # outbox no longer expands ids at delivery time.
     obj = body.get("object")
-    if isinstance(obj, dict) and obj.get("type") == "VulnerabilityCase":
+    if (
+        isinstance(obj, dict)
+        and obj.get("type") == "VulnerabilityCase"
+        and method not in _CASE_AS_STORED
+    ):
         for field in ("caseParticipants", "vulnerabilityReports"):
             bare = [x for x in obj.get(field, []) if not isinstance(x, dict)]
             assert not bare, (

@@ -349,6 +349,7 @@ def test_accept_of_unrecorded_invite_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -393,6 +394,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     case = _reload_case(cm_store, owned_case.id_)
@@ -438,6 +440,7 @@ def test_accept_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -482,6 +485,7 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -516,6 +520,7 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -553,6 +558,7 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
         event,
         sync_port=MagicMock(),
         wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(cm_store),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED

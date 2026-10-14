@@ -52,11 +52,11 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case_manager_commit import (
+    _CommitCaseManagerActivityBase,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
-)
-from vultron.core.behaviors.embargo.nodes.manager_commit import (
-    _CommitEmbargoDecisionBase,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     _answered_invite,
@@ -212,7 +212,7 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
         )
 
 
-class CommitEmbargoAbandonmentNode(_CommitEmbargoDecisionBase):
+class CommitEmbargoAbandonmentNode(_CommitCaseManagerActivityBase):
     """Commit the CASE_MANAGER's ER for each abandoned proposal.
 
     One ``Reject(Invite(EmbargoEvent))`` per proposal (MSM-02-006), each

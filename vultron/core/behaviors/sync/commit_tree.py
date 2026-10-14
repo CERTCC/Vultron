@@ -29,6 +29,7 @@ def create_commit_log_entry_tree(
     event_type: str,
     *,
     payload_snapshot: dict[str, Any] | None = None,
+    check_freshness: bool = True,
 ) -> py_trees.behaviour.Behaviour:
     """Mint a canonical ledger entry for *case_id* and fan it out.
 
@@ -47,7 +48,22 @@ def create_commit_log_entry_tree(
     ``internal_error`` on the bridge running this tree, and
     ``CommitCaseLedgerEntryNode`` carries it to the outer bridge, so a received
     handler raises rather than reporting a refusal (ADR-0095).
+
+    *check_freshness* ``False`` drops
+    :class:`~vultron.core.behaviors.sync.nodes.conditions.CheckLedgerFreshnessNode`,
+    which fails on a gapped local prefix by design (SYNC-10-001/002).  Only
+    the ``case_fully_closed`` commit passes it: a gapped prefix must not
+    block case closure (CM-23-002).
     """
+    freshness: list[py_trees.behaviour.Behaviour] = (
+        [
+            CheckLedgerFreshnessNode(
+                case_id=case_id, name="CheckLedgerFreshness"
+            )
+        ]
+        if check_freshness
+        else []
+    )
     return py_trees.composites.Selector(
         name="CommitLogEntryBT",
         memory=False,
@@ -60,9 +76,7 @@ def create_commit_log_entry_tree(
                     # Refuse before anything is written: a committed entry
                     # that cannot be announced is a silent fork (#4113).
                     RequireSyncPortNode(name="RequireSyncPort"),
-                    CheckLedgerFreshnessNode(
-                        case_id=case_id, name="CheckLedgerFreshness"
-                    ),
+                    *freshness,
                     ReconstructChainTailNode(
                         case_id=case_id, name="ReconstructChainTail"
                     ),
@@ -90,6 +104,7 @@ def commit_emitted_activity(
     activity_blob: str,
     event_type: str,
     sync_port: "SyncActivityPort | None" = None,
+    check_freshness: bool = True,
 ) -> dict[str, Any]:
     """Commit an activity this actor just emitted as a canonical entry.
 
@@ -103,7 +118,8 @@ def commit_emitted_activity(
 
     *sync_port* fans the entry out to the case's participants when given; an
     emit node that reads ``/sync_port`` passes it through so a relayed
-    emission is announced like any received commit.
+    emission is announced like any received commit.  *check_freshness* is
+    passed to :func:`create_commit_log_entry_tree`.
     """
     snapshot: dict[str, Any] = json.loads(activity_blob)
     # Passed only when given: an explicit ``sync_port=None`` would shadow the
@@ -118,6 +134,7 @@ def commit_emitted_activity(
             object_id=activity_id,
             event_type=event_type,
             payload_snapshot=snapshot,
+            check_freshness=check_freshness,
         ),
         actor_id=actor_id,
         **context,

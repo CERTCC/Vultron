@@ -240,6 +240,10 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
         # to a peer that has no case yet before replaying entries (SYNC-15-002).
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
+        # REJECT_INVITE_ACTOR_TO_CASE closes the invitee's inert record and
+        # commits each status it writes as the CASE_MANAGER's own
+        # factory-built Add(ParticipantStatus) (ADR-0114, VM-08-003).
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
         # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
         # direct Remove(CaseParticipant) notice (CM-31-006).

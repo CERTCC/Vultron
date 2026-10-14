@@ -36,6 +36,7 @@ related_notes:
   - notes/event-driven-control-flow.md
   - notes/received-status-authorization.md
   - notes/triggerable-behaviors.md
+  - notes/flaky-tests.md
 relevant_packages:
   - py_trees
   - vultron/bt

@@ -1216,6 +1216,7 @@ class TestRolesFromStoredOffer:
             accept_invite_event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         # Step 4: participant must have VENDOR role
@@ -1437,6 +1438,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             accept_invite_event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         # Step 4: assert participant.case_roles == [VENDOR]

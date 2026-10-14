@@ -3582,8 +3582,10 @@ groups:
           entry per RM transition it writes, in order (CM-23-001),
       (2) advance the CASE_MANAGER's own CaseParticipant to RM.CLOSED, committing
           one status entry per RM transition it writes, in order (CM-23-005),
-      (3) emit a case_fully_closed CaseLedgerEntry marking the owner-close write
-          boundary (ADR-0085),
+      (3) commit a case_fully_closed CaseLedgerEntry marking the owner-close write
+          boundary (ADR-0085), whose payloadSnapshot is the CASE_MANAGER's own
+          factory-built Update(VulnerabilityCase) carrying the closed case
+          (CLP-07-013, VM-08-003),
       (4) fan-out that entry to every active participant whose closure the ledger
           does not already record (CM-10-004, CM-23-004).
       Every entry of steps (0) to (2) MUST precede case_fully_closed, because no

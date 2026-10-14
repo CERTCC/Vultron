@@ -18,6 +18,7 @@ related_specs:
 related_notes:
   - notes/bt-integration.md
   - notes/structured-logging.md
+  - notes/docker-build.md
 relevant_packages:
   - fastapi
   - py_trees

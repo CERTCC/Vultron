@@ -21,7 +21,9 @@ Implements receiver-side role semantics for Leave(VulnerabilityCase):
   participant to ``RM.CLOSED``, advances the CaseActor to ``RM.CLOSED``,
   committing one status entry per RM transition for each (CM-23-001,
   CM-23-005), expires every embargo Invite still awaiting a reply (CM-23-014),
-  commits a ``case_fully_closed`` CaseLedgerEntry, and fans out to
+  commits a ``case_fully_closed`` CaseLedgerEntry — the CASE_MANAGER's own
+  factory-built ``Update(VulnerabilityCase)`` carrying the closed case
+  (CLP-07-013) — and fans out to
   non-RM.CLOSED participants (CM-23-002, CM-23-004) — **unless** an embargo is
   still live, in which case the close is declined with an ``as:Reject`` and
   none of the closure effects run (CM-23-011).
@@ -54,7 +56,6 @@ that record its own closure and nothing after them.
 """
 
 import logging
-from typing import Any
 
 import py_trees
 
@@ -63,6 +64,7 @@ from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
     AdvanceCaseActorToRMClosedNode,
     AdvanceParticipantToRMClosedNode,
+    CommitCaseFullyClosedNode,
     CommitRMClosureEntriesNode,
     EmitRejectCloseCaseNode,
     ExpirePendingInvitesOnCloseNode,
@@ -79,15 +81,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
 )
-from vultron.core.behaviors.sync.nodes import (
-    CreateLogEntryNode,
-    FanOutLogEntryNode,
-    PersistLogEntryNode,
-    ReconstructChainTailNode,
-    RequireSyncPortNode,
-)
-from vultron.core.models._helpers import claimed_published_iso
-from vultron.core.predicates.case_closure import CASE_FULLY_CLOSED_EVENT_TYPE
+from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +154,6 @@ def _close_and_record(
 def create_close_case_received_tree(
     case_id: str,
     activity_id: str,
-    activity_obj: Any,
     sender_actor_id: str | None = None,
     receiving_actor_id: str | None = None,
     post_close_reply: PostCloseReply = DEFAULT_POST_CLOSE_REPLY,
@@ -218,11 +211,11 @@ def create_close_case_received_tree(
                 │       │   ├── CommitRMClosureEntriesNode   # step 2 on the ledger (CM-23-005)
                 │       │   ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
                 │       │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
-                │       │       ├── RequireSyncPortNode             # refuse before writing
-                │       │       ├── ReconstructChainTailNode        # step 3a: tail hash
-                │       │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
-                │       │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
-                │       │       └── FanOutLogEntryNode              # step 4: fan-out (skips RM.CLOSED)
+                │       │       ├── RequireSyncPortNode             # refuse before building
+                │       │       └── CommitCaseFullyClosedNode       # step 3: the CASE_MANAGER's
+                │       │                                           #   Update(VulnerabilityCase),
+                │       │                                           #   committed from its sealed blob;
+                │       │                                           # step 4: fan-out (skips RM.CLOSED)
                 │       └── NonOwnerLeaveFallbackSeq (Sequence)  # Non-owner (CM-23-003)
                 │           ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
                 │           └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-001)
@@ -272,10 +265,8 @@ def create_close_case_received_tree(
 
     Args:
         case_id: ID of the VulnerabilityCase being closed.
-        activity_id: ID of the inbound Leave activity; names the object of
-            the ``case_fully_closed`` entry.
-        activity_obj: The wire Leave activity; supplies the sender's claimed
-            ``published`` time for that entry's snapshot.
+        activity_id: ID of the inbound Leave activity; the CM-23-011 and
+            CM-23-013 replies thread to it.
         sender_actor_id: Actor URI of the Leave sender (resolved from the
             inbound Leave activity's ``actor`` field).  When provided, the tree
             applies role-discriminating RM closure effects (CM-23-002/003) and
@@ -303,46 +294,19 @@ def create_close_case_received_tree(
             precondition_guards=[],
         )
 
+    # CM-23-002 step 3: the CASE_MANAGER's own Update(VulnerabilityCase)
+    # carrying the closed case, built by the factory and committed from its
+    # sealed blob (CLP-07-013, VM-08-003).  The commit's fan-out is step 4.
     case_fully_closed_commit = py_trees.composites.Sequence(
         name="CommitCaseFullyClosedBT",
         memory=False,
         children=[
-            # Refuse before the entry is written: persisted but never
-            # announced is a silent fork (SYNC-02-003, #4113).
+            # Refuse before the activity is built or the entry written:
+            # persisted but never announced is a silent fork (SYNC-02-003,
+            # #4113).
             RequireSyncPortNode(name="RequireSyncPortForCaseFullyClosed"),
-            ReconstructChainTailNode(
-                case_id=case_id, name="ReconstructChainTail"
-            ),
-            CreateLogEntryNode(
-                # CLP-07-003: actor is sourced from sender_actor_id, which is
-                # extracted from the trusted inbound Leave by the framework —
-                # not from the unverified payload — so the identity invariant
-                # holds without going through CommitCaseLedgerEntryNode.
-                case_id=case_id,
-                object_id=activity_id,
-                event_type=CASE_FULLY_CLOSED_EVENT_TYPE,
-                payload_snapshot={
-                    "type": "Leave",
-                    "actor": sender_actor_id,
-                    # The snapshot is attributed to the *sender*, so its
-                    # ``published`` must be the sender's claimed time, taken
-                    # from the inbound Leave. Stamping the CaseActor's own clock
-                    # here would put a foreign clock into the sender's claimed
-                    # stream, which CLP-15-003 then reads as a regression, and
-                    # would leave CLP-14-007/008 comparing the receiver's clock
-                    # against itself on this path (ISSUE-3149). The inbound
-                    # activity always carries one — the parser refuses it
-                    # otherwise — so the fallback is defence in depth only.
-                    "published": claimed_published_iso(activity_obj),
-                    "object_": {"type": "VulnerabilityCase", "id_": case_id},
-                    "context": case_id,
-                },
-                name="CreateCaseFullyClosedEntry",
-            ),
-            PersistLogEntryNode(name="PersistCaseFullyClosedEntry"),
-            FanOutLogEntryNode(
-                case_id=case_id,
-                name="FanOutCaseFullyClosed",
+            CommitCaseFullyClosedNode(
+                case_id=case_id, name="CommitCaseFullyClosedEntry"
             ),
         ],
     )
@@ -361,7 +325,8 @@ def create_close_case_received_tree(
         # store-local; without its entries the CASE_MANAGER stays RM.ACCEPTED
         # on every replica forever (ISSUE-2505): no effect node derives its
         # closure, because ``close_case`` names the departing actor and
-        # ``case_fully_closed`` is attributed to the owner.
+        # ``case_fully_closed`` records the case's closure, not the
+        # CASE_MANAGER's own RM steps.
         #
         # Every record node is best-effort — it warns and returns SUCCESS
         # rather than failing. That is load-bearing *here*, not merely

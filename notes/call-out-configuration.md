@@ -25,6 +25,7 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/embargo-lifecycle.md
   - notes/protocol-asks.md
+  - notes/cvd-recipe-injects.md
 relevant_packages:
   - vultron/core/behaviors/call_out
   - vultron/demo/fuzzer
