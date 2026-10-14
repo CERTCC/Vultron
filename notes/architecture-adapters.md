@@ -13,6 +13,8 @@ related_notes:
   - notes/outbox.md
   - vultron/core/ports/AGENTS.md
   - vultron/adapters/driven/AGENTS.md
+  - notes/inbox-orchestration.md
+  - notes/inbox-pipeline.md
 relevant_packages:
   - vultron/adapters
   - vultron/adapters/driven
