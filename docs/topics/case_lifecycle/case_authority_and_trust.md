@@ -219,7 +219,8 @@ Each of the first two has its own trust anchor.
 | Reporter | The report it submitted, and the actor it submitted it to | The bootstrap must reference that report and come from that actor ([CBT-01-005](../../reference/specs/protocol.md#cbt-01-005)) |
 
 The bootstrap is a one-time `Create(VulnerabilityCase)` message ([CBT-01-001](../../reference/specs/protocol.md#cbt-01-001)).
-It carries the whole case, with every participant record embedded in full rather than as a bare link ([CBT-01-002](../../reference/specs/protocol.md#cbt-01-002), [CBT-01-007](../../reference/specs/protocol.md#cbt-01-007)).
+It carries the whole case and every participant record, inline or by reference ([CBT-01-002](../../reference/specs/protocol.md#cbt-01-002), [CBT-01-007](../../reference/specs/protocol.md#cbt-01-007)).
+The reference implementation embeds them in full rather than as bare links, because it cannot yet fetch an object by reference ([CBT-01-012](../../reference/specs/project.md#cbt-01-012)).
 It names the Case Owner and the CASE_MANAGER as distinct participants ([CBT-01-003](../../reference/specs/protocol.md#cbt-01-003)).
 It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../reference/specs/protocol.md#cbt-01-008)).
 A receiver that finds a required participant missing, or present only as a bare link, rejects the whole bootstrap.
