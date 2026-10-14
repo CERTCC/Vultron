@@ -76,6 +76,7 @@ logger = logging.getLogger(__name__)
 def create_ack_report_trigger_tree(
     offer_id: str,
     report_id: str,
+    note: str | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the ack-report trigger workflow.
@@ -92,6 +93,8 @@ def create_ack_report_trigger_tree(
     Args:
         offer_id: ID of the Offer being acknowledged.
         report_id: ID of the VulnerabilityReport.
+        note: Optional free text carried as the RK's ``content``
+            (TRIG-03-003).
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised activity dict on success (DL-06-001).
 
@@ -105,6 +108,7 @@ def create_ack_report_trigger_tree(
             EmitAckReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,
+                content=note,
                 captured=captured,
             ),
         ],

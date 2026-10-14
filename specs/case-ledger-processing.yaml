@@ -878,14 +878,13 @@ groups:
       second participant), authorization for the commit MUST be evaluated per invocation
       against the active actor's role, and MUST NOT be assumed from the use-case class's
       identity or from the fact that earlier invocations were authorized
-    rationale: 'The `ack_report` flow in the two/three-actor demo invokes the same
-      use case once with the case actor as receiver and once with the finder as a
-      relay target; only the case-actor invocation may commit. This is the same shape
-      of bug that produced the original hash-chain fork in issue #923, and it recurs
-      at every new dual-invocation call site unless authorization is re-evaluated
-      per invocation rather than per use-case class. RK itself no longer reaches the
-      CASE_MANAGER or the ledger (RMB-08-003); the rule still governs every activity
-      the CASE_MANAGER and a participant both receive.'
+    rationale: 'The rule was found in the `ack_report` flow of the demo, which once
+      invoked one use case with the case actor as receiver and again with the
+      finder as a relay target; only the case-actor invocation could commit (RK
+      no longer reaches the CASE_MANAGER, RMB-08-003). The same shape of bug
+      produced the hash-chain fork in issue #923, and it recurs at every new
+      dual-invocation call site unless authorization is re-evaluated per
+      invocation.'
     verification: Unit tests such as
       `test/core/use_cases/received/test_note_routing_guard.py` run the same
       use-case class with the CASE_MANAGER and with another participant as the

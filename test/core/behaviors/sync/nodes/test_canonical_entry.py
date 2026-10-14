@@ -440,3 +440,25 @@ def test_remove_note_snapshot_is_a_canonical_signature():
         payload_snapshot=snapshot,
         event_type="remove_note_from_case",
     )
+
+
+@pytest.mark.spec("RMB-08-003")
+def test_ack_report_snapshot_is_not_a_canonical_signature():
+    """RK, ``Read(Offer(VulnerabilityReport))``, is never ledgered."""
+    snapshot = {
+        "type": "Read",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Offer",
+            "id": "https://example.org/offers/offer-ack",
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+    with pytest.raises(VultronCanonicalEntryError, match="not canonical"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=snapshot,
+            event_type="ack_report",
+        )

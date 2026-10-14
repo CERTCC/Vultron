@@ -30,7 +30,8 @@ groups:
       RS is the sole RM message that directly changes the receiver's own RM
       state. All other RM messages announce sender state only.
     verification: A unit test confirms that a participant in `RM.START` whose inbox processes an RS activity has
-      `rm_state == RM.RECEIVED` and a queued RK in its outbox afterwards.
+      `rm_state == RM.RECEIVED` afterwards. The RK the receiver then sends is not queued on receipt; it goes
+      through the `ack-report` trigger, and tests marked `RMB-08-003` cover it.
     testable: true
     preconditions:
     - rm_state:
@@ -72,7 +73,8 @@ groups:
       V-transition records this awareness and CV announces it to other
       Participants.
     verification: A unit test confirms that a vendor participant in `RM.START` with CS pattern `vfd...` transitions
-      to `CS Vfd...` and emits both CV and RK when processing an RS.
+      to `CS Vfd...` and emits CV when processing an RS. The RK is sent through the `ack-report` trigger, not
+      on receipt (RMB-08-003).
     testable: true
     preconditions:
     - rm_state:
@@ -776,12 +778,8 @@ groups:
       actor: receiver
       action: Emit GI to inquire what the sender expected
       expected: GI queued for sender
-    - order: 3
-      actor: receiver
-      action: Emit RK to acknowledge receipt
-      expected: RK queued for sender
     postconditions:
-    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    - description: RE and GI emitted; no RK in reply to RK (RMB-08-001); receiver RM state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
@@ -801,8 +799,9 @@ groups:
       CASE_MANAGER, a receiver MUST NOT forward an RK it receives, and RK MUST
       NOT be ledgered.
     rationale: >-
-      Only the reporter holds the Offer, so only the reporter can check who
-      may acknowledge it (RMB-08-004). RK answers the reporter's original
+      The reporter checks who may acknowledge its Offer against its own
+      record of that Offer (RMB-08-004); an addressee's store holds one
+      too. RK answers the reporter's original
       Offer and sits outside the case, which is why it is the stated exception
       to PCR-08-001. The CASE_MANAGER holds no record of the Offer's
       addressee, so it could not check an RK sent to it. Decided by the
@@ -829,7 +828,7 @@ groups:
       note: RK acknowledging RS
     - rel_type: refines
       spec_id: RMB-01-001
-      note: who sends the RK queued on receipt of RS, and to whom
+      note: who sends the RK acknowledging RS, and to whom
     - rel_type: refines
       spec_id: PCR-08-001
       note: the stated RK exception to CASE_MANAGER-only addressing

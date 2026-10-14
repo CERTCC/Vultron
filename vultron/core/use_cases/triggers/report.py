@@ -45,6 +45,7 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import OfferResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.use_cases.triggers._base import (
     SvcActivityTriggerBase,
     SvcBTTriggerBase,
@@ -110,7 +111,7 @@ def _require_offer_addressed_to(
     that Offer, so the record's ``offer_to`` does not name it; it judges the
     case by replying to the full-case Invite (CM-11-011, ADR-0121).
     """
-    if actor_id not in offer_record.offer_to:
+    if not is_addressed_to(actor_id, offer_record.offer_to):
         raise VultronValidationError(
             f"{trigger} refused: actor '{actor_id}' was not sent offer "
             f"'{offer_record.offer_id}'. A participant that joined the case "
@@ -140,18 +141,22 @@ class SvcAckReportUseCase(SvcActivityTriggerBase):
         _require_offer_addressed_to(self._actor_id, self._offer, "ack-report")
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        request = cast(AckReportTriggerRequest, self._request)
         return create_ack_report_trigger_tree(
             offer_id=self._offer.offer_id,
             report_id=self._report.id_,
+            note=request.note,
             captured=self._captured,
         )
 
     def _handle_result(self) -> None:
+        request = cast(AckReportTriggerRequest, self._request)
         logger.info(
-            "Actor '%s' acknowledged offer '%s' (report '%s')",
+            "Actor '%s' acknowledged offer '%s' (report '%s'); note: %s",
             self._actor_id,
             self._offer.offer_id,
             self._report.id_,
+            request.note,
         )
 
 

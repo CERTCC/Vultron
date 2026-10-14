@@ -109,12 +109,16 @@ def _vendor_acknowledges_to_finder(
     case exists yet, and its outbox delivers it.  The finder admits it
     because the vendor is an addressee of the Offer the finder recorded
     (RMB-08-004).
+
+    The check below confirms delivery only: intake stores a refused RK too,
+    and the inbox exposes no outcome to read (IE-02-003), so the admit and
+    refuse arms are covered by ``test_ack_report_routing.py`` instead.
     """
     result = ActorSession(client=client, actor=vendor).ack_report(
         offer_id=offer.id_, note=content
     )
     ack_id = (result.activity or {}).get("id")
-    with demo_check("RmReadReportActivity in finder's inbox"):
+    with demo_check("RmReadReportActivity delivered to finder"):
         if not isinstance(ack_id, str):
             raise TypeError("ack-report returned no activity id.")
         wait_for_object_stored(client, ack_id, actor_id=finder.id_)

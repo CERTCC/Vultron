@@ -77,12 +77,18 @@ class _Fixture:
             )
         )
 
-    def run(self, actor_id: str | None = None, offer_id: str | None = None):
+    def run(
+        self,
+        actor_id: str | None = None,
+        offer_id: str | None = None,
+        note: str | None = None,
+    ):
         return SvcAckReportUseCase(
             self.dl,
             AckReportTriggerRequest(
                 actor_id=actor_id or self.vendor.id_,
                 offer_id=offer_id or self.offer.id_,
+                note=note,
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
@@ -139,6 +145,42 @@ def test_ack_still_goes_to_the_reporter_alone_once_a_case_exists(
     assert isinstance(read, as_Read)
     assert read.to == [FINDER_ID]
     assert CASE_ACTOR_ID not in (read.cc or [])
+
+
+@pytest.mark.spec("TRIG-03-003")
+def test_note_is_carried_as_the_ack_content(env: _Fixture):
+    before = set(env.dl.outbox_list())
+
+    env.run(note="We have received your report.")
+
+    queued = set(env.dl.outbox_list()) - before
+    read = env.dl.read(queued.pop())
+    assert isinstance(read, as_Read)
+    assert read.content == "We have received your report."
+
+
+def test_ack_without_a_note_has_no_content(env: _Fixture):
+    before = set(env.dl.outbox_list())
+
+    env.run()
+
+    read = env.dl.read((set(env.dl.outbox_list()) - before).pop())
+    assert isinstance(read, as_Read)
+    assert read.content is None
+
+
+def test_offer_recipient_spelled_with_a_trailing_slash_may_ack(
+    env: _Fixture,
+):
+    """Recipient membership tolerates a trailing slash (HP-09-001)."""
+    record = env.dl.read(VultronOfferRecord.build_id(env.offer.id_))
+    assert isinstance(record, VultronOfferRecord)
+    env.dl.save(record.model_copy(update={"offer_to": [env.vendor.id_ + "/"]}))
+    before = set(env.dl.outbox_list())
+
+    env.run()
+
+    assert len(set(env.dl.outbox_list()) - before) == 1
 
 
 @pytest.mark.spec("RMB-08-003")

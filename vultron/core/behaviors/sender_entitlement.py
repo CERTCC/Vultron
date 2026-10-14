@@ -117,6 +117,7 @@ from vultron.core.participants.ownership_offer import (
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
+    is_addressed_to,
     normalise_actor_id,
     same_actor_id,
 )
@@ -778,10 +779,7 @@ class SenderIsOfferAddresseeNode(SenderEntitlementConditionNode):
                 f" sender '{self.sender_actor_id}' cannot be shown to be its"
                 " addressee"
             )
-        if any(
-            same_actor_id(self.sender_actor_id, addressee)
-            for addressee in record.offer_to
-        ):
+        if is_addressed_to(self.sender_actor_id, record.offer_to):
             return Status.SUCCESS
         return self._refuse(
             f"Sender '{self.sender_actor_id}' is not an addressee of Offer"

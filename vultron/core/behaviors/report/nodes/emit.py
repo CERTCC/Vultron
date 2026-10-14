@@ -24,6 +24,7 @@ from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 
 
@@ -329,13 +330,15 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
     to the reporter, and never to the CASE_MANAGER (RMB-08-003), so unlike its
     siblings this node does not route through the case: its one recipient is
     the Offer's actor, read from this store's ``VultronOfferRecord``
-    (DL-06-001).
+    (DL-06-001).  ``content`` is the trigger's optional note, carried on the
+    RK (TRIG-03-003).
     """
 
     def __init__(
         self,
         offer_id: str,
         report_id: str,
+        content: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
@@ -345,6 +348,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             captured=captured,
             name=name,
         )
+        self.content = content
 
     def _compute_addressees(self) -> list[str] | None:
         """Address RK to the reporter alone; ``None`` fails the emit.
@@ -362,7 +366,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             self.feedback_message = (
                 f"no record of offer '{self.offer_id}' to acknowledge"
             )
-        elif offer_record.offer_actor_id == self.actor_id:
+        elif same_actor_id(offer_record.offer_actor_id, self.actor_id):
             self.feedback_message = (
                 f"actor '{self.actor_id}' is the reporter of offer"
                 f" '{self.offer_id}' and cannot acknowledge it to itself"
@@ -381,6 +385,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             offer_id=self.offer_id,
             actor=actor_id,
             to=addressees,
+            content=self.content,
         )
 
 
