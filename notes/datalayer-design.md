@@ -6,13 +6,14 @@ tags: [datalayer, ports, persistence, architecture, hexagonal]
 description: >
   Rules for the DataLayer port contract, CasePersistence narrowing, the
   write/read shape boundary, activity read-back, received-artifact snapshots,
-  per-actor stores, and shared-record writes. Operating rules live in
+  per-actor stores, shared-record writes, and stored-shape changes. Operating rules live in
   vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
   - specs/case-management.yaml (CM-11-017)
+  - specs/outbox.yaml (OX-06-002)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/activitystreams-semantics.md
@@ -287,3 +288,14 @@ reads such a row as absent, so `dl.read()` returning `None` always has a logged
 cause. Every PR that renames a stored field carries an operator note saying a
 file-backed store must be reset (`docker compose down -v`); an in-memory store is
 unaffected.
+
+## Changing a Table's Shape
+
+A store written before a table gains a constraint or index is refused when it
+is opened, never migrated and never run without the guarantee. `create_all`
+creates a missing table with its indexes but never alters one that exists, so
+an old store would otherwise open silently and fail later, at the first write
+that relies on the new shape. Check the new shape after `create_all` in
+`SqliteDataLayer.__init__` and raise `VultronStaleStoreError` saying the store
+must be reset, as for a renamed field. The outbox no-duplicate index is the
+example: `require_outbox_pending_index` in `datalayer_sqlite/schema.py` (#4629).
