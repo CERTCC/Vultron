@@ -6,7 +6,7 @@
 
     - **When…** a Participant bound by the active embargo stops complying with it
     - **Send:** `Leave(Event)[context=VulnerabilityCase]`
-    - **Sent by:** an active participant
+    - **Sent by:** a participant
     - **Reference:** [Withdraw from embargo](../../em.md#embargo-withdrawal)
 
     ??? example "Example activity"

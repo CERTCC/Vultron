@@ -564,7 +564,7 @@ groups:
     heading: Withdraw from embargo
     when: a Participant bound by the active embargo stops complying with it
     send: Leave(Event)[context=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: a participant
     semantics: withdraw_from_embargo_on_case
     status: none
     description: Ends the sender's own consent to the embargo in force, and to any revision

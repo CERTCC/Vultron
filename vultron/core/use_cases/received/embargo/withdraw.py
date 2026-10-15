@@ -39,17 +39,21 @@ from vultron.core.use_cases.received.embargo._embargo_event_frame import (
 class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
     """The received ``Leave(EmbargoEvent)`` (MSM-07-010).
 
-    The sender must be an active participant (CM-10-004), which a signatory
-    to the embargo in force is; the tree's guard then refuses, with the
-    reason, a Leave of an embargo not in force, from a row that is not
-    ``AGREED``, or from the case owner.  A redelivery of a Leave already
+    The sender must hold a participant record on the case (``PARTICIPANT``):
+    standing to withdraw is a signatory's, and the tree's guard decides it,
+    refusing with the reason a Leave of an embargo not in force, from a row
+    that is not ``AGREED``, or from the case owner (MSM-07-010).  The rule is
+    not ``ACTIVE_PARTICIPANT``, which already requires that ``AGREED`` row
+    (CM-10-004): it would turn each of those reasons into "not active", and a
+    redelivered Leave, whose sender the first delivery made inactive, into a
+    refusal.  A redelivery of a Leave already
     ledgered is a benign no-op, reported ``SKIPPED`` (HP-01-003).  Only the
     CASE_MANAGER records the withdrawal, so a receiver whose gate turns it
     away reports a refusal (BT-17-001).
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
     _label = "Leave(EmbargoEvent)"
     _tree_label = "WithdrawFromEmbargoOnCaseBT"
