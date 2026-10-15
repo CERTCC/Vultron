@@ -26,9 +26,10 @@ from typing import Any
 import pytest
 
 from test.core.use_cases.received.actor.test_ownership import (
-    _CASE_ACTOR_ID,
     _COORDINATOR_ID,
     _VENDOR_ID,
+    # Aliased so pytest does not collect the class's tests here a second time.
+    TestAcceptIsActedOnOnlyFromTheTransferee as _AcceptSenderTests,
     _accept,
     _event_types,
     _owner,
@@ -36,11 +37,9 @@ from test.core.use_cases.received.actor.test_ownership import (
     _ownership_offer_harness,
     _reject,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.ownership_offer import open_ownership_offer
-from vultron.wire.as2.factories import offer_case_ownership_transfer_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 _FINDER_ID = "https://example.org/users/finder"
@@ -64,10 +63,10 @@ def _forward_of(dl, offer_id: str):
     (forward,) = [
         item
         for item in (dl.read(i) for i in dl.outbox_list())
-        if getattr(getattr(item, "type_", None), "value", None) == "Offer"
+        if item is not None
+        and getattr(getattr(item, "type_", None), "value", None) == "Offer"
         and getattr(item, "in_reply_to", None) == offer_id
     ]
-    assert forward is not None
     return forward
 
 
@@ -125,25 +124,6 @@ def test_late_answer_to_an_old_forward_does_not_close_a_same_second_offer(
     assert _owner(dl, case_id) == _VENDOR_ID
 
 
-def _plant_forward(
-    dl, case_id: str, forward_id: str, in_reply_to: str | None
-) -> Any:
-    """Store a forward the CASE_MANAGER sent the coordinator, linked as given."""
-    case = dl.read(case_id)
-    assert isinstance(case, VulnerabilityCase)
-    extra = {} if in_reply_to is None else {"in_reply_to": in_reply_to}
-    forward = offer_case_ownership_transfer_activity(
-        case,
-        target=as_Service(id_=_COORDINATOR_ID, name="Coordinator"),
-        actor=_CASE_ACTOR_ID,
-        to=[_COORDINATOR_ID],
-        id_=forward_id,
-        **extra,
-    )
-    dl.create(forward)
-    return forward
-
-
 @pytest.mark.spec("CM-21-018")
 @pytest.mark.parametrize("answer", [_accept, _reject])
 @pytest.mark.parametrize(
@@ -166,9 +146,10 @@ def test_answer_to_an_unlinked_forward_is_refused(
     dl.create(as_Service(id_=_FINDER_ID, name="Finder"))
     offer_id = "https://example.org/activities/offer_link_recorded"
     assert deliver(transferee_id, offer_id)[0] is HandlerDisposition.APPLIED
-    forward = _plant_forward(
+    forward = _AcceptSenderTests._plant_forged_forward(
         dl,
         case_id,
+        _COORDINATOR_ID,
         "https://example.org/activities/forward_unlinked",
         offer_id if linked else None,
     )

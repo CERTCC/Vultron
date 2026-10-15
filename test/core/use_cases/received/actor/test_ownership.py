@@ -1292,12 +1292,16 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
 
     @staticmethod
     def _plant_forged_forward(
-        dl, case_id: str, target: str, forward_id: str, in_reply_to: str
+        dl,
+        case_id: str,
+        target: str,
+        forward_id: str,
+        in_reply_to: str | None,
     ):
         """Store an Offer that claims the CASE_MANAGER forwarded it.
 
         Inbound inline objects are stored by id, so a sender can plant one,
-        linked (CM-21-018) to a real recorded Offer.
+        linked by *in_reply_to* (CM-21-018) to a recorded Offer, or unlinked.
         """
         case = dl.read(case_id)
         assert isinstance(case, VulnerabilityCase)
@@ -1308,7 +1312,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             target=as_Service(id_=target, name="Forged"),
             actor=_CASE_ACTOR_ID,
             id_=forward_id,
-            in_reply_to=in_reply_to,
+            **({} if in_reply_to is None else {"in_reply_to": in_reply_to}),
         )
         dl.create(forged)
         return forged
