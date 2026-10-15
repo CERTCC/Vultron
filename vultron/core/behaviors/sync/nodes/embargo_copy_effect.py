@@ -36,7 +36,9 @@ had already applied, but not stored, is in place and passes as a no-op
 :class:`ApplyEmbargoConsentFromLedgerNode` is the first slot: the
 CASE_MANAGER's ``Create(EmbargoConsent)`` and ``Update(EmbargoConsent)``
 entries, each carrying one consent row in full.  The register-step slots of
-the embargo acts subclass the same frame (#4714 – #4717).
+the embargo acts subclass the same frame: the proposal's ``PROPOSE``
+(``relay_effect.py``) and the abandonment's ``CANCEL`` (``abandon.py``),
+with #4714, #4716 and #4717 converting the rest.
 """
 
 from __future__ import annotations
@@ -119,6 +121,8 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             return f
         assert self.datalayer is not None
         entry = self._get_entry()
+        if self._resolve_case_replica(entry.case_id) is None:
+            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
         try:
             change = self._change(entry)
         except (TypeError, ValueError) as exc:
@@ -128,9 +132,6 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             )
             self.logger.exception("%s", self.feedback_message)
             return Status.FAILURE
-
-        if self._resolve_case_replica(entry.case_id) is None:
-            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
 
         before = read_embargo_case_file(self.datalayer, entry.case_id)
         if change_is_in_place(before, change):

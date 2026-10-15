@@ -46,6 +46,11 @@ from py_trees.common import Status
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
+from vultron.core.behaviors.embargo.decided_entries import (
+    EMBARGO_DECISION_KEY,
+    EmbargoDecision,
+    commit_and_apply_decision,
+)
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
@@ -53,9 +58,11 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.events.base import MessageSemantics
-from vultron.errors import BtNodePreconditionError
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import BtNodePreconditionError, VultronBTInternalError
 
 #: Build the decision activity addressed to *to* (``None``: nobody) and
 #: return ``(activity_id, sealed_blob)`` — the shape every embargo factory
@@ -73,12 +80,24 @@ EMBARGO_TEARDOWN_EVENT_TYPE = (
 COMMITTED_ACTIVITY_KEY = "committed_activity_id"
 
 
-class CommitEmbargoDecisionNode(_CommitCaseManagerActivityBase):
+class CommitEmbargoDecisionNode(
+    _CommitCaseManagerActivityBase, StateWriteCapable
+):
     """Commit the decision a trigger use case builds (EP-09-008, #4085).
 
     *builder* is the use case's factory closure, so the use case captures the
     activity it reports in its result.  With *result_out* the built
     activity's id is also written to ``result_out[COMMITTED_ACTIVITY_KEY]``.
+
+    With *decision_from*, the act is recorded under the copy model
+    (ADR-0124, CLP-07-013): the deciding lifecycle node before this one left
+    an :class:`~vultron.core.behaviors.embargo.decided_entries.EmbargoDecision`
+    in ``decision_from[EMBARGO_DECISION_KEY]``, and this node commits the act's
+    entry first, carrying the decision's register step, then one CASE_MANAGER
+    entry per consent row the decision changes, and only then applies them by
+    copying (``commit_and_apply_decision``).  A commit that fails leaves no
+    write behind but those of the entries committed before it.  A missing
+    decision is a fault in the tree and raises.
     """
 
     def __init__(
@@ -89,6 +108,8 @@ class CommitEmbargoDecisionNode(_CommitCaseManagerActivityBase):
         notify_participants: bool = False,
         result_out: dict[str, object] | None = None,
         name: str | None = None,
+        *,
+        decision_from: dict[str, object] | None = None,
     ) -> None:
         super().__init__(
             case_id=case_id,
@@ -98,12 +119,35 @@ class CommitEmbargoDecisionNode(_CommitCaseManagerActivityBase):
         )
         self._builder = builder
         self._result_out = result_out
+        self._decision_from = decision_from
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         activity_id, blob = self._builder(to)
         if self._result_out is not None:
             self._result_out[COMMITTED_ACTIVITY_KEY] = activity_id
         return activity_id, blob
+
+    def _record(
+        self, activity_id: str, send_and_commit: Callable[[], None]
+    ) -> None:
+        if self._decision_from is None:
+            send_and_commit()
+            return
+        decision = self._decision_from.pop(EMBARGO_DECISION_KEY, None)
+        if not isinstance(decision, EmbargoDecision):
+            raise VultronBTInternalError(
+                f"{self.name}: no embargo decision to record for"
+                f" '{activity_id}' on case '{self._case_id}'; a deciding"
+                " lifecycle node must run first"
+            )
+        commit_and_apply_decision(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            decision=decision,
+            trigger_activity=self._require_trigger_activity_port(),
+            actor_id=cast(str, self.actor_id),
+            cause_id=activity_id,
+            act_commit=send_and_commit,
+        )
 
 
 class IndexOwnEmbargoProposalNode(DataLayerActionWithPorts):

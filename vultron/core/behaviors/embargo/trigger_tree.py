@@ -41,12 +41,12 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
-    ReissueStubInvitesNode,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
+)
+from vultron.core.behaviors.case.nodes.stub_reissue import (
+    ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
@@ -81,6 +81,9 @@ from vultron.core.behaviors.embargo.nodes import (
     WithdrawEmbargoLifecycleNode,
     ask_case_manager_to_terminate_once,
     embargo_ending_notice_nodes,
+)
+from vultron.core.behaviors.embargo.nodes.lifecycle import (
+    _EmbargoLifecycleNode,
 )
 from vultron.core.behaviors.sender.nodes import (
     ConstructActivitiesNode,
@@ -159,19 +162,26 @@ def _by_role(
 def _answer_arms(
     name: str,
     case_id: str,
-    lifecycle_node: py_trees.behaviour.Behaviour,
+    lifecycle_node: _EmbargoLifecycleNode,
     event_type: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
     actor_config: ActorConfig | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """Manager: write, commit, declare; otherwise: ask the manager.
+    """Manager: decide, commit, apply, declare; otherwise: ask the manager.
 
     The manager's Accept or Reject — of an Invite (the sender's consent), or
     as the case owner of the embargo itself (ADR-0122) — is addressed to
     nobody: every replica learns it from the committed entry (EP-09-007).  An
     Accept that activates a shorter revision is announced to the bound
     signatories the ledger no longer reaches (CM-31-009).
+
+    The manager arm commits before it writes (ADR-0124, CLP-07-013): the
+    lifecycle node only decides, on a staged store, and the commit node
+    commits the act's entry (carrying any register step), then one
+    CASE_MANAGER entry per consent row the decision changes, and applies them
+    by copying.  *lifecycle_node* is built with *result_out*, where it leaves
+    the decision.
     """
     capture, notices = embargo_ending_notice_nodes(case_id)
     return _by_role(
@@ -179,11 +189,12 @@ def _answer_arms(
         case_id,
         as_case_manager=[
             capture,
-            lifecycle_node,
+            lifecycle_node.deciding(),
             CommitEmbargoDecisionNode(
                 case_id=case_id,
                 event_type=event_type,
                 builder=activity_builder,
+                decision_from=result_out,
             ),
             _make_emit_node(case_id),
             notices,
@@ -214,14 +225,18 @@ def _propose_arms(
     """Manager: adjudicate and relay its own terms; otherwise: ask.
 
     The CASE_MANAGER's own proposal takes the shape of one it receives
-    (EP-09-001, EP-09-002): collect the invitees before the EM write
-    (BT-19-001), write ``STRICT``, commit the proposal, relay one
-    ``Invite`` per participant, and only then index the proposal the manager
-    will answer (ID-04-005).  ``PersistEmbargoEventNode`` runs in both
-    arms — the factory renders the stored record — and stores the object,
-    not case state (EP-09-003).  In the other arm it runs after the
-    CASE_MANAGER is resolved, so a failed routing guard leaves no orphan
-    record (BT-19-001).
+    (EP-09-001, EP-09-002): collect the invitees before deciding
+    (BT-19-001), decide ``STRICT`` on a staged store, commit the proposal —
+    the ``Invite(EmbargoEvent)`` whose entry is the ``PROPOSE`` step —
+    then one ``Create(EmbargoConsent)`` per participant's new row (the
+    proposer's ``AGREED``, every other one ``UNINVITED``), apply them by
+    copying (ADR-0124, CLP-07-013), relay one ``Invite`` per participant,
+    and only then index the proposal the manager will answer (ID-04-005).
+    ``PersistEmbargoEventNode`` runs in both arms — the factory renders the
+    stored record — and stores the object, not case state (EP-09-003).  In
+    the manager arm it runs once the proposal is decided, and in the other
+    after the CASE_MANAGER is resolved, so neither a refused proposal nor a
+    failed routing guard leaves an orphan record (BT-19-001).
     """
     return _by_role(
         name,
@@ -234,13 +249,15 @@ def _propose_arms(
                 case_id=case_id,
                 embargo_id=embargo.id_,
                 result_out=result_out,
-            ),
+                embargo=embargo,
+            ).deciding(),
             PersistEmbargoEventNode(embargo=embargo),
             CommitEmbargoDecisionNode(
                 case_id=case_id,
                 event_type=EMBARGO_INVITE_EVENT_TYPE,
                 builder=activity_builder,
                 result_out=result_out,
+                decision_from=result_out,
             ),
             _make_emit_node(case_id),
             RelayEmbargoInviteToEachNode(

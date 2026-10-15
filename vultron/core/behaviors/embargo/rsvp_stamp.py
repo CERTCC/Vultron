@@ -26,17 +26,30 @@ replica records from the committed entry (CM-28-013), so nothing downstream
 re-derives it.
 """
 
+from collections.abc import Mapping
 from datetime import datetime, timedelta
+from typing import Any
 
 from pydantic import ConfigDict
 
 from vultron.config.actor import ActorConfig
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import now_utc, parse_published
 from vultron.core.models.base import ValidatedAssignmentMixin
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.rsvp_deadline import resolve_rsvp_deadline
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronNotFoundError
+
+
+def invite_rsvp_deadline(invite: Mapping[str, Any]) -> datetime | None:
+    """The RSVP deadline (``endTime``) a relayed Invite's wire body carries.
+
+    The relay and its ledger replay both read it from the same sealed body,
+    so the invitee's record takes the same deadline in every store
+    (CM-28-013, EP-09-007).
+    """
+    return parse_published(invite.get(wire_key("end_time")))
 
 
 class InviteRsvpStamp(ValidatedAssignmentMixin):
@@ -117,6 +130,7 @@ def stamp_rsvp_deadline(
 
 __all__ = [
     "InviteRsvpStamp",
+    "invite_rsvp_deadline",
     "stamp_invite_rsvp_deadline",
     "stamp_rsvp_deadline",
 ]

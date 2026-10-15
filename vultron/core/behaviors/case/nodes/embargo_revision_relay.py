@@ -353,7 +353,9 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
                 marker.embargo_id,
             )
         for recipient_id in self._recipients:
-            self._invite_where_legal(dl, recipient_id, deadline)
+            self._invite_where_legal(
+                dl, recipient_id, deadline, cause_id=marker.proposal_id
+            )
         self._index_relayed(marker)
 
     def _resolve_parties(

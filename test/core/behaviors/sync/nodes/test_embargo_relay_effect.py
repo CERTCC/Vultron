@@ -286,18 +286,40 @@ class TestApplyEmbargoProposal:
         assert case.pending_embargo_proposal_index[REVISION_ID] == PROPOSAL_ID
         assert isinstance(datalayer.read(REVISION_ID), EmbargoEvent)
 
-    @pytest.mark.spec("MSM-07-005")
-    def test_records_proposer_consent_and_changes_nobody_elses(
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("CLP-07-013")
+    def test_copies_the_step_and_writes_no_consent_row(
         self, bridge, datalayer, revising_case
     ):
+        """The proposal entry is its register step alone (ADR-0122).
+
+        The proposer's ``AGREED`` and every other participant's ``UNINVITED``
+        row are the CASE_MANAGER's own ``Create(EmbargoConsent)`` entries,
+        which the consent slot copies; this slot runs no lifecycle logic and
+        writes no row (ADR-0124).
+        """
+        before = {
+            actor_id: list(_record(datalayer, actor_id).embargo_consents)
+            for actor_id in (PROPOSER_ACTOR_ID, PARTICIPANT_ACTOR_ID)
+        }
+
         _replay_proposal(bridge)
 
-        proposer = _record(datalayer, PROPOSER_ACTOR_ID)
-        assert proposer.consent_for(REVISION_ID) is EmbargoConsentState.AGREED
-        assert proposer.is_signatory(ACTIVE_EMBARGO_ID)
-        other = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert other.consent_for(REVISION_ID) is EmbargoConsentState.UNINVITED
-        assert other.is_signatory(ACTIVE_EMBARGO_ID)
+        for actor_id, rows in before.items():
+            assert _record(datalayer, actor_id).embargo_consents == rows
+        assert _record(datalayer, PROPOSER_ACTOR_ID).is_signatory(
+            ACTIVE_EMBARGO_ID
+        )
+
+    @pytest.mark.spec("CM-23-016")
+    def test_a_repeated_proposal_entry_is_in_place(
+        self, bridge, datalayer, revising_case
+    ):
+        """A replayed entry whose step is already applied is a no-op."""
+        _replay_proposal(bridge)
+        _replay_proposal(bridge)
+
+        assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
 
     @pytest.mark.spec("EP-09-007")
     def test_keeps_an_existing_pending_index_entry(
@@ -313,13 +335,15 @@ class TestApplyEmbargoProposal:
 
     @pytest.mark.spec("EP-09-002")
     @pytest.mark.spec("EP-09-007")
-    def test_managers_self_relayed_invite_also_invites_its_recipient(
+    def test_managers_self_relayed_invite_writes_no_row(
         self, bridge, datalayer, revising_case
     ):
         """The manager's own terms relayed to one participant (#4085).
 
-        Self-attributed, so it lands in this proposal slot; it is also the
-        relayed Invite of its sole recipient, which is recorded as invited.
+        Self-attributed, so it lands in this proposal slot.  Its ``PROPOSE``
+        is the step the manager's proposal entry already applied, and its
+        recipient's ``INVITED`` row is the manager's next entry, an
+        ``Update(EmbargoConsent)`` (ADR-0124), so here it writes no row.
         """
         newcomer = "https://example.org/actors/newcomer"
         _participant(datalayer, revising_case, newcomer)
@@ -339,31 +363,7 @@ class TestApplyEmbargoProposal:
         assert result.status == Status.SUCCESS
         assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
         record = _record(datalayer, newcomer)
-        assert record.consent_for(REVISION_ID) is EmbargoConsentState.INVITED
-        assert record.rsvp_deadline_for(REVISION_ID) is not None
-
-    @pytest.mark.spec("EP-09-007")
-    def test_managers_own_proposal_entry_invites_nobody(
-        self, bridge, datalayer, revising_case
-    ):
-        """Addressed to nobody, the manager's proposal entry is not a relay."""
-        newcomer = "https://example.org/actors/newcomer"
-        _participant(datalayer, revising_case, newcomer)
-        datalayer.save(revising_case)
-        snapshot = _invite_snapshot(attributed_to=None, to=[])
-        snapshot.pop("to")
-
-        result = _run(
-            bridge,
-            ApplyEmbargoProposalFromLedgerNode(name="Proposal"),
-            _entry("invite_to_embargo_on_case", snapshot),
-        )
-
-        assert result.status == Status.SUCCESS
-        assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
-        assert _record(datalayer, newcomer).consent_for(REVISION_ID) is (
-            EmbargoConsentState.UNINVITED
-        )
+        assert record.held_row(REVISION_ID) is None
 
     @pytest.mark.spec("SYNC-12-001")
     def test_partial_replica_without_the_case_skips(self, bridge, datalayer):
@@ -473,11 +473,18 @@ def test_a_relayed_invite_to_an_invitee_whose_record_is_missing_skips(
 
 @pytest.mark.usefixtures("revision_registered")
 class TestApplyEmbargoInvite:
-    @pytest.mark.spec("CM-28-013")
+    @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EP-09-004")
-    def test_signatory_keeps_its_consent_and_is_invited_to_the_revision(
+    def test_the_relayed_invite_writes_no_row(
         self, bridge, datalayer, revising_case
     ):
+        """The invitee's ``INVITED`` row and RSVP deadline are the manager's
+        next entry, an ``Update(EmbargoConsent)`` the consent slot copies
+        (ADR-0124, CM-28-013); the Invite's own slot changes no row."""
+        before = list(
+            _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consents
+        )
+
         result = _run(
             bridge,
             ApplyEmbargoInviteFromLedgerNode(name="Invite"),
@@ -486,33 +493,8 @@ class TestApplyEmbargoInvite:
 
         assert result.status == Status.SUCCESS
         record = _record(datalayer, PARTICIPANT_ACTOR_ID)
+        assert record.embargo_consents == before
         assert record.is_signatory(ACTIVE_EMBARGO_ID)
-        assert record.consent_for(REVISION_ID) is EmbargoConsentState.INVITED
-        deadline = record.rsvp_deadline_for(REVISION_ID)
-        assert deadline is not None
-        assert deadline.isoformat() == _DEADLINE
-
-    @pytest.mark.spec("EP-09-007")
-    def test_invitee_without_a_row_becomes_invited(
-        self, bridge, datalayer, revising_case
-    ):
-        newcomer = "https://example.org/actors/newcomer"
-        _participant(datalayer, revising_case, newcomer)
-        datalayer.save(revising_case)
-
-        result = _run(
-            bridge,
-            ApplyEmbargoInviteFromLedgerNode(name="Invite"),
-            _entry(
-                "invite_to_embargo_on_case",
-                _invite_snapshot(to=[newcomer], end_time=None),
-            ),
-        )
-
-        assert result.status == Status.SUCCESS
-        record = _record(datalayer, newcomer)
-        assert record.consent_for(REVISION_ID) is EmbargoConsentState.INVITED
-        assert record.rsvp_deadline_for(REVISION_ID) is None
 
     @pytest.mark.spec("EP-09-010")
     def test_more_than_one_recipient_fails(
@@ -622,121 +604,46 @@ def _replay_answer(bridge, verb: str, actor: str):
 
 
 class TestApplyEmbargoAnswers:
-    @pytest.mark.spec("MSM-07-005")
-    def test_participant_accept_records_consent_only(
-        self, bridge, datalayer, revising_case
-    ):
-        _replay_proposal(bridge)
-
-        result = _replay_answer(bridge, "Accept", PARTICIPANT_ACTOR_ID)
-
-        assert result.status == Status.SUCCESS
-        record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert record.consent_for(REVISION_ID) is EmbargoConsentState.AGREED
-        assert _case(datalayer).current_status.em.state == EM.REVISE
-
+    @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("MSM-07-003")
-    @pytest.mark.spec("EP-09-007")
-    def test_owner_accept_of_an_invite_records_only_its_consent(
-        self, bridge, datalayer, revising_case
+    @pytest.mark.spec("MSM-07-004")
+    @pytest.mark.parametrize("verb", ["Accept", "Reject"])
+    @pytest.mark.parametrize("actor", [PARTICIPANT_ACTOR_ID, OWNER_ACTOR_ID])
+    def test_an_answer_writes_no_row_and_decides_nothing(
+        self, bridge, datalayer, revising_case, verb, actor
     ):
-        """The owner's Accept(Invite) is its consent, not its decision (ADR-0122)."""
-        _replay_proposal(bridge)
+        """An answer is its sender's consent, the owner's included (ADR-0122).
 
-        result = _replay_answer(bridge, "Accept", OWNER_ACTOR_ID)
+        The changed row is the CASE_MANAGER's next entry, an
+        ``Update(EmbargoConsent)`` the consent slot copies (ADR-0124), so the
+        answer's own slot writes no row; it decides no proposal either.
+        """
+        _replay_proposal(bridge)
+        before = list(_record(datalayer, actor).embargo_consents)
+
+        result = _replay_answer(bridge, verb, actor)
 
         assert result.status == Status.SUCCESS
         case = _case(datalayer)
         assert case.current_status.em.state == EM.REVISE
         assert case.active_embargo_id == ACTIVE_EMBARGO_ID
         assert case.proposed_embargo_ids == [REVISION_ID]
-        record = _record(datalayer, OWNER_ACTOR_ID)
-        assert record.consent_for(REVISION_ID) is EmbargoConsentState.AGREED
-
-    @pytest.mark.spec("MSM-07-004")
-    def test_participant_reject_keeps_the_proposal_open(
-        self, bridge, datalayer, revising_case
-    ):
-        _replay_proposal(bridge)
-
-        result = _replay_answer(bridge, "Reject", PARTICIPANT_ACTOR_ID)
-
-        assert result.status == Status.SUCCESS
-        assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
-
-    @pytest.mark.spec("MSM-07-004")
-    def test_owner_reject_of_an_invite_declines_only_its_row(
-        self, bridge, datalayer, revising_case
-    ):
-        """The owner's Reject(Invite) refuses the terms for itself (ADR-0122).
-
-        The revision stays open — rejecting it for the case is
-        ``Reject(EmbargoEvent, target=Case)`` — and the owner stays a
-        signatory of the embargo in force.
-        """
-        _replay_proposal(bridge)
-
-        result = _replay_answer(bridge, "Reject", OWNER_ACTOR_ID)
-
-        assert result.status == Status.SUCCESS
-        case = _case(datalayer)
-        assert case.current_status.em.state == EM.REVISE
-        assert case.proposed_embargo_ids == [REVISION_ID]
-        record = _record(datalayer, OWNER_ACTOR_ID)
-        assert record.consent_for(REVISION_ID) is EmbargoConsentState.DECLINED
-        assert record.is_signatory(ACTIVE_EMBARGO_ID)
+        assert _record(datalayer, actor).embargo_consents == before
 
     @pytest.mark.spec("SYNC-12-003")
-    def test_a_repeated_rejection_replays_as_a_no_op(
-        self, bridge, datalayer, revising_case
+    @pytest.mark.parametrize("verb", ["Accept", "Reject"])
+    def test_a_repeated_answer_replays_as_a_no_op(
+        self, bridge, datalayer, revising_case, verb
     ):
-        """A Reject of the active embargo declines; its replay is no fault.
-
-        The rejecter never agreed to the embargo in force: from an ``AGREED``
-        row a Reject would be a withdrawal, which the CASE_MANAGER refuses
-        and so never commits (MSM-07-004).
-        """
-        record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        record.embargo_consents = [
-            EmbargoConsent(
-                embargo_id=ACTIVE_EMBARGO_ID, state=EmbargoConsentState.INVITED
-            )
-        ]
-        datalayer.save(record)
-        reject = _answer_snapshot("Reject", PARTICIPANT_ACTOR_ID)
-        reject["object"]["object"] = _embargo_snapshot(ACTIVE_EMBARGO_ID)
-        entry = _entry(_ANSWER_EVENT_TYPE["Reject"], reject)
-
-        for _ in range(2):
-            result = _run(
-                bridge,
-                ApplyEmbargoRejectionFromLedgerNode(name="Rejection"),
-                entry,
-            )
-            assert result.status == Status.SUCCESS
-
-        record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert record.consent_for(ACTIVE_EMBARGO_ID) is (
-            EmbargoConsentState.DECLINED
+        _replay_proposal(bridge)
+        entry = _entry(
+            _ANSWER_EVENT_TYPE[verb],
+            _answer_snapshot(verb, PARTICIPANT_ACTOR_ID),
         )
-
-    @pytest.mark.spec("SYNC-12-001")
-    @pytest.mark.spec("SYNC-14-001")
-    def test_reject_of_an_embargo_no_longer_held_replays_as_a_no_op(
-        self, bridge, datalayer, revising_case
-    ):
-        """Neither active nor open here: nothing to replay, and no stall.
-
-        The CASE_MANAGER commits only a Reject it could apply, so a replica
-        that no longer holds the embargo has already applied what followed.
-        Failing would block the persist and buffer every later entry.
-        """
-        before = _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consents
-        result = _replay_answer(bridge, "Reject", PARTICIPANT_ACTOR_ID)
-        assert result.status == Status.SUCCESS
-        assert "nothing to replay" in result.feedback_message
-        record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert record.embargo_consents == before
+        for _ in range(2):
+            assert _run(bridge, _answer_node(verb), entry).status == (
+                Status.SUCCESS
+            )
 
     @pytest.mark.spec("SYNC-12-001")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])

@@ -15,9 +15,16 @@
 
 """Embargo invitation and proposal workflow nodes."""
 
+from collections.abc import Callable
+from typing import cast
+
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.embargo.decided_entries import (
+    EmbargoDecision,
+    decide_commit_and_apply,
+)
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
@@ -26,6 +33,8 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
 )
@@ -37,15 +46,15 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import (
+    VultronEntryRefusedError,
     VultronNotFoundError,
     VultronValidationError,
+    VultronWiringError,
 )
 
 #: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
-#: that is a repeat of a Reject already recorded.  The ledger replay
-#: (``ApplyEmbargoRejectionFromLedgerNode``) reads it as a no-op; on the
-#: received side the tree's repeat guard stops a repeat before the commit
-#: (CM-13-005, HP-01-003).
+#: that is a repeat of a Reject already recorded.  The received tree's repeat
+#: guard stops a repeat before the commit (CM-13-005, HP-01-003).
 ALREADY_DECLINED_PREFIX = "Already declined"
 
 
@@ -165,61 +174,124 @@ class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RecordParticipantAcceptanceNode(
+class _RecordParticipantAnswerNode(
     DataLayerActionWithPorts, StateWriteCapable
 ):
+    """Shared frame: record a participant's answer under the copy model.
+
+    The CASE_MANAGER has committed the participant's ``Accept`` or
+    ``Reject`` at intake (ADR-0111).  The answer's consent change is a change
+    to the participant's row, another object, so it is committed as its own
+    CASE_MANAGER ``Update(EmbargoConsent)`` entry carrying the row, and
+    applied by copying (ADR-0124, CLP-07-013): the lifecycle operation
+    decides on a staged store, and nothing is written before the row's entry
+    commits.  Every replica copies the row from that entry.  The row entry's
+    id derives from the received answer (``/activity``), so a rerun for the
+    same answer commits the entry its first run committed (ID-04-004).
+
+    A failed commit is not a refusal: it raises (BT-14-001).  A tree that
+    supplies no received answer is a composition fault, and raises too.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+        self._event: object | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._event = self._try_get_input("activity")
+
+    def _answer_id(self) -> str:
+        """The id of the received answer this node records.
+
+        Raises:
+            VultronWiringError: the tree put no received answer on the
+                blackboard.
+        """
+        answer_id = getattr(self._event, "activity_id", None)
+        if not isinstance(answer_id, str) or not answer_id:
+            raise VultronWiringError(
+                f"{self.name}: no received answer on the blackboard to"
+                f" record for embargo '{self.embargo_id}' (ARCH-15-001)"
+            )
+        return answer_id
+
+    def _record(
+        self, decide: Callable[[CasePersistence], object]
+    ) -> EmbargoDecision:
+        """Decide with *decide*, commit the row entries, apply them.
+
+        Raises:
+            VultronError: *decide* refused the answer, or the trial refused
+                its entries; nothing is committed or written.
+        """
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        return decide_commit_and_apply(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            case_id=self.case_id,
+            decide=decide,
+            trigger_activity=self._require_trigger_activity_port(),
+            actor_id=self.actor_id,
+            cause_id=self._answer_id(),
+        )
+
+
+class RecordParticipantAcceptanceNode(_RecordParticipantAnswerNode):
     """Record a participant's acceptance of an embargo Invite.
 
-    Uses ``EmbargoLifecycle.accept_embargo_invite`` to record the sender's
+    Uses ``EmbargoLifecycle.accept_embargo_invite`` to decide the sender's
     own consent — the case owner's included — moving no register entry
-    (MSM-07-003, ADR-0122).
+    (MSM-07-003, ADR-0122), and commits the changed row as its own entry
+    before writing it (:class:`_RecordParticipantAnswerNode`).
 
-    When ``accepting_actor_id`` is provided it is used instead of the BT
-    execution ``actor_id`` (which is the receiving actor).  This is the
-    ADR-0022 single-BT pattern: the tree executes under
-    ``actor_id=receiving_actor_id`` for guarded-commit gating, while the
-    acceptance is recorded for the message's actual accepting actor.
+    ``accepting_actor_id`` names the message's actor: the tree executes as
+    the receiving CASE_MANAGER (ADR-0022), which authors the row's entry,
+    while the acceptance is recorded for the actual accepting actor.
     """
 
     def __init__(
         self,
         case_id: str,
         embargo_id: str,
-        accepting_actor_id: str | None = None,
+        accepting_actor_id: str,
         name: str | None = None,
     ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.embargo_id = embargo_id
+        super().__init__(case_id=case_id, embargo_id=embargo_id, name=name)
         self.accepting_actor_id = accepting_actor_id
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        assert self.datalayer is not None
-
-        # Use accepting_actor_id when provided (ADR-0022 single-BT pattern:
-        # tree executes under receiving_actor_id but acceptance is recorded
-        # for the actual accepting actor). Fall back to BT execution actor_id.
-        actor_id = (
-            self.accepting_actor_id
-            if self.accepting_actor_id
-            else self.actor_id
-        )
-        if actor_id is None:
-            self.feedback_message = "actor_id not available"
-            return Status.FAILURE
-
-        service = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            service.accept_embargo_invite(
-                case_id=self.case_id,
-                embargo_id=self.embargo_id,
-                actor_id=actor_id,
+            decision = self._record(
+                lambda dl: EmbargoLifecycle(
+                    persistence=dl
+                ).accept_embargo_invite(
+                    case_id=self.case_id,
+                    embargo_id=self.embargo_id,
+                    actor_id=self.accepting_actor_id,
+                )
             )
-        except VultronNotFoundError as exc:
-            # The case itself is missing: consent reads no embargo record,
-            # so nothing else can fail here (ADR-0122).
+        except (VultronNotFoundError, VultronEntryRefusedError) as exc:
+            # The case itself is missing, or it changed under the decision:
+            # consent reads no embargo record (ADR-0122).
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -227,21 +299,21 @@ class RecordParticipantAcceptanceNode(
         self.feedback_message = (
             f"Recorded acceptance of embargo '{self.embargo_id}'"
             f" for case '{self.case_id}'"
+            f" ({len(decision.rows)} consent row entr(y/ies))"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
 
-class RecordParticipantRejectionNode(
-    DataLayerActionWithPorts, StateWriteCapable
-):
+class RecordParticipantRejectionNode(_RecordParticipantAnswerNode):
     """Record a participant's rejection of an embargo via EmbargoLifecycle.
 
-    The received-side twin of :class:`RecordParticipantAcceptanceNode`: calls
-    ``EmbargoLifecycle.record_embargo_rejection`` so the received
-    ``Reject(Invite(EmbargoEvent))`` tree applies the same MSM-07-004 rule
-    as the trigger side — the named embargo's row becomes ``DECLINED`` and
-    nothing else moves.  A Reject never withdraws: one of the embargo in
+    The received-side twin of :class:`RecordParticipantAcceptanceNode`:
+    decides with ``EmbargoLifecycle.record_embargo_rejection`` so the
+    received ``Reject(Invite(EmbargoEvent))`` tree applies the same
+    MSM-07-004 rule as the trigger side — the named embargo's row becomes
+    ``DECLINED`` and nothing else moves — and commits the row as its own
+    entry before writing it.  A Reject never withdraws: one of the embargo in
     force from an ``AGREED`` row is refused (``RejectIsNotWithdrawalNode``
     guards it ahead of the commit), since withdrawal is
     ``Leave(EmbargoEvent)`` (MSM-07-010).  Moves no EM
@@ -250,12 +322,12 @@ class RecordParticipantRejectionNode(
 
     ``rejecting_actor_id`` names the message's actor (the tree executes as the
     receiving actor, ADR-0022).  Returns SUCCESS when the actor has no
-    participant record here (a partial replica) and when the rejection is a
-    repeat that changes nothing.  Returns FAILURE — so the handler reports a
-    refusal — when the Reject names an embargo that is neither active nor an
-    open proposal of the case (a protocol error, not a consent change), when
-    it would withdraw the actor from the embargo in force, or when the case
-    is not found.
+    participant record here and when the rejection changes a row.  Returns
+    FAILURE — so the handler reports a refusal — when the Reject names an
+    embargo that is neither active nor an open proposal of the case (a
+    protocol error, not a consent change), when it would withdraw the actor
+    from the embargo in force, when it repeats a rejection already recorded,
+    or when the case is not found.
     """
 
     def __init__(
@@ -265,9 +337,7 @@ class RecordParticipantRejectionNode(
         rejecting_actor_id: str,
         name: str | None = None,
     ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.embargo_id = embargo_id
+        super().__init__(case_id=case_id, embargo_id=embargo_id, name=name)
         self.rejecting_actor_id = rejecting_actor_id
 
     def _already_declined(self, case: VulnerabilityCase) -> bool:
@@ -283,7 +353,7 @@ class RecordParticipantRejectionNode(
         )
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
 
@@ -291,23 +361,29 @@ class RecordParticipantRejectionNode(
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        service = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            result = service.record_embargo_rejection(
-                case_id=self.case_id,
-                actor_id=self.rejecting_actor_id,
-                embargo_id=self.embargo_id,
+            decision = self._record(
+                lambda dl: EmbargoLifecycle(
+                    persistence=dl
+                ).record_embargo_rejection(
+                    case_id=self.case_id,
+                    actor_id=self.rejecting_actor_id,
+                    embargo_id=self.embargo_id,
+                )
             )
-        except (VultronNotFoundError, VultronValidationError) as exc:
+        except (
+            VultronNotFoundError,
+            VultronValidationError,
+            VultronEntryRefusedError,
+        ) as exc:
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if not result.participant_changes and self._already_declined(case):
+        if not decision.rows and self._already_declined(case):
             # A repeat of a Reject already recorded (HP-01-003, #2255).  The
             # received tree's repeat guard stops one before the commit
-            # (CM-13-005, #4597); the ledger replay reads this FAILURE's
-            # prefix as a no-op.
+            # (CM-13-005, #4597).
             self.feedback_message = (
                 f"{ALREADY_DECLINED_PREFIX}: '{self.rejecting_actor_id}'"
                 f" had declined embargo '{self.embargo_id}' on case"
@@ -318,7 +394,7 @@ class RecordParticipantRejectionNode(
         self.feedback_message = (
             f"Recorded rejection of embargo '{self.embargo_id}' by"
             f" '{self.rejecting_actor_id}' on case '{self.case_id}'"
-            f" ({len(result.participant_changes)} consent row change(s))"
+            f" ({len(decision.rows)} consent row entr(y/ies))"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS

@@ -619,6 +619,7 @@ class TestReceivedRejectPrunesOpenProposals:
             received_reject_by(self._OWNER),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -641,6 +642,7 @@ class TestReceivedRejectPrunesOpenProposals:
             received_reject_by(participant),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -742,6 +744,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 

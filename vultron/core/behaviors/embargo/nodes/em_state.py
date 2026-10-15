@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""EM state read BT node for the embargo lifecycle.
+"""EM state read BT node, and the EM-state guards, for the embargo lifecycle.
 
 ``ReadEmStateNode`` reads the current EM state into result_out so
 downstream nodes and service callers have it without a separate DB read.
@@ -24,12 +24,16 @@ raises when the state cannot be read.  EM state writes are owned by
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.em import EM
+from vultron.core.states.em import EM, is_em_embargo_active, is_em_exited
 from vultron.errors import (
     BtNodePreconditionError,
     VultronError,
+    VultronInvalidStateTransitionError,
     VultronValidationError,
 )
 
@@ -128,3 +132,100 @@ def read_case_em_state(
     em_state = out["em_before"]
     assert isinstance(em_state, EM)
     return em_state
+
+
+class ValidateEmbargoRevisionStateNode(DataLayerActionWithPorts):
+    """Guard that the case EM state permits a revision proposal.
+
+    Returns SUCCESS when EM state is ACTIVE or REVISE.  Returns FAILURE
+    (with error in ``result_out``) for any other state — revision proposals
+    require an active embargo; use propose-embargo for initial proposals.
+
+    Uses ``ReadEmStateNode`` to read the EM state (AC-1 of issue #1474) rather
+    than reading ``case.em_state`` inline.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        # AC-1: read em_state via ReadEmStateNode, not inline.
+        try:
+            em_state = read_case_em_state(
+                self.datalayer, self._case_id, self._result_out
+            )
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
+            return Status.FAILURE
+
+        if not is_em_embargo_active(em_state):
+            bad_state = VultronInvalidStateTransitionError(
+                f"Cannot propose embargo revision: case '{self._case_id}'"
+                f" EM state '{em_state}' does not allow a revision proposal."
+                f" Use propose-embargo for initial proposals."
+            )
+            self._result_out["error"] = bad_state
+            self.feedback_message = str(bad_state)
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class ValidateEmbargoProposalStateNode(DataLayerActionWithPorts):
+    """Guard that the case EM state admits an embargo proposal.
+
+    A read-only precondition for the propose trigger, ahead of the role arms:
+    ``EXITED`` admits no proposal, because once an embargo register entry is
+    ``TERMINATED`` the register accepts no further change (EP-09-001,
+    ADR-0122).  A participant that is not the CASE_MANAGER writes no EM
+    state and so runs no ``STRICT`` check (EP-09-008); without this guard its
+    proposal would be queued, refused by the CASE_MANAGER's admission guard
+    without a ``Reject``, and leave a pending assertion behind.  Returns
+    FAILURE with the error in ``result_out``, as
+    :class:`ValidateEmbargoRevisionStateNode` does.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            em_state = read_case_em_state(
+                self.datalayer, self._case_id, self._result_out
+            )
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
+            return Status.FAILURE
+
+        if is_em_exited(em_state):
+            bad_state = VultronInvalidStateTransitionError(
+                f"Cannot propose embargo: case '{self._case_id}' EM state"
+                f" '{em_state}' admits no embargo proposal (EP-09-001)."
+            )
+            self._result_out["error"] = bad_state
+            self.feedback_message = str(bad_state)
+            return Status.FAILURE
+
+        return Status.SUCCESS

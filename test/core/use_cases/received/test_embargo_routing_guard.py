@@ -318,6 +318,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -343,6 +344,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -368,6 +370,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 

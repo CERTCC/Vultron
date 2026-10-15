@@ -106,7 +106,10 @@ its other arm sends nothing at all (EMB-16-002), so it passes
 
 ## Converting an Arm to the Copy Model (ADR-0124, #4713)
 
-The arms above still write before they commit; #4714–#4717 convert them. A
+The propose and answer arms (`_propose_arms`, `_answer_arms`), the received
+proposal, relay and answer effects, the manager's policy consent and the stub
+re-issue are converted (#4715); termination, activation on the received
+path, expiry and withdrawal follow in #4714, #4716 and #4717. A
 converted CASE_MANAGER arm decides first (guards, `EmbargoLifecycle` checks,
 policy), then hands the result to `commit_and_apply_embargo_entries()`
 (`copy_commit.py`) as `PlannedEmbargoEntry` values in commit order:
@@ -127,3 +130,15 @@ for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
 (`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).
 Never call `EmbargoLifecycle`, `apply_pec_transition` or `write_uninvited_rows`
 from a replica slot.
+
+Where the decision is an existing `EmbargoLifecycle` operation, do not
+re-derive its row changes by hand: run it on a staged store and let
+`decided_entries.py` turn what it would have written into the entries. A
+lifecycle node takes `.deciding()` (the arm's `CommitEmbargoDecisionNode`,
+given `decision_from=result_out`, commits the act first) or
+`.applying_after(cause_id)` (intake already committed a received act);
+other nodes call `decide_commit_and_apply()`. The decision check raises
+`VultronBTInternalError` when the operation wrote anything its entries do not
+carry. A consent-row `Update`'s id derives from its cause and the row, so the
+cause must be the act itself (the received answer, the relayed Invite), never
+an id two acts share.

@@ -354,9 +354,11 @@ every other participant learns the result from the ledger.
    waiting (EP-09-005) and SHOULD gauge some answers (EP-09-006); any quorum is
    actor policy, a call-out point. The Invites are not a vote: they gather the
    consent rows that decide who stays bound when terms lengthen (EP-05-001).
-6. Only the CASE_MANAGER evaluates expiry (CM-28-014). Replay nodes reconstruct
-   proposal, relayed Invites, answers and decision via
-   `EmbargoLifecycle(OBSERVED)` (EP-09-007, RSH-08-004); the slot table is in
+6. Only the CASE_MANAGER evaluates expiry (CM-28-014). Replay nodes copy the
+   proposal's `PROPOSE` step and every consent row the CASE_MANAGER commits as
+   its own entry; the decision slot still reconstructs via
+   `EmbargoLifecycle(OBSERVED)` until #4716 (EP-09-007, RSH-08-004, ADR-0124);
+   the slot table is in
    `notes/case-communication-model.md` § "What the participant and its replica
    do".
 

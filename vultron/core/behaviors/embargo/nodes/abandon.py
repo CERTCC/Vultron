@@ -27,7 +27,8 @@ BT-17-001):
   with no indexed Invite cannot be answered and the tree fails closed.
   :class:`AbandonEmbargoProposalsLifecycleNode` then answers them one at a
   time: it commits the ER for a proposal as a ledger entry of its own event
-  type, and only then cancels that proposal through ``EmbargoLifecycle``.
+  type, and only then cancels that proposal by copying the entry's
+  ``CANCEL`` step through the one apply function (ADR-0124).
   The abandonment is a decision the CASE_MANAGER takes from local policy, so
   its entry comes before the change it records, and a proposal whose entry
   does not commit stays open (CLP-07-013).  Each ER is addressed to nobody:
@@ -43,43 +44,56 @@ BT-17-001):
   proposals already open on the case: a proposal, Invite or revision the
   participant *receives* at P/X/A is still answered with ER on the received
   path (EMB-01-002).
-- On a replica, :class:`ApplyEmbargoAbandonmentFromLedgerNode` replays an
-  entry in ``OBSERVED`` mode (EP-09-007, RSH-08-004).  The replica drops the
+- On a replica, :class:`ApplyEmbargoAbandonmentFromLedgerNode` copies the
+  entry's ``CANCEL`` step through the same function (EP-09-007, RSH-08-004,
+  CM-23-016).  The replica drops the
   proposal because the entry is the manager's committed decision, not
   because of who rejected: a ``Reject`` decides a proposal only when the
   case owner sends it (EP-08-003), and the manager need not be the owner.
 """
 
+from functools import partial
 from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.copy_commit import (
+    PlannedEmbargoEntry,
+    commit_and_apply_embargo_entries,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     _answered_invite,
     _embargo_of_invite,
-    _EmbargoRelayEffectNode,
 )
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
+    ApplyEmbargoChangeFromLedgerNode,
+)
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     EMBARGO_ABANDONMENT_EVENT_TYPE,
+)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.embargo_apply import (
+    EmbargoChange,
+    RegisterStep,
+    RegisterStepKind,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
-    TransitionMode,
 )
-from vultron.errors import VultronError, VultronWiringError
+from vultron.core.states.em import EM
+from vultron.errors import VultronNotFoundError, VultronWiringError
 
 #: Blackboard key of the proposals to abandon, ``{embargo_id: invite_id}``.
 ABANDONED_PROPOSALS_KEY = "abandoned_proposals"
@@ -174,8 +188,8 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
     For each proposal, in record order, it commits the CASE_MANAGER's ER — one
     ``Reject(Invite(EmbargoEvent))`` (MSM-02-006) under
     :data:`EMBARGO_ABANDONMENT_EVENT_TYPE`, addressed to nobody — and then
-    cancels that proposal through ``EmbargoLifecycle.abandon_embargo_proposals``
-    (EMB-18-001), which changes no consent.  EM reaches ``NONE`` with the
+    applies the ``CANCEL`` step that entry is (ADR-0122) by copying it
+    through the one apply function (ADR-0124), which changes no consent.  EM reaches ``NONE`` with the
     last one, exactly as a replica replaying the entries does (EP-09-007).
 
     **Commit, then write** (CLP-07-013).  The abandonment is a decision taken
@@ -238,7 +252,7 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
             case_id=self._case_id_value, embargo_ids=list(self._proposals)
         )
         dl = cast(CaseOutboxPersistence, self.datalayer)
-        results: list[EmbargoLifecycleResult] = []
+        em_before = self._em_state()
         for embargo_id, invite_id in self._proposals.items():
             activity_id, blob = self.trigger_activity_factory.reject_embargo(
                 proposal_id=invite_id,
@@ -246,37 +260,50 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
                 actor=actor_id,
                 to=None,
             )
-            commit_emitted_activity(
-                datalayer=dl,
-                actor_id=actor_id,
-                case_id=self._case_id_value,
-                activity_id=activity_id,
-                activity_blob=blob,
-                event_type=EMBARGO_ABANDONMENT_EVENT_TYPE,
-            )
-            results.append(
-                lifecycle.abandon_embargo_proposals(
-                    case_id=self._case_id_value,
-                    embargo_ids=[embargo_id],
-                    actor_id=actor_id,
-                    transition_mode=TransitionMode.STRICT,
-                )
+            # The ER is the CANCEL step (ADR-0122): committed, then copied
+            # through the one apply function (ADR-0124).
+            commit_and_apply_embargo_entries(
+                dl,
+                self._case_id_value,
+                [
+                    PlannedEmbargoEntry(
+                        change=RegisterStep(
+                            kind=RegisterStepKind.CANCEL, embargo=embargo_id
+                        ),
+                        commit=partial(
+                            commit_emitted_activity,
+                            datalayer=dl,
+                            actor_id=actor_id,
+                            case_id=self._case_id_value,
+                            activity_id=activity_id,
+                            activity_blob=blob,
+                            event_type=EMBARGO_ABANDONMENT_EVENT_TYPE,
+                        ),
+                    )
+                ],
             )
         self.feedback_message = (
-            f"CASE_MANAGER committed and applied {len(results)}"
+            f"CASE_MANAGER committed and applied {len(self._proposals)}"
             f" '{EMBARGO_ABANDONMENT_EVENT_TYPE}' entr(y/ies) on case"
             f" '{self._case_id_value}'"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return EmbargoLifecycleResult(
-            em_before=results[0].em_before,
-            em_after=results[-1].em_after,
-            case_changed=any(r.case_changed for r in results),
-            case_embargo_changed=any(r.case_embargo_changed for r in results),
-            participant_changes=[
-                change for r in results for change in r.participant_changes
-            ],
+            em_before=em_before,
+            em_after=self._em_state(),
+            case_changed=bool(self._proposals),
+            case_embargo_changed=False,
+            participant_changes=[],
         )
+
+    def _em_state(self) -> EM:
+        """The case's EM state, derived from its register."""
+        case, failure = self._require_case(self._case_id_value)
+        if failure is not None:
+            raise VultronNotFoundError(
+                "VulnerabilityCase", self._case_id_value
+            )
+        return case.em_state
 
 
 class LeaveAbandonmentToCaseManagerNode(DataLayerActionWithPorts):
@@ -308,61 +335,25 @@ class LeaveAbandonmentToCaseManagerNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ApplyEmbargoAbandonmentFromLedgerNode(_EmbargoRelayEffectNode):
-    """Replay the CASE_MANAGER's abandonment of one proposal (EMB-16-001).
+class ApplyEmbargoAbandonmentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
+    """Copy the CASE_MANAGER's abandonment of one proposal (EMB-16-001).
 
-    Calls ``EmbargoLifecycle.abandon_embargo_proposals`` in ``OBSERVED``
-    mode for the embargo the entry's Invite names: the proposal leaves this
-    replica's open proposals, and EM returns to ``NONE`` with the last one
-    (EP-09-007).  A proposal this replica no longer holds as open is a no-op,
-    so a repeated or late entry never blocks the persist (SYNC-12-001).
+    The entry's ER is the threat-signal ``CANCEL`` step of the embargo its
+    Invite names (ADR-0122): the replica copies it through the one apply
+    function, so the proposal leaves this replica's open proposals, and EM
+    returns to ``NONE`` with the last one (EP-09-007, ADR-0124).  A proposal
+    this replica already holds as cancelled is in place, so a repeated entry
+    is a no-op; one whose step does not apply is held for gap handling
+    (``ApplyEmbargoChangeFromLedgerNode``).
     """
 
-    def update(self) -> Status:
-        entry = self._get_entry()
-        snapshot = entry.payload_snapshot
-        resolved = self._resolve(
-            _embargo_of_invite(_answered_invite(snapshot))
+    def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
+        embargo_id = _extract_id_from_field(
+            _embargo_of_invite(_answered_invite(entry.payload_snapshot))
         )
-        if isinstance(resolved, Status):
-            return resolved
-        case, embargo_id = resolved
-        assert self.datalayer is not None
-        if embargo_id not in case.proposed_embargo_ids:
-            self.feedback_message = (
-                f"embargo '{embargo_id}' is not an open proposal of case"
-                f" '{case.id_}' here — nothing to replay"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        manager_id = _extract_id_from_field(snapshot.get("actor")) or None
-        try:
-            result = EmbargoLifecycle(
-                persistence=self.datalayer
-            ).abandon_embargo_proposals(
-                case_id=case.id_,
-                embargo_ids=[embargo_id],
-                actor_id=manager_id,
-                transition_mode=TransitionMode.OBSERVED,
-            )
-        except VultronError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        log_em_transition(
-            self.logger,
-            manager_id or "",
-            case.id_,
-            result.em_before,
-            result.em_after,
-        )
-        self.feedback_message = (
-            f"Replayed abandonment of embargo '{embargo_id}' on case"
-            f" '{case.id_}' (EM {result.em_before} → {result.em_after})"
-        )
-        return Status.SUCCESS
+        if not embargo_id:
+            raise TypeError("the abandonment names no embargo")
+        return RegisterStep(kind=RegisterStepKind.CANCEL, embargo=embargo_id)
 
 
 __all__ = [

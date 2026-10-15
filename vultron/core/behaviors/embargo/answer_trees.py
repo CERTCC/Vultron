@@ -73,9 +73,10 @@ def accept_invite_to_embargo_tree(
     """Create the BT for accepting an embargo invitation.
 
     Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity: the
-    sender's own consent, the case owner's included (ADR-0122).  Records the
-    acceptance via EmbargoLifecycle, moving no register entry, and commits a
-    canonical ledger entry.  Only the CASE_MANAGER records it (BT-17-001); any
+    sender's own consent, the case owner's included (ADR-0122).  The Accept is
+    committed as the act's canonical entry, then the accepter's changed
+    consent row as the CASE_MANAGER's own ``Update(EmbargoConsent)`` entry,
+    which is applied by copying (ADR-0124); it moves no register entry.  Only the CASE_MANAGER records it (BT-17-001); any
     other receiver's gate turns it away and the handler reports a refusal.
     The owner's activation of a proposal is a separate activity
     (``activate_embargo_on_case_tree``), so no revision becomes active here;
@@ -156,7 +157,7 @@ def reject_invite_to_embargo_tree(
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
-           └─ RecordParticipantRejectionNode  # consent (MSM-07-004)
+           └─ RecordParticipantRejectionNode  # Update(EmbargoConsent) entry
 
     The guard refuses a Reject naming an embargo that is neither active nor
     an open proposal (a late Reject of a decided proposal, or an unknown

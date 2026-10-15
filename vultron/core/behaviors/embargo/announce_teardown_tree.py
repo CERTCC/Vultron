@@ -441,12 +441,17 @@ def invite_to_embargo_on_case_tree(
         CollectEmbargoInviteRecipientsNode(
             case_id=case_id, proposer_id=proposer_id
         ),
+        # Intake committed the proposal, whose entry is the PROPOSE step;
+        # the decision's new consent rows follow as the CASE_MANAGER's own
+        # Create(EmbargoConsent) entries, and all are applied by copying
+        # (ADR-0124, CLP-07-013).
         ProposeEmbargoLifecycleNode(
             case_id=case_id,
             embargo_id=embargo_id,
             result_out={},
             proposer_id=proposer_id,
-        ),
+            embargo=embargo,
+        ).applying_after(cause_id=invite_id),
         RelayEmbargoInviteToEachNode(
             case_id=case_id,
             embargo_id=embargo_id,
@@ -460,6 +465,7 @@ def invite_to_embargo_on_case_tree(
             case_id=case_id,
             embargo_id=embargo_id,
             proposer_id=proposer_id,
+            cause_id=invite_id,
         ),
     ]
     root = create_receive_activity_tree(

@@ -176,10 +176,11 @@ embargo *in force* inside a proposal path is a defect: coverage never breaks
 during a revision, and a rejected revision must not strand its signatories.
 
 **A revision Invite lands on the revision's own row** (EP-09-004). It cannot
-touch the `AGREED` row that binds a signatory. The `INVITE` write belongs to the
-CASE_MANAGER's commit of each relayed Invite (`RelayEmbargoInviteToEachNode`)
-and its replica replay (`ApplyEmbargoInviteFromLedgerNode`), both through
-`EmbargoLifecycle.record_embargo_invite()`. That uses
+touch the `AGREED` row that binds a signatory. The `INVITE` is decided at the
+CASE_MANAGER's commit of each relayed Invite (`RelayEmbargoInviteToEachNode`),
+through `EmbargoLifecycle.record_embargo_invite()` on a staged store, and is
+committed as its own `Update(EmbargoConsent)` entry right after the Invite's,
+which every replica copies (the Invite's own slot writes no row). The decision uses
 `apply_pec_transition_if_legal()`, the one sanctioned "apply where legal" shape:
 an `AGREED` or already-`INVITED` row is a recorded no-op; every other caller
 stays fail-closed. Re-inviting a row still `INVITED` replaces its deadline
@@ -272,6 +273,18 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   already holds (saved, but not yet stored, before a stop) is an idempotent
   no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
   entry that would change nothing.
+- **Decide on a stage, record by diff** (#4715). An arm whose decision is an
+  existing `EmbargoLifecycle` operation runs it on a `StagedCasePersistence`
+  and lets `decided_entries.py` turn what it would have written into the
+  entries: the act's register step, then one row entry per changed row, in
+  roster order. The proposal's rows are `Create`s (the proposer's `AGREED`,
+  every other `UNINVITED`); a relayed Invite's, an answer's, the manager's
+  policy consent's and a re-issued stub's are `Update`s. A decision that wrote
+  anything no entry carries raises `VultronBTInternalError`.
+- **Fan-out follows the commit.** Every entry of an act is committed before
+  the act is applied, so each is fanned out to the participants entitled
+  before the act: a signatory that an activation lapses still receives the
+  activation's entries, as on the received path.
 
 ---
 
