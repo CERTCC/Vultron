@@ -2601,7 +2601,7 @@ groups:
       `test_rm_invite_stub_embeds_the_full_active_embargo` and
       `test_rm_invite_stub_embeds_the_full_inline_embargo` in
       `test/wire/as2/factories/test_case_factories.py` confirm the stub's
-      `activeEmbargo` equals the stored embargo's full serialisation, whether the case
+      `activeEmbargo` equals the stored embargo's full serialization, whether the case
       names the embargo by ID or holds it inline;
       `test_rm_invite_refuses_an_active_embargo_it_cannot_embed` and
       `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` confirm the
