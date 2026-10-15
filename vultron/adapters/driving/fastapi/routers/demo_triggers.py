@@ -358,8 +358,9 @@ def demo_sync_log_entry(
             background_tasks=background_tasks,
         )
     except VultronCanonicalEntryError:
-        # The tree ran but this store does not hold the canonical log, so the
-        # ledger-authority guard declined the mint (ADR-0073).  Kept as the
+        # The commit did not persist.  An unhosted CASE_MANAGER is refused
+        # before any tree runs, and the ledger-authority guard raises rather
+        # than declining (CLP-10-014, ADR-0109).  Kept as the
         # 500 this route has always answered; ``domain_error_translation()``
         # has no mapping for it because it is neither a client fault nor a
         # state conflict.

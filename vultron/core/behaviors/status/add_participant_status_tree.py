@@ -50,7 +50,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
             │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
             └─ EmitRMGapNoteNode               # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
 
-    A replica cc'd on the ``Add(ParticipantStatus)`` writes nothing: the whole
+    A replica holding a copy of the ``Add(ParticipantStatus)`` writes nothing: the whole
     adoption body runs only at the CASE_MANAGER, and the replica takes the move
     from the committed ``add_participant_status_to_participant`` ledger entry
     (RSH-08-003, PCR-03-001).
@@ -212,8 +212,8 @@ def add_participant_status_tree(
         # status, decide adoption, write the canonical ``CaseStatus``, run the
         # teardown side-effects, and post the RSH-06-004 gap note — is all the
         # CASE_MANAGER's work.  ``add_participant_status_to_participant`` is
-        # committed and replayed (ParticipantStatus slot), so a replica cc'd on
-        # the ``Add(ParticipantStatus)`` writes nothing and takes the move from
+        # committed and replayed (ParticipantStatus slot), so a replica holding a
+        # copy of the ``Add(ParticipantStatus)`` writes nothing and takes the move from
         # the ledger fan-out (#3814).  The pipeline is ordered (adoption gates
         # the emit, teardown reads the emitted status), so it moves under the
         # gate as one unit.
