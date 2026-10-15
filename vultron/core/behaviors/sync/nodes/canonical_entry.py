@@ -122,8 +122,12 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # received (EMB-17-004, CLP-07-013).
     ("Ignore", "Accept"),
     # CASE_MANAGER-authored closure of the case on the owner's Leave, carrying
-    # the closed case (case_fully_closed, CM-23-002 step 3, CLP-07-013).
+    # the closed case (case_fully_closed, CM-23-002 step 3, CLP-07-013), and
+    # its record of a new owner after an ownership transfer (update_case_owner).
     ("Update", "VulnerabilityCase"),
+    # CASE_MANAGER-authored change to a participant record, carrying the
+    # record (update_case_participant, CM-21-002, CLP-07-013).
+    ("Update", "CaseParticipant"),
     # CASE_MANAGER-authored honour decision for a late Accept when the embargo
     # is still active and matching (EMB-17-001, ADR-0118).
     (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
@@ -155,8 +159,11 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         (EXPIRE_SNAPSHOT_TYPE, "Offer"),
         # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
         ("Ignore", "Accept"),
-        # CASE_MANAGER-authored case closure (CM-23-002 step 3)
+        # CASE_MANAGER-authored case closure (CM-23-002 step 3) and new
+        # owner after an ownership transfer (CM-21-002)
         ("Update", "VulnerabilityCase"),
+        # CASE_MANAGER-authored participant-record change (CLP-07-013)
+        ("Update", "CaseParticipant"),
         # CASE_MANAGER-authored honour decision (EMB-17-001, ADR-0118)
         (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)
