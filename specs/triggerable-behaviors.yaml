@@ -190,8 +190,13 @@ groups:
   specs:
   - id: TRIG-06-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Trigger endpoints MUST resolve the correct per-actor DataLayer instance using the `actor_id` path parameter
+    rationale: >-
+      Trigger endpoints are this codebase's local REST surface for driving its own
+      actors, not messages between implementations, and per-actor stores are how
+      this codebase isolates them (ADR-0073). Only this codebase must obey it, so it
+      is `project` (ADR-0134).
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that each trigger
       endpoint resolves its DataLayer instance keyed on the `actor_id` path
