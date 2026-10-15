@@ -109,6 +109,9 @@ Nodes
 - ``SenderIsNoteAuthorNode`` — guards that the sender is the note's author and
   an active participant whose closure is not recorded (``AUTHOR`` kind;
   CM-30-001, CM-23-018)
+- ``SenderClosureNotRecordedNode`` — guards that the case does not record the
+  sender's closure; the closed-sender pre-flight runs it to tell a repeated
+  closing act (``SKIPPED``) from any other act (``REFUSED``) (CM-23-018)
 - ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
   leaves empty (HP-01-008)
 - ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
@@ -478,7 +481,9 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
     sender, whether or not that participant is active (CM-10-004): an inert
     invitee and a removed participant pass.  A participant whose closure the
     case records (RM ``CLOSED``) fails: it has left and may act on nothing
-    further (CM-23-018, :func:`~vultron.core.participants.recipients.closure_recorded`).
+    further (CM-23-018; the same test as
+    :func:`~vultron.core.participants.recipients.closure_recorded`, asked of
+    the record the lookup found).
     Returns ``FAILURE`` otherwise, halting the parent ``Sequence`` with a
     REFUSED outcome.
 
@@ -543,11 +548,10 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
             )
             return Status.FAILURE
 
-        assert self.datalayer is not None
-        case = self.datalayer.read(case_id)
-        if isinstance(case, VulnerabilityCase) and closure_recorded(
-            case, self.datalayer, self.sender_actor_id
-        ):
+        # The record the lookup above found, not a second lookup through the
+        # index, so the two can never disagree about which record is closed.
+        record = self.found_participant
+        if record is not None and record.rm_closed:
             self.feedback_message = (
                 f"Sender '{self.sender_actor_id}' has left case '{case_id}'"
                 " (RM CLOSED) and may act on nothing further — REFUSED"
@@ -1647,6 +1651,64 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
         return Status.FAILURE
 
 
+# ---------------------------------------------------------------------------
+# Condition node: the sender's closure is not recorded (CM-23-018)
+# ---------------------------------------------------------------------------
+
+
+class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
+    """Guard: the case does not record the sender's closure (CM-23-018).
+
+    A participant whose closure the case records (RM ``CLOSED``) may act on
+    nothing further, except that a repeat of an act that would close it
+    again changes nothing and is reported ``SKIPPED``, whatever its activity
+    id (ID-05-003).  This node is the check the closed-sender pre-flight runs
+    before a handler's received tree
+    (:func:`vultron.core.use_cases.received._sender_preflight.closed_sender_preflight`),
+    built by :func:`vultron.core.behaviors.sender_guard.closed_sender_guard`.
+
+    SUCCESS when the sender is not at RM ``CLOSED`` here, or when this store
+    holds no such case: the received tree decides what the act means.
+
+    FAILURE with :attr:`sender_closed` set when the case records the
+    sender's closure (:func:`~vultron.core.participants.recipients.closure_recorded`).
+    The handler reports an act that would close the sender again as
+    ``SKIPPED``, and any other act as ``REFUSED``.
+
+    Keyed on the sender's recorded RM state, never on the activity id, which
+    a repeat sent under a new id does not share.  Read-only.
+
+    Spec: CM-23-018, ID-05-003, HP-01-007.
+    """
+
+    def __init__(
+        self, case_id: str, sender_actor_id: str, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.sender_actor_id = sender_actor_id
+        self.sender_closed = False
+        """``True`` when the last run found the sender's closure recorded."""
+
+    def update(self) -> Status:
+        self.sender_closed = False
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase) or not closure_recorded(
+            case, self.datalayer, self.sender_actor_id
+        ):
+            return Status.SUCCESS
+        self.sender_closed = True
+        self.feedback_message = (
+            f"'{self.sender_actor_id}' is already closed on case"
+            f" '{self.case_id}' (CM-23-018)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 __all__ = [
     # Declaration types
     "SenderEntitlementKind",
@@ -1677,6 +1739,7 @@ __all__ = [
     "SenderIsOfferAddresseeNode",
     "SenderIsCaseOwnerNode",
     "SenderIsNoteAuthorNode",
+    "SenderClosureNotRecordedNode",
     "NoSenderAdmittedNode",
     "SenderHoldsNoneOfNode",
 ]

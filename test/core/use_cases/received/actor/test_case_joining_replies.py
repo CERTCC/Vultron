@@ -314,6 +314,39 @@ def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
     assert list(joining_case.dl.outbox_list()) == outbox_before
 
 
+@pytest.mark.spec("CM-23-018", "CM-11-015")
+def test_an_accept_from_the_closed_invitee_is_refused(joining_case) -> None:
+    """The Reject closed the invitee; its later Accept does not join it.
+
+    RM ``CLOSED`` is terminal and a closed sender may act on nothing
+    further, so the Accept is REFUSED with no ledger entry, nothing sent,
+    and the record left as the Reject made it (CM-23-018).
+    """
+    first = joining_case.route(
+        rm_reject_invite_to_case_activity(
+            joining_case.stub_invite, actor=joining_case.invitee_id
+        )
+    )
+    assert first.disposition is HandlerDisposition.APPLIED
+    entries_before = len(_ledger_tail(joining_case))
+    outbox_before = list(joining_case.dl.outbox_list())
+    statuses_before = list(joining_case.participant().participant_statuses)
+
+    accept = joining_case.route(
+        rm_accept_invite_to_case_activity(
+            joining_case.stub_invite, actor=joining_case.invitee_id
+        )
+    )
+
+    assert accept.disposition is HandlerDisposition.REFUSED, accept.reason
+    assert "CM-23-018" in (accept.reason or "")
+    assert len(_ledger_tail(joining_case)) == entries_before
+    assert list(joining_case.dl.outbox_list()) == outbox_before
+    record = joining_case.participant()
+    assert record.participant_statuses == statuses_before
+    assert not record.joined
+
+
 @pytest.mark.spec("CM-11-009")
 @pytest.mark.parametrize("reply", ["accept", "reject"])
 def test_stub_invite_reply_marks_vendor_aware(joining_case, reply) -> None:

@@ -439,6 +439,11 @@ RM `CLOSED` has no way out.
 Once a participant reaches it, no further RM change is possible for that participant in that case ([RMB-14-006](../../reference/specs/protocol.md#rmb-14-006)).
 There is no rejoin: making `CLOSED` reversible would need a second lifecycle for one participant record, and the protocol does not define one ([ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
 
+A participant whose closure is recorded also has no further say in the case.
+The CASE_MANAGER refuses every later activity from it, with two exceptions ([CM-23-018](../../reference/specs/protocol.md#cm-23-018)).
+Its request for missing ledger entries is still answered, but only with the entries that record its own closure.
+A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)` or `Close(Report)`, changes nothing, so the CASE_MANAGER reports it as skipped.
+
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/specs/protocol.md#rmb-14-007)).
 `DEFERRED` can resume to `ACCEPTED` or go on to `CLOSED` later.
 `CLOSED` can do neither.

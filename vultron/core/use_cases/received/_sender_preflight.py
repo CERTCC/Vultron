@@ -42,9 +42,6 @@ any other act ``REFUSED``, before the received tree commits or sends.
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.closure_repeat import (
-    SenderClosureNotRecordedNode,
-)
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
 )
@@ -55,6 +52,7 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
+    closed_sender_guard,
     compose_sender_guard,
 )
 from vultron.core.models.events.base import VultronEvent
@@ -264,22 +262,17 @@ def closed_sender_preflight(
     """
     if not case_id:
         return None
+    guard = closed_sender_guard(case_id, sender_actor_id)
     tree = py_trees.composites.Sequence(
         name="ClosedSenderPreflight",
         memory=False,
-        children=[
-            CaseOpenToExternalWritesNode(case_id=case_id),
-            SenderClosureNotRecordedNode(
-                case_id=case_id, sender_actor_id=sender_actor_id
-            ),
-        ],
+        children=[CaseOpenToExternalWritesNode(case_id=case_id), guard],
     )
     result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
         tree=tree, actor_id=receiving_actor_id, activity=request
     )
     verdict_from_bt(tree, result, label="ClosedSenderPreflight")
-    guard = find_node(tree, SenderClosureNotRecordedNode)
-    if guard is None or not guard.sender_closed:
+    if not guard.sender_closed:
         return None
     if closes:
         return HandlerResult.skipped(

@@ -659,6 +659,28 @@ def test_participant_kind_refuses_only_a_closed_sender(
     assert (result.status == Status.SUCCESS) is admitted
 
 
+@pytest.mark.spec("CM-23-018")
+def test_participant_kind_reads_closure_from_the_record_it_found() -> None:
+    """A closed sender is refused even when the index does not list it.
+
+    The roster lookup finds the record by scanning the participants, so the
+    closure is read from that record, not looked up again through
+    ``actor_participant_index``: the two lookups cannot disagree.
+    """
+    scenario = _store_where_vendor(_leave)
+    case = scenario.dl.read(CASE_ID)
+    assert isinstance(case, as_VulnerabilityCase)
+    case.actor_participant_index.pop(VENDOR)
+    scenario.dl.save(case)
+    result = scenario.run(
+        _composed_vendor_guard(Kind.PARTICIPANT),
+        activity=SimpleNamespace(actor_id=VENDOR),
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+    assert "RM CLOSED" in (result.feedback_message or "")
+
+
 @pytest.mark.spec("CM-23-018", "SYNC-03-005")
 def test_ledger_peer_kind_composes_the_resync_guard() -> None:
     """``LEDGER_PEER`` is guarded by the bare active check of SYNC-03-005."""

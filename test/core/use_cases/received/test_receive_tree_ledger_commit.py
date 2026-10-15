@@ -280,8 +280,10 @@ class TestCloseAndInvalidateReportCommit:
     def test_redelivered_activity_commits_once(self):
         """A repeat of the same activity is skipped and adds no entry.
 
-        Invalidate, not Close: once the sender is at RM CLOSED it may not
-        act, so a repeated Close is refused (CM-23-018) rather than skipped.
+        Invalidate, not Close: a repeated Close comes from a sender already
+        at RM CLOSED, which is skipped by effect, whatever its id, before the
+        tree runs (CM-23-018; see
+        ``test_a_repeated_close_from_the_closed_sender_is_skipped``).
         """
         dl = _store(MANAGER_ID)
         event = cast(

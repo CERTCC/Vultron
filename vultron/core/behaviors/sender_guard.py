@@ -56,6 +56,7 @@ import py_trees
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
+    SenderClosureNotRecordedNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
@@ -81,6 +82,7 @@ __all__ = [
     "OwnershipOfferRequest",
     "ReportOfferRequest",
     "SenderCheckContext",
+    "closed_sender_guard",
     "compose_sender_guard",
     "embargo_sender_context",
 ]
@@ -185,6 +187,22 @@ def embargo_sender_context(
     """
     return SenderCheckContext(
         sender_id=sender_id, case_id=case_id, case_manager_required=True
+    )
+
+
+def closed_sender_guard(
+    case_id: str, sender_id: str
+) -> SenderClosureNotRecordedNode:
+    """The CM-23-018 check that the case does not record the sender's closure.
+
+    Built here, beside the kinds' guards, so the closed-sender pre-flight
+    (``vultron.core.use_cases.received._sender_preflight``) never names a
+    sender node itself (HP-01-007).  It is not a kind: it tells a repeated
+    closing act (``SKIPPED``) from any other act of a closed sender
+    (``REFUSED``) before a handler's received tree runs.
+    """
+    return SenderClosureNotRecordedNode(
+        case_id=case_id, sender_actor_id=sender_id
     )
 
 

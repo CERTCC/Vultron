@@ -192,6 +192,22 @@ class AcceptInviteActorToCaseReceivedUseCase:
         actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
+        # An invitee the case already records as closed (its stub Reject was
+        # applied) may act on nothing further: its Accept would join a
+        # participant whose RM is terminal.  REFUSED before the tree, with
+        # nothing committed or sent (CM-23-018, CM-11-015, RMB-14-006).
+        refusal = closed_sender_preflight(
+            self._dl,
+            actor_id,
+            request,
+            case_id=case_id,
+            sender_actor_id=invitee_id,
+            closes=False,
+            label="AcceptInviteActorToCaseBT",
+            sync_port=self._sync_port,
+        )
+        if refusal is not None:
+            return refusal
 
         # The reply's sender is the invitee: the tree's sender guard refuses
         # any sender that is not the recorded Invite's invitee, so the
