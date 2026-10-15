@@ -864,6 +864,7 @@ class _ActorsMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
         end_time: datetime | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
@@ -871,6 +872,8 @@ class _ActorsMixin:
         from the DataLayer and passed inline so the recipient can distinguish
         this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).  *end_time*, when
         given, is the Offer's deadline to answer (TRIG-11-007, CM-21-016).
+        *in_reply_to*, when given, links a CASE_MANAGER forward to the
+        recorded Offer it forwards (CM-21-018).
         """
         case = _case_for_wire(self._dl, case_id)
         extra: dict[str, Any] = {
@@ -883,6 +886,8 @@ class _ActorsMixin:
             extra["attributed_to"] = attributed_to
         if end_time is not None:
             extra["end_time"] = end_time
+        if in_reply_to is not None:
+            extra["in_reply_to"] = in_reply_to
         activity = offer_case_ownership_transfer_activity(
             case=case,
             target=transferee_id,

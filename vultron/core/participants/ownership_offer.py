@@ -25,10 +25,11 @@ The answer names one of two Offers:
 - the recorded Offer itself, whose id is the entry's ``log_object_id``; or
 - the copy the CASE_MANAGER forwarded to the transferee (CM-21-005).  The
   forward is a new activity with its own id, minted after the commit, and it
-  is the one the transferee holds and answers.  It is not ledgered, so it is
-  matched to the recorded Offer it forwards: an Offer this CASE_MANAGER
-  issued, for the same case and transferee, published no earlier than that
-  Offer was recorded.
+  is the one the transferee holds and answers.  It is not ledgered, so it
+  carries ``inReplyTo`` set to the recorded Offer's id, and the answer is
+  resolved through that link, read from the forward in this CASE_MANAGER's
+  own store (CM-21-018).  A forward with no link, or one whose link names no
+  recorded Offer for the same case and transferee, stands for no Offer.
 
 :func:`recorded_ownership_offer` returns that Offer and its protocol pair;
 the sender-entitlement guards read the transferee, the offerer and the open
@@ -40,7 +41,7 @@ any, so the CASE_MANAGER can refuse a second one (CM-21-014);
 :func:`is_recorded_ownership_offer` tells a redelivered Offer from a new one.
 
 Spec: CM-21-005, CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016,
-CLP-11-001.
+CM-21-018, CLP-11-001.
 """
 
 from dataclasses import dataclass
@@ -212,13 +213,12 @@ def _forwarded_entry(
     """The recorded Offer that *offer_id* forwards, if it is a forward.
 
     A forward is an Offer in this store that *issuer_id* (the CASE_MANAGER)
-    sent, for *case_id*, naming a transferee; it forwards the latest Offer
-    for that transferee recorded no later than the forward was published.
-
-    Both times are second-precision (``now_utc``), so a forward published in
-    the same second as a later Offer to the same transferee is recorded
-    resolves to that later Offer.  That is safe: the later Offer names the
-    same transferee, and its own open or answered state still decides.
+    sent, for *case_id*, naming a transferee.  It names the recorded Offer it
+    forwards in ``inReplyTo`` (CM-21-018); the entry returned is the one whose
+    ``log_object_id`` is that link and whose ``target`` is the forward's
+    transferee.  A forward with no link, or a link to no such entry, stands
+    for no recorded Offer, and nothing else is tried: matching by time would
+    let a late answer to one Offer close a newer one (#4565).
     """
     forward = dl.read(offer_id)
     if forward is None or _type_name(forward) != "Offer":
@@ -228,16 +228,18 @@ def _forwarded_entry(
     if _as_id(getattr(forward, "object_", None)) != case_id:
         return None
     transferee_id = _as_id(getattr(forward, "target", None))
-    published = getattr(forward, "published", None)
-    if transferee_id is None or not isinstance(published, datetime):
+    linked_id = _as_id(getattr(forward, "in_reply_to", None))
+    if transferee_id is None or linked_id is None:
         return None
-    candidates = [
-        entry
-        for entry in entries
-        if _entry_target(entry) == transferee_id
-        and entry.received_at <= published
-    ]
-    return candidates[-1] if candidates else None
+    return next(
+        (
+            entry
+            for entry in entries
+            if entry.log_object_id == linked_id
+            and _entry_target(entry) == transferee_id
+        ),
+        None,
+    )
 
 
 def recorded_ownership_offer(
@@ -258,8 +260,9 @@ def recorded_ownership_offer(
 
     Raises:
         VultronNotFoundError: no ownership-transfer Offer for *case_id* was
-            ledgered under *offer_id* or forwarded as it, or the recorded
-            Offer names no transferee.
+            ledgered under *offer_id*, and *offer_id* is not a forward whose
+            ``inReplyTo`` links to one for the same transferee (CM-21-018),
+            or the recorded Offer names no transferee.
     """
     entries = _offer_entries(dl, case_id)
     entry = next(

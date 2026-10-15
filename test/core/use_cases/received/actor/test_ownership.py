@@ -304,6 +304,8 @@ class TestOwnershipTransferUseCases:
             attributed_to=vendor_id,
             # The Offer named no deadline, so the forward carries none.
             end_time=None,
+            # The forward links back to the recorded Offer (CM-21-018).
+            in_reply_to=activity.id_,
         )
 
         # Forwarded offer must land in CaseActor's outbox (not transferee's slot).
@@ -1289,10 +1291,13 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         assert dl.outbox_list() == outbox_before
 
     @staticmethod
-    def _plant_forged_forward(dl, case_id: str, target: str, forward_id: str):
+    def _plant_forged_forward(
+        dl, case_id: str, target: str, forward_id: str, in_reply_to: str
+    ):
         """Store an Offer that claims the CASE_MANAGER forwarded it.
 
-        Inbound inline objects are stored by id, so a sender can plant one.
+        Inbound inline objects are stored by id, so a sender can plant one,
+        linked (CM-21-018) to a real recorded Offer.
         """
         case = dl.read(case_id)
         assert isinstance(case, VulnerabilityCase)
@@ -1303,6 +1308,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             target=as_Service(id_=target, name="Forged"),
             actor=_CASE_ACTOR_ID,
             id_=forward_id,
+            in_reply_to=in_reply_to,
         )
         dl.create(forged)
         return forged
@@ -1315,7 +1321,11 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
         deliver(_COORDINATOR_ID, "https://example.org/activities/offer_fs")
         forged = self._plant_forged_forward(
-            dl, case_id, impostor, "https://example.org/activities/forged_fs"
+            dl,
+            case_id,
+            impostor,
+            "https://example.org/activities/forged_fs",
+            "https://example.org/activities/offer_fs",
         )
         roles_before = _owner_roles(dl, case_id)
         entries_before = _event_types(dl)
@@ -1342,6 +1352,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             case_id,
             _COORDINATOR_ID,
             "https://example.org/activities/forged_fo",
+            "https://example.org/activities/offer_fo",
         )
         roles_before = _owner_roles(dl, case_id)
         entries_before = _event_types(dl)
