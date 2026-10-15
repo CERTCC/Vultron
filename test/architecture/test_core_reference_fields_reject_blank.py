@@ -162,7 +162,7 @@ def test_the_scan_covers_the_fields_3877_named() -> None:
         string_fields(classes["VultronCreateCaseActivity"])
     )
     assert "result" in string_fields(classes["VultronAccept"])
-    assert {"to", "cc"} <= set(string_fields(classes["VultronActivity"]))
+    assert "to" in string_fields(classes["VultronActivity"])
     assert {
         "case_participants",
         "actor_participant_index",

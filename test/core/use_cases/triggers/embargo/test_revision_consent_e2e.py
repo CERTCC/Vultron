@@ -22,15 +22,14 @@ participant's consent rows (one per embargo, ADR-0122), and that
 derived ``is_signatory`` / ``has_lapsed`` answers about who is bound by the
 active embargo.
 
-One store, three actors.  Every trigger here runs against the case's
-canonical store, whose owner is the CASE_MANAGER.  The proposer is not, so
-its revision trigger only asks (EP-09-008): the queued ``Invite`` is routed
-back into the store as the owner's inbox would route it, and the owner's
-adjudication moves the case to REVISE and indexes the proposal (EP-09-001).
-The owner then answers by trigger as the CASE_MANAGER.  A trigger's BT
-follows the requesting actor's store when that actor is hosted alongside the
-store's owner, so the three actors are given ids under distinct authorities
-to keep every trigger in this one store.
+The case's canonical store belongs to the owner, the CASE_MANAGER, and every
+assertion reads it.  The proposer is not the CASE_MANAGER and runs its
+revision trigger in its own replica, on its own container (a tree only ever
+runs as an actor its container hosts, BT-05-005, ADR-0109), so the trigger
+only asks (EP-09-008): the queued ``Invite`` is read from the proposer's
+outbox and delivered into the owner's store as the owner's inbox would, and
+the owner's adjudication moves the case to REVISE and indexes the proposal
+(EP-09-001).  The owner then answers by trigger as the CASE_MANAGER.
 """
 
 import inspect
@@ -154,7 +153,21 @@ class _Revision:
         for p in (owner_p, proposer_p, third_p):
             self.dl.create(p)
 
+        # The proposer's replica on its own container: the same case, so its
+        # trigger can resolve the case and its CASE_MANAGER (PCR-08-001).
+        reset_datalayer(PROPOSER)
+        self.proposer_dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=PROPOSER
+        )
+        self.proposer_dl.clear_all()
+        for actor_id in ACTORS:
+            self.proposer_dl.create(as_Service(id_=actor_id, name=actor_id))
+        for obj in (self.case, self.active, owner_p, proposer_p, third_p):
+            self.proposer_dl.create(obj)
+
     def close(self) -> None:
+        self.proposer_dl.close()
+        reset_datalayer(PROPOSER)
         self.dl.close()
         reset_datalayer(OWNER)
 
@@ -168,14 +181,14 @@ class _Revision:
         moves the case to REVISE and indexes the proposal (EP-09-001).
         """
         result = SvcProposeEmbargoRevisionUseCase(
-            self.dl,
+            self.proposer_dl,
             ProposeEmbargoRevisionTriggerRequest(
                 actor_id=PROPOSER,
                 case_id=self.case.id_,
                 end_time=now_utc() + timedelta(days=days),
             ),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
+            trigger_activity=TriggerActivityAdapter(self.proposer_dl),
+            sync_port=SyncActivityAdapter(self.proposer_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         activity = activity_of(result)
@@ -184,8 +197,8 @@ class _Revision:
         return str(activity["object"]["id"])
 
     def _receive_as_owner(self, activity_id: str) -> None:
-        """Route a queued activity into the case's store as the inbox would."""
-        body = read_sealed_body_dict(self.dl, activity_id)
+        """Deliver the proposer's queued activity into the case's store."""
+        body = read_sealed_body_dict(self.proposer_dl, activity_id)
         assert body is not None, f"'{activity_id}' was never sealed"
         event = extract_event(parse_activity(body)).model_copy(
             update={"receiving_actor_id": OWNER}

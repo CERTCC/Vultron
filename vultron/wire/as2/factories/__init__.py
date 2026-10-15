@@ -67,6 +67,7 @@ from vultron.wire.as2.factories.case_participant import (
     add_status_to_participant_activity,
     create_participant_activity,
     remove_participant_from_case_activity,
+    update_participant_activity,
 )
 from vultron.wire.as2.factories.embargo import (
     activate_embargo_activity,
@@ -141,6 +142,7 @@ __all__ = [
     "add_status_to_participant_activity",
     "create_participant_activity",
     "remove_participant_from_case_activity",
+    "update_participant_activity",
     # embargo
     "activate_embargo_activity",
     "announce_embargo_activity",

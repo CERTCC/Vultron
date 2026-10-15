@@ -138,9 +138,12 @@ seam, delegates to it).
 `clone_for_actor(actor_id)` is the only sanctioned route (DL-07-005), and
 `vultron/core/behaviors/store_scope.py::store_for_actor` holds the guard logic
 around it so the decision is not re-derived per call site. Pass
-`require_same_authority=True` when the point of the write is to publish something
-the named actor *serves*: `clone_for_actor` succeeds for any well-formed id, so
-without the guard a remote actor's id silently opens a fresh empty local store.
+`require_same_authority=True` whenever the caller executes or writes as the named
+actor: `clone_for_actor` succeeds for any well-formed id, so without the guard a
+remote actor's id silently opens a fresh empty local store. With it the call
+raises `VultronUnhostedActorError`; nothing runs as an actor this container does
+not host (BT-05-005, ADR-0109). Ask `hosts_actor()` first where a remote actor is
+a normal topology rather than a fault (CaseActor provisioning).
 
 No separate scope-enforcing protocol is needed: a DataLayer cannot exist
 unscoped, so the boundary holds by construction.

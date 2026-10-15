@@ -127,10 +127,10 @@ groups:
     statement: >-
       A handler that receives a message it holds no role or addressing to act on MUST report
       `REFUSED` with a reason naming the missing role or addressing. That covers a
-      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, a copy of
-      an activity that names the receiving actor in neither `to` nor `cc`, and an addressing
-      the message's own protocol does not honour — a `cc`-only receiver of `Offer(Report)`,
-      where only a `to` recipient acts (HP-09-001, HP-09-002). Such a receipt is not a
+      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, and a copy
+      of an activity whose `to` does not name the receiving actor. `cc`, `bto` and `bcc` address
+      no Vultron recipient (OX-08-001, ADR-0109), so a `cc`-only receiver is such a copy, of an
+      `Offer(Report)` (HP-09-001, HP-09-002, HP-10-001) as of any other. Such a receipt is not a
       legitimate no-op and MUST NOT be reported as `SKIPPED`; `SKIPPED` is reserved for a
       duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to
       act on

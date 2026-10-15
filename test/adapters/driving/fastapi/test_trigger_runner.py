@@ -49,7 +49,11 @@ from vultron.core.use_cases.triggers.requests import (
     ResultT_co,
     TriggerRequest,
 )
-from vultron.errors import VultronCanonicalEntryError, VultronNotFoundError
+from vultron.errors import (
+    VultronCanonicalEntryError,
+    VultronNotFoundError,
+    VultronUnhostedActorError,
+)
 
 _ACTOR = "https://example.org/actors/cm"
 _CASE = "https://example.org/cases/c1"
@@ -226,12 +230,14 @@ def test_flush_stays_with_the_requester_when_it_is_the_emitter(
     assert task.args == (_ACTOR, dl)
 
 
-def test_emitting_outbox_falls_back_for_a_foreign_authority(
+@pytest.mark.spec("BT-05-005")
+def test_emitting_outbox_refuses_a_foreign_authority(
     dl: SqliteDataLayer,
 ) -> None:
-    """A CaseActor on another container cannot be drained from here; the emit
-    was kept in the requester's store, so that is what is drained (#2484)."""
-    assert emitting_outbox(_FOREIGN_ACTOR, _ACTOR, dl) == (_ACTOR, dl)
+    """No tree runs as an actor this node does not host (ADR-0109), so a
+    result naming one is a fault, never a silent drain of the wrong queue."""
+    with pytest.raises(VultronUnhostedActorError):
+        emitting_outbox(_FOREIGN_ACTOR, _ACTOR, dl)
     assert emitting_outbox(_ACTOR, _ACTOR, dl) == (_ACTOR, dl)
     flush_id, flush_dl = emitting_outbox(_CASE_ACTOR, _ACTOR, dl)
     assert isinstance(flush_dl, SqliteDataLayer)

@@ -131,15 +131,6 @@ EFFECT_KEYWORDS = frozenset(
 )
 
 
-def _call_name(node: ast.expr) -> str | None:
-    """Return the bare name of a Call expression, or None."""
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        return node.attr
-    return None
-
-
 def _validator_violations_in_call(
     call: ast.Call, rel_path: str
 ) -> list[tuple[str, int, str]]:
@@ -153,7 +144,7 @@ def _validator_violations_in_call(
         for elem in kw.value.elts:
             if not isinstance(elem, ast.Call):
                 continue
-            name = _call_name(elem.func)
+            name = _corpus.callee_name(elem.func)
             if name in REJECTION_VALIDATORS:
                 violations.append((rel_path, elem.lineno, name))
     return violations
@@ -167,7 +158,7 @@ def _violations_in_tree(
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Call)
-            and _call_name(node.func) == RECEIVE_ACTIVITY_TREE_CALL
+            and _corpus.callee_name(node.func) == RECEIVE_ACTIVITY_TREE_CALL
         ):
             violations.extend(_validator_violations_in_call(node, rel_path))
     return violations
@@ -225,7 +216,7 @@ def _list_arg_names(call: ast.Call, arg: str) -> set[str]:
             name
             for elem in kw.value.elts
             if isinstance(elem, ast.Call)
-            and (name := _call_name(elem.func)) is not None
+            and (name := _corpus.callee_name(elem.func)) is not None
         }
     return set()
 
@@ -241,7 +232,8 @@ def _stage_rosters() -> tuple[set[str], dict[str, list[str]]]:
         for node in ast.walk(tree):
             if not (
                 isinstance(node, ast.Call)
-                and _call_name(node.func) == RECEIVE_ACTIVITY_TREE_CALL
+                and _corpus.callee_name(node.func)
+                == RECEIVE_ACTIVITY_TREE_CALL
             ):
                 continue
             for keyword in EFFECT_KEYWORDS:

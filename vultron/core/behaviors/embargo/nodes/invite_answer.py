@@ -49,11 +49,11 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
     path: a refusal under P/X/A answers an Invite whose terms it does not hold
     too, since the ER names the Invite by id (ADR-0123).
 
-    A copy addressed to neither ``to`` nor ``cc`` of this actor never gets
-    here: ``unaddressed_copy_refusal()`` refuses it at the door, before any
-    tree runs (HP-01-005, ADR-0118).  The not-the-invitee arm below is the
-    backstop for a copy that *is* addressed to this actor (a ``cc``
-    recipient) while it names someone else as the invitee.
+    A copy whose ``to`` does not name this actor never gets here:
+    ``unaddressed_copy_refusal()`` refuses it at the door, before any tree
+    runs (HP-01-005, ADR-0118); ``cc`` addresses nobody (ADR-0109).  The
+    not-the-invitee arm below is the backstop for a copy that *is* addressed
+    to this actor while it names someone else as the invitee.
     """
 
     def __init__(

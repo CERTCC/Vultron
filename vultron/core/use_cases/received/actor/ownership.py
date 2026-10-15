@@ -145,11 +145,14 @@ class OfferCaseOwnershipTransferReceivedUseCase:
     def _resolve_offering_actor_id(self, case_id: str) -> str | None:
         """Return the actor whose intent the forwarded Offer should carry.
 
-        The inbound Offer is normally a *delegated* message: the CaseActor is its
-        `actor` and the participant who asked for the transfer is in
-        `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone would
-        make the CaseActor forward an Offer attributing that participant's intent
-        to itself, leaving no receiver able to recover who offered.
+        Two shapes arrive.  At the CASE_MANAGER, the Offer is the Case Owner's
+        own: the owner is its `actor` and it carries no `attributed_to`
+        (CM-21-005, CM-24-004), so the sender is the offerer.  At the
+        transferee, it is the CASE_MANAGER's forward, a *delegated* message:
+        the CaseActor is its `actor` and the owner who asked for the transfer
+        is in `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone
+        there would attribute the owner's intent to the CaseActor, leaving no
+        receiver able to recover who offered.
 
         `attributed_to` is honoured **only** in that delegated shape — when the
         sender is this case's CaseActor.  A peer that sets `attributed_to` on an
@@ -333,6 +336,7 @@ def _run_ownership_answer(
     now: datetime,
     party: OfferParty,
     applied_note: str | None = None,
+    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> HandlerResult:
     """Run the receive tree of a reply to an Offer and read its verdict.
 
@@ -347,7 +351,8 @@ def _run_ownership_answer(
     *now* is the instant the deadline is compared against, by the expiry and
     by the reply's sender guard alike; *tree* was built with it.  *party* is
     the party to the Offer the reply's sender must be for the reply to
-    prompt the expiry (HP-01-006).
+    prompt the expiry (HP-01-006).  *trigger_activity* builds the entries
+    the CASE_MANAGER records for the changes an applied reply causes.
     """
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
@@ -368,6 +373,7 @@ def _run_ownership_answer(
     )
     bridge = BTBridge(
         datalayer=dl,
+        trigger_activity=trigger_activity,
         wire_render_port=wire_render_port,
         sync_port=sync_port,
     )
@@ -430,6 +436,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         self._wire_render_port = wire_render_port
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
+        # Builds the CASE_MANAGER's own entries for the changes the Accept
+        # causes (CLP-07-013).
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -451,6 +460,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             tree=tree,
             label="AcceptOwnershipTransferBT",
             sync_port=self._sync_port,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             case_id=case_id,
             now=now,

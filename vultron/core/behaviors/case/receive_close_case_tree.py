@@ -239,7 +239,7 @@ def create_close_case_received_tree(
     ``manager_effects``, so the factory wraps the whole close/decline decision
     in a CASE_MANAGER gate (BT-17-008).  Only the case's CASE_MANAGER declines
     an owner close (CM-23-011) or runs its closure effects (CM-23-002/003); a
-    replica cc'd on the Leave skips the gate, emits no ``as:Reject`` (the
+    replica holding a copy of the Leave skips the gate, emits no ``as:Reject`` (the
     #3825 defect), writes nothing, and takes any resulting closure from the
     ledger fan-out (CLP-10-001, RSH-08-003, HP-01-005).  The two arms stay in
     one Selector because the close arm FAILS when a decline is warranted and
@@ -462,8 +462,8 @@ def create_close_case_received_tree(
         # the ``close_case`` / ``case_fully_closed`` entries that drive replica
         # closure.  Those are canonical case state only the CASE_MANAGER
         # writes; ``close_case`` and ``case_fully_closed`` are committed and
-        # replayed (CloseCase and ParticipantStatus slots), so a replica cc'd
-        # on the Leave writes nothing and takes the closure from the ledger
+        # replayed (CloseCase and ParticipantStatus slots), so a replica holding
+        # a copy of the Leave writes nothing and takes the closure from the ledger
         # fan-out (#3814, CLP-10-001).
         manager_effects=[owner_or_non_owner_effects],
         manager_case_id=case_id,
@@ -497,7 +497,7 @@ def create_close_case_received_tree(
     # ``EmitRejectCloseCaseNode`` is emit-capable, and only the case's
     # CASE_MANAGER declines an owner close (CM-23-011, BT-17-001). The close
     # arm's own effects are already CASE_MANAGER-gated internally and its
-    # commit is role-gated, so on a replica cc'd on the Leave the gate skips
+    # commit is role-gated, so on a replica holding a copy of the Leave the gate skips
     # the whole decision: nothing is written, nothing is emitted, and the
     # replica takes any resulting closure from the ledger fan-out
     # (CLP-10-001, RSH-08-003). The close/decline arms stay in one Selector —

@@ -1224,13 +1224,18 @@ def test_ownership_transfer_moves_the_owner_of_a_proposal_created_case(
         context=case.id_,
         case_roles=[CVDRole.COORDINATOR],
     )
+    # A seated participant holds a consent row for every register entry
+    # (ADR-0122); the transfer's entries are announced to it.
+    coordinator.write_uninvited_rows(case.register_embargo_ids)
     dl.create(coordinator)
     case.add_participant(coordinator)
     dl.save(case)
 
     result = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl).run(
         AcceptCaseOwnershipTransferNode(
-            case_id=case.id_, new_owner_id=new_owner
+            case_id=case.id_,
+            new_owner_id=new_owner,
+            cause_id="https://example.org/activities/accepted-offer",
         )
     )
 

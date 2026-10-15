@@ -84,8 +84,8 @@ class HandlerDisposition(StrEnum):
       entry buffered pending its predecessor), neither acted on nor declined.
     - ``REFUSED`` — the handler rejected the inbound assertion. This includes
       a message the receiver holds no role to act on — a CASE_MANAGER-addressed
-      message at an actor that is not the case's CASE_MANAGER, or a copy that
-      names the receiver in neither ``to`` nor ``cc`` (HP-01-005).
+      message at an actor that is not the case's CASE_MANAGER, or a copy whose
+      ``to`` does not name the receiver (HP-01-005).
 
     A benign skip or a deferral MUST NOT be reported as ``REFUSED`` (HP-01-003),
     and "not mine to act on" is not a benign skip: the disposition is the
