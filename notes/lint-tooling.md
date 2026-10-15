@@ -13,6 +13,7 @@ related_specs:
   - specs/code-style.yaml
   - specs/structured-logging.yaml
   - specs/meta-specifications.yaml
+  - specs/project-documentation.yaml
 related_notes:
   - notes/devcontainer-tooling.md
   - notes/ci-workflow-authoring.md
@@ -79,6 +80,7 @@ obligations, and changing one silently breaks a requirement:
 | `line-length` | the retired `[tool.black]` value; keeps lint and format agreed |
 | `target-version` | IMPLTS-01-001, the Python floor |
 | `[tool.ruff.lint.mccabe] max-complexity` | IMPLTS-07-008, the complexity gate |
+| `[tool.ruff.lint.pycodestyle] max-doc-length` | PD-10-003, the 88-character doc-line limit; `W505` stays ignored (below) |
 | `per-file-ignores` for `__init__.py` | the re-export exemption (`F401`) |
 
 `per-file-ignores` also holds a few **permanent** exemptions, each justified in
@@ -90,6 +92,20 @@ tooling that shells out with argv lists). It is not a baseline store: see
 `C901` is the project's **only** complexity gate. The `PLR09xx` counters stay
 excluded: a second, differently-calibrated complexity gate can disagree with the
 first, and then neither is authoritative.
+
+`W505` (doc-line-too-long) is the one rule ignored because a **guard** enforces
+it instead: thousands of comment and docstring lines predate the limit, and ruff
+takes no baseline. `test/architecture/test_line_length_ratchet.py` fails each
+overlong doc line a change adds, so a line you edit must fit while untouched
+lines wait (PD-10-002). Do not select `W505` to "finish" the job without first
+wrapping every line it reports.
+
+The guard reads the lines `W505` reads: a comment alone on its line, or a
+string that is a statement by itself, found with the tokenizer so a string
+argument is data. It differs from `W505` in two ways, both deliberate. A line
+whose overflow is one unbreakable token passes, as markdownlint's `MD013` lets
+it. And a line a rename or module split only moved is not new: the guard counts
+line text across the tree, so splitting a god module costs nothing.
 
 There is deliberately **no `lint.exclude`**: lint covers the whole tracked Python
 surface, including `scripts/` and `.agents/` (ADR-0094). Do not add a directory

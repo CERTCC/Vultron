@@ -116,15 +116,19 @@ from its role (CLP-09).
 
 - **A sender at RM `CLOSED` is refused, not just unsent-to (CM-23-018).** The
   `ACTIVE_PARTICIPANT` standing is "active and closure not recorded", asked through
-  one shared predicate by every guard node for that kind. The bare active check is
+  one shared predicate, `may_act_on_case()` in `core/participants/recipients.py`, by
+  every guard node for that kind. The bare active check is
   not enough: it leaves `CLOSED` out on purpose, because recipients need it.
   A closed participant would otherwise write to a case it can no longer see
   (CM-23-004), and CM-23-013 stops writes only at `case_fully_closed`.
 - **Two acts stay open to a closed sender.** `Reject(CaseLedgerEntry)` gets a replay
   capped at its own closure entries (`closed_participant_ledger_cutoff()`). Its guard
-  stays the bare active check (SYNC-03-005), so its use case must not declare
-  `ACTIVE_PARTICIPANT`. A second `Leave` is `SKIPPED`, with no entry, whatever its
-  activity id.
+  stays the bare active check (SYNC-03-005), so its use case declares the
+  `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A repeat of an act that would
+  close it again (`Leave`, `Close(Report)`, a `Reject` of its Invite) is `SKIPPED`,
+  with no entry, whatever its activity id: `closed_sender_preflight()` asks
+  `closure_recorded()` before the tree runs. Any other invitee reply from it is
+  `REFUSED` there too, since its guard is `INVITEE`, not the shared predicate.
 - **A repeat is decided by its effect, not its id (ID-05-003).** An act whose effect
   is already in place is a no-op, even under a new activity id: you cannot leave
   twice.

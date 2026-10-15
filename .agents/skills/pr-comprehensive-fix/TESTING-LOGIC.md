@@ -35,6 +35,7 @@ needs_integration = any(
 
 ### Unit Tests Only (default)
 
+<!-- markdownlint-disable-next-line MD013 -->
 **Command**: `uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)`
 
 **When**: Changes are localized (single module, no core/demo/adapter impact)
@@ -45,14 +46,18 @@ needs_integration = any(
 
 **Commands**:
 
+<!-- markdownlint-disable MD013 -->
 1. `uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)` (all unit tests)
 2. `uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -40 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)` (integration test suite)
+<!-- markdownlint-enable MD013 -->
 
 **When**: Demo, adapters, behavior trees, or use-cases modified
 
 **Expected output**: Full test summary from both suites
 
-Full pytest output is written to `/tmp/pytest-unit.log` (and `/tmp/pytest-integration.log` for the integration suite). **Never re-run the test suite to get more output** — grep or read those files instead.
+Full pytest output is written to `/tmp/pytest-unit.log` (and
+`/tmp/pytest-integration.log` for the integration suite). **Never re-run the test suite
+to get more output** — grep or read those files instead.
 
 ## Interpreting Test Results
 

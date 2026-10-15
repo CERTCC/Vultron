@@ -25,11 +25,10 @@ The unit of coordination in Vultron. A case captures all state and history for o
 engagement: participants, embargo status, report management state, and the canonical ledger.
 *Avoid*: ticket, report (a report is what initiates a case, not the case itself)
 
-**Actor**:
-A participant in the Vultron protocol — a person, organization, or automated service that sends
-and receives protocol messages. Actors have persistent identities (URIs) and maintain their own
-DataLayer.
-*Avoid*: user, agent (in the protocol-participant sense; see Capability Shapes below)
+**Actor**: A participant in the Vultron protocol — a person, organization, or automated
+service that sends and receives protocol messages. Actors have persistent identities
+(URIs) and maintain their own DataLayer. *Avoid*: user, agent (in the
+protocol-participant sense; see Capability Shapes below)
 
 **Case Actor**:
 A special-purpose service actor that owns the canonical ledger for a case, coordinates
@@ -65,6 +64,40 @@ computed from the Embargo Register, never set directly, and every change to it m
 still be one of the EM state machine's transitions. Computing EM from the register adds
 a layer under the EM state machine; it does not replace the machine.
 *Avoid*: "EM has no transition table", "EM is just a view"
+
+---
+
+## Documents
+
+**Protocol Specification**:
+The normative definition of the Vultron protocol, published at
+`docs/reference/vultron-spec/`. Together with the Protocol Requirements it is the
+normative protocol. Every other description of the protocol (message reference,
+conformance matrix, quick reference, formal protocol) is a companion that helps a
+reader use the normative set and never adds to it.
+*Avoid*: bare "spec" (it also means a requirements spec), "the protocol docs"
+
+**Requirements spec**:
+A machine-readable requirements file under `specs/`, holding testable statements about
+the protocol, this repository and its documentation. The YAML is the source of truth;
+where the Protocol Specification's prose diverges from it, that is a bug.
+*Avoid*: "the spec" or "specification" alone (that is the Protocol Specification)
+
+**Protocol Requirements**:
+The Protocol and Foundation requirement tiers: what every implementation, in any
+language, must obey. Part of the normative protocol.
+*Avoid*: "Implementation Requirements" for these tiers
+
+**Implementation Requirements**:
+The Architecture, Project and Process requirement tiers: requirements for *this*
+implementation. They say how CERT/CC builds its own implementation, not how others
+must build theirs.
+*Avoid*: reading them as advice to other implementers
+
+**Reference implementation**:
+CERT/CC's Python implementation of the protocol, in this repository. It shows one way
+to conform; it does not define what conforming means.
+*Avoid*: treating its APIs (such as the Trigger API) or demos as part of the protocol
 
 ---
 
@@ -110,13 +143,13 @@ on its own and must request input — a fact, a decision, or content — from an
 (a human, a function, or an external system) before it can continue.
 *Avoid*: decision point (reserved for SSVC scoring trees), touchpoint, integration point
 
-**Capability shape**:
-One of the four abstract interface contracts (Evaluator, Retriever, Composer, Actuator)
-that characterises the interaction pattern between a call-out point and the protocol.
-A capability shape does not prescribe the implementation — the implementation (function, human
-workflow, LLM agent) is a deployment-time decision.
-*Avoid*: Coordination Agent (retired; see ADR-0024); "the five shapes"; "Sentinel shape"
-(Sentinel is a call-in pattern, not a shape — ADR-0097, BT-18-013)
+**Capability shape**: One of the four abstract interface contracts (Evaluator,
+Retriever, Composer, Actuator) that characterises the interaction pattern between a
+call-out point and the protocol. A capability shape does not prescribe the
+implementation — the implementation (function, human workflow, LLM agent) is a
+deployment-time decision. *Avoid*: Coordination Agent (retired; see ADR-0024); "the five
+shapes"; "Sentinel shape" (Sentinel is a call-in pattern, not a shape — ADR-0097,
+BT-18-013)
 
 **Capability**:
 A specific named call-out point with its own blackboard contract (e.g., `EvaluateReportCredibility`).
@@ -141,17 +174,16 @@ Boolean/binary results (yes/no queries) are also Retriever capabilities. The Ret
 what already exists; it does not generate new content.
 *Avoid*: lookup, fetcher
 
-**Composer**:
-A capability shape that is called with context (case state, participants, prior decisions)
-and generates a new content artifact — a notification draft, an advisory, a case summary, a
-participant invitation. The Composer produces something that did not exist before.
-*Avoid*: drafter, writer
+**Composer**: A capability shape that is called with context (case state, participants,
+prior decisions) and generates a new content artifact — a notification draft, an
+advisory, a case summary, a participant invitation. The Composer produces something that
+did not exist before. *Avoid*: drafter, writer
 
-**Actuator**:
-A capability shape that receives a trigger and context, invokes an external system to cause a
-side effect (notification dispatch, state write, queue mutation, API call), and returns SUCCESS
-when the side effect is confirmed. Does not produce a content artifact on the blackboard.
-*Avoid*: executor, dispatcher (these are valid sub-types but not the canonical shape name)
+**Actuator**: A capability shape that receives a trigger and context, invokes an
+external system to cause a side effect (notification dispatch, state write, queue
+mutation, API call), and returns SUCCESS when the side effect is confirmed. Does not
+produce a content artifact on the blackboard. *Avoid*: executor, dispatcher (these are
+valid sub-types but not the canonical shape name)
 
 Not a capability shape:
 
@@ -176,8 +208,9 @@ call-out points.
 *Avoid*: CVSS (a scoring system, not a decision framework)
 
 **Decision point** (SSVC sense):
-Within an SSVC tree, a specific question with an enumerated answer set that contributes to a
-prioritization outcome. Do not use this term for Vultron workflow call-out points more broadly.
+Within an SSVC tree, a specific question with an enumerated answer set that contributes
+to a prioritization outcome. Do not use this term for Vultron workflow call-out points
+more broadly.
 *Avoid*: (using this term outside the SSVC context)
 
 ---
@@ -185,19 +218,20 @@ prioritization outcome. Do not use this term for Vultron workflow call-out point
 ## Demo
 
 **Scenario tree**:
-The single authored tree of demo scenarios, rooted at a Reporter who has found a vul and
-must choose whom to tell. The presenter of the demo UI walks it by making choices; it is
-a choose-your-own-adventure story, not an open-world simulation.
+The single authored tree of demo scenarios, rooted at a Reporter who has found a vul
+and must choose whom to tell. The presenter of the demo UI walks it by making
+choices; it is a choose-your-own-adventure story, not an open-world simulation.
 *Avoid*: scenario graph, phylogeny
 
 **Branch point**:
-A node of the scenario tree where one role faces a decision, such as the Vendor deciding
-whether to validate a report or the Reporter deciding where to report.
+A node of the scenario tree where one role faces a decision, such as the Vendor
+deciding whether to validate a report or the Reporter deciding where to report.
 *Avoid*: decision node (the demo UI's name for a timeline node), fork
 
 **Choice**:
-One of the triggers the role at a branch point may call; an edge of the scenario tree.
-Only authored choices are offered, never every action the protocol would allow.
+One of the triggers the role at a branch point may call; an edge of the scenario
+tree. Only authored choices are offered, never every action the protocol would
+allow.
 *Avoid*: option, action
 
 **Ending**:

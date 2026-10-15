@@ -545,3 +545,48 @@ def test_replay_to_a_closed_peer_past_its_closure_sends_nothing(
 
     assert result.status == Status.SUCCESS
     assert sends(sync_port) == []
+
+
+@pytest.mark.spec("CM-23-018", "CM-23-004", "SYNC-03-005")
+def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
+    datalayer,
+) -> None:
+    """The whole reject tree, sender guard included, answers a closed peer.
+
+    A closed participant keeps its resync request (CM-23-018): the guard is
+    the bare active check (SYNC-03-005), and the replay stops at the
+    entries that record its own closure (CM-23-004).
+    """
+    seed_case(datalayer, embargo_active=True)
+    entries = seed_ledger(datalayer, 2)
+    close(datalayer, SIGNATORY_ID)
+    own_closure = _closure_status_entry(
+        datalayer, SIGNATORY_ID, 2, entries[-1]
+    )
+    later = _make_entry(3, own_closure.entry_hash)
+    datalayer.save(own_closure)
+    datalayer.save(later)
+    activity = reject_log_entry_activity(
+        entry=WireCaseLedgerEntry.model_validate(
+            later.model_dump(mode="json")
+        ),
+        context=entries[0].entry_hash,
+        actor=SIGNATORY_ID,
+        to=[MANAGER_ID],
+    )
+    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=MagicMock(spec=TriggerActivityPort),
+    ).execute_with_setup(
+        tree=create_reject_log_entry_tree(CASE_ID),
+        actor_id=MANAGER_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+    assert sends(sync_port) == [(1, [SIGNATORY_ID]), (2, [SIGNATORY_ID])]

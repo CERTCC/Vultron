@@ -24,6 +24,8 @@ from vultron.metadata.adr.lifecycle import (
 )
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
+from vultron.metadata.specs.branch_checks import check_branch
+from vultron.metadata.specs.growth_guard import BaseUnavailableError
 from vultron.metadata.specs.kind_classification import (
     check_foundation_standard_tags,
     check_implementer_kind_code_references,
@@ -50,6 +52,10 @@ from vultron.metadata.specs.verification import (
     check_verification_coverage,
     closed_debt_owners,
     debt_owner_refs,
+)
+from vultron.metadata.specs.verification_refs import (
+    SuiteIndex,
+    check_test_refs,
 )
 
 _RATIONALE_WARN_CHARS = 500
@@ -948,6 +954,23 @@ def _report_closed_debt_owners(
     return 1 if errors else 0
 
 
+def _opt_in_errors(
+    registry: SpecRegistry,
+    repo_root: Path,
+    debt_owners: Mapping[SpecKind, frozenset[str]],
+    closing_pr: int | None,
+    changed_since: str | None,
+    index: SuiteIndex,
+) -> list[str]:
+    """Hard errors from the checks a CLI flag turns on."""
+    errors: list[str] = []
+    if closing_pr is not None:
+        errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
+    if changed_since is not None:
+        errors.extend(check_branch(registry, repo_root, changed_since, index))
+    return errors
+
+
 def lint(
     spec_dir: Path,
     adr_dir: Path | None = None,
@@ -957,6 +980,7 @@ def lint(
     debt_owners: Mapping[SpecKind, frozenset[str]] | None = None,
     check_debt_owners: bool = False,
     closing_pr: int | None = None,
+    changed_since: str | None = None,
 ) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -990,9 +1014,18 @@ def lint(
         closing_pr: Also fail when this pull request closes an owner issue
             that a marker or owner entry still names (MS-10-006;
             ``--check-closing-pr N`` on the CLI). Needs ``gh`` and a token.
+        changed_since: Also run the branch-scoped checks against the merge
+            base with this ref (``--changed-since REF`` on the CLI): the
+            MS-10-011 marker check on each requirement the branch changed, and
+            the PD-10-002 limit on each spec YAML line it added. See
+            :mod:`vultron.metadata.specs.branch_checks`.
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
+
+    Raises:
+        BaseUnavailableError: *changed_since* names a ref that does not
+            resolve; :func:`main` reports it with exit code ``2``.
     """
     if debt_owners is None:
         debt_owners = VERIFICATION_DEBT_OWNERS
@@ -1019,6 +1052,8 @@ def lint(
     hard_errors.extend(_check_scenario_start_groups(registry))
     hard_errors.extend(_check_retirement_rules(registry, spec_dir.parent))
     hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
+    suite_index = SuiteIndex.build(spec_dir.parent)
+    hard_errors.extend(check_test_refs(registry, spec_dir.parent, suite_index))
     source_scan = _SourceScan(spec_dir.parent)
     hard_errors.extend(_check_phantom_spec_id_citations(registry, source_scan))
     hard_errors.extend(_check_phantom_symbols(registry, source_scan))
@@ -1033,8 +1068,16 @@ def lint(
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
     status_lines.extend(suppression_status_lines(registry))
-    if closing_pr is not None:
-        hard_errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
+    hard_errors.extend(
+        _opt_in_errors(
+            registry,
+            spec_dir.parent,
+            debt_owners,
+            closing_pr,
+            changed_since,
+            suite_index,
+        )
+    )
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)
@@ -1101,6 +1144,17 @@ def main() -> None:
             "(MS-10-006); needs the gh CLI and a token"
         ),
     )
+    parser.add_argument(
+        "--changed-since",
+        metavar="REF",
+        help=(
+            "Also check what the branch changed since its merge base with "
+            "REF: a protocol or foundation requirement it changed whose "
+            "verification names test files carries its marker in one "
+            "(MS-10-011), and no spec YAML line it added is over 88 "
+            "characters (PD-10-002). Exit 2 when REF does not resolve"
+        ),
+    )
     args = parser.parse_args()
     spec_dir = Path(args.spec_dir)
     if not spec_dir.is_dir():
@@ -1109,14 +1163,18 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(2)
-    sys.exit(
-        lint(
+    try:
+        code = lint(
             spec_dir,
             list_unverified=args.list_unverified,
             check_debt_owners=args.check_debt_owners,
             closing_pr=args.check_closing_pr,
+            changed_since=args.changed_since,
         )
-    )
+    except BaseUnavailableError as exc:
+        print(f"[FATAL] --changed-since: {exc}", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(code)
 
 
 if __name__ == "__main__":

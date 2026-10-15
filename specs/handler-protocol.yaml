@@ -501,7 +501,7 @@ groups:
       `[tool.pytest.ini_options] timeout` in `pyproject.toml`, so a handler whose
       `execute()` blocks past it aborts the unit-tier run (`timeout_method = "thread"`
       stops the session rather than one test);
-      `test/test_integration_timeout_tier.py::test_unit_item_is_left_at_the_global_default`
+      `test/test_integration_timeout_tier.py::TestApplyIntegrationTimeout::test_unit_item_is_left_at_the_global_default`
       pins that the unit tier keeps that ceiling.
     scope:
     - production

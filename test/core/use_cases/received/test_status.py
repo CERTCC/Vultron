@@ -273,7 +273,7 @@ class TestStatusUseCases:
         pstatus = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
-            rm=RmDimension(state=RM.CLOSED),
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         participant.participant_statuses.append(pstatus)
         dl.create(participant)
@@ -290,7 +290,7 @@ class TestStatusUseCases:
         dup_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s_dup_closed",
             context=case_id,
-            rm=RmDimension(state=RM.CLOSED),
+            rm=RmDimension(state=RM.VALID),
         )
         dl.create(dup_status)
 
@@ -340,11 +340,11 @@ class TestStatusUseCases:
             context=case_id,
             attributed_to=sender_id,
         )
-        # Seed participant with RM.CLOSED so any forwarded assertion is refused
+        # Seed participant at RM.ACCEPTED: a backward VALID is refused in full
         pstatus = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
-            rm=RmDimension(state=RM.CLOSED),
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         participant.participant_statuses.append(pstatus)
         dl.create(participant)
@@ -358,11 +358,11 @@ class TestStatusUseCases:
         case.actor_participant_index[sender_id] = participant.id_
         dl.create(case)
 
-        # Duplicate CLOSED status — filter will refuse it in full
+        # A backward RM with no other change — filter will refuse it in full
         dup_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s_dup",
             context=case_id,
-            rm=RmDimension(state=RM.CLOSED),
+            rm=RmDimension(state=RM.VALID),
         )
         dl.create(dup_status)
 
@@ -859,6 +859,60 @@ class TestParticipantStatusLogEntryCascade:
         updated_participant = dl.read(participant.id_)
         assert updated_participant is not None
         assert len(updated_participant.participant_statuses) == before_count
+
+    @pytest.mark.spec("CM-23-018")
+    def test_status_update_from_a_closed_sender_is_refused(
+        self, make_payload
+    ) -> None:
+        """A sender at RM CLOSED has left: its update is refused at the guard.
+
+        The same update commits an entry from an open sender
+        (``test_cascade_commits_log_entry_on_success``); the reason pins the
+        refusal on the sender check, not on a transition guard.
+        """
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/st_closed_sender"
+        dl, case_actor_id, participant, pstatus = self._make_dl(
+            case_id, actor_id
+        )
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+        closed_status = as_ParticipantStatus(
+            id_=f"{case_id}/participants/p1/statuses/closed",
+            context=case_id,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+        participant.participant_statuses.append(closed_status)
+        dl.save(participant)
+        dl.create(closed_status)
+
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-018" in (result.reason or "")
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        assert dl.outbox_list() == []
+        stored = dl.read(participant.id_)
+        assert stored is not None
+        assert pstatus.id_ not in [
+            getattr(st, "id_", st) for st in stored.participant_statuses
+        ]
 
     def test_duplicate_assertion_reuses_existing_log_entry(
         self, make_payload
