@@ -226,7 +226,10 @@ marker, already-declined answer, closed-case decline, admission decision, accept
 - **Same proposal id** (CP-05-006): re-send the stored `Accept` unchanged under its
   proposal-derived id, unless still pending in the outbox; create no second case.
   "Duplicate" means only this — an exact redelivery. A second report about the same
-  vulnerability is a report-management question (RMB-11-002).
+  vulnerability is a report-management question (RMB-11-002). The case is found
+  through the stored `Accept`'s `result`, not only by owner: after an ownership
+  transfer the former owner owns nothing, and an owner-only lookup made a second
+  case (#4650).
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   `LoadExistingCaseNode` reuses the case only when its `attributed_to` is the proposer;
@@ -237,17 +240,19 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   whose ledger holds `case_fully_closed` gets `Reject(CaseProposal)`, and nothing is
   written for the case (CM-23-013). The factory's post-close guard cannot see it,
   because the proposal names a report, not a case. `CheckProposalCaseFullyClosedNode`
-  resolves the case two ways: the proposer's own case for the report, and the case
-  the proposal's stored `Accept` names. The second way covers a redelivery by a
-  former owner after a transfer. Any new way the accept arm finds a case must also
-  be added there, or that case escapes the check.
+  and `LoadExistingCaseNode` both resolve the case with `proposal_case_ids`
+  (`proposal_case_lookup.py`): the proposer's own case for the report, then the case
+  the proposal's stored `Accept` names. Add any new way to find a case there, so
+  the closed-case check and the accept arm cannot resolve different cases.
 - The `Accept`'s `result` always names the case the proposal produced or reused, so
   the requester correlates it without a second `Create`, which is not sent again.
   `CheckCaseAlreadyAnnouncedNode` skips the marker and `Create` steps, and
   `CommitNativeLedgerEntriesNode` skips entries already recorded; without that skip
   the reused entries fan out again.
 - **Every native-initialization node must be a no-op on a case that already has what it
-  creates**, embargo included, whatever its EM state.
+  creates**, embargo included, whatever its EM state. A node that names the proposer
+  as owner also skips a proposer that is not the case's `attributed_to`: a former
+  owner's redelivery must not make it CASE_OWNER again (CM-21-001, #4650).
   `CaseEmbargoAlreadyInitializedNode` is the embargo subtree's first arm and keys on EM
   ≠ `NONE`, not the active-embargo reference, which termination clears (EP-04-012,
   #3393).

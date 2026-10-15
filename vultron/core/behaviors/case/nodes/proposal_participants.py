@@ -215,6 +215,10 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
     downstream VFD fix-lifecycle guards demand a fix it will never produce.
 
     Reads ``case_id`` from the blackboard (written by ResolveCaseIdSelector).
+    Adds nothing when *owner_uri* is not the case's ``attributed_to``: a
+    redelivered proposal resolves to the case its stored ``Accept`` names
+    (CP-05-006), and after an ownership transfer its proposer is a former
+    owner, which must not hold CASE_OWNER again (CM-21-001, #4650).
     """
 
     def __init__(
@@ -275,6 +279,24 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         # truly-absent case falls through to _create_and_attach_participant
         # below, which hard-fails (returns None → FAILURE at the guard).
         stored_case = self.datalayer.read_case(case_id)
+        # A redelivered proposal resolves to the case its stored Accept names
+        # (CP-05-006).  After an ownership transfer the proposer no longer
+        # owns that case, so it is not given CASE_OWNER again: the CASE_OWNER
+        # is the case's attributed_to (CP-09-001), and there is only one
+        # (CM-21-001).  The former owner stays a participant (CM-21-009).
+        if (
+            stored_case is not None
+            and str(stored_case.attributed_to) != self._owner_uri
+        ):
+            logger.info(
+                "%s: proposer '%s' does not own case '%s' (owner '%s'), so"
+                " it is not added as CASE_OWNER (CM-21-001)",
+                self.name,
+                self._owner_uri,
+                case_id,
+                stored_case.attributed_to,
+            )
+            return Status.SUCCESS
         if (
             stored_case is not None
             and self._owner_uri in stored_case.actor_participant_index

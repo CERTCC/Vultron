@@ -52,6 +52,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
@@ -61,9 +62,11 @@ from vultron.core.behaviors.case.case_proposal_received_tree import (
     CLOSED_CASE_DECLINE_REASON,
     create_case_proposal_received_tree,
 )
-from vultron.core.behaviors.case.nodes import proposal_admission_conditions
+from vultron.core.behaviors.case.nodes import proposal_case_lookup
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalCaseFullyClosedNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
     accept_scan_can_match,
     accepted_case_id,
     activity_names_proposal,
@@ -84,6 +87,7 @@ from vultron.core.models.pending_create_case_activity import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
@@ -543,12 +547,9 @@ class TestAnsweredProposalsAreNotReAdjudicated:
         assert (
             dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
         )
-        # The duplicate case below is pre-existing and NOT what this test
-        # guards: `LoadExistingCaseNode(report_id=None)` cannot resolve the
-        # existing case, so the accept path creates a second one. Asserted so a
-        # reader is not misled into thinking `report_id=None` is fully handled —
-        # that gap is #2890 / the ASK-08-002 xfail.
-        assert len(_cases(dl)) == 2
+        # The accept arm finds the case through the stored Accept, so a
+        # redelivery that names no report creates no second case (#4650).
+        assert len(_cases(dl)) == 1
 
     def test_in_flight_retry_marker_short_circuits_before_the_decision(
         self, dl
@@ -1399,9 +1400,7 @@ def test_the_accept_scan_is_skipped_when_the_owners_case_is_closed(
     def _no_scan(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("the Accept scan ran after the owner's case")
 
-    monkeypatch.setattr(
-        proposal_admission_conditions, "accepted_case_id", _no_scan
-    )
+    monkeypatch.setattr(proposal_case_lookup, "accepted_case_id", _no_scan)
 
     status = _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
 
@@ -1477,3 +1476,129 @@ def test_accept_scan_can_match_is_a_negative_prefilter(
     )
 
     assert accept_scan_can_match(store, report_id) is expected
+
+
+# ---------------------------------------------------------------------------
+# A former owner's redelivery reuses the accepted case (CP-05-006, #4650)
+# ---------------------------------------------------------------------------
+
+
+def _participants_of(dl, case_id: str, actor_uri: str) -> list:
+    return [
+        p
+        for p in dl.list_objects("CaseParticipant")
+        if str(getattr(p, "attributed_to", "")) == actor_uri
+        and str(getattr(p, "context", "")) == case_id
+    ]
+
+
+def _accepted_then_transferred(dl) -> VulnerabilityCase:
+    """Accept the first proposal, deliver its answers, then move ownership.
+
+    The transfer is applied as CM-21-002/003 leave it: the case is attributed
+    to the new owner, and the former owner stays a participant (CM-21-009)
+    without ``CASE_OWNER``.
+    """
+    assert _run_tree(dl) == Status.SUCCESS
+    (case,) = _cases(dl)
+    assert isinstance(case, VulnerabilityCase)
+    _drain_outbox(dl)
+    for participant in _participants_of(dl, str(case.id_), _VENDOR_URI):
+        dl.save(
+            participant.model_copy(
+                update={
+                    "case_roles": [
+                        r
+                        for r in participant.case_roles
+                        if r != CVDRole.CASE_OWNER
+                    ]
+                }
+            )
+        )
+    transferred = case.model_copy(
+        update={"attributed_to": _OTHER_PROPOSER_URI}
+    )
+    dl.save(transferred)
+    return transferred
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("ASK-08-001")
+@pytest.mark.spec("ASK-08-002")
+@pytest.mark.spec("CM-21-001")
+class TestAFormerOwnersRedeliveryReusesTheAcceptedCase:
+    """The original proposal, redelivered after an ownership transfer.
+
+    The owner lookup finds nothing for the former owner, so the case is found
+    through the proposal's stored ``Accept`` instead.  Before #4650 the
+    redelivery created a second case and then failed.
+    """
+
+    def test_no_second_case_is_created(self, dl):
+        case = _accepted_then_transferred(dl)
+
+        status = _run_tree(dl)
+
+        assert status == Status.SUCCESS
+        assert [c.id_ for c in _cases(dl)] == [case.id_], (
+            "the redelivery must not create a second case (CP-05-006)"
+        )
+        (stored,) = _cases(dl)
+        assert str(stored.attributed_to) == _OTHER_PROPOSER_URI
+
+    def test_it_is_answered_with_the_stored_accept_unchanged(self, dl):
+        case = _accepted_then_transferred(dl)
+        (stored_accept,) = list(dl.list_objects("Accept"))
+        sealed_before = read_sealed_body_dict(dl, str(stored_accept.id_))
+        assert sealed_before is not None
+
+        _run_tree(dl)
+
+        assert _types_in_outbox(dl) == ["Accept"], (
+            "the stored Accept is re-sent, and nothing else"
+        )
+        (resent,) = _outbox_activities(dl)
+        assert resent.id_ == stored_accept.id_
+        assert [a.id_ for a in dl.list_objects("Accept")] == [
+            stored_accept.id_
+        ], "no second Accept is minted"
+        assert read_sealed_body_dict(dl, str(resent.id_)) == sealed_before, (
+            "the outbound body is the original, unchanged (ASK-08-001)"
+        )
+        assert accepted_case_id(dl, _PROPOSAL_URI) == str(case.id_)
+
+    def test_nothing_is_written_for_the_case(self, dl):
+        _accepted_then_transferred(dl)
+        ledger_before = _ledger_count(dl)
+        state_before = _case_state(dl)
+
+        _run_tree(dl)
+
+        assert _ledger_count(dl) == ledger_before
+        assert _case_state(dl) == state_before, (
+            "the former owner is not made CASE_OWNER again (CM-21-001)"
+        )
+
+    def test_a_former_owner_off_the_roster_is_not_made_case_owner(self, dl):
+        """Native initialization adds a CASE_OWNER only for the case's owner.
+
+        CM-21-009 keeps the former owner on the roster, so this state is not
+        reached in practice; it pins that the owner step is keyed on the
+        case's owner, not on the proposer (CM-21-001, CP-09-001).
+        """
+        case = _accepted_then_transferred(dl)
+        index = dict(case.actor_participant_index)
+        index.pop(_VENDOR_URI)
+        dl.save(case.model_copy(update={"actor_participant_index": index}))
+        rows_before = len(_participants_of(dl, str(case.id_), _VENDOR_URI))
+
+        status = _run_tree(dl)
+
+        assert status == Status.SUCCESS
+        assert [c.id_ for c in _cases(dl)] == [case.id_]
+        (stored,) = _cases(dl)
+        assert _VENDOR_URI not in stored.actor_participant_index
+        assert (
+            len(_participants_of(dl, str(case.id_), _VENDOR_URI))
+            == rows_before
+        ), "no new participant is created for the former owner"

@@ -23,12 +23,15 @@ in the sibling ``case_proposal_received_tree.py`` (BTND-07-003).
 """
 
 import logging
+from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 from pydantic import ValidationError
 
-from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
+from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
+    proposal_case_ids,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
@@ -47,79 +50,98 @@ from vultron.errors import VultronAlreadyExistsError
 logger = logging.getLogger(__name__)
 
 
-class LoadExistingCaseNode(RequireCaseForReport):
-    """Find the *proposer's own* case for *report_id* and load it.
+class LoadExistingCaseNode(DataLayerActionWithPorts):
+    """Find the case this proposal resolves to and load it.
 
-    CP-05-006 / CP-05-008: a ``Create(as_CaseProposal)`` under a new proposal
-    id may name a report that already has a case.  The case is reused only
-    when the proposer owns it (``attributed_to``); a case for the same report
-    owned by anyone else is not this proposer's, so this node fails and the
-    outer Selector creates a separate case (CBT-06-002).  ``report_id`` is
-    chosen by the sender, so the report alone never identifies a case.
+    The case is the first of ``proposal_case_ids`` that is in the store, the
+    lookup ``CheckProposalCaseFullyClosedNode`` also uses (CS-22-001):
+
+    - **The proposer's own case for the report** (CP-05-008).  A
+      ``Create(as_CaseProposal)`` under a new proposal id may name a report
+      that already has a case.  The case is reused only when the proposer
+      owns it (``attributed_to``); a case for the same report owned by anyone
+      else is not this proposer's, so the outer Selector creates a separate
+      case (CBT-06-002).  ``report_id`` is chosen by the sender, so the report
+      alone never identifies a case.
+    - **The case this proposal's stored ``Accept`` names** (CP-05-006).  A
+      redelivery of an accepted proposal is answered with the stored
+      ``Accept`` and creates no second case.  The owner lookup cannot find
+      that case after an ownership transfer, because the former owner owns
+      nothing, and it has nothing to look up when the redelivery names no
+      report (#4650).
 
     Writes the existing ``case_id`` to the blackboard so
     ``EmitAcceptCaseProposalNode`` and ``WriteCreateCaseMarkerNode`` can
-    reference it, then returns SUCCESS.  Returns FAILURE when the proposer owns
-    no case for the report, allowing the Selector to fall through to
+    reference it, then returns SUCCESS.  Returns FAILURE when the proposal
+    resolves to no stored case, allowing the Selector to fall through to
     ``CreateCaseFromProposalNode`` (normal path).
 
-    The store may hold several cases for one report (one per proposer), so the
-    single-row ``find_case_by_report_id`` lookup is only the fast path; when it
-    returns another proposer's case the cases are scanned for the proposer's.
+    It runs after ``RecordProposalAdmissionNode`` wrote this delivery's
+    admission record, so that record is not read as evidence of an earlier
+    acceptance.  Store errors propagate: a lookup that cannot answer must not
+    fall through into creating a case.
     """
 
     def __init__(
         self,
         report_id: str | None,
         owner_id: str,
+        proposal_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(report_id=report_id, name=name)
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
         self._owner_id = owner_id
+        self._proposal_id = proposal_id
 
-    def _find_case(self, report_id: str) -> VulnerabilityCase | None:
-        assert self.datalayer is not None
-        return find_proposer_case(self.datalayer, report_id, self._owner_id)
-
-    def _absence_message(self, report_id: str) -> str:
-        return (
-            f"no VulnerabilityCase for report '{report_id}' owned by"
-            f" '{self._owner_id}' in this actor's store"
-        )
-
-
-def find_proposer_case(
-    datalayer: CasePersistence, report_id: str, owner_id: str
-) -> VulnerabilityCase | None:
-    """Return the case for *report_id* that *owner_id* owns, or ``None``.
-
-    The owner is the case's ``attributed_to``.  The store may hold several
-    cases for one report (one per proposer, CP-05-008), so the single-row
-    ``find_case_by_report_id`` lookup is only the fast path; when it returns
-    another owner's case the cases are scanned for *owner_id*'s.  Store errors
-    propagate.
-    """
-    first = datalayer.find_case_by_report_id(report_id)
-    if first is None:
-        return None
-    if str(first.attributed_to) == owner_id:
-        return first
-    for case in datalayer.list_objects("VulnerabilityCase"):
-        if (
-            isinstance(case, VulnerabilityCase)
-            and str(case.attributed_to) == owner_id
-            and report_id in _report_ids(case)
-        ):
-            return case
-    return None
-
-
-def _report_ids(case: VulnerabilityCase) -> set[str]:
-    """The report ids *case* references, whether stored bare or inline."""
-    return {
-        entry if isinstance(entry, str) else str(entry.id_)
-        for entry in case.vulnerability_reports
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
     }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def _find_case(self) -> VulnerabilityCase | None:
+        assert self.datalayer is not None
+        datalayer = cast(CasePersistence, self.datalayer)
+        for case_id in proposal_case_ids(
+            datalayer,
+            self._proposal_id,
+            self._owner_id,
+            self._report_id,
+            admission_record_is_prior=False,
+        ):
+            case = datalayer.read_case(case_id)
+            if case is not None:
+                return case
+        return None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+
+        case = self._find_case()
+        if case is None:
+            self.feedback_message = (
+                f"proposal '{self._proposal_id}' resolves to no stored"
+                f" VulnerabilityCase (report '{self._report_id}', proposer"
+                f" '{self._owner_id}')"
+            )
+            # INFO: a first-time proposal lands here on the normal path.
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        self._set_output("case_id", case.id_)
+        self.logger.info(
+            "%s: proposal '%s' from actor_id=%s resolves to existing case"
+            " '%s' (CP-05-006, CP-05-008)",
+            self.name,
+            self._proposal_id,
+            self._owner_id,
+            case.id_,
+        )
+        return Status.SUCCESS
 
 
 class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
