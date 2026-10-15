@@ -50,12 +50,16 @@ from vultron.adapters.driving.fastapi.outbox_delivery import (
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -124,6 +128,12 @@ class _World:
             attributed_to=_ACTOR,
         )
         self.note_id = note_id
+
+    def consent_row(self, state: EmbargoConsentState) -> EmbargoConsent:
+        """The participant's consent row for the seeded embargo."""
+        return EmbargoConsent(
+            embargo_id=str(self.embargo.id_), state=state, attributed_to=_PEER
+        )
 
     # -- prerequisites other recipes build on ----------------------------------
 
@@ -319,6 +329,21 @@ RECIPES: dict[str, Recipe] = {
     "record_case_participant_updated": lambda w: (
         w.adapter.record_case_participant_updated(
             participant=w.participant,
+            case_id=w.case_id,
+            actor=_CASE_ACTOR,
+            cause_id=_CAUSE_ID,
+        )
+    ),
+    "record_embargo_consent_created": lambda w: (
+        w.adapter.record_embargo_consent_created(
+            row=w.consent_row(EmbargoConsentState.UNINVITED),
+            case_id=w.case_id,
+            actor=_CASE_ACTOR,
+        )
+    ),
+    "record_embargo_consent_updated": lambda w: (
+        w.adapter.record_embargo_consent_updated(
+            row=w.consent_row(EmbargoConsentState.AGREED),
             case_id=w.case_id,
             actor=_CASE_ACTOR,
             cause_id=_CAUSE_ID,

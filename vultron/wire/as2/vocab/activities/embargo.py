@@ -24,11 +24,16 @@ from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
+    as_Create,
     as_Ignore,
     as_Invite,
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Update,
+)
+from vultron.wire.as2.vocab.objects.embargo_consent import (
+    as_EmbargoConsent,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
@@ -193,3 +198,36 @@ class _RemoveEmbargoFromCaseActivity(as_Remove):
     def _content_is_a_termination_reason(self):
         termination_reason_from_content(self.content)
         return self
+
+
+class _CreateEmbargoConsentActivity(as_Create):
+    """The CASE_MANAGER brought a consent row into existence (ADR-0122).
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    row in full, such as the ``UNINVITED`` row a proposal writes for a
+    participant (CLP-07-013).  It is not a message any actor sends: it has no
+    ``ActivityPattern`` and no ``MessageSemantics``.  Do not add a received
+    route.
+
+    object_: as_EmbargoConsent
+    """
+
+    object_: as_EmbargoConsent = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _UpdateEmbargoConsentActivity(as_Update):
+    """The CASE_MANAGER changed a consent row (ADR-0122).
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    changed row in full, such as a ``CARRY_OVER`` at activation or the
+    CASE_MANAGER's own policy consent (CLP-07-013).  Not a message any actor
+    sends; do not add a received route.
+
+    object_: as_EmbargoConsent
+    """
+
+    object_: as_EmbargoConsent = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )

@@ -48,6 +48,7 @@ from typing import Any, Protocol
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
@@ -610,6 +611,35 @@ class TriggerActivityPort(Protocol):
         commits before the change is saved (CLP-07-013).  *cause_id* names
         the act the change follows, as for
         :meth:`record_case_participant_updated`.
+        """
+        ...
+
+    def record_embargo_consent_created(
+        self,
+        row: EmbargoConsent,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Create(EmbargoConsent)`` (``create_embargo_consent``), the new row in full.
+
+        *row* names the participant actor whose consent it is.  A row is
+        created once, so the id is derived from the row's own id.
+        """
+        ...
+
+    def record_embargo_consent_updated(
+        self,
+        row: EmbargoConsent,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(EmbargoConsent)`` (``update_embargo_consent``), the changed row in full.
+
+        *row* is the row as it will be stored: the entry commits before the
+        change is made (CLP-07-013).  *cause_id* names the act the change
+        follows; the id is derived from it and the row, so one act's change
+        to one row is one entry.
         """
         ...
 

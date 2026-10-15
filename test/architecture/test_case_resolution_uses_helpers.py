@@ -230,6 +230,14 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # MOD — shared by a received use case, a trigger, a replay node and a
         # BT node, so it takes a bare `dl`; it raises VultronNotFoundError on
         # absence.
+        # MOD — shared by the CASE_MANAGER's commit-and-apply helper and the
+        # replica copy slots, so it takes a bare `dl`; it raises
+        # VultronNotFoundError on absence (the replica slot resolves the case
+        # Regime 2 first).
+        (
+            "vultron/core/behaviors/embargo/copy_commit.py",
+            "read_embargo_case_file",
+        ),
         (
             "vultron/core/behaviors/embargo/proposal_index.py",
             "record_embargo_proposal_index",

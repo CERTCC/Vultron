@@ -37,7 +37,13 @@ from collections.abc import Iterable, Sequence
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import Field, field_serializer, field_validator, model_validator
+from pydantic import (
+    Field,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from vultron.core.models._helpers import _new_urn
 from vultron.core.models.base import CoreObject, NonEmptyString
@@ -121,6 +127,23 @@ class CaseParticipant(CoreObject):
     # non-empty" (CS-08-002).
     removal_activity: NonEmptyString | None = None
     participant_case_name: NonEmptyString | None = None
+
+    @field_validator("embargo_consents", mode="after")
+    @classmethod
+    def _rows_are_this_participants(
+        cls, rows: list[EmbargoConsent], info: ValidationInfo
+    ) -> list[EmbargoConsent]:
+        """Attribute every row to this participant's actor (ADR-0122).
+
+        A row is an AS2 object attributed to the actor whose consent it is,
+        so a row the record seats without an actor takes the record's.  A
+        row attributed to another actor is refused.  Runs on assignment too
+        (``validate_assignment``), so every row write is covered.
+        """
+        actor_id = info.data.get("attributed_to")
+        if actor_id is None:
+            return rows
+        return [row.for_actor(actor_id) for row in rows]
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
@@ -352,6 +375,21 @@ class CaseParticipant(CoreObject):
             )
         )
         return True
+
+    def copy_consent_row(self, row: EmbargoConsent) -> None:
+        """Write *row* as a ledger entry carries it: replace or append it.
+
+        The write of the one apply function
+        (:func:`~vultron.core.models.embargo_apply.apply_embargo_change`),
+        which has already checked the starting state.  It runs no transition
+        and stamps nothing (CM-23-016): the row is stored as carried, in place
+        of the row for the same embargo, or after the others when it is new.
+        The caller persists the record.
+        """
+        if any(r.embargo_id == row.embargo_id for r in self.embargo_consents):
+            self._replace_row(row)
+        else:
+            self.embargo_consents = [*self.embargo_consents, row]
 
     def _replace_row(self, row: EmbargoConsent) -> None:
         """Swap in *row* for the row of the same embargo, keeping row order."""
