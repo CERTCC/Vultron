@@ -76,6 +76,10 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
     resolves to no stored case, allowing the Selector to fall through to
     ``CreateCaseFromProposalNode`` (normal path).
 
+    The stored ``Accept``'s case is reused only for the proposer the
+    proposal was admitted for: the proposal id is chosen by the sender, and
+    another actor that reuses it must not reach the case (#4650).
+
     It runs after ``RecordProposalAdmissionNode``, so the admission record is
     always stored by then and says nothing about earlier deliveries.  That
     node's ``admission_record_was_prior`` output says it instead: ``True``
@@ -130,6 +134,7 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
             self._owner_id,
             self._report_id,
             admission_record_is_prior=self._admission_record_was_prior,
+            accepted_for_proposer_only=True,
         ):
             case = datalayer.read_case(case_id)
             if case is not None:

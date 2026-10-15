@@ -146,6 +146,7 @@ def proposal_case_ids(
     report_id: str | None,
     *,
     admission_record_is_prior: bool,
+    accepted_for_proposer_only: bool,
 ) -> Iterator[str]:
     """Yield the ids of the cases a proposal resolves to, the proposer's first.
 
@@ -161,6 +162,15 @@ def proposal_case_ids(
 
     A different proposer's case for the same report is never this proposal's
     case: that proposer gets a separate case (CP-05-008).
+
+    The proposal id is chosen by the sender, so another actor can reuse an
+    accepted proposal's id.  With *accepted_for_proposer_only* the stored
+    ``Accept``'s case is yielded only when the proposal's
+    ``CaseProposalAdmissionRecord`` names *proposer_uri*, so that actor is
+    not led into the case and its native initialization does not write to
+    it.  A former owner is still the admitted proposer.  The closed-case
+    check passes ``False``: there the case is only declined, and nothing is
+    written for it.
 
     The generator is lazy, so the ``Accept`` scan runs only when a caller asks
     for the next candidate.  The scan rehydrates every stored ``Accept``, so
@@ -182,12 +192,27 @@ def proposal_case_ids(
             own_id = str(own.id_)
             yield own_id
 
+    if accepted_for_proposer_only and not _admitted_for(
+        datalayer, proposal_id, proposer_uri
+    ):
+        return
     if _may_have_been_accepted(
         datalayer, proposal_id, report_id, admission_record_is_prior
     ):
         accepted = accepted_case_id(datalayer, proposal_id)
         if accepted is not None and accepted != own_id:
             yield accepted
+
+
+def _admitted_for(
+    datalayer: CasePersistence, proposal_id: str, proposer_uri: str
+) -> bool:
+    """Whether *proposal_id*'s admission record names *proposer_uri*."""
+    record = datalayer.read(CaseProposalAdmissionRecord.build_id(proposal_id))
+    return (
+        isinstance(record, CaseProposalAdmissionRecord)
+        and str(record.proposer_uri) == proposer_uri
+    )
 
 
 def _may_have_been_accepted(
