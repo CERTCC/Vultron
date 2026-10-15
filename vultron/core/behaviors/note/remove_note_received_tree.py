@@ -25,23 +25,20 @@ import py_trees
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_role_scoped_sender_guard,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.note.nodes.storage import DetachNoteFromCaseNode
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseOwnerNode,
-    SenderIsNoteAuthorNode,
-)
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 
 def create_remove_note_from_case_received_tree(
     note_id: str,
     case_id: str,
     sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Single-BT received-side tree for ``Remove(Note, Case)`` (ADR-0111).
 
@@ -49,7 +46,7 @@ def create_remove_note_from_case_received_tree(
 
         GuardedDetachAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                    # intake
-        ├── RemoveNoteSenderGuard (Selector)              # sender guard
+        ├── SenderRuleGuard (Sequence)                    # sender guard
         ├── CaseReferenceEditPendingNode                  # duplicate guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit
         └── GuardedDetachNoteBT (Selector)                # effect
@@ -57,28 +54,21 @@ def create_remove_note_from_case_received_tree(
     A note the case does not hold fails the duplicate guard before anything is
     committed; the handler reports it as ``SKIPPED``.
 
+    The factory composes the sender guard from *sender_rule*, with the note
+    as the object an ``AUTHOR`` sender must have written (CM-30-001).
+
     Args:
         note_id: ID of the note being removed.
         case_id: ID of the case the note leaves.
         sender_id: The activity's sender.
+        sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    author_or_owner = py_trees.composites.Selector(
-        name="NoteAuthorOrCaseOwner",
-        memory=False,
-        children=[
-            SenderIsNoteAuthorNode(
-                note_id=note_id, sender_actor_id=sender_id, case_id=case_id
-            ),
-            SenderIsCaseOwnerNode(sender_actor_id=sender_id, case_id=case_id),
-        ],
-    )
     return create_receive_activity_tree(
         name="GuardedDetachAndCommitBT",
         case_id=case_id,
-        sender_guard=create_role_scoped_sender_guard(
-            name="RemoveNoteSenderGuard",
-            case_id=case_id,
-            at_case_manager=author_or_owner,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id, authored_object_id=note_id
         ),
         precondition_guards=[
             CaseReferenceEditPendingNode(

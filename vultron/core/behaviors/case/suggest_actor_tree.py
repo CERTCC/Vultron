@@ -75,7 +75,6 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsActiveParticipantNode,
     SenderIsCaseOwnerNode,
     SenderRule,
 )
@@ -129,6 +128,8 @@ def create_recommend_actor_to_case_received_tree(
     offer_content: str | None = None,
     suggested_roles: list[str] | None = None,
     actor_config: ActorConfig | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(Actor, Case) on the CASE_MANAGER's inbox.
 
@@ -202,6 +203,8 @@ def create_recommend_actor_to_case_received_tree(
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the reply deadline of every stub Invite it sends (CM-11-014,
             CM-28-012).  ``None`` applies the ``ActorConfig`` defaults.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root ``RecommendActorToCaseBT`` Sequence node.
@@ -395,11 +398,9 @@ def create_recommend_actor_to_case_received_tree(
     return create_receive_activity_tree(
         name="RecommendActorToCaseBT",
         case_id=case_id,
-        sender_guard=SenderIsActiveParticipantNode(
-            status_id="",
-            sender_actor_id=recommender_id,
-            case_id=case_id,
-            name="RecommenderIsParticipant",
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=recommender_id, case_id=case_id
         ),
         precondition_guards=[
             case_manager_admits_suggested_actor_guard(

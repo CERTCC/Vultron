@@ -97,6 +97,9 @@ from vultron.core.states.composite_state_invariants import (
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
@@ -319,7 +322,11 @@ def _run_tree(
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
     )
-    tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+    tree = add_participant_status_tree(
+        request=event,
+        case_id=CASE_ID,
+        sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+    )
     if capture is not None:
         tree = py_trees.composites.Sequence(
             name="AddParticipantStatusTreeWithProbe",

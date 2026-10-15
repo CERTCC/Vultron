@@ -6,7 +6,7 @@
 
     - **When…** a Participant suggests an actor that the case should include
     - **Send:** `Offer(Actor)[target=VulnerabilityCase]`
-    - **Sent by:** an active participant
+    - **Sent by:** a participant
     - **Reference:** [Suggest actor to case](../../general.md#suggest-actor-to-case)
 
     ??? example "Example activity"

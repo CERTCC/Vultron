@@ -40,6 +40,9 @@ from vultron.core.behaviors.embargo.owner_decision_tree import (
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
+from vultron.core.use_cases.received.embargo.invite import (
+    InviteToEmbargoOnCaseReceivedUseCase,
+)
 from vultron.core.use_cases.received.embargo.owner_decision import (
     ActivateEmbargoOnCaseReceivedUseCase,
 )
@@ -52,6 +55,7 @@ ACTOR_ID = "https://example.org/actors/a1"
 
 def _invite_tree() -> py_trees.behaviour.Behaviour:
     return invite_to_embargo_on_case_tree(
+        sender_rule=InviteToEmbargoOnCaseReceivedUseCase.sender_entitlement,
         case_id=CASE_ID,
         invitee_id=ACTOR_ID,
         invite_id=INVITE_ID,
