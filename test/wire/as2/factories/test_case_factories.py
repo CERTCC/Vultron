@@ -979,6 +979,7 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     yet binding and stays out of the stub; EP-09-011 relays it after
     joining."""
     from vultron.core.models._helpers import days_from_now_utc
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCaseStub,
     )
@@ -1008,7 +1009,7 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
 
     stub = invite.target
     assert isinstance(stub, as_VulnerabilityCaseStub)
-    assert stub.active_embargo is not None
+    assert isinstance(stub.active_embargo, as_EmbargoEvent)
     assert stub.active_embargo.id_ == in_force.id_
     assert stub.active_embargo.id_ != revision.id_
     assert isinstance(stub.case_status, as_CaseStatus)
