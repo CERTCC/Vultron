@@ -25,6 +25,9 @@ Enforces:
    HP-01-008, #4437): a guard not yet migrated names the open issue that
    migrates it, and a standing read that decides an effect rather than
    admission names why it is not a sender guard.
+5. A ``SenderRule`` is built only as a use case's ``sender_entitlement``
+   declaration, so the guard is composed from the declaration alone
+   (HP-01-008).
 """
 
 import ast
@@ -300,52 +303,109 @@ def _annotation_nodes(tree: ast.AST) -> set[int]:
     return {id(sub) for root in roots for sub in ast.walk(root)}
 
 
-def _import_aliases(tree: ast.AST) -> dict[str, str]:
-    """Each local name in *tree* bound to a sender node, to the node's name."""
-    aliases = {name: name for name in SENDER_NODES}
+_COMPOSE = "compose_sender_guard"
+
+
+def _composer_builders() -> frozenset[str]:
+    """The composer's private builders, which no other module may call."""
+    tree = _corpus.tree_of(_corpus.REPO_ROOT / _COMPOSER)
+    return frozenset(
+        node.name
+        for node in ast.iter_child_nodes(tree)
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("_")
+    )
+
+
+COMPOSER_BUILDERS = _composer_builders()
+
+
+def _from_composer(module: str | None) -> bool:
+    return (module or "").rpartition(".")[2] == "sender_guard"
+
+
+def _tracked(name: str, from_composer: bool) -> bool:
+    """*name* is a sender node or ``compose_sender_guard``, or a private
+    builder reached through the composer module."""
+    return (
+        name in SENDER_NODES
+        or name == _COMPOSE
+        or (name in COMPOSER_BUILDERS and from_composer)
+    )
+
+
+def _import_aliases(tree: ast.AST) -> tuple[dict[str, str], set[str]]:
+    """The names *tree* binds to a sender node or a composer function, and
+    the names it binds to the composer module itself.
+
+    A sender node and ``compose_sender_guard`` are tracked by name wherever
+    they come from; a private builder only when imported from the composer,
+    so a module's own helper of the same name is not mistaken for it.
+    """
+    aliases = {name: name for name in SENDER_NODES | {_COMPOSE}}
+    modules: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             for alias in node.names:
-                if alias.name in SENDER_NODES and alias.asname:
-                    aliases[alias.asname] = alias.name
-    return aliases
+                local = alias.asname or alias.name
+                if _tracked(alias.name, _from_composer(node.module)):
+                    aliases[local] = alias.name
+                elif alias.name == "sender_guard":
+                    modules.add(local)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if _from_composer(alias.name) and alias.asname:
+                    modules.add(alias.asname)
+    return aliases, modules
+
+
+def _is_composer_module(node: ast.expr, modules: set[str]) -> bool:
+    """*node* names the composer module (``sg`` or ``behaviors.sender_guard``)."""
+    if isinstance(node, ast.Name):
+        return node.id in modules
+    return isinstance(node, ast.Attribute) and node.attr == "sender_guard"
 
 
 def _named_sender_node(
-    node: ast.AST, aliases: dict[str, str], rel: str
+    node: ast.AST, aliases: dict[str, str], modules: set[str], rel: str
 ) -> str | None:
-    """The sender node *node* names, or ``compose_sender_guard`` it calls."""
+    """The sender node or composer function *node* names, or ``None``.
+
+    ``compose_sender_guard`` is not reported in :data:`COMPOSE_CALLERS`.
+    """
+    named: str | None = None
     if isinstance(node, ast.Name):
-        return aliases.get(node.id)
-    if isinstance(node, ast.Attribute):
-        return node.attr if node.attr in SENDER_NODES else None
-    if (
-        isinstance(node, ast.Call)
-        and _corpus.callee_name(node.func) == "compose_sender_guard"
-        and rel not in COMPOSE_CALLERS
+        named = aliases.get(node.id)
+    elif isinstance(node, ast.Attribute) and _tracked(
+        node.attr, _is_composer_module(node.value, modules)
     ):
-        return "compose_sender_guard"
-    return None
+        named = node.attr
+    if named == _COMPOSE and rel in COMPOSE_CALLERS:
+        return None
+    return named
 
 
 def _sender_references(tree: ast.AST, rel: str) -> Counter[Site]:
     """Every place in *tree* that names a sender node or composes a guard.
 
     A name counts wherever it is used, not only where it is called, so a node
-    class bound to another name first, or reached through the module
-    (``sender_entitlement.SenderIsX``), is still seen.  An import alias is
-    followed; a name inside a type annotation composes nothing and is skipped.
-    A call to ``compose_sender_guard`` counts outside :data:`COMPOSE_CALLERS`.
+    class or the composer bound to another name first, or reached through
+    its module (``sender_entitlement.SenderIsX``), is still seen.  An import
+    alias is followed; a name inside a type annotation composes nothing and
+    is skipped.  ``compose_sender_guard`` counts outside
+    :data:`COMPOSE_CALLERS`, and the composer's private builders count
+    everywhere.  A site is scoped by its enclosing classes and functions.
     """
-    aliases = _import_aliases(tree)
+    aliases, modules = _import_aliases(tree)
     skipped = _annotation_nodes(tree)
     found: Counter[Site] = Counter()
 
     def visit(node: ast.AST, scope: tuple[str, ...]) -> None:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+        ):
             scope = (*scope, node.name)
         if id(node) not in skipped and (
-            named := _named_sender_node(node, aliases, rel)
+            named := _named_sender_node(node, aliases, modules, rel)
         ):
             found[Site(rel, ".".join(scope) or "<module>", named)] += 1
         for child in ast.iter_child_nodes(node):
@@ -361,6 +421,7 @@ def _live_sites() -> Counter[Site]:
     for path, tree in _corpus.files_mentioning(
         "sender_entitlement",
         "compose_sender_guard",
+        "sender_guard",
         *SENDER_NODES,
         under=_corpus.REPO_ROOT / "vultron",
     ):
@@ -407,8 +468,8 @@ GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {
         "SenderIsActiveLedgerParticipantNode",
     ): Listed(
         1,
-        "#4615: the ledger Reject's own standing (SYNC-03-005), read from"
-        " the case the ledger activity names",
+        "#4696: the case comes from the ledger activity at run time; the"
+        " ledger Reject's own standing (SYNC-03-005)",
     ),
 }
 
@@ -474,9 +535,10 @@ def _listed() -> dict[Site, int]:
     }
 
 
-def _site_lines(sites: dict[Site, int]) -> str:
+def _site_lines(sites: dict[Site, int], listed: dict[Site, int]) -> str:
     return "\n".join(
-        f"  - {s.module}::{s.function} ({s.node} x{uses})"
+        f"  - {s.module}::{s.function} ({s.node} x{uses},"
+        f" allow-listed x{listed.get(s, 0)})"
         for s, uses in sorted(sites.items())
     )
 
@@ -487,18 +549,24 @@ def test_sender_nodes_are_composed_only_by_the_factory() -> None:
     """A sender node outside the factory's composer is allow-listed (AC-5)."""
     found = dict(_live_sites())
     listed = _listed()
-    new = {s: n for s, n in found.items() if listed.get(s) != n}
+    new = {s: n for s, n in found.items() if n > listed.get(s, 0)}
+    fewer = {s: n for s, n in found.items() if listed.get(s, 0) > n > 0}
     stale = {s: n for s, n in listed.items() if s not in found}
     assert not new, (
         "These modules name a sender-entitlement node, or compose a sender"
         " guard, outside the receive-tree factory or more often than the"
         " allow-list says (HP-01-007, HP-01-008).  Declare the standing in"
         " the use case's SenderRule and pass it with a SenderCheckContext;"
-        " a pre-flight asks rule_refusal():\n" + _site_lines(new)
+        " a pre-flight asks rule_refusal():\n" + _site_lines(new, listed)
+    )
+    assert not fewer, (
+        "These allow-list entries count more uses than the site now has;"
+        " lower the count so the list only shrinks:\n"
+        + _site_lines(fewer, listed)
     )
     assert not stale, (
         "These allow-list entries no longer name a sender node; remove them"
-        " so the list only shrinks:\n" + _site_lines(stale)
+        " so the list only shrinks:\n" + _site_lines(stale, listed)
     )
 
 
@@ -585,6 +653,28 @@ _VIOLATIONS = {
         "def execute(rule, ctx):\n"
         "    return compose_sender_guard(rule, ctx)\n"
     ),
+    "compose-alias": (
+        "from vultron.core.behaviors.sender_guard import"
+        " compose_sender_guard as compose\n"
+        "def execute(rule, ctx):\n"
+        "    return compose(rule, ctx)\n"
+    ),
+    "compose-bound-before-call": (
+        "from vultron.core.behaviors import sender_guard\n"
+        "def execute(rule, ctx):\n"
+        "    build = sender_guard.compose_sender_guard\n"
+        "    return build(rule, ctx)\n"
+    ),
+    "private-builder": (
+        "from vultron.core.behaviors.sender_guard import _kind_node\n"
+        "def build(kind, ctx):\n"
+        "    return _kind_node(kind, ctx)\n"
+    ),
+    "private-builder-module-attribute": (
+        "import vultron.core.behaviors.sender_guard as sg\n"
+        "def build(kinds, ctx):\n"
+        "    return sg._any_of(kinds, ctx, 'side')\n"
+    ),
 }
 
 
@@ -626,3 +716,147 @@ def test_the_scan_skips_annotations_and_the_sanctioned_callers() -> None:
     )
     for caller in COMPOSE_CALLERS:
         assert not _sender_references(composed, caller)
+
+
+def test_the_scan_ignores_a_local_helper_named_like_a_builder() -> None:
+    """A private builder counts only when it comes from the composer."""
+    local = _corpus.parse_inline(
+        "def _any_of(xs):\n    return any(xs)\n"
+        "def check(xs):\n    return _any_of(xs)\n"
+    )
+    assert not _sender_references(local, "vultron/x.py")
+
+
+def test_the_scan_scopes_a_site_by_its_class() -> None:
+    """Two classes' methods of one name are two sites, not one count."""
+    source = _corpus.parse_inline(
+        "from vultron.core.behaviors.sender_entitlement import"
+        " SenderIsCaseOwnerNode\n"
+        "class A:\n    def build(self):\n"
+        "        return SenderIsCaseOwnerNode()\n"
+        "class B:\n    def build(self):\n"
+        "        return SenderIsCaseOwnerNode()\n"
+    )
+    assert _sender_references(source, "vultron/x.py") == {
+        Site("vultron/x.py", "A.build", "SenderIsCaseOwnerNode"): 1,
+        Site("vultron/x.py", "B.build", "SenderIsCaseOwnerNode"): 1,
+    }
+
+
+# ---------------------------------------------------------------------------
+# HP-01-008: the guard is composed from the declaration alone
+# ---------------------------------------------------------------------------
+
+_RULE_BUILDERS = frozenset({"SenderRule"})
+
+
+def _rule_aliases(tree: ast.AST) -> set[str]:
+    """The names *tree* binds to ``SenderRule``."""
+    names = set(_RULE_BUILDERS)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names.update(
+                alias.asname
+                for alias in node.names
+                if alias.name in _RULE_BUILDERS and alias.asname
+            )
+    return names
+
+
+def _builds_rule(func: ast.expr, names: set[str]) -> bool:
+    """*func* is ``SenderRule`` or one of its constructors (``in_case``, …)."""
+    if isinstance(func, ast.Name):
+        return func.id in names
+    if isinstance(func, ast.Attribute):
+        return func.attr in _RULE_BUILDERS or _builds_rule(func.value, names)
+    return False
+
+
+def _declaration_nodes(tree: ast.AST) -> set[int]:
+    """Ids of every node inside a class's ``sender_entitlement`` value."""
+    ids: set[int] = set()
+    for cls in ast.walk(tree):
+        if not isinstance(cls, ast.ClassDef):
+            continue
+        for stmt in cls.body:
+            if isinstance(stmt, ast.AnnAssign):
+                targets: list[ast.expr] = [stmt.target]
+            elif isinstance(stmt, ast.Assign):
+                targets = stmt.targets
+            else:
+                continue
+            declares = any(
+                isinstance(t, ast.Name) and t.id == "sender_entitlement"
+                for t in targets
+            )
+            if declares and (value := stmt.value) is not None:
+                ids.update(id(sub) for sub in ast.walk(value))
+    return ids
+
+
+def _rules_built_outside_a_declaration(tree: ast.AST, rel: str) -> list[str]:
+    """Each ``SenderRule`` *tree* builds anywhere but a declaration."""
+    names = _rule_aliases(tree)
+    declared = _declaration_nodes(tree)
+    return [
+        f"{rel}:{node.lineno}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and _builds_rule(node.func, names)
+        and id(node) not in declared
+    ]
+
+
+@pytest.mark.spec("HP-01-008")
+def test_a_sender_rule_is_built_only_as_a_declaration() -> None:
+    """A tree or handler passes its declared rule, never one of its own.
+
+    ``sender_rule=`` and ``rule_refusal()`` take a rule as an argument, so a
+    rule built on the spot would compose a guard the use case never
+    declared.  Building a ``SenderRule`` is allowed only as the value of a
+    class's ``sender_entitlement``.
+    """
+    found = [
+        site
+        for path, tree in _corpus.files_mentioning(
+            "SenderRule", under=_corpus.REPO_ROOT / "vultron"
+        )
+        if (rel := path.relative_to(_corpus.REPO_ROOT).as_posix()) != _HOME
+        for site in _rules_built_outside_a_declaration(tree, rel)
+    ]
+    assert not found, (
+        "A SenderRule is built outside a use case's sender_entitlement"
+        " declaration (HP-01-008); pass the declared rule instead:\n"
+        + "\n".join(f"  - {site}" for site in found)
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def execute(self):\n"
+        "    return rule_refusal(dl, a, SenderRule.in_case(K.ANY_ACTOR), c)\n",
+        "from vultron.core.behaviors.sender_entitlement import"
+        " SenderRule as R\n"
+        "def build():\n    return R(at_case_manager=frozenset())\n",
+        "class UseCase:\n"
+        "    sender_entitlement = SenderRule.in_case(K.INVITEE)\n"
+        "    def execute(self):\n"
+        "        return tree(sender_rule=SenderRule.before_case(K.ANY_ACTOR))\n",
+    ],
+    ids=["pre-flight", "alias", "beside-a-declaration"],
+)
+def test_the_rule_scan_sees_an_ad_hoc_rule(source: str) -> None:
+    """Each ad hoc rule is reported (HP-01-008)."""
+    tree = _corpus.parse_inline(source)
+    assert len(_rules_built_outside_a_declaration(tree, "vultron/x.py")) == 1
+
+
+def test_the_rule_scan_admits_a_declaration() -> None:
+    """A ``sender_entitlement`` class declaration is where a rule is built."""
+    tree = _corpus.parse_inline(
+        "class UseCase:\n"
+        "    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(\n"
+        "        K.INVITEE\n    )\n"
+    )
+    assert not _rules_built_outside_a_declaration(tree, "vultron/x.py")
