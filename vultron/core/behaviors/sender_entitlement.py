@@ -25,8 +25,11 @@ Entitlement kinds
 - ``CASE_MANAGER`` — sender must be the case's ``CVDRole.CASE_MANAGER``
   (PCR-03-001, SYNC-13-006)
 - ``CASE_OWNER`` — sender must hold ``CVDRole.CASE_OWNER``
-- ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004
-  (full active-participant predicate tracked by #2257)
+- ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004:
+  joined and a signatory to the embargo in force (the RM ``CLOSED`` refusal is
+  tracked by #4615)
+- ``PARTICIPANT`` — sender must have a participant record on the case, active
+  or not
 - ``NAMED_ACTOR`` — sender must be the addressee of the request it answers, as
   this store recorded it: the one addressee kind (HP-01-009, ADR-0129)
 - ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
@@ -63,9 +66,11 @@ missing attribute.
 
 Nodes
 -----
-- ``SenderIsActiveParticipantNode`` — guards that the sender is a known case
-  participant, or with ``require_active`` an active one (CM-10-004); merged
-  from ``VerifySenderIsParticipantNode``
+- ``SenderIsParticipantNode`` — guards that the case lists a participant
+  record for the sender (``PARTICIPANT``); merged from
+  ``VerifySenderIsParticipantNode``
+- ``SenderIsActiveParticipantNode`` — guards that the sender is an active
+  participant of the case (``ACTIVE_PARTICIPANT``; CM-10-004)
 - ``SenderIsActiveLedgerParticipantNode`` — guards that the sender is an active
   participant of the case named by a ledger activity on the blackboard
 - ``SenderIsCaseManagerNode`` — guards that the sender is the case's
@@ -188,7 +193,20 @@ class SenderEntitlementKind(Enum):
     """Sender must hold ``CVDRole.CASE_OWNER``."""
 
     ACTIVE_PARTICIPANT = auto()
-    """Sender must be an active participant per CM-10-004."""
+    """Sender must be an active participant per CM-10-004.
+
+    Active means joined and, while an embargo is in force, a signatory to it;
+    a removed participant is not active.  Compare ``PARTICIPANT``, which any
+    participant record on the case satisfies.
+    """
+
+    PARTICIPANT = auto()
+    """Sender must have a participant record on the case.
+
+    The record may be inert or removed: an invitee that has not answered and a
+    removed participant both hold one.  Use ``ACTIVE_PARTICIPANT`` when the
+    sender must be entitled to the case's content (CM-10-004).
+    """
 
     NAMED_ACTOR = auto()
     """Sender must be the addressee of the request it answers (HP-01-009).
@@ -418,19 +436,20 @@ class SenderEntitlementConditionNode(DataLayerConditionWithPorts):
 
 
 # ---------------------------------------------------------------------------
-# Condition node: ACTIVE_PARTICIPANT
+# Condition node: PARTICIPANT
 # ---------------------------------------------------------------------------
 
 
-class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
-    """Guard: sender must be a known case participant.
+class SenderIsParticipantNode(FindParticipantByActorIdNode):
+    """Guard: sender must have a participant record on the case.
 
     Not a :class:`SenderEntitlementConditionNode`: it reuses the participant
     lookup of :class:`FindParticipantByActorIdNode`, so it names its kind
     itself.
 
-    Returns ``SUCCESS`` when the sender's actor ID is registered in
-    ``case.actor_participant_index``.
+    Returns ``SUCCESS`` when the case lists a participant record for the
+    sender, whether or not that participant is active (CM-10-004): an inert
+    invitee and a removed participant pass.
     Returns ``FAILURE`` otherwise, halting the parent ``Sequence`` with a
     REFUSED outcome.
 
@@ -438,20 +457,15 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
     fails (DEMOMA-07-003 step 1); the status use case resolves the case from
     the stored status before it builds its tree.
 
-    With ``require_active=True`` the sender must also be an *active*
-    participant (CM-10-004): joined, not removed, and a signatory to the
-    embargo in force.  An inert or removed participant then fails.  The
-    embargo proposal at the CASE_MANAGER asks this (EP-09-001); the other
-    users of the kind still admit any participant the case lists, which #4615
-    reconciles into one predicate.
+    Merged from ``VerifySenderIsParticipantNode`` (ADR-0115, AC-2); it was
+    ``SenderIsActiveParticipantNode`` until the ``PARTICIPANT`` kind split
+    from ``ACTIVE_PARTICIPANT`` (#4437).
 
-    Merged from ``VerifySenderIsParticipantNode`` (ADR-0115, AC-2).
-
-    Spec: CM-10-004, HP-01-006, DEMOMA-07-003.
+    Spec: HP-01-006, HP-01-009, DEMOMA-07-003.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -459,8 +473,6 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
         sender_actor_id: str,
         case_id: str | None,
         name: str | None = None,
-        *,
-        require_active: bool = False,
     ) -> None:
         super().__init__(
             case_id=case_id or "",
@@ -470,7 +482,6 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
         )
         self.sender_actor_id = sender_actor_id
         self._case_id_hint = case_id or None
-        self._require_active = require_active
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -490,13 +501,11 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
             return Status.FAILURE
 
         self.case_id = case_id
-        if self._require_active:
-            return self._confirm_active(case_id)
         result = super().update()
         if result == Status.FAILURE:
             self.feedback_message = (
-                f"Sender '{self.sender_actor_id}' is not a known"
-                " participant — REFUSED (HP-01-006, CM-10-004)"
+                f"Sender '{self.sender_actor_id}' is not a participant of"
+                f" case '{case_id}' — REFUSED (HP-01-006)"
             )
             self.logger.warning(
                 "%s: %s (DEMOMA-07-003 step 1)",
@@ -506,7 +515,7 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
             return Status.FAILURE
 
         self.logger.debug(
-            "%s: sender '%s' is a known participant in case '%s'"
+            "%s: sender '%s' is a participant in case '%s'"
             " (HP-01-006, DEMOMA-07-003 step 1)",
             self.name,
             self.sender_actor_id,
@@ -514,14 +523,47 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
         )
         return Status.SUCCESS
 
-    def _confirm_active(self, case_id: str) -> Status:
-        """``SUCCESS`` only when the sender is active in the case (CM-10-004).
 
-        Asks :func:`is_case_content_recipient` alone, so the roster scan the
-        listed-participant check runs is not repeated.
-        """
+# ---------------------------------------------------------------------------
+# Condition node: ACTIVE_PARTICIPANT
+# ---------------------------------------------------------------------------
+
+
+class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
+    """Guard: sender must be an active participant of the case (CM-10-004).
+
+    Active means joined, not removed, and a signatory to the embargo in force
+    (:func:`~vultron.core.participants.recipients.is_case_content_recipient`).
+    An inert invitee and a removed participant fail, as does a sender the
+    case does not list.  With no ``case_id``, or a case this store does not
+    hold, there is no standing to check, so the sender is refused (Regime 1,
+    ADR-0087).
+
+    It does not yet refuse a sender at RM ``CLOSED``; #4615 adds that
+    (CM-23-018).
+
+    Spec: CM-10-004, HP-01-006, HP-01-009.
+    """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
+
+    def __init__(
+        self,
+        sender_actor_id: str,
+        case_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.sender_actor_id = sender_actor_id
+        self.case_id = case_id or None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
         assert self.datalayer is not None
-        case, failure = self._require_case(case_id)
+        case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: no case, so no standing to check
         if is_case_content_recipient(
@@ -530,7 +572,7 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
             return Status.SUCCESS
         self.feedback_message = (
             f"Sender '{self.sender_actor_id}' is not an active participant"
-            f" of case '{case_id}' — REFUSED (HP-01-006, CM-10-004)"
+            f" of case '{self.case_id}' — REFUSED (HP-01-006, CM-10-004)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
@@ -1558,6 +1600,7 @@ __all__ = [
     # Base / marker class
     "SenderEntitlementConditionNode",
     # Condition nodes
+    "SenderIsParticipantNode",
     "SenderIsActiveParticipantNode",
     "SenderIsActiveLedgerParticipantNode",
     "SenderIsCaseManagerNode",

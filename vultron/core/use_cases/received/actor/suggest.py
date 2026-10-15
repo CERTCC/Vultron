@@ -58,7 +58,7 @@ class OfferActorToCaseReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(

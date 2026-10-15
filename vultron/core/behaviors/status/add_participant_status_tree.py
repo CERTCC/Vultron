@@ -29,7 +29,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
 
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
-    ├─ SenderIsActiveParticipantNode          # Sender guard from the declared rule (HP-01-008)
+    ├─ SenderIsParticipantNode          # Sender guard from the declared rule (HP-01-008)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)

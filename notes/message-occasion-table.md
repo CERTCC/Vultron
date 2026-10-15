@@ -61,10 +61,14 @@ lookup table is mostly links.
 
 - The column states the `sender_entitlement` the received use case declares,
   because that is what another implementation must satisfy, and it cannot drift.
-  It is often broader than CVD convention (any active participant may send
+  It is often broader than CVD convention (any participant may send
   `Add(ParticipantStatus)` with `vf_state` `VF`), so an occasion may add a
-  "usually" note typed as `CVDRole` values: "an active participant (usually:
-  vendor)" (MSM-08-005).
+  "usually" note typed as `CVDRole` values: "a participant (usually: vendor)"
+  (MSM-08-005).
+- "A participant" (`PARTICIPANT`) is any actor with a participant record on the
+  case, active or not; "an active participant" (`ACTIVE_PARTICIPANT`) is one
+  entitled to the case's content (CM-10-004). The two kinds split in #4437 so
+  that each declaration says which one its handler checks.
 - Each `SenderEntitlementKind` declares its own wording and glossary term
   (MSM-08-010), so no wording table is kept by hand; an exemption reads "not yet
   checked". About half the received use cases are exempt today, so the column

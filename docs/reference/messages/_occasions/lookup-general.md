@@ -2,7 +2,7 @@
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| a Participant suggests an actor that the case should include | `Offer(Actor)[target=VulnerabilityCase]` | an active participant | — | [Suggest actor to case](../general.md#suggest-actor-to-case) |
+| a Participant suggests an actor that the case should include | `Offer(Actor)[target=VulnerabilityCase]` | a participant | — | [Suggest actor to case](../general.md#suggest-actor-to-case) |
 | the Case Manager presents a suggested actor to the Case Owner | `Offer(CaseParticipant)[target=VulnerabilityCase]` | the case manager | — | [Offer case participant](../general.md#offer-case-participant) |
 | the Case Owner approves a suggested actor | `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case owner | — | [Accept case participant offer](../general.md#accept-case-participant-offer) |
 | the Case Owner declines a suggested actor | `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case owner | — | [Reject case participant offer](../general.md#reject-case-participant-offer) |

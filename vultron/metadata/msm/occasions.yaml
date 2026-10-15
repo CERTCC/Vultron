@@ -54,7 +54,7 @@ groups:
     heading: Validate report
     when: a report receiver judges the report valid
     send: Accept(Offer(VulnerabilityReport))
-    sent_by: 'an active participant (usually: vendor, coordinator)'
+    sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: validate_report
     shorthand: RV
     status: expansion
@@ -67,7 +67,7 @@ groups:
     heading: Invalidate report
     when: a report receiver judges the report invalid
     send: TentativeReject(Offer(VulnerabilityReport))
-    sent_by: 'an active participant (usually: vendor, coordinator)'
+    sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: invalidate_report
     shorthand: RI
     status: expansion
@@ -80,7 +80,7 @@ groups:
     heading: Close report
     when: a report receiver closes the report
     send: Reject(Offer(VulnerabilityReport))
-    sent_by: 'an active participant (usually: vendor, coordinator)'
+    sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: close_report
     shorthand: RC
     status: expansion
@@ -95,7 +95,7 @@ groups:
     heading: Report/Case Accepted (RA)
     when: a Participant accepts the case for further action
     send: Join(VulnerabilityCase)
-    sent_by: an active participant
+    sent_by: a participant
     semantics: engage_case
     shorthand: RA
     status: direct
@@ -109,7 +109,7 @@ groups:
     heading: Report/Case Deferred (RD)
     when: a Participant defers further action on the case
     send: Ignore(VulnerabilityCase)
-    sent_by: an active participant
+    sent_by: a participant
     semantics: defer_case
     shorthand: RD
     status: direct
@@ -660,7 +660,7 @@ groups:
     heading: Vendor Awareness (CV)
     when: a Vendor becomes aware of the vulnerability
     send: Add(ParticipantStatus)[target=CaseParticipant]
-    sent_by: 'an active participant (usually: vendor)'
+    sent_by: 'a participant (usually: vendor)'
     distinguished_by: '`vf_state` = `Vf`'
     semantics: add_participant_status_to_participant
     shorthand: CV
@@ -675,7 +675,7 @@ groups:
     heading: Fix Readiness (CF)
     when: a Vendor has a fix ready
     send: Add(ParticipantStatus)[target=CaseParticipant]
-    sent_by: 'an active participant (usually: vendor)'
+    sent_by: 'a participant (usually: vendor)'
     distinguished_by: '`vf_state` = `VF`'
     semantics: add_participant_status_to_participant
     shorthand: CF
@@ -690,7 +690,7 @@ groups:
     heading: Fix Deployed (CD)
     when: a Deployer has deployed the fix
     send: Add(ParticipantStatus)[target=CaseParticipant]
-    sent_by: 'an active participant (usually: deployer)'
+    sent_by: 'a participant (usually: deployer)'
     distinguished_by: '`d_state` = `D`'
     semantics: add_participant_status_to_participant
     shorthand: CD
@@ -709,7 +709,7 @@ groups:
     heading: Suggest actor to case
     when: a Participant suggests an actor that the case should include
     send: Offer(Actor)[target=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: a participant
     semantics: offer_actor_to_case
     shorthand: GI
     status: expansion

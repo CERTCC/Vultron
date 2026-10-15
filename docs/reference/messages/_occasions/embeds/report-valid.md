@@ -6,7 +6,7 @@
 
     - **When…** a report receiver judges the report valid
     - **Send:** `Accept(Offer(VulnerabilityReport))`
-    - **Sent by:** an active participant (usually: vendor, coordinator)
+    - **Sent by:** a participant (usually: vendor, coordinator)
     - **Reference:** [Validate report](../../rm.md#report-valid)
 
     ??? example "Example activity"

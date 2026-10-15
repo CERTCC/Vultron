@@ -18,7 +18,7 @@
 Covers the DEMOMA-07-003 steps (step 3 raw re-broadcast removed per DEMOMA-07-005)
 and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
 
-  1. SenderIsActiveParticipantNode             — unknown sender is rejected
+  1. SenderIsParticipantNode             — unknown sender is rejected
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
   StatusAdoptionGate: SenderIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
   StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
@@ -54,8 +54,8 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsActiveParticipantNode,
     SenderIsCaseOwnerNode,
+    SenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
@@ -205,14 +205,14 @@ def populated_bridge(populated_dl):
 
 
 # ---------------------------------------------------------------------------
-# Step 1: SenderIsActiveParticipantNode
+# Step 1: SenderIsParticipantNode
 # ---------------------------------------------------------------------------
 
 
 class TestSenderIsActiveParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
@@ -223,7 +223,7 @@ class TestSenderIsActiveParticipantNode:
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_sender_fails(self, populated_bridge):
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
         )
@@ -234,7 +234,7 @@ class TestSenderIsActiveParticipantNode:
 
     def test_missing_case_fails(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
         )
@@ -244,7 +244,7 @@ class TestSenderIsActiveParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_fails(self, populated_bridge):
         """With no case to check the sender against, the guard fails."""
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=ACTOR_ID,
             case_id=None,
         )
@@ -950,7 +950,7 @@ class TestAddParticipantStatusTree:
         populated_dl,
         make_payload,
     ):
-        """Unknown sender → SenderIsActiveParticipantNode fails, tree halts."""
+        """Unknown sender → SenderIsParticipantNode fails, tree halts."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(

@@ -85,7 +85,7 @@ def store_embedded_participants(
     When a bootstrapped or announced ``VulnerabilityCase`` carries fully
     materialised participant objects (not just ID strings), each is stored
     as an independent DataLayer record.  This ensures BT nodes such as
-    ``SenderIsActiveParticipantNode`` (#561) and ``AppendParticipantStatusNode``
+    ``SenderIsParticipantNode`` (#561) and ``AppendParticipantStatusNode``
     (#562, #566) can retrieve them by their UUID.
 
     Called from:

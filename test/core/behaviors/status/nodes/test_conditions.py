@@ -15,7 +15,7 @@
 
 """Unit tests for status condition nodes (submodule path).
 
-Verifies SenderIsActiveParticipantNode (formerly SenderIsActiveParticipantNode)
+Verifies SenderIsParticipantNode (formerly SenderIsActiveParticipantNode)
 imported from the consolidated sender_entitlement module.
 Per DEMOMA-07-003 step 1.
 """
@@ -27,6 +27,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
+    SenderIsParticipantNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -106,9 +107,9 @@ def populated_bridge(populated_dl):
     return BTBridge(datalayer=populated_dl)
 
 
-class TestSenderIsActiveParticipantNode:
+class TestSenderIsParticipantNode:
     def test_known_sender_succeeds(self, populated_bridge):
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
@@ -118,7 +119,7 @@ class TestSenderIsActiveParticipantNode:
         assert result.status == Status.SUCCESS
 
     def test_unknown_sender_fails(self, populated_bridge):
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
         )
@@ -128,7 +129,7 @@ class TestSenderIsActiveParticipantNode:
         assert result.status == Status.FAILURE
 
     def test_no_case_id_fails(self, populated_bridge):
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=ACTOR_ID,
             case_id=None,
         )
@@ -138,11 +139,89 @@ class TestSenderIsActiveParticipantNode:
         assert result.status == Status.FAILURE
 
     def test_missing_case_fails(self, bridge):
-        node = SenderIsActiveParticipantNode(
+        node = SenderIsParticipantNode(
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+def _save_vendor(dl, **fields):
+    """Re-save the vendor's participant record with *fields* changed."""
+    dl.save(
+        CaseParticipant(
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            **fields,
+        )
+    )
+    return BTBridge(datalayer=dl)
+
+
+_INACTIVE = {
+    "inert": {"joined": False},
+    "removed": {"removal_activity": "https://example.org/activities/rm-1"},
+}
+
+
+class TestParticipantKindsDiffer:
+    """``PARTICIPANT`` is any record on the case; ``ACTIVE_PARTICIPANT`` is
+    an active one (CM-10-004, HP-01-009)."""
+
+    @pytest.mark.spec("HP-01-009")
+    @pytest.mark.parametrize("state", sorted(_INACTIVE))
+    def test_participant_kind_admits_an_inactive_record(
+        self, populated_dl, state
+    ):
+        bridge = _save_vendor(populated_dl, **_INACTIVE[state])
+        node = SenderIsParticipantNode(
+            sender_actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("CM-10-004")
+    @pytest.mark.parametrize("state", sorted(_INACTIVE))
+    def test_active_participant_kind_refuses_an_inactive_record(
+        self, populated_dl, state
+    ):
+        bridge = _save_vendor(populated_dl, **_INACTIVE[state])
+        node = SenderIsActiveParticipantNode(
+            sender_actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+        assert "not an active participant" in node.feedback_message
+
+    @pytest.mark.spec("CM-10-004")
+    def test_active_participant_kind_admits_an_active_record(
+        self, populated_bridge
+    ):
+        node = SenderIsActiveParticipantNode(
+            sender_actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.parametrize(
+        "sender, case_id",
+        [(OUTSIDER_ID, CASE_ID), (ACTOR_ID, None)],
+        ids=["unlisted", "no-case"],
+    )
+    def test_active_participant_kind_refuses_without_standing(
+        self, populated_bridge, sender, case_id
+    ):
+        node = SenderIsActiveParticipantNode(
+            sender_actor_id=sender, case_id=case_id
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
         assert result.status == Status.FAILURE
 
 

@@ -65,9 +65,9 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_reject_actor_recommendation_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
+    SenderIsParticipantNode,
 )
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.protocol_pair import (
@@ -1356,7 +1356,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
                 case_id=_CASE_ID,
                 sender_rule=_RECOMMEND_RULE,
             ),
-            SenderIsActiveParticipantNode,
+            SenderIsParticipantNode,
         ),
         (
             create_receive_offer_case_participant_tree,

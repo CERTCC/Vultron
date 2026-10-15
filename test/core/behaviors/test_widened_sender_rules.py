@@ -47,6 +47,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
+from vultron.core.use_cases.received.case.engage_defer import (
+    DeferCaseReceivedUseCase,
+    EngageCaseReceivedUseCase,
+)
 from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
 )
@@ -66,6 +70,11 @@ from vultron.core.use_cases.received.embargo.invite import (
 )
 from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
+)
+from vultron.core.use_cases.received.report import (
+    CloseReportReceivedUseCase,
+    InvalidateReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
 )
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
@@ -282,7 +291,8 @@ CASES = [
         marks=("HP-01-008", "EP-09-003", "PCR-03-001"),
         label="embargo-announce",
     ),
-    # Any participant the case lists, on both sides, as the trees checked.
+    # Any participant record on the case, on both sides, as the trees
+    # checked (PARTICIPANT).
     *_cases(
         OfferActorToCaseReceivedUseCase.sender_entitlement,
         _plain,
@@ -316,26 +326,59 @@ def test_declared_rule_admits_exactly_its_side(
 
 
 @pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("HP-01-009")
 @pytest.mark.parametrize(
-    ("context", "sender", "admitted"),
+    ("kind", "sender", "admitted"),
     [
-        (_plain, VENDOR, True),
-        (_plain, INERT, True),
-        (_embargo, VENDOR, True),
-        (_embargo, INERT, False),
+        (Kind.PARTICIPANT, VENDOR, True),
+        (Kind.PARTICIPANT, INERT, True),
+        (Kind.ACTIVE_PARTICIPANT, VENDOR, True),
+        (Kind.ACTIVE_PARTICIPANT, INERT, False),
     ],
     ids=["listed-active", "listed-inert", "active-active", "active-inert"],
 )
-def test_inert_sender_is_refused_only_where_activity_is_required(
-    context: ContextFor, sender: str, admitted: bool
+def test_an_inert_participant_holds_participant_but_not_active_participant(
+    kind: SenderEntitlementKind, sender: str, admitted: bool
 ) -> None:
-    """The embargo proposal needs an active sender; the listed check does not.
+    """Any record on the case is ``PARTICIPANT``; only an active one is
+    ``ACTIVE_PARTICIPANT`` (CM-10-004)."""
+    assert _admits(SenderRule.in_case(kind), _plain, MANAGER, sender) is (
+        admitted
+    )
 
-    The two readings of ``ACTIVE_PARTICIPANT`` are kept as they were until
-    #4615 makes them one predicate.
-    """
-    rule = SenderRule.in_case(Kind.ACTIVE_PARTICIPANT)
-    assert _admits(rule, context, MANAGER, sender) is admitted
+
+#: Declarations relabelled from ``ACTIVE_PARTICIPANT`` to ``PARTICIPANT``
+#: (#4437): each tree admitted any participant the case lists, and still does.
+RELABELLED = {
+    "validate-report": ValidateReportReceivedUseCase,
+    "invalidate-report": InvalidateReportReceivedUseCase,
+    "close-report": CloseReportReceivedUseCase,
+    "engage-case": EngageCaseReceivedUseCase,
+    "defer-case": DeferCaseReceivedUseCase,
+    "offer-actor": OfferActorToCaseReceivedUseCase,
+    "add-participant-status": AddParticipantStatusToParticipantReceivedUseCase,
+}
+
+
+@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-009")
+@pytest.mark.parametrize("receiver", [MANAGER, REPLICA], ids=["cm", "replica"])
+@pytest.mark.parametrize(
+    ("sender", "admitted"),
+    [(INERT, True), (VENDOR, True), (STRANGER, False)],
+    ids=["inert", "active", "stranger"],
+)
+@pytest.mark.parametrize(
+    "use_case", RELABELLED.values(), ids=RELABELLED.keys()
+)
+def test_relabelled_declaration_admits_any_listed_participant(
+    use_case: type, receiver: str, sender: str, admitted: bool
+) -> None:
+    """Relabelling to ``PARTICIPANT`` changed no admission: an inert invitee
+    the case lists is still admitted, and an unlisted actor still refused."""
+    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
+    assert rule == SenderRule.in_case(Kind.PARTICIPANT)
+    assert _admits(rule, _plain, receiver, sender) is admitted
 
 
 @pytest.mark.spec("PCR-03-001")
