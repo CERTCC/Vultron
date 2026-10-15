@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the five kinds and the MS-12
   decision tree (who must obey a rule decides its kind, ADR-0134), the ruling
-  that inline-object requirements are `project`, splitting a spec that mixes
+  that inline-object requirements are `project`, which HTTP status codes are
+  `foundation` and which are `project`, splitting a spec that mixes
   kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`; `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
@@ -20,6 +21,8 @@ related_specs:
   - specs/testability.yaml
   - specs/architecture.yaml (ARCH-18-004)
   - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
+  - specs/http-protocol.yaml (HTTP-03, the status-code ruling)
+  - specs/inbox-endpoint.yaml (IE-07-001, IE-07-002, IE-11-001)
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/actor-knowledge-model.md
@@ -88,6 +91,19 @@ An inline rule stays `protocol` only when inlining serves a protocol purpose the
 prototype does not explain, and its rationale names that purpose: ledger snapshot
 content the hash chain must cover is one (CLP-07-006). If no such purpose is
 evident, ask; do not invent one.
+
+**An HTTP status code is `foundation` only when HTTP itself defines it for the
+condition** (maintainer ruling, 2026-10-14, #4529): 405 for a method the resource
+does not support, 413 for a body over the limit, 400 for a request that cannot be
+parsed (IE-07-001); 415, 404, 429 and 503 follow by the same rule (HTTP-03).
+Where HTTP leaves the choice open, the code is this codebase's and `project`:
+422 for a schema failure, 400 for an activity addressed only to other actors,
+400 for a body that cannot be decrypted (HTTP-03-009, IE-07-002, ENC-03-002). A
+protocol rule that names such a code keeps the receiver's behavior (refuse,
+store nothing) and cites the `project` spec for the code (IE-11-001). A limit is
+`project` even when exceeding it draws a `foundation` code: HTTP-02-001 holds
+the 1 MB default, IE-03-003 the 413. A SHOULD in the standard that Vultron makes
+a MUST is Vultron's own rule and stays `protocol` (HTTP-01-001).
 
 #### Apply the decision tree, not the neighbouring entries
 

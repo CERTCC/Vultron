@@ -336,6 +336,12 @@ def _build_case_object(obj: object) -> dict[str, Any]:
         )
         # Carried as received: EM and the active embargo are reads of it.
         embargo_register = list(getattr(obj, "embargo_register", None) or [])
+        # The reports the case answers, by id (the case holds ids only).  A
+        # report receiver relays the case to the reporter, and that
+        # introduction must name the submitted report (CBT-01-001, CBT-01-005).
+        vulnerability_reports: list[str | VulnerabilityReport] = list(
+            _get_id_list(getattr(obj, "vulnerability_reports", None)) or []
+        )
         raw_statuses = getattr(obj, "case_statuses", []) or []
         case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:
@@ -361,6 +367,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 updated=_get_timestamp(obj, "updated"),
                 case_participants=participants,
                 actor_participant_index=actor_participant_index,
+                vulnerability_reports=vulnerability_reports,
                 embargo_register=embargo_register,
                 case_statuses=case_statuses if case_statuses else [],
                 # Carried, not recomputed: core would otherwise rederive it

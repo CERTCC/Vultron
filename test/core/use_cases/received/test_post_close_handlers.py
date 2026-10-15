@@ -27,12 +27,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.ledger import commit_case_fully_closed
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
@@ -47,18 +46,7 @@ _SENDER = "https://example.org/users/pc-vendor"
 
 
 def _close(dl: SqliteDataLayer) -> None:
-    dl.create(
-        _to_persistable_entry(
-            HashChainLedgerRecord(
-                case_id=_CASE,
-                log_index=0,
-                object_id=f"{_CASE}/activities/owner-leave",
-                event_type="case_fully_closed",
-                payload_snapshot={"actor": _SENDER},
-                prev_log_hash="0" * 64,
-            )
-        )
-    )
+    commit_case_fully_closed(dl, _CASE, _SENDER)
 
 
 def _request(embargo: Any, *, embargo_id: str | None) -> MagicMock:

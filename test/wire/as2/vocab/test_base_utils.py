@@ -18,6 +18,8 @@ Tests for vultron.wire.as2.vocab.base.utils — OID-01-001 through OID-01-004.
 import re
 import uuid
 
+import pytest
+
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.utils import (
     URN_UUID_PREFIX,
@@ -56,6 +58,7 @@ class TestGenerateNewId:
         uuid_part = id_.split("/")[-1]
         assert _UUID_PATTERN.fullmatch(uuid_part) is not None
 
+    @pytest.mark.spec("ID-01-001")
     def test_each_call_returns_unique_id(self):
         ids = {generate_new_id() for _ in range(100)}
         assert len(ids) == 100
@@ -64,6 +67,7 @@ class TestGenerateNewId:
 class TestAsBaseDefaultId:
     """Tests that as_Base objects receive URI-form IDs by default — OID-01-001."""
 
+    @pytest.mark.spec("ID-01-001")
     def test_new_object_has_uri_form_id(self):
         obj = as_Base()
         assert obj.id_.startswith(URN_UUID_PREFIX) or "://" in obj.id_

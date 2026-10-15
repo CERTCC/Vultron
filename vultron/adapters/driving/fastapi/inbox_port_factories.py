@@ -229,6 +229,10 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # clarification note on a non-adjacent RM jump (RSH-06-006).
         MessageSemantics.CLOSE_REPORT,
         MessageSemantics.INVALIDATE_REPORT,
+        # CREATE_CASE: the report receiver that accepts the CASE_MANAGER's
+        # bootstrap introduces the CASE_MANAGER to the reporter with its own
+        # Create(VulnerabilityCase) (CBT-01-001, ADR-0132).
+        MessageSemantics.CREATE_CASE,
         # ENGAGE_CASE and DEFER_CASE build outbound wire activities such as the
         # Announce(VulnerabilityCase) broadcast.
         MessageSemantics.DEFER_CASE,

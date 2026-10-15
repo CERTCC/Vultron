@@ -25,7 +25,10 @@ groups:
       roster the sender wrote is not an anchor. The receiver already knows the CASE_MANAGER, so it vouches for it.
     verification: '`test_report_receiver_sends_the_reporter_the_case` in `test/demo/test_case_proposal_round_trip.py` confirms
       that when a case is created in response to an `Offer(VulnerabilityReport)`, the only `Create(VulnerabilityCase)` the
-      original report submitter holds comes from the report receiver. It is a strict `xfail` until #4511 lands.'
+      original report submitter holds comes from the report receiver, and that the submitter accepts it on the trusted
+      route. `test_report_receiver_introduces_the_case_manager_to_the_reporter` in
+      `test/core/behaviors/case/test_create_case_received_tree.py` confirms the introduction carries the case inline,
+      names the CASE_MANAGER and the submitted report.'
     relationships:
     - rel_type: refines
       spec_id: CM-12-001
@@ -241,7 +244,7 @@ groups:
       `test_case_manager_create_is_addressed_to_the_owner_only` in
       `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that
       the CASE_MANAGER's `Create(VulnerabilityCase)` has the report receiver as
-      its only addressee. It is a strict `xfail` until #4511 lands.
+      its only addressee.
     adr:
     - ADR-0132
     relationships:
@@ -268,7 +271,7 @@ groups:
       `test/core/use_cases/received/case/test_helpers.py` sends
       `Create(VulnerabilityCase)` from an actor no local anchor names, with a
       snapshot naming that sender as CASE_MANAGER, and asserts a refusal and an
-      empty case store. It is a strict `xfail` until #4511 lands.
+      empty case store.
     adr:
     - ADR-0132
     relationships:
@@ -422,9 +425,11 @@ groups:
     kind: protocol
     statement: Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is rejected when the sender does not match the
       actor that received the report or when the case does not reference the known submitted report.
-    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
-      `Create(VulnerabilityCase)` is rejected when its sender mismatches the actor that received the report or when it
-      does not reference the known submitted report.
+    verification: '`TestBootstrapCreateRejectedBadSender` in `test/core/use_cases/received/case/test_create.py` confirms
+      that a `Create(VulnerabilityCase)` from a sender other than the actor that received the report is rejected, and
+      `test_bootstrap_not_naming_the_submitted_report_is_refused` in
+      `test/core/behaviors/case/test_create_case_received_tree.py` confirms that one not referencing the known submitted
+      report is rejected.'
     stories:
     - story_2022_089
     - story_2022_090
