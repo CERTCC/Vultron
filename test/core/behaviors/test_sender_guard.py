@@ -51,7 +51,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsOwnershipTransfereeNode,
     SenderIsProposalAddresseeNode,
     SenderIsRequestAddresseeNode,
-    SenderMayAssertEmbargoNode,
     SenderRule,
     any_of,
 )
@@ -543,15 +542,9 @@ def test_author_without_a_case_is_a_wiring_error() -> None:
 ROLE_KINDS = frozenset({Kind.CASE_MANAGER, Kind.CASE_OWNER})
 
 #: Condition nodes that are no one kind's guard: the factory's structural
-#: refusals, and the two-kind embargo guard that #4437 piece 3 retires.
+#: refusals.
 NOT_ONE_KINDS_GUARD: frozenset[type[SenderEntitlementConditionNode]] = (
-    frozenset(
-        {
-            NoSenderAdmittedNode,
-            SenderHoldsNoneOfNode,
-            SenderMayAssertEmbargoNode,
-        }
-    )
+    frozenset({NoSenderAdmittedNode, SenderHoldsNoneOfNode})
 )
 
 

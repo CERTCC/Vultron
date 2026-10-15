@@ -6,7 +6,7 @@ Recommends an actor to the Case Manager for the case named by the target.
 
 - **When…** a Participant suggests an actor that the case should include
 - **Send:** `Offer(Actor)[target=VulnerabilityCase]`
-- **Sent by:** an active participant
+- **Sent by:** a participant
 - **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)

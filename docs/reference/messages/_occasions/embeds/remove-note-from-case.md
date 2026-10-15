@@ -6,7 +6,7 @@
 
     - **When…** a note's author or the Case Owner withdraws a note from the case
     - **Send:** `Remove(Note)[target=VulnerabilityCase]`
-    - **Sent by:** an active participant
+    - **Sent by:** the case owner or the author of the note
     - **Reference:** [Remove note from case](../../general.md#remove-note-from-case)
 
     ??? example "Example activity"

@@ -65,9 +65,9 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_reject_actor_recommendation_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
+    SenderIsParticipantNode,
 )
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.protocol_pair import (
@@ -80,6 +80,9 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
     OfferCaseParticipantReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
 )
+from vultron.core.use_cases.received.actor.suggest import (
+    OfferActorToCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 
 _REC_ID = "https://example.org/recommendations/rec-1"
@@ -88,6 +91,7 @@ _RECOMMENDED = "https://example.org/actors/recommended"
 _CASE_ID = "https://example.org/cases/case-1"
 _SENDER = "https://example.org/actors/sender"
 _OFFER_RULE = OfferCaseParticipantReceivedUseCase.sender_entitlement
+_RECOMMEND_RULE = OfferActorToCaseReceivedUseCase.sender_entitlement
 _ACCEPT_RULE = AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
 _REJECT_RULE = RejectOfferCaseParticipantReceivedUseCase.sender_entitlement
 _MANAGER = "https://example.org/actors/case-manager"
@@ -298,6 +302,7 @@ class TestRecommendActorToCaseReceivedTree:
 
     def setup_method(self):
         self.tree = create_recommend_actor_to_case_received_tree(
+            sender_rule=_RECOMMEND_RULE,
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
@@ -888,6 +893,7 @@ class TestDuplicateDetectionTreeStructure:
 
     def setup_method(self):
         self.tree = create_recommend_actor_to_case_received_tree(
+            sender_rule=_RECOMMEND_RULE,
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
@@ -948,6 +954,7 @@ class TestDuplicateDetectionTreeStructure:
     def test_a_reinvite_from_a_new_offer_is_a_fresh_invite(self):
         """A re-invite answers a new Offer, so its Invite gets a new id."""
         later = create_recommend_actor_to_case_received_tree(
+            sender_rule=_RECOMMEND_RULE,
             recommendation_id=f"{_REC_ID}-later",
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
@@ -1271,6 +1278,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
                 recommender_id=_RECOMMENDER,
                 recommended_id=_RECOMMENDED,
                 case_id=_CASE_ID,
+                sender_rule=_RECOMMEND_RULE,
             ),
             "RecommendActorToCaseIfCaseManager",
         ),
@@ -1346,8 +1354,9 @@ def test_every_effect_is_inside_the_case_manager_gate(
                 recommender_id=_RECOMMENDER,
                 recommended_id=_RECOMMENDED,
                 case_id=_CASE_ID,
+                sender_rule=_RECOMMEND_RULE,
             ),
-            SenderIsActiveParticipantNode,
+            SenderIsParticipantNode,
         ),
         (
             create_receive_offer_case_participant_tree,
