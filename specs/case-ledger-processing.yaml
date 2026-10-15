@@ -366,11 +366,35 @@ groups:
     ledgered like any other (CLP-02-012).
   specs:
   - id: CLP-05-001
-    priority: SHOULD
+    priority: MUST
     kind: protocol
-    statement: When the CASE_MANAGER refuses an incoming assertion, it SHOULD send
-      a refusal notice directly to the asserting participant via a protocol
-      Reject activity rather than recording the refusal as a ledger entry.
+    verification_debt: '#3612'
+    statement: >-
+      The refusal notice CLP-02-005 requires MUST be a `Reject` whose object is
+      the refused activity, inline, with `inReplyTo` naming that activity's id,
+      addressed to the asserting participant alone, and with the refusing guard's
+      reason in `summary`; its id MUST be derived from the CASE_MANAGER and the
+      refused activity. The CASE_MANAGER MUST send one for every refusal by a
+      precondition guard (CLP-10-022), and MUST NOT send one for a refusal by the
+      sender guard (HP-01-006) or for a repeat reported `SKIPPED`. A participant
+      that receives one MUST close the pending assertion it recorded for the
+      refused activity and MUST NOT write case state or re-send the assertion
+      because of it (CLP-06-005). A `Reject` from the case's CASE_MANAGER of an
+      `Invite` or an `Offer` the participant sent is both a decline and a
+      refusal notice, and the participant MUST treat it the same either way: the
+      request had no effect.
+    rationale: >-
+      A refused sender should learn that it was refused and why, and stop
+      waiting for its assertion to be committed. One shape for every refused
+      activity needs one emitter and one receiving use case (CS-22-001). A
+      `Reject` of an `Invite` or an `Offer` already means a decline, and a
+      decline and a refusal leave the sender in the same place, so the shapes
+      need not differ.
+    adr:
+    - ADR-0141
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
@@ -446,10 +470,11 @@ groups:
     priority: MUST
     kind: project
     statement: A pending assertion entry MUST be cleared when a matching canonical
-      `CaseLedgerEntry(recorded|rejected)` is observed
-    verification: A unit test confirms that when a `CaseLedgerEntry` with either `disposition="recorded"`
-      or `disposition="rejected"` arrives matching a pending assertion, that assertion
-      entry is immediately removed from the pending store.
+      `CaseLedgerEntry` is observed, or when the CASE_MANAGER's refusal notice for
+      the assertion arrives (CLP-05-001)
+    verification: A unit test confirms that when an announced `CaseLedgerEntry`
+      matching a pending assertion arrives, that assertion entry is immediately
+      removed from the pending store.
     adr:
     - ADR-0018
 - id: CLP-07
@@ -1566,7 +1591,8 @@ groups:
       guard refuses its assertion MUST pass that feedback to
       `create_receive_activity_tree` as `refusal_effects`. The factory MUST run
       the refusal effects only when a precondition guard refuses, never when
-      the sender guard refuses or the guards pass; MUST run them only at the
+      the sender guard refuses, the guards pass, or a guard's failure is an
+      idempotent repeat the handler reports `SKIPPED`; MUST run them only at the
       case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
       found already archived; and MUST leave the tree failing with the guard's
       refusal, so nothing is committed and the handler reports `REFUSED` for
@@ -1580,7 +1606,9 @@ groups:
       (CLP-10-006), and per-tree scaffolding would repeat the structure
       (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
       (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
-      redelivery changes nothing, so a second answer is noise.
+      redelivery changes nothing, so a second answer is noise; a repeat whose
+      effect is already in place was not refused, so a `Reject` of it would
+      contradict that effect.
     note: >-
       The redelivery skip keys on intake finding the activity already
       archived, not on a record that the refusal effects ran: a refusal
@@ -1605,6 +1633,7 @@ groups:
       spec_id: CLP-10-010
     adr:
     - ADR-0111
+    - ADR-0141
   - id: CLP-10-025
     priority: MUST
     kind: project

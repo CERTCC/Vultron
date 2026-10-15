@@ -116,6 +116,14 @@ Only admitted assertions enter the ledger; there is no disposition field.
   to the asserting participant alone (CLP-05-001) plus a log event. Nothing enters
   the hash chain (CLP-05-002). Other participants need canonical history, not
   failed attempts.
+- The `Reject` wraps the refused activity inline, `inReplyTo` its id, with the
+  guard's reason in `summary` (ADR-0141). Send it as a tree's `refusal_effects`
+  (CLP-10-022), never from `execute()`; a sender-guard refusal and a `SKIPPED`
+  repeat get none. The reason is read by the sender, so it names the sender's own
+  standing only.
+- A `Reject(Invite)` or `Reject(Offer)` from the CASE_MANAGER is both a decline
+  and a refusal; do not add a pattern to tell them apart, because the sender's
+  outcome is the same (CLP-05-001).
 
 The Python log is per-actor and ephemeral; never replicate it or rely on it for
 protocol semantics (ADR-0019).
