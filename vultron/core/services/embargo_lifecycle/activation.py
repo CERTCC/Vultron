@@ -23,8 +23,10 @@ in the same step (EP-08-004, ADR-0122).
 
 import logging
 from datetime import datetime
+from typing import cast
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import termination_changes
 from vultron.core.models.embargo_termination import (
@@ -111,6 +113,55 @@ def embargo_end_time_passed(
     return embargo is not None and has_reached_end_time(embargo.end_time, at)
 
 
+def decide_termination(
+    store: CasePersistence,
+    case: VulnerabilityCase,
+    termination: TerminationRequest,
+    terminated_at: datetime | None,
+) -> RegisterStep:
+    """The CASE_MANAGER's decision to end *case*'s embargo in force.
+
+    The decide half of a termination (ADR-0124): the ``TERMINATE`` register
+    step the ``Remove(EmbargoEvent)`` entry carries, naming the embargo in
+    force and the termination its ``TERMINATED`` entry records.  A
+    :class:`ThreatSignalTermination` is resolved here against the case's PXA
+    state, so the entry names the signals set; an ``END_TIME_REACHED``
+    claimed at *terminated_at* before the embargo's end time is refused
+    (ADR-0122).  Nothing is written: the step is committed, then applied
+    through :func:`~vultron.core.models.embargo_apply.apply_embargo_change`.
+
+    Raises:
+        VultronInvalidStateTransitionError: no embargo is in force, the
+            threat signals are not set, or the termination is not yet due.
+        VultronNotFoundError: the embargo in force cannot be read.
+    """
+    embargo_id = case.active_embargo_id
+    if embargo_id is None:
+        raise VultronInvalidStateTransitionError(
+            f"Case '{case.id_}' has no active embargo to terminate."
+        )
+    if isinstance(termination, ThreatSignalTermination):
+        try:
+            termination = termination.resolve(case.current_status.pxa.state)
+        except ValueError as exc:
+            raise VultronInvalidStateTransitionError(
+                f"Case '{case.id_}': {exc}"
+            ) from exc
+    violations = termination_timing_violations(
+        store, case, termination, terminated_at
+    )
+    if violations:
+        raise VultronInvalidStateTransitionError(
+            f"Refused termination of embargo '{embargo_id}' on case"
+            f" '{case.id_}': " + "; ".join(violations)
+        )
+    return RegisterStep(
+        kind=RegisterStepKind.TERMINATE,
+        embargo=embargo_id,
+        termination=termination,
+    )
+
+
 class _ActivationOperationsMixin(_PecActivationMixin):
     """``terminate_active_embargo`` and ``activate_embargo``."""
 
@@ -179,26 +230,13 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             )
             return self._unchanged_result(em_before)
 
-        if isinstance(termination, ThreatSignalTermination):
-            try:
-                termination = termination.resolve(
-                    case.current_status.pxa.state
-                )
-            except ValueError as exc:
-                raise VultronInvalidStateTransitionError(
-                    f"Case '{case_id}': {exc}"
-                ) from exc
-        violations = termination_timing_violations(
+        step = decide_termination(
             self._persistence, case, termination, terminated_at
         )
-        if violations:
-            raise VultronInvalidStateTransitionError(
-                f"Refused termination of embargo '{embargo_id}' on case"
-                f" '{case_id}': " + "; ".join(violations)
-            )
+        recorded = cast(EmbargoTermination, step.termination)
         if not self._apply_register_step(
             case,
-            termination_changes(case.embargo_register, termination),
+            termination_changes(case.embargo_register, recorded),
             transition_mode=transition_mode,
             actor_id=actor_id,
         ):
@@ -211,8 +249,8 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             actor_id,
             embargo_id,
             case_id,
-            termination.reason,
-            termination.cause.kind if termination.cause else None,
+            recorded.reason,
+            recorded.cause.kind if recorded.cause else None,
             em_before,
             case.em_state,
         )

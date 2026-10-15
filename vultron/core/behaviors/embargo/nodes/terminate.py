@@ -107,7 +107,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     store, keyed by the embargo it ends (EP-09-008, SYNC-11-002).
 
     The CASE_MANAGER never runs this node: its arm commits and announces the
-    teardown itself (``CommitEmbargoTeardownNode``, EMB-19-001), and it keeps
+    teardown itself (``CommitAndApplyEmbargoTerminationNode``, EMB-19-001), and it keeps
     no pending assertions (SYNC-11-004).  An executing actor that *is* the
     manager is a composition fault and raises :class:`VultronWiringError`
     rather than mailing the manager an ask from itself.

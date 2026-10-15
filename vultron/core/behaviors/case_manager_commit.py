@@ -44,6 +44,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronWiringError
@@ -88,6 +89,15 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         """Return ``(activity_id, sealed_blob)`` for an activity sent *to*."""
         raise NotImplementedError
 
+    def _audience_case(self, case: VulnerabilityCase) -> VulnerabilityCase:
+        """The case whose recipients the activity is addressed to.
+
+        The stored *case* by default.  An act committed before it is applied
+        (ADR-0124) returns the case as the act leaves it, so the audience is
+        the one the act's own effect admits.
+        """
+        return case
+
     def _ledger_object_id(self, activity_id: str) -> str:
         """The entry's ``log_object_id``: the activity itself, by default."""
         return activity_id
@@ -114,7 +124,9 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         dl = cast(CaseOutboxPersistence, self.datalayer)
 
         to = (
-            case_content_recipients(case, dl, excluding={actor_id})
+            case_content_recipients(
+                self._audience_case(case), dl, excluding={actor_id}
+            )
             if self._notify_participants
             else []
         )

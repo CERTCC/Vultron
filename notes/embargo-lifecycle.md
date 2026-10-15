@@ -4,8 +4,9 @@ status: active
 kind: guidance
 description: >
   Rules for changing embargo state: the embargo register from which EM is
-  derived, changed only by EmbargoLifecycle one checked step at a time along an
-  EM transition (ADR-0122, ADR-0130); consent versus owner decision; STRICT
+  derived, changed one checked step at a time along an EM transition, by
+  EmbargoLifecycle or, for an arm converted to the copy model, the one apply
+  function (ADR-0122, ADR-0124, ADR-0130); consent versus owner decision; STRICT
   versus OBSERVED and the P/X/A guards; the invariant that a case never names
   an embargo its store cannot read (EMB-18-003); late Accepts, expiry and the
   owner-close settle step (EMB-17, CM-23-014); P/X/A refusal and teardown
@@ -114,12 +115,14 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
   write. Never put the why on the `Remove`: a replica that replays it
-  records only the what, until #4294 copies whole entries (a case snapshot's
-  `embargoRegister` already carries the entry, cause included). Read the
-  recorded what back from the register (`case.embargo_termination`) when
-  building the CASE_MANAGER's `Remove` and the CM-31-009 notices, so the wire
-  and the entry cannot disagree. A `Remove` naming an embargo not in force
-  changes nothing.
+  records only the what (copying the why is #4748, held on #4609; a case
+  snapshot's `embargoRegister` already carries the entry, cause included).
+  The CASE_MANAGER decides the termination first (`decide_termination()`),
+  builds its `Remove` from that decision, commits it, and only then applies
+  the step (#4714), so the wire and the entry cannot disagree. The CM-31-009
+  notices read the what back from the register (`case.embargo_termination`).
+  A `Remove` naming an embargo not in force changes nothing, on the
+  CASE_MANAGER and on a replica.
 - **End-time termination is one idempotent path (EMB-13-003).**
   `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers
   an already-`EXITED` case as done and otherwise runs `terminate_embargo_bt`

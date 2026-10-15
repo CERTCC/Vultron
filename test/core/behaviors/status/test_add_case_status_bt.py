@@ -1327,16 +1327,41 @@ class TestThreatTerminationBranchNode:
         ],
     )
     def test_triggers_teardown_on_threat_pxa_states(self, dl, pxa_state):
-        """All CS_pxa states except pxa trigger embargo teardown attempt.
+        """All CS_pxa states except pxa trigger embargo teardown.
 
-        Without a broadcast factory, TerminateEmbargoLifecycleNode still
-        succeeds but the teardown emit fails (BT-14-001).
-        The EM state is updated and active_embargo cleared before that.
+        The ``Remove`` is committed before the termination is applied
+        (ADR-0124), so EM reaches EXITED with its entry recorded.
         """
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
 
         status_obj = self._setup_dl_with_embargo(dl, pxa_state)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = ThreatTerminationBranchNode(
+            status_obj=status_obj, case_id=CASE_ID
+        )
+        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.EXITED
+        assert updated.active_embargo is None
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_teardown_that_cannot_be_committed_writes_nothing(self, dl):
+        """No broadcast factory: the ``Remove`` cannot be built, so it is
+        never committed and the embargo stays in force (#4653, #4714)."""
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.states.em import EM
+
+        status_obj = self._setup_dl_with_embargo(dl, CS_pxa.Pxa)
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -1345,14 +1370,13 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        # No trigger_activity in bridge → broadcast fails → FAILURE (BT-14-001)
+        # No trigger_activity in bridge → no Remove → FAILURE (BT-14-001)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
-        # EM state was still applied
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
-        assert updated.current_status.em.state == EM.EXITED
-        assert updated.active_embargo is None
+        assert updated.current_status.em.state == EM.ACTIVE
+        assert updated.active_embargo is not None
 
     @pytest.mark.spec("RSH-03-002")
     def test_no_sender_role_gate(self, dl):
@@ -1361,9 +1385,14 @@ class TestThreatTerminationBranchNode:
         Sender authorization was handled at StatusAdoptionGate.  The sender
         matters only for RSH-03-004, when it is the CASE_MANAGER itself.
         """
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
         status_obj = self._setup_dl_with_embargo(dl, CS_pxa.Pxa)
         bridge = BTBridge(
             datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
@@ -1818,12 +1847,14 @@ class TestRegressionCSPTeardownPath:
     def test_csp_teardown_reaches_exited(self):
         """CS.P with an active embargo: EM=EXITED and active_embargo=None.
 
-        The node delegates to terminate_embargo_bt and FAILS when no
-        broadcast factory is present (BT-14-001); the EM state transition is
-        committed before the broadcast attempt.
+        The node delegates to terminate_embargo_bt, which commits the
+        ``Remove`` before it applies the termination (ADR-0124).
         """
         from typing import cast as c
 
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
 
@@ -1838,15 +1869,13 @@ class TestRegressionCSPTeardownPath:
         )
         new_bridge = BTBridge(
             datalayer=dl_new,
+            trigger_activity=TriggerActivityAdapter(dl_new),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl_new),
         )
         # Runs as the case manager: the seeded case names CASE_MANAGER_ID as
         # its only participant, and teardown authority is the manager's.
-        new_result = new_bridge.execute_with_setup(
-            tree=new_node, actor_id=CASE_MANAGER_ID
-        )
-        assert new_result.status == Status.FAILURE
+        new_bridge.execute_with_setup(tree=new_node, actor_id=CASE_MANAGER_ID)
 
         new_case = c(VulnerabilityCase, dl_new.read(CASE_ID))
         new_em_state = new_case.current_status.em.state

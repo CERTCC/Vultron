@@ -81,7 +81,6 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     RejectEmbargoLifecycleNode,
     SendTerminateEmbargoActivityNode,
     SetEmbargoActiveNode,
-    TerminateEmbargoLifecycleNode,
     ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
 )
@@ -89,7 +88,6 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
     COMMITTED_ACTIVITY_KEY,
     EMBARGO_TEARDOWN_EVENT_TYPE,
     CommitEmbargoDecisionNode,
-    CommitEmbargoTeardownNode,
     EmbargoActivityBuilder,
     IndexOwnEmbargoProposalNode,
 )
@@ -143,6 +141,9 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
+)
+from vultron.core.behaviors.embargo.nodes.termination_commit import (
+    CommitAndApplyEmbargoTerminationNode,
 )
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     ApplyEmbargoWithdrawalFromLedgerNode,
@@ -205,7 +206,7 @@ __all__ = [
     # CASE_MANAGER decision commit (EP-09-008, #4085)
     "EMBARGO_TEARDOWN_EVENT_TYPE",
     "CommitEmbargoDecisionNode",
-    "CommitEmbargoTeardownNode",
+    "CommitAndApplyEmbargoTerminationNode",
     "COMMITTED_ACTIVITY_KEY",
     "IndexOwnEmbargoProposalNode",
     "IndexReceivedEmbargoProposalNode",
@@ -247,7 +248,6 @@ __all__ = [
     "ProposeEmbargoLifecycleNode",
     "AcceptEmbargoLifecycleNode",
     "RejectEmbargoLifecycleNode",
-    "TerminateEmbargoLifecycleNode",
     "ReadEmbargoIdNode",
     "DecideRejectedEmbargoProposalNode",
     "SendTerminateEmbargoActivityNode",
