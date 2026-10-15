@@ -36,7 +36,6 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
     UPDATE_CASE_OWNER_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
 )
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
@@ -237,20 +236,6 @@ class IsCreateCaseParticipantEventNode(_SingleEventTypeNode):
     """
 
     matched_event_type = CREATE_CASE_PARTICIPANT_EVENT_TYPE
-
-
-class IsUpdateCaseParticipantEventNode(_SingleEventTypeNode):
-    """Precondition: SUCCESS when this log entry IS an ``update_case_participant``.
-
-    Precondition of the ``UpdateCaseParticipant`` slot.  The CASE_MANAGER
-    commits it for each participant record an act of its own changes, such
-    as the ``CASE_OWNER`` role moving on an ownership transfer (CM-21-002,
-    CM-21-003, CLP-07-013).
-
-    Per BTND-08-001, CM-23-016, SYNC-12-001, RSH-08-004.
-    """
-
-    matched_event_type = UPDATE_CASE_PARTICIPANT_EVENT_TYPE
 
 
 class IsInviteAcceptEventNode(_SingleEventTypeNode):

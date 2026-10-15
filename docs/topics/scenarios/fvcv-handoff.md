@@ -139,12 +139,10 @@ The offer the Coordinator receives is therefore a new activity with its own iden
 
 ### 7. Coordinator accepts case ownership
 
-The Coordinator formally accepts the ownership transfer, addressing the
-acceptance to the Case Actor.  The Case Actor applies the role change — the
-case's `attributed_to` field is updated to the Coordinator — then commits an
-`accept_case_ownership_transfer` ledger entry and broadcasts it to **every**
-participant.  That broadcast is how the Finder, who is neither the old nor the
-new owner, learns who is now responsible for the case.
+The Coordinator formally accepts the ownership transfer, addressing the acceptance to the Case Actor.
+The Case Actor commits an `accept_case_ownership_transfer` ledger entry and applies the role change: the `CASE_OWNER` role moves from Vendor1 to the Coordinator, and the case's `attributed_to` field is updated to the Coordinator.
+Each of those changes follows as its own Case Actor entry (`update_case_participant` for each participant record, then `update_case_owner` for the case), and every entry is broadcast to **every** participant.
+That broadcast is how the Finder, who is neither the old nor the new owner, learns who is now responsible for the case.
 
 *Antecedent:* the Case Actor's forwarded ownership offer has reached the
 Coordinator.

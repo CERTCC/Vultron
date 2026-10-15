@@ -438,7 +438,7 @@ class TestTransferRecordsEachChange:
         bridge = BTBridge(datalayer=dl, trigger_activity=port)
 
         with patch(
-            "vultron.core.behaviors.case.nodes.ownership_transfer"
+            "vultron.core.behaviors.case.nodes.ownership_transfer_apply"
             ".commit_emitted_activity",
             side_effect=RuntimeError("ledger commit failed"),
         ):

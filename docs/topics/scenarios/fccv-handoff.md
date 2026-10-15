@@ -136,8 +136,9 @@ The offer is addressed to the **Case Actor**, not to C2 (ADR-0053): the Case Act
 
 ### 7. C2 accepts case ownership
 
-C2 formally accepts the ownership transfer.  An `accept_case_ownership_transfer`
-entry is recorded.  The case's `attributed_to` field is updated to C2.
+C2 formally accepts the ownership transfer.
+An `accept_case_ownership_transfer` entry is recorded.
+The `CASE_OWNER` role moves to C2 and the case's `attributed_to` field is updated to C2, each change recorded as its own `update_case_participant` or `update_case_owner` entry.
 
 *Antecedent:* the Case Actor's forwarded ownership offer has reached C2.
 

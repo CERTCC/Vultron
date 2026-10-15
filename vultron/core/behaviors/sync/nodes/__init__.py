@@ -88,7 +88,6 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
-    IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
@@ -118,6 +117,7 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
     ApplyCaseParticipantUpdateFromLedgerNode,
     ApplyCreateCaseParticipantFromLedgerNode,
+    IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     ApplyReinstateCaseParticipantFromLedgerNode,
