@@ -33,6 +33,11 @@ entries last (CP-09-009):
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
+Ahead of the branches, the receive-tree factory composes the sender guard from
+the use case's ``AUTHOR`` declaration: the proposal id is chosen by the sender,
+so one this store recorded for another proposer is refused before any branch
+reads or writes a proposal-keyed record (CP-05-010, HP-01-008, #4719).
+
 The top-level tree is a Selector with five branches, tried in order:
 
 * **Accept in flight** — ``CheckMarkerExistsNode``: if a
@@ -159,6 +164,11 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.replica_emit_exemptions import CASE_PROPOSAL
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    AuthoredCaseProposal,
+    SenderCheckContext,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.enums.roles import CVDRole
 
@@ -189,10 +199,13 @@ def create_case_proposal_received_tree(
     inline_report: VulnerabilityReport | None = None,
     call_out: "CaseProposalCallOutBundle | None" = None,
     proposer_case_roles: Sequence[CVDRole] = (),
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
-    The tree is a Sequence of intake (CLP-10-017) and a five-branch Selector:
+    The tree is a Sequence of intake (CLP-10-017), the sender guard the
+    factory composes from *sender_rule*, and a five-branch Selector:
     the CP-05-005 in-flight guard, the
     CP-05-006 already-declined answer, the closed-case decline, the CP-05-002
     admission decision, and the accept flow.
@@ -352,6 +365,11 @@ def create_case_proposal_received_tree(
         proposer_case_roles: The CVD roles the proposer stated on the proposal
             (CP-01-011), given to it alongside ``CVDRole.CASE_OWNER``
             (CP-09-007).  Empty gives ``CVDRole.CASE_OWNER`` only.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the guard from it, with the proposal as the object an
+            ``AUTHOR`` sender must have written.  The proposal id is the
+            sender's choice, so a proposal id this store recorded for another
+            proposer is refused before any arm runs (CP-05-010, HP-01-008).
 
     Returns:
         The root ``Sequence`` (intake, then the idempotency Selector), ready
@@ -600,6 +618,11 @@ def create_case_proposal_received_tree(
     return create_receive_activity_tree(
         name="CreateCaseProposalReceivedBT",
         case_id=None,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=proposer_uri,
+            authored_object=AuthoredCaseProposal(proposal_id=proposal_id),
+        ),
         precondition_guards=[],
         replica_emit_exemption=CASE_PROPOSAL,
         replica_effects=[

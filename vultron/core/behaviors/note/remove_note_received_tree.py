@@ -30,7 +30,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.note.nodes.storage import DetachNoteFromCaseNode
 from vultron.core.behaviors.sender_entitlement import SenderRule
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    AuthoredNote,
+    SenderCheckContext,
+)
 
 
 def create_remove_note_from_case_received_tree(
@@ -68,7 +71,9 @@ def create_remove_note_from_case_received_tree(
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
-            sender_id=sender_id, case_id=case_id, authored_object_id=note_id
+            sender_id=sender_id,
+            case_id=case_id,
+            authored_object=AuthoredNote(note_id=note_id),
         ),
         precondition_guards=[
             CaseReferenceEditPendingNode(
