@@ -31,6 +31,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
 )
@@ -266,6 +267,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             origin=case.id_,
             actor=case_manager_id,
             to=[actor_id],
+            reason=TerminationReason.EARLY,
         )
         event = make_payload(activity, receiving_actor_id=case_manager_id)
 

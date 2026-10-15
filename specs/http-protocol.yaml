@@ -104,15 +104,18 @@ groups:
     - http
   - id: HTTP-03-002
     priority: MUST
-    kind: foundation
+    kind: project
     statement: The API MUST return 201 Created for successful resource creation.
-    rationale: Standard HTTP success code for POST operations that create a new resource.
+    rationale: >-
+      HTTP says a server SHOULD answer 201 when a request creates a resource. Making
+      that a MUST on this codebase's own REST routes is this codebase's choice, which
+      other Vultron implementations need not share; no peer delivery depends on it.
+      Contrast HTTP-01-001, a SHOULD made a MUST on the inbox, which every
+      implementation's deliveries depend on and so is `protocol` (ADR-0134).
     verification: >-
       `test_first_publish_creates_the_policy_in_the_actors_own_store` in
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` confirms
       that a request creating a resource is answered 201.
-    tags:
-    - http
   - id: HTTP-03-003
     priority: MUST
     kind: foundation
@@ -212,8 +215,15 @@ groups:
   - id: HTTP-03-011
     priority: MUST
     kind: foundation
-    statement: The API MUST return 503 Service Unavailable for transient errors.
-    rationale: Indicates a temporary server-side failure; the client should retry after the Retry-After interval.
+    statement: >-
+      The API MUST return 503 Service Unavailable when it is temporarily unable to
+      handle a request, such as while overloaded, under maintenance, or before the
+      storage it needs is ready.
+    rationale: >-
+      HTTP defines 503 for a server that is temporarily unable to handle the request
+      because of overload or scheduled maintenance, a condition expected to clear after
+      some delay. Vultron inherits that rule. A transient error inside a request the
+      server could handle is not that condition, so it does not draw this code.
     verification: >-
       `test_readiness_returns_503_when_storage_not_ready` in
       `test/adapters/driving/fastapi/routers/test_health.py` confirms that a
@@ -225,11 +235,15 @@ groups:
   specs:
   - id: HTTP-04-001
     priority: MUST
-    kind: foundation
+    kind: protocol
     statement: 'Endpoints returning ActivityStreams objects MUST use `Content-Type: application/activity+json`.'
-    rationale: The ActivityStreams 2.0 specification defines `application/activity+json` as the normative media type for AS2
-      documents. Using plain `application/json` is ambiguous for federation clients that discover capabilities via Content-Type.
-      The previous requirement (`application/json` for all responses) is superseded by this entry.
+    rationale: >-
+      ActivityPub allows an ActivityStreams document to be served as either
+      `application/activity+json` or `application/ld+json;
+      profile="https://www.w3.org/ns/activitystreams"`. Requiring the first picks one
+      form among those the standard allows, so the rule is Vultron's own (MS-12-009),
+      as the inbox's media-type rule is (HTTP-01-001). Plain `application/json` is
+      ambiguous for federation clients that discover capabilities via Content-Type.
     verification: >-
       `test_get_actor_profile_is_served_as_activitystreams` in
       `test/adapters/driving/fastapi/routers/test_actors.py` and
@@ -240,8 +254,6 @@ groups:
     stories:
     - story_2022_040
     - story_2022_028
-    tags:
-    - as2
   - id: HTTP-04-002
     priority: MUST
     kind: project
@@ -261,64 +273,77 @@ groups:
       spec_id: HTTP-04-001
 - id: HTTP-05
   title: Correlation ID Propagation
+  description: >-
+    Request-tracing headers are an operating choice of this codebase's server; other
+    Vultron implementations may trace requests differently, so these specs are
+    `project`.
   specs:
   - id: HTTP-05-001
     priority: SHOULD
-    kind: architecture
+    kind: project
     statement: API SHOULD accept `X-Correlation-ID` or `X-Request-ID` headers for request tracing
     scope:
     - production
   - id: HTTP-05-002
     priority: SHOULD
-    kind: architecture
+    kind: project
     statement: API SHOULD generate correlation ID from activity `id` field if header not provided
     scope:
     - production
 - id: HTTP-06
   title: Request Timeout Handling
+  description: >-
+    A response-time target and how this server meets it are operating limits of this
+    codebase, not rules every Vultron implementation must obey, so these specs are
+    `project`.
   specs:
   - id: HTTP-06-001
     priority: SHOULD
-    kind: architecture
+    kind: project
     statement: Inbox endpoints SHOULD respond with HTTP headers within 100ms
     rationale: Ensures responsive UX for ActivityPub federation
   - id: HTTP-06-002
     priority: SHOULD
-    kind: architecture
+    kind: project
     statement: Processing exceeding 100ms SHOULD return HTTP 202 and queue for background processing
   - id: HTTP-06-003
     priority: SHOULD
-    kind: architecture
+    kind: project
     statement: Timeout occurrences SHOULD be logged at WARNING level
     scope:
     - production
 - id: HTTP-07
   title: Rate Limiting Headers
+  description: >-
+    Which rate-limit and retry headers this server sends is this codebase's HTTP
+    choice. HTTP lets a server send `Retry-After` on a 429 or 503 but does not
+    require it; making it a MUST here binds this server alone, so these specs are
+    `project`.
   specs:
   - id: HTTP-07-001
     priority: MAY
-    kind: architecture
+    kind: project
     statement: API MAY include `X-RateLimit-Limit` header (maximum requests per window)
     scope:
     - production
   - id: HTTP-07-002
     priority: MAY
-    kind: architecture
+    kind: project
     statement: API MAY include `X-RateLimit-Remaining` header (requests remaining)
     scope:
     - production
   - id: HTTP-07-003
     priority: MAY
-    kind: architecture
+    kind: project
     statement: API MAY include `X-RateLimit-Reset` header (UTC timestamp for window reset)
     scope:
     - production
   - id: HTTP-07-004
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
-    statement: Transient error responses (HTTP 429, 503) MUST include a `Retry-After` header indicating when the client should
-      retry
+    kind: project
+    verification_debt: '#2575'
+    statement: A response with status 429 Too Many Requests or 503 Service Unavailable MUST include a `Retry-After` header
+      indicating when the client should retry
     scope:
     - production
 - id: HTTP-08

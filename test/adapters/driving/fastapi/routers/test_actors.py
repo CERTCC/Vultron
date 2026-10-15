@@ -106,6 +106,7 @@ def test_get_actor_not_found_returns_404(client_actors):
 
 @pytest.mark.spec("IE-02-003")
 @pytest.mark.spec("IE-02-004")
+@pytest.mark.spec("IE-02-005")
 @pytest.mark.spec("IE-07-001")
 @pytest.mark.spec("HTTP-03-006")
 @pytest.mark.parametrize(
@@ -131,6 +132,7 @@ def test_non_post_on_inbox_path_returns_405(
         assert resp.headers["allow"] == "POST"
 
 
+@pytest.mark.spec("IE-02-002")
 @pytest.mark.spec("HTTP-03-003")
 def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
     for actor in created_actors:

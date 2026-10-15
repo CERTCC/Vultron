@@ -34,10 +34,11 @@ title: Case Creation and the Objects Attached to It
 flowchart LR
     subgraph as:Create
         CreateCase["Create Case<br/>Create(VulnerabilityCase)"]
+        CreateNote["Post a new note to the case<br/>Create(Note)"]
     end
     subgraph as:Add
         AddReportToCase["Add Report to Case<br/>Add(VulnerabilityReport)"]
-        AddNoteToCase["Post a note to the case<br/>Add(Note)"]
+        AddNoteToCase["Attach an existing note<br/>Add(Note)"]
     end
     subgraph as:Invite
         RmInviteToCase["Invite Actor to Case<br/>Invite(Actor)"]
@@ -48,6 +49,7 @@ flowchart LR
     CreateCase --> AddReportToCase
     CreateCase --> RmInviteToCase
     RmInviteToCase --> RmAcceptInviteToCase
+    CreateCase --> CreateNote
     CreateCase --> AddNoteToCase
 ```
 
@@ -68,7 +70,7 @@ flowchart LR
 3. Seat each participant you already know by asking the CASE_MANAGER to invite it, naming its roles; it joins when it accepts.
    See [How to Seat a Participant on an Existing Case](initialize_participant.md).
    `Add(CaseParticipant)` does not seat a member: it reinstates one the Case Owner removed.
-4. If the case needs opening context, attach it with `Add(Note)`.
+4. If the case needs opening context, post it as a new note with `Create(Note)`, setting the note's `context` to the case, or attach a note that already exists with `Add(Note)`.
    See [How to Post a Status Update or a Case Note](status_updates.md).
 
 If every report, participant, and note is known when you create the case, carry them inline on the `Create(VulnerabilityCase)` activity and skip steps 2 through 4.
@@ -91,7 +93,7 @@ If a participant becomes known later, invite it the same way — see [How to Inv
 | `Create(VulnerabilityCase)` | The case exists and names you as Case Owner. |
 | `Add(VulnerabilityReport)` | The case lists the report. |
 | `Accept(Invite(Actor))` | The case roster holds the participant with its roles. |
-| `Add(Note)` | The note appears on the case. |
+| `Create(Note)` or `Add(Note)` | The note appears on the case. |
 
 Every one of these is committed to the case ledger by the CASE_MANAGER and fanned out to each participant, so each participant's replica should show the same roster.
 

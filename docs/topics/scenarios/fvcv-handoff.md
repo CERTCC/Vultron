@@ -55,7 +55,7 @@ causal_edges:
       closes the case, and a departure sent after it is not recorded
       (CM-23-013).
   - antecedent: engage_case
-    consequent: add_note_to_case
+    consequent: create_note
     consequent_actor: vendor
     note: >
       Notes require an active case.
@@ -139,12 +139,10 @@ The offer the Coordinator receives is therefore a new activity with its own iden
 
 ### 7. Coordinator accepts case ownership
 
-The Coordinator formally accepts the ownership transfer, addressing the
-acceptance to the Case Actor.  The Case Actor applies the role change — the
-case's `attributed_to` field is updated to the Coordinator — then commits an
-`accept_case_ownership_transfer` ledger entry and broadcasts it to **every**
-participant.  That broadcast is how the Finder, who is neither the old nor the
-new owner, learns who is now responsible for the case.
+The Coordinator formally accepts the ownership transfer, addressing the acceptance to the Case Actor.
+The Case Actor commits an `accept_case_ownership_transfer` ledger entry and applies the role change: the `CASE_OWNER` role moves from Vendor1 to the Coordinator, and the case's `attributed_to` field is updated to the Coordinator.
+Each of those changes follows as its own Case Actor entry (`update_case_participant` for each participant record, then `update_case_owner` for the case), and every entry is broadcast to **every** participant.
+That broadcast is how the Finder, who is neither the old nor the new owner, learns who is now responsible for the case.
 
 *Antecedent:* the Case Actor's forwarded ownership offer has reached the
 Coordinator.
@@ -165,7 +163,7 @@ Vendor2 reviews and accepts.  An `accept_invite_actor_to_case` entry is recorded
 ### 10. Participants exchange notes
 
 All participants communicate through case notes.
-Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
+Each note is recorded as a `create_note` entry, which attaches it to the case.
 
 *Antecedent:* `engage_case` is in the ledger.
 

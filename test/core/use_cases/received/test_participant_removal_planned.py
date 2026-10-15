@@ -71,6 +71,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -446,7 +447,11 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
     # an unaddressed copy is refused at the door (HP-01-005).
     result = removal_case.route(
         remove_embargo_from_case_activity(
-            embargo, origin=CASE_ID, actor=OWNER, to=[MANAGER]
+            embargo,
+            origin=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
+            reason=TerminationReason.EARLY,
         )
     )
     assert result.disposition is HandlerDisposition.APPLIED
@@ -473,7 +478,11 @@ def _paused_replica_receives_ending_notice(
     route_received(
         dl,
         remove_embargo_from_case_activity(
-            embargo, origin=CASE_ID, actor=sender, to=[VENDOR]
+            embargo,
+            origin=CASE_ID,
+            actor=sender,
+            to=[VENDOR],
+            reason=TerminationReason.EARLY,
         ),
         receiving_actor_id=VENDOR,
     )

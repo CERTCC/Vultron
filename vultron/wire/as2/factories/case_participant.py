@@ -36,11 +36,13 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddStatusToParticipantActivity,
     _CreateParticipantActivity,
     _RemoveParticipantFromCaseActivity,
+    _UpdateParticipantActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
     as_Remove,
+    as_Update,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
@@ -87,6 +89,38 @@ def create_participant_activity(
         )
         raise VultronActivityConstructionError(
             "create_participant_activity: invalid arguments"
+        ) from exc
+
+
+def update_participant_activity(
+    participant: as_CaseParticipant,
+    **kwargs,
+) -> as_Update:
+    """Build an Update(as_CaseParticipant).
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry recording a
+    change to a participant record, carrying the record in full (CLP-07-013);
+    never sent as a message, so no pattern routes it (#4443).
+
+    Args:
+        participant: The changed ``as_CaseParticipant``.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``context``, ``id_``).
+
+    Returns:
+        An ``as_Update`` whose ``object_`` is the participant.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _UpdateParticipantActivity(object_=participant, **kwargs)
+    except ValidationError as exc:
+        logger.warning(
+            "update_participant_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "update_participant_activity: invalid arguments"
         ) from exc
 
 

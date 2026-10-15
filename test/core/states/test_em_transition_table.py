@@ -24,6 +24,7 @@ from vultron.core.models.embargo_register import (
     rejection_changes,
     termination_changes,
 )
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states import em as em_module
 from vultron.core.states.em import (
     EM,
@@ -36,7 +37,6 @@ from vultron.core.states.em import (
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
-    TerminationReason,
     derive_em,
 )
 from vultron.errors import VultronInvalidStateTransitionError
@@ -104,14 +104,14 @@ def _steps(register: Register) -> Iterator[Step]:
     if _ids(register, S.ACTIVE):
         yield (
             EM_Trigger.TERMINATE,
-            termination_changes(register, TerminationReason.EARLY),
+            termination_changes(register, EmbargoTermination.early()),
             False,
         )
     elif _ids(register, S.PROPOSED):
         # A threat signal with no embargo in force abandons the named open
         # proposals (EMB-16-001), which is an ER: the EM trigger is
         # ``reject``.  It may name every open proposal or only some of them.
-        cancel = termination_changes(register, TerminationReason.EARLY)
+        cancel = termination_changes(register, EmbargoTermination.early())
         yield EM_Trigger.REJECT, cancel, True
         if len(cancel) > 1:
             for embargo_id in _ids(register, S.PROPOSED):
@@ -254,7 +254,7 @@ def test_is_em_transition_answers_from_the_table(
                 RegisterChange(
                     embargo_id="a",
                     trigger=RegisterTrigger.TERMINATE,
-                    reason=TerminationReason.EARLY,
+                    termination=EmbargoTermination.early(),
                 ),
                 RegisterChange(embargo_id="b", trigger=RegisterTrigger.CANCEL),
             ],

@@ -49,6 +49,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
 
 
@@ -85,8 +86,15 @@ class TriggerActivityPort(Protocol):
         actor: str,
         note_id: str,
         to: list[str] | None = None,
-    ) -> str:
-        """Create and persist a ``Create(Note)`` activity; return activity_id."""
+    ) -> tuple[str, str]:
+        """Create and persist a ``Create(Note)`` activity.
+
+        The note's ``context`` names its case; the ``Create`` has no
+        ``target``.  The id is derived from *actor* and the note, so a re-run
+        names the same activity (ID-04-004).
+
+        Returns ``(activity_id, activity_body)``, the body as sealed JSON.
+        """
         ...
 
     def add_note_to_case(
@@ -574,6 +582,37 @@ class TriggerActivityPort(Protocol):
         """``Create(CaseParticipant)`` (``create_case_participant``), the record as stored."""
         ...
 
+    def record_case_participant_updated(
+        self,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(CaseParticipant)`` (``update_case_participant``), the record as stored.
+
+        *cause_id* names the act the change follows, such as the accepted
+        ownership-transfer Offer; the id is derived from it and the record,
+        so one act's change to one record is one entry.
+        """
+        ...
+
+    def record_case_owner_updated(
+        self,
+        case: VulnerabilityCase,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(VulnerabilityCase)`` (``update_case_owner``), the changed case.
+
+        Records the case's new ``attributed_to`` after an ownership transfer
+        (CM-21-002).  *case* is the case as it will be stored: the entry
+        commits before the change is saved (CLP-07-013).  *cause_id* names
+        the act the change follows, as for
+        :meth:`record_case_participant_updated`.
+        """
+        ...
+
     def record_case_announced(
         self,
         case_id: str,
@@ -962,12 +1001,16 @@ class TriggerActivityPort(Protocol):
         embargo_id: str,
         case_id: str,
         actor: str,
+        *,
+        reason: TerminationReason,
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
+        *reason* is the termination's what, carried as ``content``
+        (ADR-0122); the why stays on the sender's register entry.
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
         to a bound signatory the ledger no longer reaches.

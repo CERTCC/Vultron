@@ -141,6 +141,9 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (f"{_E}/expiry_tree.py", "create_invite_expiry_tree"),
         (f"{_E}/expiry_tree.py", "create_noop_ledger_entry_tree"),
         (f"{_E}/expiry_tree.py", "create_reinvite_stale_accepter_tree"),
+        # The CASE_MANAGER's lazy end-time check (ADR-0122): its own act,
+        # run by the dispatcher before the received tree, like the expiries.
+        (f"{_E}/end_time_tree.py", "end_embargo_if_end_time_passed_tree"),
         # The ownership-transfer Offer's lazy expiry (CM-21-017): the
         # CASE_MANAGER's own act, run before the received tree, like the
         # embargo Invite expiry above.

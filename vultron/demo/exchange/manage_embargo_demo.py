@@ -46,6 +46,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.core.states.em import is_em_embargo_active
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.demo.helpers.embargo import make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
@@ -159,6 +160,7 @@ def demo_activate_then_terminate(
             embargo,
             actor=vendor.id_,
             origin=case.id_,
+            reason=TerminationReason.EARLY,
             to=f"{case.id_}/participants",
             summary=f"Terminating embargo for {case.name}.",
         )

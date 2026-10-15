@@ -47,6 +47,7 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
 )
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronWiringError
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -153,19 +154,25 @@ def _run(
 
 class TestSendTerminateEmbargoActivityNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(case_id=CASE_ID)
+        node = SendTerminateEmbargoActivityNode(
+            case_id=CASE_ID, reason=TerminationReason.EARLY
+        )
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
 
     def test_missing_embargo_id_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(case_id=CASE_ID)
+        node = SendTerminateEmbargoActivityNode(
+            case_id=CASE_ID, reason=TerminationReason.EARLY
+        )
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("embargo_id")
 
     def test_missing_case_manager_id_raises_no_data_available(self) -> None:
-        node = SendTerminateEmbargoActivityNode(case_id=CASE_ID)
+        node = SendTerminateEmbargoActivityNode(
+            case_id=CASE_ID, reason=TerminationReason.EARLY
+        )
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("case_manager_id")
@@ -183,7 +190,9 @@ class TestSendTerminateEmbargoActivityNodePorts:
         which builds its own bridge (CONCERN-3019).
         """
         result = bt_scenario.run(
-            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            SendTerminateEmbargoActivityNode(
+                case_id=CASE_ID, reason=TerminationReason.EARLY
+            ),
             actor_id=ACTOR_ID,
             embargo_id="https://example.org/embargoes/emb-001",
             case_manager_id=_MANAGER_ID,
@@ -194,7 +203,9 @@ class TestSendTerminateEmbargoActivityNodePorts:
     def test_failure_when_factory_unavailable(self) -> None:
         """No trigger-activity port: FAILURE, nothing queued or recorded."""
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            SendTerminateEmbargoActivityNode(
+                case_id=CASE_ID, reason=TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             factory=None,
         )
@@ -212,7 +223,9 @@ class TestTeardownAsk:
         factory = _factory()
 
         _run(
-            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            SendTerminateEmbargoActivityNode(
+                case_id=CASE_ID, reason=TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             factory,
         )
@@ -227,7 +240,9 @@ class TestTeardownAsk:
     @pytest.mark.spec("SYNC-11-002")
     def test_queued_ask_is_recorded_keyed_by_the_ended_embargo(self) -> None:
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            SendTerminateEmbargoActivityNode(
+                case_id=CASE_ID, reason=TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -253,7 +268,9 @@ class TestTeardownAsk:
             _boom,
         )
         _, result = _run(
-            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            SendTerminateEmbargoActivityNode(
+                case_id=CASE_ID, reason=TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -278,7 +295,9 @@ class TestTeardownAsk:
             _boom,
         )
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            SendTerminateEmbargoActivityNode(
+                case_id=CASE_ID, reason=TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -295,7 +314,9 @@ class TestTeardownAsk:
         factory = _factory()
 
         dl, result = _run(
-            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            SendTerminateEmbargoActivityNode(
+                case_id=CASE_ID, reason=TerminationReason.EARLY
+            ),
             _MANAGER_ID,
             factory,
         )
@@ -316,7 +337,11 @@ class TestAskCaseManagerToTerminateOnce:
         factory = _factory()
 
         dl, result = _run(
-            ask_case_manager_to_terminate_once(CASE_ID), _VENDOR_ID, factory
+            ask_case_manager_to_terminate_once(
+                CASE_ID, TerminationReason.EARLY
+            ),
+            _VENDOR_ID,
+            factory,
         )
 
         assert result.status == Status.SUCCESS
@@ -328,7 +353,9 @@ class TestAskCaseManagerToTerminateOnce:
         _record_earlier_ask(subject_id="https://example.org/embargoes/other")
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -343,7 +370,9 @@ class TestAskCaseManagerToTerminateOnce:
         )
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -356,7 +385,9 @@ class TestAskCaseManagerToTerminateOnce:
         _record_earlier_ask()
 
         dl, _ = _run(
-            ask_case_manager_to_terminate_once(CASE_ID),
+            ask_case_manager_to_terminate_once(
+                CASE_ID, TerminationReason.EARLY
+            ),
             _VENDOR_ID,
             _factory(),
         )
@@ -369,7 +400,11 @@ class TestAskCaseManagerToTerminateOnce:
         factory.terminate_embargo.side_effect = RuntimeError("factory down")
 
         _, result = _run(
-            ask_case_manager_to_terminate_once(CASE_ID), _VENDOR_ID, factory
+            ask_case_manager_to_terminate_once(
+                CASE_ID, TerminationReason.EARLY
+            ),
+            _VENDOR_ID,
+            factory,
         )
 
         assert result.status == Status.FAILURE

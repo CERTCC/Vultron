@@ -2,7 +2,8 @@
 stakeholder_type: [cvd-practitioner]
 level: 300
 description: >
-  The events that end an embargo before its agreed time.
+  The events that end an embargo before its agreed time, how a termination
+  records why it ended, and what happens when the end time passes.
 ---
 
 # Early Termination
@@ -72,6 +73,25 @@ given in the [CS model](../cs/cs_model.md)
 Embargo termination is the set of transitions described in the [EM formal model](formal_model.md#terminate-embargo).
 When an embargo terminates, every Participant's [embargo consent](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) moves to the terminal *Unbound (exited)*, because there is no longer an embargo to agree to, and a terminated embargo cannot be re-joined ([§7.3 Relationship to Embargo Consent in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#73-relationship-to-embargo-consent)).
 A Participant who wants to be bound by a later embargo must agree to it afresh.
+
+## Recording Why an Embargo Ended
+
+Every termination records what ended the embargo: it reached its end time (`END_TIME_REACHED`), or it ended early (`EARLY`).
+The termination message carries that reason, and every Participant records it.
+The Case Manager also records why the embargo ended when it knows.
+An embargo ended by public awareness, a public exploit or observed attacks is recorded as `EARLY`, caused by that threat signal.
+Other causes of an early end, such as the ones above, are not yet named, and the set of causes is left open to grow.
+The cause stays with the Case Manager's record and is not sent in the termination message.
+
+## When the End Time Passes
+
+An embargo does not end by itself when its end time passes.
+The Case Manager ends it with the reason `END_TIME_REACHED`, and the termination runs the same steps as any other: open proposals are canceled, the case leaves the embargo, and every Participant is told.
+The Case Manager checks the end time the next time it handles the case, whether for an incoming message or one of its own actions, so no scheduler is needed.
+A request to end the embargo early that arrives after its end time is recorded as `END_TIME_REACHED`, because the embargo had already reached its end.
+An outside service, such as a [Sentinel](../../../reference/glossary.md) watching embargo timers, can also ask the Case Manager to end the embargo at its end time.
+The two requests share one path: whichever arrives second finds the embargo already ended, and nothing more is sent.
+A termination that claims the end time was reached before it was is refused.
 
 ## Waiting for All Vendors to Reach *Fix Ready* May Be Impractical
 

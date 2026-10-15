@@ -56,7 +56,7 @@ causal_edges:
       closes the case, and a departure sent after it is not recorded
       (CM-23-013).
   - antecedent: engage_case
-    consequent: add_note_to_case
+    consequent: create_note
     consequent_actor: finder
     note: >
       Notes require an active case.
@@ -136,8 +136,9 @@ The offer is addressed to the **Case Actor**, not to C2 (ADR-0053): the Case Act
 
 ### 7. C2 accepts case ownership
 
-C2 formally accepts the ownership transfer.  An `accept_case_ownership_transfer`
-entry is recorded.  The case's `attributed_to` field is updated to C2.
+C2 formally accepts the ownership transfer.
+An `accept_case_ownership_transfer` entry is recorded.
+The `CASE_OWNER` role moves to C2 and the case's `attributed_to` field is updated to C2, each change recorded as its own `update_case_participant` or `update_case_owner` entry.
 
 *Antecedent:* the Case Actor's forwarded ownership offer has reached C2.
 
@@ -158,7 +159,7 @@ recorded.
 ### 10. Participants exchange notes
 
 All participants communicate through case notes.
-Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
+Each note is recorded as a `create_note` entry, which attaches it to the case.
 
 *Antecedent:* `engage_case` is in the ledger.
 

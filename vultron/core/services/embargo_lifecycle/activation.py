@@ -22,8 +22,19 @@ in the same step (EP-08-004, ADR-0122).
 """
 
 import logging
+from datetime import datetime
 
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import termination_changes
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    TerminationRequest,
+    ThreatSignalTermination,
+    end_time_violations,
+    has_reached_end_time,
+)
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -31,10 +42,73 @@ from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
+from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
+
+
+def embargo_in_force(
+    store: CasePersistence, case: VulnerabilityCase
+) -> EmbargoEvent | None:
+    """The embargo in force on *case*, or ``None`` when there is none.
+
+    Read inline from the register when carried there, else from *store*,
+    failing closed (EMB-18-003).
+
+    Raises:
+        VultronNotFoundError: the embargo in force cannot be read.
+        VultronNotAnEmbargoError: its record is not an ``EmbargoEvent``.
+    """
+    active = case.active_embargo
+    embargo_id = case.active_embargo_id
+    if active is None or embargo_id is None:
+        return None
+    if isinstance(active, EmbargoEvent):
+        return active
+    return read_embargo_event(store, embargo_id)
+
+
+def termination_timing_violations(
+    store: CasePersistence,
+    case: VulnerabilityCase,
+    termination: EmbargoTermination,
+    at: datetime | None,
+) -> list[str]:
+    """Why *termination* of *case*'s embargo in force may not apply at *at*.
+
+    An ``END_TIME_REACHED`` termination claimed before the embargo's end
+    time is refused (ADR-0122); see
+    :func:`~vultron.core.models.embargo_termination.end_time_violations`.
+    The embargo is read by :func:`embargo_in_force`.  No embargo in force, or
+    an ``EARLY`` termination, has nothing to check.
+
+    Raises:
+        VultronNotFoundError: the embargo in force cannot be read.
+    """
+    if termination.reason != TerminationReason.END_TIME_REACHED:
+        return []
+    embargo = embargo_in_force(store, case)
+    if embargo is None:
+        return []
+    return end_time_violations(termination, end_time=embargo.end_time, at=at)
+
+
+def embargo_end_time_passed(
+    store: CasePersistence, case: VulnerabilityCase, at: datetime
+) -> bool:
+    """Whether *case*'s embargo in force has reached its end time at *at*.
+
+    ``False`` when no embargo is in force.  The embargo is read by
+    :func:`embargo_in_force`; the rule is
+    :func:`~vultron.core.models.embargo_termination.has_reached_end_time`.
+
+    Raises:
+        VultronNotFoundError: the embargo in force cannot be read.
+    """
+    embargo = embargo_in_force(store, case)
+    return embargo is not None and has_reached_end_time(embargo.end_time, at)
 
 
 class _ActivationOperationsMixin(_PecActivationMixin):
@@ -44,14 +118,15 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         self,
         *,
         case_id: str,
-        reason: TerminationReason,
+        termination: TerminationRequest,
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        terminated_at: datetime | None = None,
     ) -> EmbargoLifecycleResult:
         """Terminate the active embargo on a case.
 
-        One register step: the ``ACTIVE`` entry is ``TERMINATED`` with
-        *reason* and every ``PROPOSED`` entry is ``CANCELLED`` (EP-08-004,
+        One register step: the ``ACTIVE`` entry is ``TERMINATED`` recording
+        *termination* and every ``PROPOSED`` entry is ``CANCELLED`` (EP-08-004,
         ADR-0113: one active embargo makes every open proposal a revision of
         it, and a revision of an embargo that no longer exists cannot be
         accepted), so EM derives ``EXITED``.  No participant's consent is
@@ -60,12 +135,23 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         runs this in ``OBSERVED`` mode, so the rule holds on every replica;
         there, a case already ``EXITED`` is left as it is.
 
+        An ``END_TIME_REACHED`` termination claimed at *terminated_at*
+        before the embargo's end time is refused in either mode, before any
+        write (ADR-0122): a replica refuses the entry the same way the
+        CASE_MANAGER refuses the request.
+
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
-            reason: Why the embargo ended.  Required on the step and logged;
-                not stored on the entry until #4293 carries it on the wire.
+            termination: How the embargo ended — the what and, when known,
+                the why — recorded on the ``TERMINATED`` entry.  A
+                :class:`ThreatSignalTermination` is resolved here against
+                the case's PXA state, so the entry names the signals set.
             actor_id: Optional ID of the terminating actor (logging only).
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            terminated_at: When the termination was claimed: the
+                ``Remove``'s ``published`` time, or the CASE_MANAGER's clock
+                for its own end-time check.  Required for
+                ``END_TIME_REACHED``.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -73,7 +159,9 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: In ``STRICT`` mode, if the
-                case has no active embargo to terminate.
+                case has no active embargo to terminate; in either mode, if
+                an ``END_TIME_REACHED`` termination is claimed before the
+                embargo's end time.
         """
         case = self._read_case(case_id)
         em_before = case.em_state
@@ -91,9 +179,26 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             )
             return self._unchanged_result(em_before)
 
+        if isinstance(termination, ThreatSignalTermination):
+            try:
+                termination = termination.resolve(
+                    case.current_status.pxa.state
+                )
+            except ValueError as exc:
+                raise VultronInvalidStateTransitionError(
+                    f"Case '{case_id}': {exc}"
+                ) from exc
+        violations = termination_timing_violations(
+            self._persistence, case, termination, terminated_at
+        )
+        if violations:
+            raise VultronInvalidStateTransitionError(
+                f"Refused termination of embargo '{embargo_id}' on case"
+                f" '{case_id}': " + "; ".join(violations)
+            )
         if not self._apply_register_step(
             case,
-            termination_changes(case.embargo_register, reason),
+            termination_changes(case.embargo_register, termination),
             transition_mode=transition_mode,
             actor_id=actor_id,
         ):
@@ -101,11 +206,13 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         self._persistence.save(case)
 
         logger.info(
-            "Actor '%s' terminated embargo '%s' on case '%s' (%s; EM %s → %s)",
+            "Actor '%s' terminated embargo '%s' on case '%s' (%s, cause %s;"
+            " EM %s → %s)",
             actor_id,
             embargo_id,
             case_id,
-            reason,
+            termination.reason,
+            termination.cause.kind if termination.cause else None,
             em_before,
             case.em_state,
         )
