@@ -150,17 +150,24 @@ class RecordProposalDeclineNode(DataLayerAction):
     an unrelated node's guards — exactly the coupling
     ``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails Toward
     'Admit'" warns against.
+
+    *reason*, when given, is stored on the record, and the ``Reject`` carries
+    it as its ``summary`` (CP-06-004).  The arm that knows why it declines
+    passes it: the closed-case arm does; the admission call-out point has no
+    channel for a reason yet (#3446).
     """
 
     def __init__(
         self,
         proposal_id: str,
         proposer_uri: str,
+        reason: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
         self._proposer_uri = proposer_uri
+        self._reason = reason
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -190,6 +197,7 @@ class RecordProposalDeclineNode(DataLayerAction):
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
                 proposer_uri=self._proposer_uri,
+                reason=self._reason,
             )
             self.datalayer.create(record)
         except ValueError as exc:

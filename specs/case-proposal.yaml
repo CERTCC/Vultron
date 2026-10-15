@@ -520,7 +520,9 @@ groups:
       creating a fresh case for the report, is left to the reopen design (#3066, #4464).
       The record of the decline is keyed on the proposal, not the case, so writing it is
       neither a `CaseLedgerEntry` nor a change to case or participant state, and CM-23-013
-      does not bar it.
+      does not bar it. The case's closure is part of the admission decision: the reference
+      CASE_MANAGER checks it before the `EvaluateCaseProposal` call-out point and does not
+      tick that point, because no answer from it can change the `Reject`.
     verification: A second proposal from the case's owner, under a new identifier, yields a new `Accept` naming the existing
       case and no second case. A proposal for the same report from a different proposer yields a separate case owned by that
       proposer, and the first case gains no participant. A new proposal from the owner of a fully closed case yields

@@ -75,12 +75,11 @@ class CaseProposalDeclineRecord(RetiredFieldsRecord):
         reason: Optional human-readable reason, surfaced to the proposer as the
             ``Reject``'s ``summary`` when present (CP-06-004). Absent when the
             admission backend supplied none; a decline is never blocked on
-            having a reason to give. **Nothing writes this yet** — a call-out
-            point signals refusal by returning FAILURE and BT-18-002 defines
+            having a reason to give. The closed-case decline writes one
+            (CP-05-006, CP-05-008). The admission call-out point does not yet:
+            it signals refusal by returning FAILURE and BT-18-002 defines
             blackboard outputs only for the SUCCESS case, so a refusal has no
-            sanctioned channel for a payload. Tracked in #3446; the read path
-            below is built and tested so the field is usable the moment that
-            channel exists.
+            sanctioned channel for a payload. Tracked in #3446.
         reject_activity_id: URI of the ``Reject`` this service queued for the
             proposer, set once the emit succeeds. ``None`` means the decision
             was recorded but the proposer has not been told, which is the state
