@@ -498,7 +498,7 @@ def test_fix_readiness_row_reads_as_specified(table):
     assert row == (
         "| a Vendor has a fix ready"
         " | `Add(ParticipantStatus)[target=CaseParticipant]`"
-        " | an active participant (usually: vendor)"
+        " | a participant (usually: vendor)"
         " | `vfState` = `VF`"
         " | [Fix Readiness (CF)](../cs.md#fix-readiness) |"
     )

@@ -6,7 +6,7 @@ Designates the report as valid, moving the sender's RM state to Valid.
 
 - **When…** a report receiver judges the report valid
 - **Send:** `Accept(Offer(VulnerabilityReport))`
-- **Sent by:** an active participant (usually: vendor, coordinator)
+- **Sent by:** a participant (usually: vendor, coordinator)
 - **Seen in:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Formal definition:** [Report Valid (RV)](../../../formal_protocol/messages.md#rm-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)

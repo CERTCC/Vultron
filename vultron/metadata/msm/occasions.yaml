@@ -54,7 +54,7 @@ groups:
     heading: Validate report
     when: a report receiver judges the report valid
     send: Accept(Offer(VulnerabilityReport))
-    sent_by: 'an active participant (usually: vendor, coordinator)'
+    sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: validate_report
     shorthand: RV
     status: expansion
@@ -67,7 +67,7 @@ groups:
     heading: Invalidate report
     when: a report receiver judges the report invalid
     send: TentativeReject(Offer(VulnerabilityReport))
-    sent_by: 'an active participant (usually: vendor, coordinator)'
+    sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: invalidate_report
     shorthand: RI
     status: expansion
@@ -80,7 +80,7 @@ groups:
     heading: Close report
     when: a report receiver closes the report
     send: Reject(Offer(VulnerabilityReport))
-    sent_by: 'an active participant (usually: vendor, coordinator)'
+    sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: close_report
     shorthand: RC
     status: expansion
@@ -95,7 +95,7 @@ groups:
     heading: Report/Case Accepted (RA)
     when: a Participant accepts the case for further action
     send: Join(VulnerabilityCase)
-    sent_by: an active participant
+    sent_by: a participant
     semantics: engage_case
     shorthand: RA
     status: direct
@@ -109,7 +109,7 @@ groups:
     heading: Report/Case Deferred (RD)
     when: a Participant defers further action on the case
     send: Ignore(VulnerabilityCase)
-    sent_by: an active participant
+    sent_by: a participant
     semantics: defer_case
     shorthand: RD
     status: direct
@@ -418,7 +418,7 @@ groups:
     heading: Embargo Termination (ET)
     when: the Case Owner terminates the active embargo
     send: Remove(Event)
-    sent_by: the case owner
+    sent_by: the case manager or the case owner
     semantics: remove_embargo_event_from_case
     shorthand: ET
     status: direct
@@ -445,7 +445,7 @@ groups:
     heading: Embargo Proposal (EP)
     when: a Participant proposes embargo terms for a case with no active embargo
     send: Invite(Event)[context=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: the case manager or an active participant
     distinguished_by: EM state `NONE` or `PROPOSED`
     semantics: invite_to_embargo_on_case
     shorthand: EP
@@ -459,7 +459,7 @@ groups:
     heading: Embargo Revision Proposal (EV)
     when: a Participant proposes revised terms for the active embargo
     send: Invite(Event)[context=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: the case manager or an active participant
     distinguished_by: EM state `ACTIVE` or `REVISE`
     semantics: invite_to_embargo_on_case
     shorthand: EV
@@ -623,7 +623,7 @@ groups:
     heading: Vendor Awareness (CV)
     when: a Vendor becomes aware of the vulnerability
     send: Add(ParticipantStatus)[target=CaseParticipant]
-    sent_by: 'an active participant (usually: vendor)'
+    sent_by: 'a participant (usually: vendor)'
     distinguished_by: '`vfState` = `Vf`'
     semantics: add_participant_status_to_participant
     shorthand: CV
@@ -638,7 +638,7 @@ groups:
     heading: Fix Readiness (CF)
     when: a Vendor has a fix ready
     send: Add(ParticipantStatus)[target=CaseParticipant]
-    sent_by: 'an active participant (usually: vendor)'
+    sent_by: 'a participant (usually: vendor)'
     distinguished_by: '`vfState` = `VF`'
     semantics: add_participant_status_to_participant
     shorthand: CF
@@ -653,7 +653,7 @@ groups:
     heading: Fix Deployed (CD)
     when: a Deployer has deployed the fix
     send: Add(ParticipantStatus)[target=CaseParticipant]
-    sent_by: 'an active participant (usually: deployer)'
+    sent_by: 'a participant (usually: deployer)'
     distinguished_by: '`dState` = `D`'
     semantics: add_participant_status_to_participant
     shorthand: CD
@@ -672,7 +672,7 @@ groups:
     heading: Suggest actor to case
     when: a Participant suggests an actor that the case should include
     send: Offer(Actor)[target=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: a participant
     semantics: offer_actor_to_case
     shorthand: GI
     status: expansion
@@ -755,7 +755,7 @@ groups:
     heading: Remove note from case
     when: a note's author or the Case Owner withdraws a note from the case
     send: Remove(Note)[target=VulnerabilityCase]
-    sent_by: an active participant
+    sent_by: the case owner or the author of the note
     semantics: remove_note_from_case
     shorthand: GI
     status: expansion
