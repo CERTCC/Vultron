@@ -21,28 +21,23 @@ the protocol allows". Instead they read the JSON this script produces, so the
 demo automatically tracks any change to the authoritative state machines in
 :mod:`vultron.core.states`.
 
-Two of the four machines are read uniformly through their public
+Three of the four machines are read uniformly through their public
 ``create_*_machine()`` factories in :mod:`vultron.core.states`, so for these
 this script never needs to know how each enum serializes:
 
 - **RM**  — Report Management (per-participant)
 - **PXA** — Public / eXploit / Attacks (case-level)
+- **EM**  — Embargo Management (case-level), built from the EM transition
+  table (ADR-0130).  Its ``accept`` and ``reject`` triggers can each lead to
+  two dests from one source, so the consumer must not assume one dest per
+  (source, trigger).
 
-One machine no longer exists as a standalone machine in
+The fourth no longer exists as a standalone machine in
 :mod:`vultron.core.states`, so the exporter reconstructs it from sub-machines:
 
 - **VFD** (Vendor Fix Development; the ``vfd``→``VFD`` ladder) was split into
   the orthogonal ``CS_vf`` and ``CS_d`` sub-machines; :func:`create_vfd_machine`
   projects those two authoritative sub-machines back onto the ladder.
-
-The remaining three machines are all read from their authoritative
-``create_*_machine()`` factories:
-
-- **RM**  — Report Management (per-participant)
-- **PXA** — Public / eXploit / Attacks (case-level)
-- **EM**  — Embargo Management (case-level); read from
-  :func:`vultron.core.states.em.create_em_machine` (restored by #4449,
-  closes #4427).
 
 Output is written to ``ui/src/data/protocol_states.json``, co-located with its
 only consumer (``ui/src/protocol.ts``). The output is **deterministic**

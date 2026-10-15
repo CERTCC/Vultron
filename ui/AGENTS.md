@@ -130,6 +130,14 @@ exposing helpers (`nextState`, `requireNextState`, `isLegalTransition`,
 `machineStates`) that handlers and filters go through. The artifact also carries
 `embargo_viability`, a cross-machine rule the per-machine tables cannot express.
 
+**Several dests per trigger.** A machine may list more than one dest for one
+(source, trigger): EM's `accept`/`reject` from PROPOSED/REVISE either close the
+last open proposal (leave negotiation) or leave another open (stay; ADR-0130).
+`nextStates` returns every dest, and graph searches (the Log Replay
+`triggerPath`) MUST use it. `nextState` picks one: the Multi-Vendor demo holds
+at most one open proposal, so `resolveDest` takes the dest outside
+PROPOSED/REVISE. Any other ambiguity throws; never index one dest per pair.
+
 **Boundary.** Defer to the artifact for what the protocol models
 **declaratively** (the state machines and `embargo_viability`). Rules it models
 **procedurally** — the CASE_MANAGER role, or "the case is done" as a fold over
