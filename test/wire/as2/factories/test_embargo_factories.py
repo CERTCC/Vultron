@@ -96,12 +96,23 @@ def test_em_propose_embargo_context_is_set(sample_embargo):
 
 
 @pytest.mark.spec("AF-04-001")
-def test_em_propose_embargo_invalid_raises():
+def test_em_propose_embargo_invalid_raises(sample_embargo):
+    # No actor: the wire class's ValidationError is wrapped.
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_propose_embargo_activity(embargo=sample_embargo)
+    assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.spec("VAM-01-010")
+def test_em_propose_embargo_refuses_terms_by_uri():
+    """This codebase sends the terms inline, though a received Invite may
+    name them by URI (ADR-0123)."""
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         em_propose_embargo_activity(
-            embargo="not-an-embargo"  # type: ignore[arg-type]
+            embargo="https://example.org/embargoes/1",  # type: ignore[arg-type]
+            actor=_ACTOR_URI,
         )
-    assert exc_info.value.__cause__ is not None
+    assert "as_EmbargoEvent" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
