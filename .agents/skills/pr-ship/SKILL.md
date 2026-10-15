@@ -72,6 +72,11 @@ Before running any phase, check for existing artifacts:
 
 When resuming, print which phase is being skipped and why.
 
+A pre-push artifact (named for the branch, written by `build`'s fresh-agent
+review) is not a `pr-{N}-triage.json` and skips nothing:
+triage still runs, in delta mode, and the PR still enters `Triage`
+(PAD-17-002).
+
 **Resume caveat**: an execute artifact can be stale about merge state even when
 it is complete — the base branch may have moved since. That is fine and needs no
 special handling here: verify re-checks mergeability live in its Phase 2, so a
@@ -248,6 +253,29 @@ If any step fails (unexpected error, not a structured stop):
   point for manual inspection or resume.
 
 Artifacts are only cleaned up by `pr-verify` on a `READY-TO-MERGE` verdict.
+
+## Where Triage Phases Run
+
+A PR opened by `build` was already reviewed once, before its first push, by a
+fresh subagent running `pr-triage --pre-push` (PAD-07-001, ADR-0139). Step 4
+then picks its mode (`pr-triage` § "Modes"):
+
+| Phase | Pre-push (`build` Phase 7) | Step 4, delta mode | Step 4, full mode |
+|---|---|---|---|
+| 1 Orient | orient only | yes | yes |
+| 2 Issue linkage | scope against the issues | closing refs as posted; scope on the delta | yes |
+| 3 PR body format | — | yes | yes |
+| 4–8 Domain context, spec conformance, ADR check, AGENTS.md, code review | yes | delta files only | yes |
+| 9 Notes and docs currency | steps 1–4, docs-page determination | `Docs:` comparison; steps 1–4 on the delta | yes |
+| 10 Test coverage | yes | delta files only | yes |
+| 11 CI status, 12 merge state | — | yes | yes |
+| Carry-forward check of pre-push findings | — | yes | — |
+
+Full mode runs on the causes PAD-07-008 lists, as `pr-triage` § "Modes"
+detects them; the common one is a PR with no pre-push artifact (not from
+`build`, or shipped from another machine).
+`pr-execute` and `pr-verify` are the same in every mode: they read
+`pr-{N}-triage.json`, which lists only the findings that still stand.
 
 ## Where Merge Conflicts Are Handled
 

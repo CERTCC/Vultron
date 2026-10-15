@@ -53,6 +53,11 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
 
 - All N unit tests pass (M new)
 - ruff, mypy, pyright clean
+- Self-check:   <!-- shared/pre-review-self-check.md; one result per item -->
+  - Affected text: <search terms used; files updated, or "no hits">
+  - Failure paths: <per write: on failure / on retry / test, or "no writes changed">
+  - Branch coverage: <untested branches and why, or "every new branch tested">
+  - Reuse: <helpers reused or extracted, or "no duplication found">
 - [x] AC-1: ...   <!-- include when the closed issue listed acceptance criteria -->
 ```
 
@@ -127,6 +132,10 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
 - **Verification**: required for any PR that modifies `.py` files. Include
   the actual total test count and the number of new tests added. Tick off
   acceptance criteria from the issue when they are listed.
+  On every implementation PR it also carries the `Self-check:` block: the four
+  results of `.agents/skills/shared/pre-review-self-check.md`, one line each.
+  `pr-triage` compares the block against the diff and treats a missing block
+  as IMPROVE.
 
 ---
 

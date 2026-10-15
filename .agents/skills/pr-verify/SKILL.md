@@ -285,7 +285,10 @@ Do **not** clean up on `PENDING-CI`, `CONFLICTS-FOUND`, or `PENDING-MERGE-CHECK`
 — all three may need a follow-up pass, which needs the artifacts.
 
 1. Delete `.claude/pr-{number}-triage.json`
-2. Delete `.claude/pr-{number}-execute.json`
+2. Delete `.claude/pr-{number}-execute.json`, and the pre-push artifact if
+   present, at the path
+   `bash .agents/skills/pr-triage/prepush-delta.sh --path <head_ref>` prints
+   for the PR's `pr_metadata.head_ref`
 3. Print:
 
    ```text
