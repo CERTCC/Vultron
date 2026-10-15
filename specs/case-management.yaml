@@ -86,8 +86,9 @@ groups:
     statement: >-
       CASE_MANAGER MUST restrict the following activities to the case owner: case closure,
       approving an embargo proposal to become active on the case and terminating an active embargo,
-      approving or rejecting participant invitations, and case ownership transfer
-      (see CM-02-006 for the authorisation mechanism).
+      approving or rejecting participant invitations, case ownership transfer, and offering a
+      participant an additional role (CM-33-002) (see CM-02-006 for the authorisation
+      mechanism).
     verification: Integration tests in `test/demo/` confirm that case closure, embargo approval,
       participant invitation approval, and ownership transfer are only executed when triggered
       by the case owner.
@@ -6057,8 +6058,9 @@ groups:
       draws can be neither checked against a recorded Offer nor ledgered. See #4672.
     verification: >-
       A test marked `CM-33-001` delivers a Case Owner's role Offer to the CASE_MANAGER and
-      asserts an Offer forward to the target carrying `inReplyTo`, an entry for the Offer,
-      and the target's roles unchanged.
+      asserts an Offer forward to the target carrying `inReplyTo`, with the CASE_MANAGER as
+      `actor` and the Case Owner as `attributed_to`, an entry for the Offer, and the target's
+      roles unchanged.
     stories:
     - story_2022_035
     - story_2022_088
@@ -6091,6 +6093,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-02-005
     adr:
     - ADR-0039
     - ADR-0115
@@ -6110,8 +6114,9 @@ groups:
       authority and is not designed (#3362). The received use case once read a missing role
       as CASE_MANAGER. See #4672.
     verification: >-
-      A test marked `CM-33-003` delivers a role Offer for each refused shape and asserts
-      `REFUSED` with no entry committed and nothing queued.
+      A test marked `CM-33-003` delivers a role Offer for each refused shape, including one
+      whose `CaseParticipantRole` carries no role, and asserts `REFUSED` with no entry
+      committed and nothing queued.
     stories:
     - story_2022_035
     - story_2022_088
@@ -6136,7 +6141,9 @@ groups:
       ledgered. See #4672.
     verification: >-
       A test marked `CM-33-004` delivers a role Offer to the target from the Case Owner
-      directly and asserts `REFUSED` with nothing queued.
+      directly and asserts `REFUSED` with nothing queued; another delivers the
+      CASE_MANAGER's forward to the target and asserts one answer queued, addressed to the
+      CASE_MANAGER only.
     stories:
     - story_2022_035
     - story_2022_088
@@ -6164,9 +6171,12 @@ groups:
       give it, and only once. The check is against the Offer the CASE_MANAGER recorded, never
       the copy embedded in the answer (as CM-11-017 and CM-21-011 do). See #4672.
     verification: >-
-      A test marked `CM-33-005` delivers an Accept of a recorded role Offer from a participant
-      that is not its target and asserts `REFUSED` with no entry committed and no role
-      granted.
+      Tests marked `CM-33-005` deliver to the CASE_MANAGER, after a recorded role Offer: an
+      Accept from a participant that is not its target, asserting `REFUSED` with no entry
+      committed and no role granted; a Reject after the target's Accept closed the Offer,
+      asserting `REFUSED` with no change; a redelivery of the closing Accept, asserting
+      `SKIPPED` with no new entry; and the target's Accept naming the CASE_MANAGER's
+      forward, asserting the Offer is closed and the role granted.
     stories:
     - story_2022_035
     - story_2022_088

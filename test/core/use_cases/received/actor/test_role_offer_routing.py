@@ -34,6 +34,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -51,6 +52,9 @@ from vultron.wire.as2.factories import (
     reject_case_participant_role_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant_role import (
+    as_CaseParticipantRole,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -61,6 +65,7 @@ _OWNER_ID = "https://example.org/users/vendor"
 _TARGET_ID = "https://example.org/users/finder"
 _BYSTANDER_ID = "https://example.org/users/coordinator"
 _OFFER_ID = "https://example.org/activities/role-offer"
+_FORWARD_ID = "https://example.org/activities/role-offer/forward"
 
 _OFFER_PATH = "Tracked by #4702."
 _ANSWER_PATH = "Tracked by #4703."
@@ -100,6 +105,20 @@ def _offer(
     )
 
 
+def _forward() -> Any:
+    """The CASE_MANAGER's forward of the Case Owner's Offer to the target."""
+    return offer_case_participant_role_activity(
+        role=CVDRole.VENDOR,
+        target_actor=as_Actor(id_=_TARGET_ID),
+        case=_CASE_ID,
+        actor=_CASE_MANAGER_ID,
+        attributed_to=_OWNER_ID,
+        to=[_TARGET_ID],
+        in_reply_to=_OFFER_ID,
+        id_=_FORWARD_ID,
+    )
+
+
 def _ports(dl: SqliteDataLayer) -> dict[str, Any]:
     return {
         "wire_render_port": As2WireRenderAdapter(),
@@ -107,17 +126,44 @@ def _ports(dl: SqliteDataLayer) -> dict[str, Any]:
     }
 
 
-def _deliver_offer(dl: SqliteDataLayer, make_payload, offer: Any) -> Any:
+def _deliver_offer(
+    dl: SqliteDataLayer, make_payload, offer: Any, *, drop_role: bool = False
+) -> Any:
+    """Deliver *offer*; with *drop_role* its ``CaseParticipantRole`` has no role.
+
+    The factory cannot build a role-less Offer, so the role object is rebuilt
+    without its ``role`` after extraction: the shape a peer could send.
+    """
+    request = make_payload(offer, receiving_actor_id=dl.actor_id)
+    if drop_role:
+        role_obj = request.activity.object_
+        request = request.model_copy(
+            update={
+                "activity": request.activity.model_copy(
+                    update={
+                        "object_": as_CaseParticipantRole.model_construct(
+                            id_=role_obj.id_
+                        )
+                    }
+                )
+            }
+        )
     return OfferCaseParticipantRoleReceivedUseCase(
         dl,
-        make_payload(offer, receiving_actor_id=dl.actor_id),
+        request,
         trigger_activity=TriggerActivityAdapter(dl),
         **_ports(dl),
     ).execute()
 
 
 def _deliver_answer(
-    dl: SqliteDataLayer, make_payload, offer: Any, *, accept: bool, sender: str
+    dl: SqliteDataLayer,
+    make_payload,
+    offer: Any,
+    *,
+    accept: bool,
+    sender: str,
+    answer_id: str | None = None,
 ) -> Any:
     build = (
         accept_case_participant_role_activity
@@ -129,7 +175,8 @@ def _deliver_answer(
         if accept
         else RejectCaseParticipantRoleReceivedUseCase
     )
-    answer = build(offer=offer, actor=sender, to=[_CASE_MANAGER_ID])
+    extra = {} if answer_id is None else {"id_": answer_id}
+    answer = build(offer=offer, actor=sender, to=[_CASE_MANAGER_ID], **extra)
     return use_case(
         dl, make_payload(answer, receiving_actor_id=dl.actor_id), **_ports(dl)
     ).execute()
@@ -149,6 +196,17 @@ def _queued(dl: SqliteDataLayer) -> list[Any]:
 
 def _type_of(activity: Any) -> str | None:
     return getattr(getattr(activity, "type_", None), "value", None)
+
+
+def _forwards(dl: SqliteDataLayer) -> list[Any]:
+    """Queued Offers to the target that reply to the Case Owner's Offer."""
+    return [
+        item
+        for item in _queued(dl)
+        if _type_of(item) == "Offer"
+        and getattr(item, "to", None) == [_TARGET_ID]
+        and _as_id(getattr(item, "in_reply_to", None)) == _OFFER_ID
+    ]
 
 
 def _target_holds(dl: SqliteDataLayer, role: CVDRole) -> bool:
@@ -171,14 +229,12 @@ def test_case_manager_records_and_forwards_the_offer(make_payload):
 
     _deliver_offer(dl, make_payload, _offer())
 
-    forwards = [
-        item
-        for item in _queued(dl)
-        if _type_of(item) == "Offer"
-        and getattr(item, "to", None) == [_TARGET_ID]
-        and getattr(item, "in_reply_to", None) == _OFFER_ID
-    ]
+    forwards = _forwards(dl)
     assert len(forwards) == 1
+    # Delegated authorship (CM-24-005): the CASE_MANAGER forwards, on the
+    # Case Owner's behalf.
+    assert _as_id(getattr(forwards[0], "actor", None)) == _CASE_MANAGER_ID
+    assert _as_id(getattr(forwards[0], "attributed_to", None)) == _OWNER_ID
     assert "offer_case_participant_role" in _event_types(dl)
     assert not _target_holds(dl, CVDRole.VENDOR)
 
@@ -210,6 +266,7 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
 @pytest.mark.parametrize(
     ("role", "target"),
     [
+        pytest.param(None, _TARGET_ID, id="missing-role"),
         pytest.param(CVDRole.CASE_MANAGER, _TARGET_ID, id="case-manager"),
         pytest.param(CVDRole.CASE_OWNER, _TARGET_ID, id="case-owner"),
         pytest.param(CVDRole.FINDER, _TARGET_ID, id="role-already-held"),
@@ -221,10 +278,19 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
     ],
 )
 def test_offer_the_case_manager_must_refuse(make_payload, role, target):
-    """Each refused shape leaves no entry and sends nothing."""
+    """Each refused shape leaves no entry and sends nothing.
+
+    A missing role must not be read as any default role, as the received use
+    case once read it as CASE_MANAGER.
+    """
     dl = _store(_CASE_MANAGER_ID)
 
-    result = _deliver_offer(dl, make_payload, _offer(role=role, target=target))
+    result = _deliver_offer(
+        dl,
+        make_payload,
+        _offer(role=role or CVDRole.VENDOR, target=target),
+        drop_role=role is None,
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _event_types(dl) == []
@@ -247,6 +313,21 @@ def test_target_refuses_an_offer_not_sent_by_the_case_manager(make_payload):
     assert _queued(dl) == []
 
 
+@pytest.mark.spec("CM-33-004")
+def test_target_answers_the_forward_to_the_case_manager_only(make_payload):
+    """The CASE_MANAGER's forward is acted on, and answered to it alone."""
+    dl = _store(_TARGET_ID)
+
+    result = _deliver_offer(dl, make_payload, _forward())
+
+    assert result.disposition is not HandlerDisposition.REFUSED
+    answers = [
+        item for item in _queued(dl) if _type_of(item) in ("Accept", "Reject")
+    ]
+    assert len(answers) == 1
+    assert getattr(answers[0], "to", None) == [_CASE_MANAGER_ID]
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=f"CM-33-005: the answer has no sender check and is only stored."
@@ -261,6 +342,8 @@ def test_accept_from_a_participant_that_is_not_the_target_is_refused(
     offer = _offer()
     _deliver_offer(dl, make_payload, offer)
     entries_before = _event_types(dl)
+    # The refusal must come from the sender check, not from a missing Offer.
+    assert "offer_case_participant_role" in entries_before
 
     result = _deliver_answer(
         dl, make_payload, offer, accept=True, sender=_BYSTANDER_ID
@@ -269,6 +352,99 @@ def test_accept_from_a_participant_that_is_not_the_target_is_refused(
     assert result.disposition is HandlerDisposition.REFUSED
     assert _event_types(dl) == entries_before
     assert not _target_holds(dl, CVDRole.VENDOR)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-33-005: an answer to an answered Offer is not refused; the"
+    f" CASE_MANAGER has already accepted for the target. {_ANSWER_PATH}",
+)
+@pytest.mark.spec("CM-33-005")
+def test_answer_to_an_offer_that_is_not_open_is_refused(make_payload):
+    """A Reject after the target's Accept closed the Offer changes nothing."""
+    dl = _store(_CASE_MANAGER_ID)
+    offer = _offer()
+    _deliver_offer(dl, make_payload, offer)
+    _deliver_answer(dl, make_payload, offer, accept=True, sender=_TARGET_ID)
+    entries_before = _event_types(dl)
+    assert _target_holds(dl, CVDRole.VENDOR)
+
+    result = _deliver_answer(
+        dl, make_payload, offer, accept=False, sender=_TARGET_ID
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _event_types(dl) == entries_before
+    assert _target_holds(dl, CVDRole.VENDOR)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-33-005: the closing answer is never committed, and its"
+    f" redelivery is re-applied, not SKIPPED. {_ANSWER_PATH}",
+)
+@pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("HP-01-003")
+def test_redelivered_closing_answer_is_skipped(make_payload):
+    """The answer that closed the Offer, delivered again, is a duplicate."""
+    dl = _store(_CASE_MANAGER_ID)
+    offer = _offer()
+    _deliver_offer(dl, make_payload, offer)
+    accepts_before = _event_types(dl).count("accept_case_participant_role")
+    answer_id = "https://example.org/activities/role-offer/accept"
+    _deliver_answer(
+        dl,
+        make_payload,
+        offer,
+        accept=True,
+        sender=_TARGET_ID,
+        answer_id=answer_id,
+    )
+    entries_after_first = _event_types(dl)
+    assert (
+        entries_after_first.count("accept_case_participant_role")
+        == accepts_before + 1
+    )
+
+    result = _deliver_answer(
+        dl,
+        make_payload,
+        offer,
+        accept=True,
+        sender=_TARGET_ID,
+        answer_id=answer_id,
+    )
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries_after_first
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-33-005: the CASE_MANAGER sends no forward, so no answer can"
+    f" name one (#4702). {_ANSWER_PATH}",
+)
+@pytest.mark.spec("CM-33-005")
+def test_answer_naming_the_forward_resolves_to_the_recorded_offer(
+    make_payload,
+):
+    """The target answers the forward it received; it closes the Offer."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    forwards = _forwards(dl)
+    assert len(forwards) == 1
+    entries_before = _event_types(dl)
+
+    result = _deliver_answer(
+        dl, make_payload, forwards[0], accept=True, sender=_TARGET_ID
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert (
+        _event_types(dl).count("accept_case_participant_role")
+        == entries_before.count("accept_case_participant_role") + 1
+    )
+    assert _target_holds(dl, CVDRole.VENDOR)
 
 
 class TestAdmittedAnswerIsLedgered:
@@ -286,6 +462,10 @@ class TestAdmittedAnswerIsLedgered:
         offer = _offer()
         _deliver_offer(dl, make_payload, offer)
         queued_before = dl.outbox_list()
+        # The Offer step grants nothing and records no Accept: the change
+        # below must come from the answer.
+        assert "accept_case_participant_role" not in _event_types(dl)
+        assert not _target_holds(dl, CVDRole.VENDOR)
 
         _deliver_answer(
             dl, make_payload, offer, accept=True, sender=_TARGET_ID
