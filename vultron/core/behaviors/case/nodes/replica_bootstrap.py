@@ -49,6 +49,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -57,8 +58,6 @@ from vultron.core.services.case_replica_seeding import (
     is_bootstrap_accepted,
 )
 from vultron.errors import VultronAlreadyExistsError
-
-logger = logging.getLogger(__name__)
 
 BootstrapRouteName = Literal["trusted", "redelivery", "unanchored"]
 
@@ -184,6 +183,8 @@ class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
     the link is not enough on its own: it may hold a case for another report.
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(
         self,
         route: BootstrapRoute,
@@ -195,6 +196,7 @@ class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
         self.route = route
         self.report_ids = tuple(report_ids)
         self.case_id = case_id
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     def update(self) -> Status:
         link = self.route.link
@@ -208,7 +210,7 @@ class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
             f" reference the submitted report '{link.report_id}'"
             " (CBT-01-005)"
         )
-        logger.warning("%s: %s", self.name, self.feedback_message)
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -220,12 +222,15 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
     CBT-05-009).
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(
         self, case_obj: Any, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
         self.case_id = case_id
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     def update(self) -> Status:
         participants = getattr(self.case_obj, "case_participants", []) or []
@@ -237,7 +242,7 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
             f" contains {len(bare)} bare-URI participant reference(s);"
             f" inline typed objects required (CBT-01-012, CBT-05-009, CBT-05-008)"
         )
-        logger.warning("%s: %s", self.name, self.feedback_message)
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -249,12 +254,15 @@ class RefuseUnanchoredBootstrapNode(py_trees.behaviour.Behaviour):
     sender's own claim and does not count (CBT-01-011, ADR-0132).
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(
         self, sender_id: str, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.sender_id = sender_id
         self.case_id = case_id
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     def update(self) -> Status:
         self.feedback_message = (
@@ -263,7 +271,7 @@ class RefuseUnanchoredBootstrapNode(py_trees.behaviour.Behaviour):
             " naming its sender CASE_MANAGER does not make it trusted"
             " (CBT-01-011)"
         )
-        logger.warning("%s: %s", self.name, self.feedback_message)
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
