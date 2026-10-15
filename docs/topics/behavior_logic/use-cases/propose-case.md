@@ -132,6 +132,11 @@ CP-05-006 goes further: the stored `Accept` must be re-sent unchanged, with its 
 The reference implementation does this.
 The `Accept` takes an id derived from the proposal.
 A duplicate proposal queues the stored `Accept` again under that id, unless it is still waiting in the outbox.
+The exception is a case that is fully closed, that is, its ledger holds `case_fully_closed`.
+The stored `Accept` would lead into the accept path, which writes to the case, and a closed case accepts no further writes (CM-23-013).
+So the CASE_MANAGER answers the duplicate with `Reject(as_CaseProposal)` instead, and commits no ledger entry and changes no case or participant state.
+The `Reject` declines only the redelivery: the stored `Accept` stands, and the proposer learns only that nothing more will be done for the proposal.
+The CASE_MANAGER finds the case through the `Accept` it stored for the proposal, so a former owner gets the same answer after an ownership transfer.
 The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
 A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
@@ -139,6 +144,14 @@ It goes through the admission decision and gets its own `Accept` or `Reject`, no
 What happens to the case depends on who asks.
 The proposer that owns the case gets that case back: the `Accept`'s `result` names it, no second case is created, and the case is not announced or recorded in the ledger a second time.
 Any other proposer gets a separate case of its own and is not added to the first one, because the report identifier is chosen by the sender and does not say whose case it is.
+When the owner's case is fully closed, the owner's new proposal is declined with `Reject(as_CaseProposal)`, and nothing is written for the case (CM-23-013).
+The admission policy is not consulted, because the closure decides.
+Reopening a closed case, or creating a fresh case for its report, is not yet designed ([#3066](https://github.com/CERTCC/Vultron/issues/3066)).
+
+Both closed-case declines write a decline record keyed on the proposal, before the `Reject` is queued.
+That record is not a ledger entry or a case change, so CM-23-013 does not bar it.
+It stops a failed `Reject` from falling through into the accept path, and it answers a later delivery of the same proposal without deciding again.
+The `Reject` carries a `summary` that says the case is fully closed.
 
 ---
 
@@ -174,8 +187,8 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
 | [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
 | [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | A failed `Create` MUST be retried without resending the `Accept` |
-| [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case |
-| [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case |
+| [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
+| [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
 | [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
 | [CP-06-003](../../../reference/specs/protocol.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
 | [CP-06-004](../../../reference/specs/protocol.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |

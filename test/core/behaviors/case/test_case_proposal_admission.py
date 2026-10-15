@@ -35,10 +35,17 @@ when it declines. These tests pin five properties:
   (CP-05-005, CP-05-006), declined, or has a retry marker in flight.
 """
 
+from types import SimpleNamespace
+from typing import cast
+
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.ledger import (
+    commit_case_fully_closed,
+    committed_event_types,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -51,13 +58,24 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CaseProposalCallOutBundle,
 )
 from vultron.core.behaviors.case.case_proposal_received_tree import (
+    CLOSED_CASE_DECLINE_REASON,
     create_case_proposal_received_tree,
+)
+from vultron.core.behaviors.case.nodes import proposal_admission_conditions
+from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckProposalCaseFullyClosedNode,
+    accept_scan_can_match,
+    accepted_case_id,
+    activity_names_proposal,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     case_is_announced,
 )
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_proposal_admission import (
+    CaseProposalAdmissionRecord,
+)
 from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
 )
@@ -65,6 +83,8 @@ from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -1043,3 +1063,417 @@ def test_second_proposer_re_proposing_reuses_its_own_case(dl):
     assert sorted(str(c.attributed_to) for c in cases) == sorted(
         [_VENDOR_URI, second_proposer_uri]
     )
+
+
+# ---------------------------------------------------------------------------
+# A proposal that resolves to a fully closed case is declined
+# (CP-05-006, CP-05-008, CM-23-013)
+# ---------------------------------------------------------------------------
+
+_SECOND_PROPOSAL_URI = "https://vendor.example.org/proposals/p-002"
+_OTHER_PROPOSER_URI = "https://other.example.org/actors/other-vendor"
+_OTHER_PROPOSAL_URI = "https://other.example.org/proposals/p-001"
+
+
+def _drain_outbox(dl) -> None:
+    """Deliver everything queued, so the next assertion sees only new sends."""
+    while dl.outbox_pop() is not None:
+        pass
+
+
+def _accepted_then_closed(dl) -> VulnerabilityCase:
+    """Accept the first proposal, deliver its answers, then close its case."""
+    assert _run_tree(dl) == Status.SUCCESS
+    (case,) = _cases(dl)
+    assert isinstance(case, VulnerabilityCase)
+    _drain_outbox(dl)
+    commit_case_fully_closed(dl, str(case.id_), _VENDOR_URI)
+    return case
+
+
+def _case_state(dl) -> list[str]:
+    """Every case and participant row, serialised, to detect any write."""
+    rows = list(dl.list_objects("VulnerabilityCase")) + list(
+        dl.list_objects("CaseParticipant")
+    )
+    return sorted(row.model_dump_json() for row in rows)
+
+
+def _ledger_count(dl) -> int:
+    return len(list(dl.list_objects("CaseLedgerEntry")))
+
+
+def _proposal_id_of(activity) -> str:
+    return str(getattr(activity.object_, "id_", activity.object_))
+
+
+def _decline_record(dl, proposal_uri: str) -> CaseProposalDeclineRecord:
+    record = dl.read(CaseProposalDeclineRecord.build_id(proposal_uri))
+    assert isinstance(record, CaseProposalDeclineRecord)
+    return record
+
+
+@pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("CP-05-004")
+class TestTheOwnersNewProposalForAClosedCaseIsDeclined:
+    """A new proposal id from the owner of a fully closed case is declined.
+
+    Before #4468 the accept arm reused the closed case and sent an ``Accept``
+    for it.
+    """
+
+    def test_it_is_answered_with_a_reject_and_nothing_else(self, dl):
+        _accepted_then_closed(dl)
+
+        status = _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+        assert status == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Reject"], (
+            "a closed case's owner gets a Reject: no Accept, no Create"
+        )
+        (reject,) = _outbox_activities(dl)
+        assert _proposal_id_of(reject) == _SECOND_PROPOSAL_URI
+        assert not [
+            a
+            for a in dl.list_objects("Accept")
+            if activity_names_proposal(a, _SECOND_PROPOSAL_URI)
+        ], "no Accept is even stored for the new proposal"
+
+    def test_the_reject_carries_the_proposal_inline_and_a_reason(self, dl):
+        _accepted_then_closed(dl)
+
+        _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+        (reject,) = _outbox_activities(dl)
+        assert isinstance(reject.object_, as_CaseProposal)
+        assert reject.summary == CLOSED_CASE_DECLINE_REASON
+
+    def test_nothing_is_written_for_the_case(self, dl):
+        _accepted_then_closed(dl)
+        ledger_before = _ledger_count(dl)
+        state_before = _case_state(dl)
+
+        _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+        assert _ledger_count(dl) == ledger_before, (
+            "no CaseLedgerEntry for the closed case (CM-23-013)"
+        )
+        assert _case_state(dl) == state_before, (
+            "no new case and no case or participant change"
+        )
+        assert (
+            dl.read(PendingCreateCaseActivity.build_id(_SECOND_PROPOSAL_URI))
+            is None
+        )
+
+    def test_the_decline_is_recorded_on_the_proposal(self, dl):
+        _accepted_then_closed(dl)
+
+        _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+        record = _decline_record(dl, _SECOND_PROPOSAL_URI)
+        assert record.reject_activity_id is not None
+        assert record.reason == CLOSED_CASE_DECLINE_REASON
+        assert (
+            dl.read(CaseProposalAdmissionRecord.build_id(_SECOND_PROPOSAL_URI))
+            is None
+        ), "the accept path never began"
+
+    def test_the_admission_policy_is_not_consulted(self, dl):
+        """The case's closure decides; the admission backend is not ticked."""
+        _accepted_then_closed(dl)
+        ticks: list[str] = []
+
+        _run_tree(
+            dl,
+            proposal_uri=_SECOND_PROPOSAL_URI,
+            call_out=_admitting_bundle(ticks),
+        )
+
+        assert ticks == []
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("ASK-08-001")
+class TestARedeliveryAfterCloseIsDeclined:
+    """The original proposal, accepted before close, is declined on redelivery.
+
+    The ``Reject`` declines only the redelivery; the stored ``Accept`` stands
+    (CP-05-005) and is not re-sent.
+    """
+
+    def test_it_is_answered_with_a_reject_not_the_stored_accept(self, dl):
+        _accepted_then_closed(dl)
+        (stored_accept,) = list(dl.list_objects("Accept"))
+
+        status = _run_tree(dl)
+
+        assert status == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Reject"]
+        (reject,) = _outbox_activities(dl)
+        assert _proposal_id_of(reject) == _PROPOSAL_URI
+        assert [a.id_ for a in dl.list_objects("Accept")] == [
+            stored_accept.id_
+        ], "the stored Accept is kept, not revoked or re-minted"
+
+    def test_nothing_is_written_for_the_case(self, dl):
+        _accepted_then_closed(dl)
+        ledger_before = _ledger_count(dl)
+        state_before = _case_state(dl)
+
+        _run_tree(dl)
+
+        assert _ledger_count(dl) == ledger_before
+        assert _case_state(dl) == state_before
+
+    def test_a_second_redelivery_is_answered_from_the_record(self, dl):
+        """The decision is not re-made and the Reject is not sent twice."""
+        _accepted_then_closed(dl)
+        _run_tree(dl)
+        first = _decline_record(dl, _PROPOSAL_URI)
+        _drain_outbox(dl)
+        ledger_before = _ledger_count(dl)
+
+        status = _run_tree(dl)
+
+        assert status == Status.SUCCESS
+        assert _types_in_outbox(dl) == [], (
+            "the Reject already went out; the record answers the redelivery"
+        )
+        assert _decline_record(dl, _PROPOSAL_URI) == first
+        assert _ledger_count(dl) == ledger_before
+
+    def test_a_former_owner_is_declined_after_an_ownership_transfer(self, dl):
+        """The proposal's own Accept names the case, not the current owner.
+
+        After a transfer the owner lookup finds nothing for the former owner,
+        so without the Accept lookup the redelivery would build a new case.
+        """
+        case = _accepted_then_closed(dl)
+        dl.save(case.model_copy(update={"attributed_to": _OTHER_PROPOSER_URI}))
+
+        status = _run_tree(dl)
+
+        assert status == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Reject"]
+        assert [c.id_ for c in _cases(dl)] == [case.id_]
+
+
+@pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CM-23-013")
+class TestTheClosedCaseCheckFailsTowardRefusal:
+    """The closure check sits on a refusal arm, so it fails the tree, never admits.
+
+    See ``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails Toward
+    'Admit'".
+    """
+
+    def test_an_unreadable_ledger_fails_the_tree(self, dl, monkeypatch):
+        case = _accepted_then_closed(dl)
+        ledger_before = _ledger_count(dl)
+        real_list = SqliteDataLayer.list_objects
+
+        def _locked(self, type_key):
+            if type_key == "CaseLedgerEntry":
+                raise RuntimeError("database is locked")
+            return real_list(self, type_key)
+
+        monkeypatch.setattr(type(dl), "list_objects", _locked, raising=False)
+
+        status = _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+        monkeypatch.undo()
+        assert status == Status.FAILURE
+        assert _types_in_outbox(dl) == [], "no Accept, no Reject"
+        assert [c.id_ for c in _cases(dl)] == [case.id_]
+        assert _ledger_count(dl) == ledger_before
+        assert (
+            dl.read(CaseProposalAdmissionRecord.build_id(_SECOND_PROPOSAL_URI))
+            is None
+        ), "the accept arm never began"
+
+    def test_a_missing_datalayer_raises_rather_than_answering(self):
+        """With no store the node cannot tell, so neither status is safe."""
+        node = CheckProposalCaseFullyClosedNode(
+            proposal_id=_PROPOSAL_URI,
+            proposer_uri=_VENDOR_URI,
+            report_id=_REPORT_URI,
+        )
+
+        with pytest.raises(VultronWiringError):
+            node.update()
+
+    @pytest.mark.parametrize(
+        "broken_emit",
+        [{"with_proposal_dict": False}, {"with_trigger_port": False}],
+        ids=["no-wire-proposal", "no-trigger-port"],
+    )
+    def test_a_failed_reject_does_not_reuse_the_closed_case(
+        self, dl, broken_emit
+    ):
+        _accepted_then_closed(dl)
+        ledger_before = _ledger_count(dl)
+        state_before = _case_state(dl)
+
+        status = _run_tree(
+            dl, proposal_uri=_SECOND_PROPOSAL_URI, **broken_emit
+        )
+
+        assert status == Status.FAILURE
+        assert _types_in_outbox(dl) == []
+        assert _ledger_count(dl) == ledger_before
+        assert _case_state(dl) == state_before
+        assert (
+            _decline_record(dl, _SECOND_PROPOSAL_URI).reject_activity_id
+            is None
+        )
+
+    def test_the_owed_reject_is_sent_on_the_next_delivery(self, dl):
+        _accepted_then_closed(dl)
+        _run_tree(
+            dl, proposal_uri=_SECOND_PROPOSAL_URI, with_trigger_port=False
+        )
+
+        status = _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+        assert status == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Reject"]
+
+
+@pytest.mark.spec("CP-05-008")
+def test_another_proposer_for_a_closed_cases_report_gets_its_own_case(dl):
+    """Another party's closed case does not decline this proposer (CP-05-008)."""
+    closed = _accepted_then_closed(dl)
+    closed_ledger = committed_event_types(dl, str(closed.id_))
+
+    status = _run_tree(
+        dl,
+        proposal_uri=_OTHER_PROPOSAL_URI,
+        proposer_uri=_OTHER_PROPOSER_URI,
+    )
+
+    assert status == Status.SUCCESS
+    assert "Accept" in _types_in_outbox(dl)
+    assert "Reject" not in _types_in_outbox(dl)
+    owners = sorted(str(c.attributed_to) for c in _cases(dl))
+    assert owners == sorted([_VENDOR_URI, _OTHER_PROPOSER_URI])
+    assert committed_event_types(dl, str(closed.id_)) == closed_ledger, (
+        "the closed case gains nothing"
+    )
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CM-23-013")
+def test_a_legacy_redelivery_with_no_report_id_is_declined(dl):
+    """With no report id and no admission record, the Accept scan still runs.
+
+    A store written before the admission record existed holds only the
+    ``Accept``, and a redelivery that names no report gives the owner lookup
+    nothing to go on.  The ``Accept``'s ``result`` is then the only way to find
+    the closed case.
+    """
+    case = _accepted_then_closed(dl)
+    assert dl.delete(
+        "CaseProposalAdmissionRecord",
+        CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI),
+    )
+    ledger_before = _ledger_count(dl)
+
+    status = _run_tree(dl, report_id=None)
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Reject"]
+    assert [c.id_ for c in _cases(dl)] == [case.id_]
+    assert _ledger_count(dl) == ledger_before
+
+
+@pytest.mark.spec("CP-05-008")
+def test_the_accept_scan_is_skipped_when_the_owners_case_is_closed(
+    dl, monkeypatch
+):
+    """The owner's closed case decides; the ``Accept`` rows are not scanned."""
+    _accepted_then_closed(dl)
+
+    def _no_scan(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the Accept scan ran after the owner's case")
+
+    monkeypatch.setattr(
+        proposal_admission_conditions, "accepted_case_id", _no_scan
+    )
+
+    status = _run_tree(dl, proposal_uri=_SECOND_PROPOSAL_URI)
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Reject"]
+
+
+class _AcceptStore:
+    """A store stub that holds one ``Accept`` for the proposal."""
+
+    def __init__(self, result: object) -> None:
+        self._accept = SimpleNamespace(
+            type_="Accept", object_=_PROPOSAL_URI, result=result
+        )
+
+    def list_objects(self, type_key: str) -> list[object]:
+        return [self._accept] if type_key == "Accept" else []
+
+
+_CASE_ID = "https://case-actor.example.org/cases/c-001"
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (_CASE_ID, _CASE_ID),
+        (SimpleNamespace(id_=_CASE_ID), _CASE_ID),
+        ({"id": _CASE_ID}, _CASE_ID),
+        (None, None),
+        ("", None),
+        ({"type": "VulnerabilityCase"}, None),
+        (SimpleNamespace(id_=None), None),
+    ],
+    ids=[
+        "bare-id",
+        "object",
+        "dict",
+        "no-result",
+        "empty-id",
+        "dict-without-id",
+        "object-without-id",
+    ],
+)
+def test_accepted_case_id_reads_every_result_shape(result, expected):
+    store = cast(CasePersistence, _AcceptStore(result))
+
+    assert accepted_case_id(store, _PROPOSAL_URI) == expected
+
+
+def test_accepted_case_id_is_none_without_a_stored_accept():
+    store = cast(CasePersistence, _AcceptStore(_CASE_ID))
+
+    assert accepted_case_id(store, _SECOND_PROPOSAL_URI) is None
+
+
+@pytest.mark.parametrize(
+    ("report_id", "case_exists", "expected"),
+    [
+        (None, False, True),
+        (_REPORT_URI, False, False),
+        (_REPORT_URI, True, True),
+    ],
+    ids=["no-report-id", "no-case-for-report", "case-for-report"],
+)
+def test_accept_scan_can_match_is_a_negative_prefilter(
+    report_id, case_exists, expected
+):
+    found = SimpleNamespace(id_=_CASE_ID) if case_exists else None
+    store = cast(
+        CasePersistence,
+        SimpleNamespace(find_case_by_report_id=lambda _report_id: found),
+    )
+
+    assert accept_scan_can_match(store, report_id) is expected
