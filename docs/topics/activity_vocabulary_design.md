@@ -110,35 +110,38 @@ Modeling it as `as:Undo` would claim that the earlier `Ignore(VulnerabilityCase)
 
 ## Creating an object and attaching it to another
 
-Vultron documents object creation and object attachment as two activities.
+Vultron distinguishes object creation from object attachment.
 `as:Create` mints a new object; `as:Add` attaches an existing object to another object.
-A new note therefore appears as `Create(Note)` followed by `Add(Note)[target=VulnerabilityCase]`.
+A new note is one `Create(Note)` whose note names the case as its `context`: the Case Manager attaches it from that `context`, so no `Add` follows.
+`Add(Note)[target=VulnerabilityCase]` attaches a note that already exists, and a receiver also accepts it after a `Create` of the same note.
 A new status is different in this implementation: it travels inline on the `Add(CaseStatus)[target=VulnerabilityCase]` that attaches it, with no `Create` before it.
 
 ```mermaid
 ---
-title: Create then Add for notes; Add alone for statuses
+title: Create alone for a new note; Add alone for statuses
 ---
 flowchart TB
     subgraph as:Add
-        AddNoteToCase["Post a note to the case<br/>Add(Note)"]
+        AddNoteToCase["Attach an existing note<br/>Add(Note)"]
         AddStatusToCase["Public Awareness (CP) / Exploit Public (CX) / Attacks Observed (CA)<br/>Add(CaseStatus)"]
         AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
     end
     subgraph as:Create
-        CreateNote["Draft a note<br/>Create(Note)"]
+        CreateNote["Post a new note to the case<br/>Create(Note)"]
     end
     start([Start])
     start -.-> AddStatusToCase
     start -.-> AddStatusToParticipant
     start -.-> CreateNote
-    CreateNote --> AddNoteToCase
+    start -.-> AddNoteToCase
     AddStatusToParticipant -.-> AddStatusToCase
+    CreateNote -.-> AddStatusToParticipant
+    CreateNote -.-> AddStatusToCase
     AddNoteToCase -.-> AddStatusToParticipant
     AddNoteToCase -.-> AddStatusToCase
 ```
 
-The diagram shows a note being created and then attached, and each status being attached with the status inline.
+The diagram shows a new note being created in the case, an existing note being attached, and each status being attached with the status inline.
 The dotted arrows show attachments that can follow from one another: a participant status update can lead to a case status update, and a note can lead to either.
 
 ### ActivityStreams does not force the split
@@ -154,7 +157,7 @@ The rule we settled on is `as:Create` when an object is being brought into exist
 ### The split has no formal counterpart, and is still load-bearing on the wire
 
 The `Create(X)` plus `Add(X → Y)` pair is a wire-layer expansion, and the formal protocol models neither activity ([ADR-0083](../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
-Every object gains two activities on the wire: one to mint it, one to attach it.
+An object sent this way gains two activities on the wire: one to mint it, one to attach it.
 No shorthand in the 28-symbol formal message set names either step, because object lifecycle is a serialization concern rather than a protocol state change.
 
 This is the asymmetry ADR-0083 predicts, and it cuts both ways.

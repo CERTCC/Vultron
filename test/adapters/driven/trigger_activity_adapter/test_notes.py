@@ -17,6 +17,10 @@ import json
 
 import pytest
 
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.note import VultronNote
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -80,36 +84,63 @@ class TestCreateNote:
 
 
 class TestCreateNoteActivity:
-    def test_returns_activity_id(self, adapter, dl):
+    def _note(self, adapter: TriggerActivityAdapter) -> str:
         note_id, _ = adapter.create_note(
             name="Report",
             content="content",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
         )
+        return note_id
 
-        activity_id = adapter.create_note_activity(
+    def test_returns_id_and_body(self, adapter, dl):
+        note_id = self._note(adapter)
+
+        activity_id, body = adapter.create_note_activity(
             actor=_ACTOR, note_id=note_id
         )
 
         assert activity_id
         assert activity_id != note_id
+        assert json.loads(body)["id"] == activity_id
 
     def test_persists_activity(self, adapter, dl):
-        note_id, _ = adapter.create_note(
-            name="Report",
-            content="content",
-            context_id=_CASE_ID,
-            attributed_to=_ACTOR,
-        )
+        note_id = self._note(adapter)
 
-        activity_id = adapter.create_note_activity(
+        activity_id, _ = adapter.create_note_activity(
             actor=_ACTOR,
             note_id=note_id,
             to=[_CASE_ID],
         )
 
         assert dl.read(activity_id) is not None
+
+    def test_case_is_the_notes_context_not_a_target(self, adapter, dl):
+        """The note names its case; the Create carries no target (#4549)."""
+        note_id = self._note(adapter)
+
+        _, body = adapter.create_note_activity(actor=_ACTOR, note_id=note_id)
+
+        activity = json.loads(body)
+        assert activity["type"] == "Create"
+        assert "target" not in activity
+        assert activity["object"]["context"] == _CASE_ID
+
+    @pytest.mark.spec("ID-04-004")
+    def test_rerun_names_the_same_activity(self, adapter, dl):
+        """One note is created once: a re-run hands back the first body
+        under the same derived id (ID-04-004, OX-06-002)."""
+        note_id = self._note(adapter)
+
+        first = adapter.create_note_activity(
+            actor=_ACTOR, note_id=note_id, to=[_CASE_ID]
+        )
+        second = adapter.create_note_activity(
+            actor=_ACTOR, note_id=note_id, to=[_CASE_ID]
+        )
+
+        assert first == second
+        assert first[0] == derived_activity_id("note-created", _ACTOR, note_id)
 
 
 class TestAddNoteToCase:
@@ -184,7 +215,7 @@ class TestStoredNoteCarriedAsWireNote:
             attributed_to=_ACTOR,
         )
 
-        activity_id = adapter.create_note_activity(
+        activity_id, _ = adapter.create_note_activity(
             actor=_ACTOR, note_id=note_id
         )
 

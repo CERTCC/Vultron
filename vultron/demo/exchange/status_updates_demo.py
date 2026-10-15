@@ -68,9 +68,9 @@ from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
+    create_note_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Create,
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -139,11 +139,8 @@ def demo_notes_workflow(
             context=case.id_,
             attributed_to=vendor.id_,
         )
-        create_note_activity = as_Create(
-            actor=vendor.id_,
-            object_=note,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_note_activity)
+        create_activity = create_note_activity(note, actor=vendor.id_)
+        post_to_inbox_and_wait(client, vendor.id_, create_activity)
         with demo_check("Note stored in data layer"):
             verify_object_stored(client, note.id_)
 

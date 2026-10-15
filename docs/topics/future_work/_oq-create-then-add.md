@@ -9,7 +9,8 @@
     An inbox refuses each one as an unrecognized activity.
     The demos send the single `Add`, or the `Invite` that carries the `EmbargoEvent`.
     That is a choice of the prototype, and the protocol does not require it.
-    A note uses the second way: `Create(Note)` and then `Add(Note)`.
+    A new note uses a third way: one `Create(Note)` whose note names the case as its `context`, which the Case Manager attaches from that `context`.
+    A receiver also accepts the second way for a note, `Create(Note)` and then `Add(Note)`.
 
     The open question is whether the protocol must also support the separate `Create` for these objects.
     If it must, each `Create` changes the case file.

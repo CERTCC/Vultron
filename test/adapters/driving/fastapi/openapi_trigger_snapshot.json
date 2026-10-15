@@ -1083,7 +1083,7 @@
   "paths": {
     "/api/v2/actors/{actor_id}/demo/add-note-to-case": {
       "post": {
-        "description": "Demo-only convenience wrapper. Creates a Note object, adds it to the actor's local copy of the case, and queues Create(Note) and AddNoteToCase(Note, Case) activities in the actor's outbox for delivery to case participants. In a production deployment the actor's own BT would handle this step autonomously. Use the general ``add-object-to-case`` trigger at ``/trigger/`` when the Note already exists. Only available in ``RunMode.PROTOTYPE``. Spec: TRIG-09-001, TRIG-10-003.",
+        "description": "Demo-only convenience wrapper. Creates a Note object, adds it to the actor's local copy of the case, and queues one Create(Note), whose note names the case as its context, in the actor's outbox for delivery to the case's CASE_MANAGER. In a production deployment the actor's own BT would handle this step autonomously. Use the general ``add-object-to-case`` trigger at ``/trigger/`` when the Note already exists. Only available in ``RunMode.PROTOTYPE``. Spec: TRIG-09-001, TRIG-10-003.",
         "operationId": "actors_demo_add_note_to_case",
         "parameters": [
           {
