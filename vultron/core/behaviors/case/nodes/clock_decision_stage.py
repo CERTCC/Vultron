@@ -40,14 +40,11 @@ tree as an internal error (ADR-0095).
 The factory owns this structure; a tree supplies only the decisions.
 """
 
-import logging
-
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-
-logger = logging.getLogger(__name__)
+from vultron.core.behaviors.node_logger import node_logger
 
 __all__ = ["ClockDecision", "ClockDecisionStage"]
 
@@ -66,7 +63,8 @@ class ClockDecision(py_trees.decorators.Decorator):
         child = self.decorated
         if child.status == Status.FAILURE:
             self.feedback_message = BTBridge.get_failure_reason(child)
-            logger.warning(
+            log = node_logger(self)
+            log.warning(
                 "%s: clock decision '%s' recorded nothing: %s",
                 self.name,
                 child.name,

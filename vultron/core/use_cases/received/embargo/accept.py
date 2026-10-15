@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.admission_backfill_tree import (
     embargo_admission_backfill_tree,
 )
@@ -53,6 +53,7 @@ from vultron.core.use_cases.received._sender_preflight import (
     door_refusal,
     repeat_answer_skip,
 )
+from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -318,6 +319,36 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 receiving_actor_id=receiving_actor_id,
             )
 
+    def _route_late_accept(
+        self,
+        result: BTExecutionResult,
+        *,
+        case_id: str,
+        embargo_id: str,
+        accepting_actor_id: str,
+        receiving_actor_id: str,
+        invite_id: str,
+    ) -> HandlerResult:
+        """Route an Accept the tree's clock decision found late (EMB-17).
+
+        The tree's FAILURE is the expiry guard refusing the late Accept as
+        an answer, which this routing replaces; an internal error is still
+        the handler's to raise (ADR-0095).  The expiry entry was committed by
+        the clock decision (CM-28-009).
+        """
+        if result.internal_error:
+            raise VultronBTInternalError(
+                f"AcceptInviteToEmbargoBT: {result.feedback_message}"
+            )
+        self._handle_emb17_routing(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            accepting_actor_id=accepting_actor_id,
+            receiving_actor_id=receiving_actor_id,
+            invite_id=invite_id,
+        )
+        return HandlerResult.applied()
+
     def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
@@ -425,19 +456,14 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         )
 
         if bool(expiry_out.get(IS_EXPIRED_KEY)):
-            # A failure here is only the expiry guard's refusal of the late
-            # Accept as an answer; an internal error still raises.
-            verdict_from_bt(tree, result, label="AcceptInviteToEmbargoBT")
-            # CM-28-009: the expiry entry was committed by the tree's clock
-            # decision.  Route via EMB-17 compatibility branches.
-            self._handle_emb17_routing(
+            return self._route_late_accept(
+                result,
                 case_id=case_id,
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 receiving_actor_id=receiving_actor_id,
                 invite_id=invite_id,
             )
-            return HandlerResult.applied()
 
         verdict = embargo_answer_repeat_verdict(
             tree,

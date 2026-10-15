@@ -23,10 +23,11 @@ An Offer whose deadline has already passed when it is delivered stands in
 for one that expired while it waited, so no test sleeps.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
+from py_trees.common import Status
 
 from test.core.use_cases.received.actor.test_ownership import (
     _CASE_ACTOR_ID,
@@ -57,6 +58,7 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received._bt_verdict import find_node
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
 )
@@ -267,9 +269,20 @@ class TestLazyExpiry:
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("BT-17-001")
     def test_only_the_case_manager_computes_an_expiry(self, make_payload):
-        """Run as any other actor, the reply's tree commits no expiry."""
+        """Run at a replica, the reply's tree reaches the clock-decision
+        stage and its CASE_MANAGER gate skips the expiry."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
         case_id = "https://example.org/cases/case_dl_replica"
         dl, _, _, offer = _expired_offer(make_payload, case_id)
+        # The transferee's replica of the case: the case and its participant
+        # records, so the CASE_MANAGER is known there (PCR-03-001).
+        replica = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=_COORDINATOR_ID
+        )
+        for kind in ("VulnerabilityCase", "CaseParticipant"):
+            for obj in dl.list_objects(kind):
+                replica.create(obj)
         # The CASE_MANAGER's own forward of the reply: what a replica is
         # entitled to receive (PCR-03-001), so the door guards pass.
         reply = accept_case_ownership_transfer_activity(
@@ -287,15 +300,22 @@ class TestLazyExpiry:
         )
 
         BTBridge(
-            datalayer=dl,
+            datalayer=replica,
             wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(replica),
         ).execute_with_setup(
             tree=tree,
             actor_id=_COORDINATOR_ID,
             activity=make_payload(reply, receiving_actor_id=_COORDINATOR_ID),
         )
 
+        gate = next(
+            c for c in tree.children if c.name == "ClockDecisionsIfCaseManager"
+        )
+        decision = find_node(tree, ExpireOverdueOwnershipOfferNode)
+        assert gate.status is Status.SUCCESS
+        assert decision is not None and decision.status is Status.INVALID
+        assert _expiry_entries(replica) == []
         assert _expiry_entries(dl) == []
 
 
@@ -340,9 +360,11 @@ class TestTheActivityIsNotTheEvidence:
         if expires:
             assert result.disposition is HandlerDisposition.REFUSED
             (entry,) = _expiry_entries(dl)
-            assert entry.payload_snapshot["published"] != (
-                claimed_published.isoformat()
+            # Stamped with the CASE_MANAGER's clock, not the Accept's claim.
+            stamped = datetime.fromisoformat(
+                entry.payload_snapshot["published"]
             )
+            assert abs(stamped - now_utc()) < timedelta(minutes=1)
         else:
             assert result.disposition is HandlerDisposition.APPLIED
             assert _expiry_entries(dl) == []
@@ -454,6 +476,29 @@ def test_expiry_changes_nothing_once_the_case_is_fully_closed(make_payload):
     result = _accept(dl, make_payload, offer)
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason is not None and "CM-23-013" in result.reason
+    assert _event_types(dl) == entries_before
+    assert _expiry_entries(dl) == []
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CM-21-019")
+@pytest.mark.spec("CM-21-017")
+def test_an_offer_from_a_non_owner_ledgers_no_expiry(make_payload):
+    """The Offer's sender guard runs before the clock decision, so a sender
+    that is not the Case Owner never makes the CASE_MANAGER ledger the open
+    Offer's expiry."""
+    case_id = "https://example.org/cases/case_dl_non_owner_offer"
+    dl, deliver, _, _ = _expired_offer(make_payload, case_id)
+    entries_before = _event_types(dl)
+
+    second, _ = deliver(
+        "https://example.org/users/vendor2",
+        f"{case_id}/offer2",
+        offerer="https://example.org/users/mallory",
+    )
+
+    assert second is HandlerDisposition.REFUSED
     assert _event_types(dl) == entries_before
     assert _expiry_entries(dl) == []
 

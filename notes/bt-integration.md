@@ -47,6 +47,7 @@ related_notes:
   - notes/domain-validation.md
   - notes/protocol-asks.md
   - notes/structured-logging.md
+  - notes/ownership-transfer-close-paths.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -285,9 +286,10 @@ guards, commit, effects.
    `ClockDecision` inside a `ClockDecisionStage`
    (`case/nodes/clock_decision_stage.py`) behind a CASE_MANAGER gate, and
    refuses one that holds the received activity's commit. The ownership
-   Offer expiry (`ExpireOverdueOwnershipOfferNode`) and the embargo Invite
-   expiry (`invite_expiry_decision`) are clock decisions; never run one as a
-   tree of its own before the received tree.
+   Offer expiry (`ExpireOverdueOwnershipOfferNode`,
+   [ownership-transfer-close-paths](ownership-transfer-close-paths.md)) and
+   the embargo Invite expiry (`invite_expiry_decision`) are clock decisions;
+   never run one as a tree of its own before the received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).

@@ -18,6 +18,7 @@ related_specs:
   - specs/protocol-asks.yaml
 related_notes:
   - notes/ownership-transfer.md
+  - notes/bt-integration.md
 ---
 
 # Ownership Transfer — Closing an Offer Without an Answer
@@ -92,7 +93,8 @@ an Offer can also close without an answer (#4490):
     (CLP-07-013), and ledgered even when that activity is then admitted (a new
     Offer, CM-21-014). So each of the four received trees passes it as a
     clock decision, which the factory runs after the door guards and before
-    the open-Offer guards (CLP-10-025, ADR-0135); after `case_fully_closed`
+    the open-Offer guards (CLP-10-025, ADR-0135; [bt-integration](bt-integration.md)
+    § "The Received-Side Stages"); after `case_fully_closed`
     the post-close door guard ends the tree first (CM-23-013).
   - **Only the party prompts it.** An Accept, Reject or Undo prompts the expiry
     only when it names the open Offer and its sender is that Offer's transferee

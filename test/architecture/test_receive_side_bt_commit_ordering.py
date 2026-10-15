@@ -34,7 +34,8 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    it (CLP-10-022).
 4. No built received tree commits ahead of its guarded commit except inside
    the clock-decision stage, and there only from a decision's own commit
-   node, never the received activity's (CLP-10-025).
+   node, never the received activity's, and no protocol-effect node runs
+   inside the stage (CLP-10-025).
 
 The intake-first ratchet — every receive-side factory returns the shared
 factory's result, with the bypassing and nesting factories as exact sets
@@ -278,13 +279,26 @@ GUARDED_COMMIT_NAME = "GuardedCommitCaseLedgerEntryBT"
 
 
 def _commit_node_types() -> tuple[type, ...]:
-    """Every node class that commits a ledger entry in-tree."""
+    """Every node class that commits a ledger entry.
+
+    ``CreateLogEntryNode`` mints in-tree; ``CommitCaseLedgerEntryNode`` is the
+    received activity's commit; ``ExpireOverdueOwnershipOfferNode`` commits
+    the Offer expiry in a nested tree only it can see, because which Offer
+    expires is known only when it runs, so it is named here to be checked.
+    """
     from vultron.core.behaviors.case.nodes.lifecycle import (
         CommitCaseLedgerEntryNode,
     )
+    from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
+        ExpireOverdueOwnershipOfferNode,
+    )
     from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 
-    return (CommitCaseLedgerEntryNode, CreateLogEntryNode)
+    return (
+        CommitCaseLedgerEntryNode,
+        CreateLogEntryNode,
+        ExpireOverdueOwnershipOfferNode,
+    )
 
 
 def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
@@ -332,6 +346,9 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
     """Every received tree commits ahead of its guards only from a clock
     decision's own commit node."""
     from test.architecture._received_tree_builds import built_received_trees
+    from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+        ClockDecisionStage,
+    )
 
     trees = built_received_trees()
     offenders = {
@@ -343,10 +360,49 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         "Commits ahead of the guarded commit outside a clock decision's own"
         f" entry (CLP-10-025): {offenders}"
     )
-    assert any(
-        "ClockDecisionsIfCaseManager" in [c.name for c in t.children]
+    staged = {
+        type(n).__name__
         for t in trees.values()
-    ), "no built tree has a clock-decision stage — corpus drifted?"
+        for stage in t.iterate()
+        if isinstance(stage, ClockDecisionStage)
+        for n in stage.iterate()
+        if isinstance(n, _commit_node_types())
+    }
+    # Both expiries are seen committing inside the stage, so the walk covers
+    # the nested committer as well as the in-tree one.
+    assert {"CreateLogEntryNode", "ExpireOverdueOwnershipOfferNode"} <= staged
+
+
+@pytest.mark.spec("CLP-10-025")
+def test_no_protocol_effect_runs_in_the_clock_decision_stage() -> None:
+    """A clock decision commits only its own entry and the change it records,
+    so no node a factory uses as a protocol effect runs inside the stage,
+    where it would precede the guards."""
+    from test.architecture._received_tree_builds import built_received_trees
+    from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+        ClockDecisionStage,
+    )
+
+    effects, _ = _stage_rosters()
+    offenders = {
+        f"{path}:{factory}": sorted(found)
+        for (path, factory), tree in built_received_trees().items()
+        if (
+            found := {
+                type(n).__name__
+                for stage in tree.iterate()
+                if isinstance(stage, ClockDecisionStage)
+                for n in stage.iterate()
+                # py_trees composites are structure, not effects.
+                if type(n).__name__ in effects
+                and not type(n).__module__.startswith("py_trees")
+            }
+        )
+    }
+    assert offenders == {}, (
+        "Protocol-effect nodes inside a clock-decision stage (CLP-10-025):"
+        f" {offenders}"
+    )
 
 
 class TestEarlyCommitDetector:
