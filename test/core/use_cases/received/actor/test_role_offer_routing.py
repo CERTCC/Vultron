@@ -62,7 +62,8 @@ _TARGET_ID = "https://example.org/users/finder"
 _BYSTANDER_ID = "https://example.org/users/coordinator"
 _OFFER_ID = "https://example.org/activities/role-offer"
 
-_NOT_BUILT = "Tracked by #4672."
+_OFFER_PATH = "Tracked by #4702."
+_ANSWER_PATH = "Tracked by #4703."
 
 
 def _store(actor_id: str) -> SqliteDataLayer:
@@ -161,7 +162,7 @@ def _target_holds(dl: SqliteDataLayer, role: CVDRole) -> bool:
 @pytest.mark.xfail(
     strict=True,
     reason=f"CM-33-001: the CASE_MANAGER accepts the Offer itself, on the"
-    f" target's behalf, and grants the role on receipt. {_NOT_BUILT}",
+    f" target's behalf, and grants the role on receipt. {_OFFER_PATH}",
 )
 @pytest.mark.spec("CM-33-001")
 def test_case_manager_records_and_forwards_the_offer(make_payload):
@@ -184,7 +185,7 @@ def test_case_manager_records_and_forwards_the_offer(make_payload):
 
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CM-33-002: no sender check on a role Offer. {_NOT_BUILT}",
+    reason=f"CM-33-002: no sender check on a role Offer. {_OFFER_PATH}",
 )
 @pytest.mark.spec("CM-33-002")
 def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
@@ -203,7 +204,7 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
 @pytest.mark.xfail(
     strict=True,
     reason=f"CM-33-003: a role Offer's role and target are not checked."
-    f" {_NOT_BUILT}",
+    f" {_OFFER_PATH}",
 )
 @pytest.mark.spec("CM-33-003")
 @pytest.mark.parametrize(
@@ -233,7 +234,7 @@ def test_offer_the_case_manager_must_refuse(make_payload, role, target):
 @pytest.mark.xfail(
     strict=True,
     reason=f"CM-33-004: the target answers a role Offer from any sender."
-    f" {_NOT_BUILT}",
+    f" {_OFFER_PATH}",
 )
 @pytest.mark.spec("CM-33-004")
 def test_target_refuses_an_offer_not_sent_by_the_case_manager(make_payload):
@@ -249,7 +250,7 @@ def test_target_refuses_an_offer_not_sent_by_the_case_manager(make_payload):
 @pytest.mark.xfail(
     strict=True,
     reason=f"CM-33-005: the answer has no sender check and is only stored."
-    f" {_NOT_BUILT}",
+    f" {_ANSWER_PATH}",
 )
 @pytest.mark.spec("CM-33-005")
 def test_accept_from_a_participant_that_is_not_the_target_is_refused(
@@ -276,7 +277,7 @@ class TestAdmittedAnswerIsLedgered:
     @pytest.mark.xfail(
         strict=True,
         reason=f"CM-33-006: the target's Accept is only stored, never"
-        f" committed or announced. {_NOT_BUILT}",
+        f" committed or announced. {_ANSWER_PATH}",
     )
     @pytest.mark.spec("CM-33-006")
     @pytest.mark.spec("CLP-02-012")
@@ -301,7 +302,7 @@ class TestAdmittedAnswerIsLedgered:
     @pytest.mark.xfail(
         strict=True,
         reason=f"CM-33-006: the target's Reject is only stored; the"
-        f" CASE_MANAGER has already accepted for it. {_NOT_BUILT}",
+        f" CASE_MANAGER has already accepted for it. {_ANSWER_PATH}",
     )
     @pytest.mark.spec("CM-33-006")
     @pytest.mark.spec("CLP-02-012")
