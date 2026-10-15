@@ -6,7 +6,7 @@ level: 400
 # How to Post a Status Update or a Case Note
 
 Use this guide to tell the other participants something: that your fix is ready, that the vulnerability is now public, or anything that needs narrative rather than a state change.
-A status update is one `as:Add` that carries the new status inline and attaches it; a note is drafted with `as:Create` and then attached with `as:Add`.
+A status update is one `as:Add` that carries the new status inline and attaches it; a new note is one `as:Create` whose note names the case as its `context`.
 You finish with the update committed to the case ledger and replicated to every participant.
 
 ---
@@ -97,13 +97,18 @@ The state change hangs off the `Add`, because that is the activity that asserts 
 Use a note when the case needs narrative that no status field carries — a question, an answer, or a condition that needs human attention.
 A note goes to the case participants, not to the public.
 
-1. Draft the note: send `Create(Note)` with the note body.
+To post a new note, send one `Create(Note)` to the CASE_MANAGER.
+Set the note's `context` to the case, and give the `Create` no `target`.
+The CASE_MANAGER attaches the note to the case and commits a `create_note` entry to the case ledger.
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/create-note.md" %}
+{% include-markdown "../../../reference/messages/_occasions/embeds/create-note.md" %}
 
-2. Post it to the case: send `Add(Note)`, targeting the case.
+To attach a note that already exists, such as one created earlier or by another implementation, send `Add(Note)` targeting the case.
+The CASE_MANAGER attaches it and commits an `add_note_to_case` entry.
+A receiver also accepts a `Create(Note)` followed by an `Add(Note)` of the same note; the `Add` then changes nothing more.
+This implementation's add-note trigger sends the `Create` alone.
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
+{% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
 
 To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
 The CASE_MANAGER accepts it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.
@@ -122,7 +127,7 @@ If the note is a fault report rather than ordinary case discussion, see [How to 
 |---|---|
 | `Add(ParticipantStatus)` | Your participant record carries the new status, on every replica. |
 | `Add(CaseStatus)` | The case status carries the new `pxa_state`, on every replica. |
-| `Add(Note)` | The note appears on the case. |
+| `Create(Note)` or `Add(Note)` | The note appears on the case, on every replica. |
 
 Each of these is committed by the CASE_MANAGER and fanned out, so checking your own store alone does not confirm the update landed.
 

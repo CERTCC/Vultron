@@ -19,16 +19,17 @@ import logging
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
-from vultron.wire.as2.factories import add_note_to_case_activity
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Create,
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+    create_note_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-from ._base import _seal
+from ._base import _addressing, _already_sealed, _seal
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +94,28 @@ class _NotesMixin:
         actor: str,
         note_id: str,
         to: list[str] | None = None,
-    ) -> str:
-        """Create and persist a ``Create(Note)`` activity; return activity_id."""
-        note = _note_for_wire(self._dl, note_id)
-        activity = as_Create(actor=actor, object_=note, to=to)
+    ) -> tuple[str, str]:
+        """Create and persist a ``Create(Note)`` activity.
+
+        The note's ``context`` names the case it belongs to; the ``Create``
+        carries no ``target`` (:func:`create_note_activity`).  The id is
+        derived from *actor* and the note, because one note is created once:
+        a re-run hands back the body the first run sealed rather than queuing
+        a second ``Create`` (ID-04-004, OX-06-002).
+
+        Returns ``(activity_id, activity_body)``.
+
+        Raises:
+            VultronNotFoundError: when *note_id* is not in the DataLayer.
+        """
+        activity_id = derived_activity_id("note-created", actor, note_id)
+        sealed = _already_sealed(self._dl, activity_id)
+        if sealed is not None:
+            return sealed
+        activity = create_note_activity(
+            _note_for_wire(self._dl, note_id),
+            **_addressing(actor, to, activity_id),
+        )
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
@@ -105,7 +124,7 @@ class _NotesMixin:
                 " — skipping",
                 activity.id_,
             )
-        return _seal(self._dl, activity)[0]
+        return _seal(self._dl, activity)
 
     def add_note_to_case(
         self,

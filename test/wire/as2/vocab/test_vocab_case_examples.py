@@ -265,8 +265,10 @@ class TestVocabCaseNoteExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Create")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, case.id_)
+        # The note's context names the case; the Create has no target (#4549).
+        self.assertIsNone(activity.target)
         self.assertEqual(activity.object_, note)
+        self.assertEqual(cast(as_Note, activity.object_).context, case.id_)
 
 
 class TestVocabCaseOwnershipExamples(unittest.TestCase):
