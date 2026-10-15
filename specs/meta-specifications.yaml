@@ -1789,8 +1789,9 @@ groups:
       the `Create` "precedes the Add", #4550). Deferring the other forms keeps them open for
       later design without binding any receiver now.
     verification: >-
-      Inspection: VAM-01-011 names one attaching message for each case record, and
-      `docs/topics/future_work/_oq-create-then-add.md` lists the forms it does not name.
+      Inspection: no two `protocol` requirements name different wire forms for the same
+      act (for the case records, VAM-01-011 names the one attaching message), and
+      `docs/topics/future_work/_oq-create-then-add.md` lists the forms not named.
     tags:
     - documentation
   - id: MS-18-002
