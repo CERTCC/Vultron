@@ -22,9 +22,12 @@ read-only routing guards, into two mutually exclusive arms
 ``create_participant_replica_gated_tree``, BT-17-001):
 
 - **As the CASE_MANAGER** the actor's decision is canonical: the
-  ``EmbargoLifecycle`` write runs ``STRICT``, the decision activity is
+  ``EmbargoLifecycle`` operation runs ``STRICT``, the decision activity is
   committed as a ledger entry the announce slots replay (EP-09-007,
-  RSH-08-004, #4085), and the ``Add(CaseStatus)`` declaration follows.
+  RSH-08-004, #4085), and the ``Add(CaseStatus)`` declaration follows.  The
+  propose and answer arms decide on a staged store and commit the act, then
+  each consent row it changes, before applying them by copying (ADR-0124,
+  CLP-07-013).
   Nothing is addressed to the manager itself (CLP-10-001): its own proposal
   is relayed to each participant (EP-09-002) and its teardown is told to
   every other one (EMB-19-001, #4112).
