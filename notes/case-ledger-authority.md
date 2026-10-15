@@ -99,6 +99,13 @@ Replicas need the asserted content to rebuild state, so the hash chain is
 computed over entries that each include the payload snapshot, never over pointers
 to prior assertions.
 
+**Planned: `event_type` is the registry's label for the payload (ADR-0140,
+proposed).** Every payload is a valid AS2 activity, and an entry's `event_type`
+must equal the semantic type the registry assigns to its `payload_snapshot`,
+including for the CASE_MANAGER's own acts. Today each write path stamps
+`event_type` from its own string constant. The shapes for ledger-only acts are
+decided in #4723; the equality test is #4724.
+
 ## Refusals Go to the Process Log
 
 Only admitted assertions enter the ledger; there is no disposition field.
