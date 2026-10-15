@@ -98,6 +98,34 @@ groups:
       no imperative or request-type activity variant appears in any pattern.
     lint_suppress:
     - missing_story_reference
+  - id: VAM-01-010
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST attach a `CaseStatus` or a `ParticipantStatus` with the single
+      `Add` that carries it inline (VAM-08-002, VAM-08-004), and MUST carry a proposed
+      `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An inbox MUST
+      refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
+      `Create(Event)` or `Create(CaseParticipant)` as an unrecognized activity.
+    rationale: >-
+      These objects have no meaning apart from their attachment, so this prototype attaches
+      each in one message and has no use for a separate `Create`. The removed `Create`
+      routes stored their object with no ledger entry, which CLP-07-013 rules out (#4598).
+      That is a choice of this prototype reference implementation, not a protocol rule.
+      Whether the protocol should also allow `Create` then `Add`, or a `Create` whose case
+      `context` attaches the object, is open question #4676.
+    verification: >-
+      The parametrized test `test_received_create_of_a_case_record_is_refused_case_unchanged`
+      in `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that each of
+      the four received `Create` activities resolves to `UNKNOWN` and is refused, and that
+      the case, the ledger and the outbox stay unchanged.
+    relationships:
+    - rel_type: implements
+      spec_id: VAM-08-002
+    - rel_type: implements
+      spec_id: VAM-08-004
+    - rel_type: implements
+      spec_id: VAM-05-005
 - id: VAM-02
   title: Report Management Messages
   specs:
