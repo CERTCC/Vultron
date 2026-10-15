@@ -49,6 +49,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
@@ -145,6 +146,7 @@ class TestTerminateEmbargoBT:
                     case_id=case.id_,
                     actor=CASE_MANAGER_ACTOR,
                     to=to,
+                    reason=TerminationReason.EARLY,
                 ),
             )
 
@@ -157,7 +159,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out={},
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             activity_builder=builder if use_builder else None,
         )
         result = bridge.execute_with_setup(tree, actor_id=CASE_MANAGER_ACTOR)
@@ -296,6 +298,7 @@ class TestTerminateEmbargoBT:
                     case_id=case.id_,
                     actor=OTHER_PARTICIPANT_ACTOR,
                     to=to,
+                    reason=TerminationReason.EARLY,
                 ),
             )
 
@@ -308,7 +311,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             activity_builder=builder,
         )
         result = bridge.execute_with_setup(
@@ -346,6 +349,7 @@ class TestTerminateEmbargoBT:
                     case_id=case.id_,
                     actor=ACTOR_ID,
                     to=to,
+                    reason=TerminationReason.EARLY,
                 ),
             )
 
@@ -358,7 +362,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             activity_builder=builder,
         )
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
@@ -386,7 +390,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             activity_builder=lambda _to: ("", ""),
         )
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
@@ -426,7 +430,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
         )
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
@@ -466,7 +470,7 @@ class TestTerminateEmbargoBT:
         tree = terminate_embargo_bt(
             case_id=case.id_,
             result_out=result_out,
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
         )
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 

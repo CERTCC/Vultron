@@ -374,7 +374,7 @@ def _make_remove_embargo_entry(
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
             event_type="remove_embargo_event_from_case",
-            payload_snapshot={"log_index": log_index},
+            payload_snapshot={"log_index": log_index, "content": "EARLY"},
             prev_log_hash=prev_hash,
         )
     )

@@ -41,6 +41,7 @@ from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
@@ -131,7 +132,10 @@ class _GateScenario:
     def receive_remove(self) -> None:
         """The CASE_MANAGER receives the embargo's termination (EM -> EXITED)."""
         remove = remove_embargo_from_case_activity(
-            self.embargo, origin=CASE_ID, actor=MANAGER_ID
+            self.embargo,
+            origin=CASE_ID,
+            actor=MANAGER_ID,
+            reason=TerminationReason.EARLY,
         )
         RemoveEmbargoEventFromCaseReceivedUseCase(
             self.dl,
@@ -213,7 +217,7 @@ class _GateScenario:
         ).execute_with_setup(
             tree=terminate_embargo_bt(
                 case_id=CASE_ID,
-                reason=TerminationReason.EARLY,
+                termination=EmbargoTermination.early(),
                 result_out={},
             ),
             actor_id=MANAGER_ID,

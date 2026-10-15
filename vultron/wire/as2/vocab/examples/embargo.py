@@ -13,6 +13,7 @@
 
 from datetime import timedelta
 
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     announce_embargo_activity,
@@ -187,6 +188,9 @@ def remove_embargo() -> as_Remove:
     _vendor = vendor()
     _case = case()
     activity = remove_embargo_from_case_activity(
-        embargo_event(90), actor=_vendor.id_, origin=_case.id_
+        embargo_event(90),
+        actor=_vendor.id_,
+        origin=_case.id_,
+        reason=TerminationReason.EARLY,
     )
     return activity

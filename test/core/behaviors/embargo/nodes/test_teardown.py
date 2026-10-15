@@ -38,8 +38,11 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -149,7 +152,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -188,7 +193,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -215,7 +222,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl, actor_id=ACTOR_ID)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -245,7 +254,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -271,7 +282,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -291,7 +304,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -315,7 +330,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -346,7 +363,8 @@ class TestClearActiveEmbargoNode:
         setup_blackboard(dl)
 
         node = ClearActiveEmbargoNode(
-            case_id="https://example.org/cases/nonexistent"
+            case_id="https://example.org/cases/nonexistent",
+            termination=EmbargoTermination.early(),
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
@@ -364,7 +382,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -397,7 +417,9 @@ class TestClearActiveEmbargoNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ClearActiveEmbargoNode(case_id=case.id_)
+        node = ClearActiveEmbargoNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -427,7 +449,9 @@ class TestApplyEmbargoTeardownNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -447,7 +471,9 @@ class TestApplyEmbargoTeardownNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -473,7 +499,9 @@ class TestApplyEmbargoTeardownNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -499,7 +527,9 @@ class TestApplyEmbargoTeardownNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -519,7 +549,9 @@ class TestApplyEmbargoTeardownNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -542,7 +574,9 @@ class TestApplyEmbargoTeardownNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
@@ -584,7 +618,9 @@ class TestApplyEmbargoTeardownNode:
         assert participant.is_signatory(case.active_embargo_id)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -613,7 +649,8 @@ class TestApplyEmbargoTeardownNode:
         setup_blackboard(dl)
 
         node = ApplyEmbargoTeardownNode(
-            case_id="https://example.org/cases/nonexistent"
+            case_id="https://example.org/cases/nonexistent",
+            termination=EmbargoTermination.early(),
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
@@ -640,7 +677,9 @@ class TestApplyEmbargoTeardownNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        node = ApplyEmbargoTeardownNode(
+            case_id=case.id_, termination=EmbargoTermination.early()
+        )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 

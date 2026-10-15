@@ -40,6 +40,10 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import (
+    TerminationReason,
+    termination_reason_from_content,
+)
 from vultron.core.states.rm import RM
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.errors import VultronParseValidationError
@@ -101,6 +105,26 @@ def _get_type(field: object) -> str | None:
         return None
     t = getattr(field, "type_", None)
     return str(t) if t is not None else None
+
+
+def termination_reason_of(activity: as_Activity) -> TerminationReason:
+    """Parse the reason a termination ``Remove`` carries in its ``content``.
+
+    Exactly ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122), checked here at the
+    parse edge so core receives the enum (ADR-0032).
+
+    Raises:
+        VultronParseValidationError: when ``content`` is anything else,
+            naming the activity.
+    """
+    try:
+        return termination_reason_from_content(
+            getattr(activity, "content", None)
+        )
+    except ValueError as exc:
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r}: {exc}"
+        ) from exc
 
 
 def ledger_position_from_content(activity: as_Activity) -> LedgerPosition:
