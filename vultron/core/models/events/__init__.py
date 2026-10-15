@@ -67,6 +67,7 @@ from vultron.core.models.events.embargo import (
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
+    WithdrawFromEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
@@ -146,6 +147,7 @@ AnyReceivedEvent = (
     # embargo
     ActivateEmbargoOnCaseReceivedEvent
     | RejectEmbargoProposalOnCaseReceivedEvent
+    | WithdrawFromEmbargoOnCaseReceivedEvent
     | RemoveEmbargoEventFromCaseReceivedEvent
     | AnnounceEmbargoEventToCaseReceivedEvent
     | InviteToEmbargoOnCaseReceivedEvent
@@ -224,6 +226,7 @@ __all__ = [
     # embargo
     "ActivateEmbargoOnCaseReceivedEvent",
     "RejectEmbargoProposalOnCaseReceivedEvent",
+    "WithdrawFromEmbargoOnCaseReceivedEvent",
     "RemoveEmbargoEventFromCaseReceivedEvent",
     "AnnounceEmbargoEventToCaseReceivedEvent",
     "InviteToEmbargoOnCaseReceivedEvent",

@@ -37,6 +37,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     ProposeEmbargoRevisionRequest,
     RejectEmbargoRequest,
     TerminateEmbargoRequest,
+    WithdrawEmbargoRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
@@ -44,6 +45,7 @@ from vultron.core.use_cases.triggers.requests import (
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
     TerminateEmbargoTriggerRequest,
+    WithdrawEmbargoTriggerRequest,
 )
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -251,6 +253,50 @@ def trigger_terminate_embargo(
         TerminateEmbargoTriggerRequest(
             actor_id=actor_id, case_id=body.case_id, reason=body.reason
         ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/withdraw-embargo",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger withdrawal from the embargo in force.",
+    description=(
+        "Triggers the withdraw-embargo behavior for the given actor. "
+        "A participant whose consent to the active embargo is AGREED leaves "
+        "it by sending Leave(EmbargoEvent) to the CASE_MANAGER; no Invite is "
+        "named. The participant's consent to the embargo in force, and to "
+        "any open revision it agreed to, becomes DECLINED; the embargo stays "
+        "in force for everyone else and the case's EM state does not move "
+        "(EP-09-013, MSM-07-010). "
+        "Returns HTTP 409 when no embargo is in force, when the actor's "
+        "consent to it is not AGREED, or when the actor is the case owner, "
+        "which ends an embargo with terminate-embargo instead. "
+        "Returns HTTP 404 when the actor holds no participant record on the "
+        "case. "
+        "Returns the resulting activity in the response body (TRIG-04-001)."
+    ),
+    operation_id="actors_trigger_withdraw_embargo",
+    response_model=ActivityResult,
+)
+def trigger_withdraw_embargo(
+    actor_id: str,
+    body: WithdrawEmbargoRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the withdraw-embargo behavior for the given actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-002, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001, EP-09-013
+    """
+    return run_trigger(
+        WithdrawEmbargoTriggerRequest(actor_id=actor_id, case_id=body.case_id),
         dispatcher=dispatcher,
         dl=actor_dl,
         background_tasks=background_tasks,

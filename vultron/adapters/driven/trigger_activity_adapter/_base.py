@@ -33,6 +33,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronActivityConstructionError,
+    VultronAlreadyExistsError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -251,6 +252,27 @@ def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
     """
     body = seal_outbound_body(dl, activity)  # refuses an activity with no id_
     return outbound_activity_id(activity), body
+
+
+def _create_and_seal(
+    dl: CaseOutboxPersistence, activity: as_Object, label: str
+) -> tuple[str, str]:
+    """Persist *activity* in *dl*, then seal it (:func:`_seal`).
+
+    An activity already stored under its id is a repeat of an earlier
+    build, so it is logged and sealed as it stands rather than refused:
+    the sealed body is still the one the outbox delivers (VM-08-003).
+    *label* names the calling adapter method in the log line.
+    """
+    try:
+        dl.create(activity)
+    except VultronAlreadyExistsError:
+        logger.warning(
+            "%s: activity '%s' already exists — skipping",
+            label,
+            activity.id_,
+        )
+    return _seal(dl, activity)
 
 
 def _addressing(

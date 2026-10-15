@@ -86,6 +86,7 @@ from ._base import (
     _addressing,
     _already_sealed,
     _case_for_wire,
+    _create_and_seal,
     _seal,
     _to_wire,
 )
@@ -253,14 +254,7 @@ class _ActorsMixin:
         activity = rm_accept_invite_to_case_activity(
             invite=invite, actor=actor, to=[invite_actor_id]
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "accept_case_invite: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "accept_case_invite")
 
     def reject_case_invite(
         self,
@@ -284,14 +278,7 @@ class _ActorsMixin:
         activity = rm_reject_invite_to_case_activity(
             invite=invite, actor=actor, to=[invite_actor_id]
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "reject_case_invite: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "reject_case_invite")
 
     def invite_actor_to_full_case(
         self,
@@ -313,15 +300,9 @@ class _ActorsMixin:
             ),
             **extra,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "invite_actor_to_full_case: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "invite_actor_to_full_case"
+        )
 
     def _full_case_reply(
         self,
@@ -345,15 +326,7 @@ class _ActorsMixin:
             actor=actor,
             to=[invite_actor_id],
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "%s: activity '%s' already exists — skipping",
-                label,
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, label)
 
     def accept_full_case_invite(
         self,
@@ -437,15 +410,9 @@ class _ActorsMixin:
         activity = accept_case_participant_offer_activity(
             offer=cp_offer, actor=actor, to=to, target=target
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "accept_case_participant_offer: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "accept_case_participant_offer"
+        )
 
     def suggest_actor_to_case(
         self,
@@ -465,15 +432,7 @@ class _ActorsMixin:
             suggested_roles=roles,
             **extra,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "suggest_actor_to_case: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "suggest_actor_to_case")
 
     def offer_actor_to_case(
         self,
@@ -513,14 +472,7 @@ class _ActorsMixin:
                 self._dl.create(activity.object_)
             except ValueError:
                 pass
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "offer_actor_to_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "offer_actor_to_case")
 
     def emit_accept_actor_recommendation(
         self,
@@ -547,15 +499,9 @@ class _ActorsMixin:
         activity = accept_actor_recommendation_activity(
             offer=recommendation, target=case_id, **extra
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "emit_accept_actor_recommendation: activity '%s' already"
-                " exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "emit_accept_actor_recommendation"
+        )
 
     def emit_reject_actor_recommendation(
         self,
@@ -582,15 +528,9 @@ class _ActorsMixin:
         activity = reject_actor_recommendation_activity(
             offer=recommendation, target=case_id, **extra
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "emit_reject_actor_recommendation: activity '%s' already"
-                " exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "emit_reject_actor_recommendation"
+        )
 
     def accept_actor_recommendation(
         self,
@@ -618,15 +558,9 @@ class _ActorsMixin:
         activity = accept_actor_recommendation_activity(
             offer=recommendation, target=case_id, **extra
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "accept_actor_recommendation: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "accept_actor_recommendation"
+        )
 
     def add_participant_to_case(
         self,
@@ -651,15 +585,7 @@ class _ActorsMixin:
             to=to,
             attributed_to=attributed_to,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "add_participant_to_case: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "add_participant_to_case")
 
     def remove_participant_from_case(
         self,
@@ -684,15 +610,9 @@ class _ActorsMixin:
             attributed_to=attributed_to,
             to=to,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "remove_participant_from_case: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "remove_participant_from_case"
+        )
 
     def add_participant_status_to_participant(
         self,
@@ -755,15 +675,9 @@ class _ActorsMixin:
             actor=actor,
             to=to,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "offer_case_participant_role: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "offer_case_participant_role"
+        )
 
     def _answer_case_participant_role(
         self,
@@ -795,15 +709,7 @@ class _ActorsMixin:
             actor=vendor_id,
         )
         activity = build(offer=offer, **_addressing(actor, to, id_))
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "%s: activity '%s' already exists — skipping",
-                label,
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, label)
 
     def accept_case_participant_role(
         self,
@@ -893,15 +799,9 @@ class _ActorsMixin:
             target=transferee_id,
             **extra,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "offer_case_ownership_transfer: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(
+            self._dl, activity, "offer_case_ownership_transfer"
+        )
 
     def accept_case_ownership_transfer(
         self,
@@ -996,15 +896,7 @@ class _ActorsMixin:
             if offer_actor_id:
                 to = [offer_actor_id]
         activity = factory(offer=offer, actor=actor, to=to)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "%s: activity '%s' already exists — skipping",
-                label,
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, label)
 
     def _offer_from_core_record(
         self, record: "VultronOwnershipTransferOfferRecord"

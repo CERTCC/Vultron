@@ -58,6 +58,7 @@ _JOIN_BACKFILL_GATED_SEMANTICS = frozenset(
         MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
     }
 )
 

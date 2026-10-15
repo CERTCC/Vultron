@@ -89,9 +89,10 @@ class IsActiveEmbargoNode(DataLayerConditionWithPorts):
 class IsRejectableEmbargoNode(DataLayerConditionWithPorts):
     """Guard that a Reject names an embargo the case can still refuse.
 
-    SUCCESS when ``embargo_id`` is the case's active embargo (consent
-    withdrawal) or one of its open proposals (refusal of those terms) —
-    the two readings MSM-07-004 gives a Reject (ADR-0093).  FAILURE
+    SUCCESS when ``embargo_id`` is the case's active embargo or one of its
+    open proposals (refusal of those terms) — the two embargoes MSM-07-004
+    lets a Reject name; ``RejectIsNotWithdrawalNode`` refuses the one
+    reading of the first that would withdraw (MSM-07-010).  FAILURE
     otherwise: a Reject of a proposal already decided, or of an embargo the
     case never knew, has nothing to change.  Read-only, so it sits ahead of
     the guarded commit (CLP-10-009): a Reject the effects would refuse is
