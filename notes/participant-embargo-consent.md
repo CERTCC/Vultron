@@ -36,6 +36,8 @@ relevant_packages:
   - vultron/bt/embargo_management
   - vultron/core/behaviors/embargo
   - vultron/core/models/case_participant.py
+  - vultron/core/models/embargo_apply.py
+  - vultron/core/behaviors/sync/nodes
   - vultron/core/use_cases
 ---
 
@@ -217,11 +219,12 @@ is not the sender and not in `to` refuses the copy at the door
 Change consent by applying a `PEC_Trigger` through
 `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`,
 preferably through `EmbargoLifecycle`'s `_apply_where_legal()`, and persist the
-participant. `write_uninvited_rows()` is the only other row write, and it records
-no answer. Direct assignment bypasses the transition table, so the content gate
-(CM-10-004) can admit an actor the protocol never bound;
-`apply_pec_transition()` raises `VultronInvalidStateTransitionError` instead, so
-consent writes are fail-closed even when an upstream guard is wrong.
+participant. `write_uninvited_rows()` and the copy write below are the only other
+row writes; the first records no answer. Direct assignment bypasses the
+transition table, so the content gate (CM-10-004) can admit an actor the protocol
+never bound; `apply_pec_transition()` raises
+`VultronInvalidStateTransitionError` instead, so consent writes are fail-closed
+even when an upstream guard is wrong.
 
 Keep the MSM-07-004 classification in the service (`_assert_rejectable`,
 `reject_is_withdrawal_refusal`), not in a node: the received `Reject(Invite)`
@@ -236,6 +239,40 @@ calls the service's predicate rather than restating it.
   `Leave`) declines the active row and every open proposal's row the actor had
   agreed to (every open proposal revises the active embargo, EP-08-004). A
   Reject never cascades: it declines the named row only.
+
+### The copy write: one apply function (ADR-0124, #4713)
+
+`CaseParticipant.copy_consent_row()` is the third row write, and the only one
+a replica may use: it stores a row exactly as a ledger entry carries it. It is
+called only from `apply_embargo_change()` (`vultron/core/models/embargo_apply.py`),
+the one apply function the CASE_MANAGER's trial apply and every replica share.
+That function checks the starting state first (a `Create` row is new; an
+`Update` row is held and one consent transition, or a fresh `INVITED`
+deadline, reaches the carried state; a final entry's rows are frozen) and
+raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition`.
+
+- **Entries follow activity/object pairs.** A register step rides on the
+  act's own activity (`RegisterStep`: the `Accept(EmbargoEvent, target=Case)`
+  is `ACTIVATE` with its supersede, the `Remove` is `TERMINATE` with its
+  cancels); each changed consent row is its own CASE_MANAGER
+  `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, event types in
+  `embargo_consent_event_types.py`).
+- **A row is an AS2 object.** `EmbargoConsent` has `type`, a derived `id`
+  (`EmbargoConsent.build_id(embargo_id, actor_id)`) and `attributedTo`, the
+  participant's actor. A participant record stamps its actor on every row it
+  holds, so compare rows with `attributed_to` set, or compare states.
+- **The CASE_MANAGER side** is `commit_and_apply_embargo_entries()`
+  (`vultron/core/behaviors/embargo/copy_commit.py`): it trial-applies every
+  planned entry, commits them in order, then saves the result; a refused trial
+  commits nothing, and a failed commit saves only the changes whose entries
+  committed. `consent_row_entry()` builds the planned entry for one row.
+- **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
+  (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
+  `_change()`; a refused entry is held in `LedgerGapBuffer` and the announce is
+  reported deferred, never patched over. An entry whose result the replica
+  already holds (saved, but not yet stored, before a stop) is an idempotent
+  no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
+  entry that would change nothing.
 
 ---
 

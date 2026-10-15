@@ -103,3 +103,27 @@ its other arm sends nothing at all (EMB-16-002), so it passes
 - A test of the manager arm runs in the manager's own store; a test of the
   ask arm needs a replica store whose `actor_id` is the asking participant
   (BT-05-005).
+
+## Converting an Arm to the Copy Model (ADR-0124, #4713)
+
+The arms above still write before they commit; #4714–#4717 convert them. A
+converted CASE_MANAGER arm decides first (guards, `EmbargoLifecycle` checks,
+policy), then hands the result to `commit_and_apply_embargo_entries()`
+(`copy_commit.py`) as `PlannedEmbargoEntry` values in commit order:
+
+1. The act's own entry, whose `change` is the `RegisterStep` the activity
+   carries (`ACTIVATE` includes the supersede, `TERMINATE` the cancels) and
+   whose `commit` queues and commits the act; `commit=None` when intake
+   already committed it (a received act).
+2. One `consent_row_entry()` per consent row the act changes.
+
+For a received act, also run `trial_apply()` among the tree's guards, before
+the guarded commit, so a refused step refuses the act. The helper
+trial-applies every planned entry through `apply_embargo_change()` before
+committing any, so a refused trial (`VultronEntryRefusedError`) commits
+nothing; a failed commit saves only the changes already committed.
+Call it from a node's `update()`, never from `execute()`. The replica slot
+for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
+(`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).
+Never call `EmbargoLifecycle`, `apply_pec_transition` or `write_uninvited_rows`
+from a replica slot.

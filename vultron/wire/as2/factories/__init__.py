@@ -72,12 +72,14 @@ from vultron.wire.as2.factories.case_participant import (
 from vultron.wire.as2.factories.embargo import (
     activate_embargo_activity,
     announce_embargo_activity,
+    create_embargo_consent_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
     ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    update_embargo_consent_activity,
     withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -147,12 +149,14 @@ __all__ = [
     # embargo
     "activate_embargo_activity",
     "announce_embargo_activity",
+    "create_embargo_consent_activity",
     "em_accept_embargo_activity",
     "em_propose_embargo_activity",
     "em_reject_embargo_activity",
     "ignore_late_embargo_accept_activity",
     "reject_embargo_proposal_activity",
     "remove_embargo_from_case_activity",
+    "update_embargo_consent_activity",
     "withdraw_from_embargo_activity",
     # report
     "parse_submit_report_offer",

@@ -122,6 +122,18 @@ class VultronInvalidStateTransitionError(VultronError):
         super().__init__(message)
 
 
+class VultronEntryRefusedError(VultronInvalidStateTransitionError):
+    """Raised when a ledger entry does not apply to the case it is applied to.
+
+    The one apply function checks the starting state an entry implies before
+    it writes what the entry carries (ADR-0124, CM-23-016).  On a replica a
+    refusal means an earlier entry is missing or the replica's case has
+    diverged, so the entry goes to gap handling (``LedgerGapBuffer``) and is
+    never patched over.  On the CASE_MANAGER a refused trial apply stops the
+    act before anything is committed.
+    """
+
+
 # Deprecated alias — use VultronInvalidStateTransitionError instead.
 VultronConflictError = VultronInvalidStateTransitionError
 

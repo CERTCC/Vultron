@@ -101,21 +101,37 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
             context=self.case_id,
             embargo_consents=self._rows(),
         )
-        dumped = participant.model_dump(by_alias=True, mode="json")
+        dumped = participant.model_dump(
+            by_alias=True, mode="json", exclude_none=True
+        )
+        # Each row is an AS2 object attributed to the participant's actor,
+        # under the id its actor and embargo derive (ADR-0122, CLP-07-009).
         self.assertEqual(
             [
                 {
+                    "id": EmbargoConsent.build_id(
+                        self.embargo_id_1, self.actor_id
+                    ),
+                    "type": "EmbargoConsent",
+                    "attributedTo": self.actor_id,
                     "embargoId": self.embargo_id_1,
                     "state": "AGREED",
-                    "rsvpDeadline": None,
                 },
                 {
+                    "id": EmbargoConsent.build_id(
+                        self.embargo_id_2, self.actor_id
+                    ),
+                    "type": "EmbargoConsent",
+                    "attributedTo": self.actor_id,
                     "embargoId": self.embargo_id_2,
                     "state": "INVITED",
                     "rsvpDeadline": "2030-01-02T03:04:05Z",
                 },
             ],
-            dumped["embargoConsents"],
+            [
+                {k: v for k, v in row.items() if k != "@context"}
+                for row in dumped["embargoConsents"]
+            ],
         )
         for retired in (
             "acceptedEmbargoIds",
