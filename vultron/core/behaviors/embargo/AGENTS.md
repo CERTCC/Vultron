@@ -81,10 +81,12 @@ cascade call sites use the shared factory directly (BT-19-002, PR #1263).
 
 Every embargo trigger tree in `trigger_tree.py` ends in `_by_role()`'s two
 mutually exclusive arms. Add a new embargo write to the **CASE_MANAGER arm**
-only, in this order: `*EmbargoLifecycleNode` (`STRICT`) →
-`CommitEmbargoDecisionNode` (`nodes/manager_commit.py`; a decision it
-sends is queued before it is committed, SYNC-09-002) →
-`EmitCaseStatusUpdateNode`. The other arm writes no EM state:
+only, in this order: `*EmbargoLifecycleNode(...).deciding()` (`STRICT`, on a
+staged store) → `CommitEmbargoDecisionNode(decision_from=result_out)`
+(`nodes/manager_commit.py`; a decision it sends is queued before it is
+committed, SYNC-09-002, and applied only after its entries commit, ADR-0124)
+→ `EmitCaseStatusUpdateNode`. The terminate arm still writes before it
+commits until #4714. The other arm writes no EM state:
 it queues to the manager through `sender_side_bt` with `_asserting()`, which
 writes `result_out[ASSERTED_ACTIVITY_KEY]` for the pending-assertion record.
 The one exception is `reject_proposed_embargo_bt` (the P/X/A abandonment):
@@ -115,7 +117,10 @@ policy), then hands the result to `commit_and_apply_embargo_entries()`
 (`copy_commit.py`) as `PlannedEmbargoEntry` values in commit order:
 
 1. The act's own entry, whose `change` is the `RegisterStep` the activity
-   carries (`ACTIVATE` includes the supersede, `TERMINATE` the cancels) and
+   carries (`ACTIVATE` includes the supersede, `TERMINATE` the cancels), or,
+   for a participant's `Accept`/`Reject(Invite(EmbargoEvent))`, the row the
+   answer states (`ConsentRowChange.answer()`: that entry is the row's entry,
+   and no second one records it, ADR-0122), and
    whose `commit` queues and commits the act; `commit=None` when intake
    already committed it (a received act).
 2. One `consent_row_entry()` per consent row the act changes.
@@ -137,8 +142,11 @@ re-derive its row changes by hand: run it on a staged store and let
 lifecycle node takes `.deciding()` (the arm's `CommitEmbargoDecisionNode`,
 given `decision_from=result_out`, commits the act first) or
 `.applying_after(cause_id)` (intake already committed a received act);
-other nodes call `decide_commit_and_apply()`. The decision check raises
+other nodes call `decide_commit_and_apply()`. A received answer's entry is
+committed before its effects, so its tree runs the same decision among its
+guards (`EmbargoAnswerAppliesNode`, `nodes/answer_record.py`) and refuses an
+answer that would record nothing the case can take. The decision check raises
 `VultronBTInternalError` when the operation wrote anything its entries do not
 carry. A consent-row `Update`'s id derives from its cause and the row, so the
-cause must be the act itself (the received answer, the relayed Invite), never
+cause must be the act itself (the relayed Invite, the re-issued stub), never
 an id two acts share.

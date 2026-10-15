@@ -478,7 +478,6 @@ class RelayEmbargoInviteToEachNode(
 
 __all__ = [
     "EMBARGO_INVITE_EVENT_TYPE",
-    "invite_rsvp_deadline",
     "CollectEmbargoInviteRecipientsNode",
     "EmStateAdmitsProposalNode",
     "EmbargoProposalNotYetRecordedNode",

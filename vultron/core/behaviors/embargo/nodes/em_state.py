@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""EM state read BT node, and the EM-state guards, for the embargo lifecycle.
+"""EM state and embargo-id read nodes, and the EM-state guards, for the lifecycle.
 
 ``ReadEmStateNode`` reads the current EM state into result_out so
 downstream nodes and service callers have it without a separate DB read.
@@ -27,7 +27,9 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    PortInformation,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.em import EM, is_em_embargo_active, is_em_exited
 from vultron.errors import (
@@ -228,4 +230,44 @@ class ValidateEmbargoProposalStateNode(DataLayerActionWithPorts):
             self.feedback_message = str(bad_state)
             return Status.FAILURE
 
+        return Status.SUCCESS
+
+
+class ReadEmbargoIdNode(DataLayerActionWithPorts):
+    """Read the active embargo ID from the case and write it to the blackboard.
+
+    Returns FAILURE when the case is not found, has no active embargo, or
+    the DataLayer is unavailable.  Returns SUCCESS and writes ``embargo_id``
+    to the blackboard on success.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "embargo_id": PortInformation(data_type=str, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"embargo_id": "/embargo_id"}
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        embargo_id = _as_id(case.active_embargo)
+        if embargo_id is None:
+            self.feedback_message = (
+                f"No active embargo on case '{self._case_id}'"
+            )
+            return Status.FAILURE
+
+        self._set_output("embargo_id", embargo_id)
         return Status.SUCCESS

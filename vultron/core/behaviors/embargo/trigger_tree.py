@@ -64,6 +64,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ActivateEmbargoLifecycleNode,
     CollectEmbargoInviteRecipientsNode,
     CommitEmbargoDecisionNode,
+    CommitEmbargoProposalNode,
     CommitEmbargoTeardownNode,
     EmbargoActivityBuilder,
     HasActiveEmbargoNode,
@@ -235,11 +236,12 @@ def _propose_arms(
     proposer's ``AGREED``, every other one ``UNINVITED``), apply them by
     copying (ADR-0124, CLP-07-013), relay one ``Invite`` per participant,
     and only then index the proposal the manager will answer (ID-04-005).
-    ``PersistEmbargoEventNode`` runs in both arms — the factory renders the
-    stored record — and stores the object, not case state (EP-09-003).  In
-    the manager arm it runs once the proposal is decided, and in the other
-    after the CASE_MANAGER is resolved, so neither a refused proposal nor a
-    failed routing guard leaves an orphan record (BT-19-001).
+    The factory renders the stored ``EmbargoEvent``, the object and not case
+    state (EP-09-003): in the manager arm ``CommitEmbargoProposalNode``
+    stores it as it builds the proposal and takes it back out when the
+    proposal does not commit; in the other arm ``PersistEmbargoEventNode``
+    runs after the CASE_MANAGER is resolved.  Neither a refused or failed
+    proposal nor a failed routing guard leaves an orphan record (BT-19-001).
     """
     return _by_role(
         name,
@@ -254,13 +256,12 @@ def _propose_arms(
                 result_out=result_out,
                 embargo=embargo,
             ).deciding(),
-            PersistEmbargoEventNode(embargo=embargo),
-            CommitEmbargoDecisionNode(
+            CommitEmbargoProposalNode(
                 case_id=case_id,
                 event_type=EMBARGO_INVITE_EVENT_TYPE,
                 builder=activity_builder,
+                embargo=embargo,
                 result_out=result_out,
-                decision_from=result_out,
             ),
             _make_emit_node(case_id),
             RelayEmbargoInviteToEachNode(

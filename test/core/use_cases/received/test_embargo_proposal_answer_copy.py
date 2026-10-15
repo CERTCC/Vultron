@@ -24,7 +24,8 @@ the CASE_MANAGER's (CM-23-016).  Each test runs one store per actor
 
 import json
 from collections.abc import Callable
-from typing import Any
+from datetime import timedelta
+from typing import Any, cast
 
 import pytest
 
@@ -36,7 +37,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent_event_types import (
     CREATE_EMBARGO_CONSENT_EVENT_TYPE,
@@ -52,16 +53,25 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcProposeEmbargoRevisionUseCase,
     SvcProposeEmbargoUseCase,
     SvcRejectEmbargoUseCase,
+    SvcWithdrawEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
+    WithdrawEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
-from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.factories import (
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -138,12 +148,21 @@ def _assert_replica_copies(net: LedgerNetwork, replica: str) -> None:
     assert _case_file(net, replica) == _case_file(net, MANAGER)
 
 
+#: The trigger arms' ``Add(CaseStatus)`` declaration (RSH-04-002); not an
+#: embargo entry.
+_STATUS_DECLARATION = "add_case_status_to_case"
+
+
 def _new_entries(net: LedgerNetwork, act: Callable[[], object]) -> list[str]:
-    """The event types the CASE_MANAGER commits while *act* runs."""
+    """The embargo event types the CASE_MANAGER commits while *act* runs."""
     before = committed_event_types(net.stores[MANAGER], net.case_id)
     act()
-    return committed_event_types(net.stores[MANAGER], net.case_id)[
-        len(before) :
+    return [
+        event_type
+        for event_type in committed_event_types(
+            net.stores[MANAGER], net.case_id
+        )[len(before) :]
+        if event_type != _STATUS_DECLARATION
     ]
 
 
@@ -253,6 +272,15 @@ def _manager_with_participants_revision(
     return net, revision_id
 
 
+def _withdraw(net: LedgerNetwork) -> Any:
+    """The CASE_MANAGER, a signatory and not the owner, leaves the embargo."""
+    return SvcWithdrawEmbargoUseCase(
+        net.stores[MANAGER],
+        WithdrawEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+        **_ports(net),
+    ).execute()
+
+
 _ARMS: dict[
     str, tuple[Callable[[str], Any], Callable[[LedgerNetwork], Any]]
 ] = {
@@ -261,7 +289,16 @@ _ARMS: dict[
     "reject": (_manager_with_participants_revision, _reject),
     "activate": (_owner_manager_with_revision, _accept),
     "reject-proposal": (_owner_manager_with_revision, _reject),
+    # The withdraw trigger shares _answer_arms (MSM-07-010).
+    "withdraw": (lambda name: (_net(name), None), _withdraw),
 }
+
+
+def _embargo_records(net: LedgerNetwork) -> set[str]:
+    return {
+        str(obj.id_)
+        for obj in net.stores[MANAGER].list_objects("EmbargoEvent")
+    }
 
 
 @pytest.mark.spec("CLP-07-013")
@@ -272,6 +309,7 @@ def test_a_forced_commit_failure_leaves_no_write_behind(arm, monkeypatch):
     net, _ = setup(f"fail-{arm}")
     before_file = _case_file(net, MANAGER)
     before_entries = committed_event_types(net.stores[MANAGER], net.case_id)
+    before_embargoes = _embargo_records(net)
 
     with pytest.MonkeyPatch.context() as patch:
         fail_commits(patch, commit_tree)
@@ -283,6 +321,8 @@ def test_a_forced_commit_failure_leaves_no_write_behind(arm, monkeypatch):
         committed_event_types(net.stores[MANAGER], net.case_id)
         == before_entries
     )
+    # A failed proposal leaves no orphan EmbargoEvent behind either.
+    assert _embargo_records(net) == before_embargoes
 
 
 @pytest.mark.spec("CLP-07-013")
@@ -305,27 +345,61 @@ def test_the_act_entry_comes_first(arm):
 def test_a_row_commit_that_fails_saves_only_what_committed():
     """The act committed and its first row did not: only the act applies.
 
-    The CASE_MANAGER's own Accept of a revision is committed; the entry for
-    its row fails, so the row is not written (CLP-07-013).
+    The managing owner's proposal commits (its ``PROPOSE`` step is saved);
+    the first ``Create(EmbargoConsent)`` fails, so no row is written.  The
+    recovery of the rows is #4764.
     """
-    net, revision_id = _manager_with_participants_revision("fail-row")
-    assert _row(net, MANAGER, MANAGER, revision_id) is _S.UNINVITED
+    net = _net("fail-row", owner=MANAGER, em_state=EM.NONE)
 
     with pytest.MonkeyPatch.context() as patch:
         fail_commits(
             patch,
             commit_tree,
             when=lambda kw: (
-                kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+                kw["event_type"] == CREATE_EMBARGO_CONSENT_EVENT_TYPE
             ),
         )
         with pytest.raises(VultronBTInternalError, match="commit failed"):
-            _accept(net)
+            _propose(net)
 
+    (embargo_id,) = net.case(MANAGER).proposed_embargo_ids
     assert committed_event_types(net.stores[MANAGER], net.case_id)[-1] == (
-        "accept_invite_to_embargo_on_case"
+        "invite_to_embargo_on_case"
     )
-    assert _row(net, MANAGER, MANAGER, revision_id) is _S.UNINVITED
+    assert _row(net, MANAGER, MANAGER, embargo_id) is None
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.parametrize("arm", ["accept", "reject"])
+def test_the_managers_own_answer_is_its_rows_entry(arm):
+    """An answer's entry carries the row it states; no second entry follows
+    (ADR-0122)."""
+    setup, act = _ARMS[arm]
+    net, revision_id = setup(f"own-answer-{arm}")
+
+    entries = _new_entries(net, lambda: act(net))
+
+    assert entries == [
+        "accept_invite_to_embargo_on_case"
+        if arm == "accept"
+        else "reject_invite_to_embargo_on_case"
+    ]
+    assert _row(net, MANAGER, MANAGER, revision_id) is (
+        _S.AGREED if arm == "accept" else _S.DECLINED
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_the_managers_withdrawal_commits_each_declined_row_after_the_leave():
+    """The Leave first, then the CASE_MANAGER's declined row as its own
+    entry (MSM-07-010, ADR-0124)."""
+    net = _net("withdraw-order")
+
+    entries = _new_entries(net, lambda: _withdraw(net))
+
+    assert entries[0] == "withdraw_from_embargo_on_case"
+    assert entries[1:] == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+    assert _row(net, MANAGER, MANAGER, net.initial_embargo_id) is _S.DECLINED
 
 
 # ---------------------------------------------------------------------------
@@ -419,8 +493,8 @@ def test_the_managers_policy_consent_is_its_own_entry_and_is_copied():
 @pytest.mark.spec("MSM-07-004")
 @pytest.mark.parametrize("accept", [True, False], ids=["accept", "reject"])
 def test_a_participants_answer_is_copied_by_every_replica(accept):
-    """The answer's entry, then the CASE_MANAGER's entry for the answerer's
-    row; the owner's replica copies the bystander's answer."""
+    """The answer's entry is the answerer's row's entry, and the owner's
+    replica copies the row from it (ADR-0122)."""
     net = _net(f"answer-{'accept' if accept else 'reject'}")
     embargo_id = _participant_proposes(net, "answered", 30)
 
@@ -430,12 +504,9 @@ def test_a_participants_answer_is_copied_by_every_replica(accept):
 
     expected = _S.AGREED if accept else _S.DECLINED
     assert entries == [
-        (
-            "accept_invite_to_embargo_on_case"
-            if accept
-            else "reject_invite_to_embargo_on_case"
-        ),
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        "accept_invite_to_embargo_on_case"
+        if accept
+        else "reject_invite_to_embargo_on_case"
     ]
     assert _row(net, MANAGER, BYSTANDER, embargo_id) is expected
     _assert_replica_copies(net, OWNER)
@@ -444,7 +515,7 @@ def test_a_participants_answer_is_copied_by_every_replica(accept):
 
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.parametrize(
-    "arm", ["accept", "reject", "activate", "reject-proposal"]
+    "arm", ["accept", "reject", "activate", "reject-proposal", "withdraw"]
 )
 def test_the_managers_own_answer_is_copied_by_the_replica(arm):
     """Each trigger answer arm: the replica equals the CASE_MANAGER after."""
@@ -500,6 +571,19 @@ def _replacement(net: LedgerNetwork, original_id: str) -> Any:
     return replacement
 
 
+def _later_stamps(patch: pytest.MonkeyPatch) -> None:
+    """Stamp the replacement two minutes after the relayed Invite was.
+
+    Deadlines are second-resolution, so a re-issue in the same second as the
+    relay would carry the very deadline the row already holds.  Two minutes
+    stays inside the ledger's future tolerance (CLP-14-007).
+    """
+    from vultron.core.behaviors.embargo import rsvp_stamp
+
+    later = now_utc() + timedelta(minutes=2)
+    patch.setattr(rsvp_stamp, "now_utc", lambda: later)
+
+
 def _invitee_row(net: LedgerNetwork, holder: str, embargo_id: str) -> Any:
     record = net.stores[holder].read(
         net.case(holder).actor_participant_index[INVITEE]
@@ -536,7 +620,9 @@ def test_a_re_issued_stub_invites_to_the_embargo_in_force(stub_first):
     assert start is not None
     assert start.state is (_S.INVITED if stub_first else _S.UNINVITED)
 
-    entries = _new_entries(net, lambda: _accept(net))
+    with pytest.MonkeyPatch.context() as patch:
+        _later_stamps(patch)
+        entries = _new_entries(net, lambda: _accept(net))
 
     assert net.case(MANAGER).active_embargo_id == revision_id
     replacement = _replacement(net, original_id)
@@ -579,3 +665,137 @@ def test_a_re_issue_with_no_embargo_in_force_writes_no_row():
     stub_entry = entries.index("invite_actor_to_case")
     assert UPDATE_EMBARGO_CONSENT_EVENT_TYPE not in entries[stub_entry:]
     assert _case_file(net, MANAGER)["rows"][INVITEE] == before
+
+
+def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
+    snapshot = kwargs.get("payload_snapshot") or {}
+    row = snapshot.get("object") or {}
+    return (
+        kwargs["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+        and row.get("attributedTo") == INVITEE
+    )
+
+
+@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.parametrize(
+    "declined_first", [False, True], ids=["owed", "answered-meanwhile"]
+)
+def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
+    declined_first,
+):
+    """The replacement committed and its invitee's row did not: the next
+    run of the re-issue commits the row it owes, once, unless the invitee
+    has answered in between."""
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter as _Sync,
+    )
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.nodes.stub_reissue import (
+        ReissueStubInvitesNode,
+    )
+
+    net = _stub_network("reissue-row-retry")
+    original_id = _send_stub(net)
+    _propose(net)
+    (revision_id,) = net.case(MANAGER).proposed_embargo_ids
+    with pytest.MonkeyPatch.context() as patch:
+        _later_stamps(patch)
+        failed = fail_commits(patch, commit_tree, when=_is_invitee_row_update)
+        with pytest.raises(VultronBTInternalError, match="commit failed"):
+            _accept(net)
+    assert len(failed) == 1
+    replacement = _replacement(net, original_id)
+    stale = _invitee_row(net, MANAGER, revision_id)
+    assert stale.rsvp_deadline != replacement.end_time
+
+    dl = net.stores[MANAGER]
+
+    def _rerun() -> list[str]:
+        return _new_entries(
+            net,
+            lambda: BTBridge(
+                datalayer=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=_Sync(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute_with_setup(
+                tree=ReissueStubInvitesNode(case_id=net.case_id),
+                actor_id=MANAGER,
+            ),
+        )
+
+    if declined_first:
+        # The invitee answers the relayed embargo Invite first: a row it
+        # answered owes no invitation (ADR-0122).
+        (relayed,) = [
+            invite
+            for invite in net.queued(MANAGER, to=INVITEE, type_="Invite")
+            if getattr(invite.object_, "id_", invite.object_) == revision_id
+        ]
+        verdict = net.receive(
+            MANAGER,
+            json.loads(
+                dump_outbound_body(
+                    em_reject_embargo_activity(
+                        cast(as_Invite, dl.read(relayed.id_)),
+                        context=net.case_id,
+                        actor=INVITEE,
+                        to=[MANAGER],
+                    )
+                )
+            ),
+        )
+        assert verdict.disposition is HandlerDisposition.APPLIED, (
+            verdict.reason
+        )
+        assert _rerun() == []
+        assert _invitee_row(net, MANAGER, revision_id).state is _S.DECLINED
+        return
+
+    assert _rerun() == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+    row = _invitee_row(net, MANAGER, revision_id)
+    assert row.state is _S.INVITED
+    assert row.rsvp_deadline == replacement.end_time
+    assert _rerun() == [], "a completed row is not committed twice"
+
+
+# ---------------------------------------------------------------------------
+# A received answer that would record nothing is refused before its commit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("SYNC-12-001")
+def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
+    """An Accept of an embargo the register does not hold states a row no
+    node can write, so it is refused and nothing is committed (ADR-0122)."""
+    net = _net("answer-nothing")
+    stranger = as_EmbargoEvent(
+        id_=f"{net.case_id}/embargo_events/stranger",
+        context=net.case_id,
+        end_time=days_from_now_utc(30),
+    )
+    invite = em_propose_embargo_activity(
+        stranger,
+        context=net.case_id,
+        actor=MANAGER,
+        to=[BYSTANDER],
+        id_=f"{net.case_id}/invites/stranger",
+    )
+    # The CASE_MANAGER sent it, so the sender guard finds its invitee.
+    net.stores[MANAGER].create(invite)
+    accept = json.loads(
+        dump_outbound_body(
+            em_accept_embargo_activity(
+                invite, context=net.case_id, actor=BYSTANDER, to=[MANAGER]
+            )
+        )
+    )
+    before = committed_event_types(net.stores[MANAGER], net.case_id)
+
+    verdict = net.receive(MANAGER, accept)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert "records nothing" in (verdict.reason or "")
+    assert committed_event_types(net.stores[MANAGER], net.case_id) == before

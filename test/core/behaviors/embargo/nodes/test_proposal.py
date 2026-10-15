@@ -126,10 +126,9 @@ class TestRecordParticipantRejectionNode:
         participant = cast(CaseParticipant, dl.read(participant_id))
         assert participant.is_signatory(embargo_id)
 
-    def test_partial_replica_without_the_participant_succeeds(
-        self, dl: SqliteDataLayer
-    ):
-        """No record for the rejecter here: nothing to write, tree continues."""
+    def test_a_rejecter_without_a_record_is_refused(self, dl: SqliteDataLayer):
+        """No record for the rejecter: the row its Reject states cannot be
+        written, so the answer is refused, not recorded (ADR-0122)."""
         case, embargo = make_case_and_embargo("rpr2", em_state=EM.ACTIVE)
         dl.create(case)
         dl.create(embargo)
@@ -140,7 +139,8 @@ class TestRecordParticipantRejectionNode:
             rejecting_actor_id=REJECTER,
         )
 
-        assert _tick(node) == py_trees.common.Status.SUCCESS
+        assert _tick(node) == py_trees.common.Status.FAILURE
+        assert "records no consent" in node.feedback_message
 
     @pytest.mark.spec("HP-01-003")
     def test_repeat_from_declined_fails_naming_the_repeat(
@@ -263,7 +263,11 @@ class TestRecordParticipantAcceptanceNode:
     def test_accept_of_an_embargo_the_register_does_not_hold_writes_no_row(
         self, dl: SqliteDataLayer
     ):
-        """An embargo with no register entry gets no row (ADR-0122)."""
+        """An embargo with no register entry gets no row (ADR-0122).
+
+        The Accept states a row the case cannot take, so it is refused; the
+        received tree refuses it before the commit (EmbargoAnswerAppliesNode).
+        """
         case, active_id, revision_id, owner_p_id = self._revise_case(
             dl, active_replicated=True
         )
@@ -275,7 +279,7 @@ class TestRecordParticipantAcceptanceNode:
             accepting_actor_id=OWNER,
         )
 
-        assert _tick(node) == py_trees.common.Status.SUCCESS
+        assert _tick(node) == py_trees.common.Status.FAILURE
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert {r.embargo_id: r.state for r in owner_p.embargo_consents} == {
             active_id: EmbargoConsentState.AGREED,

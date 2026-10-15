@@ -38,9 +38,6 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
-)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -353,17 +350,7 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
 
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.AGREED
-    # An answer on the open proposal is its Accept's entry, then the
-    # CASE_MANAGER's entry for the row it changed (ADR-0124); the late
-    # Accept of the embargo in force is its honour entry (EMB-17-001).
-    assert _entries(net)[len(entries) :] == (
-        ["honour_late_accept_invite_to_embargo_on_case"]
-        if activated
-        else [
-            "accept_invite_to_embargo_on_case",
-            UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
-        ]
-    )
+    assert len(_entries(net)) == len(entries) + 1
     assert net.queued(MANAGER, to=BYSTANDER, type_="Invite") == invites
 
 

@@ -603,39 +603,51 @@ def _replay_answer(bridge, verb: str, actor: str):
     )
 
 
+def _replay_proposal_with_rows(bridge, datalayer) -> None:
+    """The proposal, then the rows its ``Create(EmbargoConsent)`` entries carry."""
+    _replay_proposal(bridge)
+    write_consent_rows(datalayer, _case(datalayer))
+
+
 class TestApplyEmbargoAnswers:
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("MSM-07-003")
     @pytest.mark.spec("MSM-07-004")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])
     @pytest.mark.parametrize("actor", [PARTICIPANT_ACTOR_ID, OWNER_ACTOR_ID])
-    def test_an_answer_writes_no_row_and_decides_nothing(
+    def test_an_answer_copies_the_row_it_states_and_decides_nothing(
         self, bridge, datalayer, revising_case, verb, actor
     ):
-        """An answer is its sender's consent, the owner's included (ADR-0122).
+        """An answer's entry is its sender's row's entry (ADR-0122).
 
-        The changed row is the CASE_MANAGER's next entry, an
-        ``Update(EmbargoConsent)`` the consent slot copies (ADR-0124), so the
-        answer's own slot writes no row; it decides no proposal either.
+        The slot copies the ``AGREED`` or ``DECLINED`` row the answer states,
+        the owner's included; it decides no proposal, and the signatory
+        stays bound by the embargo in force.
         """
-        _replay_proposal(bridge)
-        before = list(_record(datalayer, actor).embargo_consents)
+        _replay_proposal_with_rows(bridge, datalayer)
 
         result = _replay_answer(bridge, verb, actor)
 
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.SUCCESS, result.feedback_message
         case = _case(datalayer)
         assert case.current_status.em.state == EM.REVISE
         assert case.active_embargo_id == ACTIVE_EMBARGO_ID
         assert case.proposed_embargo_ids == [REVISION_ID]
-        assert _record(datalayer, actor).embargo_consents == before
+        record = _record(datalayer, actor)
+        assert record.consent_for(REVISION_ID) is (
+            EmbargoConsentState.AGREED
+            if verb == "Accept"
+            else EmbargoConsentState.DECLINED
+        )
+        assert record.is_signatory(ACTIVE_EMBARGO_ID)
 
     @pytest.mark.spec("SYNC-12-003")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])
     def test_a_repeated_answer_replays_as_a_no_op(
         self, bridge, datalayer, revising_case, verb
     ):
-        _replay_proposal(bridge)
+        """An answer already in place is no fault on a second delivery."""
+        _replay_proposal_with_rows(bridge, datalayer)
         entry = _entry(
             _ANSWER_EVENT_TYPE[verb],
             _answer_snapshot(verb, PARTICIPANT_ACTOR_ID),
@@ -644,6 +656,24 @@ class TestApplyEmbargoAnswers:
             assert _run(bridge, _answer_node(verb), entry).status == (
                 Status.SUCCESS
             )
+
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.parametrize("verb", ["Accept", "Reject"])
+    def test_an_answer_whose_row_is_missing_is_refused_not_patched(
+        self, bridge, datalayer, revising_case, verb
+    ):
+        """No row to start from: the entry is refused, nothing is written."""
+        _replay_proposal(bridge)
+        before = list(
+            _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consents
+        )
+
+        result = _replay_answer(bridge, verb, PARTICIPANT_ACTOR_ID)
+
+        assert result.status == Status.FAILURE
+        assert (
+            _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consents == before
+        )
 
     @pytest.mark.spec("SYNC-12-001")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])

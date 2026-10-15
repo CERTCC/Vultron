@@ -37,7 +37,7 @@ from vultron.core.behaviors.embargo.expiry_tree import (
     create_reinvite_stale_accepter_tree,
 )
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
-from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
+from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant

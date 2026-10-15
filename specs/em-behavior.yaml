@@ -2384,14 +2384,16 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      Every change to a case's embargo register, and so to the EM state derived
-      from it (ADR-0122), MUST be made through EmbargoLifecycle (its public
-      operations such as propose_embargo(), activate_embargo(),
+      Every decision to change a case's embargo register, and so the EM state
+      derived from it (ADR-0122), MUST be made through EmbargoLifecycle (its
+      public operations such as propose_embargo(), activate_embargo(),
       reject_embargo_proposal(), and terminate_active_embargo(), each of which
-      applies one register step). BT nodes and helper functions MUST NOT apply
-      a register step to the case themselves, or assign
-      case.current_status.em, and then call dl.save(case) as a substitute for
-      routing through EmbargoLifecycle.
+      applies one register step). A committed register step MUST be written
+      by copying it through the one apply function, apply_embargo_change()
+      (ADR-0124, CM-23-016), on the CASE_MANAGER and on every replica. BT
+      nodes and helper functions MUST NOT otherwise apply a register step to
+      the case themselves, or assign case.current_status.em, and then call
+      dl.save(case) as a substitute for either path.
     rationale: >-
       EmbargoLifecycle is the sole service-layer authority for embargo writes.
       It applies the register step (refused with

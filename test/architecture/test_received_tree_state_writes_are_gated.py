@@ -269,6 +269,10 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     (f"{_B}.case.nodes.embargo_resolution", "CaseNotEmbargoEligibleNode"): (
         "asks EmbargoLifecycle whether the case is eligible; writes nothing"
     ),
+    (f"{_B}.embargo.nodes.answer_record", "EmbargoAnswerAppliesNode"): (
+        "runs the answer's EmbargoLifecycle decision on a staged store;"
+        " writes nothing"
+    ),
     (f"{_B}.case.nodes.intake", "IntakeReceivedActivityNode"): _ARCHIVE,
     (
         f"{_B}.case.nodes.invite_ledger_backfill",

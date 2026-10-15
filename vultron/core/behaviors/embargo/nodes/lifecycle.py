@@ -26,22 +26,21 @@ from vultron.core.behaviors.embargo.decided_entries import (
     commit_and_apply_decision,
     decide_on_stage,
 )
-from vultron.core.behaviors.embargo.nodes.em_state import (  # noqa: F401
-    ValidateEmbargoProposalStateNode,
-    ValidateEmbargoRevisionStateNode,
-    read_case_em_state,
-)
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.terminate import (  # noqa: F401
     SendTerminateEmbargoActivityNode,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
+from vultron.core.models.embargo_apply import (
+    ConsentRowChange,
+    RegisterStep,
+    RegisterStepKind,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import TerminationRequest
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -55,6 +54,7 @@ from vultron.core.services.embargo_lifecycle.staged_persistence import (
 )
 from vultron.errors import (
     BtNodePreconditionError,
+    VultronBTInternalError,
     VultronEntryRefusedError,
     VultronError,
     VultronInvalidStateTransitionError,
@@ -116,6 +116,13 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
     ) -> EmbargoLifecycleResult:
         raise NotImplementedError
 
+    def _answer(self, _actor_id: str) -> ConsentRowChange | None:
+        """The row the act's own activity states, for a participant's answer.
+
+        ``None``, the default, for an act that is not an answer.
+        """
+        return None
+
     def _register_step(self) -> RegisterStep | None:
         """The register step the act's own activity carries.
 
@@ -166,22 +173,26 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
             result = self._transition(
                 EmbargoLifecycle(persistence=staged), self.actor_id
             )
-            step = self._register_step()
+            decision = decide_on_stage(
+                self.datalayer,
+                staged,
+                self._case_id(),
+                self._register_step(),
+                self._answer(self.actor_id),
+            )
+        except VultronBTInternalError:
+            raise
         except VultronError as exc:
             self._result_out["error"] = exc
             self.feedback_message = str(exc)
             return Status.FAILURE
-        decision = decide_on_stage(
-            self.datalayer, staged, self._case_id(), step
-        )
         self._result_out["lifecycle_result"] = result
         self._result_out["em_after"] = result.em_after
         if self._copy_mode is _CopyMode.DECIDE:
             self._result_out[EMBARGO_DECISION_KEY] = decision
             self.feedback_message = (
-                f"Decided {decision.step.kind if decision.step else 'no'}"
-                f" register step and {len(decision.rows)} consent row(s) on"
-                f" case '{self._case_id()}'"
+                f"Decided {len(decision.rows)} consent row(s) beyond the act"
+                f" on case '{self._case_id()}'"
             )
             return Status.SUCCESS
         assert self._cause_id is not None
@@ -297,6 +308,11 @@ class AcceptEmbargoLifecycleNode(_EmbargoLifecycleNode):
             actor_id=actor_id,
         )
 
+    def _answer(self, actor_id: str) -> ConsentRowChange:
+        return ConsentRowChange.answer(
+            embargo_id=self._embargo_id, actor_id=actor_id, accept=True
+        )
+
 
 class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
     """Record the executing actor's ``Reject(Invite(EmbargoEvent))``.
@@ -332,6 +348,11 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
             case_id=self._case_id_value,
             actor_id=actor_id,
             embargo_id=self._embargo_id,
+        )
+
+    def _answer(self, actor_id: str) -> ConsentRowChange:
+        return ConsentRowChange.answer(
+            embargo_id=self._embargo_id, actor_id=actor_id, accept=False
         )
 
 
@@ -373,46 +394,6 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
             transition_mode=TransitionMode.STRICT,
             terminated_at=self._terminated_at,
         )
-
-
-class ReadEmbargoIdNode(DataLayerActionWithPorts):
-    """Read the active embargo ID from the case and write it to the blackboard.
-
-    Returns FAILURE when the case is not found, has no active embargo, or
-    the DataLayer is unavailable.  Returns SUCCESS and writes ``embargo_id``
-    to the blackboard on success.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "embargo_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self._case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        embargo_id = _as_id(case.active_embargo)
-        if embargo_id is None:
-            self.feedback_message = (
-                f"No active embargo on case '{self._case_id}'"
-            )
-            return Status.FAILURE
-
-        self._set_output("embargo_id", embargo_id)
-        return Status.SUCCESS
 
 
 class SetEmbargoActiveNode(DataLayerActionWithPorts, StateWriteCapable):

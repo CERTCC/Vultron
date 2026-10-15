@@ -59,6 +59,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -147,6 +148,77 @@ class CommitEmbargoDecisionNode(
             actor_id=cast(str, self.actor_id),
             cause_id=activity_id,
             act_commit=send_and_commit,
+        )
+
+
+class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
+    """Commit the CASE_MANAGER's own proposal, storing the embargo it names.
+
+    The factory renders the stored ``EmbargoEvent`` (EP-09-003), so the
+    record is stored as the proposal is built.  A proposal whose entry does
+    not commit, or whose trial apply refuses it, takes a record it stored
+    back out, so a failed proposal leaves no orphan behind (CLP-07-013); the
+    failure itself propagates.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        event_type: str,
+        builder: EmbargoActivityBuilder,
+        embargo: EmbargoEvent,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            case_id=case_id,
+            event_type=event_type,
+            builder=builder,
+            result_out=result_out,
+            name=name,
+            decision_from=result_out,
+        )
+        self._embargo = embargo
+        self._stored_here = False
+
+    def _build(self, to: list[str] | None) -> tuple[str, str]:
+        assert self.datalayer is not None
+        self._stored_here = self.datalayer.read(self._embargo.id_) is None
+        if self._stored_here:
+            self.datalayer.create(self._embargo)
+        built = False
+        try:
+            result = super()._build(to)
+            built = True
+        finally:
+            if not built:
+                self._discard_stored()
+        return result
+
+    def _record(
+        self, activity_id: str, send_and_commit: Callable[[], None]
+    ) -> None:
+        recorded = False
+        try:
+            super()._record(activity_id, send_and_commit)
+            recorded = True
+        finally:
+            if not recorded:
+                self._discard_stored()
+
+    def _discard_stored(self) -> None:
+        """Take the embargo this node stored back out of the store."""
+        if not self._stored_here:
+            return
+        assert self.datalayer is not None
+        self.datalayer.delete(str(self._embargo.type_), self._embargo.id_)
+        self._stored_here = False
+        self.logger.warning(
+            "%s: proposal of embargo '%s' on case '%s' was not recorded;"
+            " its stored record is removed",
+            self.name,
+            self._embargo.id_,
+            self._case_id,
         )
 
 
@@ -264,6 +336,7 @@ __all__ = [
     "EMBARGO_TEARDOWN_EVENT_TYPE",
     "EmbargoActivityBuilder",
     "CommitEmbargoDecisionNode",
+    "CommitEmbargoProposalNode",
     "CommitEmbargoTeardownNode",
     "IndexOwnEmbargoProposalNode",
 ]

@@ -14,13 +14,15 @@ these nodes (RSH-08-004, ADR-0108).
 Each node copies; none runs ``EmbargoLifecycle`` (ADR-0124, CM-23-016).  A
 proposal entry is its whole register step, so its slot copies the
 ``PROPOSE`` step through the one apply function
-(``ApplyEmbargoChangeFromLedgerNode``).  The Invite, re-invite, Accept and
-Reject entries change no embargo object of their own: every consent row the
-act changed follows as the CASE_MANAGER's own ``Create`` or
-``Update(EmbargoConsent)`` entry (ADR-0122, CLP-07-013), which the consent
-slot copies (``ApplyEmbargoConsentFromLedgerNode``).  These slots store the
-embargo the entry carries, and the relay slot indexes the proposal on the
-proposer's replica.
+(``ApplyEmbargoChangeFromLedgerNode``); an ``Accept`` or ``Reject`` entry is
+its sender's row's entry, so its slot copies the row the answer states
+(ADR-0122).  Every other consent row an act changes (a proposal's new rows,
+a relayed Invite's or re-invite's ``INVITED`` row) follows as the
+CASE_MANAGER's own ``Create`` or ``Update(EmbargoConsent)`` entry
+(CLP-07-013), which the consent slot copies
+(``ApplyEmbargoConsentFromLedgerNode``), so the Invite and re-invite slots
+write no row.  Every slot stores the embargo the entry carries, and the
+relay slot indexes the proposal on the proposer's replica.
 
 Regime 2 (ADR-0087): a replica that holds no copy of the case skips the entry
 with SUCCESS.  A replica that holds the case but cannot reconstruct the
@@ -34,7 +36,6 @@ from __future__ import annotations
 from typing import Any
 
 from py_trees.common import Status
-from pydantic import ValidationError
 
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
@@ -51,6 +52,7 @@ from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
+    ConsentRowChange,
     EmbargoChange,
     RegisterStep,
     RegisterStepKind,
@@ -113,29 +115,15 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         assert self.datalayer is not None
         if self.datalayer.read(embargo_id) is not None:
             return True
-        if not isinstance(embargo_data, dict):
-            self.feedback_message = (
-                f"embargo '{embargo_id}' is not stored here and the entry"
-                " names it by id only, so it cannot be reconstructed"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return False
         try:
-            embargo = EmbargoEvent.model_validate(
-                project_wire_snapshot_to_core(EmbargoEvent, embargo_data)
-            )
-        except ValidationError as exc:
+            embargo = _carried_embargo(self.datalayer, embargo_data)
+        except (TypeError, ValueError) as exc:
             self.feedback_message = (
-                f"embargo '{embargo_id}' in the entry is malformed: {exc}"
+                f"embargo '{embargo_id}' cannot be reconstructed: {exc}"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return False
-        self.datalayer.create(embargo)
-        self.logger.debug(
-            "%s: stored embargo '%s' from the canonical entry",
-            self.name,
-            embargo_id,
-        )
+        _store_carried_embargo(self.datalayer, embargo)
         return True
 
     def _index_for_proposer(
@@ -192,7 +180,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
 def _carried_embargo(
     datalayer: CasePersistence, embargo_data: Any
 ) -> EmbargoEvent:
-    """The ``EmbargoEvent`` a proposal entry carries, inline or by id.
+    """The ``EmbargoEvent`` an entry carries, inline or by id.
 
     The entry carries it inline (EMB-18-003, CLP-10-017); a bare id is
     enough when this store already holds the record.
@@ -216,7 +204,62 @@ def _carried_embargo(
     return stored
 
 
-class ApplyEmbargoProposalFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
+def _store_carried_embargo(
+    datalayer: CasePersistence, embargo: EmbargoEvent
+) -> None:
+    """Store *embargo* unless this store already holds it."""
+    if datalayer.read(embargo.id_) is None:
+        datalayer.create(embargo)
+
+
+class _CopiedEmbargoEntryNode(ApplyEmbargoChangeFromLedgerNode):
+    """Shared frame: a copy slot whose entry carries an ``EmbargoEvent``.
+
+    A subclass names where the embargo sits in the snapshot
+    (:meth:`_embargo_data`) and the change the entry carries
+    (:meth:`_change_for`); the frame copies the change through the one apply
+    function, then stores the embargo and runs :meth:`_after_apply`.
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name)
+        self._embargo: EmbargoEvent | None = None
+
+    def _embargo_data(self, snapshot: dict[str, Any]) -> Any:
+        raise NotImplementedError
+
+    def _change_for(
+        self, entry: CaseLedgerEntry, embargo: EmbargoEvent
+    ) -> EmbargoChange:
+        raise NotImplementedError
+
+    def _after_apply(
+        self, case: VulnerabilityCase, entry: CaseLedgerEntry
+    ) -> None:
+        """Bookkeeping once the change is in place; the default does none."""
+
+    def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
+        assert self.datalayer is not None
+        self._embargo = _carried_embargo(
+            self.datalayer, self._embargo_data(entry.payload_snapshot)
+        )
+        return self._change_for(entry, self._embargo)
+
+    def update(self) -> Status:
+        self._embargo = None
+        status = super().update()
+        if status is not Status.SUCCESS or self._embargo is None:
+            return status  # refused, or Regime 2 (ADR-0087)
+        assert self.datalayer is not None
+        entry = self._get_entry()
+        _store_carried_embargo(self.datalayer, self._embargo)
+        case = self._resolve_case_replica(entry.case_id)
+        if case is not None:
+            self._after_apply(case, entry)
+        return status
+
+
+class ApplyEmbargoProposalFromLedgerNode(_CopiedEmbargoEntryNode):
     """Copy the ``PROPOSE`` step a proposal entry carries (EP-09-001, ADR-0124).
 
     The proposal's ``Invite(EmbargoEvent)`` is its whole register step
@@ -242,37 +285,68 @@ class ApplyEmbargoProposalFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
     handling, never patched over (``ApplyEmbargoChangeFromLedgerNode``).
     """
 
-    def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
-        assert self.datalayer is not None
-        embargo = _carried_embargo(
-            self.datalayer, entry.payload_snapshot.get("object")
-        )
+    def _embargo_data(self, snapshot: dict[str, Any]) -> Any:
+        return snapshot.get("object")
+
+    def _change_for(
+        self, entry: CaseLedgerEntry, embargo: EmbargoEvent
+    ) -> EmbargoChange:
         return RegisterStep(kind=RegisterStepKind.PROPOSE, embargo=embargo)
 
-    def update(self) -> Status:
-        status = super().update()
-        if status is not Status.SUCCESS:
-            return status
-        assert self.datalayer is not None
-        entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
-        if case is None:
-            return status  # Regime 2 (ADR-0087): partial replica
-        embargo = _carried_embargo(
-            self.datalayer, entry.payload_snapshot.get("object")
-        )
-        if self.datalayer.read(embargo.id_) is None:
-            self.datalayer.create(embargo)
+    def _after_apply(
+        self, case: VulnerabilityCase, entry: CaseLedgerEntry
+    ) -> None:
+        assert self.datalayer is not None and self._embargo is not None
         proposal_id = _extract_id_from_field(entry.payload_snapshot.get("id"))
         if proposal_id:
             record_embargo_proposal_index(
                 self.datalayer,
                 case.id_,
-                embargo.id_,
+                self._embargo.id_,
                 proposal_id,
                 overwrite=False,
             )
-        return status
+
+
+class _ApplyEmbargoAnswerFromLedgerNode(_CopiedEmbargoEntryNode):
+    """Copy the row an answer's entry states (ADR-0122, CLP-07-013).
+
+    ``Accept`` or ``Reject(Invite(EmbargoEvent))`` is its sender's own
+    consent, the case owner's included, and its entry is that row's entry:
+    the replica copies the ``AGREED`` or ``DECLINED`` row the answer states
+    (:meth:`ConsentRowChange.answer`) through the one apply function.  It
+    moves no register entry.  The CASE_MANAGER commits only an answer whose
+    row it could write, so one that does not apply here is held for gap
+    handling, never patched over.
+    """
+
+    #: ``True`` for ``Accept``, ``False`` for ``Reject``.
+    _ACCEPT: bool
+
+    def _embargo_data(self, snapshot: dict[str, Any]) -> Any:
+        return _embargo_of_invite(_answered_invite(snapshot))
+
+    def _change_for(
+        self, entry: CaseLedgerEntry, embargo: EmbargoEvent
+    ) -> EmbargoChange:
+        actor_id = _extract_id_from_field(entry.payload_snapshot.get("actor"))
+        if not actor_id:
+            raise TypeError("the answer names no actor")
+        return ConsentRowChange.answer(
+            embargo_id=embargo.id_, actor_id=actor_id, accept=self._ACCEPT
+        )
+
+
+class ApplyEmbargoAcceptanceFromLedgerNode(_ApplyEmbargoAnswerFromLedgerNode):
+    """Copy the ``AGREED`` row an ``Accept`` of an embargo Invite states (MSM-07-003)."""
+
+    _ACCEPT = True
+
+
+class ApplyEmbargoRejectionFromLedgerNode(_ApplyEmbargoAnswerFromLedgerNode):
+    """Copy the ``DECLINED`` row a ``Reject`` of an embargo Invite states (MSM-07-004)."""
+
+    _ACCEPT = False
 
 
 class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
@@ -344,40 +418,6 @@ class ApplyEmbargoReinviteFromLedgerNode(_EmbargoRelayEffectNode):
     def update(self) -> Status:
         return self._store_only(
             self._get_entry().payload_snapshot.get("object")
-        )
-
-
-class ApplyEmbargoAcceptanceFromLedgerNode(_EmbargoRelayEffectNode):
-    """Store an ``Accept`` of an embargo Invite (MSM-07-003).
-
-    The Accept is the sender's own consent, the case owner's included, and
-    moves no register entry (ADR-0122).  The accepter's changed row is the
-    CASE_MANAGER's next entry, an ``Update(EmbargoConsent)`` the consent slot
-    copies (ADR-0124), so this slot only stores the embargo it names.
-    """
-
-    def update(self) -> Status:
-        return self._store_only(
-            _embargo_of_invite(
-                _answered_invite(self._get_entry().payload_snapshot)
-            )
-        )
-
-
-class ApplyEmbargoRejectionFromLedgerNode(_EmbargoRelayEffectNode):
-    """Store a ``Reject`` of an embargo Invite (MSM-07-004).
-
-    The Reject is the sender's own consent, the case owner's included, and
-    moves no register entry (ADR-0122).  The rejecter's ``DECLINED`` row is
-    the CASE_MANAGER's next entry, an ``Update(EmbargoConsent)`` the consent
-    slot copies (ADR-0124), so this slot only stores the embargo it names.
-    """
-
-    def update(self) -> Status:
-        return self._store_only(
-            _embargo_of_invite(
-                _answered_invite(self._get_entry().payload_snapshot)
-            )
         )
 
 

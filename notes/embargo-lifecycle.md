@@ -165,10 +165,12 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
-- **`OBSERVED`** follows the CASE_MANAGER's committed assertion (received and
-  replay nodes): it skips the P/X/A guards, records a proposal a replica never
-  saw before activating it, and logs and skips a refused step — it never forces
-  the register into a state its rules refuse.
+- **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
+  and replay nodes not yet copying, #4714, #4716, #4717): it skips the P/X/A
+  guards, records a proposal a replica never saw before activating it, and
+  logs and skips a refused step — it never forces the register into a state
+  its rules refuse. A copying replay node runs no lifecycle mode at all: it
+  writes what the entry carries through `apply_embargo_change()` (ADR-0124).
 - **P/X/A guards** (EMB-01-002, EMB-02-002, EMB-04-002): `propose_embargo()` and
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
   never blocked. `reject_embargo_proposal()` raises when it would return a
@@ -265,8 +267,10 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 
 ## Guidance for Agents
 
-1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle/`).
-   BT nodes MUST NOT apply a register step, assign `case.current_status.em`, and
+1. **Decide through `EmbargoLifecycle`, write by copying**
+   (`vultron/core/services/embargo_lifecycle/`, `embargo_apply.py`). A
+   committed step is written through `apply_embargo_change()`; BT nodes MUST
+   NOT otherwise apply a register step, assign `case.current_status.em`, and
    `dl.save(case)` themselves (EMB-18-001). A refused step raises or fails the
    node without a write (EMB-18-002). Lifecycle nodes catch `VultronError` and
    return `FAILURE`; triggers are thin orchestrators over the service.
@@ -278,8 +282,12 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    (`CARRY_OVER`), and under *longer* terms non-agreeing signatories lapse by
    derivation (MSM-07-005). `terminate_active_embargo()` cancels every open
    proposal and writes no consent (MSM-07-006). Callers do none of this by hand.
-4. **Received side passes `transition_mode=TransitionMode.OBSERVED`**; the
-   consent cascades still run, so replica rows stay in step with the manager's.
+4. **Replay copies.** The proposal, relay, answer, re-invite and abandonment
+   slots copy the entry's step or row, and every other row arrives as its own
+   CASE_MANAGER entry (ADR-0124). The slots not yet converted (activation,
+   expiry, teardown, withdrawal) still pass
+   `transition_mode=TransitionMode.OBSERVED`, and their consent cascades still
+   run, until #4714, #4716 and #4717.
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside
@@ -405,10 +413,11 @@ status.
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under
-`reject_invite_to_embargo_on_case_abandoned`, addressed to nobody, and cancels
-each proposal (`abandon_embargo_proposals`, STRICT) only after its entry commits,
-so a failed commit leaves that proposal open (CLP-07-013, #4442). Replicas drop
-them through the `EmbargoAbandonment` slot without repeating the owner check.
+`reject_invite_to_embargo_on_case_abandoned`, addressed to nobody, after
+`check_abandonable` passes, and cancels each proposal by copying the `CANCEL`
+step that entry is, only after it commits, so a failed commit leaves that
+proposal open (CLP-07-013, #4442, ADR-0124). Replicas copy the same step
+through the `EmbargoAbandonment` slot without repeating the owner check.
 
 **A non-manager sends no ER for the abandonment (EMB-16-002).** Its ER would read
 at the manager as declining the proposal (MSM-07-004), an abandonment it has no

@@ -22,19 +22,27 @@ writes are held back and never reach the store.  :func:`decide_on_stage`
 reads what the operation would have written and turns it into an
 :class:`EmbargoDecision`:
 
-- the **register step** the act's own activity carries (a
-  :class:`~vultron.core.models.embargo_apply.RegisterStep`, named by the
-  caller), kept only when the operation moved the register; and
-- one **consent-row change** per row the operation brought into existence
-  (``Create(EmbargoConsent)``) or changed (``Update(EmbargoConsent)``), in
-  roster order, each carrying the row in full (ADR-0122).
+- the **act's own change**, carried by the act's own entry: the register
+  step its activity is (a :class:`~vultron.core.models.embargo_apply
+  .RegisterStep`, named by the caller and kept only when the operation moved
+  the register), or, for a participant's answer, the row its activity states
+  (:meth:`~vultron.core.models.embargo_apply.ConsentRowChange.answer`): the
+  answer's entry is that row's entry, and no second one records it
+  (ADR-0122); and
+- one **consent-row change** per other row the operation brought into
+  existence (``Create(EmbargoConsent)``) or changed
+  (``Update(EmbargoConsent)``), in roster order, each the CASE_MANAGER's own
+  entry carrying the row in full.
 
 It then checks that the decision is the whole of what the operation wrote:
 the entries, trial-applied through the one apply function, must reach the
 case file the operation staged, and the operation must have staged nothing
 but the case and its participant records.  A mismatch is a fault in the
 caller (an operation whose effect no entry carries), never a refusal, so it
-raises :class:`~vultron.errors.VultronBTInternalError`.
+raises :class:`~vultron.errors.VultronBTInternalError`.  An answer whose
+stated row the operation did not write, and that is not already in place,
+is refused (:class:`~vultron.errors.VultronEntryRefusedError`): committed, it
+would carry a change no node could apply.
 
 :func:`commit_and_apply_decision` then commits the act's entry (or relies on
 intake having committed it, for a received act, ADR-0111), then each
@@ -44,6 +52,7 @@ Call both from a BT node's ``update()``, never from a use case's
 ``execute()`` (CLP-10-020).
 """
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -52,14 +61,16 @@ from vultron.core.behaviors.embargo.copy_commit import (
     PlannedEmbargoEntry,
     commit_and_apply_embargo_entries,
     consent_row_entry,
-    read_embargo_case_file,
     trial_apply,
 )
+from vultron.core.behaviors.embargo_case_file import read_embargo_case_file
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
     ConsentRowVerb,
     EmbargoCaseFile,
+    EmbargoChange,
     RegisterStep,
+    change_is_in_place,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -71,6 +82,7 @@ from vultron.errors import VultronBTInternalError, VultronEntryRefusedError
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
+logger = logging.getLogger(__name__)
 
 #: ``result_out`` key a deciding lifecycle node leaves its
 #: :class:`EmbargoDecision` under, for the commit node that records it.
@@ -81,19 +93,16 @@ EMBARGO_DECISION_KEY = "embargo_decision"
 class EmbargoDecision:
     """What one embargo act changes, decided and not yet written.
 
-    *step* is the register step the act's own activity carries, ``None`` when
-    the act moves no register entry; *rows* the consent rows it changes, one
-    CASE_MANAGER entry each, in commit order.
+    *act* is the change the act's own entry carries: its register step, the
+    row a participant's answer states, or ``None`` when the act's own
+    activity changes nothing (an answer already in place).  *rows* are the
+    other consent rows it changes, one CASE_MANAGER entry each, in commit
+    order.
     """
 
     case_id: str
-    step: RegisterStep | None
+    act: EmbargoChange | None
     rows: tuple[ConsentRowChange, ...]
-
-    @property
-    def changes_nothing(self) -> bool:
-        """True when the act writes nothing to the case file."""
-        return self.step is None and not self.rows
 
 
 def consent_row_changes(
@@ -169,17 +178,26 @@ def _require_only_case_file_staged(
     file the entries carry.  A participant record the case lists but does
     not index by its actor is outside it: no entry can name it, and no
     replica can copy a row onto it, so a row the lifecycle wrote there is
-    left unwritten rather than refusing the act.
+    left unwritten, and logged, rather than refusing the act.
     """
     allowed = {case_file.case.id_} | {
         record.id_ for record in case_file.participants.values()
     }
     unindexed = {str(p) for p in case_file.case.case_participants} - allowed
-    stray = [
-        obj.id_
-        for obj in staged.staged
-        if obj.id_ not in allowed and obj.id_ not in unindexed
-    ]
+    stray: list[str] = []
+    for obj in staged.staged:
+        if obj.id_ in allowed:
+            continue
+        if obj.id_ in unindexed:
+            logger.warning(
+                "Embargo decision on case '%s' wrote participant record '%s',"
+                " which the roster does not index by actor; no entry can"
+                " carry it, so the write is dropped",
+                case_file.case.id_,
+                obj.id_,
+            )
+            continue
+        stray.append(obj.id_)
     if stray:
         raise VultronBTInternalError(
             f"the embargo decision on case '{case_file.case.id_}' wrote"
@@ -187,33 +205,79 @@ def _require_only_case_file_staged(
         )
 
 
+def _answer_out_of(
+    rows: list[ConsentRowChange],
+    answer: ConsentRowChange,
+    before: EmbargoCaseFile,
+    case_id: str,
+) -> ConsentRowChange | None:
+    """Take the row *answer* states out of *rows*; ``None`` when in place.
+
+    Raises:
+        VultronBTInternalError: the operation wrote the answerer's row, but
+            not as the answer states it.
+        VultronEntryRefusedError: the operation left the row alone and the
+            answer's change is not in place, so no node could apply it.
+    """
+    for index, row in enumerate(rows):
+        if (row.actor_id, row.row.embargo_id) == (
+            answer.actor_id,
+            answer.row.embargo_id,
+        ):
+            if row.row != answer.row:
+                raise VultronBTInternalError(
+                    f"the decision on case '{case_id}' wrote"
+                    f" '{answer.actor_id}''s row as {row.row.state}, not as"
+                    f" its answer states ({answer.row.state})"
+                )
+            del rows[index]
+            return answer
+    if change_is_in_place(before, answer):
+        return None
+    raise VultronEntryRefusedError(
+        f"'{answer.actor_id}''s answer ({answer.row.state}) to embargo"
+        f" '{answer.row.embargo_id}' records no consent on case '{case_id}'"
+    )
+
+
 def decide_on_stage(
     datalayer: CasePersistence,
     staged: StagedCasePersistence,
     case_id: str,
-    step: RegisterStep | None,
+    step: RegisterStep | None = None,
+    answer: ConsentRowChange | None = None,
 ) -> EmbargoDecision:
     """The decision an operation already run against *staged* made.
 
     *staged* wraps *datalayer* and holds the operation's writes; nothing
     reaches *datalayer*.  *step* is the register step the act's activity
-    carries, kept only when the operation moved the register.
+    carries, kept only when the operation moved the register; *answer* is
+    the row a participant's answer states, for an act that is one.
 
     Raises:
         VultronBTInternalError: the entries do not carry what the operation
             wrote.
+        VultronEntryRefusedError: *answer* records nothing the case can
+            take.
     """
+    if step is not None and answer is not None:
+        raise VultronBTInternalError(
+            "an act's own entry carries a register step or an answer, not both"
+        )
     before = read_embargo_case_file(datalayer, case_id)
     decided = read_embargo_case_file(staged, case_id)
     _require_only_case_file_staged(staged, decided)
-    kept_step = (
+    rows = consent_row_changes(before, decided)
+    act: EmbargoChange | None = (
         step
-        if decided.case.embargo_register != before.case.embargo_register
+        if step is not None
+        and decided.case.embargo_register != before.case.embargo_register
         else None
     )
-    rows = consent_row_changes(before, decided)
+    if answer is not None:
+        act = _answer_out_of(rows, answer, before, case_id)
     try:
-        states = trial_apply(before, [kept_step, *rows])
+        states = trial_apply(before, [act, *rows])
     except VultronEntryRefusedError as exc:
         raise VultronBTInternalError(
             f"the entries recording the embargo decision on case '{case_id}'"
@@ -224,7 +288,7 @@ def decide_on_stage(
             f"the embargo decision on case '{case_id}' changed the case file"
             " in a way its entries do not carry"
         )
-    return EmbargoDecision(case_id=case_id, step=kept_step, rows=tuple(rows))
+    return EmbargoDecision(case_id=case_id, act=act, rows=tuple(rows))
 
 
 def decide_embargo_act(
@@ -232,6 +296,7 @@ def decide_embargo_act(
     case_id: str,
     decide: Callable[[CasePersistence], object],
     step: RegisterStep | None = None,
+    answer: ConsentRowChange | None = None,
 ) -> EmbargoDecision:
     """Run *decide* against a staged copy of *datalayer*; return the decision.
 
@@ -240,10 +305,11 @@ def decide_embargo_act(
 
     Raises:
         VultronBTInternalError: the entries do not carry what *decide* wrote.
+        VultronEntryRefusedError: *answer* records nothing the case can take.
     """
     staged = StagedCasePersistence(datalayer)
     decide(staged)
-    return decide_on_stage(datalayer, staged, case_id, step)
+    return decide_on_stage(datalayer, staged, case_id, step, answer)
 
 
 def commit_and_apply_decision(
@@ -271,9 +337,9 @@ def commit_and_apply_decision(
             committed before it are saved first.
     """
     entries: list[PlannedEmbargoEntry] = []
-    if decision.step is not None or act_commit is not None:
+    if decision.act is not None or act_commit is not None:
         entries.append(
-            PlannedEmbargoEntry(change=decision.step, commit=act_commit)
+            PlannedEmbargoEntry(change=decision.act, commit=act_commit)
         )
     entries.extend(
         consent_row_entry(
@@ -300,6 +366,7 @@ def decide_commit_and_apply(
     actor_id: str,
     cause_id: str,
     step: RegisterStep | None = None,
+    answer: ConsentRowChange | None = None,
     act_commit: Callable[[], Any] | None = None,
 ) -> EmbargoDecision:
     """Decide on a staged copy, then commit and apply; return the decision.
@@ -309,7 +376,7 @@ def decide_commit_and_apply(
     happen in one tick.  Whatever *decide* raises propagates, and nothing is
     committed or written.
     """
-    decision = decide_embargo_act(datalayer, case_id, decide, step)
+    decision = decide_embargo_act(datalayer, case_id, decide, step, answer)
     commit_and_apply_decision(
         datalayer=datalayer,
         decision=decision,
@@ -325,8 +392,8 @@ __all__ = [
     "EMBARGO_DECISION_KEY",
     "EmbargoDecision",
     "commit_and_apply_decision",
-    "decide_commit_and_apply",
     "consent_row_changes",
+    "decide_commit_and_apply",
     "decide_embargo_act",
     "decide_on_stage",
 ]

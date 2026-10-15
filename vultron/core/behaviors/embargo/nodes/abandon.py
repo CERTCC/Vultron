@@ -73,6 +73,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
@@ -354,6 +355,28 @@ class ApplyEmbargoAbandonmentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
         if not embargo_id:
             raise TypeError("the abandonment names no embargo")
         return RegisterStep(kind=RegisterStepKind.CANCEL, embargo=embargo_id)
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        entry = self._get_entry()
+        before = self._resolve_case_replica(entry.case_id)
+        status = super().update()
+        after = self._resolve_case_replica(entry.case_id)
+        if (
+            status is Status.SUCCESS
+            and before is not None
+            and after is not None
+        ):
+            log_em_transition(
+                self.logger,
+                _extract_id_from_field(entry.payload_snapshot.get("actor"))
+                or "",
+                entry.case_id,
+                before.em_state,
+                after.em_state,
+            )
+        return status
 
 
 __all__ = [

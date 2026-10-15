@@ -42,9 +42,6 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
-)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -379,11 +376,7 @@ def test_a_signatorys_reject_of_a_revision_leaves_it_bound(make_payload):
         _AGREED_REVISION: "AGREED",
         _INVITED_REVISION: "DECLINED",
     }
-    # The Reject, then the CASE_MANAGER's entry for the row (ADR-0124).
-    assert _ledger(dl) == [
-        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
-    ]
+    assert _ledger(dl) == [MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE]
 
 
 @pytest.mark.spec("HP-01-003")

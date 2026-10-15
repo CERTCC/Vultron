@@ -22,7 +22,11 @@ from __future__ import annotations
 
 from typing import cast
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -91,6 +95,7 @@ def _make_embargo_case(
         case_roles=[CVDRole.CASE_OWNER],
     )
     dl.create(p1)
+    case.case_participants.append(p1_id)
 
     cm_participant = as_CaseParticipant(
         id_=f"{case_id}/participants/cm",
@@ -283,6 +288,8 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         assert case is not None
         propose(case, embargo.id_)
         dl.save(case)
+        # Every participant holds a row for the proposal (ADR-0122).
+        write_consent_rows(dl, case)
 
         # The CASE_MANAGER relayed the Invite to the coordinator, who answers.
         proposal = em_propose_embargo_activity(

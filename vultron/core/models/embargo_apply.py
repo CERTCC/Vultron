@@ -249,6 +249,32 @@ class ConsentRowChange(ValidatedAssignmentMixin, BaseModel):
         assert self.row.attributed_to is not None  # checked at construction
         return self.row.attributed_to
 
+    @classmethod
+    def answer(
+        cls, *, embargo_id: str, actor_id: str, accept: bool
+    ) -> "ConsentRowChange":
+        """The row change a participant's answer states (ADR-0122).
+
+        ``Accept(Invite(EmbargoEvent))`` states the sender's row for the
+        embargo is ``AGREED``, ``Reject`` that it is ``DECLINED``; a row that
+        leaves ``INVITED`` carries no deadline (CM-28-013).  The answer's own
+        entry carries this change, and no second entry records it
+        (CLP-07-013), so the CASE_MANAGER and every replica read the same
+        change from the same activity.
+        """
+        return cls(
+            verb=ConsentRowVerb.UPDATE,
+            row=EmbargoConsent(
+                embargo_id=embargo_id,
+                state=(
+                    EmbargoConsentState.AGREED
+                    if accept
+                    else EmbargoConsentState.DECLINED
+                ),
+                attributed_to=actor_id,
+            ),
+        )
+
 
 #: A change one embargo entry carries.
 EmbargoChange = RegisterStep | ConsentRowChange

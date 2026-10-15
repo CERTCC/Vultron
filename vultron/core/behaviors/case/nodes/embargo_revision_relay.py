@@ -48,11 +48,11 @@ from vultron.core.behaviors.case.nodes.proposal_ledger import (
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
-    invite_rsvp_deadline,
 )
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
+from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,

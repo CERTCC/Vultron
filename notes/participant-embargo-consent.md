@@ -278,9 +278,14 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   and lets `decided_entries.py` turn what it would have written into the
   entries: the act's register step, then one row entry per changed row, in
   roster order. The proposal's rows are `Create`s (the proposer's `AGREED`,
-  every other `UNINVITED`); a relayed Invite's, an answer's, the manager's
-  policy consent's and a re-issued stub's are `Update`s. A decision that wrote
-  anything no entry carries raises `VultronBTInternalError`.
+  every other `UNINVITED`); a relayed Invite's, the manager's policy
+  consent's and a re-issued stub's are `Update`s. A participant's
+  `Accept`/`Reject(Invite(EmbargoEvent))` is the exception ADR-0122 names: its
+  own entry carries the row it states (`ConsentRowChange.answer()`), so no
+  second entry follows, and a received answer that would record nothing the
+  case can take is refused among its guards (`EmbargoAnswerAppliesNode`)
+  before it is committed. A decision that wrote anything no entry carries
+  raises `VultronBTInternalError`.
 - **Fan-out follows the commit.** Every entry of an act is committed before
   the act is applied, so each is fanned out to the participants entitled
   before the act: a signatory that an activation lapses still receives the
