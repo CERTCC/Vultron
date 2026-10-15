@@ -2605,7 +2605,11 @@ groups:
       `test_rm_invite_refuses_an_active_embargo_it_cannot_embed`,
       `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` and
       `test_stub_embargo_refuses_when_no_active_embargo_is_named` confirm the Invite
-      is refused when the active embargo cannot be embedded.
+      is refused when the active embargo cannot be embedded; the
+      `TestInviteActorToCaseWithEmbargoHeldById` tests in
+      `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirm the same
+      for an embargo the inviter reads from its store, and the refusal when it is
+      missing there.
     relationships:
     - rel_type: refines
       spec_id: CM-17-002
