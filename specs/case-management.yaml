@@ -2352,15 +2352,18 @@ groups:
       and accepting the stub binds the invitee to it (CM-11-001, CM-11-006), so the
       terms are owed in `REVISE` as in `ACTIVE` (#4697). The revision itself stays out
       of the stub: it is not yet binding, CM-17-010 keeps other case content out, and
-      EP-09-011 already relays every open proposal to the joiner once it holds the case.
+      EP-09-011 already relays each open proposal the joiner has not yet been asked
+      about once it holds the case.
     verification: >-
       Integration tests in `test/demo/` confirm that when an embargo is in force at
       invite time, the case stub on the wire carries `activeEmbargo` and
       `caseStatus.emState`; unit tests marked `CM-17-002` in
       `test/core/use_cases/triggers/test_actor_triggers.py` and
-      `test/wire/as2/factories/test_case_factories.py` confirm the same for EM `ACTIVE`
-      and `REVISE`, that a `REVISE` stub carries the embargo in force and not the
-      revision, and that a stub sent with no embargo in force carries neither.
+      `test/wire/as2/factories/test_case_factories.py` confirm the same for EM
+      `ACTIVE`, and that a stub sent with no embargo in force carries neither;
+      `test_revise_stub_carries_the_embargo_in_force_not_the_revision` in the latter
+      file confirms that a `REVISE` stub carries the embargo in force and not the
+      revision (strict `xfail` until #4744 implements it).
     relationships:
     - rel_type: implements
       spec_id: MV-10-006
@@ -2577,8 +2580,8 @@ groups:
       factory was implemented.
       `test_rm_invite_stub_carries_no_case_content` and
       `test_enriched_stub_carries_only_the_embargo_terms` in the same file assert the
-      stub carries no other case content, and that an embargo-active stub adds only
-      `activeEmbargo` and `caseStatus`.
+      stub carries no other case content, and that a stub sent with an embargo in force
+      adds only `activeEmbargo` and `caseStatus`.
     relationships:
     - rel_type: refines
       spec_id: CM-11-013
