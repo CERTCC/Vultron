@@ -7,7 +7,7 @@ Announces evidence that attackers are exploiting the vulnerability.
 - **When…** a Participant observes attacks that exploit the vulnerability
 - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
 - **Sent by:** not yet checked
-- **Distinguished by:** `pxa_state` = `pxA`
+- **Distinguished by:** `pxaState` = `pxA`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Attacks Observed (CA)](../../../formal_protocol/messages.md#cs-message-types)
 - **Mapping status:** [collapse](../../index.md#mapping-status)

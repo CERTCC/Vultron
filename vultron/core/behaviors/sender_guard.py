@@ -66,6 +66,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsOfferAddresseeNode,
     SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
+    SenderIsParticipantNode,
     SenderIsProposalAddresseeNode,
     SenderIsRequestAddresseeNode,
     SenderRule,
@@ -80,6 +81,7 @@ __all__ = [
     "ReportOfferRequest",
     "SenderCheckContext",
     "compose_sender_guard",
+    "embargo_sender_context",
 ]
 
 
@@ -169,6 +171,22 @@ class SenderCheckContext:
     authored_object_id: str | None = None
 
 
+def embargo_sender_context(
+    sender_id: str, case_id: str | None
+) -> SenderCheckContext:
+    """The context an embargo activity's sender is checked in.
+
+    Embargo state is the case's, so the sender's standing is established
+    against the case this store holds: a case it does not hold, or one that
+    names no CASE_MANAGER, refuses the sender rather than passing it through
+    (Regime 1, ADR-0087).  ``Invite``, ``Remove`` and ``Announce`` of an
+    ``EmbargoEvent`` share it (EP-09-003, PCR-03-001, PCR-08).
+    """
+    return SenderCheckContext(
+        sender_id=sender_id, case_id=case_id, case_manager_required=True
+    )
+
+
 def _addressee_node(
     ctx: SenderCheckContext,
 ) -> SenderIsRequestAddresseeNode:
@@ -204,19 +222,29 @@ def _case_of(ctx: SenderCheckContext, what: str) -> str:
     return ctx.case_id
 
 
+#: The two participant-record kinds: any record on the case, or an active one
+#: (CM-10-004).  Each reads only the sender and the case.
+_MEMBERSHIP_NODES: dict[
+    SenderEntitlementKind,
+    type[SenderIsParticipantNode] | type[SenderIsActiveParticipantNode],
+] = {
+    SenderEntitlementKind.PARTICIPANT: SenderIsParticipantNode,
+    SenderEntitlementKind.ACTIVE_PARTICIPANT: SenderIsActiveParticipantNode,
+}
+
+
 def _kind_node(
     kind: SenderEntitlementKind, ctx: SenderCheckContext
 ) -> py_trees.behaviour.Behaviour:
     """The condition node that checks *kind* for the activity in *ctx*."""
-    if kind is SenderEntitlementKind.ACTIVE_PARTICIPANT:
-        return SenderIsActiveParticipantNode(
-            status_id="", sender_actor_id=ctx.sender_id, case_id=ctx.case_id
-        )
+    if (membership := _MEMBERSHIP_NODES.get(kind)) is not None:
+        return membership(sender_actor_id=ctx.sender_id, case_id=ctx.case_id)
     if kind is SenderEntitlementKind.CASE_MANAGER:
         return SenderIsCaseManagerNode(
             case_id=ctx.case_id,
             anchored=ctx.case_manager_anchored,
             required=ctx.case_manager_required,
+            sender_actor_id=ctx.sender_id,
         )
     if kind is SenderEntitlementKind.CASE_OWNER:
         if isinstance(ctx.request, OwnershipOfferRequest):

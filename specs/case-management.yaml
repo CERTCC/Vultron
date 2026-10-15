@@ -347,10 +347,10 @@ groups:
   - id: CM-03-003
     priority: MUST
     kind: protocol
-    statement: A shared EM state MUST be tracked at the case level in `CaseStatus.em_state` to represent the collective embargo
+    statement: A shared EM state MUST be tracked at the case level in `CaseStatus.em.state` to represent the collective embargo
       agreement
     verification: Inspection of `vultron/core/models/case.py` confirms that
-      `CaseStatus.em_state` exists as a case-level field tracking the collective embargo state.
+      `CaseStatus.em.state` exists as a case-level field tracking the collective embargo state.
     relationships:
     - rel_type: implements
       spec_id: VP-04-002
@@ -379,7 +379,7 @@ groups:
     kind: protocol
     statement: CS (PXA sub-state) MUST be participant-agnostic (shared per case)
     verification: Inspection of `vultron/core/models/case.py` confirms that
-      `CaseStatus.pxa_state` is a case-level field shared across all participants.
+      `CaseStatus.pxa.state` is a case-level field shared across all participants.
     stories:
     - story_2022_088
     - story_2022_107
@@ -447,9 +447,9 @@ groups:
     kind: protocol
     statement: >-
       When processing an EM state transition and the accepting actor is the case owner,
-      the handler MUST update CaseStatus.em_state.
+      the handler MUST update CaseStatus.em.state.
     verification: Integration tests in `test/demo/` confirm that an embargo-accept from the case
-      owner advances `CaseStatus.em_state`.
+      owner advances `CaseStatus.em.state`.
     relationships:
     - rel_type: implements
       spec_id: VP-06-001
@@ -472,10 +472,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Handlers processing PXA state transitions (public disclosure, exploit publication, attack observation) MUST
-      update `CaseStatus.pxa_state`
+      update `CaseStatus.pxa.state`
     verification: Integration tests in `test/demo/` confirm that processing a PXA transition
       (public disclosure, exploit publication, or attack observation) updates
-      `CaseStatus.pxa_state`.
+      `CaseStatus.pxa.state`.
     relationships:
     - rel_type: implements
       spec_id: VP-03-002
@@ -536,7 +536,7 @@ groups:
       updates only their own consent record.
     verification: Integration tests in `test/demo/` confirm that an embargo-accept from a
       non-owner participant updates only that participant's
-      consent row for the accepted embargo, not `CaseStatus.em_state`.
+      consent row for the accepted embargo, not `CaseStatus.em.state`.
     stories:
     - story_2022_023
     - story_2022_027

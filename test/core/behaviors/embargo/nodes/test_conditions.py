@@ -233,7 +233,6 @@ class TestHasCaseStatusesNode:
             case_statuses=[  # type: ignore[arg-type]
                 CaseStatus(
                     context="https://example.org/cases/hcs1",
-                    em_state=EM.ACTIVE,  # type: ignore[call-arg]
                 )
             ],
         )

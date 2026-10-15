@@ -7,11 +7,11 @@
 | a Reporter has written up a vulnerability and is about to submit the report | `Create(VulnerabilityReport)` | any actor (usually: finder, reporter) | — | [Create report](../rm.md#create-report) |
 | a Reporter submits a vulnerability report to a Vendor or Coordinator | `Offer(VulnerabilityReport)` | any actor (usually: reporter) | — | [Report Submission (RS)](../rm.md#report-submission) |
 | a report receiver has read a submitted report | `Read(Offer(VulnerabilityReport))` | the addressee of the vulnerability report (usually: vendor, coordinator) | — | [Report Acknowledgment (RK)](../rm.md#report-acknowledgment) |
-| a report receiver judges the report valid | `Accept(Offer(VulnerabilityReport))` | an active participant (usually: vendor, coordinator) | — | [Validate report](../rm.md#report-valid) |
-| a report receiver judges the report invalid | `TentativeReject(Offer(VulnerabilityReport))` | an active participant (usually: vendor, coordinator) | — | [Invalidate report](../rm.md#report-invalid) |
-| a report receiver closes the report | `Reject(Offer(VulnerabilityReport))` | an active participant (usually: vendor, coordinator) | — | [Close report](../rm.md#report-closed) |
-| a Participant accepts the case for further action | `Join(VulnerabilityCase)` | an active participant | — | [Report/Case Accepted (RA)](../rm.md#report-accepted) |
-| a Participant defers further action on the case | `Ignore(VulnerabilityCase)` | an active participant | — | [Report/Case Deferred (RD)](../rm.md#report-deferred) |
+| a report receiver judges the report valid | `Accept(Offer(VulnerabilityReport))` | a participant (usually: vendor, coordinator) | — | [Validate report](../rm.md#report-valid) |
+| a report receiver judges the report invalid | `TentativeReject(Offer(VulnerabilityReport))` | a participant (usually: vendor, coordinator) | — | [Invalidate report](../rm.md#report-invalid) |
+| a report receiver closes the report | `Reject(Offer(VulnerabilityReport))` | a participant (usually: vendor, coordinator) | — | [Close report](../rm.md#report-closed) |
+| a Participant accepts the case for further action | `Join(VulnerabilityCase)` | a participant | — | [Report/Case Accepted (RA)](../rm.md#report-accepted) |
+| a Participant defers further action on the case | `Ignore(VulnerabilityCase)` | a participant | — | [Report/Case Deferred (RD)](../rm.md#report-deferred) |
 
 ## Case proposal
 
@@ -50,10 +50,10 @@
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| the Case Owner terminates the active embargo | `Remove(Event)` | the case owner | — | [Embargo Termination (ET)](../em.md#embargo-termination) |
+| the Case Owner terminates the active embargo | `Remove(Event)` | the case manager or the case owner | — | [Embargo Termination (ET)](../em.md#embargo-termination) |
 | the Case Manager states the terms of the embargo in force | `Announce(Event)[context=VulnerabilityCase]` | the case manager | — | [Announce embargo](../em.md#announce-embargo) |
-| a Participant proposes embargo terms for a case with no active embargo | `Invite(Event)[context=VulnerabilityCase]` | an active participant | EM state `NONE` or `PROPOSED` | [Embargo Proposal (EP)](../em.md#embargo-proposal) |
-| a Participant proposes revised terms for the active embargo | `Invite(Event)[context=VulnerabilityCase]` | an active participant | EM state `ACTIVE` or `REVISE` | [Embargo Revision Proposal (EV)](../em.md#embargo-revision-proposal) |
+| a Participant proposes embargo terms for a case with no active embargo | `Invite(Event)[context=VulnerabilityCase]` | the case manager or an active participant | EM state `NONE` or `PROPOSED` | [Embargo Proposal (EP)](../em.md#embargo-proposal) |
+| a Participant proposes revised terms for the active embargo | `Invite(Event)[context=VulnerabilityCase]` | the case manager or an active participant | EM state `ACTIVE` or `REVISE` | [Embargo Revision Proposal (EV)](../em.md#embargo-revision-proposal) |
 | a Participant agrees to proposed embargo terms | `Accept(Invite(Event)[context=VulnerabilityCase])` | the invitee | EM state `PROPOSED` | [Embargo Proposal Acceptance (EA)](../em.md#embargo-proposal-acceptance) |
 | a Participant agrees to a proposed embargo revision | `Accept(Invite(Event)[context=VulnerabilityCase])` | the invitee | EM state `REVISE` | [Embargo Revision Acceptance (EC)](../em.md#embargo-revision-acceptance) |
 | a Participant refuses proposed embargo terms | `Reject(Invite(Event)[context=VulnerabilityCase])` | the invitee | EM state `PROPOSED` | [Embargo Proposal Rejection (ER)](../em.md#embargo-proposal-rejection) |
@@ -65,24 +65,24 @@
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| a Participant learns that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `Pxa` | [Public Awareness (CP)](../cs.md#public-awareness) |
-| a Participant learns that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `PXa` | [Exploit Public (CX)](../cs.md#exploit-public) |
-| a Participant observes attacks that exploit the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `pxA` | [Attacks Observed (CA)](../cs.md#attacks-observed) |
-| a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: vendor) | `vf_state` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
-| a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: vendor) | `vf_state` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
-| a Deployer has deployed the fix | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: deployer) | `d_state` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |
+| a Participant learns that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxaState` = `Pxa` | [Public Awareness (CP)](../cs.md#public-awareness) |
+| a Participant learns that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxaState` = `PXa` | [Exploit Public (CX)](../cs.md#exploit-public) |
+| a Participant observes attacks that exploit the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxaState` = `pxA` | [Attacks Observed (CA)](../cs.md#attacks-observed) |
+| a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | a participant (usually: vendor) | `vfState` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
+| a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | a participant (usually: vendor) | `vfState` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
+| a Deployer has deployed the fix | `Add(ParticipantStatus)[target=CaseParticipant]` | a participant (usually: deployer) | `dState` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |
 
 ## General
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| a Participant suggests an actor that the case should include | `Offer(Actor)[target=VulnerabilityCase]` | an active participant | — | [Suggest actor to case](../general.md#suggest-actor-to-case) |
+| a Participant suggests an actor that the case should include | `Offer(Actor)[target=VulnerabilityCase]` | a participant | — | [Suggest actor to case](../general.md#suggest-actor-to-case) |
 | the Case Manager presents a suggested actor to the Case Owner | `Offer(CaseParticipant)[target=VulnerabilityCase]` | the case manager | — | [Offer case participant](../general.md#offer-case-participant) |
 | the Case Owner approves a suggested actor | `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case owner | — | [Accept case participant offer](../general.md#accept-case-participant-offer) |
 | the Case Owner declines a suggested actor | `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case owner | — | [Reject case participant offer](../general.md#reject-case-participant-offer) |
 | a Participant has written a note it is about to post to the case | `Create(Note)` | not yet checked | — | [Create note](../general.md#create-note) |
 | a Participant posts a note to the case | `Add(Note)[target=VulnerabilityCase]` | not yet checked | — | [Add note to case](../general.md#add-note-to-case) |
-| a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[target=VulnerabilityCase]` | an active participant | — | [Remove note from case](../general.md#remove-note-from-case) |
+| a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[target=VulnerabilityCase]` | the case owner or the author of the note | — | [Remove note from case](../general.md#remove-note-from-case) |
 
 ## Faults and acknowledgments
 

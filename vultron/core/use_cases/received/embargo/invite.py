@@ -43,7 +43,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
 )
 from vultron.core.use_cases.received._sender_preflight import (
     post_close_refusal_before_tree,
-    sender_refusal,
+    rule_refusal,
 )
 from vultron.errors import VultronProtocolViolationError
 
@@ -53,9 +53,9 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
-    SenderMayAssertEmbargoNode,
     SenderRule,
 )
+from vultron.core.behaviors.sender_guard import embargo_sender_context
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +134,12 @@ def resolve_proposer_id(
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    # A participant proposes to the CASE_MANAGER, which relays the Invite to
+    # every other participant (EP-09-001, EP-09-002); a participant takes the
+    # relayed Invite from the CASE_MANAGER alone (EP-09-003, PCR-08).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.CASE_MANAGER,
+        SenderEntitlementKind.ACTIVE_PARTICIPANT,
     )
 
     def __init__(
@@ -254,14 +258,12 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         # CASE_MANAGER, the CASE_MANAGER at a participant (CM-10-004,
         # EP-09-003, PCR-08, ADR-0115).
         if (
-            refusal := sender_refusal(
+            refusal := rule_refusal(
                 self._dl,
                 receiving_actor_id,
-                SenderMayAssertEmbargoNode(
-                    case_id=case_id or None,
-                    sender_actor_id=request.actor_id,
-                    manager_arm=SenderEntitlementKind.ACTIVE_PARTICIPANT,
-                ),
+                self.sender_entitlement,
+                embargo_sender_context(request.actor_id, case_id or None),
+                request,
                 label="Invite(EmbargoEvent)",
                 sync_port=self._sync_port,
             )
@@ -298,6 +300,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
             proposer_id=resolve_proposer_id(request, self._dl),
             sender_actor_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
             embargo=(
                 request.object_
                 if isinstance(request.object_, EmbargoEvent)
