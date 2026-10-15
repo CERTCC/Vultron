@@ -27,12 +27,15 @@ def demo_env(client):
         yield
 
 
+# By name, looked up at run time: another module's fixture reloads ``demo``
+# on teardown, and a function object captured at collection then matches no
+# entry of the reloaded ``_ALL_DEMOS``, so ``main`` would silently run nothing.
 @pytest.mark.parametrize(
-    "demo_fn",
+    "demo_name",
     [
-        demo.demo_validate_report,
-        demo.demo_invalidate_report,
-        demo.demo_invalidate_and_close_report,
+        "demo_validate_report",
+        "demo_invalidate_report",
+        "demo_invalidate_and_close_report",
     ],
     ids=[
         "validate_report",
@@ -40,7 +43,7 @@ def demo_env(client):
         "invalidate_and_close_report",
     ],
 )
-def test_demo(demo_env, demo_fn, caplog):
+def test_demo(demo_env, demo_name, caplog):
     """
     Tests that each demo workflow completes successfully with no errors.
 
@@ -62,7 +65,7 @@ def test_demo(demo_env, demo_fn, caplog):
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
     ):
-        demo.main(skip_health_check=True, demos=[demo_fn])
+        demo.main(skip_health_check=True, demos=[getattr(demo, demo_name)])
 
     assert "ERROR SUMMARY" not in caplog.text, (
         "Expected demo to succeed, but got errors:\n" + caplog.text
