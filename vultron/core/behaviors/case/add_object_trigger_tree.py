@@ -15,70 +15,30 @@
 
 """Trigger-side behavior tree for add-object-to-case workflows."""
 
-import json
 from collections.abc import Callable
-from typing import Any
 
 import py_trees
-from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    PortInformation,
-    UpdateActorOutbox,
-)
-
-
-class _BuildAddObjectActivityNode(DataLayerActionWithPorts):
-    """Create Add(object,target=case) activity and publish activity_id."""
-
-    def __init__(
-        self,
-        activity_builder: Callable[[], tuple[str, str]],
-        result_out: dict[str, Any],
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._activity_builder = activity_builder
-        self._result_out = result_out
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "activity_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity_id": "/activity_id"}
-
-    def update(self) -> Status:
-        try:
-            activity_id, activity_dict = self._activity_builder()
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
-            self.feedback_message = (
-                f"AddObject activity construction failed: {exc}"
-            )
-            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
-            return Status.FAILURE
-
-        self._set_output("activity_id", activity_id)
-        self._result_out["activity"] = json.loads(activity_dict)
-        return Status.SUCCESS
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
 
 
 def add_object_trigger_bt(
-    *,
-    result_out: dict[str, Any],
-    activity_builder: Callable[[], tuple[str, str]],
+    case_id: str,
+    activity_builder: Callable[[str], list[str]],
 ) -> py_trees.behaviour.Behaviour:
-    """Return trigger-side BT for Add(object,target=case) + outbox queueing."""
-    return py_trees.composites.Sequence(
-        name="AddObjectTriggerBT",
-        memory=False,
-        children=[
-            _BuildAddObjectActivityNode(
-                activity_builder=activity_builder,
-                result_out=result_out,
-            ),
-            UpdateActorOutbox(),
-        ],
-    )
+    """Return the trigger-side BT for ``Add(object, target=Case)``.
+
+    Routes the ``Add`` to the CASE_MANAGER alone through
+    :func:`~vultron.core.behaviors.sender.send_tree.sender_side_bt`
+    (PCR-08-001, PCR-08-005).  The tree fails before anything is built or
+    queued when the case has no CASE_MANAGER.
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+        activity_builder: Closure called with the resolved CASE_MANAGER ID;
+            returns the list of outbound activity IDs.
+
+    Returns:
+        SenderSideBT Sequence.
+    """
+    return sender_side_bt(case_id=case_id, activity_builder=activity_builder)

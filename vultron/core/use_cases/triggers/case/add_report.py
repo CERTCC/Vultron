@@ -13,38 +13,28 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import logging
-from typing import Any, cast
+from typing import cast
 
-import py_trees.behaviour
-
-from vultron.core.behaviors.case.add_object_trigger_tree import (
-    add_object_trigger_bt,
-)
-from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
+)
+from vultron.core.use_cases.triggers.case.add_object import (
+    SvcAddObjectToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddReportToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
-logger = logging.getLogger(__name__)
 
-
-class SvcAddReportToCaseUseCase(SvcActivityTriggerBase):
+class SvcAddReportToCaseUseCase(SvcAddObjectToCaseUseCase):
     """Link a VulnerabilityReport to an existing case.
 
     Validates that the referenced object is a ``VulnerabilityReport``, then
-    delegates to the same Add-object BT as ``SvcAddObjectToCaseUseCase``
-    (TRIG-10-002).
-    Emits an ``Add(VulnerabilityReport, target=VulnerabilityCase)`` activity
-    queued in the actor's outbox.
-
-    BT-15-001 audit: outbound Add(Report,target=case) emission and outbox
-    queueing are delegated to a trigger-side BT.
+    delegates to :class:`SvcAddObjectToCaseUseCase` (TRIG-10-002), which
+    sends ``Add(VulnerabilityReport, target=VulnerabilityCase)`` to the
+    CASE_MANAGER alone (PCR-08-005) and records the pending assertion.
     """
 
     def _prepare(self) -> None:
@@ -52,7 +42,7 @@ class SvcAddReportToCaseUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
         self._case_id = resolve_case(request.case_id, self._dl).id_
-        self._object_id: str = request.report_id
+        self._object_id = request.report_id
         raw = self._dl.read(self._object_id)
         if raw is None:
             raise VultronNotFoundError("VulnerabilityReport", self._object_id)
@@ -60,28 +50,3 @@ class SvcAddReportToCaseUseCase(SvcActivityTriggerBase):
             raise VultronValidationError(
                 f"'{self._object_id}' is not a VulnerabilityReport"
             )
-
-    def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        def _build_activity() -> tuple[str, str]:
-            return self._factory.add_object_to_case(
-                actor=self._actor_id,
-                object_id=self._object_id,
-                case_id=self._case_id,
-            )
-
-        return add_object_trigger_bt(
-            result_out=self._result_out,
-            activity_builder=_build_activity,
-        )
-
-    def _extra_execute_kwargs(self) -> dict[str, Any]:
-        return {"case_id": self._case_id}
-
-    def _handle_result(self) -> None:
-        self._captured["activity"] = self._result_out.get("activity")
-        logger.info(
-            "Actor '%s' added object '%s' to case '%s'",
-            self._actor_id,
-            self._object_id,
-            self._case_id,
-        )

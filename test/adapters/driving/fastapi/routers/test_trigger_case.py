@@ -43,6 +43,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
     as_ParticipantStatus,
 )
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -875,14 +876,6 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "TRIG-10-001: add-object-to-case does not yet refuse an object type"
-        " the CASE_MANAGER cannot route as Add(object, case), or one with its"
-        " own protocol flow. Tracked in #4041."
-    ),
-)
 @pytest.mark.spec("TRIG-10-001")
 @pytest.mark.parametrize(
     "make_object",
@@ -898,6 +891,17 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
                 context=case_id, end_time=days_from_now_utc(45)
             ),
             id="own-flow-embargo",
+        ),
+        pytest.param(
+            lambda case_id: as_CaseParticipant(
+                attributed_to="https://example.org/actors/other",
+                context=case_id,
+            ),
+            id="own-flow-participant",
+        ),
+        pytest.param(
+            lambda case_id: as_CaseStatus(context=case_id),
+            id="own-flow-case-status",
         ),
     ],
 )
@@ -921,13 +925,6 @@ def test_trigger_add_object_to_case_refused_type_returns_422(
     assert set(dl.outbox_list()) == outbox_before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "TRIG-10-001: add-object-to-case queues its Add with no recipients,"
-        " so delivery refuses it (OX-08-001). Tracked in #4041; source #3917."
-    ),
-)
 @pytest.mark.spec("TRIG-10-001")
 def test_trigger_add_object_to_case_addresses_add_to_case_manager(
     client_triggers, actor, case_with_participant, report, dl

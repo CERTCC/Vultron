@@ -200,6 +200,32 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         response body carries (UCORG-05-005).
         """
 
+    def _record_asserted_activity(
+        self,
+        case_id: str,
+        event_type: str,
+        subject_id: str | None = None,
+    ) -> bool:
+        """Record the activity the tree asserted to the CASE_MANAGER, if any.
+
+        Reads the id the tree's builder wrote under ``ASSERTED_ACTIVITY_KEY``
+        and records it in the actor's pending-assertion store under
+        *event_type*, the key the CASE_MANAGER's commit carries, so the
+        announced commit clears it (SYNC-11-002, SYNC-11-003).  Returns
+        whether anything was recorded.
+        """
+        asserted_id = self._output_id(ASSERTED_ACTIVITY_KEY)
+        if asserted_id is None:
+            return False
+        record_pending_assertion(
+            self._actor_id,
+            case_id,
+            event_type,
+            asserted_id,
+            subject_id=subject_id,
+        )
+        return True
+
     def _activity_fields(self) -> dict[str, Any]:
         """The two keys every :class:`ActivityResult` body carries.
 
@@ -320,15 +346,11 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
 
     def _handle_result(self) -> None:
-        asserted_id = self._output_id(ASSERTED_ACTIVITY_KEY)
-        if asserted_id is not None:
-            record_pending_assertion(
-                self._actor_id,
-                self._case.id_,
-                self._asserted_event_type(),
-                asserted_id,
-                subject_id=self._assertion_subject(),
-            )
+        if self._record_asserted_activity(
+            self._case.id_,
+            self._asserted_event_type(),
+            subject_id=self._assertion_subject(),
+        ):
             return
         lifecycle_result = self._result_out.get("lifecycle_result")
         if not isinstance(lifecycle_result, EmbargoLifecycleResult):

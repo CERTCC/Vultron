@@ -18,11 +18,16 @@ Unit tests for SvcAddObjectToCaseUseCase trigger use case.
 
 Tests exercise the use case's execute() path against an in-memory DataLayer,
 verifying state mutation, outbox effect, and error handling.
-Spec: specs/triggerable-behaviors.yaml TRIG-10-001.
+Spec: specs/triggerable-behaviors.yaml TRIG-10-001; the Add goes to the
+CASE_MANAGER alone (PCR-08-005) and refused types queue nothing (TRIG-10-001).
 """
 
 import pytest
 
+from test.support.case_manager import (
+    CASE_MANAGER_ID,
+    make_case_with_case_manager,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -31,12 +36,27 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.pending_assertion import (
+    _reset_stores,
+    get_pending_assertion_store,
+)
 from vultron.core.use_cases.triggers.case import SvcAddObjectToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.base.objects.object_types import (
+    as_Article,
+    as_Note,
+)
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -83,12 +103,23 @@ class TestSvcAddObjectToCaseUseCase:
     def setup(self):
         """Set up actor and in-memory DataLayer."""
         self.actor, self.dl = _make_actor_dl("Vendor Co")
-        # Create a case for testing
-        self.case = as_VulnerabilityCase(name="Test Case")
-        self.dl.create(self.case)
+        self.case = make_case_with_case_manager(self.dl)
         yield
         self.dl.clear_all()
         reset_datalayer(self.actor.id_)
+        _reset_stores()
+
+    def _execute(self, object_id: str, case_id: str | None = None):
+        request = AddObjectToCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=case_id or self.case.id_,
+            object_id=object_id,
+        )
+        return SvcAddObjectToCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
 
     def test_add_object_to_case_happy_path(self):
         """SvcAddObjectToCaseUseCase adds an existing object to a case."""
@@ -119,46 +150,146 @@ class TestSvcAddObjectToCaseUseCase:
         activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
-    def test_add_object_to_case_outbox_activity_to_field(self):
-        """Outbox activity produced by AddObjectToCase has a documented ``to`` value.
-
-        PCR-08-001 requires outbound activities to address the Case Actor.
-        The current ``add_object_to_case`` factory sets ``to=None``; this test
-        anchors that behaviour so any change is immediately visible in CI.
-        """
-        report = as_VulnerabilityReport(
-            name="Test Report For To",
-            content="content",
-        )
+    @pytest.mark.spec("PCR-08-005")
+    def test_add_object_to_case_addresses_case_manager_alone(self):
+        """The queued Add goes to the CASE_MANAGER and no one else."""
+        report = as_VulnerabilityReport(name="To Report", content="content")
         self.dl.create(report)
-        request = AddObjectToCaseTriggerRequest(
-            actor_id=self.actor.id_,
-            case_id=self.case.id_,
-            object_id=report.id_,
-        )
-        before = set(self.dl.outbox_list())
-        SvcAddObjectToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
-        after = set(self.dl.outbox_list())
-        new_ids = after - before
-        assert new_ids, (
-            "AddObjectToCase must queue at least one outbox activity"
-        )
-        activity_id = next(iter(new_ids))
-        activity = self.dl.read(activity_id)
+
+        result = self._execute(report.id_)
+
+        activity = self.dl.read(activity_of(result)["id"])
         assert activity is not None
-        # Document current ``to`` value as regression anchor (PCR-08-001).
-        _absent = object()
-        to = getattr(activity, "to", _absent)
-        assert to is not _absent, (
-            "PCR-08-001: ``to`` attribute must exist on the activity"
+        assert getattr(activity, "to", None) == [CASE_MANAGER_ID]
+
+    @pytest.mark.spec("PCR-08-016")
+    def test_add_object_to_case_without_case_manager_queues_nothing(self):
+        """A case with no CASE_MANAGER fails fast with nothing queued."""
+        case = as_VulnerabilityCase(name="No Manager")
+        self.dl.create(case)
+        report = as_VulnerabilityReport(name="Orphan", content="content")
+        self.dl.create(report)
+
+        with pytest.raises(VultronValidationError):
+            self._execute(report.id_, case_id=case.id_)
+
+        assert self.dl.outbox_list() == []
+
+    @pytest.mark.spec("SYNC-11-002")
+    @pytest.mark.parametrize(
+        ("make_object", "semantics"),
+        [
+            pytest.param(
+                lambda: as_VulnerabilityReport(name="R", content="c"),
+                MessageSemantics.ADD_REPORT_TO_CASE,
+                id="report",
+            ),
+            pytest.param(
+                lambda: as_Note(name="N", content="c"),
+                MessageSemantics.ADD_NOTE_TO_CASE,
+                id="note",
+            ),
+        ],
+    )
+    def test_add_object_to_case_records_pending_assertion(
+        self, make_object, semantics
+    ):
+        """The Add is pending under the event type the CASE_MANAGER commits."""
+        obj = make_object()
+        self.dl.create(obj)
+
+        result = self._execute(obj.id_)
+
+        store = get_pending_assertion_store(self.actor.id_)
+        assert store.is_suppressed(
+            self.case.id_, semantics.value, activity_of(result)["id"]
         )
-        assert to is None or isinstance(to, (str, list)), (
-            f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_repeat_while_pending_is_suppressed(self):
+        """Adding the same object again while the first Add is pending queues
+        nothing and reports no activity."""
+        report = as_VulnerabilityReport(name="Twice", content="c")
+        self.dl.create(report)
+        self._execute(report.id_)
+        queued = len(self.dl.outbox_list())
+
+        repeat = self._execute(report.id_)
+
+        assert repeat.activity is None
+        assert len(self.dl.outbox_list()) == queued
+
+    @pytest.mark.spec("SYNC-11-003")
+    def test_repeat_after_commit_is_sent(self):
+        """Once the announced commit clears the assertion, the same object
+        may be added again."""
+        report = as_VulnerabilityReport(name="Again", content="c")
+        self.dl.create(report)
+        first = self._execute(report.id_)
+        get_pending_assertion_store(self.actor.id_).clear(
+            self.case.id_,
+            MessageSemantics.ADD_REPORT_TO_CASE.value,
+            activity_of(first)["id"],
         )
+
+        second = self._execute(report.id_)
+
+        assert second.activity is not None
+        assert len(self.dl.outbox_list()) == 2
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_pending_add_does_not_suppress_another_object(self):
+        """A pending Add of one object does not hold back another's."""
+        first = as_VulnerabilityReport(name="One", content="c")
+        second = as_VulnerabilityReport(name="Two", content="c")
+        self.dl.create(first)
+        self.dl.create(second)
+        self._execute(first.id_)
+
+        result = self._execute(second.id_)
+
+        assert result.activity is not None
+
+    @pytest.mark.spec("TRIG-10-001")
+    @pytest.mark.parametrize(
+        "make_object",
+        [
+            pytest.param(
+                lambda case_id: as_Article(name="A", content="no pattern"),
+                id="no-add-pattern",
+            ),
+            pytest.param(
+                lambda case_id: as_EmbargoEvent(
+                    context=case_id, end_time=days_from_now_utc(45)
+                ),
+                id="own-flow-embargo",
+            ),
+            pytest.param(
+                lambda case_id: as_CaseParticipant(
+                    attributed_to="https://example.org/actors/other",
+                    context=case_id,
+                ),
+                id="own-flow-participant",
+            ),
+            pytest.param(
+                lambda case_id: as_CaseStatus(context=case_id),
+                id="own-flow-case-status",
+            ),
+        ],
+    )
+    def test_add_object_to_case_refuses_type_and_queues_nothing(
+        self, make_object
+    ):
+        """A type no receiver routes as Add-to-case, or one with its own
+        flow, is refused before anything is built or queued."""
+        obj = make_object(self.case.id_)
+        self.dl.create(obj)
+        stored_before = len(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            self._execute(obj.id_)
+
+        assert len(self.dl.outbox_list()) == stored_before
 
     def test_add_object_to_case_raises_when_actor_not_found(self):
         """SvcAddObjectToCaseUseCase raises VultronNotFoundError when actor

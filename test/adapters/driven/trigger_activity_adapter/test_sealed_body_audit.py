@@ -85,8 +85,11 @@ _CASE_AS_STORED = frozenset(
     {"record_case_created", "record_case_owner_updated"}
 )
 
-#: Port methods that build a domain *object*, not an outbound activity.
-_NOT_AN_ACTIVITY = frozenset({"create_note", "requeue_embargo_refusal"})
+#: Port methods that build a domain *object*, not an outbound activity, or
+#: (``add_object_to_case_semantics``) classify one without persisting it.
+_NOT_AN_ACTIVITY = frozenset(
+    {"create_note", "requeue_embargo_refusal", "add_object_to_case_semantics"}
+)
 
 
 class _World:
@@ -359,7 +362,7 @@ RECIPES: dict[str, Recipe] = {
         object_id=w.case_id,
     ),
     "add_object_to_case": lambda w: w.adapter.add_object_to_case(
-        actor=_ACTOR, object_id=w.note_id, case_id=w.case_id
+        actor=_ACTOR, object_id=w.note_id, case_id=w.case_id, to=[_PEER]
     ),
     "announce_vulnerability_case": lambda w: (
         w.adapter.announce_vulnerability_case(
