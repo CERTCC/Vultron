@@ -58,7 +58,10 @@ from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_activity_in_inbox,
 )
-from vultron.demo.helpers.workflow import reporter_submits_report
+from vultron.demo.helpers.workflow import (
+    reporter_submits_report,
+    verify_reporter_trusts_introduction,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -87,11 +90,14 @@ def _finder_submits_report(
 
     The finder's ``submit-report`` trigger records the Offer in the finder's
     own store, which is what lets the finder check who may acknowledge it
-    (RMB-08-004), and its outbox delivers the Offer to the vendor.
+    (RMB-08-004), and its outbox delivers the Offer to the vendor.  The
+    vendor opens a case on receipt and introduces it to the finder, which
+    takes it on the trusted route (CBT-01-005, #4675).
     """
-    _report, offer = reporter_submits_report(
+    report, offer = reporter_submits_report(
         client, finder, vendor, reporter_client=client
     )
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
     return offer
 
 

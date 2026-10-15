@@ -23,6 +23,7 @@ Every store is its own (TB-06-007), using the harness of
 """
 
 import json
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
@@ -468,6 +469,9 @@ def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
         accepting_actor_id=BYSTANDER,
         invite_id=invite_id,
         sender_rule=AcceptInviteToEmbargoOnCaseReceivedUseCase.sender_entitlement,
+        now=datetime.now(tz=UTC),
+        published=datetime.now(tz=UTC).isoformat(),
+        expiry_out={},
     )
 
     event = extract_event(

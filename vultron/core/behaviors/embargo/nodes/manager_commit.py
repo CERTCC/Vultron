@@ -39,7 +39,6 @@ escapes to ``BTBridge`` and the trigger raises (BT-14-001).
 """
 
 from collections.abc import Callable
-from typing import cast
 
 from py_trees.common import Status
 
@@ -51,11 +50,8 @@ from vultron.core.behaviors.embargo.proposal_index import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    PortInformation,
 )
-from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.events.base import MessageSemantics
-from vultron.errors import BtNodePreconditionError
 
 #: Build the decision activity addressed to *to* (``None``: nobody) and
 #: return ``(activity_id, sealed_blob)`` — the shape every embargo factory
@@ -151,75 +147,10 @@ class IndexOwnEmbargoProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CommitEmbargoTeardownNode(_CommitCaseManagerActivityBase):
-    """Commit the CASE_MANAGER's ``Remove(EmbargoEvent)`` and tell the others.
-
-    The cascade form of the terminate decision: it has no use case to build
-    the activity, so it reads ``/embargo_id`` (written by
-    ``ReadEmbargoIdNode``) and calls the factory itself.  Addressed to every
-    other participant (EMB-19-001), never to the manager (#4112).  It runs
-    after the register write, so the ``Remove``'s ``content`` is the what
-    the ``TERMINATED`` entry records (ADR-0122); the why stays on the entry.
-    """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "embargo_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(
-            case_id=case_id,
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
-            notify_participants=True,
-            name=name,
-        )
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._embargo_id: str = self.get_input("embargo_id")
-
-    def _recorded_termination(self) -> EmbargoTermination:
-        """The termination the register records, read after the write.
-
-        Raises:
-            BtNodePreconditionError: the case cannot be read or records no
-                termination — this node ran before the register write, a
-                fault in the tree.
-        """
-        case, failure = self._require_case(self._case_id)
-        if failure is not None or case is None:
-            raise BtNodePreconditionError(
-                f"{self.name}: {self.feedback_message}"
-            )
-        termination = case.embargo_termination
-        if termination is None:
-            raise BtNodePreconditionError(
-                f"{self.name}: case '{self._case_id}' records no embargo"
-                " termination; the teardown must run after the register write"
-            )
-        return termination
-
-    def _build(self, to: list[str] | None) -> tuple[str, str]:
-        assert self.trigger_activity_factory is not None
-        return self.trigger_activity_factory.terminate_embargo(
-            embargo_id=self._embargo_id,
-            case_id=self._case_id,
-            actor=cast(str, self.actor_id),
-            reason=self._recorded_termination().reason,
-            to=to,
-        )
-
-
 __all__ = [
     "COMMITTED_ACTIVITY_KEY",
     "EMBARGO_TEARDOWN_EVENT_TYPE",
     "EmbargoActivityBuilder",
     "CommitEmbargoDecisionNode",
-    "CommitEmbargoTeardownNode",
     "IndexOwnEmbargoProposalNode",
 ]

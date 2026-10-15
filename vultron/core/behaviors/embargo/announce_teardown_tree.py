@@ -60,7 +60,8 @@ nothing (RSH-08-003); the CM-31-009 ending notices are the CASE_MANAGER's, so
 they sit in the CASE_MANAGER arm.  The one replica that still writes its own
 copy is a signatory whose ledger stream is paused (removed, withheld, or at RM
 ``CLOSED``): that direct notice is its only channel, and it applies the
-teardown through ``EmbargoLifecycle`` (CM-31-010) on the receive side.  The
+teardown through the one apply function (CM-31-010, ADR-0124) on the receive
+side, as the CASE_MANAGER's arm does.  The
 RSH-08-003 replica gate (#3814) gates that write on
 ``AwaitsEmbargoEndingNoticeNode``, so only the paused signatory tears down
 directly.
@@ -175,6 +176,7 @@ def _teardown_if_active(
                     *before_teardown,
                     ClearActiveEmbargoNode(
                         case_id=case_id,
+                        embargo_id=embargo_id,
                         termination=termination,
                         terminated_at=terminated_at,
                     ),
@@ -261,6 +263,7 @@ def remove_embargo_from_case_tree(
                 case_id=case_id,
                 termination=termination,
                 terminated_at=terminated_at,
+                embargo_id=embargo_id,
             ),
         ],
         # RSH-08-003/CM-31-010: an active replica takes the teardown from the
@@ -269,7 +272,7 @@ def remove_embargo_from_case_tree(
         # replica removed, withheld, or at RM ``CLOSED`` — for which the
         # CASE_MANAGER's direct ``Remove(EmbargoEvent)`` is the only channel;
         # that paused replica, and only it, applies its own teardown through
-        # ``EmbargoLifecycle`` (CM-31-010), gated by
+        # the one apply function (CM-31-010, ADR-0124), gated by
         # ``AwaitsEmbargoEndingNoticeNode``.  It tears down only and sends
         # nothing, so it carries no capture/notice.
         replica_effects=[

@@ -18,10 +18,12 @@
 Only the CASE_MANAGER evaluates expiry, and its expiry entry is committed
 behind its role gate (CM-28-003, CM-28-014, BT-17-001, ADR-0118).
 
-The expiry tree uses the canonical guard → commit → effect pattern
-(CLP-10-006, BT-06-006)::
+The expiry is a clock decision of the Invite Accept tree (CLP-10-025): the
+received-tree factory runs it after the door guards and before the
+precondition guards, behind its CASE_MANAGER gate.  It uses the canonical
+guard → commit → effect pattern (CLP-10-006, BT-06-006)::
 
-    EvaluateInviteExpiryBT (CASE_MANAGER-gated Sequence)
+    EvaluateInviteExpiry (Sequence; gated by the factory)
     ├─ EvaluateInviteExpiryNode        # READ-ONLY: assess deadline, no writes
     └─ CommitAndApplyExpiryIfDue (Selector)
        ├─ Inverter(InviteExpiryNeedsApplyNode)   # nothing to commit
@@ -33,8 +35,9 @@ A failed commit leaves the invitee unchanged: the row is written only once
 both entries have committed (CLP-07-013, ADR-0124).
 
 A store that is not the CASE_MANAGER runs nothing and leaves ``result_out``
-unset; the caller reads ``IS_EXPIRED_KEY`` as False and proceeds to the
-normal Accept tree, which also gates on CASE_MANAGER (BT-17-001, HP-01-005).
+unset; the Accept tree's expiry guard and the caller read ``IS_EXPIRED_KEY``
+as False, and the Accept's own effects are gated on the CASE_MANAGER too
+(BT-17-001, HP-01-005).
 The entry's replica apply node is
 :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyInviteExpiryFromLedgerNode`.
 
@@ -162,7 +165,7 @@ def create_commit_and_record_expiry_tree(
     """Commit one expired invitation and its ``TIMED_OUT`` row, then apply it.
 
     The commit → effect half of the CM-28-009 expiry, shared by the lazy
-    late-Accept evaluation (:func:`create_invite_expiry_tree`) and the
+    late-Accept evaluation (:func:`invite_expiry_decision`) and the
     owner-close settle step (CM-23-014), and the one expiry path a sweep of
     overdue invitations reuses.  The caller decides *that* the invitation
     has expired; this node commits the expired-invitation entry, then the
@@ -197,7 +200,7 @@ def create_commit_and_record_expiry_tree(
     )
 
 
-def create_invite_expiry_tree(
+def invite_expiry_decision(
     *,
     case_id: str,
     invitee_id: str,
@@ -207,24 +210,39 @@ def create_invite_expiry_tree(
     now: datetime,
     result_out: dict[str, Any],
 ) -> py_trees.behaviour.Behaviour:
-    """Build the CASE_MANAGER-gated expiry evaluation for one invitee's answer.
+    """The CASE_MANAGER's lazy expiry of one invitee's Invite, a clock decision.
 
-    The tree follows the guard → commit → effect pattern (CLP-10-006):
+    Passed to
+    :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
+    as ``clock_decisions`` by the Invite Accept tree
+    (:func:`~vultron.core.behaviors.embargo.answer_trees.accept_invite_to_embargo_tree`),
+    which runs it after the door guards and before the precondition guards,
+    behind the factory's CASE_MANAGER gate (CLP-10-025, CM-28-014,
+    BT-17-001).  It is not gated here.
+
+    The decision follows the guard → commit → effect pattern (CLP-10-006):
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.EvaluateInviteExpiryNode`
     reads the deadline **without writing**, and
     :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyInviteExpiryNode`
     commits the expiry and the invitee's ``TIMED_OUT`` row before it writes
-    the row.  A failed commit therefore leaves the invitee unchanged.
+    the row.  A failed commit therefore leaves the invitee unchanged, and the
+    stage logs it and goes on.
+
+    The deadline is compared against *now*, the CASE_MANAGER's clock; the
+    Accept only names the invitee and the embargo, so its claimed time is
+    never the evidence.  The entry carries that claimed time as received
+    (*published*, CLP-15-003), which decides nothing.
 
     Args:
         case_id: The case the Invite was for.
-        invitee_id: The participant answering late.
+        invitee_id: The participant answering.
         invite_id: The answered Invite; the entry's object id.
         embargo_id: The embargo the Invite proposed.
         published: The answer's claimed time (see :func:`expiry_payload_snapshot`).
         now: The instant the deadline is compared against.
         result_out: Receives ``IS_EXPIRED_KEY`` and ``NEEDS_APPLY_KEY``
-            from :class:`EvaluateInviteExpiryNode` when the gate passes.
+            from :class:`EvaluateInviteExpiryNode`; left unset on a store
+            that is not the CASE_MANAGER, whose gate skips the decision.
     """
     commit_and_apply = create_commit_and_record_expiry_tree(
         case_id=case_id,
@@ -244,9 +262,9 @@ def create_invite_expiry_tree(
             commit_and_apply,
         ],
     )
-    return create_case_manager_gated_tree(
-        name="EvaluateInviteExpiryBT",
-        case_id=case_id,
+    return py_trees.composites.Sequence(
+        name="EvaluateInviteExpiry",
+        memory=False,
         children=[
             EvaluateInviteExpiryNode(
                 case_id=case_id,
@@ -257,7 +275,6 @@ def create_invite_expiry_tree(
             ),
             commit_and_apply_if_due,
         ],
-        body_name="EvaluateInviteExpiry",
     )
 
 
@@ -384,9 +401,9 @@ __all__ = [
     "NEEDS_APPLY_KEY",
     "create_commit_and_record_expiry_tree",
     "create_honour_late_accept_tree",
-    "create_invite_expiry_tree",
     "create_noop_ledger_entry_tree",
     "create_reinvite_stale_accepter_tree",
     "expiry_payload_snapshot",
     "honour_late_accept_payload_snapshot",
+    "invite_expiry_decision",
 ]

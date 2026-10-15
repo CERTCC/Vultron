@@ -69,7 +69,8 @@ Sequence
 ```
 
 **Fix**: Extract a shared factory (`terminate_embargo_bt`) that places
-`ResolveCaseManagerNode` before `TerminateEmbargoLifecycleNode`, and replace
+`ResolveCaseManagerNode` before the termination write (now
+`CommitAndApplyEmbargoTerminationNode`), and replace
 all standalone monolithic nodes with the factory output. Both trigger and
 cascade call sites use the shared factory directly (BT-19-002, PR #1263).
 
@@ -81,10 +82,12 @@ cascade call sites use the shared factory directly (BT-19-002, PR #1263).
 
 Every embargo trigger tree in `trigger_tree.py` ends in `_by_role()`'s two
 mutually exclusive arms. Add a new embargo write to the **CASE_MANAGER arm**
-only, in this order: `*EmbargoLifecycleNode` (`STRICT`) →
-`CommitEmbargoDecisionNode` (`nodes/manager_commit.py`; a decision it
-sends is queued before it is committed, SYNC-09-002) →
-`EmitCaseStatusUpdateNode`. The other arm writes no EM state:
+only, and build it on the copy model (§ "Converting an Arm to the Copy
+Model" below): decide, commit, then apply, then `EmitCaseStatusUpdateNode`.
+The arms not yet converted still run `*EmbargoLifecycleNode` (`STRICT`) →
+`CommitEmbargoDecisionNode` (`nodes/manager_commit.py`; a decision it sends
+is queued before it is committed, SYNC-09-002); do not copy that order into
+a new arm. The other arm writes no EM state:
 it queues to the manager through `sender_side_bt` with `_asserting()`, which
 writes `result_out[ASSERTED_ACTIVITY_KEY]` for the pending-assertion record.
 The one exception is `reject_proposed_embargo_bt` (the P/X/A abandonment):
@@ -95,10 +98,13 @@ its other arm sends nothing at all (EMB-16-002), so it passes
   addressed to nobody; a teardown goes to every *other* participant
   (`notify_participants=True`). Never address the manager's own outbox to
   itself — that is #4112.
-- A cascade with no use case to build the activity uses
-  `CommitEmbargoTeardownNode`, which reads `/embargo_id` and calls the factory.
+- The termination arm is converted to the copy model (#4714):
+  `CommitAndApplyEmbargoTerminationNode` decides, commits the `Remove`, then
+  applies it. With no use case to build the activity (the cascades and the
+  lazy end-time check) it calls the factory itself.
 - Ratchet: `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`
-  fails on any `_EmbargoLifecycleNode` outside the gate, and on a new public
+  fails on any EM write node (`_EM_WRITES`: an `_EmbargoLifecycleNode` or a
+  copy-model commit-and-apply node) outside the gate, and on a new public
   factory that is not listed.
 - A test of the manager arm runs in the manager's own store; a test of the
   ask arm needs a replica store whose `actor_id` is the asking participant
@@ -127,3 +133,11 @@ for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
 (`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).
 Never call `EmbargoLifecycle`, `apply_pec_transition` or `write_uninvited_rows`
 from a replica slot.
+
+`terminate_embargo_bt` is the worked example (#4714):
+`decide_termination()` (`services/embargo_lifecycle/activation.py`) names
+the `TERMINATE` step, `CommitAndApplyEmbargoTerminationNode`
+(`nodes/termination_commit.py`) commits the `Remove` that carries it, then
+applies it. The `Remove` entry is the whole step, cancels included, and
+writes no consent row. The replica slot is `ApplyEmbargoTeardownNode`
+(`nodes/teardown.py`), which ends the embargo the `Remove` names.

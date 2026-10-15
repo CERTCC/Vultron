@@ -113,7 +113,7 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
-#    received trees only: a trigger, expiry or retry tree runs on the actor's
+#    received trees only: a trigger, late-Accept or retry tree runs on the actor's
 #    own initiative.  The ``case_manager_admits_*_guard`` composites
 #    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
@@ -138,19 +138,11 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "embargo_admission_backfill_tree",
         ),
         (f"{_E}/expiry_tree.py", "create_honour_late_accept_tree"),
-        (f"{_E}/expiry_tree.py", "create_invite_expiry_tree"),
         (f"{_E}/expiry_tree.py", "create_noop_ledger_entry_tree"),
         (f"{_E}/expiry_tree.py", "create_reinvite_stale_accepter_tree"),
         # The CASE_MANAGER's lazy end-time check (ADR-0122): its own act,
-        # run by the dispatcher before the received tree, like the expiries.
+        # run by the dispatcher before the received tree.
         (f"{_E}/end_time_tree.py", "end_embargo_if_end_time_passed_tree"),
-        # The ownership-transfer Offer's lazy expiry (CM-21-017): the
-        # CASE_MANAGER's own act, run before the received tree, like the
-        # embargo Invite expiry above.
-        (
-            f"{_C}/ownership_expiry_tree.py",
-            "create_ownership_offer_expiry_tree",
-        ),
         (f"{_E}/nodes/relay_guards.py", "case_manager_admits_proposal_guard"),
         # The repeat guard for an answer to an embargo Invite (CM-13-005),
         # also run by the Accept handler before its pre-tree paths.

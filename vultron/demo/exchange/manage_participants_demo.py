@@ -54,8 +54,8 @@ from vultron.core.models.dimensions import (
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
-    create_case_via_trigger,
     seat_participant_through_stub_invite,
+    submit_validate_and_create_case,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -73,21 +73,15 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
-    add_report_to_case_activity,
     add_status_to_participant_activity,
     remove_participant_from_case_activity,
     rm_invite_to_case_activity,
     rm_reject_invite_to_case_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -102,8 +96,10 @@ def _setup_case_with_vendor(
     Set up an initialized case owned by the vendor as a precondition for the
     manage-participants workflow.
 
-    Steps:
-    1. Finder submits report to vendor
+    Steps 1–4 and the finder's introduction check are
+    :func:`submit_validate_and_create_case`:
+
+    1. Finder submits the report through its own ``submit-report`` trigger
     2. Vendor validates the report
     3. Vendor creates the case through the ``create-case`` trigger, which
        seats it as Vendor, Case Owner and CASE_MANAGER (CM-02-014,
@@ -114,40 +110,24 @@ def _setup_case_with_vendor(
 
     Returns the created as_VulnerabilityCase.
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A use-after-free vulnerability in the memory allocator.",
-        name="Use-After-Free in Memory Allocator",
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — use-after-free via crafted allocation sequence.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = create_case_via_trigger(
+    _report, case = submit_validate_and_create_case(
         client,
+        finder,
         vendor,
-        name="UAF Case — Memory Allocator",
-        content="Tracking the use-after-free in the memory allocator.",
+        report_name="Use-After-Free in Memory Allocator",
+        report_content=(
+            "A use-after-free vulnerability in the memory allocator."
+        ),
+        validation_note=(
+            "Confirmed — use-after-free via crafted allocation sequence."
+        ),
+        case_name="UAF Case — Memory Allocator",
+        case_content="Tracking the use-after-free in the memory allocator.",
         stub_summary=(
             "Use-after-free in memory allocator"
             " — details shared after acceptance."
         ),
     )
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
     log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with vendor as sole participant")

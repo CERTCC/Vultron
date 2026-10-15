@@ -126,7 +126,9 @@ class TestConsentRowMove:
 
         assert (
             consent_row_move(
-                case_file, "https://example.org/actors/nobody", E2,
+                case_file,
+                "https://example.org/actors/nobody",
+                E2,
                 PEC_Trigger.AGREE,
             )
             is None

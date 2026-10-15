@@ -22,7 +22,7 @@ Drive actor behavior through real HTTP trigger endpoints. **Puppeteering** = tri
 the actor so it decides and acts (exercises the BT). **Spoofing** = forge the
 resulting activity as if it had already decided (skips the BT). If the trigger
 endpoint you need does not exist, build the full stack (endpoint → service → BT)
-*first*. See
+*first*. Reports too, in every demo: `reporter_submits_report` (#4675). See
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md) §
 "Puppeteer Actors via Trigger Endpoints". (ISSUE-1535)
 

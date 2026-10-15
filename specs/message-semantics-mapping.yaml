@@ -947,8 +947,10 @@ groups:
       state it was before ADR-0122 (ADR-0118). Leaving the rows as they were also keeps the
       history of who agreed to what, and every row of a final entry is frozen (CM-18-003).
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle/ confirms that
-      terminate_active_embargo() writes no consent row. Unit tests in
+      Inspection confirms that the `TERMINATE` register step
+      (vultron/core/models/embargo_apply.py) writes no consent row, and
+      test/core/use_cases/received/test_embargo_termination_copy.py asserts that
+      a termination commits no consent-row entry. Unit tests in
       test/core/services/embargo_lifecycle/ assert the rows are unchanged and no participant is
       a signatory afterwards, and a per-actor-store test asserts the same on the CASE_MANAGER
       and on a replica.
