@@ -69,10 +69,10 @@ Proceed to Phase 6.
 4. If pre-existing is proven: assess whether a fix is straightforward and
    context is in hand. If yes, fix it now. Only proceed to step 5 if the fix
    is genuinely non-trivial or requires design work outside this PR's scope.
-5. If a fix is not possible in this PR: create/update a Bug issue with evidence;
-   wire blockers via `manage-github-issue` (`--opened-as separate-defect`); add a
-   handoff comment. The PR stays
-   held, not merged on red: record `outcome: skipped` with `skip_reason`.
+5. If a fix is not possible in this PR: create/update a Bug issue with evidence; wire
+   blockers via `manage-github-issue` (`--opened-as separate-defect`); add a handoff
+   comment. The PR stays held, not merged on red: record `outcome: skipped` with
+   `skip_reason`.
 6. Stop only after recording blocked/unblocked status with linked evidence.
 
 Integration tests can fail due to: missing environment setup, timing issues
@@ -141,9 +141,9 @@ After running the test suite, scan `XFAIL` lines in pytest output. For each:
 a live issue — the finding is resolved).
 3. If issue number found: `gh issue view <N> --json state`
    - `open` → fine, no action needed.
-   - `closed` → the fix landed without removing the marker; file a new tracking
-     issue, update the reason string, record as `outcome: fixed` with the new
-     `issue_number` (the xfail now points to
+   - `closed` → the fix landed without removing the marker; file a new tracking issue,
+     update the reason string, record as `outcome: fixed` with the new `issue_number`
+     (the xfail now points to
 a live issue — the finding is resolved).
 
 The rule: **every `xfail` must point to a live open issue**. An xfail with a

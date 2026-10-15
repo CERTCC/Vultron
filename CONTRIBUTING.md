@@ -39,12 +39,11 @@ There are a number of ways you can contribute to the development of Vultron.
 [ContributionInstructions.md](https://github.com/CERTCC/Vultron/blob/main/ContributionInstructions.md)
 before submitting a PR.
 - Before making any significant changes that you expect to result in a pull request, we
-  encourage you to discuss your plans with
-  the maintainers first, whether that be in the form of an
-  [Issue](https://github.com/CERTCC/Vultron/issues) or a
+  encourage you to discuss your plans with the maintainers first, whether that be in the
+  form of an [Issue](https://github.com/CERTCC/Vultron/issues) or a
   [Discussion](https://github.com/CERTCC/Vultron/discussions).
-- Python code is formatted and linted with [ruff](https://docs.astral.sh/ruff/).
-  Run `uv run ruff check` and `uv run ruff format --check` before committing; both read
+- Python code is formatted and linted with [ruff](https://docs.astral.sh/ruff/). Run
+  `uv run ruff check` and `uv run ruff format --check` before committing; both read
   their scope from `pyproject.toml`, so they take no path arguments.
 
 ## Cutting a Release (Maintainers)

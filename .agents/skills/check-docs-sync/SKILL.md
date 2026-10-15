@@ -202,7 +202,8 @@ refuses the placeholder and any `Docs:` line not in a final form, and fixes
 every finding before the session ends:
 
 ```bash
-PYTHONPATH= uv run pr-body-lint --pr <PR> --stage final
+gh pr view <PR> --json body,files,baseRefName \
+  | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 
 Add `--closes-work-item` for a docs PR that closes a `Task`, `Feature` or `Bug`.

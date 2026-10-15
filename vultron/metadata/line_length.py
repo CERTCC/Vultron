@@ -37,6 +37,8 @@ from collections import Counter
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+from vultron.metadata.base import iter_tree_texts
+
 #: The prose line limit outside ``docs/`` (AGENTS.md § Markdown Formatting).
 #: ``.markdownlint-cli2.yaml`` ``MD013.line_length`` and pyproject's ruff
 #: ``max-doc-length`` carry the same number; a test pins all three.
@@ -82,9 +84,8 @@ def _items(rel: str, lines: Iterable[str]) -> Iterator[str]:
 def overlong_spec_yaml_lines(repo_root: Path) -> frozenset[str]:
     """Every overlong line of every ``specs/**/*.yaml`` file under *repo_root*."""
     items: set[str] = set()
-    for path in sorted((repo_root / SPEC_ROOT).rglob("*.yaml")):
-        lines = path.read_text(encoding="utf-8").splitlines()
-        rel = path.relative_to(repo_root).as_posix()
+    for rel, text in iter_tree_texts(repo_root, (SPEC_ROOT,), "*.yaml"):
+        lines = text.splitlines()
         items.update(_items(rel, (ln for ln in lines if is_overlong(ln))))
     return frozenset(items)
 
@@ -152,19 +153,9 @@ def python_doc_lines(source: str) -> Iterator[str]:
 def overlong_python_doc_lines(repo_root: Path) -> frozenset[str]:
     """Every overlong doc line of every ``*.py`` under :data:`PYTHON_ROOTS`."""
     items: set[str] = set()
-    for root in PYTHON_ROOTS:
-        for path in sorted((repo_root / root).rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            try:
-                source = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            rel = path.relative_to(repo_root).as_posix()
-            overlong = (
-                ln for ln in python_doc_lines(source) if is_overlong(ln)
-            )
-            items.update(_items(rel, overlong))
+    for rel, source in iter_tree_texts(repo_root, PYTHON_ROOTS, "*.py"):
+        overlong = (ln for ln in python_doc_lines(source) if is_overlong(ln))
+        items.update(_items(rel, overlong))
     return frozenset(items)
 
 

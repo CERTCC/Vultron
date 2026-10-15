@@ -20,13 +20,13 @@ Specs: MS-10-011, PD-10-003, PAD-20-003.
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
+from test.metadata._git_repo import commit_base, git
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs import lint as lint_module
 from vultron.metadata.specs.branch_checks import (
@@ -39,23 +39,6 @@ from vultron.metadata.specs.registry import load_registry
 
 _UNMARKED = "`test/test_unmarked.py` checks it."
 _LONG = "statement words " * 8
-
-
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
-
-
-def _commit(root: Path) -> None:
-    """Commit the whole tree on a fresh ``base`` branch."""
-    _git(root, "init", "-q", "-b", "base")
-    _git(root, "add", ".")
-    _git(
-        root,
-        "-c", "user.email=t@example.org",
-        "-c", "user.name=t",
-        "-c", "commit.gpgsign=false",
-        "commit", "-q", "--no-verify", "-m", "base",
-    )  # fmt: skip
 
 
 def _write_specs(root: Path, rows: list[tuple]) -> None:
@@ -79,8 +62,8 @@ def repo(tmp_path: Path) -> Path:
         tmp_path,
         [_row("TST-01-001", _UNMARKED), _row("TST-01-002", _UNMARKED)],
     )
-    _commit(tmp_path)
-    _git(tmp_path, "checkout", "-q", "-b", "work")
+    commit_base(tmp_path)
+    git(tmp_path, "checkout", "-q", "-b", "work")
     return tmp_path
 
 
@@ -162,7 +145,7 @@ class TestAddedYamlLines:
         (tmp_path / "specs").mkdir()
         long_line = "description: " + _LONG
         (tmp_path / "specs" / "a.yaml").write_text(f"{long_line}\n")
-        _commit(tmp_path)
+        commit_base(tmp_path)
         (tmp_path / "specs" / "a.yaml").write_text(f"id: X\n{long_line}\n")
         assert check_added_yaml_lines(tmp_path, "base") == []
 

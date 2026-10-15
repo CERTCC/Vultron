@@ -1,9 +1,8 @@
 # Issue Creation Requirements
 
-Every new issue created via `manage_github_issue.sh` **must** supply three fields
-plus a reason it exists (below). Missing any one causes the script to exit non-zero.
-Task and Bug bodies also
-need a `Governing specs:` line (see below).
+Every new issue created via `manage_github_issue.sh` **must** supply three fields plus a
+reason it exists (below). Missing any one causes the script to exit non-zero. Task and
+Bug bodies also need a `Governing specs:` line (see below).
 
 ## Required fields
 

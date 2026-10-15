@@ -25,13 +25,10 @@ The unit of coordination in Vultron. A case captures all state and history for o
 engagement: participants, embargo status, report management state, and the canonical ledger.
 *Avoid*: ticket, report (a report is what initiates a case, not the case itself)
 
-**Actor**:
-A participant in the Vultron protocol — a person, organization, or automated service
-that sends
-and receives protocol messages. Actors have persistent identities (URIs) and maintain
-their own
-DataLayer.
-*Avoid*: user, agent (in the protocol-participant sense; see Capability Shapes below)
+**Actor**: A participant in the Vultron protocol — a person, organization, or automated
+service that sends and receives protocol messages. Actors have persistent identities
+(URIs) and maintain their own DataLayer. *Avoid*: user, agent (in the
+protocol-participant sense; see Capability Shapes below)
 
 **Case Actor**:
 A special-purpose service actor that owns the canonical ledger for a case, coordinates
@@ -109,14 +106,13 @@ on its own and must request input — a fact, a decision, or content — from an
 (a human, a function, or an external system) before it can continue.
 *Avoid*: decision point (reserved for SSVC scoring trees), touchpoint, integration point
 
-**Capability shape**:
-One of the four abstract interface contracts (Evaluator, Retriever, Composer, Actuator)
-that characterises the interaction pattern between a call-out point and the protocol.
-A capability shape does not prescribe the implementation — the implementation (function,
-human
-workflow, LLM agent) is a deployment-time decision.
-*Avoid*: Coordination Agent (retired; see ADR-0024); "the five shapes"; "Sentinel shape"
-(Sentinel is a call-in pattern, not a shape — ADR-0097, BT-18-013)
+**Capability shape**: One of the four abstract interface contracts (Evaluator,
+Retriever, Composer, Actuator) that characterises the interaction pattern between a
+call-out point and the protocol. A capability shape does not prescribe the
+implementation — the implementation (function, human workflow, LLM agent) is a
+deployment-time decision. *Avoid*: Coordination Agent (retired; see ADR-0024); "the five
+shapes"; "Sentinel shape" (Sentinel is a call-in pattern, not a shape — ADR-0097,
+BT-18-013)
 
 **Capability**:
 A specific named call-out point with its own blackboard contract (e.g., `EvaluateReportCredibility`).
@@ -141,20 +137,16 @@ Boolean/binary results (yes/no queries) are also Retriever capabilities. The Ret
 what already exists; it does not generate new content.
 *Avoid*: lookup, fetcher
 
-**Composer**:
-A capability shape that is called with context (case state, participants, prior decisions)
-and generates a new content artifact — a notification draft, an advisory, a case
-summary, a
-participant invitation. The Composer produces something that did not exist before.
-*Avoid*: drafter, writer
+**Composer**: A capability shape that is called with context (case state, participants,
+prior decisions) and generates a new content artifact — a notification draft, an
+advisory, a case summary, a participant invitation. The Composer produces something that
+did not exist before. *Avoid*: drafter, writer
 
-**Actuator**:
-A capability shape that receives a trigger and context, invokes an external system to
-cause a
-side effect (notification dispatch, state write, queue mutation, API call), and returns
-SUCCESS
-when the side effect is confirmed. Does not produce a content artifact on the blackboard.
-*Avoid*: executor, dispatcher (these are valid sub-types but not the canonical shape name)
+**Actuator**: A capability shape that receives a trigger and context, invokes an
+external system to cause a side effect (notification dispatch, state write, queue
+mutation, API call), and returns SUCCESS when the side effect is confirmed. Does not
+produce a content artifact on the blackboard. *Avoid*: executor, dispatcher (these are
+valid sub-types but not the canonical shape name)
 
 Not a capability shape:
 
@@ -178,8 +170,7 @@ outcome. Vultron reuses SSVC decision-point structures to represent process deci
 call-out points.
 *Avoid*: CVSS (a scoring system, not a decision framework)
 
-**Decision point** (SSVC sense):
-Within an SSVC tree, a specific question with an enumerated answer set that contributes
-to a
-prioritization outcome. Do not use this term for Vultron workflow call-out points more broadly.
-*Avoid*: (using this term outside the SSVC context)
+**Decision point** (SSVC sense): Within an SSVC tree, a specific question with an
+enumerated answer set that contributes to a prioritization outcome. Do not use this term
+for Vultron workflow call-out points more broadly. *Avoid*: (using this term outside the
+SSVC context)

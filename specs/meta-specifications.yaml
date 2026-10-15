@@ -593,6 +593,14 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: MS-10-004
+    priority: SHOULD
+    kind: process
+    statement: Spec entries SHOULD require only `id`, `priority`, and `statement` to be complete; optional fields (`rationale`,
+      `tags`, `relationships`) SHOULD be added only when they provide clear value, not by default.
+    rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
+    tags:
+    - documentation
   - id: MS-10-010
     priority: MUST
     kind: process
@@ -646,14 +654,6 @@ groups:
     tags:
     - documentation
     - tooling
-  - id: MS-10-004
-    priority: SHOULD
-    kind: process
-    statement: Spec entries SHOULD require only `id`, `priority`, and `statement` to be complete; optional fields (`rationale`,
-      `tags`, `relationships`) SHOULD be added only when they provide clear value, not by default.
-    rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
-    tags:
-    - documentation
 - id: MS-11
   title: Spec vs. ADR Delineation
   specs:

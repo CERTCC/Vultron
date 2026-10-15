@@ -1,5 +1,6 @@
 """Shared type aliases and helpers for the vultron.metadata tooling layer."""
 
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Annotated
 
@@ -36,6 +37,27 @@ def repo_root(start: Path | None = None) -> Path:
         f"Could not locate repository root (pyproject.toml) starting from "
         f"{origin}"
     )
+
+
+def iter_tree_texts(
+    root: Path, dirs: Iterable[str], pattern: str
+) -> Iterator[tuple[str, str]]:
+    """Yield ``(relative_path, text)`` for each *pattern* file under *dirs*.
+
+    *dirs* are relative to *root*; a missing one is skipped. Files are visited
+    in sorted order, ``__pycache__`` is skipped, and a file that cannot be read
+    as UTF-8 is skipped rather than failing the scan, so a tree-wide check
+    reports on what it can read. Paths are POSIX and relative to *root*.
+    """
+    for directory in dirs:
+        for path in sorted((root / directory).rglob(pattern)):
+            if "__pycache__" in path.parts:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            yield path.relative_to(root).as_posix(), text
 
 
 class MkDocsYamlLoader(yaml.SafeLoader):

@@ -43,6 +43,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from vultron.metadata.base import iter_tree_texts
 from vultron.metadata.specs.coverage import marked_ids_in
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
@@ -137,18 +138,14 @@ class SuiteIndex:
     @classmethod
     def build(cls, repo_root: Path) -> SuiteIndex:
         """Index each ``*.py`` file under the test roots of *repo_root*."""
-        modules: dict[str, IndexedTestFile] = {}
-        for root in TEST_ROOTS:
-            for py in sorted((repo_root / root).rglob("*.py")):
-                if "__pycache__" in py.parts:
-                    continue
-                try:
-                    source = py.read_text(encoding="utf-8")
-                except OSError:
-                    continue
-                rel = py.relative_to(repo_root).as_posix()
-                modules[rel] = index_module(py, source)
-        return cls(modules)
+        return cls(
+            {
+                rel: index_module(Path(rel), source)
+                for rel, source in iter_tree_texts(
+                    repo_root, TEST_ROOTS, "*.py"
+                )
+            }
+        )
 
     def resolve_file(self, ref: str) -> list[str]:
         """Index keys *ref* names: the path itself, or files ending with it."""

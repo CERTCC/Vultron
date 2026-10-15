@@ -9,8 +9,11 @@ Reference this file from the "Open PR" step of any skill that calls
 The rules below need no judgment, so a tool checks them (PAD-20-001):
 
 ```bash
-PYTHONPATH= uv run pr-body-lint --body <file> [--manifest <file>]  # before the push
-PYTHONPATH= uv run pr-body-lint --pr <N> --stage final             # once Docs: is set
+# Before the push, on the composed body:
+PYTHONPATH= uv run pr-body-lint --body <file> [--manifest <file>]
+# Once Docs: is recorded, on the open PR (the tool never calls GitHub itself):
+gh pr view <N> --json body,files,baseRefName \
+  | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 
 `pre-push` (the default stage) accepts the placeholders `create-pr` writes;

@@ -98,7 +98,8 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 Run the mechanical rules first (PAD-20-004), on the PR branch:
 
 ```bash
-PYTHONPATH= uv run pr-body-lint --pr <number> --stage final
+gh pr view <number> --json body,files,baseRefName \
+  | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 
 Add `--closes-work-item` when a closed issue is a `Task`, `Feature` or `Bug` and
@@ -205,9 +206,9 @@ finding list before the artifact is written.
    - An affected page the PR neither updated nor deferred → **IMPROVE**
      (`fix-now`: execute updates the page and the line).
    - `Docs: deferred to #N` → `#N` must be an existing `type:Concern` issue
-     (open, or closed as planned) whose body lists the affected pages, and the update
-     must be a
-     multi-page rewrite PD-03-007 permits deferring. Otherwise **IMPROVE**.
+     (open, or closed as planned) whose body lists the affected pages, and the
+     update must be a multi-page rewrite PD-03-007 permits deferring. Otherwise
+     **IMPROVE**.
    - `Docs: no docs impact — <reason>` when your determination found an
      affected page → **IMPROVE** (the page is affected but neither updated nor
      deferred).

@@ -270,9 +270,8 @@ For findings with `outcome: deferred-ask`, `halted`, or `skipped`: assign
 3. Always print the merge-state line in the comment, including on the happy path.
    A verdict that does not state its merge state is the bug this gate exists to
    prevent.
-4. If `deferred-ask` or `halted` items exist: list them explicitly for user
-   decision (a `halted` item, an unresolved inversion or an unfinished item, means the
-   PR is
+4. If `deferred-ask` or `halted` items exist: list them explicitly for user decision (a
+   `halted` item, an unresolved inversion or an unfinished item, means the PR is
    blocked, not mergeable).
 5. Post comment: `gh pr review <number> --comment --body "<verdict>"`
 

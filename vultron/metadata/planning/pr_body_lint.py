@@ -27,14 +27,19 @@ Usage::
     pr-body-lint --body body.md                     # facts from the branch diff
     pr-body-lint --body body.md --stage final       # after check-docs-sync
     pr-body-lint --body - --manifest /tmp/m.txt     # body on stdin
-    pr-body-lint --pr 4710 --stage final            # body and files from GitHub
+    gh pr view 4710 --json body,files,baseRefName \
+      | pr-body-lint --pr-json - --stage final      # an open PR's body
 
 Two stages: ``pre-push`` (default) accepts the placeholders ``create-pr``
 writes — ``Docs: pending check-docs-sync`` and ``<TODO>`` in ``## Spec
 amended`` — and ``final`` refuses them (PD-03-008).
 
-Exit codes: 0 = clean; 1 = findings; 2 = setup error (unreadable body or
-manifest, bad base ref, failed ``gh`` or ``spec-amendments.sh`` call).
+Like the rest of ``planning/``, the tool never calls GitHub itself: an open
+PR's body, file list and base branch arrive as the ``gh pr view`` JSON payload
+on stdin (or in a file), so the rules stay testable without the network.
+
+Exit codes: 0 = clean; 1 = findings; 2 = setup error (unreadable body,
+payload or manifest, bad base ref, failed ``spec-amendments.sh`` call).
 
 Requirements: specs/parallel-development.yaml PAD-20;
 specs/project-documentation.yaml PD-03-008.
@@ -52,6 +57,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
+from vultron.metadata.markdown_tables import fenced_lines
 from vultron.metadata.specs.backstop import (
     BackstopError,
     changed_paths,
@@ -164,7 +170,6 @@ _CLOSING_RE = re.compile(
 )
 _CLOSES_BULLET_RE = re.compile(r"^- (?:Closes|Fixes|Resolves) #\d+$")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
-_FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _SECTION_LEVEL = 2
 _BLOCK_LEVEL = 3
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
@@ -236,17 +241,12 @@ class _Body:
             lambda m: "\n" * m.group(0).count("\n"), self.text
         )
         self.lines = bare.splitlines()
-        self.fenced = []
+        inside = fenced_lines(bare)
+        self.fenced = [n in inside for n in range(1, len(self.lines) + 1)]
         self.sections = {}
         current: list[str] | None = None
-        in_fence = False
-        for line in self.lines:
-            if _FENCE_RE.match(line):
-                in_fence = not in_fence
-                self.fenced.append(True)
-            else:
-                self.fenced.append(in_fence)
-            heading = None if in_fence else _HEADING_RE.match(line)
+        for line, fenced in zip(self.lines, self.fenced, strict=True):
+            heading = None if fenced else _HEADING_RE.match(line)
             if heading and len(heading.group(1)) == _SECTION_LEVEL:
                 current = self.sections.setdefault(heading.group(2), [])
                 continue
@@ -414,7 +414,7 @@ def _check_attribution(body: _Body) -> Iterator[Finding]:
     """PRB-10."""
     filled = [(n, ln) for n, ln in enumerate(body.lines, 1) if ln.strip()]
     marked = [n for n, ln in filled if _ATTRIBUTION_RE.search(ln)]
-    if marked and filled and marked[-1] != filled[-1][0]:
+    if marked and marked[-1] != filled[-1][0]:
         yield Finding(
             "PRB-10",
             f"the attribution line (line {marked[-1]}) is not the last line "
@@ -480,14 +480,17 @@ def _branch_files(root: Path, base: str) -> list[str]:
         raise SetupError(str(exc)) from exc
 
 
-def _pr_view(number: int, root: Path, run: Runner) -> dict[str, object]:
-    proc = run(
-        ["gh", "pr", "view", str(number), "--json", "body,files,baseRefName"],
-        root,
-    )
-    if proc.returncode != 0:
-        raise SetupError(f"gh pr view {number}: {proc.stderr.strip()}")
-    view: dict[str, object] = json.loads(proc.stdout)
+def _pr_payload(path: str) -> dict[str, object]:
+    """The ``gh pr view --json body,files,baseRefName`` payload at *path*."""
+    try:
+        view = json.loads(_read(path))
+    except json.JSONDecodeError as exc:
+        raise SetupError(f"--pr-json {path}: not JSON: {exc}") from exc
+    if not isinstance(view, dict) or not isinstance(view.get("body"), str):
+        raise SetupError(
+            f"--pr-json {path}: expected the object `gh pr view --json "
+            f"body,files,baseRefName` prints"
+        )
     return view
 
 
@@ -507,16 +510,15 @@ def _parser() -> argparse.ArgumentParser:
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--body", help="Body file, or - for stdin")
     source.add_argument(
-        "--pr",
-        type=int,
-        help="Read the body, changed files and base branch of this PR with "
-        "gh; the spec amendments are still read from the local checkout, "
-        "which must have the PR branch checked out",
+        "--pr-json",
+        help="The `gh pr view --json body,files,baseRefName` payload of an "
+        "open PR, or - for stdin; the spec amendments are read from the "
+        "local checkout, which must have the PR branch checked out",
     )
     parser.add_argument(
         "--base",
         help="Diff base (default origin/main, or origin/<base branch> with "
-        "--pr)",
+        "--pr-json)",
     )
     parser.add_argument(
         "--type",
@@ -548,9 +550,9 @@ def _gather(
     args: argparse.Namespace, root: Path, run: Runner
 ) -> tuple[str, BodyFacts]:
     base = args.base or "origin/main"
-    if args.pr is not None:
-        view = _pr_view(args.pr, root, run)
-        text = str(view.get("body") or "")
+    if args.pr_json is not None:
+        view = _pr_payload(args.pr_json)
+        text = str(view["body"])
         if args.base is None and view.get("baseRefName"):
             base = f"origin/{view['baseRefName']}"
         files_raw = view.get("files")
@@ -586,8 +588,8 @@ def main(argv: Sequence[str] | None = None, run: Runner = _run) -> int:
         for rule in RULES:
             print(f"{rule.rule_id} {rule.name}: {rule.summary}")
         return 0
-    if args.body is None and args.pr is None:
-        parser.error("one of --body or --pr is required")
+    if args.body is None and args.pr_json is None:
+        parser.error("one of --body or --pr-json is required")
     try:
         root = git_toplevel(Path.cwd())
         text, facts = _gather(args, root, run)

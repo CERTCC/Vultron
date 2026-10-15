@@ -68,15 +68,14 @@ work-issue handles one type-path per run. Invoke /work-issue separately for each
 
 ## Phase 2 — Route
 
-Read the matched skill file and follow it **as if the user had invoked that
-skill directly with the same issue number(s)**. All invocation arguments pass
-through unchanged. Several numbers is a **bundle**: the sub-skill implements
-every member in one PR that closes each one
-(`.agents/skills/shared/bundling.md`). The Phase 1 mixed-type gate above is
-what guarantees a bundle is homogeneous by executing skill. The sub-skill's own
-issue-number-provided shortcuts apply
-(e.g. bugfix skips its picker when an issue number is given; build uses the
-explicit issue directly; plan-issue skips Phase 0).
+Read the matched skill file and follow it **as if the user had invoked that skill
+directly with the same issue number(s)**. All invocation arguments pass through
+unchanged. Several numbers is a **bundle**: the sub-skill implements every member in one
+PR that closes each one (`.agents/skills/shared/bundling.md`). The Phase 1 mixed-type
+gate above is what guarantees a bundle is homogeneous by executing skill. The
+sub-skill's own issue-number-provided shortcuts apply (e.g. bugfix skips its picker when
+an issue number is given; build uses the explicit issue directly; plan-issue skips Phase
+0).
 
 | Issue type | Load and follow |
 |---|---|

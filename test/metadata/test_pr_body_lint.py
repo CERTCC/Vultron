@@ -28,6 +28,7 @@ from pathlib import Path
 
 import pytest
 
+from test.metadata._git_repo import commit_base, git
 from vultron.metadata.planning.pr_body_lint import (
     DOCS_PLACEHOLDER,
     RULES,
@@ -127,6 +128,10 @@ class TestClosesFirst:
     def test_a_reference_in_a_code_fence_is_not_a_closing_reference(self):
         body = _body(verification="```text\nCloses #5\n```")
         assert _ids(body) == []
+
+    def test_a_nested_fence_does_not_end_the_outer_block(self):
+        fence = "````md\n```\nCloses #5\n```\n## Not a section\n````"
+        assert _ids(_body(verification=fence)) == []
 
     def test_an_html_comment_before_the_closes_lines_is_ignored(self):
         body = _body(top="<!-- note -->\n- Closes #1")
@@ -307,44 +312,28 @@ class TestAttributionLast:
 # --- CLI ---------------------------------------------------------------------
 
 
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
-
-
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch) -> Path:
     """A repository on branch ``work``, one commit past its ``base`` branch."""
-    _git(tmp_path, "init", "-q", "-b", "base")
     (tmp_path / "README.md").write_text("x\n")
-    _git(tmp_path, "add", ".")
-    commit = (
-        "-c", "user.email=t@example.org",
-        "-c", "user.name=t",
-        "-c", "commit.gpgsign=false",
-        "commit", "-q", "--no-verify", "-m",
-    )  # fmt: skip
-    _git(tmp_path, *commit, "base")
-    _git(tmp_path, "checkout", "-q", "-b", "work")
+    commit_base(tmp_path)
+    git(tmp_path, "checkout", "-q", "-b", "work")
     (tmp_path / "tool.py").write_text("x = 1\n")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
 
 class _FakeRunner:
-    """Stands in for ``bash spec-amendments.sh`` and ``gh pr view``."""
+    """Stands in for ``bash spec-amendments.sh``."""
 
-    def __init__(self, amended: str = "", amend_rc: int = 0, view=None):
-        self.amended, self.amend_rc, self.view = amended, amend_rc, view
+    def __init__(self, amended: str = "", amend_rc: int = 0):
+        self.amended, self.amend_rc = amended, amend_rc
         self.calls: list[list[str]] = []
 
     def __call__(
         self, argv: Sequence[str], cwd: Path
     ) -> subprocess.CompletedProcess[str]:
         self.calls.append(list(argv))
-        if argv[0] == "gh":
-            return subprocess.CompletedProcess(
-                list(argv), 0, json.dumps(self.view), ""
-            )
         return subprocess.CompletedProcess(
             list(argv), self.amend_rc, self.amended, "boom"
         )
@@ -411,17 +400,29 @@ class TestCli:
         assert main(argv, run=_FakeRunner()) == 1
         assert "PRB-06" in capsys.readouterr().out
 
-    def test_pr_mode_reads_body_files_and_base_from_gh(self, repo, capsys):
+    def test_a_pr_payload_supplies_body_files_and_base(self, repo, capsys):
         view = {
             "body": _body(docs=DOCS_PLACEHOLDER),
             "files": [{"path": "vultron/x.py"}],
             "baseRefName": "base",
         }
-        run = _FakeRunner(view=view)
-        assert main(["--pr", "7", "--stage", "final"], run=run) == 1
+        (repo / "view.json").write_text(json.dumps(view))
+        run = _FakeRunner()
+        argv = ["--pr-json", "view.json", "--stage", "final"]
+        assert main(argv, run=run) == 1
         assert "PRB-08" in capsys.readouterr().out
-        assert run.calls[0][:4] == ["gh", "pr", "view", "7"]
-        assert run.calls[1][-2:] == ["origin/base", "HEAD"]
+        assert run.calls[0][-2:] == ["origin/base", "HEAD"]
+
+    def test_a_payload_without_python_is_a_docs_pr(self, repo):
+        view = {"body": _body(specs=None, verification=None), "files": []}
+        (repo / "view.json").write_text(json.dumps(view))
+        argv = ["--pr-json", "view.json", "--stage", "final"]
+        assert main(argv, run=_FakeRunner()) == 0
+
+    @pytest.mark.parametrize("payload", ["not json", "[]", '{"files": []}'])
+    def test_a_malformed_payload_exits_2(self, repo, payload):
+        (repo / "view.json").write_text(payload)
+        assert main(["--pr-json", "view.json"], run=_FakeRunner()) == 2
 
     def test_list_rules_prints_every_rule(self, capsys):
         assert main(["--list-rules"]) == 0
@@ -470,9 +471,12 @@ class TestSkillsRunTheGates:
             "### Phase 4",
         )
         first_step = phase.split("```bash", 1)[1].split("```", 1)[0]
-        assert "pr-body-lint --pr <number> --stage final" in first_step
+        assert (
+            "gh pr view <number> --json body,files,baseRefName" in first_step
+        )
+        assert "pr-body-lint --pr-json - --stage final" in first_step
 
     @pytest.mark.spec("PAD-20-005")
     def test_check_docs_sync_has_the_caller_lint_the_final_body(self):
         text = (SKILLS / "check-docs-sync" / "SKILL.md").read_text()
-        assert "pr-body-lint --pr <PR> --stage final" in text
+        assert "pr-body-lint --pr-json - --stage final" in text

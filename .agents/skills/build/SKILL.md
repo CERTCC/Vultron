@@ -422,7 +422,8 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
    Then **record the outcome** (PD-03-008): edit the PR body to replace the
    `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
    `Docs:` line `check-docs-sync` reported, and push any docs commit. Then run
-   `pr-body-lint --pr <PR> --stage final` and fix every finding (PAD-20-005).
+   `pr-body-lint --pr-json` at the final stage and fix every finding
+   (PAD-20-005; `check-docs-sync` § Step 5).
    Do this before `archive-history`. The session is not done while the
    placeholder remains.
 

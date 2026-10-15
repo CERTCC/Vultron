@@ -211,12 +211,10 @@ related requirements across files.
   procedural code, and fractal composability principle at all depths
   (BTC-01 through BTC-04)
 - **`triggerable-behaviors.yaml`** - Trigger API for actor-initiated behaviors (PRIORITY
-  30):
-  endpoint format, RM/EM candidate behaviors, request/response schema,
-  BT integration, per-actor DataLayer dependency, outbox activity requirement,
-  trigger classification (general vs demo-only), `RunMode` StrEnum,
-  demo endpoint prefix, `add-object-to-case` generalization
-  (TRIG-01 through TRIG-10)
+  30): endpoint format, RM/EM candidate behaviors, request/response schema, BT
+  integration, per-actor DataLayer dependency, outbox activity requirement, trigger
+  classification (general vs demo-only), `RunMode` StrEnum, demo endpoint prefix,
+  `add-object-to-case` generalization (TRIG-01 through TRIG-10)
 
 - **`actor-knowledge-model.yaml`** - Actor Knowledge Model: DataLayer isolation
   invariant, Actor knowledge boundaries, full-inline-object rule, stub-object
@@ -225,11 +223,11 @@ related requirements across files.
 ### Case and Actor Management
 
 - **`case-management.yaml`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state
-  model,
-  object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
-  broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
-  acceptance tracking (CM-10), invitation acceptance lifecycle (CM-11), case creation timing
-  (CM-12), embargo acceptance ownership (CM-13), case initialization sequence (CM-14)
+  model, object model relationships (Report/Case/CaseReference/VulnerabilityRecord),
+  case update broadcast, CVD action rules API, redacted case view (CM-09),
+  per-participant embargo acceptance tracking (CM-10), invitation acceptance lifecycle
+  (CM-11), case creation timing (CM-12), embargo acceptance ownership (CM-13), case
+  initialization sequence (CM-14)
 - **`case-bootstrap-trust.yaml`** - Trust establishment for non-owner
   participants: creator-signed `Create(VulnerabilityCase)` bootstrap on the
   original report path, invite-based trust establishment for late joiners,

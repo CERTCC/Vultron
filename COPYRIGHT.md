@@ -17,12 +17,12 @@ OBTAINED FROM USE OF THE MATERIAL. CARNEGIE MELLON UNIVERSITY DOES NOT MAKE ANY 
 OF ANY KIND WITH RESPECT TO FREEDOM FROM PATENT, TRADEMARK, OR COPYRIGHT INFRINGEMENT.**
 
 [DISTRIBUTION STATEMENT A] This material has been approved for public release and
-unlimited distribution.  Please see Copyright notice for non-US Government use and
+unlimited distribution. Please see Copyright notice for non-US Government use and
 distribution.
 
 This material may be reproduced in its entirety, without modification, and freely
 distributed in written or electronic form without requesting formal permission.
-Permission is required for any other use.  Requests for permission should be directed to
+Permission is required for any other use. Requests for permission should be directed to
 the Software Engineering Institute at <permission@sei.cmu.edu>.
 
 Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the U.S. Patent

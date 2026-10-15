@@ -122,8 +122,8 @@ to its `DEMOTED_FRAGMENTS` rather than relying on a manual grep.
 
 `transitions` library chatter (`Finished processing state X ...`, `Executed callback`)
 cannot be demoted at the call site: `suppress_third_party_info_noise()` in
-`vultron/logging_setup.py` pins those loggers to WARNING whenever the app level is
-above DEBUG, from both the server and the demo CLI. Add a new noisy library to
+`vultron/logging_setup.py` pins those loggers to WARNING whenever the app level is above
+DEBUG, from both the server and the demo CLI. Add a new noisy library to
 `NOISY_INFO_LOGGERS` there.
 
 ### Static wiring stays out of DEBUG too

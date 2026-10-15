@@ -209,13 +209,12 @@ the CASE_MANAGER's received `Reject` of it closes the entry
 (`close_refused_embargo_proposal`, `received/_pending_refusal.py`).
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
-replicates normally (ASK-06-001), so a stalled decision is visible to
-participants. Consequently an ask must carry nothing undisclosable to them
-(ASK-06-002); private rationale goes in a directed `Note`, which CLP-05-001
-already establishes as a delivery shape. Delivering the *fact* of an ask while
-directing its *detail* would need redaction with proofs, which Vultron does not have
-(design: `notes/selective-disclosure.md`); committing a stub instead would break
-CLP-02-003 and CLP-07-012.
+replicates normally (ASK-06-001), so a stalled decision is visible to participants.
+Consequently an ask must carry nothing undisclosable to them (ASK-06-002); private
+rationale goes in a directed `Note`, which CLP-05-001 already establishes as a delivery
+shape. Delivering the *fact* of an ask while directing its *detail* would need redaction
+with proofs, which Vultron does not have (design: `notes/selective-disclosure.md`);
+committing a stub instead would break CLP-02-003 and CLP-07-012.
 
 ## Expiry has no clock, and that is deliberate
 
