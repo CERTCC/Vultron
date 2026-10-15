@@ -51,8 +51,10 @@ into :class:`EmbargoLifecycle` in ``service.py``:
 - ``creation.py``   — ``initialize_creation_embargo`` (EP-04-002), which
   commits through ``staged_persistence.py``'s ``StagedCasePersistence``
 - ``consent.py``    — ``record_participant_consent``,
-  ``record_embargo_rejection``, ``detect_and_apply_expiry``,
+  ``record_embargo_rejection``, ``record_embargo_withdrawal`` (MSM-07-010),
   ``assert_embargo_eligible``
+- ``expiry.py``     — ``assess_invite_expiry``, ``record_invite_expiry``,
+  ``honour_late_accept``, ``detect_and_apply_expiry`` (EMB-17)
 
 Tracked in: https://github.com/CERTCC/Vultron/issues/538
 Scaffold (#746); full operations (#747)
@@ -64,7 +66,10 @@ from vultron.core.services.embargo_lifecycle.activation import (
     termination_timing_violations,
 )
 from vultron.core.services.embargo_lifecycle.pec import (
+    embargo_withdrawal_refusal,
     owner_declined_embargo,
+    participant_consent_row,
+    reject_is_withdrawal_refusal,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
@@ -75,7 +80,10 @@ from vultron.core.services.embargo_lifecycle.service import EmbargoLifecycle
 
 __all__ = [
     "EmbargoLifecycle",
+    "embargo_withdrawal_refusal",
     "owner_declined_embargo",
+    "participant_consent_row",
+    "reject_is_withdrawal_refusal",
     "EmbargoLifecycleResult",
     "ParticipantConsentChange",
     "TransitionMode",

@@ -421,6 +421,19 @@ class IsRejectEmbargoInviteEventNode(_SingleEventTypeNode):
     matched_event_type = _REJECT_EMBARGO_INVITE_EVENT
 
 
+class IsWithdrawFromEmbargoEventNode(_SingleEventTypeNode):
+    """Precondition: this entry is a ``withdraw_from_embargo_on_case`` event.
+
+    A signatory's ``Leave(EmbargoEvent)`` the CASE_MANAGER committed
+    (MSM-07-010).  Used in the ``EmbargoWithdrawalEffects`` slot of
+    ``AnnounceLogEntryReceivedBT``.
+
+    Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
+    """
+
+    matched_event_type = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
+
+
 class IsEmbargoAbandonmentEventNode(_SingleEventTypeNode):
     """Precondition: this entry is the CASE_MANAGER's abandonment of a proposal.
 

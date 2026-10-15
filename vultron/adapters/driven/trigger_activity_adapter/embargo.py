@@ -25,7 +25,6 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
     VultronActivityConstructionError,
-    VultronAlreadyExistsError,
 )
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
@@ -36,10 +35,15 @@ from vultron.wire.as2.factories import (
     ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._base import _seal, _seal_record, _to_wire
+from ._base import (
+    _create_and_seal,
+    _seal_record,
+    _to_wire,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,14 +104,7 @@ class _EmbargoMixin:
         activity = em_propose_embargo_activity(
             embargo=embargo, context=case_id, actor=actor, to=to, **optional
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "propose_embargo: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "propose_embargo")
 
     def accept_embargo(
         self,
@@ -121,14 +118,7 @@ class _EmbargoMixin:
         activity = em_accept_embargo_activity(
             proposal=proposal, context=case_id, actor=actor, to=to
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "accept_embargo: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "accept_embargo")
 
     def reject_embargo(
         self,
@@ -151,14 +141,7 @@ class _EmbargoMixin:
             to=to,
             id_=_reject_id(actor, proposal_id),
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "reject_embargo: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "reject_embargo")
 
     def ignore_late_embargo_accept(
         self,
@@ -210,14 +193,7 @@ class _EmbargoMixin:
             actor=actor,
             to=to,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "activate_embargo: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "activate_embargo")
 
     def reject_embargo_proposal(
         self,
@@ -239,15 +215,29 @@ class _EmbargoMixin:
             actor=actor,
             to=to,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "reject_embargo_proposal: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "reject_embargo_proposal")
+
+    def withdraw_from_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Leave(as_EmbargoEvent)[context=case]``.
+
+        A signatory's withdrawal from the embargo in force (MSM-07-010).  The
+        case is the activity's ``context``, which is also where the snapshot
+        the CASE_MANAGER commits carries the case URI (VM-08-003).
+        """
+        embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
+        activity = withdraw_from_embargo_activity(
+            embargo=embargo,
+            context=case_id,
+            actor=actor,
+            to=to,
+        )
+        return _create_and_seal(self._dl, activity, "withdraw_from_embargo")
 
     def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
         """Whether *actor* already rejected the Invite *proposal_id*.
@@ -278,14 +268,7 @@ class _EmbargoMixin:
             to=to,
             **_attribution(attributed_to),
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "announce_embargo: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "announce_embargo")
 
     def terminate_embargo(
         self,
@@ -313,11 +296,4 @@ class _EmbargoMixin:
             to=to,
             **_attribution(attributed_to),
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "terminate_embargo: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "terminate_embargo")

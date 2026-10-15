@@ -78,6 +78,7 @@ from vultron.core.behaviors.embargo.nodes import (
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
+    WithdrawEmbargoLifecycleNode,
     ask_case_manager_to_terminate_once,
     embargo_ending_notice_nodes,
 )
@@ -98,6 +99,7 @@ from vultron.core.models.pending_assertion import (
 
 _ACCEPT_EVENT_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
 _REJECT_EVENT_TYPE = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
+_WITHDRAW_EVENT_TYPE = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
 
 
 def _make_emit_node(case_id: str) -> py_trees.behaviour.Behaviour:
@@ -390,6 +392,39 @@ def reject_embargo_trigger_bt(
                 result_out=result_out,
             ),
             _REJECT_EVENT_TYPE,
+            result_out,
+            activity_builder,
+        ),
+    )
+
+
+def withdraw_embargo_trigger_bt(
+    *,
+    case_id: str,
+    embargo_id: str,
+    result_out: dict[str, object],
+    activity_builder: EmbargoActivityBuilder,
+) -> py_trees.behaviour.Behaviour:
+    """Build trigger-side BT for withdrawing from the embargo in force (EP-09-013).
+
+    ``Leave(EmbargoEvent)`` (MSM-07-010): the actor's own consent ends; it
+    moves no register entry.  As the CASE_MANAGER the actor records its own
+    withdrawal and commits the Leave; any other participant sends it to the
+    CASE_MANAGER (PCR-08).  The use case refuses an actor that cannot
+    withdraw before this tree is built.
+    """
+    return py_trees.composites.Sequence(
+        name="WithdrawEmbargoTriggerBT",
+        memory=False,
+        children=_answer_arms(
+            "WithdrawEmbargo",
+            case_id,
+            WithdrawEmbargoLifecycleNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                result_out=result_out,
+            ),
+            _WITHDRAW_EVENT_TYPE,
             result_out,
             activity_builder,
         ),

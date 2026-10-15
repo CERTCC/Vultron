@@ -19,6 +19,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
+    ApplyEmbargoWithdrawalFromLedgerNode,
     ApplyHonourLateAcceptFromLedgerNode,
     ApplyInviteExpiryFromLedgerNode,
     ApplyInviteExpiryNoopFromLedgerNode,
@@ -70,6 +71,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsRmVerdictEventNode,
     IsSubmitReportEventNode,
     IsUpdateCaseParticipantEventNode,
+    IsWithdrawFromEmbargoEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
@@ -119,8 +121,9 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     invite expiry the CASE_MANAGER evaluated (CM-28-014, ADR-0118), each
     honour decision for a late Accept whose embargo is still active
     (EMB-17-001, ADR-0118), each no-op acknowledgement of a late Accept with
-    no active embargo (EMB-17-004, ADR-0118), and the manager's abandonment
-    of an open proposal once P/X/A is set (EMB-16-001).
+    no active embargo (EMB-17-004, ADR-0118), the manager's abandonment
+    of an open proposal once P/X/A is set (EMB-16-001), and a signatory's
+    withdrawal from the embargo in force (MSM-07-010).
     """
     return [
         _event_effect_slot(
@@ -147,6 +150,11 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             "EmbargoRejection",
             IsRejectEmbargoInviteEventNode,
             ApplyEmbargoRejectionFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "EmbargoWithdrawal",
+            IsWithdrawFromEmbargoEventNode,
+            ApplyEmbargoWithdrawalFromLedgerNode,
         ),
         _event_effect_slot(
             "InviteExpiry",

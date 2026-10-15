@@ -33,7 +33,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _seal, _to_wire
+from ._base import (
+    _create_and_seal,
+    _seal,
+    _to_wire,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -174,14 +178,7 @@ class _ReportsMixin:
         """Create and persist an ``Accept(Offer)`` validate-report activity."""
         offer = self._resolve_offer(offer_id)
         activity = rm_validate_report_activity(offer=offer, actor=actor, to=to)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "validate_report: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "validate_report")
 
     def close_report(
         self,
@@ -193,14 +190,7 @@ class _ReportsMixin:
         """Create and persist a ``Reject(Offer)`` close-report activity."""
         offer = self._resolve_offer(offer_id)
         activity = rm_close_report_activity(offer=offer, actor=actor, to=to)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "close_report: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "close_report")
 
     def invalidate_report(
         self,
@@ -213,14 +203,7 @@ class _ReportsMixin:
         activity = rm_invalidate_report_activity(
             offer=offer, actor=actor, to=to
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "invalidate_report: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "invalidate_report")
 
     def ack_report(
         self,
@@ -234,11 +217,4 @@ class _ReportsMixin:
         activity = rm_read_report_activity(
             offer, actor=actor, to=to, content=content
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "ack_report: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "ack_report")

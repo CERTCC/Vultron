@@ -432,12 +432,12 @@ def test_record_embargo_rejection_non_owner_strict(
     assert _consent_of(dl, finder_participant_id, embargo.id_) == "DECLINED"
 
 
-@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-010")
 @pytest.mark.spec("CM-18-003")
-def test_record_embargo_rejection_signatory_non_owner_transitions_to_declined(
+def test_record_embargo_withdrawal_signatory_non_owner_transitions_to_declined(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Signatory non-owner rejecting the *active* embargo withdraws → DECLINED (ADR-0093)."""
+    """Signatory non-owner leaving the *active* embargo → DECLINED (ADR-0093)."""
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
     case, _ = _make_case(
@@ -456,7 +456,7 @@ def test_record_embargo_rejection_signatory_non_owner_transitions_to_declined(
     _seed_consent(dl, finder_participant_id, embargo.id_, ECS.AGREED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
-    result = lifecycle.record_embargo_rejection(
+    result = lifecycle.record_embargo_withdrawal(
         case_id=case.id_,
         embargo_id=embargo.id_,
         actor_id=finder.id_,
@@ -1060,12 +1060,12 @@ def test_non_signatory_rejecting_a_proposed_revision_declines(
     }
 
 
-@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-010")
 @pytest.mark.spec("CM-18-003")
-def test_signatory_rejecting_the_active_embargo_while_revise_withdraws(
+def test_signatory_withdrawing_from_the_active_embargo_while_revise(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A Reject naming A itself is withdrawal even with a revision open."""
+    """Leaving A with a revision open declines A; an unanswered revision stays."""
     owner, dl = owner_and_dl
     case, ids, active_id, revision_id = _revision_case(
         dl, owner, revision_days=90
@@ -1076,7 +1076,7 @@ def test_signatory_rejecting_the_active_embargo_while_revise_withdraws(
         if p == ids["lacking"]
     )
 
-    result = EmbargoLifecycle(persistence=dl).record_embargo_rejection(
+    result = EmbargoLifecycle(persistence=dl).record_embargo_withdrawal(
         case_id=case.id_, embargo_id=active_id, actor_id=lacking_actor
     )
 
@@ -1195,11 +1195,11 @@ def test_owner_activation_with_an_unreadable_previous_embargo_changes_nothing(
     }
 
 
-@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-010")
 def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A signatory holding AGREED on A and B that rejects active A declines both.
+    """A signatory holding AGREED on A and B that leaves active A declines both.
 
     Every open proposal is a revision of the one active embargo (ADR-0113),
     so leaving A is leaving B — otherwise the owner's later activation of B
@@ -1221,7 +1221,7 @@ def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
     _seed_consent(dl, signer_p.id_, revision.id_, ECS.AGREED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
-    withdrawn = lifecycle.record_embargo_rejection(
+    withdrawn = lifecycle.record_embargo_withdrawal(
         case_id=case.id_, embargo_id=active.id_, actor_id=signer.id_
     )
 

@@ -240,10 +240,11 @@ class RecordParticipantRejectionNode(
     The received-side twin of :class:`RecordParticipantAcceptanceNode`: calls
     ``EmbargoLifecycle.record_embargo_rejection`` so the received
     ``Reject(Invite(EmbargoEvent))`` tree applies the same MSM-07-004 rule
-    as the trigger side (ADR-0093) — a Reject naming the *active* embargo is
-    consent withdrawal (the actor's row for it becomes ``DECLINED``, a
-    signatory's included); one naming a *proposed* embargo declines that
-    embargo's row only; the owner's EJ changes nobody's record.  Moves no EM
+    as the trigger side — the named embargo's row becomes ``DECLINED`` and
+    nothing else moves.  A Reject never withdraws: one of the embargo in
+    force from an ``AGREED`` row is refused (``RejectIsNotWithdrawalNode``
+    guards it ahead of the commit), since withdrawal is
+    ``Leave(EmbargoEvent)`` (MSM-07-010).  Moves no EM
     state: deciding the proposal is the CASE_MANAGER's adjudication
     (``DecideRejectedEmbargoProposalNode``, EP-09-005).
 
@@ -252,8 +253,9 @@ class RecordParticipantRejectionNode(
     participant record here (a partial replica) and when the rejection is a
     repeat that changes nothing.  Returns FAILURE — so the handler reports a
     refusal — when the Reject names an embargo that is neither active nor an
-    open proposal of the case (a protocol error, not a consent change), or
-    when the case is not found.
+    open proposal of the case (a protocol error, not a consent change), when
+    it would withdraw the actor from the embargo in force, or when the case
+    is not found.
     """
 
     def __init__(
