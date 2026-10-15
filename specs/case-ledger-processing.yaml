@@ -104,9 +104,15 @@ groups:
     priority: MUST
     kind: protocol
     verification_debt: '#3612'
-    statement: When the CASE_MANAGER refuses an incoming assertion, the refusal
-      MUST be emitted as a `Reject` protocol activity directed at the asserting
-      participant; it MUST NOT be written to the canonical case ledger.
+    statement: When a precondition guard at the CASE_MANAGER refuses an incoming
+      assertion, the refusal MUST be emitted as a `Reject` protocol activity
+      directed at the asserting participant (CLP-05-001); a refusal MUST NOT be
+      written to the canonical case ledger. A refusal by the sender guard
+      (HP-01-006) and traffic after the case has fully closed (CM-23-013) are
+      answered by no `Reject`.
+    adr:
+    - ADR-0131
+    - ADR-0141
     stories:
     - story_2022_045
     - story_2022_088
@@ -380,9 +386,10 @@ groups:
       that receives one MUST close the pending assertion it recorded for the
       refused activity and MUST NOT write case state or re-send the assertion
       because of it (CLP-06-005). A `Reject` from the case's CASE_MANAGER of an
-      `Invite` or an `Offer` the participant sent is both a decline and a
-      refusal notice, and the participant MUST treat it the same either way: the
-      request had no effect.
+      `Invite` or an `Offer` the participant sent has the same shape as a
+      decline of that request, and the participant MUST read it with the use
+      case that reads the decline, which closes the pending entry: either way,
+      the request had no effect.
     rationale: >-
       A refused sender should learn that it was refused and why, and stop
       waiting for its assertion to be committed. One shape for every refused
@@ -474,7 +481,10 @@ groups:
       the assertion arrives (CLP-05-001)
     verification: A unit test confirms that when an announced `CaseLedgerEntry`
       matching a pending assertion arrives, that assertion entry is immediately
-      removed from the pending store.
+      removed from the pending store; for the refusal notice,
+      `test/core/use_cases/received/test_pending_refusal.py::test_case_managers_reject_closes_the_pending_proposal`
+      confirms the CASE_MANAGER's `Reject(Invite(EmbargoEvent))` removes the
+      proposer's pending entry.
     adr:
     - ADR-0018
 - id: CLP-07
@@ -1591,8 +1601,7 @@ groups:
       guard refuses its assertion MUST pass that feedback to
       `create_receive_activity_tree` as `refusal_effects`. The factory MUST run
       the refusal effects only when a precondition guard refuses, never when
-      the sender guard refuses, the guards pass, or a guard's failure is an
-      idempotent repeat the handler reports `SKIPPED`; MUST run them only at the
+      the sender guard refuses or the guards pass; MUST run them only at the
       case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
       found already archived; and MUST leave the tree failing with the guard's
       refusal, so nothing is committed and the handler reports `REFUSED` for
@@ -1606,9 +1615,7 @@ groups:
       (CLP-10-006), and per-tree scaffolding would repeat the structure
       (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
       (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
-      redelivery changes nothing, so a second answer is noise; a repeat whose
-      effect is already in place was not refused, so a `Reject` of it would
-      contradict that effect.
+      redelivery changes nothing, so a second answer is noise.
     note: >-
       The redelivery skip keys on intake finding the activity already
       archived, not on a record that the refusal effects ran: a refusal

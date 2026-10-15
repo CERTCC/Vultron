@@ -211,8 +211,8 @@ the CASE_MANAGER's received `Reject` of it closes the entry
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-001), so a stalled decision is visible to
 participants. Consequently an ask must carry nothing undisclosable to them
-(ASK-06-002); private rationale goes in a directed `Note`, which CLP-05-001
-already establishes as a delivery shape. Delivering the *fact* of an ask while
+(ASK-06-002); private rationale goes in a `Note` directed to one participant,
+the way the refusal notice is a `Reject` directed to one (CLP-05-001). Delivering the *fact* of an ask while
 directing its *detail* would need redaction with proofs, which Vultron does not have
 (design: `notes/selective-disclosure.md`); committing a stub instead would break CLP-02-003 and CLP-07-012.
 
@@ -266,14 +266,14 @@ Three things that look alike and are not:
 
 | Situation | Where it lands |
 |---|---|
-| I read your assertion, understood it, refuse it | ledger, `disposition="rejected"` |
+| I read your assertion, understood it, refuse it | refusal notice (`Reject`) to you alone, not recorded (CLP-05-001, CLP-05-002) |
 | I read your ask, my answer is no | `Reject` reply, ordinary recorded entry |
 | I could not read what you sent | a fault; the unreadable message is **not** recorded |
 
 The third is not a decision — nothing was adjudicated, so there is no legible
 assertion to snapshot, and CLP-03-002 already excludes unrouteable inbound from
-the ledger. Do **not** reach for `disposition="rejected"` here: that mechanism
-records an assertion that was *understood and refused*.
+the ledger. Do **not** reach for the refusal notice here: it answers an
+assertion that was *understood and refused*.
 
 The **fault statement itself** is different. "B could not process A's message" is
 a true, legible statement about a message that arrived, so it is recorded as an

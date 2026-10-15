@@ -4372,8 +4372,9 @@ groups:
     statement: >-
       The CASE_MANAGER MUST refuse every activity for a case from a sender whose
       closure that case's ledger records (its status entry with rm_state=RM.CLOSED),
-      with no ledger entry committed and nothing sent except the refusal notice
-      CLP-05-001 permits, with two exceptions. First, it MUST answer that sender's
+      with no ledger entry committed and nothing sent: the refusal is the sender
+      guard's, so it gets no refusal notice (CLP-05-001, HP-01-006). There are two
+      exceptions. First, it MUST answer that sender's
       `Reject(CaseLedgerEntry)` with a replay of only the entries that record its own
       closure (CM-23-004); the guard for that resync request stays the active check
       of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`
