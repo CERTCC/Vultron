@@ -168,12 +168,10 @@ def commit_and_apply_embargo_entries(
             if entry.commit is not None:
                 entry.commit()
             applied = state
-    except BaseException:
-        # Save what committed, then re-raise the commit's own failure; a
-        # ``finally`` would let a failing save mask it.
+    finally:
+        # Save what committed.  A save that fails while a commit's failure
+        # is in flight chains that failure as its ``__context__``.
         save_case_file(datalayer, before, applied)
-        raise
-    save_case_file(datalayer, before, applied)
     return applied
 
 

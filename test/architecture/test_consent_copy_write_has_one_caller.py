@@ -21,12 +21,12 @@ production code may call it (ADR-0124, CM-23-016).
 """
 
 import ast
-from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[2]
-_PACKAGE = _ROOT / "vultron"
+from test.architecture import _corpus
+
+_PACKAGE = _corpus.REPO_ROOT / "vultron"
 _ALLOWED = {
     # The one apply function (ADR-0124).
     "vultron/core/models/embargo_apply.py",
@@ -37,14 +37,15 @@ _ALLOWED = {
 
 def _callers() -> set[str]:
     found: set[str] = set()
-    for path in _PACKAGE.rglob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+    for path, tree in _corpus.files_mentioning(
+        "copy_consent_row", under=_PACKAGE
+    ):
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Attribute)
                 and node.attr == "copy_consent_row"
             ):
-                found.add(path.relative_to(_ROOT).as_posix())
+                found.add(path.relative_to(_corpus.REPO_ROOT).as_posix())
     return found
 
 
