@@ -90,6 +90,8 @@ For `implementation`:
 
 <1–2 sentences, present tense>
 
+Issues: closed <N>, opened <M>
+
 ## Changes
 
 - **`path/to/file.py`**: <what changed and why>

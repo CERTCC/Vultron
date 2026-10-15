@@ -137,10 +137,12 @@ not re-emitted, so `pr-execute` sees only what still stands.
 
 ### Phase 3 — PR Body Format
 
-Run the mechanical rules first (PAD-20-004), on the PR branch:
+Run the mechanical rules first (PAD-20-004), in a checkout at the PR's head
+commit (the tool reads the changed files there and exits 2 on any other
+commit):
 
 ```bash
-gh pr view <number> --json body,files,baseRefName \
+gh pr view <number> --json body,baseRefName,headRefOid \
   | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 

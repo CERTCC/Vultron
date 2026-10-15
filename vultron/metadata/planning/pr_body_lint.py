@@ -27,7 +27,7 @@ Usage::
     pr-body-lint --body body.md                     # facts from the branch diff
     pr-body-lint --body body.md --stage final       # after check-docs-sync
     pr-body-lint --body - --manifest /tmp/m.txt     # body on stdin
-    gh pr view 4710 --json body,files,baseRefName \
+    gh pr view 4710 --json body,baseRefName,headRefOid \
       | pr-body-lint --pr-json - --stage final      # an open PR's body
 
 Two stages: ``pre-push`` (default) accepts the placeholders ``create-pr``
@@ -35,11 +35,18 @@ writes — ``Docs: pending check-docs-sync`` and ``<TODO>`` in ``## Spec
 amended`` — and ``final`` refuses them (PD-03-008).
 
 Like the rest of ``planning/``, the tool never calls GitHub itself: an open
-PR's body, file list and base branch arrive as the ``gh pr view`` JSON payload
-on stdin (or in a file), so the rules stay testable without the network.
+PR's body, base branch and head commit arrive as the ``gh pr view`` JSON
+payload on stdin (or in a file), so the rules stay testable without the
+network. The changed files and the spec amendments are read from the local
+checkout, which must be at the PR's head commit: GitHub's ``files`` list stops
+at 100 entries, so a large PR's ``.py`` files may be missing from it.
+
+Both stages read the branch as committed, from its merge base with the base
+ref: an uncommitted or untracked file in the worktree is not part of the PR.
 
 Exit codes: 0 = clean; 1 = findings; 2 = setup error (unreadable body,
-payload or manifest, bad base ref, failed ``spec-amendments.sh`` call).
+payload or manifest, bad base ref, a checkout not at the PR's head, failed
+``spec-amendments.sh`` call).
 
 Requirements: specs/parallel-development.yaml PAD-20;
 specs/project-documentation.yaml PD-03-008.
@@ -60,7 +67,6 @@ from pathlib import Path
 from vultron.metadata.markdown_tables import fenced_lines
 from vultron.metadata.specs.backstop import (
     BackstopError,
-    changed_paths,
     git_toplevel,
     merge_base,
     run_git,
@@ -165,10 +171,17 @@ MANIFEST_LINES: tuple[str, ...] = (
     "Considered, skipped:",
 )
 
+#: A reference GitHub closes on merge: a keyword, an optional colon, then
+#: ``#N``, ``owner/repo#N`` or an issue URL.
 _CLOSING_RE = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+", re.I
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+"
+    r"(?:[\w.-]+/[\w.-]+#\d+|#\d+"
+    r"|https://github\.com/[\w.-]+/[\w.-]+/issues/\d+)",
+    re.I,
 )
 _CLOSES_BULLET_RE = re.compile(r"^- (?:Closes|Fixes|Resolves) #\d+$")
+#: An inline code span; GitHub reads no closing keyword inside one.
+_CODE_SPAN_RE = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 _SECTION_LEVEL = 2
 _BLOCK_LEVEL = 3
@@ -235,6 +248,7 @@ class _Body:
     lines: list[str] = field(init=False)
     fenced: list[bool] = field(init=False)
     sections: dict[str, list[str]] = field(init=False)
+    section_fenced: dict[str, list[bool]] = field(init=False)
 
     def __post_init__(self) -> None:
         bare = _COMMENT_RE.sub(
@@ -244,14 +258,19 @@ class _Body:
         inside = fenced_lines(bare)
         self.fenced = [n in inside for n in range(1, len(self.lines) + 1)]
         self.sections = {}
-        current: list[str] | None = None
+        self.section_fenced = {}
+        current: str | None = None
         for line, fenced in zip(self.lines, self.fenced, strict=True):
             heading = None if fenced else _HEADING_RE.match(line)
             if heading and len(heading.group(1)) == _SECTION_LEVEL:
-                current = self.sections.setdefault(heading.group(2), [])
+                name: str = heading.group(2)
+                current = name
+                self.sections.setdefault(name, [])
+                self.section_fenced.setdefault(name, [])
                 continue
             if current is not None:
-                current.append(line)
+                self.sections[current].append(line)
+                self.section_fenced[current].append(fenced)
 
     def section(self, name: str) -> list[str] | None:
         """The lines under ``## <name>`` up to the next ``##``, or ``None``."""
@@ -270,7 +289,7 @@ def _check_closing(body: _Body) -> Iterator[Finding]:
         if fenced:
             in_opening = False
             continue
-        refs = _CLOSING_RE.findall(stripped)
+        refs = _CLOSING_RE.findall(_CODE_SPAN_RE.sub("", stripped))
         if in_opening and refs:
             if len(refs) > 1 or not _CLOSES_BULLET_RE.match(stripped):
                 yield Finding(
@@ -392,10 +411,13 @@ def _check_amended(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
             f"there is no `## Spec amended` section",
         )
         return
+    fenced = body.section_fenced["Spec amended"]
     blocks = {
         m.group(2).strip()
-        for ln in section
-        if (m := _HEADING_RE.match(ln)) and len(m.group(1)) == _BLOCK_LEVEL
+        for ln, in_fence in zip(section, fenced, strict=True)
+        if not in_fence
+        and (m := _HEADING_RE.match(ln))
+        and len(m.group(1)) == _BLOCK_LEVEL
     }
     for spec_id in facts.amended_ids:
         if spec_id not in blocks:
@@ -473,23 +495,44 @@ def amended_ids(
 
 
 def _branch_files(root: Path, base: str) -> list[str]:
+    """Paths the branch's commits change since its merge base with *base*.
+
+    Committed work only, as ``spec-amendments.sh`` reads it: a scratch file
+    left in the worktree is not part of the PR.
+    """
     try:
         git = run_git(root)
-        return changed_paths(git, merge_base(git, base))
+        start = merge_base(git, base)
+        listing = git(["diff", "--name-only", "--no-renames", start, "HEAD"])
+    except BackstopError as exc:
+        raise SetupError(str(exc)) from exc
+    return sorted(set(listing.splitlines()))
+
+
+def _head_sha(root: Path) -> str:
+    try:
+        return run_git(root)(["rev-parse", "HEAD"]).strip()
     except BackstopError as exc:
         raise SetupError(str(exc)) from exc
 
 
+_PAYLOAD_FIELDS = "body,baseRefName,headRefOid"
+
+
 def _pr_payload(path: str) -> dict[str, object]:
-    """The ``gh pr view --json body,files,baseRefName`` payload at *path*."""
+    """The ``gh pr view --json body,baseRefName,headRefOid`` payload."""
     try:
         view = json.loads(_read(path))
     except json.JSONDecodeError as exc:
         raise SetupError(f"--pr-json {path}: not JSON: {exc}") from exc
-    if not isinstance(view, dict) or not isinstance(view.get("body"), str):
+    if (
+        not isinstance(view, dict)
+        or not isinstance(view.get("body"), str)
+        or not isinstance(view.get("headRefOid"), str)
+    ):
         raise SetupError(
             f"--pr-json {path}: expected the object `gh pr view --json "
-            f"body,files,baseRefName` prints"
+            f"{_PAYLOAD_FIELDS}` prints"
         )
     return view
 
@@ -511,9 +554,9 @@ def _parser() -> argparse.ArgumentParser:
     source.add_argument("--body", help="Body file, or - for stdin")
     source.add_argument(
         "--pr-json",
-        help="The `gh pr view --json body,files,baseRefName` payload of an "
-        "open PR, or - for stdin; the spec amendments are read from the "
-        "local checkout, which must have the PR branch checked out",
+        help=f"The `gh pr view --json {_PAYLOAD_FIELDS}` payload of an open "
+        "PR, or - for stdin; the changed files and spec amendments are read "
+        "from the local checkout, which must be at the PR's head commit",
     )
     parser.add_argument(
         "--base",
@@ -555,15 +598,16 @@ def _gather(
         text = str(view["body"])
         if args.base is None and view.get("baseRefName"):
             base = f"origin/{view['baseRefName']}"
-        files_raw = view.get("files")
-        files = [
-            str(f["path"])
-            for f in (files_raw if isinstance(files_raw, list) else [])
-            if isinstance(f, dict) and "path" in f
-        ]
+        head = _head_sha(root)
+        if view["headRefOid"] != head:
+            raise SetupError(
+                f"--pr-json: the checkout is at {head[:12]}, not the PR's "
+                f"head {str(view['headRefOid'])[:12]}; check out the PR "
+                f"branch at its pushed commit"
+            )
     else:
         text = _read(args.body)
-        files = _branch_files(root, base)
+    files = _branch_files(root, base)
     py_changed = any(f.endswith(".py") for f in files)
     if args.type:
         pr_type = PrType(args.type)

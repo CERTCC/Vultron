@@ -23,9 +23,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from test.metadata._git_repo import commit_all, commit_base, git
 from vultron.metadata.line_length import (
     LINE_LIMIT,
+    added_overlong_lines,
     is_overlong,
+    new_lines,
     overlong_python_doc_lines,
     overlong_spec_yaml_lines,
     python_doc_lines,
@@ -99,6 +102,28 @@ class TestPythonDocLines:
         source = 'QUERY = """\nselect a long line of data\n"""\n# after\n'
         assert list(python_doc_lines(source)) == ["# after"]
 
+    def test_a_string_passed_as_an_argument_is_data(self):
+        source = 'node(\n    """An argument, not a docstring.""",\n)\n'
+        assert list(python_doc_lines(source)) == []
+
+    def test_a_string_in_a_larger_expression_is_data(self):
+        assert list(python_doc_lines('"""a""" + b\n')) == []
+
+    def test_an_implicitly_joined_string_statement_is_a_doc(self):
+        source = 'def f():\n    """One."""  """Two."""\n'
+        assert list(python_doc_lines(source)) == ['    """One."""  """Two."""']
+
+    def test_a_triple_quote_inside_a_short_string_is_not_an_opening(self):
+        source = 'Q = \'"""\'\n\ndef f():\n    """Doc."""\n    # note\n'
+        assert list(python_doc_lines(source)) == [
+            '    """Doc."""',
+            "    # note",
+        ]
+
+    def test_source_that_does_not_tokenize_raises(self):
+        with pytest.raises(SyntaxError):
+            list(python_doc_lines('x = """never closed\n'))
+
     def test_the_license_header_is_skipped(self):
         source = f"#!/usr/bin/env python\n\n{_HEADER}\n# real comment\n"
         assert list(python_doc_lines(source)) == ["# real comment"]
@@ -131,7 +156,7 @@ class TestExtractors:
         _write(tmp_path, "specs/a.yaml", f"{long_line}\n{long_line}\n")
         assert overlong_spec_yaml_lines(tmp_path) == {
             f"specs/a.yaml: {long_line}",
-            f"specs/a.yaml: {long_line} (#2)",
+            f"specs/a.yaml (#2): {long_line}",
         }
 
     def test_a_moved_line_is_the_same_item(self, tmp_path):
@@ -140,6 +165,17 @@ class TestExtractors:
         before = overlong_spec_yaml_lines(tmp_path)
         _write(tmp_path, "specs/a.yaml", f"short\nshorter\n{long_line}\n")
         assert overlong_spec_yaml_lines(tmp_path) == before
+
+    def test_a_line_moved_to_another_file_is_not_new(self):
+        line = _words(100)
+        base = frozenset({f"specs/a.yaml: {line}"})
+        assert new_lines(base, frozenset({f"specs/b.yaml: {line}"})) == set()
+
+    def test_a_copy_of_a_line_is_new(self):
+        line = _words(100)
+        base = frozenset({f"specs/a.yaml: {line}"})
+        head = base | {f"specs/b.yaml: {line}"}
+        assert new_lines(base, head) == {f"specs/b.yaml: {line}"}
 
     def test_python_items_cover_doc_lines_only(self, tmp_path):
         long_doc = "# " + _words(100)
@@ -201,3 +237,35 @@ class TestLimitsAgree:
     def test_markdownlint_line_length_is_the_limit(self):
         md013 = _markdownlint_config()["config"]["MD013"]
         assert md013["line_length"] == LINE_LIMIT
+
+
+@pytest.mark.spec("PD-10-003")
+class TestAddedOverlongLines:
+    def test_a_renamed_file_adds_no_line(self, tmp_path):
+        long_line = _words(100)
+        _write(tmp_path, "specs/a.yaml", f"{long_line}\n")
+        commit_base(tmp_path)
+        git(tmp_path, "checkout", "-q", "-b", "work")
+        git(tmp_path, "mv", "specs/a.yaml", "specs/b.yaml")
+        commit_all(tmp_path)
+        check = added_overlong_lines(
+            overlong_spec_yaml_lines,
+            repo_root=tmp_path,
+            paths=("specs",),
+            base_ref="base",
+            require_base=True,
+        )
+        assert check.added == frozenset()
+
+    def test_an_edited_line_is_added(self, tmp_path):
+        _write(tmp_path, "specs/a.yaml", f"{_words(100)}\n")
+        commit_base(tmp_path)
+        _write(tmp_path, "specs/a.yaml", f"{_words(101)}\n")
+        check = added_overlong_lines(
+            overlong_spec_yaml_lines,
+            repo_root=tmp_path,
+            paths=("specs",),
+            base_ref="base",
+            require_base=True,
+        )
+        assert check.added == {f"specs/a.yaml: {_words(101)}"}

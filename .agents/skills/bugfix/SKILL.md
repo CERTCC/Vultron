@@ -302,8 +302,10 @@ Once the plan is confirmed:
    - **Record the outcome** (PD-03-008): edit the PR body to replace the
      `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
      `Docs:` line `check-docs-sync` reported, and push any docs commit. Then
-     run `pr-body-lint --pr-json` at the final stage and fix every finding
-     (PAD-20-005; `check-docs-sync` § Step 5). Do this before `archive-history`.
+     run `pr-body-lint --pr-json` at the final stage, with
+     `--closes-work-item` (a bugfix PR closes a `Bug`, so it needs a `Docs:`
+     line even when it changes no `.py`), and fix every finding (PAD-20-005;
+     `check-docs-sync` § Step 5). Do this before `archive-history`.
    - Invoke `archive-history` — once per bundle member, each entry carrying the
      same PR URL:
 

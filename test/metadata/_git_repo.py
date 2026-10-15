@@ -39,3 +39,26 @@ def commit_base(root: Path) -> None:
         "-c", "commit.gpgsign=false",
         "commit", "-q", "--no-verify", "-m", "base",
     )  # fmt: skip
+
+
+def commit_all(root: Path, message: str = "work") -> None:
+    """Commit every change under *root* on the current branch."""
+    git(root, "add", ".")
+    git(
+        root,
+        "-c", "user.email=t@example.org",
+        "-c", "user.name=t",
+        "-c", "commit.gpgsign=false",
+        "commit", "-q", "--no-verify", "-m", message,
+    )  # fmt: skip
+
+
+def head_sha(root: Path) -> str:
+    """The commit ``HEAD`` names in *root*."""
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()

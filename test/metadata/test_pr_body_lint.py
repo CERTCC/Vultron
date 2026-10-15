@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from test.metadata._git_repo import commit_base, git
+from test.metadata._git_repo import commit_all, commit_base, git, head_sha
 from vultron.metadata.planning.pr_body_lint import (
     DOCS_PLACEHOLDER,
     RULES,
@@ -120,6 +120,26 @@ class TestClosesFirst:
             summary="Adds a thing; fixes #9.\n\nIssues: closed 2, opened 0"
         )
         assert _ids(body) == ["PRB-01"]
+
+    @pytest.mark.parametrize(
+        "ref",
+        [
+            "closes: #9",
+            "fixes CERTCC/Vultron#9",
+            "resolves https://github.com/CERTCC/Vultron/issues/9",
+        ],
+    )
+    def test_every_form_github_closes_on_is_found(self, ref):
+        body = _body(
+            summary=f"Adds a thing; {ref}.\n\nIssues: closed 2, opened 0"
+        )
+        assert _ids(body) == ["PRB-01"]
+
+    def test_a_reference_in_inline_code_is_not_a_closing_reference(self):
+        body = _body(
+            summary="Writes `Fixes #9` for you.\n\nIssues: closed 2, opened 0"
+        )
+        assert _ids(body) == []
 
     def test_closing_references_below_a_heading_are_found(self):
         body = "## Summary\n\n- Closes #1\n\n## Changes\n\n- x\n"
@@ -285,6 +305,16 @@ class TestSpecAmended:
             "`## Spec amended` has no `### PAD-18-008` block"
         ]
 
+    def test_a_block_heading_in_a_fence_is_not_a_block(self):
+        amended = (
+            "### PAD-18-001\n\n- Before: a\n- After: b\n- Reason: c\n\n"
+            "```text\n### PAD-18-008\n```"
+        )
+        found = lint_body(_body(amended=amended), self._facts())
+        assert [f.message for f in found] == [
+            "`## Spec amended` has no `### PAD-18-008` block"
+        ]
+
     def test_a_todo_passes_before_the_push_and_fails_after(self):
         amended = (
             "### PAD-18-001\n\n- Before: <TODO — x>\n\n"
@@ -314,13 +344,42 @@ class TestAttributionLast:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch) -> Path:
-    """A repository on branch ``work``, one commit past its ``base`` branch."""
+    """A repository on branch ``work``, one ``.py`` commit past ``base``.
+
+    ``origin/base`` names the base too, as ``--pr-json`` derives it.
+    """
     (tmp_path / "README.md").write_text("x\n")
     commit_base(tmp_path)
+    git(tmp_path, "update-ref", "refs/remotes/origin/base", "base")
     git(tmp_path, "checkout", "-q", "-b", "work")
     (tmp_path / "tool.py").write_text("x = 1\n")
+    commit_all(tmp_path)
     monkeypatch.chdir(tmp_path)
     return tmp_path
+
+
+@pytest.fixture
+def docs_repo(tmp_path: Path, monkeypatch) -> Path:
+    """Like :func:`repo`, but the ``work`` commit changes no ``.py``."""
+    (tmp_path / "README.md").write_text("x\n")
+    commit_base(tmp_path)
+    git(tmp_path, "update-ref", "refs/remotes/origin/base", "base")
+    git(tmp_path, "checkout", "-q", "-b", "work")
+    (tmp_path / "README.md").write_text("y\n")
+    commit_all(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def _view(root: Path, body: str, **extra: object) -> None:
+    """Write the ``gh pr view`` payload of the PR at *root*'s ``HEAD``."""
+    view: dict[str, object] = {
+        "body": body,
+        "baseRefName": "base",
+        "headRefOid": head_sha(root),
+    }
+    view.update(extra)
+    (root / "view.json").write_text(json.dumps(view))
 
 
 class _FakeRunner:
@@ -400,26 +459,45 @@ class TestCli:
         assert main(argv, run=_FakeRunner()) == 1
         assert "PRB-06" in capsys.readouterr().out
 
-    def test_a_pr_payload_supplies_body_files_and_base(self, repo, capsys):
-        view = {
-            "body": _body(docs=DOCS_PLACEHOLDER),
-            "files": [{"path": "vultron/x.py"}],
-            "baseRefName": "base",
-        }
-        (repo / "view.json").write_text(json.dumps(view))
+    def test_a_pr_payload_supplies_body_and_base(self, repo, capsys):
+        _view(repo, _body(docs=DOCS_PLACEHOLDER))
         run = _FakeRunner()
         argv = ["--pr-json", "view.json", "--stage", "final"]
         assert main(argv, run=run) == 1
         assert "PRB-08" in capsys.readouterr().out
         assert run.calls[0][-2:] == ["origin/base", "HEAD"]
 
-    def test_a_payload_without_python_is_a_docs_pr(self, repo):
-        view = {"body": _body(specs=None, verification=None), "files": []}
-        (repo / "view.json").write_text(json.dumps(view))
+    def test_a_branch_without_python_is_a_docs_pr(self, docs_repo):
+        _view(docs_repo, _body(specs=None, verification=None))
         argv = ["--pr-json", "view.json", "--stage", "final"]
         assert main(argv, run=_FakeRunner()) == 0
 
-    @pytest.mark.parametrize("payload", ["not json", "[]", '{"files": []}'])
+    def test_the_files_come_from_the_branch_not_the_payload(
+        self, repo, capsys
+    ):
+        """GitHub's ``files`` list stops at 100: a capped list is not read."""
+        capped = [{"path": f"notes/n{i}.md"} for i in range(100)]
+        _view(repo, _body(specs=None, verification=None), files=capped)
+        argv = ["--pr-json", "view.json", "--stage", "final"]
+        assert main(argv, run=_FakeRunner()) == 1
+        assert "PRB-07 verification-section" in capsys.readouterr().out
+
+    def test_an_uncommitted_python_file_is_not_part_of_the_pr(self, docs_repo):
+        (docs_repo / "scratch.py").write_text("x = 2\n")
+        (docs_repo / "body.md").write_text(
+            _body(specs=None, verification=None)
+        )
+        argv = ["--body", "body.md", "--base", "base"]
+        assert main(argv, run=_FakeRunner()) == 0
+
+    def test_a_checkout_not_at_the_pr_head_exits_2(self, repo, capsys):
+        _view(repo, _body(), headRefOid="0" * 40)
+        assert main(["--pr-json", "view.json"], run=_FakeRunner()) == 2
+        assert "not the PR's head" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "payload", ["not json", "[]", '{"files": []}', '{"body": "x"}']
+    )
     def test_a_malformed_payload_exits_2(self, repo, payload):
         (repo / "view.json").write_text(payload)
         assert main(["--pr-json", "view.json"], run=_FakeRunner()) == 2
@@ -472,7 +550,8 @@ class TestSkillsRunTheGates:
         )
         first_step = phase.split("```bash", 1)[1].split("```", 1)[0]
         assert (
-            "gh pr view <number> --json body,files,baseRefName" in first_step
+            "gh pr view <number> --json body,baseRefName,headRefOid"
+            in first_step
         )
         assert "pr-body-lint --pr-json - --stage final" in first_step
 
@@ -480,3 +559,22 @@ class TestSkillsRunTheGates:
     def test_check_docs_sync_has_the_caller_lint_the_final_body(self):
         text = (SKILLS / "check-docs-sync" / "SKILL.md").read_text()
         assert "pr-body-lint --pr-json - --stage final" in text
+
+    @pytest.mark.spec("PAD-20-002")
+    @pytest.mark.parametrize(
+        ("label", "facts"),
+        [("implementation", IMPL), ("docs", DOCS)],
+    )
+    def test_create_pr_scaffolds_pass_the_pre_push_stage(self, label, facts):
+        """A body create-pr composes, its placeholders filled, is clean."""
+        text = (SKILLS / "create-pr" / "SKILL.md").read_text()
+        start = text.index(f"For `{label}`:")
+        scaffold = text[start:].split("```markdown\n", 1)[1].split("\n```", 1)
+        filled = (
+            scaffold[0]
+            .replace("#N", "#1")
+            .replace("<N>", "1")
+            .replace("<M>", "0")
+            .replace("<Spec manifest from deepen-context, verbatim>", MANIFEST)
+        )
+        assert lint_body(filled, facts) == []

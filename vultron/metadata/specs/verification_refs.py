@@ -269,9 +269,15 @@ def unresolved_test_refs(
     return problems
 
 
-def check_test_refs(registry: SpecRegistry, repo_root: Path) -> list[str]:
-    """Hard errors for every unresolved test reference in the corpus."""
-    index = SuiteIndex.build(repo_root)
+def check_test_refs(
+    registry: SpecRegistry, repo_root: Path, index: SuiteIndex | None = None
+) -> list[str]:
+    """Hard errors for every unresolved test reference in the corpus.
+
+    *index* is the test suite of *repo_root*, when the caller built it.
+    """
+    if index is None:
+        index = SuiteIndex.build(repo_root)
     errors: list[str] = []
     for spec_id, spec in sorted(registry.all_specs.items()):
         errors.extend(unresolved_test_refs(spec_id, spec, index))

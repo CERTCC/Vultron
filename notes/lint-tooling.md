@@ -100,6 +100,13 @@ overlong doc line a change adds, so a line you edit must fit while untouched
 lines wait (PD-10-002). Do not select `W505` to "finish" the job without first
 wrapping every line it reports.
 
+The guard reads the lines `W505` reads: a comment alone on its line, or a
+string that is a statement by itself, found with the tokenizer so a string
+argument is data. It differs from `W505` in two ways, both deliberate. A line
+whose overflow is one unbreakable token passes, as markdownlint's `MD013` lets
+it. And a line a rename or module split only moved is not new: the guard counts
+line text across the tree, so splitting a god module costs nothing.
+
 There is deliberately **no `lint.exclude`**: lint covers the whole tracked Python
 surface, including `scripts/` and `.agents/` (ADR-0094). Do not add a directory
 exclusion to make a finding go away; baseline it. Fix a `C901` finding by

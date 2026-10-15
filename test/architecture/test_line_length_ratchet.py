@@ -19,7 +19,8 @@ line is its own item (PD-10-002): the guards evaluate the per-line extractors of
 :mod:`vultron.metadata.line_length` at the merge base with the base branch and
 in the working tree, and fail on each overlong line the branch added. An edited
 line is a new line, so the corpus moves toward the limit one touched line at a
-time. No count is committed, so concurrent PRs cannot race on one (#3984).
+time; a line a rename or module split only moved is not new. No count is
+committed, so concurrent PRs cannot race on one (#3984).
 
 When no base ref is available the guards skip with the reason; under GitHub
 Actions they fail.
@@ -34,10 +35,10 @@ from vultron.metadata.line_length import (
     LINE_LIMIT,
     PYTHON_ROOTS,
     SPEC_ROOT,
+    added_overlong_lines,
     overlong_python_doc_lines,
     overlong_spec_yaml_lines,
 )
-from vultron.metadata.specs.growth_guard import added_since_base
 
 _REMEDY = (
     f"Wrap each listed line to {LINE_LIMIT} characters or fewer. Only lines "
@@ -50,7 +51,7 @@ _REMEDY = (
 @pytest.mark.spec("PD-10-003")
 def test_no_pr_adds_an_overlong_spec_yaml_line():
     """No spec YAML line over the limit is new since the merge base."""
-    check = added_since_base(
+    check = added_overlong_lines(
         overlong_spec_yaml_lines,
         repo_root=_corpus.REPO_ROOT,
         paths=(SPEC_ROOT,),
@@ -66,7 +67,7 @@ def test_no_pr_adds_an_overlong_spec_yaml_line():
 def test_no_pr_adds_an_overlong_python_doc_line():
     """No comment or docstring line over the limit is new since the base."""
     roots = tuple(r for r in PYTHON_ROOTS if (_corpus.REPO_ROOT / r).is_dir())
-    check = added_since_base(
+    check = added_overlong_lines(
         overlong_python_doc_lines,
         repo_root=_corpus.REPO_ROOT,
         paths=roots,

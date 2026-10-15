@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # spec-amendments.sh — list spec requirements whose `statement:` or `priority:`
-# the branch changed or removed, relative to a base ref.
+# the branch changed or removed since its merge base with a base ref.
 #
 # Usage: spec-amendments.sh [<base-ref>] [<head-ref>]   (defaults: origin/main, HEAD)
 #
@@ -18,6 +18,10 @@ set -euo pipefail
 project="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 base="${1:-origin/main}"
 head="${2:-HEAD}"
+# Read the old YAML at the merge base, not the base tip: once the base branch
+# moves, its own edits to a spec file the branch also changes are not this
+# branch's amendments.
+base="$(git merge-base "${base}" "${head}")" || exit 2
 
 files="$(git diff --no-renames --name-only --diff-filter=MD "${base}...${head}" -- 'specs/*.yaml')" || exit 2
 [ -z "${files}" ] && exit 0

@@ -12,14 +12,16 @@ The rules below need no judgment, so a tool checks them (PAD-20-001):
 # Before the push, on the composed body:
 PYTHONPATH= uv run pr-body-lint --body <file> [--manifest <file>]
 # Once Docs: is recorded, on the open PR (the tool never calls GitHub itself):
-gh pr view <N> --json body,files,baseRefName \
+gh pr view <N> --json body,baseRefName,headRefOid \
   | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
 ```
 
 `pre-push` (the default stage) accepts the placeholders `create-pr` writes;
 `final` refuses them. Add `--closes-work-item` when a docs PR closes a `Task`,
 `Feature` or `Bug`. Exit 1 lists each finding by rule ID; exit 2 is a setup
-error, never a pass. `create-pr` runs it before the first push (PAD-20-002),
+error, never a pass, and is what `--pr-json` gives in a checkout not at the PR's
+head commit: the changed files are read from that checkout, because GitHub's
+`files` list stops at 100. `create-pr` runs it before the first push (PAD-20-002),
 `pr-triage` runs it first in Phase 3 (PAD-20-004), and the session that opened
 the PR runs the final stage after recording `Docs:` (PAD-20-005). Everything
 else in this guide, such as whether the body's claims match the diff, stays a

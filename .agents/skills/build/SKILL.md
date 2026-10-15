@@ -430,8 +430,10 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
    Then **record the outcome** (PD-03-008): edit the PR body to replace the
    `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
    `Docs:` line `check-docs-sync` reported, and push any docs commit. Then run
-   `pr-body-lint --pr-json` at the final stage and fix every finding
-   (PAD-20-005; `check-docs-sync` § Step 5).
+   `pr-body-lint --pr-json` at the final stage, with `--closes-work-item` (a
+   build PR closes a `Task` or `Feature`, so it needs a `Docs:` line even when
+   it changes no `.py`), and fix every finding (PAD-20-005; `check-docs-sync`
+   § Step 5).
    Do this before `archive-history`. The session is not done while the
    placeholder remains.
 

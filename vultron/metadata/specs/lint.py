@@ -53,7 +53,10 @@ from vultron.metadata.specs.verification import (
     closed_debt_owners,
     debt_owner_refs,
 )
-from vultron.metadata.specs.verification_refs import check_test_refs
+from vultron.metadata.specs.verification_refs import (
+    SuiteIndex,
+    check_test_refs,
+)
 
 _RATIONALE_WARN_CHARS = 500
 _ADR_REF_RE = re.compile(r"\bADR-(\d{4})\b")
@@ -957,13 +960,14 @@ def _opt_in_errors(
     debt_owners: Mapping[SpecKind, frozenset[str]],
     closing_pr: int | None,
     changed_since: str | None,
+    index: SuiteIndex,
 ) -> list[str]:
     """Hard errors from the checks a CLI flag turns on."""
     errors: list[str] = []
     if closing_pr is not None:
         errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
     if changed_since is not None:
-        errors.extend(check_branch(registry, repo_root, changed_since))
+        errors.extend(check_branch(registry, repo_root, changed_since, index))
     return errors
 
 
@@ -1048,7 +1052,8 @@ def lint(
     hard_errors.extend(_check_scenario_start_groups(registry))
     hard_errors.extend(_check_retirement_rules(registry, spec_dir.parent))
     hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
-    hard_errors.extend(check_test_refs(registry, spec_dir.parent))
+    suite_index = SuiteIndex.build(spec_dir.parent)
+    hard_errors.extend(check_test_refs(registry, spec_dir.parent, suite_index))
     source_scan = _SourceScan(spec_dir.parent)
     hard_errors.extend(_check_phantom_spec_id_citations(registry, source_scan))
     hard_errors.extend(_check_phantom_symbols(registry, source_scan))
@@ -1065,7 +1070,12 @@ def lint(
     status_lines.extend(suppression_status_lines(registry))
     hard_errors.extend(
         _opt_in_errors(
-            registry, spec_dir.parent, debt_owners, closing_pr, changed_since
+            registry,
+            spec_dir.parent,
+            debt_owners,
+            closing_pr,
+            changed_since,
+            suite_index,
         )
     )
 
