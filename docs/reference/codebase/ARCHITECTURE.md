@@ -19,7 +19,7 @@ stakeholder_type: [project-contributor]
   3. Use-case entry points follow `UseCase.__init__(dl, request)` + `execute()`.
      Received use cases return `HandlerResult` (ADR-0095); trigger use cases return their verb's `TriggerResult` subtype (ADR-0110); both live in `vultron/core/models/use_case_result.py`.
      Routing is table-driven on both sides: `use_case_map()` in `vultron/semantic_registry/` for received activities, `TRIGGER_REGISTRY` in `vultron/trigger_registry/` for trigger verbs.
-  4. Every received-side tree is built by `create_receive_activity_tree()` in the order intake → [sender_guard] → precondition guards → commit → `replica_effects` → `manager_effects` (ADR-0111, ADR-0115, CLP-10-006). `refusal_effects`, when a tree passes them, run inside the guard stage only when a precondition guard refuses, and only at the CASE_MANAGER (CLP-10-022).
+  4. Every received-side tree is built by `create_receive_activity_tree()` in the order intake → [sender guard] → precondition guards → commit → `replica_effects` → `manager_effects` (ADR-0111, ADR-0115, CLP-10-006). `refusal_effects`, when a tree passes them, run inside the guard stage only when a precondition guard refuses, and only at the CASE_MANAGER (CLP-10-022).
      The factory wraps `manager_effects` in the CASE_MANAGER gate and refuses an emit node in `replica_effects` that no named exemption covers (BT-17-008).
      The sender-guard stage is the per-use-case sender-entitlement check declared via `sender_entitlement` on the use-case class (HP-01-006, HP-01-007).
      The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-008); a tree cannot pass a guard of its own, and a sender node a tree still places itself is on the ratchet's allow-list with the issue that migrates it.
@@ -43,7 +43,7 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> use_case_map() lookup         `vultron/semantic_registry/`
   -> *ReceivedUseCase.execute()    `vultron/core/use_cases/received/`
   -> BTBridge runs the received tree  `vultron/core/behaviors/bridge.py`
-     intake -> [sender_guard] -> precondition guards -> commit -> effects; nodes write through DataLayer
+     intake -> [sender guard] -> precondition guards -> commit -> effects; nodes write through DataLayer
   -> DataLayer                     `vultron/adapters/driven/datalayer_sqlite/` (one store per actor, ADR-0073)
   -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler.py`, `outbox_lanes.py`
      (sealed body relayed as stored; per-recipient order, ADR-0112)
@@ -90,7 +90,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 | Use-Case class (`UseCase` Protocol) | `vultron/core/ports/use_case.py`, `vultron/core/use_cases/` | Encapsulate one business operation; consistent `__init__(dl, request) + execute()` contract |
 | Table-driven dispatch | `vultron/semantic_registry/` (`use_case_map()`), `vultron/trigger_registry/` (`TRIGGER_REGISTRY`) | Route inbound events and trigger verbs to use cases without per-handler decorators; the trigger table also feeds route-to-row and exposure ratchets |
 | py_trees behavior trees behind `BTBridge` | `vultron/core/behaviors/` | Encode CVD sub-protocol logic as composable, testable trees; the bridge owns setup, blackboard scope and the global lock |
-| Shared received-tree factory | `vultron/core/behaviors/case/receive_activity_tree.py` | One composition order (intake → [sender_guard] → precondition guards → commit → `replica_effects` → `manager_effects`) for every received tree; the factory owns the CASE_MANAGER gate, including the one around `refusal_effects`, which run only when a precondition guard refuses (ADR-0111, ADR-0115, BT-17-008, CLP-10-022) |
+| Shared received-tree factory | `vultron/core/behaviors/case/receive_activity_tree.py` | One composition order (intake → [sender guard] → precondition guards → commit → `replica_effects` → `manager_effects`) for every received tree; the factory owns the CASE_MANAGER gate, including the one around `refusal_effects`, which run only when a precondition guard refuses (ADR-0111, ADR-0115, BT-17-008, CLP-10-022) |
 | CASE_MANAGER gate | `create_case_manager_gated_tree` in `vultron/core/behaviors/case/nodes/role_gates.py`, applied to a received tree only by `create_receive_activity_tree` through `manager_effects`; `not_case_manager_refusal()` in `vultron/core/use_cases/received/_bt_verdict.py` | Effects owned by the CASE_MANAGER run only on that actor; another receiver reports `REFUSED`, never `SKIPPED` (BT-17-001, HP-01-005) |
 | Sender-entitlement module | `vultron/core/behaviors/sender_entitlement.py` | Single home for all sender-entitlement nodes and declarations; each received use case declares its `sender_entitlement` (a `SenderRule` composed of `SenderEntitlementKind` members per addressee side, or a `SenderExemption`); the architecture ratchet in `test/architecture/test_sender_entitlement_ratchet.py` enforces coverage (HP-01-006, HP-01-007, ADR-0115) |
 | Factory function per object type | `vultron/wire/as2/factories/` | Construct outbound AS2 activities in one place |
