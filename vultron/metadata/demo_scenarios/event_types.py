@@ -54,7 +54,7 @@ UNIVERSAL_EVENT_TYPES: tuple[str, ...] = (
     "validate_report",
     "add_participant_status_to_participant",
     "close_case",
-    "add_note_to_case",
+    "create_note",
     "engage_case",
 )
 

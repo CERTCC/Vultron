@@ -629,6 +629,10 @@ function handleEntry(
       return handleCreateCase(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
       return handleValidateReport(entry, participants, shadow, x, laneIndex)
+    // A note reaches the case either as a `Create(Note)` whose note names the
+    // case as its `context` (`create_note`) or as an `Add(Note, target=Case)`
+    // of an existing note (`add_note_to_case`); both render the same way.
+    case 'create_note':
     case 'add_note_to_case':
       return handleNote(entry, participants, shadow, x, laneIndex)
     case 'add_participant_status_to_participant':
@@ -1242,7 +1246,12 @@ function handleValidateReport(
   return { nodes, logLines }
 }
 
-// --- add_note_to_case → question / answer (demo-kind, no machine slot) ------
+// --- create_note / add_note_to_case → question / answer (demo-kind, no machine slot) ------
+
+/** The wire form that carried the note: `Create(Note)` or `Add(Note, target=Case)`. */
+function noteActivityLabel(entry: CaseLedgerEntry): string {
+  return entry.payloadSnapshot?.type === 'Create' ? 'Create(Note)' : 'Add(Note, target=Case)'
+}
 
 function handleNote(
   entry: CaseLedgerEntry,
@@ -1277,7 +1286,7 @@ function handleNote(
   } else {
     label = 'Ask Question'
     consequenceLabel = 'Note Received'
-    decisionBullets = [`Note: "${noteName}"`, snippet || '(question)', 'Add(Note, target=Case)']
+    decisionBullets = [`Note: "${noteName}"`, snippet || '(question)', noteActivityLabel(entry)]
     shadow.pendingQuestionBy = laneId
   }
 

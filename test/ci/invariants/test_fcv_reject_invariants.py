@@ -47,7 +47,7 @@ _FCV_REJECT_EXPECTED_EVENT_TYPES = [
         id="add_participant_status_to_participant",
     ),
     pytest.param("close_case", id="close_case"),
-    pytest.param("add_note_to_case", id="add_note_to_case"),
+    pytest.param("create_note", id="create_note"),
     # DEMOMA-16-001: universal — the shared RM-triage helpers in
     # vultron/demo/helpers/workflow.py engage the case in every scenario.
     pytest.param("engage_case", id="engage_case"),
