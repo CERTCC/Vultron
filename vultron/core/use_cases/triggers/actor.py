@@ -43,7 +43,6 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     withdraw_case_ownership_transfer_trigger_bt,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
-from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.use_case_result import RoleOfferResult
@@ -438,8 +437,17 @@ class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
 class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     """Offer case ownership to another actor (trigger-side path).
 
-    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    CaseActor's identity on behalf of the offering actor (CM-24-001, TRIG-11-001).
+    The Case Owner sends its own ``Offer(VulnerabilityCase)`` (ownership
+    transfer variant) to the case's CASE_MANAGER, from the owner's identity
+    and outbox (CM-21-005, TRIG-11-001).  It executes no tree as the
+    CASE_MANAGER and never emits in its name (CM-24-004, ADR-0109): the
+    CASE_MANAGER's received tree records the Offer and performs the delegated
+    emit itself, forwarding it to the transferee with ``attributedTo`` naming
+    the owner (CM-24-005).
+
+    The ``202`` this trigger earns therefore means the Offer was queued, not
+    that the transferee was told; the result's ``activity`` is the owner's
+    Offer.
     """
 
     def __init__(
@@ -481,34 +489,28 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         self._content = request.content
         self._end_time = request.end_time
 
-        # Delegated-message contract: emit as the CASE_MANAGER, attributed to
-        # the requester (CM-24-001, CM-24-002, CM-24-005).  A case always has a
-        # CASE_MANAGER (CM-24-006), so none is a fault, not a direct send.
-        case_manager_id = resolve_case_manager_id(self._case, self._dl)
-        if case_manager_id is None:
+        # The Offer goes to the CASE_MANAGER or nowhere (CM-21-005,
+        # PCR-08-011).  A case always has a CASE_MANAGER (CM-24-006), so none
+        # is a fault, not a direct send to the transferee.
+        if resolve_case_manager_id(self._case, self._dl) is None:
             raise VultronNotFoundError(
                 "CASE_MANAGER", f"(for case '{self._case.id_}')"
             )
-        authorship = delegated_authorship(
-            doing_actor_id=case_manager_id,
-            requesting_actor_id=offering_actor_id,
-        )
-        self._actor_id = authorship.actor
-        self._requesting_actor_id = authorship.attributed_to
+        self._actor_id = offering_actor_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return offer_case_ownership_transfer_trigger_bt(
             case_id=self._case.id_,
             transferee_id=self._transferee_id,
             content=self._content,
-            requesting_actor_id=self._requesting_actor_id,
             captured=self._captured,
             end_time=self._end_time,
         )
 
     def _handle_result(self) -> None:
         logger.info(
-            "Actor '%s' offered case ownership transfer for case '%s' to '%s'",
+            "Actor '%s' sent the CASE_MANAGER an ownership transfer offer for"
+            " case '%s' to '%s'",
             self._actor_id,
             self._case.id_,
             self._transferee_id,

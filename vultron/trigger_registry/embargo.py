@@ -20,6 +20,7 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcProposeEmbargoUseCase,
     SvcRejectEmbargoUseCase,
     SvcTerminateEmbargoUseCase,
+    SvcWithdrawEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
@@ -27,6 +28,7 @@ from vultron.core.use_cases.triggers.requests import (
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
     TerminateEmbargoTriggerRequest,
+    WithdrawEmbargoTriggerRequest,
 )
 from vultron.trigger_registry._entry import (
     GENERAL_TRIGGER_SPECS,
@@ -90,5 +92,14 @@ ENTRIES: list[TriggerEntry] = [
         # Ends the embargo with END_TIME_REACHED itself once the end time
         # has passed, so the lazy end-time check must not pre-empt it.
         runs_case_upkeep=False,
+    ),
+    TriggerEntry(
+        verb="withdraw-embargo",
+        request_model=WithdrawEmbargoTriggerRequest,
+        use_case_class=SvcWithdrawEmbargoUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=(*_COMMON, "EP-09-013"),
     ),
 ]

@@ -30,7 +30,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.node_logger import PORT_WIRING_LOGGER_NAME
 from vultron.core.behaviors.store_scope import same_authority
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronUnhostedActorError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 # A plain py_trees node's ``self.logger`` is py_trees' own logger, whose
@@ -233,7 +233,7 @@ def bridge(datalayer):
 @pytest.fixture
 def test_actor_id():
     """Provide test actor ID."""
-    return "https://example.org/actors/test-actor"
+    return "https://test.example/actors/test-actor"
 
 
 # Tests for setup_tree
@@ -271,13 +271,11 @@ def test_setup_tree_blackboard_datalayer_is_the_executing_actors_store(
     requester's store and queued it in the CaseActor's outbox.  The store now
     follows the executing actor, so what must hold is that the two agree.
 
-    The executing actor is a *sibling on the same authority* here, rather than
-    the cross-authority ``test_actor_id`` this once used.  Re-scoping is only
-    meaningful within an authority: a node hosts the actors under its own
-    authority and can open a store for any of them, which is what makes
-    following the executing actor the right move.  Across authorities it is not
-    — see
-    :func:`test_setup_tree_keeps_the_injected_store_for_a_foreign_authority`.
+    The executing actor is a *sibling on the same authority* here.  Re-scoping
+    is only meaningful within an authority: a node hosts the actors under its
+    own authority and can open a store for any of them, which is what makes
+    following the executing actor the right move.  Across authorities the
+    bridge raises — see :func:`test_setup_tree_raises_for_a_foreign_authority`.
     """
     sibling_actor_id = "https://test.example/api/v2/actors/other-actor"
     assert same_authority(datalayer.actor_id, sibling_actor_id)
@@ -293,40 +291,62 @@ def test_setup_tree_blackboard_datalayer_is_the_executing_actors_store(
     assert blackboard.datalayer is not datalayer
 
 
-def test_setup_tree_keeps_the_injected_store_for_a_foreign_authority(
-    bridge, datalayer, test_actor_id
-):
-    """A store is never re-scoped to an actor this node does not host (#2484).
+@pytest.mark.spec("BT-05-005")
+def test_setup_tree_raises_for_a_foreign_authority(bridge, datalayer):
+    """A tree never runs as an actor this node does not host (ADR-0109).
 
     ``_find_case_actor_id`` resolves a case's authority from the participant
-    roster — the ``CVDRole.CASE_MANAGER`` role (ADR-0088, ARCH-24-004) — which
-    names remote actors just as readily as local ones, since a roster records
-    who holds the role and not where they are hosted.  That matters after a
-    handoff, when the authority is on the container that first received the
-    report (CP-08-003) while the case owner is elsewhere.  ``setup_tree`` then
-    runs with that foreign actor as the executing actor.
-
-    Re-scoping there would mint an empty local store under a foreign actor's
-    name, and nothing would raise: the tree would simply run against nothing.
-    That is not a degradation but a hard failure — with no case there is no
-    genesis hash to anchor the ledger chain, so the commit is refused
-    (CLP-08-005) and ``invite-actor-to-case`` answers 422.  So the handed store
-    is kept, and it is the right one: it belongs to the actor whose request this
-    is, and it holds the case and its ledger.  The Invite's *wire* identity is
-    unaffected (PCR-08-007).
+    roster, which names remote actors just as readily as local ones.  A tree
+    executing as such an actor used to keep the injected store, so the
+    requester's container emitted in the remote actor's name and the remote
+    actor learned of it from a ``cc:`` copy (#2484, #2996).  There is no such
+    exception any more: re-scoping would mint an empty local store under a
+    foreign name, and keeping the injected store would run one actor's tree
+    against another's data, so the bridge raises and neither happens.
     """
-    assert not same_authority(datalayer.actor_id, test_actor_id)
+    foreign_actor_id = "https://example.org/actors/test-actor"
+    assert not same_authority(datalayer.actor_id, foreign_actor_id)
 
-    bt = bridge.setup_tree(tree=CheckBlackboard(), actor_id=test_actor_id)
-    bt.setup()
+    with pytest.raises(VultronUnhostedActorError):
+        bridge._store_for_actor(foreign_actor_id)
+    with pytest.raises(VultronUnhostedActorError):
+        bridge.setup_tree(tree=CheckBlackboard(), actor_id=foreign_actor_id)
 
-    blackboard = _read_blackboard()
-    assert blackboard.actor_id == test_actor_id
-    assert blackboard.datalayer is datalayer, (
-        "a foreign-authority executing actor must not cause a fresh local store"
-        " to be minted in its name; the handed store is the only one this node"
-        f" can actually write. got actor_id={blackboard.datalayer.actor_id!r}"
+
+@pytest.mark.spec("BT-05-005")
+def test_execute_with_setup_reports_a_foreign_authority_as_internal(
+    bridge, datalayer
+):
+    """The raise is classified as an internal error and nothing ticks."""
+    foreign_actor_id = "https://example.org/actors/test-actor"
+    ticked: list[str] = []
+
+    class _Record(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            ticked.append(self.name)
+            return Status.SUCCESS
+
+    result = bridge.execute_with_setup(
+        tree=_Record(name="Record"), actor_id=foreign_actor_id
     )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "VultronUnhostedActorError" in (result.feedback_message or "")
+    assert ticked == []
+
+
+@pytest.mark.spec("BT-05-005")
+def test_setup_tree_passes_an_unscoped_store_through(test_actor_id):
+    """A store that names no actor has nothing to reconcile (the exception)."""
+
+    class _Unscoped:
+        pass
+
+    store = _Unscoped()
+    bridge = BTBridge(datalayer=store)  # type: ignore[arg-type]
+
+    assert bridge._store_for_actor(test_actor_id) is store
 
 
 def test_setup_tree_keeps_the_injected_store_when_it_already_matches(
@@ -610,8 +630,8 @@ def test_execute_with_setup_restores_preexisting_ledger_override(
 
 def test_bridge_isolates_actor_executions(bridge, datalayer):
     """Test multiple actors have isolated BT executions."""
-    actor1 = "https://example.org/actor1"
-    actor2 = "https://example.org/actor2"
+    actor1 = "https://test.example/actor1"
+    actor2 = "https://test.example/actor2"
 
     result1 = bridge.execute_with_setup(
         tree=CheckBlackboard(), actor_id=actor1, custom_data="actor1-data"
@@ -1765,15 +1785,13 @@ class TestNestedExecutionKeyIsolation:
     ) -> None:
         """A nested execution's actor must not outlive it on the blackboard.
 
-        A nested call can legitimately run as a different actor — the case that
-        makes the two diverge is ``_store_for_actor``'s foreign-authority
-        fall-through, where the injected store is kept rather than re-scoped.
-        Without the restore that inner actor stays on the blackboard for the rest
-        of the outer tree's ticks.
+        A nested call can legitimately run as a different, co-hosted actor, whose
+        store the bridge re-scopes to.  Without the restore that inner actor
+        stays on the blackboard for the rest of the outer tree's ticks.
         """
         observed: dict[str, Any] = {}
         inner_seen: list[str | None] = []
-        inner_actor = "https://example.org/actors/case-actor"
+        inner_actor = "https://test.example/actors/case-actor"
 
         result = bridge.execute_with_setup(
             tree=_NestedExecution(
@@ -1811,7 +1829,7 @@ class TestNestedExecutionKeyIsolation:
         ``OwnerLeaveSeq``'s ledger-committing node does downstream of a nested
         call (``case/receive_close_case_tree.py``).
         """
-        inner_actor = "https://example.org/actors/case-actor"
+        inner_actor = "https://test.example/actors/case-actor"
         outer_seen: list[str | None] = []
         inner_seen: list[str | None] = []
         observed: dict[str, Any] = {}
@@ -1870,7 +1888,7 @@ class TestNestedExecutionKeyIsolation:
     ) -> None:
         """A nested call that fails still hands the outer values back."""
         observed: dict[str, Any] = {}
-        inner_actor = "https://example.org/actors/case-actor"
+        inner_actor = "https://test.example/actors/case-actor"
 
         result = bridge.execute_with_setup(
             tree=_NestedExecution(
@@ -1924,7 +1942,7 @@ class TestNestedExecutionKeyIsolation:
             raise RuntimeError("setup exploded after writing its keys")
 
         observed: dict[str, Any] = {}
-        inner_actor = "https://example.org/actors/case-actor"
+        inner_actor = "https://test.example/actors/case-actor"
 
         class _NestedWithBrokenSetup(_NestedExecution):
             def update(self) -> Status:

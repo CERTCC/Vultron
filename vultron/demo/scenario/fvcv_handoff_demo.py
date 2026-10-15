@@ -442,20 +442,24 @@ def _phase_ownership_handoff(
 
     # The transfer reaches a replica in two hops: Accept → CaseActor inbox →
     # AcceptOwnershipTransferBT commit (CM-21-007), then CaseActor outbox →
-    # Announce(CaseLedgerEntry) → each participant's
-    # ApplyOwnershipTransferFromLedgerNode.  Nothing else updates a replica —
+    # Announce(CaseLedgerEntry) of the CASE_MANAGER's own update_case_participant
+    # and update_case_owner entries that follow the Accept (CLP-07-013) → each
+    # participant copies them.  Nothing else updates a replica —
     # the CaseActor's own node writes only the CaseActor's store (ADR-0073), so
     # Vendor1 learns of its own loss of ownership from the fan-out like anyone
     # else.  Gate on the commit first, read from the CaseActor's own store, so
     # a slow fan-out is reported as the fan-out being slow and not as the
-    # transfer never having happened (EDF-06-002, #3602).
+    # transfer never having happened (EDF-06-002, #3602).  The replicas'
+    # attributed_to comes from the update_case_owner entry, the last the
+    # transfer commits, so that entry is the gate (CLP-07-013).
     with demo_gate(
-        "CaseActor committed accept_case_ownership_transfer (CM-21-007)"
+        "CaseActor committed update_case_owner after the accepted transfer"
+        " (CM-21-007, CLP-07-013)"
     ):
         wait_for_case_actor_ledger_event(
             client=case_actor_client,
             case_id=case.id_,
-            event_type="accept_case_ownership_transfer",
+            event_type="update_case_owner",
         )
 
         # Temporal bound on the second hop (EDF-06-006, EDF-06-008): one

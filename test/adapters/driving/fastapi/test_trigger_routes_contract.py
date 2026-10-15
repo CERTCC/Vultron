@@ -122,6 +122,7 @@ _BODIES: dict[str, dict[str, Any]] = {
     "reject-embargo": {"case_id": _CASE},
     "propose-embargo-revision": {"case_id": _CASE, "end_time": _FUTURE},
     "terminate-embargo": {"case_id": _CASE},
+    "withdraw-embargo": {"case_id": _CASE},
     "suggest-actor-to-case": {"case_id": _CASE, "suggested_actor_id": _OTHER},
     "accept-case-invite": {"invite_id": "urn:uuid:invite"},
     "accept-full-case-invite": {"invite_id": "urn:uuid:invite"},

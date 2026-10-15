@@ -394,6 +394,18 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronUnhostedActorError(VultronWiringError):
+    """Raised when execution is scoped to an actor this container does not host.
+
+    A store can be opened only for an actor under the authority of the store
+    in hand: ``clone_for_actor`` on another authority's actor would mint an
+    empty local store in its name.  No sanctioned path executes a tree, or
+    enqueues an activity, as an actor the running container does not host
+    (BT-05-005, CM-24-004, CLP-10-014, ADR-0109), so reaching one is a
+    composition fault, not a protocol outcome.
+    """
+
+
 class VultronStaleStoreError(VultronError):
     """Raised when a persisted store predates a change to its stored shape.
 

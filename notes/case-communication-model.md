@@ -293,10 +293,12 @@ CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
 - A trigger resolves the CASE_MANAGER with `resolve_case_manager_id()` and fails when
   there is none (CM-24-006); a received-side node passes `self.actor_id`, which the role
   gate makes the CASE_MANAGER.
-- **The delegated emit runs where the CASE_MANAGER is hosted** (ADR-0109). A trigger on
-  another container sends the requester's *own* activity to the CASE_MANAGER (for the
-  invite, the owner's `Offer(Actor, Case)`, CM-17-007), and the CASE_MANAGER's received
-  tree emits and commits. The ownership-transfer trigger still emits locally (#3822).
+- **The delegated emit runs where the CASE_MANAGER is hosted** (ADR-0109). A trigger
+  sends the requester's *own* activity to the CASE_MANAGER (the owner's
+  `Offer(Actor, Case)` for the invite, CM-17-007; the owner's `Offer(VulnerabilityCase)`
+  for an ownership transfer, CM-21-005), and the CASE_MANAGER's received tree emits and
+  commits. No trigger executes a tree as the CASE_MANAGER: `BTBridge` raises for an
+  executing actor this container does not host (BT-05-005).
 - **The CASE_MANAGER never `cc:`s its own emission to itself**: co-hosted, that commits
   the same activity twice.
 - For the embargo relay, `resolve_proposer_id()` honours an inbound `attributedTo` only

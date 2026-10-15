@@ -70,12 +70,13 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     # Received only by a participant, which never commits (CLP-09-001).
     "create_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
     # The offered actor, usually an ordinary participant, answers a role
-    # offer and never commits (CLP-09-001); how the CASE_MANAGER records the
-    # answer on receipt (CLP-02-012) is open.
-    "accept_case_participant_role": "#4672",
+    # offer and never commits (CLP-09-001). CM-33-006 has the CASE_MANAGER
+    # commit the answer on receipt (CLP-02-012); #4703 builds that and
+    # removes these two rows.
+    "accept_case_participant_role": "#4703",
     "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
-    "reject_case_participant_role": "#4672",
+    "reject_case_participant_role": "#4703",
 }
 
 

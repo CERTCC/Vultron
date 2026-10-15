@@ -328,7 +328,9 @@ class TestSvcInviteActorToCaseUseCase:
         def _forbidden(*_args, **_kwargs):
             raise AssertionError("the owner must not emit as the CASE_MANAGER")
 
-        monkeypatch.setattr(actor_triggers, "delegated_authorship", _forbidden)
+        # The trigger module no longer imports ``delegated_authorship`` at all
+        # (ADR-0109); see test_offer_trigger_has_no_delegated_identity.
+        assert not hasattr(actor_triggers, "delegated_authorship")
         monkeypatch.setattr(
             use_case_helpers, "_find_case_actor_id", _forbidden
         )
@@ -1354,12 +1356,12 @@ class TestSvcAcceptActorRecommendationUseCase:
             ).execute()
 
 
-def _seed_delegated_case(owner, dl, *peers):
+def _seed_managed_case(owner, dl, *peers):
     """A case whose roster names a separate CASE_MANAGER (CM-24-006).
 
-    The delegated emit runs as the CASE_MANAGER, and a BT reads and writes its
-    executing actor's own store (ADR-0073), so the manager's store is seeded
-    with the case as well.
+    The owner's trigger runs in the owner's own store only (CM-24-004,
+    ADR-0109); the CASE_MANAGER's store is seeded with the case too, so the
+    tests that deliver the owner's Offer to it have a replica to act on.
     """
     case = as_VulnerabilityCase(
         attributed_to=owner.id_, name="Test Case", content="Content"
@@ -1385,40 +1387,53 @@ def _seed_delegated_case(owner, dl, *peers):
     return case, case_actor
 
 
+def _offer_ownership(dl, owner, case, transferee_id, **kwargs):
+    """Run the owner's offer-case-ownership-transfer trigger in *dl*."""
+    from vultron.core.use_cases.triggers.actor import (
+        SvcOfferCaseOwnershipTransferUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        OfferCaseOwnershipTransferTriggerRequest,
+    )
+
+    return SvcOfferCaseOwnershipTransferUseCase(
+        dl,
+        OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee_id,
+            **kwargs,
+        ),
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
 class TestSvcOfferCaseOwnershipTransferUseCase:
     """Tests for the offer-case-ownership-transfer trigger use case (TRIG-11-001)."""
 
-    def test_offer_creates_activity(self):
+    @pytest.mark.spec("CM-21-005")
+    @pytest.mark.spec("CM-24-004")
+    def test_offer_is_the_owners_own_offer_to_the_case_manager(self):
+        """The Offer comes from the owner, to the CASE_MANAGER, naming no one
+        else as its author (ADR-0109)."""
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
-        case, case_actor = _seed_delegated_case(owner, dl, transferee)
+        case, case_actor = _seed_managed_case(owner, dl, transferee)
 
-        from vultron.core.use_cases.triggers.actor import (
-            SvcOfferCaseOwnershipTransferUseCase,
-        )
-        from vultron.core.use_cases.triggers.requests import (
-            OfferCaseOwnershipTransferTriggerRequest,
-        )
-
-        request = OfferCaseOwnershipTransferTriggerRequest(
-            actor_id=owner.id_,
-            case_id=case.id_,
-            transferee_id=transferee.id_,
-        )
-        result = SvcOfferCaseOwnershipTransferUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = _offer_ownership(dl, owner, case, transferee.id_)
 
         assert result.activity is not None
+        assert result.emitting_actor_id == owner.id_
         activity_data = activity_of(result)
         assert activity_data["type"] == "Offer"
-        assert activity_data["actor"] == case_actor.id_
-        assert activity_data["attributedTo"] == owner.id_
+        assert activity_data["actor"] == owner.id_
+        assert activity_data.get("to") == [case_actor.id_]
+        assert activity_data.get("target") == transferee.id_
+        assert "attributedTo" not in activity_data
+        assert "cc" not in activity_data
 
     @pytest.mark.spec("TRIG-11-007")
     @pytest.mark.spec("CM-21-016")
@@ -1429,7 +1444,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
-        case, _ = _seed_delegated_case(owner, dl, transferee)
+        case, _ = _seed_managed_case(owner, dl, transferee)
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -1467,7 +1482,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
-        case, _ = _seed_delegated_case(owner, dl, transferee)
+        case, _ = _seed_managed_case(owner, dl, transferee)
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -1509,35 +1524,25 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 end_time=end_time if aware else end_time.replace(tzinfo=None),
             )
 
-    def test_offer_persisted_in_datalayer(self):
+    @pytest.mark.spec("CM-24-004")
+    def test_offer_is_queued_in_the_owners_outbox_only(self):
+        """The Offer is stored and queued in the owner's store; nothing is
+        queued as the CASE_MANAGER and the owner commits no ledger entry."""
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
-        case, case_actor = _seed_delegated_case(owner, dl, transferee)
+        case, case_actor = _seed_managed_case(owner, dl, transferee)
 
-        from vultron.core.use_cases.triggers.actor import (
-            SvcOfferCaseOwnershipTransferUseCase,
-        )
-        from vultron.core.use_cases.triggers.requests import (
-            OfferCaseOwnershipTransferTriggerRequest,
-        )
-
-        request = OfferCaseOwnershipTransferTriggerRequest(
-            actor_id=owner.id_,
-            case_id=case.id_,
-            transferee_id=transferee.id_,
-        )
-        result = SvcOfferCaseOwnershipTransferUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = _offer_ownership(dl, owner, case, transferee.id_)
 
         offer_id = activity_of(result)["id"]
-        stored = dl.clone_for_actor(case_actor.id_).read(offer_id)
-        assert stored is not None
+        assert dl.read(offer_id) is not None
+        assert offer_id in dl.outbox_list()
+        manager_dl = dl.clone_for_actor(case_actor.id_)
+        _CREATED_DLS.append(manager_dl)
+        assert manager_dl.outbox_list() == []
+        assert manager_dl.read(offer_id) is None
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
 
     def test_offer_proceeds_when_transferee_not_in_dl(self, caplog):
         """A transferee is a peer named by URI; a local record is not required.
@@ -1551,7 +1556,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         """
         owner, dl = _make_actor_dl("Vendor")
         missing_id = "https://example.org/actors/nobody"
-        case, _ = _seed_delegated_case(owner, dl)
+        case, _ = _seed_managed_case(owner, dl)
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -1604,78 +1609,70 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
-    def test_offer_uses_case_actor_as_sender_when_present(self):
-        """CM-24-001/002: when the authority is a separate actor, the Offer actor
-        MUST be that actor's ID and attributedTo MUST be the offering actor ID.
+    @pytest.mark.spec("CM-24-004")
+    def test_offer_trigger_has_no_delegated_identity(self):
+        """No trigger module builds a delegated authorship (ADR-0109).
+
+        The delegated emit is the CASE_MANAGER's forward, made in its received
+        tree; the trigger module does not even import the helper.
         """
-        owner, dl = _make_actor_dl("Vendor")
+        import vultron.core.use_cases.triggers.actor as actor_triggers
+
+        assert not hasattr(actor_triggers, "delegated_authorship")
+
+    @pytest.mark.spec("CM-21-005")
+    @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("CM-24-005")
+    def test_case_manager_records_and_forwards_the_owners_offer(
+        self, make_payload
+    ):
+        """End to end: the CASE_MANAGER's received tree commits the owner's
+        Offer and performs the delegated emit; the owner minted nothing."""
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.core.use_cases.received.actor.ownership import (
+            OfferCaseOwnershipTransferReceivedUseCase,
+        )
+
+        owner, owner_dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
-        )
+        owner_dl.create(transferee)
+        case, case_actor = _seed_managed_case(owner, owner_dl, transferee)
+        # The CASE_MANAGER's own store, seeded with its replica of the case.
+        manager_dl = owner_dl.clone_for_actor(case_actor.id_)
+        _CREATED_DLS.append(manager_dl)
 
-        # The authority is resolved from the case's roster, not from a Service
-        # whose `context` is the case id — ADR-0088 retired that signal
-        # (ARCH-24-004).
-        case_actor = as_Service(
-            id_=f"{owner.id_}/case-actor",
-            name="CaseActorService",
-        )
-        dl.create(case_actor)
-        manager = as_CaseParticipant(
-            id_=f"{case.id_}/participants/case-manager",
-            context=case.id_,
-            attributed_to=case_actor.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(manager)
-        case.case_participants.append(manager.id_)
-        case.actor_participant_index[case_actor.id_] = manager.id_
-        dl.create(case)
+        offer_id = activity_of(
+            _offer_ownership(owner_dl, owner, case, transferee.id_)
+        )["id"]
+        offer = owner_dl.read(offer_id)
+        assert offer is not None
 
-        # The delegated-emit contract makes the CaseActor the actor this BT
-        # executes as (CM-24-001), and a BT reads and writes its executing
-        # actor's own store (ADR-0073) — which is *not* the owner's, even when
-        # the two are co-located on one container.  In a deployment the
-        # CaseActor's store holds the case because the CaseActor is the case
-        # manager and keeps its canonical log; seeded here so the emit has a
-        # case to enrich the wire object from (CM-17-002) instead of failing on
-        # an empty store.
-        case_actor_dl = dl.clone_for_actor(case_actor.id_)
-        _CREATED_DLS.append(case_actor_dl)
-        for obj in (owner, transferee, case, case_actor, manager):
-            case_actor_dl.create(obj)
-
-        from vultron.core.use_cases.triggers.actor import (
-            SvcOfferCaseOwnershipTransferUseCase,
-        )
-        from vultron.core.use_cases.triggers.requests import (
-            OfferCaseOwnershipTransferTriggerRequest,
-        )
-
-        request = OfferCaseOwnershipTransferTriggerRequest(
-            actor_id=owner.id_,
-            case_id=case.id_,
-            transferee_id=transferee.id_,
-        )
-        result = SvcOfferCaseOwnershipTransferUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            manager_dl,
+            make_payload(offer, receiving_actor_id=case_actor.id_),
+            trigger_activity=TriggerActivityAdapter(manager_dl),
+            sync_port=SyncActivityAdapter(manager_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = activity_of(result)
-        assert activity_data["type"] == "Offer"
-        # CM-24-001: Offer actor MUST be the CaseActor, not the offering actor
-        assert activity_data["actor"] == case_actor.id_
-        # CM-24-002: offering actor attribution MUST be preserved
-        assert activity_data.get("attributedTo") == owner.id_
-        # The activity must be in the CaseActor's outbox (CM-24-004)
-        case_actor_outbox = dl.clone_for_actor(case_actor.id_).outbox_list()
-        assert activity_data["id"] in case_actor_outbox
+        assert result.disposition.value == "applied", result
+        entries = [
+            cast(CaseLedgerEntry, e)
+            for e in manager_dl.list_objects("CaseLedgerEntry")
+        ]
+        assert [e.log_object_id for e in entries] == [offer_id]
+        forwards = [
+            json.loads(sealed.body)
+            for item in manager_dl.outbox_list()
+            if (sealed := read_sealed_body(manager_dl, item)) is not None
+        ]
+        forwarded = [f for f in forwards if f.get("type") == "Offer"]
+        assert len(forwarded) == 1, forwards
+        assert forwarded[0]["actor"] == case_actor.id_
+        assert forwarded[0]["attributedTo"] == owner.id_
+        assert forwarded[0]["to"] == [transferee.id_]
+        # The owner's store minted no canonical entry (CLP-10-014).
+        assert list(owner_dl.list_objects("CaseLedgerEntry")) == []
 
 
 class TestSvcAcceptCaseOwnershipTransferUseCase:

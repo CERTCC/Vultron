@@ -787,7 +787,7 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
 
 
 # ---------------------------------------------------------------------------
-# Delegated emits drain the CaseActor's outbox, not the requesting actor's
+# The ownership-transfer Offer drains the owner's own outbox (ADR-0109)
 # ---------------------------------------------------------------------------
 
 
@@ -809,15 +809,16 @@ def drained(monkeypatch):
     return calls
 
 
-@pytest.mark.spec("CM-24-001")
-def test_offer_case_ownership_transfer_drains_the_case_actors_outbox(
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("CM-24-004")
+def test_offer_case_ownership_transfer_drains_the_owners_outbox(
     client_triggers_invite, actor, case_for_invite, other_actor, drained
 ):
-    """The Offer is queued as the CaseActor (CM-24-001), so its outbox is drained.
+    """The owner's own Offer is queued in the owner's outbox, which is drained.
 
-    Draining the requesting actor's outbox instead left the Offer unpopped
-    until the CaseActor next received something — 111 s in CI run 36643399281,
-    past the 90 s gate on the forwarded Offer (#3602).
+    The owner no longer emits as the CaseActor (ADR-0109): it sends the
+    CASE_MANAGER its own Offer, so the drain targets the owner's queue and the
+    CaseActor's is untouched.
     """
     case, case_actor = case_for_invite
     resp = client_triggers_invite.post(
@@ -825,8 +826,12 @@ def test_offer_case_ownership_transfer_drains_the_case_actors_outbox(
         json={"case_id": case.id_, "transferee_id": other_actor.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    assert resp.json()["emitting_actor_id"] == case_actor.id_
-    assert drained == [(case_actor.id_, case_actor.id_)]
+    data = resp.json()
+    assert data["emitting_actor_id"] == actor.id_
+    assert data["activity"]["actor"] == actor.id_
+    assert data["activity"]["to"] == [case_actor.id_]
+    assert "attributedTo" not in data["activity"]
+    assert drained == [(actor.id_, actor.id_)]
 
 
 @pytest.mark.spec("TRIG-11-007")

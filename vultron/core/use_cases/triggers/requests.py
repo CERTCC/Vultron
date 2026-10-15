@@ -70,6 +70,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     TerminateEmbargoRequest,
     ValidateReportRequest,
     WithdrawCaseOwnershipTransferRequest,
+    WithdrawEmbargoRequest,
 )
 
 ResultT_co = TypeVar("ResultT_co", bound=TriggerResult, covariant=True)
@@ -215,6 +216,12 @@ class TerminateEmbargoTriggerRequest(
     TriggerRequest[ActivityResult], TerminateEmbargoRequest
 ):
     pass
+
+
+class WithdrawEmbargoTriggerRequest(
+    TriggerRequest[ActivityResult], WithdrawEmbargoRequest
+):
+    """Trigger request for a signatory to send Leave(EmbargoEvent) (EP-09-013)."""
 
 
 class AddNoteToCaseTriggerRequest(
@@ -470,6 +477,7 @@ __all__ = [
     "SuggestActorToCaseTriggerRequest",
     "SyncLogEntryTriggerRequest",
     "TerminateEmbargoTriggerRequest",
+    "WithdrawEmbargoTriggerRequest",
     "TriggerRequest",
     "ValidateReportTriggerRequest",
     "WithdrawCaseOwnershipTransferTriggerRequest",

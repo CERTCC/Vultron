@@ -60,6 +60,7 @@
 | a Participant refuses a proposed embargo revision | `Reject(Invite(Event)[context=VulnerabilityCase])` | the invitee | EM state `REVISE` | [Embargo Revision Rejection (EJ)](../em.md#embargo-revision-rejection) |
 | the Case Owner decides to activate a proposed embargo | `Accept(Event)[target=VulnerabilityCase]` | the case owner | — | [Activate embargo](../em.md#activate-embargo) |
 | the Case Owner decides to reject a proposed embargo | `Reject(Event)[target=VulnerabilityCase]` | the case owner | — | [Reject embargo proposal](../em.md#reject-embargo-proposal) |
+| a Participant bound by the active embargo stops complying with it | `Leave(Event)[context=VulnerabilityCase]` | a participant | — | [Withdraw from embargo](../em.md#embargo-withdrawal) |
 
 ## Case status
 

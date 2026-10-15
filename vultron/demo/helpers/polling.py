@@ -2213,8 +2213,9 @@ def wait_for_case_attributed_to(
     Observes the ownership transfer on *client*'s replica of the case.  The
     CaseActor's own store is the authority (CM-21-002, CM-21-004); every other
     replica — the old owner's included — learns the new owner only from the
-    ``Announce(CaseLedgerEntry)`` fan-out applied by
-    ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-007).  So this reads the
+    ``Announce(CaseLedgerEntry)`` fan-out of the ``update_case_owner`` entry,
+    applied by ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-007,
+    CLP-07-013).  So this reads the
     replica whose view is being asserted (EDF-06-002); to gate on the commit
     itself, use :func:`wait_for_case_actor_ledger_event` first (#3602).
 

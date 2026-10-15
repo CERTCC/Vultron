@@ -87,7 +87,7 @@ def _get_id(field: object) -> str | None:
 
 
 def _get_id_list(field: object) -> list[str] | None:
-    """Convert an AS2 to/cc field (Any | None) to a list of ID strings."""
+    """Convert an AS2 addressing field (Any | None) to a list of ID strings."""
     if field is None:
         return None
     if isinstance(field, str):
@@ -234,8 +234,11 @@ def _build_activity_snapshot(
         origin=_get_id(origin),
         context=_get_id(context),
         in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+        # `to` only: `cc` is AS2 vocabulary the wire model still parses, and
+        # the inbox still counts for addressing (IE-11-003), but it has no
+        # handler semantics, so it is not carried into core (HP-10-001,
+        # ADR-0109).
         to=_get_id_list(getattr(activity, "to", None)),
-        cc=_get_id_list(getattr(activity, "cc", None)),
         summary=getattr(activity, "summary", None) or None,
         content=getattr(activity, "content", None) or None,
         suggested_roles=getattr(activity, "suggested_roles", None) or None,

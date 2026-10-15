@@ -49,12 +49,14 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _IgnoreLateEmbargoAcceptActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
+    _WithdrawFromEmbargoActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Ignore,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -371,6 +373,46 @@ def reject_embargo_proposal_activity(
         )
         raise VultronActivityConstructionError(
             "reject_embargo_proposal_activity: invalid arguments"
+        ) from exc
+
+
+def withdraw_from_embargo_activity(
+    embargo: as_EmbargoEvent,
+    context: as_VulnerabilityCaseRef | None = None,
+    **kwargs,
+) -> as_Leave:
+    """Build a Leave(as_EmbargoEvent)[context=VulnerabilityCase].
+
+    A signatory's withdrawal from the embargo in force (MSM-07-010,
+    ADR-0122): the receiver declines the sender's ``AGREED`` row for the
+    active embargo, and every open proposal's row it had agreed to, and
+    changes no register entry.  Distinct from
+    :func:`em_reject_embargo_activity`, which answers an Invite and never
+    withdraws, and from ``Leave(VulnerabilityCase)``, which leaves the case.
+    The case owner does not send it.
+
+    Args:
+        embargo: The ``as_EmbargoEvent`` in force, carried inline.
+        context: The ``VulnerabilityCase`` (or its URI) the embargo is on.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``).
+
+    Returns:
+        An ``as_Leave`` whose ``object_`` is the embargo event.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _WithdrawFromEmbargoActivity(
+            object_=embargo, context=context, **kwargs
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "withdraw_from_embargo_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "withdraw_from_embargo_activity: invalid arguments"
         ) from exc
 
 
