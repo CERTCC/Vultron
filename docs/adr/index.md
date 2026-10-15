@@ -232,7 +232,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0133 The Report Receiver States Its Case Roles on the Case Proposal](0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md) *(provisional)*
 - [ADR-0134 Who Must Obey a Rule Decides Its Spec Kind](0134-who-must-obey-a-rule-decides-its-spec-kind.md) *(provisional)* — partially supersedes 0038-four-tier-specification-taxonomy.md
 - [ADR-0135 Compose Received Trees, Never Chain Them](0135-compose-received-trees-never-chain-them.md) *(provisional)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md
-- [ADR-0137 Case Records Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(provisional)*
+- [ADR-0137 Case Records and Notes Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(revision 2)* *(provisional)*
 
 ## Proposed ADRs
 
