@@ -60,7 +60,8 @@ A request to end the embargo early made after its end time is recorded as `END_T
 
 ## The mechanical path
 
-Every EM transition runs through one service.
+Every EM transition runs through the embargo lifecycle service, or through the single function that applies a committed ledger entry, which the case manager and every replica share (ADR-0124).
+Termination takes the second path: the case manager commits the `Remove` first, then applies it.
 A behavior tree node never assigns `case.current_status.em` and saves the case as a shortcut (EMB-18-001).
 The reason is that a transition is not a field write.
 It has to be validated against the state machine, and a failed validation must stop the node rather than log a warning and write anyway (EMB-18-002).
@@ -235,7 +236,7 @@ That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` 
 Every in-place write path raises a `ValidationError` at runtime: `status.em = …`, `status.em.state = …`, and the retired flat spelling `status.em_state = …`, which `CaseStatus` no longer defines (SDO-03-003).
 
 The only writer is the case itself.
-When its embargo register changes — through any `EmbargoLifecycle` operation — the case replaces its current status with a `model_copy` carrying the new `EmDimension`.
+When its embargo register changes — through any `EmbargoLifecycle` operation or the function that applies a committed entry — the case replaces its current status with a `model_copy` carrying the new `EmDimension`.
 Nothing else may write that copy.
 A status with a different EM state is built by construction or by `model_copy(update={"em": EmDimension(state=…)})`; assignment through an existing instance always raises.
 
@@ -254,7 +255,7 @@ A status with a different EM state is built by construction or by `model_copy(up
 | [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
 | [EMB-16-002](../../../reference/specs/protocol.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
 | [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
-| [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service |
+| [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service or the function that applies a committed entry |
 | [EMB-18-003](../../../reference/specs/architecture.md#emb-18-003) | A case MUST NOT name an embargo whose record its store does not hold |
 | [EMB-19-001](../../../reference/specs/protocol.md#emb-19-001) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
 | [EP-04-001](../../../reference/specs/protocol.md#ep-04-001) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |

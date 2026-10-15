@@ -4,6 +4,7 @@ date: 2026-09-22
 created: 2026-09-22
 updated: 2026-09-22
 revision: 1
+amended: "2026-10-15"
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
@@ -248,6 +249,30 @@ flags, with every table generated from it.
   `pkgutil` traversal is load-bearing and needs its own test.
 - Neutral, because CI-policy data (`in_pr_set`) lives next to the demo rather
   than in CI config. Its rationale stays in DEMOCI-06-002.
+
+## Amendment — 2026-10-15
+
+The registry gains one fact a scenario knows about itself: where it sits in the scenario tree.
+Self-registration and the derived-artifact treatment are unchanged.
+The Decision Outcome said:
+
+> The decorator carries only what the demo knows about itself.
+
+That still holds, and a scenario's place in the scenario tree is now part of what it knows.
+
+- The registered scenarios form one **scenario tree**, rooted at a Reporter who has found a vul and must choose whom to tell.
+  Each node is a **branch point**, where one role faces a decision; each edge is a **choice**, a trigger that role calls.
+  A scenario is one path from the root to an ending (see the **Demo** section of `CONTEXT.md`).
+- Who joins a case and how a decision goes are both branch points, so the tree has one kind of edge.
+- For now, a scenario declares its branch on `@scenario`: its parent, the branch point, and the choice it takes.
+  The scenario-tree index that the demo UI reads is a derived artifact of those declarations, like every other table here, and a check proves each declared branch by comparing the parent's and the child's recorded ledgers up to the branch point.
+- The target form is **composition**: a branching story written once, as shared steps up to a branch point, then one continuation per choice.
+  Ancestry then follows from the code itself, and each family's declarations are retired as it is composed.
+
+Why: sibling scenarios are today full copies of one another up to the point where they differ, and nothing records that they are one story.
+The demo UI's offline mode replays the tree ([ADR-0104](0104-interactive-demo-ui-live-ledger-watcher.md) amendment of the same date), so the tree must be stated by the code, not inferred from scenario names.
+
+- Source: the 2026-10-15 demo UI planning session; #4726, #4727, #4733, #4736
 
 ## More Information
 

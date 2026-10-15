@@ -86,6 +86,7 @@ from vultron.demo.helpers.embargo_outcome import (
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
+    verify_reporter_trusts_introduction,
     wait_for_case_by_report,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
@@ -206,6 +207,11 @@ def _run_negotiated_submission(
                 "Canonical case %s created at %s",
                 case.id_,
                 case.em_state,
+            )
+            # The Receiver introduces the case to the Reporter, which takes
+            # it on the trusted route (CBT-01-005, #4675).
+            verify_reporter_trusts_introduction(
+                client, finder, vendor, report, case_id=case.id_
             )
 
             if receiver_default_days is None:

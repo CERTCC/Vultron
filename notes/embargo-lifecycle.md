@@ -4,8 +4,9 @@ status: active
 kind: guidance
 description: >
   Rules for changing embargo state: the embargo register from which EM is
-  derived, changed only by EmbargoLifecycle one checked step at a time along an
-  EM transition (ADR-0122, ADR-0130); consent versus owner decision; STRICT
+  derived, changed one checked step at a time along an EM transition, by
+  EmbargoLifecycle or, for an arm converted to the copy model, the one apply
+  function (ADR-0122, ADR-0124, ADR-0130); consent versus owner decision; STRICT
   versus OBSERVED and the P/X/A guards; the invariant that a case never names
   an embargo its store cannot read (EMB-18-003); late Accepts, expiry and the
   owner-close settle step (EMB-17, CM-23-014); P/X/A refusal and teardown
@@ -114,25 +115,26 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
   write. Never put the why on the `Remove`: a replica that replays it
-  records only the what, until #4294 copies whole entries (a case snapshot's
-  `embargoRegister` already carries the entry, cause included). Read the
-  recorded what back from the register (`case.embargo_termination`) when
-  building the CASE_MANAGER's `Remove` and the CM-31-009 notices, so the wire
-  and the entry cannot disagree. A `Remove` naming an embargo not in force
-  changes nothing.
+  records only the what (copying the why is #4748, held on #4609; a case
+  snapshot's `embargoRegister` already carries the entry, cause included).
+  The CASE_MANAGER decides the termination first (`decide_termination()`),
+  builds its `Remove` from that decision, commits it, and only then applies
+  the step (#4714), so the wire and the entry cannot disagree. The CM-31-009
+  notices read the what back from the register (`case.embargo_termination`).
+  A `Remove` naming an embargo not in force changes nothing, on the
+  CASE_MANAGER and on a replica.
 - **End-time termination is one idempotent path (EMB-13-003).**
-  `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers
-  an already-`EXITED` case as done and otherwise runs `terminate_embargo_bt`
-  with `END_TIME_REACHED`. The CASE_MANAGER's lazy check is a `CaseUpkeep`
-  hook (`end_time_case_upkeep`) that the composition roots install on the
-  inbox and trigger dispatchers, so it runs before each activity or trigger
-  for a case; the dispatchers know only the hook's shape. A Sentinel reaches
-  the path through the terminate trigger with `reason=END_TIME_REACHED`. That
-  trigger's registry row sets `runs_case_upkeep=False`: it takes the end-time
-  path itself once the end time has passed, an `EARLY` request included, so
-  the lazy check never pre-empts the answer it owes. `termination_timing_violations()` refuses an
-  `END_TIME_REACHED` claimed before the end time — in the trigger's
-  `_prepare`, the lifecycle, the received tree's guard
+  `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers an
+  already-`EXITED` case as done and otherwise runs `terminate_embargo_bt` with
+  `END_TIME_REACHED`. The CASE_MANAGER's lazy check is a `CaseUpkeep` hook
+  (`end_time_case_upkeep`) that the composition roots install on the inbox and trigger
+  dispatchers, so it runs before each activity or trigger for a case; the dispatchers
+  know only the hook's shape. A Sentinel reaches the path through the terminate trigger
+  with `reason=END_TIME_REACHED`. That trigger's registry row sets
+  `runs_case_upkeep=False`: it takes the end-time path itself once the end time has
+  passed, an `EARLY` request included, so the lazy check never pre-empts the answer it
+  owes. `termination_timing_violations()` refuses an `END_TIME_REACHED` claimed before
+  the end time — in the trigger's `_prepare`, the lifecycle, the received tree's guard
   (`TerminationIsTimelyNode`, before the commit) and replica replay.
 
 ---
@@ -166,7 +168,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
 - **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
-  and replay nodes not yet copying, #4714, #4716, #4717): it skips the P/X/A
+  and replay nodes not yet copying, #4716, #4717): it skips the P/X/A
   guards, records a proposal a replica never saw before activating it, and
   logs and skips a refused step — it never forces the register into a state
   its rules refuse. A copying replay node runs no lifecycle mode at all: it
@@ -174,9 +176,10 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 - **P/X/A guards** (EMB-01-002, EMB-02-002, EMB-04-002): `propose_embargo()` and
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
   never blocked. `reject_embargo_proposal()` raises when it would return a
-  `REVISE` case to the prior terms with P/X/A set — the correct path is
-  `terminate_active_embargo()`. That guard holds in `OBSERVED` too, so manager
-  and replicas both end with the revision `CANCELLED` (#4364).
+  `REVISE` case to the prior terms with P/X/A set — the correct path is to
+  terminate the embargo (ET, `terminate_embargo_bt`). That guard holds in
+  `OBSERVED` too, so manager and replicas both end with the revision
+  `CANCELLED` (#4364).
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -205,11 +208,14 @@ catch-up fetch or deferral, refuse instead.
 
 - **A late `Accept(Invite(EmbargoEvent))`** — deadline passed, or row already
   `TIMED_OUT`/`DECLINED` — first commits a CASE_MANAGER-authored expiry entry
-  if the row still needs `TIME_OUT`, then routes to honour (EMB-17-001),
+  if the row still needs `TIME_OUT` (the Accept tree's clock decision,
+  CLP-10-025), then routes to honour (EMB-17-001),
   re-invite (EMB-17-003) or no-op (EMB-17-004). Each branch commits an entry so
-  replicas learn the outcome (RSH-08-004), and every factory in
-  `vultron/core/behaviors/embargo/expiry_tree.py` is CASE_MANAGER-gated; a
-  non-manager gets `REFUSED` and changes no consent (BT-17-001). The outcome
+  replicas learn the outcome (RSH-08-004), and each runs only at the
+  CASE_MANAGER — the expiry behind the received-tree factory's clock-decision
+  gate, the routing trees in `vultron/core/behaviors/embargo/expiry_tree.py`
+  behind their own; a non-manager gets `REFUSED` and changes no consent
+  (BT-17-001). The outcome
   table is in `notes/participant-embargo-consent.md` § "Expiry is lazy, and
   only the CASE_MANAGER's".
 - **Owner close settles pending Invites without waiting.** After close an Invite
@@ -280,14 +286,15 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    except recording the proposer's (ADR-0093). `activate_embargo()` records the
    owner's agreement; a *shorter* replacement carries every signatory over
    (`CARRY_OVER`), and under *longer* terms non-agreeing signatories lapse by
-   derivation (MSM-07-005). `terminate_active_embargo()` cancels every open
-   proposal and writes no consent (MSM-07-006). Callers do none of this by hand.
-4. **Replay copies.** The proposal, relay, answer, re-invite and abandonment
-   slots copy the entry's step or row, and every other row arrives as its own
-   CASE_MANAGER entry (ADR-0124). The slots not yet converted (activation,
-   expiry, teardown, withdrawal) still pass
+   derivation (MSM-07-005). Termination (`decide_termination()`, then the
+   `TERMINATE` step through the one apply function) cancels every open proposal
+   and writes no consent (MSM-07-006). Callers do none of this by hand.
+4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment and
+   teardown slots copy the entry's step or row, and every other row arrives as
+   its own CASE_MANAGER entry (ADR-0124). The slots not yet converted
+   (activation, expiry, withdrawal) still pass
    `transition_mode=TransitionMode.OBSERVED`, and their consent cascades still
-   run, until #4714, #4716 and #4717.
+   run, until #4716 and #4717.
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside

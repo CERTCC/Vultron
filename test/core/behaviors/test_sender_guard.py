@@ -44,6 +44,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
+    SenderIsActiveLedgerParticipantNode,
     SenderIsCaseOwnerNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
@@ -51,24 +52,39 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
     SenderIsProposalAddresseeNode,
+    SenderIsProposalAuthorNode,
     SenderIsRequestAddresseeNode,
     SenderRule,
     any_of,
 )
 from vultron.core.behaviors.sender_guard import (
     AddresseeRequest,
+    AuthoredCaseProposal,
+    AuthoredNote,
     CaseProposalRequest,
     OwnershipOfferRequest,
     ReportOfferRequest,
     SenderCheckContext,
     compose_sender_guard,
 )
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_proposal_admission import (
+    CaseProposalAdmissionRecord,
+)
+from vultron.core.models.case_proposal_decline import (
+    CaseProposalDeclineRecord,
+)
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.examples._base import gen_report
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -508,7 +524,9 @@ def test_author_kind_admits_only_the_objects_author(
     guard = compose_sender_guard(
         SenderRule.in_case(Kind.AUTHOR),
         SenderCheckContext(
-            sender_id=sender, case_id=CASE_ID, authored_object_id=NOTE_ID
+            sender_id=sender,
+            case_id=CASE_ID,
+            authored_object=AuthoredNote(note_id=NOTE_ID),
         ),
     )
     assert isinstance(guard, SenderIsNoteAuthorNode)
@@ -525,7 +543,9 @@ def test_author_kind_refuses_an_author_no_longer_a_participant() -> None:
     guard = compose_sender_guard(
         SenderRule.in_case(Kind.AUTHOR),
         SenderCheckContext(
-            sender_id=STRANGER, case_id=CASE_ID, authored_object_id=NOTE_ID
+            sender_id=STRANGER,
+            case_id=CASE_ID,
+            authored_object=AuthoredNote(note_id=NOTE_ID),
         ),
     )
     assert guard is not None
@@ -536,19 +556,281 @@ def test_author_kind_refuses_an_author_no_longer_a_participant() -> None:
 
 
 def test_author_without_the_changed_object_is_a_wiring_error() -> None:
-    with pytest.raises(VultronWiringError, match="authored_object_id"):
+    with pytest.raises(VultronWiringError, match="authored_object"):
         compose_sender_guard(
             SenderRule.in_case(Kind.AUTHOR),
             SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
         )
 
 
+# The case proposal's author: the proposer this CASE_MANAGER recorded for the
+# proposal id, which the sender chose (CP-05-006, #4719).
+
+PROPOSAL_ID = "https://example.org/proposals/sender-rule"
+
+
+def _proposal_author_guard(sender: str) -> py_trees.behaviour.Behaviour:
+    guard = compose_sender_guard(
+        SenderRule.before_case(Kind.AUTHOR),
+        SenderCheckContext(
+            sender_id=sender,
+            authored_object=AuthoredCaseProposal(proposal_id=PROPOSAL_ID),
+        ),
+    )
+    assert isinstance(guard, SenderIsProposalAuthorNode)
+    assert guard.guards_kind is Kind.AUTHOR
+    return guard
+
+
+def _admission(proposer: str) -> CaseProposalAdmissionRecord:
+    return CaseProposalAdmissionRecord(
+        proposal_id=PROPOSAL_ID, case_actor_id=MANAGER, proposer_uri=proposer
+    )
+
+
+def _decline(proposer: str) -> CaseProposalDeclineRecord:
+    return CaseProposalDeclineRecord(
+        proposal_id=PROPOSAL_ID, case_actor_id=MANAGER, proposer_uri=proposer
+    )
+
+
+def _stored_proposal(proposer: str) -> as_CaseProposal:
+    """The proposal as the Accept or Reject path stores it, with no record:
+    a store written before the admission record existed."""
+    return as_CaseProposal(
+        id_=PROPOSAL_ID,
+        attributed_to=proposer,
+        object_=gen_report(),
+        target=MANAGER,
+    )
+
+
+@pytest.mark.spec("HP-01-009")
+@pytest.mark.spec("CP-05-010")
+@pytest.mark.parametrize(
+    ("records", "sender", "admitted"),
+    [
+        ((), STRANGER, True),
+        ((_admission(VENDOR),), VENDOR, True),
+        ((_admission(VENDOR),), STRANGER, False),
+        ((_decline(VENDOR),), VENDOR, True),
+        ((_decline(VENDOR),), STRANGER, False),
+        ((_admission(VENDOR), _decline(VENDOR)), STRANGER, False),
+        ((_stored_proposal(VENDOR),), VENDOR, True),
+        ((_stored_proposal(VENDOR),), STRANGER, False),
+        ((_stored_proposal(VENDOR + "/"),), VENDOR, True),
+    ],
+    ids=[
+        "new-proposal",
+        "admitted-proposer",
+        "admitted-for-another",
+        "declined-proposer",
+        "declined-for-another",
+        "both-records-for-another",
+        "stored-proposal-proposer",
+        "stored-proposal-for-another",
+        "stored-proposal-trailing-slash",
+    ],
+)
+def test_author_kind_admits_only_a_proposals_recorded_proposer(
+    records: tuple[PersistableModel, ...], sender: str, admitted: bool
+) -> None:
+    scenario = _store(MANAGER)
+    for record in records:
+        scenario.dl.create(record)
+    result = scenario.run(
+        _proposal_author_guard(sender),
+        activity=SimpleNamespace(actor_id=sender),
+    )
+    assert not result.internal_error, result.feedback_message
+    assert (result.status == Status.SUCCESS) is admitted
+    if not admitted:
+        assert VENDOR in result.feedback_message
+        assert "HP-01-006" in result.feedback_message
+
+
+class _FailingReads:
+    """A store whose reads fail, standing in for a store error."""
+
+    def read(self, *_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("store unavailable")
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CP-05-010")
+def test_a_store_error_never_admits_the_proposal_sender() -> None:
+    """A read error propagates: it fails the tree, which refuses, and the
+    guard never answers ``SUCCESS`` because it could not tell."""
+    guard = _proposal_author_guard(STRANGER)
+    assert isinstance(guard, SenderIsProposalAuthorNode)
+    guard.datalayer = _FailingReads()  # type: ignore[assignment]
+    with pytest.raises(RuntimeError, match="store unavailable"):
+        guard.update()
+
+
 def test_author_without_a_case_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="case_id"):
         compose_sender_guard(
             SenderRule.before_case(Kind.AUTHOR),
-            SenderCheckContext(sender_id=VENDOR, authored_object_id=NOTE_ID),
+            SenderCheckContext(
+                sender_id=VENDOR, authored_object=AuthoredNote(note_id=NOTE_ID)
+            ),
         )
+
+
+# ---------------------------------------------------------------------------
+# CM-23-018: every ACTIVE_PARTICIPANT guard refuses a sender that may not act
+# ---------------------------------------------------------------------------
+
+_VENDOR_PARTICIPANT_ID = f"{CASE_ID}/participants/vendor"
+
+
+def _leave(record: CaseParticipant) -> None:
+    """The vendor's closure recorded: its RM is ``CLOSED`` (CM-23-001)."""
+    record.participant_statuses.append(
+        ParticipantStatus(
+            context=CASE_ID,
+            attributed_to=VENDOR,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+    )
+
+
+def _uninvite(record: CaseParticipant) -> None:
+    """The vendor has not joined, so it is inert (CM-10-004)."""
+    record.joined = False
+
+
+def _remove(record: CaseParticipant) -> None:
+    """The vendor carries the removal fact (CM-31-001)."""
+    record.removal_activity = f"{CASE_ID}/activities/remove-vendor"
+
+
+_MAY_NOT_ACT = pytest.mark.parametrize(
+    "standing",
+    [_leave, _uninvite, _remove],
+    ids=["closed", "inert", "removed"],
+)
+
+
+def _store_where_vendor(
+    standing: Callable[[CaseParticipant], None] | None,
+) -> BTTestScenario:
+    """The CASE_MANAGER's store, the vendor's record changed by *standing*."""
+    scenario = _store_with_note(VENDOR)
+    if standing is not None:
+        record = scenario.dl.read(_VENDOR_PARTICIPANT_ID)
+        assert isinstance(record, CaseParticipant)
+        standing(record)
+        scenario.dl.save(record)
+    return scenario
+
+
+def _composed_vendor_guard(kind: Kind) -> py_trees.behaviour.Behaviour:
+    guard = compose_sender_guard(
+        SenderRule.in_case(kind),
+        SenderCheckContext(
+            sender_id=VENDOR,
+            case_id=CASE_ID,
+            authored_object=AuthoredNote(note_id=NOTE_ID),
+        ),
+    )
+    assert guard is not None
+    return guard
+
+
+#: Each guard of the ACTIVE_PARTICIPANT standing, built for the vendor.
+_VENDOR_GUARDS = pytest.mark.parametrize(
+    "make_guard",
+    [
+        lambda: _composed_vendor_guard(Kind.ACTIVE_PARTICIPANT),
+        lambda: _composed_vendor_guard(Kind.AUTHOR),
+    ],
+    ids=["active-participant", "note-author"],
+)
+
+
+@pytest.mark.spec("CM-23-018")
+@_VENDOR_GUARDS
+def test_each_active_participant_guard_admits_an_active_open_sender(
+    make_guard: Callable[[], py_trees.behaviour.Behaviour],
+) -> None:
+    """Control: the vendor, active and not closed, is admitted by each guard."""
+    result = _store_where_vendor(None).run(
+        make_guard(), activity=SimpleNamespace(actor_id=VENDOR)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.SUCCESS, result.feedback_message
+
+
+@pytest.mark.spec("CM-23-018", "CM-10-004")
+@_MAY_NOT_ACT
+@_VENDOR_GUARDS
+def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(
+    make_guard: Callable[[], py_trees.behaviour.Behaviour],
+    standing: Callable[[CaseParticipant], None],
+) -> None:
+    """A closed, an inert and a removed sender each fail every guard."""
+    result = _store_where_vendor(standing).run(
+        make_guard(), activity=SimpleNamespace(actor_id=VENDOR)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.parametrize(
+    ("standing", "admitted"),
+    [(None, True), (_leave, False), (_uninvite, True), (_remove, True)],
+    ids=["open", "closed", "inert", "removed"],
+)
+def test_participant_kind_refuses_only_a_closed_sender(
+    standing: Callable[[CaseParticipant], None] | None, admitted: bool
+) -> None:
+    """``PARTICIPANT`` admits any listed record but one at RM CLOSED.
+
+    An inert or removed participant keeps the standing (#4437); a closed one
+    has left the case and may act on nothing further (CM-23-018).
+    """
+    result = _store_where_vendor(standing).run(
+        _composed_vendor_guard(Kind.PARTICIPANT),
+        activity=SimpleNamespace(actor_id=VENDOR),
+    )
+    assert not result.internal_error, result.feedback_message
+    assert (result.status == Status.SUCCESS) is admitted
+
+
+@pytest.mark.spec("CM-23-018")
+def test_participant_kind_reads_closure_from_the_record_it_found() -> None:
+    """A closed sender is refused even when the index does not list it.
+
+    The roster lookup finds the record by scanning the participants, so the
+    closure is read from that record, not looked up again through
+    ``actor_participant_index``: the two lookups cannot disagree.
+    """
+    scenario = _store_where_vendor(_leave)
+    case = scenario.dl.read(CASE_ID)
+    assert isinstance(case, as_VulnerabilityCase)
+    case.actor_participant_index.pop(VENDOR)
+    scenario.dl.save(case)
+    result = scenario.run(
+        _composed_vendor_guard(Kind.PARTICIPANT),
+        activity=SimpleNamespace(actor_id=VENDOR),
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+    assert "RM CLOSED" in (result.feedback_message or "")
+
+
+@pytest.mark.spec("CM-23-018", "SYNC-03-005")
+def test_ledger_peer_kind_composes_the_resync_guard() -> None:
+    """``LEDGER_PEER`` is guarded by the bare active check of SYNC-03-005."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.LEDGER_PEER),
+        SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+    )
+    assert isinstance(guard, SenderIsActiveLedgerParticipantNode)
+    assert guard.guards_kind is Kind.LEDGER_PEER
 
 
 # ---------------------------------------------------------------------------

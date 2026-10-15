@@ -88,6 +88,8 @@ def _domain_values() -> dict[type, Any]:
             end_time=datetime(2030, 1, 1, tzinfo=UTC),
         ),
         LedgerPosition: LedgerPosition(log_index=0, entry_hash="0" * 64),
+        # A clock reading a clock decision compares a deadline against.
+        datetime: datetime(2030, 1, 1, tzinfo=UTC),
         RM: RM.ACCEPTED,
         CVDRole: CVDRole.VENDOR,
         # The declared rule a migrated tree composes its sender guard from
@@ -157,6 +159,18 @@ def _required_scalar(annotation: Any) -> Any:
     return _NO_RULE
 
 
+def _empty_collection(members: tuple[Any, ...]) -> list | dict | None:
+    """An empty list or dict for a collection parameter, else ``None``.
+
+    A dict is an output a node fills in (a clock decision's result).
+    """
+    if any(get_origin(m) in (Sequence, list) for m in members):
+        return []
+    if any(get_origin(m) is dict for m in members):
+        return {}
+    return None
+
+
 def _argument_for(param: inspect.Parameter, domain: dict[type, Any]) -> Any:
     """A value for *param* that builds the factory's fullest tree.
 
@@ -190,8 +204,8 @@ def _argument_for(param: inspect.Parameter, domain: dict[type, Any]) -> Any:
         return MagicMock(name=param.name)
     if param.name.endswith("_obj"):
         return MagicMock(name=param.name)
-    if any(get_origin(m) in (Sequence, list) for m in members):
-        return []
+    if (empty := _empty_collection(members)) is not None:
+        return empty
     raise TypeError(
         f"no argument rule for parameter {param.name!r}"
         f" ({param.annotation!r}); extend _argument_for"

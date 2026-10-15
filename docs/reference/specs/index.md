@@ -18,7 +18,7 @@ reflects the current state of the specification.
 |------|-------------|
 | [Protocol](protocol.md) | The Vultron layer — required of any implementation in any language |
 | [Foundation](foundation.md) | Rules inherited from ActivityStreams 2.0, ActivityPub, and HTTP |
-| [Architecture](architecture.md) | Recommended structure that carries over to other languages, not required for compliance |
+| [Architecture](architecture.md) | How this implementation is structured — recommended, not required for compliance |
 | [Project](project.md) | This codebase only — deployment choices, operating limits, internals |
 | [Process](process.md) | How we run this project — CI, GitHub workflow, agent conventions |
 

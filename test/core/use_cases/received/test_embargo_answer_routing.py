@@ -352,6 +352,7 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("TB-06-007")
+@pytest.mark.spec("EMB-17-011")
 def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     """A late Accept of a stale embargo is re-invited; a replica learns it.
 

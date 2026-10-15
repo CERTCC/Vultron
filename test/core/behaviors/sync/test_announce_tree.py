@@ -370,6 +370,9 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     assert _archived(datalayer, event)
 
 
+ACTIVE_EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
+
+
 def _make_remove_embargo_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
@@ -379,13 +382,14 @@ def _make_remove_embargo_entry(
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
             event_type="remove_embargo_event_from_case",
-            payload_snapshot={"log_index": log_index, "content": "EARLY"},
+            payload_snapshot={
+                "log_index": log_index,
+                "object": {"id": ACTIVE_EMBARGO_ID, "type": "EmbargoEvent"},
+                "content": "EARLY",
+            },
             prev_log_hash=prev_hash,
         )
     )
-
-
-ACTIVE_EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
 
 
 def _make_case_with_em_active(

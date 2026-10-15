@@ -25,8 +25,8 @@ A termination has two parts:
   :data:`TerminationCause` grows into a union discriminated on ``kind``.
   ``cause`` is ``None`` when no structured cause is recorded — an end-time
   termination, a participant's own early decision, or a replica that has
-  learned only the what from the ``Remove`` (until #4294 copies whole
-  register entries).
+  learned only the what from the ``Remove``, which does not carry the why
+  (ADR-0122; copying the why is #4748).
 
 :func:`end_time_violations` is the end-time rule every node applies before
 an ``END_TIME_REACHED`` termination: it is refused when it is claimed before

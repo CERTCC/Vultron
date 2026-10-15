@@ -2343,7 +2343,8 @@ groups:
       move EM state for an embargo that is already current; an event type of its
       own gets a replay slot that cannot do that (EP-09-007, ADR-0118).
     verification: >-
-      `test_the_managers_reinvite_is_committed_and_replayed_by_a_replica` drives
+      `test_the_managers_reinvite_is_committed_and_replayed_by_a_replica` in
+      `test/core/use_cases/received/test_embargo_answer_routing.py` drives
       the full path across per-actor stores: the late Accept reaches the
       CASE_MANAGER, the re-invite entry is committed and broadcast, and the
       replica reads the invitee `INVITED` with the manager's deadline and the
@@ -2384,23 +2385,23 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      Every decision to change a case's embargo register, and so the EM state
-      derived from it (ADR-0122), MUST be made through EmbargoLifecycle (its
-      public operations such as propose_embargo(), activate_embargo(),
+      Every change to a case's embargo register, and so to the EM state derived
+      from it (ADR-0122), MUST be made through EmbargoLifecycle (its public
+      operations such as propose_embargo(), activate_embargo(),
       reject_embargo_proposal(), and terminate_active_embargo(), each of which
-      applies one register step). A committed register step MUST be written
-      by copying it through the one apply function, apply_embargo_change()
-      (ADR-0124, CM-23-016), on the CASE_MANAGER and on every replica. BT
-      nodes and helper functions MUST NOT otherwise apply a register step to
-      the case themselves, or assign case.current_status.em, and then call
-      dl.save(case) as a substitute for either path.
+      applies one register step), or, for an act converted to the copy model,
+      by applying the act's ledger entry through the one apply function,
+      apply_embargo_change() (ADR-0124, CM-23-016). BT nodes and helper
+      functions MUST NOT otherwise apply a register step to the case
+      themselves, or assign case.current_status.em, and then call
+      dl.save(case) as a substitute for routing through one of those two.
     rationale: >-
-      EmbargoLifecycle is the sole service-layer authority for embargo writes.
-      It applies the register step (refused with
-      VultronInvalidStateTransitionError in STRICT mode) and cascades any
-      required PEC side-effects. Bypassing it skips the fail-closed reads of
-      EMB-18-003 and the PEC cascade, and a status EM assigned directly is
-      overwritten by the register's derived value. Source: CONCERN-2412 audit.
+      EmbargoLifecycle and the one apply function are the only embargo
+      writers; the copy model moves each act to the second as it comes to be
+      committed before it is applied (#4294). Bypassing both skips the
+      fail-closed reads of EMB-18-003, the PEC cascade and the shared
+      starting-state and EM checks, and a status EM assigned directly is
+      overwritten by the register's derived value. Source: CONCERN-2412.
     relationships:
     - rel_type: refines
       spec_id: SM-04-001

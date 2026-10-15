@@ -1173,3 +1173,159 @@ def test_a_fresh_repeat_of_an_embargo_answer_changes_no_consent(
     store.deliver(store.build_answer())
 
     assert store.case_and_sender() == before
+
+
+_CLOSED_CASE = "https://example.org/cases/case_closed_invitee"
+_CLOSED_MANAGER = "https://example.org/users/coordinator"
+_CLOSED_VENDOR = "https://example.org/users/vendor"
+
+
+def _closed_invitee_store(closed: bool) -> tuple[Any, Any, Any, str]:
+    """The CASE_MANAGER's store: an open embargo Invite to a vendor.
+
+    When *closed*, the vendor left the case (RM ``CLOSED``) while the Invite
+    was open.  Returns the store, the Invite, the vendor's record id and the
+    embargo id.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CLOSED_MANAGER)
+    case = VulnerabilityCase(
+        id_=_CLOSED_CASE, name="Closed invitee", attributed_to=_CLOSED_MANAGER
+    )
+    embargo = as_EmbargoEvent(
+        id_=f"{_CLOSED_CASE}/embargo_events/e1",
+        content="Embargo",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    manager = CaseParticipant(
+        id_=f"{_CLOSED_CASE}/participants/coord",
+        attributed_to=_CLOSED_MANAGER,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    vendor = CaseParticipant(
+        id_=f"{_CLOSED_CASE}/participants/vendor",
+        attributed_to=_CLOSED_VENDOR,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    if closed:
+        vendor.participant_statuses.append(
+            ParticipantStatus(
+                context=case.id_,
+                attributed_to=_CLOSED_VENDOR,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        )
+    invite = em_propose_embargo_activity(
+        embargo,
+        context=case.id_,
+        actor=_CLOSED_MANAGER,
+        to=[_CLOSED_VENDOR],
+        id_=f"{_CLOSED_CASE}/embargo_proposals/1",
+    )
+    propose(case, embargo.id_)
+    case.add_participant(manager)
+    case.add_participant(vendor)
+    for record in (case, embargo, manager, vendor, invite):
+        dl.create(record)
+    return dl, invite, vendor.id_, embargo.id_
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.parametrize(
+    ("build", "use_case"),
+    [
+        (
+            em_accept_embargo_activity,
+            AcceptInviteToEmbargoOnCaseReceivedUseCase,
+        ),
+        (
+            em_reject_embargo_activity,
+            RejectInviteToEmbargoOnCaseReceivedUseCase,
+        ),
+    ],
+    ids=["accept", "reject"],
+)
+def test_a_closed_invitees_embargo_answer_is_refused(
+    build, use_case, make_payload
+):
+    """A participant that left the case answers no embargo Invite.
+
+    Its answer is REFUSED before any write: no consent recorded, no ledger
+    entry and nothing sent (CM-23-018).
+    """
+    dl, invite, vendor_id, embargo_id = _closed_invitee_store(closed=True)
+    consent_before = cast(Any, dl.read(vendor_id)).consent_for(embargo_id)
+    entries_before = len(dl.list_objects("CaseLedgerEntry"))
+    event = make_payload(
+        build(
+            invite,
+            context=_CLOSED_CASE,
+            actor=_CLOSED_VENDOR,
+            to=[_CLOSED_MANAGER],
+        ),
+        receiving_actor_id=_CLOSED_MANAGER,
+    )
+
+    result = use_case(
+        dl,
+        event,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert "CM-23-018" in (result.reason or "")
+    assert cast(Any, dl.read(vendor_id)).consent_for(embargo_id) == (
+        consent_before
+    )
+    assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+    assert list(dl.outbox_list()) == []
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.parametrize(
+    ("build", "use_case"),
+    [
+        (
+            em_accept_embargo_activity,
+            AcceptInviteToEmbargoOnCaseReceivedUseCase,
+        ),
+        (
+            em_reject_embargo_activity,
+            RejectInviteToEmbargoOnCaseReceivedUseCase,
+        ),
+    ],
+    ids=["accept", "reject"],
+)
+def test_an_open_invitees_embargo_answer_is_not_refused(
+    build, use_case, make_payload
+):
+    """Control: the same answer from the vendor before it leaves is acted on."""
+    dl, invite, _vendor_id, _embargo_id = _closed_invitee_store(closed=False)
+    event = make_payload(
+        build(
+            invite,
+            context=_CLOSED_CASE,
+            actor=_CLOSED_VENDOR,
+            to=[_CLOSED_MANAGER],
+        ),
+        receiving_actor_id=_CLOSED_MANAGER,
+    )
+
+    result = use_case(
+        dl,
+        event,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason

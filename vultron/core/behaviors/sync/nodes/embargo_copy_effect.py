@@ -38,7 +38,7 @@ CASE_MANAGER's ``Create(EmbargoConsent)`` and ``Update(EmbargoConsent)``
 entries, each carrying one consent row in full.  The register-step slots of
 the embargo acts subclass the same frame: the proposal's ``PROPOSE``
 (``relay_effect.py``) and the abandonment's ``CANCEL`` (``abandon.py``),
-with #4714, #4716 and #4717 converting the rest.
+with #4716 and #4717 converting the rest (teardown was #4714).
 """
 
 from __future__ import annotations

@@ -58,14 +58,13 @@ from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_INVITE_EVENT_TYPE,
     EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
-    EMBARGO_TEARDOWN_EVENT_TYPE,
     AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
     ActivateEmbargoLifecycleNode,
     CollectEmbargoInviteRecipientsNode,
+    CommitAndApplyEmbargoTerminationNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoProposalNode,
-    CommitEmbargoTeardownNode,
     EmbargoActivityBuilder,
     HasActiveEmbargoNode,
     IndexOwnEmbargoProposalNode,
@@ -79,7 +78,6 @@ from vultron.core.behaviors.embargo.nodes import (
     RejectEmbargoLifecycleNode,
     RejectEmbargoProposalLifecycleNode,
     RelayEmbargoInviteToEachNode,
-    TerminateEmbargoLifecycleNode,
     ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
     WithdrawEmbargoLifecycleNode,
@@ -594,13 +592,16 @@ def terminate_embargo_bt(
     1. ``HasActiveEmbargoNode`` / ``ReadEmbargoIdNode`` — read embargo_id
        from the case; FAILURE if absent.
     2. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
-    3. As the CASE_MANAGER: ``TerminateEmbargoLifecycleNode`` (EM write), then
-       commit the ``Remove(EmbargoEvent)`` as the canonical entry the
-       ``EmbargoTeardown`` slot replays, addressed to every other participant
-       and never to the manager (EMB-19-001, CLP-10-001, #4112), then the
-       ``Add(CaseStatus)`` declaration, then a direct ``Remove(EmbargoEvent)``
-       to each bound signatory the ledger no longer reaches (CM-31-009),
-       crediting *requested_by* when another actor asked for the end.
+    3. As the CASE_MANAGER: ``CommitAndApplyEmbargoTerminationNode`` decides
+       the ``TERMINATE`` step, commits the ``Remove(EmbargoEvent)`` that
+       carries it as the canonical entry the ``EmbargoTeardown`` slot copies,
+       addressed to every other participant and never to the manager
+       (EMB-19-001, CLP-10-001, #4112), and only then applies the step
+       through the one apply function (ADR-0124), so a failed commit writes
+       nothing; then the ``Add(CaseStatus)`` declaration, then a direct
+       ``Remove(EmbargoEvent)`` to each bound signatory the ledger no longer
+       reaches (CM-31-009), crediting *requested_by* when another actor
+       asked for the end.
     4. As any other participant: no EM write; the ``Remove`` is queued to the
        CASE_MANAGER as a request (PCR-08-001) and recorded as a pending
        assertion keyed by the ended embargo (EP-09-008, SYNC-11-002) — by
@@ -617,12 +618,6 @@ def terminate_embargo_bt(
     defaults.
     """
     if activity_builder is not None:
-        commit: py_trees.behaviour.Behaviour = CommitEmbargoDecisionNode(
-            case_id=case_id,
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
-            builder=activity_builder,
-            notify_participants=True,
-        )
         ask: py_trees.behaviour.Behaviour = py_trees.composites.Sequence(
             name="QueueToCaseManager",
             memory=False,
@@ -634,7 +629,6 @@ def terminate_embargo_bt(
             ],
         )
     else:
-        commit = CommitEmbargoTeardownNode(case_id=case_id)
         # The ask carries the what; a threat-signal termination is EARLY.
         ask = ask_case_manager_to_terminate_once(case_id, termination.reason)
     capture, notices = embargo_ending_notice_nodes(
@@ -653,13 +647,14 @@ def terminate_embargo_bt(
                 case_id,
                 as_case_manager=[
                     capture,
-                    TerminateEmbargoLifecycleNode(
+                    # Decide, commit the Remove, then apply it (ADR-0124).
+                    CommitAndApplyEmbargoTerminationNode(
                         case_id=case_id,
                         result_out=result_out,
                         termination=termination,
                         terminated_at=terminated_at,
+                        builder=activity_builder,
                     ),
-                    commit,
                     _make_emit_node(case_id),
                     notices,
                     # Termination changes the terms of every stub Invite still

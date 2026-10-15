@@ -41,8 +41,9 @@ Composition:
 Each kind's node reads the records the context names.  ``NAMED_ACTOR`` is
 one kind whatever the request (HP-01-009): the context's ``request`` names the
 record holding it, and the factory picks the small check for that record, all
-on one addressee base (``SenderIsRequestAddresseeNode``).  ``AUTHOR`` reads
-the changed object the context names.
+on one addressee base (``SenderIsRequestAddresseeNode``).  ``AUTHOR`` is one
+kind whatever the object: the context's ``authored_object`` names it, and the
+factory picks the note-author or proposal-author check for it.
 
 An empty side composes :class:`NoSenderAdmittedNode`, so an activity that
 names no case is refused under a rule with no ``outside_case`` side; ``ANY_ACTOR`` composes
@@ -56,8 +57,10 @@ import py_trees
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
+    SenderClosureNotRecordedNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
+    SenderIsActiveLedgerParticipantNode,
     SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -69,6 +72,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsOwnershipTransfereeNode,
     SenderIsParticipantNode,
     SenderIsProposalAddresseeNode,
+    SenderIsProposalAuthorNode,
     SenderIsRequestAddresseeNode,
     SenderRule,
     in_declaration_order,
@@ -77,10 +81,14 @@ from vultron.errors import VultronWiringError
 
 __all__ = [
     "AddresseeRequest",
+    "AuthoredCaseProposal",
+    "AuthoredNote",
+    "AuthoredObject",
     "CaseProposalRequest",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
     "SenderCheckContext",
+    "closed_sender_guard",
     "compose_sender_guard",
     "embargo_sender_context",
 ]
@@ -136,6 +144,34 @@ AddresseeRequest = (
 
 
 @dataclass(frozen=True)
+class AuthoredNote:
+    """An ``AUTHOR`` sender must have written this note, and still be an
+    active participant of the case (CM-30-001).
+
+    Attributes:
+        note_id: The note being removed.
+    """
+
+    note_id: str
+
+
+@dataclass(frozen=True)
+class AuthoredCaseProposal:
+    """An ``AUTHOR`` sender must be this proposal's proposer, as the
+    CASE_MANAGER recorded it for the proposal id (CP-05-010).
+
+    Attributes:
+        proposal_id: The proposal the ``Create(CaseProposal)`` carries.
+    """
+
+    proposal_id: str
+
+
+#: The object an ``AUTHOR`` sender must have written.
+AuthoredObject = AuthoredNote | AuthoredCaseProposal
+
+
+@dataclass(frozen=True)
 class SenderCheckContext:
     """What the kinds' condition nodes need to check one received activity.
 
@@ -158,8 +194,8 @@ class SenderCheckContext:
             answers; it picks the addressee check (HP-01-009).  An
             :class:`OwnershipOfferRequest` also makes a ``CASE_OWNER`` sender
             the Case Owner that made the Offer.
-        authored_object_id: The object an ``AUTHOR`` sender must have
-            written: the note being removed (CM-30-001).
+        authored_object: The object an ``AUTHOR`` sender must have written;
+            it picks the author check (HP-01-009).
         offered_ownership_id: A new ownership-transfer Offer's own id: a
             ``CASE_OWNER`` sender must hold the role, unless it redelivers
             an Offer the CASE_MANAGER recorded from it (CM-21-019,
@@ -173,7 +209,7 @@ class SenderCheckContext:
     case_manager_anchored: bool = False
     case_manager_required: bool = False
     request: AddresseeRequest | None = None
-    authored_object_id: str | None = None
+    authored_object: AuthoredObject | None = None
     offered_ownership_id: str | None = None
 
 
@@ -190,6 +226,22 @@ def embargo_sender_context(
     """
     return SenderCheckContext(
         sender_id=sender_id, case_id=case_id, case_manager_required=True
+    )
+
+
+def closed_sender_guard(
+    case_id: str, sender_id: str
+) -> SenderClosureNotRecordedNode:
+    """The CM-23-018 check that the case does not record the sender's closure.
+
+    Built here, beside the kinds' guards, so the closed-sender pre-flight
+    (``vultron.core.use_cases.received._sender_preflight``) never names a
+    sender node itself (HP-01-007).  It is not a kind: it tells a repeated
+    closing act (``SKIPPED``) from any other act of a closed sender
+    (``REFUSED``) before a handler's received tree runs.
+    """
+    return SenderClosureNotRecordedNode(
+        case_id=case_id, sender_actor_id=sender_id
     )
 
 
@@ -215,6 +267,28 @@ def _addressee_node(
     raise VultronWiringError(
         "compose_sender_guard: a NAMED_ACTOR kind needs the record holding"
         " its request in SenderCheckContext.request (HP-01-009)"
+    )
+
+
+def _author_node(
+    ctx: SenderCheckContext,
+) -> SenderIsNoteAuthorNode | SenderIsProposalAuthorNode:
+    """The ``AUTHOR`` check for the object *ctx* names (HP-01-009)."""
+    authored = ctx.authored_object
+    if isinstance(authored, AuthoredNote):
+        return SenderIsNoteAuthorNode(
+            note_id=authored.note_id,
+            sender_actor_id=ctx.sender_id,
+            case_id=_case_of(ctx, "the author of a note"),
+        )
+    if isinstance(authored, AuthoredCaseProposal):
+        return SenderIsProposalAuthorNode(
+            proposal_id=authored.proposal_id, sender_actor_id=ctx.sender_id
+        )
+    raise VultronWiringError(
+        "compose_sender_guard: an AUTHOR kind needs the object its sender"
+        " must have written in SenderCheckContext.authored_object"
+        " (HP-01-009)"
     )
 
 
@@ -270,6 +344,12 @@ def _kind_node(
     """The condition node that checks *kind* for the activity in *ctx*."""
     if (membership := _MEMBERSHIP_NODES.get(kind)) is not None:
         return membership(sender_actor_id=ctx.sender_id, case_id=ctx.case_id)
+    if kind is SenderEntitlementKind.LEDGER_PEER:
+        # Reads the sender and the case from the ledger activity on the
+        # blackboard (SYNC-03-005).
+        return SenderIsActiveLedgerParticipantNode(
+            name="SenderIsActiveLedgerParticipant"
+        )
     if kind is SenderEntitlementKind.CASE_MANAGER:
         return SenderIsCaseManagerNode(
             case_id=ctx.case_id,
@@ -282,17 +362,7 @@ def _kind_node(
     if kind is SenderEntitlementKind.NAMED_ACTOR:
         return _addressee_node(ctx)
     if kind is SenderEntitlementKind.AUTHOR:
-        if ctx.authored_object_id is None:
-            raise VultronWiringError(
-                "compose_sender_guard: an AUTHOR kind needs the changed"
-                " object's id in SenderCheckContext.authored_object_id"
-                " (HP-01-009)"
-            )
-        return SenderIsNoteAuthorNode(
-            note_id=ctx.authored_object_id,
-            sender_actor_id=ctx.sender_id,
-            case_id=_case_of(ctx, "the author of an object"),
-        )
+        return _author_node(ctx)
     if kind is SenderEntitlementKind.INVITEE:
         if ctx.invite_id is None:
             raise VultronWiringError(
@@ -303,6 +373,7 @@ def _kind_node(
             invite_id=ctx.invite_id,
             sender_actor_id=ctx.sender_id,
             case_id=ctx.case_id if ctx.invite_is_case_join else None,
+            closure_case_id=ctx.case_id,
         )
     # ANY_ACTOR composes no node (see _any_of), so no kind reaches here.
     raise VultronWiringError(
@@ -357,7 +428,7 @@ def compose_sender_guard(
         VultronWiringError: The context lacks a record a kind needs: an
             ``INVITEE`` kind without ``invite_id``, a ``NAMED_ACTOR`` kind
             without ``request``, an ``AUTHOR`` kind without
-            ``authored_object_id``, or a case-scoped check without
+            ``authored_object``, or a case-scoped check without
             ``case_id``.
     """
     if ctx.case_id is None:

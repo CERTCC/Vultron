@@ -25,17 +25,25 @@ Entitlement kinds
 - ``CASE_MANAGER`` — sender must be the case's ``CVDRole.CASE_MANAGER``
   (PCR-03-001, SYNC-13-006)
 - ``CASE_OWNER`` — sender must hold ``CVDRole.CASE_OWNER``
-- ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004:
-  joined and a signatory to the embargo in force (the RM ``CLOSED`` refusal is
-  tracked by #4615)
+- ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004
+  (joined and a signatory to the embargo in force) whose closure the case does
+  not record: a participant at RM ``CLOSED`` may act on nothing further
+  (CM-23-018).  Every guard for it asks one predicate,
+  :func:`~vultron.core.participants.recipients.may_act_on_case`
 - ``PARTICIPANT`` — sender must have a participant record on the case, active
-  or not
+  or not, whose closure the case does not record (CM-23-018)
+- ``LEDGER_PEER`` — sender must be an active participant per CM-10-004, at RM
+  ``CLOSED`` or not: the one standing for a ``Reject(CaseLedgerEntry)``
+  resync request, whose replay to a closed peer stops at its own closure
+  entries (SYNC-03-005, CM-23-004, CM-23-018)
 - ``NAMED_ACTOR`` — sender must be the addressee of the request it answers, as
   this store recorded it: the one addressee kind (HP-01-009, ADR-0129)
 - ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
   it answers (EP-09-010, CM-11-017)
-- ``AUTHOR`` — sender must be the author of the object being changed, and an
-  active participant (HP-01-009, CM-30-001)
+- ``AUTHOR`` — sender must be the author of the object it sends or changes, as
+  this store recorded it: a note's author, who must also be an active
+  participant (CM-30-001), or a case proposal's proposer (CP-05-010)
+  (HP-01-009)
 - ``ANY_ACTOR`` — any actor may send it, whatever its standing in any case: a new
   report, which precedes any case (HP-01-010, HP-01-011).
   It is a declared rule, not an exemption, and has no condition node: there is
@@ -76,12 +84,14 @@ missing attribute.
 Nodes
 -----
 - ``SenderIsParticipantNode`` — guards that the case lists a participant
-  record for the sender (``PARTICIPANT``); merged from
-  ``VerifySenderIsParticipantNode``
+  record for the sender whose closure is not recorded (``PARTICIPANT``;
+  CM-23-018); merged from ``VerifySenderIsParticipantNode``
 - ``SenderIsActiveParticipantNode`` — guards that the sender is an active
-  participant of the case (``ACTIVE_PARTICIPANT``; CM-10-004)
+  participant whose closure is not recorded (``ACTIVE_PARTICIPANT``;
+  CM-10-004, CM-23-018)
 - ``SenderIsActiveLedgerParticipantNode`` — guards that the sender is an active
-  participant of the case named by a ledger activity on the blackboard
+  participant, closed or not, of the case named by a ledger activity on the
+  blackboard (``LEDGER_PEER`` kind; SYNC-03-005)
 - ``SenderIsCaseManagerNode`` — guards that the sender is the case's
   CASE_MANAGER; merged from ``VerifySenderIsCaseActorNode`` and, as the check
   that the CASE_MANAGER's own announcement came from itself, from
@@ -111,7 +121,14 @@ Nodes
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
   merged from ``CheckIsCaseOwnerNode``
 - ``SenderIsNoteAuthorNode`` — guards that the sender is the note's author and
-  an active participant (``AUTHOR`` kind; CM-30-001)
+  an active participant whose closure is not recorded (``AUTHOR`` kind;
+  CM-30-001, CM-23-018)
+- ``SenderIsProposalAuthorNode`` — guards that the sender of a
+  ``Create(CaseProposal)`` is the proposer this store recorded for the
+  proposal id, when it recorded one (``AUTHOR`` kind; CP-05-010)
+- ``SenderClosureNotRecordedNode`` — guards that the case does not record the
+  sender's closure; the closed-sender pre-flight runs it to tell a repeated
+  closing act (``SKIPPED``) from any other act (``REFUSED``) (CM-23-018)
 - ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
   leaves empty (HP-01-008)
 - ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
@@ -141,6 +158,12 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_proposal_admission import (
+    CaseProposalAdmissionRecord,
+)
+from vultron.core.models.case_proposal_decline import (
+    CaseProposalDeclineRecord,
+)
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -150,7 +173,11 @@ from vultron.core.participants.ownership_offer import (
     recorded_ownership_offer,
     recorded_ownership_offer_sender,
 )
-from vultron.core.participants.recipients import is_case_content_recipient
+from vultron.core.participants.recipients import (
+    closure_recorded,
+    is_case_content_recipient,
+    may_act_on_case,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
     distinct_recipients,
@@ -236,19 +263,36 @@ class SenderEntitlementKind(Enum):
     """Sender must hold ``CVDRole.CASE_OWNER``."""
 
     ACTIVE_PARTICIPANT = ("an active participant", "Active Participant")
-    """Sender must be an active participant per CM-10-004.
+    """Sender must be an active participant whose closure is not recorded.
 
-    Active means joined and, while an embargo is in force, a signatory to it;
-    a removed participant is not active.  Compare ``PARTICIPANT``, which any
-    participant record on the case satisfies.
+    Active per CM-10-004: joined and, while an embargo is in force, a
+    signatory to it; a removed participant is not active.  And not at RM
+    ``CLOSED``: a participant that has left the case may act on nothing
+    further (CM-23-018).  Every guard for this kind asks one predicate,
+    :func:`~vultron.core.participants.recipients.may_act_on_case`.  Compare
+    ``PARTICIPANT``, which any open participant record on the case satisfies.
     """
 
     PARTICIPANT = ("a participant", "Participant")
-    """Sender must have a participant record on the case.
+    """Sender must have a participant record on the case, not closed.
 
     The record may be inert or removed: an invitee that has not answered and a
-    removed participant both hold one.  Use ``ACTIVE_PARTICIPANT`` when the
-    sender must be entitled to the case's content (CM-10-004).
+    removed participant both hold one.  A record at RM ``CLOSED`` does not:
+    that participant has left the case (CM-23-018).  Use
+    ``ACTIVE_PARTICIPANT`` when the sender must be entitled to the case's
+    content (CM-10-004).
+    """
+
+    LEDGER_PEER = (
+        "an active participant, including one that has left the case",
+        "Active Participant",
+    )
+    """Sender must be an active participant, at RM ``CLOSED`` or not.
+
+    The standing of a ``Reject(CaseLedgerEntry)`` resync request
+    (SYNC-03-005): a closed participant keeps it, and the replay it is
+    answered with stops at the entries that record its own closure
+    (CM-23-004, CM-23-018).  No other use case declares it.
     """
 
     NAMED_ACTOR = ("the addressee of the {object}", "Addressee")
@@ -258,16 +302,26 @@ class SenderEntitlementKind(Enum):
     sender against the addressee it recorded for the request (the case
     proposal's report case link, the report Offer's record, the ledgered
     ownership-transfer Offer), never against the copy the reply embeds.
+    A transferee whose closure the case records is refused (CM-23-018).
     """
 
     INVITEE = ("the invitee", "Invitee")
-    """Sender must be the sole ``to`` recipient of the recorded Invite."""
+    """Sender must be the sole ``to`` recipient of the recorded Invite.
+
+    An invitee whose closure the case records (RM ``CLOSED``) is refused: it
+    has left the case and may answer nothing further (CM-23-018).
+    """
 
     AUTHOR = ("the {object}'s author", "Author")
-    """Sender must be the author of the object being changed (HP-01-009).
+    """Sender must be the author of the object it sends or changes (HP-01-009).
 
-    The author is the object's ``attributed_to`` as this store recorded it,
-    and must still be an active participant of the case (CM-10-004).
+    The author is the object's ``attributed_to`` as this store recorded it.
+    A note's author must still be an active participant of the case
+    (CM-10-004, CM-30-001).  A case proposal's author is the proposer the
+    CASE_MANAGER recorded for its proposal id when it admitted, declined or
+    stored it; a proposal id it has not recorded is a new proposal, whose
+    author the parse edge has already matched to the sender (CP-05-010,
+    CP-01-010).
     """
 
     ANY_ACTOR = ("any actor", "Actor")
@@ -548,7 +602,11 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
 
     Returns ``SUCCESS`` when the case lists a participant record for the
     sender, whether or not that participant is active (CM-10-004): an inert
-    invitee and a removed participant pass.
+    invitee and a removed participant pass.  A participant whose closure the
+    case records (RM ``CLOSED``) fails: it has left and may act on nothing
+    further (CM-23-018; the same test as
+    :func:`~vultron.core.participants.recipients.closure_recorded`, asked of
+    the record the lookup found).
     Returns ``FAILURE`` otherwise, halting the parent ``Sequence`` with a
     REFUSED outcome.
 
@@ -613,6 +671,18 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
             )
             return Status.FAILURE
 
+        # The record the lookup above found, not a second lookup through the
+        # index, so the two can never disagree about which record is closed.
+        record = self.found_participant
+        if record is not None and record.rm_closed:
+            self.feedback_message = (
+                f"Sender '{self.sender_actor_id}' has left case '{case_id}'"
+                " (RM CLOSED) and may act on nothing further — REFUSED"
+                " (HP-01-006, CM-23-018)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         self.logger.debug(
             "%s: sender '%s' is a participant in case '%s'"
             " (HP-01-006, DEMOMA-07-003 step 1)",
@@ -629,19 +699,22 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
 
 
 class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
-    """Guard: sender must be an active participant of the case (CM-10-004).
+    """Guard: sender must be an active participant whose closure is not recorded.
 
-    Active means joined, not removed, and a signatory to the embargo in force
-    (:func:`~vultron.core.participants.recipients.is_case_content_recipient`).
-    An inert invitee and a removed participant fail, as does a sender the
-    case does not list.  With no ``case_id``, or a case this store does not
-    hold, there is no standing to check, so the sender is refused (Regime 1,
-    ADR-0087).
+    The guard of the ``ACTIVE_PARTICIPANT`` kind (CM-23-018).  Active means
+    joined, not removed, and a signatory to the embargo in force (CM-10-004);
+    the sender must also not be at RM ``CLOSED``, because a participant that
+    has left may act on nothing further.  Both are asked through the one
+    shared predicate,
+    :func:`~vultron.core.participants.recipients.may_act_on_case`.  An inert
+    invitee, a removed participant, a closed participant and a sender the
+    case does not list all fail.  A closed participant's resync request is
+    the ``LEDGER_PEER`` kind's instead
+    (:class:`SenderIsActiveLedgerParticipantNode`).  With no ``case_id``, or
+    a case this store does not hold, there is no standing to check, so the
+    sender is refused (Regime 1, ADR-0087).
 
-    It does not yet refuse a sender at RM ``CLOSED``; #4615 adds that
-    (CM-23-018).
-
-    Spec: CM-10-004, HP-01-006, HP-01-009.
+    Spec: CM-23-018, CM-10-004, HP-01-006, HP-01-009.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -674,26 +747,27 @@ class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: no case, so no standing to check
-        if is_case_content_recipient(
-            case, self.datalayer, self.sender_actor_id
-        ):
+        if may_act_on_case(case, self.datalayer, self.sender_actor_id):
             return Status.SUCCESS
         self.feedback_message = (
             f"Sender '{self.sender_actor_id}' is not an active participant"
-            f" of case '{self.case_id}' — REFUSED (HP-01-006, CM-10-004)"
+            f" of case '{self.case_id}', or has left it — REFUSED"
+            " (HP-01-006, CM-10-004, CM-23-018)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
-# Condition node: ACTIVE_PARTICIPANT (ledger activity on the blackboard)
+# Condition node: LEDGER_PEER (ledger activity on the blackboard)
 # ---------------------------------------------------------------------------
 
 
 class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     """Guard: sender must be an active participant of the ledger entry's case.
 
+    The guard of the ``LEDGER_PEER`` kind, the standing of a
+    ``Reject(CaseLedgerEntry)`` resync request (SYNC-03-005).
     Reads ``activity`` from the blackboard and takes the case from the
     ``CaseLedgerEntry`` it carries.
     Returns ``SUCCESS`` only when the sender is an active participant of that
@@ -703,11 +777,17 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     participant all return ``FAILURE``: there is nothing to replay to a sender
     the case cannot vouch for, so there is no bootstrap pass-through here.
 
-    Spec: SYNC-03-005, CM-10-004, HP-01-006.
+    A participant at RM ``CLOSED`` passes: it may still ask for the entries
+    that record its own closure, and the replay stops there
+    (:func:`~vultron.core.participants.recipients.closed_participant_ledger_cutoff`,
+    CM-23-004, CM-23-018).  This is the one participant guard that does not
+    refuse a closed sender.
+
+    Spec: SYNC-03-005, CM-10-004, CM-23-018, HP-01-006.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.LEDGER_PEER
     )
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -1193,7 +1273,12 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
     stub Invite names its case through its stub target, and an invitee of one
     case cannot answer for another.
 
-    Spec: EP-09-010, CM-11-017, HP-01-006.
+    When ``closure_case_id`` is given, an invitee whose closure that case
+    records (RM ``CLOSED``) is refused too: it has left the case and may
+    answer nothing further (CM-23-018).  A repeat of a ``Reject`` that closed
+    it is ``SKIPPED`` by the handler's pre-flight before this guard runs.
+
+    Spec: EP-09-010, CM-11-017, CM-23-018, HP-01-006.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -1207,11 +1292,13 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         name: str | None = None,
         *,
         case_id: str | None = None,
+        closure_case_id: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._invite_id = invite_id
         self._sender_actor_id = sender_actor_id
         self._case_id = case_id
+        self._closure_case_id = closure_case_id
 
     @staticmethod
     def _named_case(invite: object) -> str | None:
@@ -1219,6 +1306,24 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         target = getattr(invite, "target", None)
         stub_case = getattr(target, "case_id", None)
         return stub_case if isinstance(stub_case, str) else _as_id(target)
+
+    def _admit_unless_closed(self) -> Status:
+        """SUCCESS, unless the case records the invitee's closure (CM-23-018)."""
+        if self._closure_case_id is None:
+            return Status.SUCCESS
+        assert self.datalayer is not None
+        case = self.datalayer.read(self._closure_case_id)
+        if not isinstance(case, VulnerabilityCase) or not closure_recorded(
+            case, self.datalayer, self._sender_actor_id
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"Invitee '{self._sender_actor_id}' has left case"
+            f" '{self._closure_case_id}' (RM CLOSED) and may answer nothing"
+            " further — REFUSED (CM-23-018, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
     def _refuse_case_join(self, why: str) -> Status:
         self.feedback_message = (
@@ -1242,7 +1347,7 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         )
         if len(recipients) == 1 and same_actor_id(sender, recipients[0]):
             if self._case_id is None:
-                return Status.SUCCESS
+                return self._admit_unless_closed()
             issuer = _as_id(getattr(invite, "actor", None))
             if issuer is None or not same_actor_id(
                 issuer, self.actor_id or ""
@@ -1255,7 +1360,7 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
                 return self._refuse_case_join(
                     f"is for case '{named_case}', not '{self._case_id}'"
                 )
-            return Status.SUCCESS
+            return self._admit_unless_closed()
 
         if invite is None:
             why = f"Invite '{self._invite_id}' was never recorded here"
@@ -1383,7 +1488,10 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
     The transferee is the addressee of the request, so the kind is
     ``NAMED_ACTOR`` (ADR-0129); see :class:`SenderIsOwnershipOfferPartyNode`.
 
-    Spec: CM-21-011, CM-21-013, HP-01-006.
+    A transferee whose closure the case records is refused: it has left the
+    case (CM-23-018).
+
+    Spec: CM-21-011, CM-21-013, CM-23-018, HP-01-006.
     """
 
     _spec = "CM-21-011"
@@ -1395,6 +1503,20 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
             position="the transferee",
             addressees=(offer.transferee_id,),
         )
+
+    def _confirm_standing(self, request: RecordedRequest) -> None:
+        """Refuse a transferee whose closure the case records (CM-23-018).
+
+        Raises:
+            NoStandingError: The transferee has left the case (RM ``CLOSED``).
+        """
+        assert self.datalayer is not None and self._case is not None
+        if closure_recorded(self._case, self.datalayer, self.sender_actor_id):
+            raise NoStandingError(
+                f"Transferee '{self.sender_actor_id}' has left case"
+                f" '{self._case_id}' (RM CLOSED) and may answer nothing"
+                " further (CM-23-018)"
+            )
 
 
 class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
@@ -1719,9 +1841,11 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
     ``attributed_to`` with the sender.
     Returns ``FAILURE`` for an unknown note, a note with no recorded author, a
     different sender, and an author who is no longer an active participant of
-    the case (CM-10-004, the rule #2257 records).
+    the case: one that is not an active participant (CM-10-004) or whose
+    closure the case records (CM-23-018), asked through
+    :func:`~vultron.core.participants.recipients.may_act_on_case`.
 
-    Spec: CM-30-001, CM-10-004, HP-01-006.
+    Spec: CM-30-001, CM-10-004, CM-23-018, HP-01-006.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -1754,19 +1878,157 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
         if (
             author is not None
             and same_actor_id(self.sender_actor_id, author)
-            and is_case_content_recipient(
-                case, self.datalayer, self.sender_actor_id
-            )
+            and may_act_on_case(case, self.datalayer, self.sender_actor_id)
         ):
             return Status.SUCCESS
 
         self.feedback_message = (
             f"Sender '{self.sender_actor_id}' is not the author of note"
             f" '{self.note_id}' (author: '{author}') or not an active"
-            f" participant of case '{self.case_id}' — REFUSED"
-            " (CM-30-001, HP-01-006)"
+            f" participant of case '{self.case_id}' that has not left it"
+            " — REFUSED (CM-30-001, CM-23-018, HP-01-006)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
+    """Guard: the sender of a ``Create(CaseProposal)`` is the proposal's author.
+
+    The proposal id is chosen by the sender, and every proposal-keyed record
+    is keyed on it alone.  The CASE_MANAGER records the proposer when it
+    admits the proposal (``CaseProposalAdmissionRecord``) or declines it
+    (``CaseProposalDeclineRecord``), and it stores the proposal itself, whose
+    ``attributed_to`` is the proposer, when it sends the ``Accept`` or
+    ``Reject``.  A store written before the admission record existed holds
+    only that stored proposal, so it is read too.  A delivery of that
+    proposal id is a redelivery only from that proposer (CP-05-006,
+    CP-05-010).
+
+    - Nothing recorded for the proposal id: ``SUCCESS``.  It is a new
+      proposal, and the parse edge has already refused a proposal whose
+      ``attributed_to`` is not its sender (CP-01-010).
+    - Every recorded proposer is the sender: ``SUCCESS``, a redelivery.
+    - Any recorded proposer is another actor: ``FAILURE``, so the tree ends
+      ``REFUSED`` before any arm writes a record or sends an answer.
+
+    A store error is not caught: it fails the tree, which refuses rather than
+    admits (``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails
+    Toward 'Admit'").
+
+    Spec: CP-05-006, CP-05-010, HP-01-006, HP-01-009.
+    """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.AUTHOR
+    )
+
+    _RECORDS: ClassVar[
+        tuple[
+            type[CaseProposalAdmissionRecord]
+            | type[CaseProposalDeclineRecord],
+            ...,
+        ]
+    ] = (CaseProposalAdmissionRecord, CaseProposalDeclineRecord)
+
+    def __init__(
+        self,
+        proposal_id: str,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.proposal_id = proposal_id
+        self.sender_actor_id = sender_actor_id
+
+    def _recorded_proposers(self) -> list[str]:
+        """Every proposer this store recorded for the proposal id."""
+        assert self.datalayer is not None
+        proposers: list[str] = []
+        for record_type in self._RECORDS:
+            record = self.datalayer.read(
+                record_type.build_id(self.proposal_id)
+            )
+            if isinstance(record, record_type):
+                proposers.append(record.proposer_uri)
+        stored = self.datalayer.read(self.proposal_id)
+        author = _as_id(getattr(stored, "attributed_to", None))
+        if author:
+            proposers.append(author)
+        return proposers
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        for proposer in self._recorded_proposers():
+            if same_actor_id(proposer, self.sender_actor_id):
+                continue
+            self.feedback_message = (
+                f"Sender '{self.sender_actor_id}' is not the author of"
+                f" CaseProposal '{self.proposal_id}', which this store"
+                f" recorded for '{proposer}' — REFUSED"
+                " (CP-05-010, HP-01-006)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Condition node: the sender's closure is not recorded (CM-23-018)
+# ---------------------------------------------------------------------------
+
+
+class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
+    """Guard: the case does not record the sender's closure (CM-23-018).
+
+    A participant whose closure the case records (RM ``CLOSED``) may act on
+    nothing further, except that a repeat of an act that would close it
+    again changes nothing and is reported ``SKIPPED``, whatever its activity
+    id (ID-05-003).  This node is the check the closed-sender pre-flight runs
+    before a handler's received tree
+    (:func:`vultron.core.use_cases.received._sender_preflight.closed_sender_preflight`),
+    built by :func:`vultron.core.behaviors.sender_guard.closed_sender_guard`.
+
+    SUCCESS when the sender is not at RM ``CLOSED`` here, or when this store
+    holds no such case: the received tree decides what the act means.
+
+    FAILURE with :attr:`sender_closed` set when the case records the
+    sender's closure (:func:`~vultron.core.participants.recipients.closure_recorded`).
+    The handler reports an act that would close the sender again as
+    ``SKIPPED``, and any other act as ``REFUSED``.
+
+    Keyed on the sender's recorded RM state, never on the activity id, which
+    a repeat sent under a new id does not share.  Read-only.
+
+    Spec: CM-23-018, ID-05-003, HP-01-007.
+    """
+
+    def __init__(
+        self, case_id: str, sender_actor_id: str, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.sender_actor_id = sender_actor_id
+        self.sender_closed = False
+        """``True`` when the last run found the sender's closure recorded."""
+
+    def update(self) -> Status:
+        self.sender_closed = False
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase) or not closure_recorded(
+            case, self.datalayer, self.sender_actor_id
+        ):
+            return Status.SUCCESS
+        self.sender_closed = True
+        self.feedback_message = (
+            f"'{self.sender_actor_id}' is already closed on case"
+            f" '{self.case_id}' (CM-23-018)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -1802,6 +2064,7 @@ __all__ = [
     "SenderIsOfferAddresseeNode",
     "SenderIsCaseOwnerNode",
     "SenderIsNoteAuthorNode",
+    "SenderClosureNotRecordedNode",
     "NoSenderAdmittedNode",
     "SenderHoldsNoneOfNode",
 ]

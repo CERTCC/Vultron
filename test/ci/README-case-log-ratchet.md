@@ -16,7 +16,8 @@ in each row is derived from the scenario name by convention rather than stored
 (DEMOCI-11-003). Do not hand-edit either — change the decorator and run
 `uv run demo-scenarios --write`.
 
-<!-- BEGIN GENERATED SCENARIO TABLE — do not edit; edit the @scenario decorators and run `uv run demo-scenarios --write` -->
+<!-- BEGIN GENERATED SCENARIO TABLE — do not edit; edit the @scenario
+     decorators and run `uv run demo-scenarios --write` -->
 
 | Scenario | Test file | In PR set |
 |---|---|---|

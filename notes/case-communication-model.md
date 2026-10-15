@@ -255,7 +255,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   (ADR-0124): an answer's entry carries the row it states, and every other
   consent row those acts change is the CASE_MANAGER's own
   `Create`/`Update(EmbargoConsent)` entry, which the `EmbargoConsent` slot copies. The
-  rest still run `EmbargoLifecycle` in `OBSERVED` mode until #4714, #4716 and #4717:
+  rest still run `EmbargoLifecycle` in `OBSERVED` mode until #4716 and #4717:
 
 | Entry (`event_type`) | Slot | Replica effect |
 |---|---|---|

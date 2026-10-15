@@ -1,28 +1,19 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
-    ExpiryPrompt,
-    OfferParty,
-)
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
-)
-from vultron.core.behaviors.case.ownership_expiry_tree import (
-    create_ownership_offer_expiry_tree,
 )
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
     create_reject_ownership_transfer_tree,
     create_undo_ownership_transfer_tree,
-    offer_sender_context,
 )
 from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.events.actor import (
@@ -59,68 +50,8 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.use_cases.received._sender_preflight import rule_refusal
 
 logger = logging.getLogger(__name__)
-
-
-def _expire_overdue_offer(
-    *,
-    dl: CaseOutboxPersistence,
-    case_id: str,
-    receiving_actor_id: str,
-    activity_id: str,
-    now: datetime,
-    sync_port: SyncActivityPort | None,
-    wire_render_port: "WireRenderPort | None",
-    prompt: ExpiryPrompt | None = None,
-) -> None:
-    """Ledger the expiry of the case's open Offer if its deadline passed.
-
-    The CASE_MANAGER evaluates expiry lazily, when it processes an Accept,
-    Reject or Undo of an ownership-transfer Offer or a new Offer for the case
-    (CM-21-017), so each of those use cases runs this first.  The expiry is
-    the CASE_MANAGER's own act, committed before the received activity is
-    judged (CLP-07-013), and so a tree of its own rather than a stage of the
-    received tree, which commits nothing before its guards (CLP-10-010) — the
-    split the embargo Invite expiry makes
-    (``AcceptInviteToEmbargoOnCaseReceivedUseCase._run_expiry_tree``).  Any
-    other store skips it: a replica never computes an expiry.
-
-    A reply (*prompt*) prompts the expiry only when it names the open Offer
-    and comes from its party, so a sender with no standing never makes the
-    CASE_MANAGER write (HP-01-006) — as the embargo Invite expiry checks the
-    invitee before it runs.  A new Offer passes no prompt: its handler has
-    already checked that its sender is the Case Owner (CM-21-019).
-
-    A commit the expiry tree could not make is logged and leaves the Offer
-    open; the received tree still refuses a reply after the deadline
-    (CM-21-016) and a new Offer while the old one is open (CM-21-014), so a
-    lost expiry record never admits what the deadline forbids.
-
-    Raises:
-        VultronBTInternalError: the expiry tree failed internally (ADR-0095).
-    """
-    tree = create_ownership_offer_expiry_tree(
-        case_id=case_id, now=now, prompt=prompt
-    )
-    result = BTBridge(
-        datalayer=dl,
-        wire_render_port=wire_render_port,
-        sync_port=sync_port,
-    ).execute_with_setup(tree=tree, actor_id=receiving_actor_id)
-    verdict = verdict_from_bt(
-        tree, result, label="ExpireOverdueOwnershipOfferBT"
-    )
-    if verdict.disposition is HandlerDisposition.REFUSED:
-        logger.warning(
-            "ExpireOverdueOwnershipOfferBT: no expiry recorded for case '%s'"
-            " at '%s' before processing '%s': %s",
-            case_id,
-            receiving_actor_id,
-            activity_id,
-            verdict.reason,
-        )
 
 
 class OfferCaseOwnershipTransferReceivedUseCase:
@@ -128,9 +59,10 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
     At the CASE_MANAGER the sender must hold ``CVDRole.CASE_OWNER`` on the
     case; at any other replica, the transferee's, it must be the CASE_MANAGER
-    forwarding it (CM-21-019, PCR-03-001).  Anyone else is ``REFUSED`` before
-    anything is written: no expiry, no ledger entry, no forward, the Offer
-    not stored and the owner unchanged.  A redelivery of an Offer the
+    forwarding it (CM-21-019, PCR-03-001).  Anyone else is ``REFUSED`` by the
+    tree's sender guard before anything but intake's archive is written
+    (CLP-10-018): no expiry, no ledger entry, no forward, the Offer not
+    stored and the owner unchanged.  A redelivery of an Offer the
     CASE_MANAGER recorded from its sender is ``SKIPPED`` (HP-01-003).
     """
 
@@ -233,49 +165,16 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             else None
         )
 
-        if case_id is not None:
-            # The sender's standing is checked before the expiry below, the
-            # first write: a sender with none never makes the CASE_MANAGER
-            # write (CM-21-019, HP-01-006).
-            if (
-                refusal := rule_refusal(
-                    self._dl,
-                    receiving_actor_id,
-                    self.sender_entitlement,
-                    offer_sender_context(
-                        request.actor_id, case_id, request.activity_id
-                    ),
-                    request,
-                    label="OfferOwnershipTransferSender",
-                    sync_port=self._sync_port,
-                )
-            ) is not None:
-                logger.warning(
-                    "OfferCaseOwnershipTransferReceived: refused '%s' from"
-                    " '%s' for case '%s': %s",
-                    request.activity_id,
-                    request.actor_id,
-                    case_id,
-                    refusal.reason,
-                )
-                return refusal
-            # A new Offer for the case is one of the moments the CASE_MANAGER
-            # checks the open Offer's deadline (CM-21-017): an expired one is
-            # closed before this Offer is judged against it (CM-21-014).
-            _expire_overdue_offer(
-                dl=self._dl,
-                case_id=case_id,
-                receiving_actor_id=receiving_actor_id,
-                activity_id=request.activity_id,
-                now=now_utc(),
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
-
-        # The received tree, run once (CLP-10-005).  The guarded commit fires
-        # only when receiving_actor_id is the CaseActor (CheckIsCaseManagerNode
-        # gate), and the CM-gated ForwardOfferToTransfereeNode in the effect
-        # section does the CM-21-005 forward — no procedural outbox write here.
+        # The received tree, run once (CLP-10-005).  Its sender guard
+        # refuses a sender that is not the Case Owner before anything is
+        # written (CM-21-019, HP-01-006).  A new Offer for the case is one of
+        # the moments the CASE_MANAGER checks the open Offer's deadline
+        # (CM-21-017): the tree's clock decision closes an expired one before
+        # this Offer is judged against it (CM-21-014, CLP-10-025).  The
+        # guarded commit fires only when receiving_actor_id is the CaseActor
+        # (CheckIsCaseManagerNode gate), and the CM-gated
+        # ForwardOfferToTransfereeNode in the effect section does the
+        # CM-21-005 forward — no procedural outbox write here.
         tree = create_offer_ownership_transfer_tree(
             case_id=case_id,
             transferee_id=transferee_id,
@@ -296,6 +195,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
                 else None
             ),
             offer_id=request.activity_id,
+            now=now_utc(),
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
@@ -378,44 +278,22 @@ def _run_ownership_answer(
     label: str,
     sync_port: SyncActivityPort | None,
     wire_render_port: "WireRenderPort | None",
-    case_id: str,
-    now: datetime,
-    party: OfferParty,
     applied_note: str | None = None,
     trigger_activity: "TriggerActivityPort | None" = None,
 ) -> HandlerResult:
     """Run the receive tree of a reply to an Offer and read its verdict.
 
-    Shared by the Accept, the Reject and the Undo.  The CASE_MANAGER first
-    ledgers the expiry of the case's open Offer if its deadline passed
-    (CM-21-017), so a reply to it is refused as closed (CM-21-016).  A
-    redelivery of the reply that already closed the Offer is ``SKIPPED``
-    (HP-01-003); a refusal is logged at WARNING with the sender and the
-    case.  When *applied_note* is given, an applied reply is logged at INFO
-    with it.
-
-    *now* is the instant the deadline is compared against, by the expiry and
-    by the reply's sender guard alike; *tree* was built with it.  *party* is
-    the party to the Offer the reply's sender must be for the reply to
-    prompt the expiry (HP-01-006).  *trigger_activity* builds the entries
-    the CASE_MANAGER records for the changes an applied reply causes.
+    Shared by the Accept, the Reject and the Undo.  The tree's clock
+    decision first ledgers the expiry of the case's open Offer if its
+    deadline passed (CM-21-017, CLP-10-025), so a reply to it is refused as
+    closed (CM-21-016).  A redelivery of the reply that already closed the
+    Offer is ``SKIPPED`` (HP-01-003); a refusal is logged at WARNING with the
+    sender and the case.  When *applied_note* is given, an applied reply is
+    logged at INFO with it.  *trigger_activity* builds the entries the
+    CASE_MANAGER records for the changes an applied reply causes.
     """
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
-    )
-    _expire_overdue_offer(
-        dl=dl,
-        case_id=case_id,
-        receiving_actor_id=receiving_actor_id,
-        activity_id=request.activity_id,
-        now=now,
-        sync_port=sync_port,
-        wire_render_port=wire_render_port,
-        prompt=ExpiryPrompt(
-            sender_id=request.actor_id,
-            offer_id=request.object_id,
-            party=party,
-        ),
     )
     bridge = BTBridge(
         datalayer=dl,
@@ -508,9 +386,6 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
-            case_id=case_id,
-            now=now,
-            party=OfferParty.TRANSFEREE,
         )
 
 
@@ -568,9 +443,6 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             label="RejectOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            case_id=case_id,
-            now=now,
-            party=OfferParty.TRANSFEREE,
             applied_note="rejected (ownership unchanged)",
         )
 
@@ -631,8 +503,5 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             label="UndoOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
-            case_id=case_id,
-            now=now,
-            party=OfferParty.OFFERER,
             applied_note="withdrew (ownership unchanged)",
         )

@@ -16,7 +16,8 @@
    holds (VM-06-008). Only a persistence read path that reconstructs whatever
    was stored passes `include_core=True` to fall back to `CORE_TYPE_MAP` (core
    domain types that MUST NOT appear in the wire `VOCABULARY` per
-   ARCH-12-003), and it says why in a comment at the call. It MUST raise `KeyError` for names not
+   ARCH-12-003), and it says why in a comment at the call. It MUST raise `KeyError` for
+   names not
    found in any registry — never return `None`. Callers that previously
    checked `if vocab_cls is not None` must use `try/except KeyError` instead.
    Do NOT add core-layer types to `VOCABULARY` as a workaround for a

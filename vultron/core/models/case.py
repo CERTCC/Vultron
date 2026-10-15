@@ -756,7 +756,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         ledger entries that record its own closure, and nothing after them,
         ``case_fully_closed`` included (CM-23-004), so each recipient
         selection applies the ``CLOSED`` filter itself
-        (:mod:`vultron.core.participants.recipients`).  The answer is computed from the
+        (:mod:`vultron.core.participants.recipients`).  The sender checks
+        apply it too: a closed participant may act on nothing further
+        (CM-23-018).  The answer is computed from the
         replicated participant record and this case's own status, never
         stored, so every replica derives the same answer.  Recipients are
         selected through :mod:`vultron.core.participants.recipients`, which

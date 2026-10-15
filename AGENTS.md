@@ -25,8 +25,11 @@ documentation structure guidance.
   both in `core/models/use_case_result.py`; routing via `use_case_map()` key
   lookup. `DispatchNode` maps the verdict onto `InboxOutcome.status`.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
+<!-- markdownlint-disable-next-line MD013 -->
 - Tests: `uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
-  — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline exits with its last stage's status, so a killed run reads as success. See `.agents/skills/run-tests/SKILL.md`.
+  — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline
+  exits with its last stage's status, so a killed run reads as success. See
+  `.agents/skills/run-tests/SKILL.md`.
 
 Quick gotchas: specific patterns before general; always `rehydrate()` before
 pattern matching; persist with `dl.save(obj)`; return 202 immediately
@@ -114,13 +117,13 @@ and dispatcher routing.
 ### Markdown Formatting
 
 - **Under `docs/`**: SG-38 governs — one sentence per line, **no mid-sentence hard
-  wrap**, and no line-length limit (`markdownlint` MD013 is disabled). Do **not**
+  wrap**, and no line-length limit (MD013 is off in `docs/`). Do **not**
   reflow docs prose to a column width: it destroys the per-sentence diff SG-38
   exists to give, which is how a doubled-list-marker defect reached green CI in
   #3458. See `.claude/skills/shared/docs-style-guide.md`.
-- **Everywhere else** (`notes/`, `specs/`, `plan/`, READMEs): 88 chars max
-  (exceptions: tables, code blocks, long URLs); break long sentences at natural
-  points.
+- **Everywhere else** (`notes/`, `specs/`, `plan/`, READMEs, docstrings): 88 chars
+  max (exceptions: tables, code blocks, long URLs), enforced by `MD013` and a
+  per-added-line guard (PD-10); break long sentences at natural points.
 - **`notes/` informs work not yet done** — it is not a project history (NF-08).
   Every note declares `kind: guidance | plan | generated` (`plan` adds `tracks:`);
   write each item as rule + reason + one citation, never the backstory; update
@@ -150,7 +153,8 @@ six-step checklist (enum → pattern → use-case → map → tests).
 
 - **Enums / MessageSemantics**: `vultron/core/models/events/base.py`
 - **Dispatchers**: `vultron/core/dispatcher.py`, `vultron/core/trigger_dispatcher.py`
-- **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py` defines endpoints)
+- **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py`
+  defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
 - **Case States**: `vultron/core/states/cs.py` (CS/VFD/PXA enums, authoritative)
@@ -268,8 +272,9 @@ Full doctrine: `.claude/skills/shared/completeness-doctrine.md` (loaded by
 
 This is an **index**, not the write-ups. Find your symptom area below, read the
 linked file before touching that area. New pitfalls MUST be routed per
-[notes/agents-md-structure.md](notes/agents-md-structure.md): write-up in the nearest `notes/` or per-directory
-`AGENTS.md`, then **extend a cell below — this file has a 400-line budget, so trim as you add, never append**.
+[notes/agents-md-structure.md](notes/agents-md-structure.md): write-up in the nearest
+`notes/` or per-directory `AGENTS.md`, then **extend a cell below — this file has a
+400-line budget, so trim as you add, never append**.
 
 ### Where to look
 
@@ -329,9 +334,15 @@ linked file before touching that area. New pitfalls MUST be routed per
 
 ## Skill Interaction Rules
 
-Ask the user anything per [`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md), in every session and when skills compose (`learn` → `grill-me`):
-**one question at a time**; **problem before decision** (the problem, why it matters, each option spelled out, your recommendation and why); **plain language**, no metaphor jargon or coined terms;
-**no bare IDs** ("#3512 (the docs navigation reorganization)," not "#3512"); **restate, don't point** by number; **short**, no walls of text ending in "do you agree?" Use `ask_user` for short, discrete choices, with a recommended answer; use plain text when a longer reply is likely.
+Ask the user anything per
+[`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md),
+in every session and when skills compose (`learn` → `grill-me`): **one question at a
+time**; **problem before decision** (the problem, why it matters, each option spelled
+out, your recommendation and why); **plain language**, no metaphor jargon or coined
+terms; **no bare IDs** ("#3512 (the docs navigation reorganization)," not "#3512");
+**restate, don't point** by number; **short**, no walls of text ending in "do you
+agree?" Use `ask_user` for short, discrete choices, with a recommended answer; use
+plain text when a longer reply is likely.
 
 ---
 

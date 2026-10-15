@@ -197,6 +197,17 @@ gh pr view <PR> --json body --jq .body > /tmp/pr-body-<PR>.md
 gh pr edit <PR> --body-file /tmp/pr-body-<PR>.md
 ```
 
+Then the caller lints the recorded body at the final stage (PAD-20-005), which
+refuses the placeholder and any `Docs:` line not in a final form, and fixes
+every finding before the session ends:
+
+```bash
+gh pr view <PR> --json body,baseRefName,headRefOid \
+  | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
+```
+
+Add `--closes-work-item` for a docs PR that closes a `Task`, `Feature` or `Bug`.
+
 ## Constraints
 
 - Only update `docs/` — do not modify code, tests, or `specs/`.

@@ -133,3 +133,4 @@ Fragments rather than `markdown_exec` blocks, because MkDocs does not rewrite a 
 - [ADR-0083](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) — why the formal message set and the wire vocabulary are different shapes; this ADR adds the occasion as the unit that joins them.
 - [ADR-0115](0115-received-handlers-check-sender-entitlement.md) — the sender rule this table reports.
 - `notes/message-type-reference.md` — design guidance for the message pages.
+- [ADR-0140](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md) — the registry is Vultron's complete vocabulary, covering what is written to a case ledger as well as what is sent and received, and a ledger entry's semantic type is the registry's label for its payload (annotation, 2026-10-15).

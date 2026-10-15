@@ -454,7 +454,7 @@ groups:
       `test/core/use_cases/triggers/embargo/test_terminate.py::test_manager_teardown_is_queued_before_it_is_committed`,
       `test/core/use_cases/triggers/case/test_create.py::TestCreateCaseTriggerLedger::test_the_create_is_queued_before_the_creation_entries`
       and
-      `test/core/behaviors/case/nodes/test_delegation.py::TestAutoAcceptIsSentThenRecorded`
+      `test/core/behaviors/case/nodes/test_delegation.py::TestAnswerAtTheCaseManager::test_the_answer_is_queued_then_committed`
       record each outbox write and each commit in order and assert that every sent
       activity is queued before the entry recording it.
     adr:
