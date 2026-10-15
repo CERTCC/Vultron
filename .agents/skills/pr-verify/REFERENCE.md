@@ -10,7 +10,7 @@
 **Overall verdict**: ✅ READY-TO-MERGE / ❌ GAPS-FOUND / 🔀 CONFLICTS-FOUND / ⏳ PENDING-CI / ⏳ PENDING-MERGE-CHECK
 **CI status**: ✅ passing / ❌ failing / ⏳ pending
 **Merge state**: ✅ MERGEABLE (CLEAN) / 🔀 CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN — base `<base_ref>`
-**Base sync in execute**: ✅ merged @ `def5678` (conflicting; <N> conflicts resolved) / ✅ updated on GitHub @ `def5678` (behind) / ✅ deferred — overlap left to the merger's update-branch / ✅ not needed — conflict-free, not behind / ❌ required but not performed
+**Base sync in execute**: ✅ merged @ `def5678` (conflicting; <N> conflicts resolved) / ✅ updated on GitHub @ `def5678` (behind) / ✅ deferred — overlap left to the merger's update-branch / ✅ not needed — conflict-free, GitHub does not report `BEHIND` (being behind `main` is fine) / ❌ required but not performed
 **Integrity check**: ✅ all <N> findings accounted for / ❌ INCOMPLETE-EXECUTE (<M> of <N> results found)
 **Docs line**: ✅ current — `<Docs: line>` / ❌ STALE-DOCS-LINE — <which commit or page it misses>
 

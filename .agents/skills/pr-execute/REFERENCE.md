@@ -492,7 +492,7 @@ commits.
 **Halted (inversion, awaiting you)**: <H>
 **Tests run**: targeted set / full suite (`-m ""`)
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
-**Base sync**: ✅ merged `<base_ref>` @ `def5678` (conflicting) — <N> conflicts resolved / ✅ updated on GitHub @ `def5678` (behind) / ✅ deferred — overlaps `<base_ref>` on <paths>, merger updates before merge / ✅ not needed — no conflict, not behind / ❌ conflicts unresolved
+**Base sync**: ✅ merged `<base_ref>` @ `def5678` (conflicting) — <N> conflicts resolved / ✅ updated on GitHub @ `def5678` (behind) / ✅ deferred — overlaps `<base_ref>` on <paths>, merger updates before merge / ✅ not needed — no conflict, GitHub does not report `BEHIND` (being behind `<base_ref>` is fine) / ❌ conflicts unresolved
 **Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute
 
 Suite runs: <suite_runs.full> full, <suite_runs.targeted> targeted
