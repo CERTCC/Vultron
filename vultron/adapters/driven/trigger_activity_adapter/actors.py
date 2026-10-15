@@ -765,6 +765,46 @@ class _ActorsMixin:
             )
         return _seal(self._dl, activity)
 
+    def _answer_case_participant_role(
+        self,
+        build: Callable[..., as_Accept | as_Reject],
+        label: str,
+        offer_id: str,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None,
+        id_: str | None,
+    ) -> tuple[str, str]:
+        """Build, persist and seal one answer to an ``Offer(CaseParticipantRole)``.
+
+        Shared by the Accept and the Reject (ADR-0039): the Offer is rebuilt
+        ephemerally so the answer's ``object_`` is a typed
+        ``_OfferCaseParticipantRoleActivity``, and a caller-supplied ``id_``
+        is kept so a retry rebuilds the same answer (OX-06-002).
+        """
+        target = as_Actor(id_=target_actor_id)
+        case = _case_for_wire(self._dl, case_id)
+        offer = offer_case_participant_role_activity(
+            role=role,
+            target_actor=target,
+            case=case,
+            id_=offer_id,
+            actor=vendor_id,
+        )
+        activity = build(offer=offer, **_addressing(actor, to, id_))
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "%s: activity '%s' already exists — skipping",
+                label,
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
     def accept_case_participant_role(
         self,
         offer_id: str,
@@ -777,26 +817,18 @@ class _ActorsMixin:
         id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        target = as_Actor(id_=target_actor_id)
-        case = _case_for_wire(self._dl, case_id)
-        offer = offer_case_participant_role_activity(
+        return self._answer_case_participant_role(
+            accept_case_participant_role_activity,
+            "accept_case_participant_role",
+            offer_id=offer_id,
+            case_id=case_id,
             role=role,
-            target_actor=target,
-            case=case,
-            id_=offer_id,
-            actor=vendor_id,
+            target_actor_id=target_actor_id,
+            vendor_id=vendor_id,
+            actor=actor,
+            to=to,
+            id_=id_,
         )
-        extra = _addressing(actor, to, id_)
-        activity = accept_case_participant_role_activity(offer=offer, **extra)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "accept_case_participant_role: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
 
     def reject_case_participant_role(
         self,
@@ -807,29 +839,21 @@ class _ActorsMixin:
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        target = as_Actor(id_=target_actor_id)
-        case = _case_for_wire(self._dl, case_id)
-        offer = offer_case_participant_role_activity(
+        return self._answer_case_participant_role(
+            reject_case_participant_role_activity,
+            "reject_case_participant_role",
+            offer_id=offer_id,
+            case_id=case_id,
             role=role,
-            target_actor=target,
-            case=case,
-            id_=offer_id,
-            actor=vendor_id,
+            target_actor_id=target_actor_id,
+            vendor_id=vendor_id,
+            actor=actor,
+            to=to,
+            id_=id_,
         )
-        activity = reject_case_participant_role_activity(
-            offer=offer, actor=actor, to=to
-        )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "reject_case_participant_role: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
 
     def offer_case_ownership_transfer(
         self,
