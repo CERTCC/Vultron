@@ -151,7 +151,7 @@ def _project_case_to_stub(
     # EM is derived from the case's embargo register (ADR-0122).
     em_state = getattr(case, "em_state", None)
     active_embargo = getattr(case, "active_embargo", None)
-    if em_state != EM.ACTIVE or active_embargo is None:
+    if em_state != EM.ACTIVE:
         return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
     embargo = _stub_embargo(active_embargo, embargo_obj, case_id)
     # ``context`` names the case this status belongs to.  It is required on the
@@ -169,8 +169,8 @@ def _project_case_to_stub(
 
 
 def _stub_embargo(
-    active_embargo: Any,
-    embargo_obj: Any,
+    active_embargo: str | WireEmbargoEvent | None,
+    embargo_obj: object,
     case_id: str,
 ) -> WireEmbargoEvent:
     """The full embargo an enriched stub embeds (CM-17-002, CM-17-011).
@@ -182,12 +182,18 @@ def _stub_embargo(
     the inviter holds, its start and name included.
 
     Raises:
-        VultronActivityConstructionError: When no embargo object is at hand
-            (only its ID is known), or *embargo_obj* is not the case's active
-            embargo.  A stub naming the embargo by ID alone would leave the
+        VultronActivityConstructionError: When the case names no active
+            embargo, no embargo object is at hand (only its ID is known), or
+            *embargo_obj* is not the case's active embargo.  A stub naming the embargo by ID alone would leave the
             invitee no way to read the terms, since this prototype builds no
             fetch by ID (CM-17-011), so it is not sent.
     """
+    if active_embargo is None:
+        raise VultronActivityConstructionError(
+            f"_stub_embargo: case {case_id!r} is embargo-active but names no"
+            " active embargo, so the stub has no terms to embed (CM-17-002,"
+            " CM-17-011)"
+        )
     if isinstance(active_embargo, str):
         active_id = active_embargo
     else:

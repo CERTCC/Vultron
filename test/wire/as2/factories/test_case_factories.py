@@ -57,6 +57,7 @@ from vultron.wire.as2.factories import (
     update_case_activity,
 )
 from vultron.wire.as2.factories.case import (
+    _stub_embargo,
     validate_held_case_invite,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -820,8 +821,8 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     sample_actor,
 ):
     """A case seeded from a sealed Announce carries ``active_embargo`` as the
-    ``EmbargoEvent`` object, not its id.  The stub must still name the embargo
-    by id and carry its end time — and needs no separate ``embargo_obj`` when
+    ``EmbargoEvent`` object, not its id.  The stub must still carry the embargo,
+    its id and end time included — and needs no separate ``embargo_obj`` when
     the case already holds the object."""
     from vultron.core.models._helpers import days_from_now_utc
     from vultron.core.models.case import VulnerabilityCase
@@ -1036,6 +1037,18 @@ def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
             actor=_ACTOR_URI,
             embargo_obj=_full_embargo(case_id),
         )
+
+
+@pytest.mark.spec("CM-17-011")
+def test_stub_embargo_refuses_when_no_active_embargo_is_named():
+    """An EM-active case that names no active embargo is refused, not sent bare.
+
+    A case whose EM is derived ``ACTIVE`` always has an active register entry,
+    so this guards the helper itself: with no embargo at all there are no terms
+    to embed, and the stub is not built (CM-17-011).
+    """
+    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
+        _stub_embargo(None, None, "https://example.org/cases/no-embargo")
 
 
 @pytest.mark.spec("CM-11-001")

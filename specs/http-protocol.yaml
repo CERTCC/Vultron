@@ -316,8 +316,9 @@ groups:
   title: Rate Limiting Headers
   description: >-
     Which rate-limit and retry headers this server sends is this codebase's HTTP
-    choice. HTTP only allows `Retry-After` on a 429 or 503; making it a MUST here
-    binds this server alone, so these specs are `project`.
+    choice. HTTP lets a server send `Retry-After` on a 429 or 503 but does not
+    require it; making it a MUST here binds this server alone, so these specs are
+    `project`.
   specs:
   - id: HTTP-07-001
     priority: MAY
