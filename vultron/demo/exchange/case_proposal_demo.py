@@ -108,6 +108,7 @@ def demo_case_proposal_round_trip(
         ),
     )
 
+    case = None
     with demo_step(
         "Step 2: Verify ProposeReportCaseToActorNode sent Create(as_CaseProposal)"
         " and the case-actor responded"
@@ -123,7 +124,6 @@ def demo_case_proposal_round_trip(
             )
             logger.info("Accept activities found: %d", len(accept_activities))
 
-        case = None
         with demo_check(
             "VulnerabilityCase for this report exists — case-actor created"
             " the case"
