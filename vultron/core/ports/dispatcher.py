@@ -24,6 +24,11 @@ Port direction: **inbound (driving)** — external adapters call
 ``dispatch(event, dl)`` to route an inbound domain event to the
 appropriate use case.
 
+``CaseUpkeep`` is the hook a dispatcher runs before it handles anything for
+a case, so time-driven case work is done lazily, with no scheduler.  The
+dispatchers know only the hook's shape; the composition root decides which
+hooks run.
+
 See also: ``core/ports/use_case.py`` (inbound, per-use-case contract) and
 ``vultron/core/ports/AGENTS.md`` "Core Port Taxonomy".
 """
@@ -33,6 +38,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent
     from vultron.core.models.use_case_result import HandlerResult
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
     from vultron.core.ports.datalayer import DataLayer
 
 
@@ -51,3 +57,26 @@ class ActivityDispatcher(Protocol):
     def dispatch(
         self, event: "VultronEvent", dl: "DataLayer"
     ) -> "HandlerResult": ...
+
+
+class CaseUpkeep(Protocol):
+    """Work an actor does on a case before it handles anything for it.
+
+    A dispatcher calls each hook it was built with before it runs the use
+    case for an activity or a trigger that names a case, so the use case sees
+    the case as it now stands.  *case_id* and *actor_id* are full ids;
+    *activity_id* is the inbound activity being handled, or ``None`` for a
+    trigger.  A hook that does nothing for this actor or case returns quietly.
+    A hook whose work fails logs it and returns, leaving it for the next
+    time the case is handled; it raises only on a wiring or programming
+    error, which the dispatcher does not swallow.
+    """
+
+    def __call__(
+        self,
+        dl: "CaseOutboxPersistence",
+        *,
+        case_id: str,
+        actor_id: str,
+        activity_id: str | None,
+    ) -> None: ...

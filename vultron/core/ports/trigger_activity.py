@@ -49,6 +49,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
 
 
@@ -1000,12 +1001,16 @@ class TriggerActivityPort(Protocol):
         embargo_id: str,
         case_id: str,
         actor: str,
+        *,
+        reason: TerminationReason,
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
+        *reason* is the termination's what, carried as ``content``
+        (ADR-0122); the why stays on the sender's register entry.
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
         to a bound signatory the ledger no longer reaches.

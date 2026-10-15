@@ -51,11 +51,13 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
     read_case_em_state,
 )
 from vultron.core.behaviors.embargo.nodes.ending_notice import (
-    ApplyAnnouncedEmbargoRevisionNode,
-    AwaitsEmbargoEndingNoticeNode,
     CaptureActiveEmbargoNode,
     SendEmbargoEndingNoticesNode,
     embargo_ending_notice_nodes,
+)
+from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
+    ApplyAnnouncedEmbargoRevisionNode,
+    AwaitsEmbargoEndingNoticeNode,
 )
 from vultron.core.behaviors.embargo.nodes.expiry import (
     ApplyHonourLateAcceptFromLedgerNode,
@@ -136,6 +138,7 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
+    TerminationIsTimelyNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
@@ -163,6 +166,7 @@ __all__ = [
     # Teardown
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
+    "TerminationIsTimelyNode",
     "ApplyEmbargoTeardownNode",
     "SendAnnounceEmbargoEventNode",
     # The case owner's decision on a proposal (ADR-0122) and its replay

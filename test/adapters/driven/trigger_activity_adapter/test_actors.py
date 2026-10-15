@@ -114,6 +114,78 @@ class TestInviteActorToCaseWithInlineEmbargo:
         assert target["caseStatus"]["emState"] == "ACTIVE"
 
 
+class TestInviteActorToCaseWithEmbargoHeldById:
+    """A locally built case names its active embargo by id; the adapter reads
+    the object from the store so the stub can embed it whole (CM-17-011)."""
+
+    @staticmethod
+    def _seed_case(dl, case_id: str, *, store_embargo: bool):
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_status import CaseStatus
+        from vultron.core.models.dimensions import EmDimension
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.states.em import EM
+
+        embargo = EmbargoEvent(
+            context=case_id,
+            name="Embargo for the stored-by-id case",
+            attributed_to=_ACTOR,
+            end_time=days_from_now_utc(30),
+        )
+        if store_embargo:
+            dl.create(embargo)
+        dl.create(
+            VulnerabilityCase(
+                id_=case_id,
+                name="CVE-2025-013",
+                attributed_to=_ACTOR,
+                stub_summary="Security issue under embargo",
+                case_statuses=[
+                    CaseStatus(
+                        context=case_id,
+                        attributed_to=_ACTOR,
+                        em=EmDimension(state=EM.ACTIVE),
+                    )
+                ],
+                embargo_register=register(active=embargo.id_),
+            )
+        )
+        return embargo
+
+    @pytest.mark.spec("CM-17-011")
+    def test_invite_stub_embeds_the_stored_embargo(self, adapter, dl):
+        case_id = "https://example.org/cases/case-embargo-by-id"
+        embargo = self._seed_case(dl, case_id, store_embargo=True)
+
+        _, blob = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE, case_id=case_id, actor=_ACTOR, to=[_INVITEE]
+        )
+
+        expected = json.loads(
+            embargo.model_dump_json(by_alias=True, exclude_none=True)
+        )
+        assert json.loads(blob)["target"]["activeEmbargo"] == expected
+
+    @pytest.mark.spec("CM-17-011")
+    def test_invite_is_refused_when_the_embargo_is_not_in_the_store(
+        self, adapter, dl
+    ):
+        """No object to embed means no Invite, not a stub naming a bare id."""
+        case_id = "https://example.org/cases/case-embargo-missing"
+        self._seed_case(dl, case_id, store_embargo=False)
+
+        with pytest.raises(
+            VultronActivityConstructionError, match="CM-17-011"
+        ):
+            adapter.invite_actor_to_case(
+                invitee_id=_INVITEE,
+                case_id=case_id,
+                actor=_ACTOR,
+                to=[_INVITEE],
+            )
+
+
 class TestInviteActorToCase:
     def test_returns_id_and_dict(self, adapter, dl):
         activity_id, activity_dict = adapter.invite_actor_to_case(

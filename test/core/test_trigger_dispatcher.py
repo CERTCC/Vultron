@@ -363,3 +363,89 @@ def test_real_registry_runs_add_on_behalf_status_to_a_status_result(
     assert isinstance(participant, CaseParticipant)
     last = participant.participant_statuses[-1]
     assert last.vf is not None and last.vf.state == CS_vf.Vf
+
+
+# ---------------------------------------------------------------------------
+# Case upkeep hooks run before a case-scoped trigger (EMB-13-003)
+# ---------------------------------------------------------------------------
+
+
+def _recording_hook(calls: list[object]):
+    def hook(dl, *, case_id, actor_id, activity_id) -> None:
+        calls.append((case_id, actor_id, activity_id))
+
+    return hook
+
+
+@pytest.mark.spec("EMB-13-003")
+def test_case_upkeep_runs_before_a_case_scoped_trigger(
+    actor_and_dl, ports
+) -> None:
+    actor, dl = actor_and_dl
+    case = as_VulnerabilityCase(name="Upkeep Case")
+    dl.create(case)
+    calls: list[object] = []
+    dispatcher = RegistryTriggerDispatcher(
+        _stub_rows(), **ports, case_upkeep=(_recording_hook(calls),)
+    )
+
+    dispatcher.trigger(
+        _StatusStubRequest(actor_id=actor.id_, case_id=case.id_), dl
+    )
+
+    assert calls == [(case.id_, actor.id_, None)]
+    assert len(_SvcBtStubUseCase.built) == 1
+
+
+def test_case_upkeep_is_skipped_for_a_row_that_opts_out(
+    actor_and_dl, ports
+) -> None:
+    actor, dl = actor_and_dl
+    case = as_VulnerabilityCase(name="Upkeep Case")
+    dl.create(case)
+    calls: list[object] = []
+    rows = [
+        TriggerEntry(
+            verb="stub-status",
+            request_model=_StatusStubRequest,
+            use_case_class=_SvcBtStubUseCase,
+            result_type=StatusResult,
+            exposure=TriggerExposure.DEMO_ONLY,
+            bt_backed=True,
+            spec_ids=("TRIG-12-004",),
+            runs_case_upkeep=False,
+        )
+    ]
+    dispatcher = RegistryTriggerDispatcher(
+        rows, **ports, case_upkeep=(_recording_hook(calls),)
+    )
+
+    dispatcher.trigger(
+        _StatusStubRequest(actor_id=actor.id_, case_id=case.id_), dl
+    )
+
+    assert calls == []
+
+
+def test_case_upkeep_is_skipped_when_the_case_is_unknown(
+    actor_and_dl, ports
+) -> None:
+    """The use case reports the missing case itself."""
+    actor, dl = actor_and_dl
+    calls: list[object] = []
+    dispatcher = RegistryTriggerDispatcher(
+        _stub_rows(), **ports, case_upkeep=(_recording_hook(calls),)
+    )
+
+    dispatcher.trigger(
+        _StatusStubRequest(actor_id=actor.id_, case_id=_CASE), dl
+    )
+
+    assert calls == []
+
+
+@pytest.mark.spec("EMB-13-003")
+def test_only_terminate_embargo_opts_out_of_case_upkeep() -> None:
+    assert [e.verb for e in entries() if not e.runs_case_upkeep] == [
+        "terminate-embargo"
+    ]

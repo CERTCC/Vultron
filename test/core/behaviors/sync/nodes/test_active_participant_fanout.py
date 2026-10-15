@@ -134,7 +134,11 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
         case.case_participants.append(participant.id_)
         case.actor_participant_index[actor_id] = participant.id_
     stub_invite = rm_invite_to_case_activity(
-        INVITEE_ID, target=case, actor=MANAGER_ID, roles=[CVDRole.VENDOR]
+        INVITEE_ID,
+        target=case,
+        actor=MANAGER_ID,
+        roles=[CVDRole.VENDOR],
+        embargo_obj=embargo,
     )
     scenario.seed(embargo, *participants.values(), case, stub_invite)
 

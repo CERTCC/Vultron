@@ -79,6 +79,12 @@ class TriggerEntry:
             ``SvcBTTriggerBase``; decides which driven ports it is built with.
         spec_ids: The requirements the verb implements (its route's
             ``Implements:`` block).
+        runs_case_upkeep: Whether the dispatcher runs its case-upkeep hooks
+            for the request's case before the use case (default ``True``).
+            ``False`` only for a verb whose use case does the upkeep's work
+            itself and must answer for it: ``terminate-embargo`` takes the
+            end-time path once the end time has passed, so the lazy end-time
+            check must not pre-empt the request it would answer (ADR-0122).
 
     A row holds data only.  It validates itself at construction so a table
     that would misroute fails at import (TRIG-12-004), but it carries no
@@ -96,6 +102,7 @@ class TriggerEntry:
     exposure: TriggerExposure
     bt_backed: bool
     spec_ids: tuple[str, ...]
+    runs_case_upkeep: bool = True
 
     def __post_init__(self) -> None:
         if not _VERB_RE.match(self.verb):
