@@ -207,6 +207,7 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     assert data["content"] == "Test vulnerability content"
 
 
+@pytest.mark.spec("HTTP-04-002")
 def test_datalayer_contents_is_plain_json_not_as2(client, datalayer):
     """ARCH-20-006: the whole-store dump is not served as an AS2 document.
 

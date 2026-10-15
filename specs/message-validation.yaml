@@ -16,7 +16,7 @@ groups:
   specs:
   - id: MV-01-001
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: Incoming payloads MUST conform to ActivityStreams 2.0 structure
     verification: >-
       Integration tests in `test/demo/` confirm that the inbox handler rejects
@@ -36,6 +36,8 @@ groups:
     - story_2022_038
     adr:
     - ADR-0005
+    tags:
+    - as2
   - id: MV-01-005
     priority: MUST
     kind: project
@@ -221,8 +223,11 @@ groups:
   specs:
   - id: MV-05-001
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: The system MUST validate that ID and reference fields contain valid URIs
+    rationale: >-
+      ActivityStreams 2.0 gives every `id` and every reference as an IRI, so a value
+      that is not one is not a well-formed activity. Vultron inherits the rule.
     verification: >-
       A unit test confirms that the activity validator rejects activities whose `id`,
       `actor`, or `object` reference fields contain non-URI strings, and accepts
@@ -230,16 +235,24 @@ groups:
     stories:
     - story_2022_034
     - story_2022_030
+    tags:
+    - as2
   - id: MV-05-002
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: The system MUST treat ActivityStreams object IDs as opaque URIs
+    rationale: >-
+      An ActivityStreams `id` identifies an object and carries no other meaning, so a
+      receiver that reads structure into it depends on how one sender mints its
+      identifiers. Vultron inherits the rule.
     verification: >-
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
       strings.
     stories:
     - story_2022_030
+    tags:
+    - as2
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
