@@ -1543,10 +1543,10 @@ groups:
       MUST NOT be conflated with authority determination; the two are distinct
       concerns.
     rationale: >-
-      Once role-authority says "you may commit," the store guard stops a
-      delegated-emit fall-through from minting a canonical index in a store that is
-      not the log's home (which would fork the hash chain, #2626). Authority (role)
-      and "where the write may land" (store) are different jobs.
+      Once role-authority says "you may commit," the store guard refuses, by
+      raising, to mint a canonical index in a store that is not the log's home
+      (which would fork the hash chain, #2626; CLP-10-014). Authority (role) and
+      "where the write may land" (store) are different jobs.
     verification: >-
       Inspection of `vultron/core/behaviors/sync/nodes/ledger_authority.py` and
       `vultron/core/behaviors/store_scope.py` confirms both are documented as

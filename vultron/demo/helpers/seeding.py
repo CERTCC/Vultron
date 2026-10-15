@@ -1364,12 +1364,11 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # three earlier copies disagree about test doubles.  The seeding actor and
     # the CaseActor are always on this container here — `case_actor_identity()`
     # computes the id from this node's own base URL — so the same-authority
-    # guard would never fire, and the `or dl` fall-back keeps a port that
-    # cannot clone (a test double) working exactly as before.
+    # guard would never fire.
     # One actor per container, not per case (ADR-0088): no `context` naming a
     # case and no `attributed_to`.
     actor_obj = VultronService(id_=case_actor_id, name="CaseActor")
-    own_store = store_for_actor(dl, case_actor_id) or dl
+    own_store = store_for_actor(dl, case_actor_id)
     try:
         own_store.create(actor_obj)
     except ValueError:

@@ -215,22 +215,21 @@ def accept_actor_recommendation_trigger_bt(
 def offer_case_ownership_transfer_trigger_bt(
     case_id: str,
     transferee_id: str,
-    requesting_actor_id: str,
     content: str | None = None,
     captured: dict | None = None,
     end_time: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
 
-    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    CaseActor's identity on behalf of the offering actor (CM-24-001, TRIG-11-001).
+    Emits the Case Owner's own ``Offer(VulnerabilityCase)`` (ownership
+    transfer variant) to the case's CASE_MANAGER (CM-21-005, TRIG-11-001).
+    The CASE_MANAGER's received tree forwards it to the transferee; no
+    trigger tree emits as the CASE_MANAGER (CM-24-004, ADR-0109).
 
     Args:
         case_id: ID of the VulnerabilityCase whose ownership is being offered.
         transferee_id: Actor URI of the intended new owner.
         content: Optional human-readable message included in the offer.
-        requesting_actor_id: Offering actor URI; the Offer is attributed to it
-            through the delegated-authorship helper (CM-24-002, CM-24-005).
         captured: Optional dict; ``captured["activity"]`` is set on success.
         end_time: Optional deadline to answer the Offer, set as its
             activity-level ``end_time`` (TRIG-11-007, CM-21-016).
@@ -246,7 +245,6 @@ def offer_case_ownership_transfer_trigger_bt(
                 case_id=case_id,
                 transferee_id=transferee_id,
                 content=content,
-                requesting_actor_id=requesting_actor_id,
                 captured=captured,
                 end_time=end_time,
             ),

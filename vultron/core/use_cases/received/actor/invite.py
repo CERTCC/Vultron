@@ -294,6 +294,7 @@ class RejectInviteActorToCaseReceivedUseCase:
             case_id=case_id,
             invite_id=request.invite_id,
             invitee_id=request.actor_id or None,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,

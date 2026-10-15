@@ -75,7 +75,7 @@ def datalayer():
     """Create in-memory DataLayer for testing."""
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="actor-1",
+        actor_id="https://example.org/actors/actor-1",
     )
 
 
@@ -108,7 +108,9 @@ def sample_record(datalayer, sample_report):
 def test_condition_base_class_setup(bridge, datalayer):
     """Verify DataLayerCondition sets up blackboard access correctly."""
     tree = AlwaysTrueCondition(name="TestCondition")
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
     assert "Condition is true" in result.feedback_message
@@ -129,10 +131,15 @@ def test_condition_accesses_datalayer_from_blackboard(bridge, datalayer):
             return Status.SUCCESS
 
     tree = CheckDataLayerAccess(name="CheckAccess")
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
-    assert "Access OK for actor-1" in result.feedback_message
+    assert (
+        "Access OK for https://example.org/actors/actor-1"
+        in result.feedback_message
+    )
 
 
 def test_condition_base_class_not_implemented(bridge, datalayer):
@@ -142,7 +149,9 @@ def test_condition_base_class_not_implemented(bridge, datalayer):
         pass  # Don't override update()
 
     tree = UnimplementedCondition(name="Unimplemented")
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     # Should fail because update() raises NotImplementedError
     assert result.status == Status.FAILURE
@@ -155,7 +164,9 @@ def test_condition_base_class_not_implemented(bridge, datalayer):
 def test_action_base_class_setup(bridge, datalayer):
     """Verify DataLayerAction sets up blackboard access correctly."""
     tree = NoOpAction(name="TestAction")
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
     assert "Action completed" in result.feedback_message
@@ -176,10 +187,15 @@ def test_action_accesses_datalayer_from_blackboard(bridge, datalayer):
             return Status.SUCCESS
 
     tree = CheckDataLayerAccess(name="CheckAccess")
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
-    assert "Access OK for actor-1" in result.feedback_message
+    assert (
+        "Access OK for https://example.org/actors/actor-1"
+        in result.feedback_message
+    )
 
 
 def test_action_base_class_not_implemented(bridge, datalayer):
@@ -189,7 +205,9 @@ def test_action_base_class_not_implemented(bridge, datalayer):
         pass  # Don't override update()
 
     tree = UnimplementedAction(name="Unimplemented")
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     # Should fail because update() raises NotImplementedError
     assert result.status == Status.FAILURE
@@ -249,7 +267,9 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
         ],
     )
 
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
     assert result.status == Status.SUCCESS
 
 
@@ -262,7 +282,9 @@ def test_find_participant_by_actor_id_fails_when_case_missing(bridge):
     # Runs as the store's own actor. vendor-1 is the participant being looked
     # *up* (target_actor_id), not the actor doing the looking — conflating the
     # two is what per-actor storage now makes visible.
-    result = bridge.execute_with_setup(node, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/actor-1"
+    )
     assert result.status == Status.FAILURE
 
 
@@ -291,7 +313,9 @@ def test_find_participant_by_actor_id_fails_when_actor_not_participant(
     # Runs as the store's own actor. vendor-1 is the participant being looked
     # *up* (target_actor_id), not the actor doing the looking — conflating the
     # two is what per-actor storage now makes visible.
-    result = bridge.execute_with_setup(node, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/actor-1"
+    )
     assert result.status == Status.FAILURE
 
 
@@ -315,7 +339,9 @@ def test_find_participant_by_actor_id_fails_on_index_divergence(
         case_id=case.id_,
         target_actor_id=target_actor_id,
     )
-    result = bridge.execute_with_setup(node, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/actor-1"
+    )
     assert result.status == Status.FAILURE
     assert "divergence" in result.feedback_message
 
@@ -398,7 +424,9 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
         ],
     )
 
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
     assert result.status == Status.SUCCESS
     assert len(captured) == 1
     found_participant = captured[0]
@@ -414,7 +442,9 @@ def test_read_object_success(bridge, datalayer, sample_record):
         table="VulnerabilityReport",
         object_id="https://example.org/objects/test-123",
     )
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
     assert "Read VulnerabilityReport" in result.feedback_message
@@ -456,7 +486,9 @@ def test_read_object_stores_in_blackboard(bridge, datalayer, sample_record):
             CheckBlackboard(name="CheckBlackboard"),
         ],
     )
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
 
@@ -466,7 +498,9 @@ def test_read_object_not_found(bridge, datalayer):
     tree = ReadObject(
         table="Object", object_id="https://example.org/objects/nonexistent"
     )
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.FAILURE
     assert "not found" in result.feedback_message.lower()
@@ -479,7 +513,9 @@ def test_read_object_custom_name(bridge, datalayer, sample_record):
         object_id="https://example.org/objects/test-123",
         name="CustomReadName",
     )
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
     # Check tree node has custom name
@@ -506,7 +542,9 @@ def test_update_object_success(bridge, datalayer, sample_record):
             ),
         ],
     )
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
 
@@ -533,7 +571,9 @@ def test_update_object_custom_name(bridge, datalayer, sample_record):
             ),
         ],
     )
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
     # Check second child has custom name
@@ -552,7 +592,9 @@ def test_create_object_success(bridge, datalayer):
     }
 
     tree = CreateObject(table="Object", object_data=new_object)
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
     assert "Created" in result.feedback_message
@@ -572,7 +614,9 @@ def test_create_object_missing_id_fails(bridge, datalayer):
     }
 
     tree = CreateObject(table="Object", object_data=invalid_object)
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.FAILURE
     assert "missing required 'id_' field" in result.feedback_message.lower()
@@ -589,7 +633,9 @@ def test_create_object_custom_name(bridge, datalayer):
     tree = CreateObject(
         table="Object", object_data=new_object, name="CustomCreateName"
     )
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
     assert tree.name == "CustomCreateName"
@@ -627,7 +673,9 @@ def test_full_crud_workflow(bridge, datalayer):
         ],
     )
 
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     assert result.status == Status.SUCCESS
 
@@ -651,7 +699,7 @@ def test_actor_isolation(bridge, datalayer, sample_record):
     # actor-1 owns the store the record was seeded in, so it reads it back.
     result1 = bridge.execute_with_setup(
         ReadObject(table="VulnerabilityReport", object_id=object_id),
-        actor_id="actor-1",
+        actor_id="https://example.org/actors/actor-1",
     )
     assert result1.status == Status.SUCCESS
 
@@ -674,7 +722,9 @@ def test_error_propagation(bridge, datalayer):
             raise ValueError("Intentional test error")
 
     tree = RaiseExceptionAction(name="ErrorAction")
-    result = bridge.execute_with_setup(tree, actor_id="actor-1")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
 
     # Should capture exception and return FAILURE
     assert result.status == Status.FAILURE

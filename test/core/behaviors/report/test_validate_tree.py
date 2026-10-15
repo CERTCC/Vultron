@@ -58,10 +58,10 @@ _ALWAYS_SUCCEED_BUNDLE = ValidationCallOutBundle(
 
 @pytest.fixture
 def datalayer():
-    """Create in-memory TinyDB data layer for testing."""
+    """The vendor's own store: the trees below run as the vendor (BT-05-005)."""
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id="https://example.org/actors/vendor",
     )
 
 

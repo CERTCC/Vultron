@@ -65,8 +65,11 @@ def _item_actor_id(item: object) -> str | None:
 def _extract_recipients(body: dict[str, Any]) -> list[str]:
     """Extract deduplicated recipient actor IDs from a parsed activity body.
 
-    Reads the ``to``, ``cc``, ``bto``, and ``bcc`` addressing fields and
-    returns a list of actor ID strings in the order first encountered.
+    Reads the ``to`` field only and returns a list of actor ID strings in the
+    order first encountered.  Vultron addresses every direct message with
+    ``to`` (OX-08-001); ``cc``, ``bto`` and ``bcc`` have no handler semantics
+    and earn only the OX-08-004 warning, so nothing is delivered to an actor
+    named in them (ADR-0109).
 
     Args:
         body: The parsed sealed body of an outbound activity.
@@ -76,16 +79,15 @@ def _extract_recipients(body: dict[str, Any]) -> list[str]:
     """
     seen: set[str] = set()
     recipients: list[str] = []
-    for field in ("to", "cc", "bto", "bcc"):
-        val = body.get(field)
-        if val is None:
+    val = body.get("to")
+    if val is None:
+        return recipients
+    items = val if isinstance(val, list) else [val]
+    for item in items:
+        actor_id = _item_actor_id(item)
+        if actor_id is None:
             continue
-        items = val if isinstance(val, list) else [val]
-        for item in items:
-            actor_id = _item_actor_id(item)
-            if actor_id is None:
-                continue
-            if actor_id not in seen:
-                seen.add(actor_id)
-                recipients.append(actor_id)
+        if actor_id not in seen:
+            seen.add(actor_id)
+            recipients.append(actor_id)
     return recipients

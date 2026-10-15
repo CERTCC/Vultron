@@ -35,8 +35,10 @@ from vultron.core.models.participant_status import participant_status_rm_state
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
-ACTOR_A = "https://example.test/actors/a"
-ACTOR_B = "https://example.test/actors/b"
+# Co-hosted with the scenario's store owner, so each executes in its own store
+# on the same container (BT-05-005).
+ACTOR_A = "https://example.org/actors/a"
+ACTOR_B = "https://example.org/actors/b"
 
 
 def test_prebuilt_node_writes_to_the_executing_actor_each_tick(
@@ -64,7 +66,14 @@ def test_prebuilt_node_writes_to_the_executing_actor_each_tick(
     )
     case.add_participant(participant_a)
     case.add_participant(participant_b)
-    bt_scenario.seed(participant_a, participant_b, case)
+    # Each actor executes in its own store (BT-05-005), so each holds a replica.
+    stores = {
+        actor: bt_scenario.dl.clone_for_actor(actor)
+        for actor in (ACTOR_A, ACTOR_B)
+    }
+    for store in stores.values():
+        for obj in (participant_a, participant_b, case):
+            store.save(obj)
 
     # One node, built once (BTND-10-004) with an empty constructor actor_id.
     node = CreateParticipantStatusNode(
@@ -85,8 +94,8 @@ def test_prebuilt_node_writes_to_the_executing_actor_each_tick(
     )
     assert second.status.name == "SUCCESS"
 
-    reloaded_a = bt_scenario.dl.read(participant_a.id_)
-    reloaded_b = bt_scenario.dl.read(participant_b.id_)
+    reloaded_a = stores[ACTOR_A].read(participant_a.id_)
+    reloaded_b = stores[ACTOR_B].read(participant_b.id_)
     assert isinstance(reloaded_a, CaseParticipant)
     assert isinstance(reloaded_b, CaseParticipant)
     assert (
