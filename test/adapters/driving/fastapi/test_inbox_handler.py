@@ -1215,10 +1215,8 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     # without the full FastAPI lifespan — call make_dispatcher directly.
     dispatcher = ih.make_dispatcher()
 
-    dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
+    # The receiving vendor's own store (BT-05-005).
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR_ID)
     dl.save(VultronService(id_=VENDOR_ID))
 
     report = VulnerabilityReport(id_=REPORT_ID)

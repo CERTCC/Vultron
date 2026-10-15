@@ -40,6 +40,7 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -192,6 +193,27 @@ class LedgerNetwork:
             assert body is not None, f"'{activity.id_}' was never sealed"
             verdicts.append((activity.type_, self.receive(to, body)))
         return verdicts
+
+    def replay_ledger(self, replica: str) -> list[str]:
+        """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that.
+
+        Each ``Announce(CaseLedgerEntry)`` the CASE_MANAGER queued for
+        *replica* is delivered in chain order and must be applied.  Returns
+        the event types delivered, in that order.
+        """
+        event_types = []
+        for activity in self.queued(MANAGER, to=replica, type_="Announce"):
+            body = read_sealed_body_dict(self.stores[MANAGER], activity.id_)
+            entry = (body or {}).get("object") or {}
+            if entry.get("type") != "CaseLedgerEntry":
+                continue
+            verdict = self.receive(replica, cast(dict[str, Any], body))
+            assert verdict.disposition is HandlerDisposition.APPLIED, (
+                entry.get("eventType"),
+                verdict.reason,
+            )
+            event_types.append(entry["eventType"])
+        return event_types
 
     def case(self, actor_id: str) -> VulnerabilityCase:
         return cast(

@@ -18,6 +18,7 @@ Case participant management is in ``case_participant``.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
@@ -84,6 +85,7 @@ ENTRIES: list[SemanticEntry] = [
                     "case for a report"
                 ),
                 anchor="create-case-proposal",
+                addressee=AddresseeSide.OUTSIDE_CASE,
                 heading="Create case proposal",
                 description=(
                     "Submits a case proposal for the attached report to the "
@@ -110,6 +112,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Case Actor Service agrees to open the proposed case",
                 anchor="accept-case-proposal",
+                addressee=AddresseeSide.OUTSIDE_CASE,
                 heading="Accept case proposal",
                 description=(
                     "Accepts the case proposal and tells the proposing actor "
@@ -132,6 +135,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Case Actor Service declines to open the proposed case",
                 anchor="reject-case-proposal",
+                addressee=AddresseeSide.OUTSIDE_CASE,
                 heading="Reject case proposal",
                 description="Rejects the case proposal. No case is opened.",
                 example="reject_case_proposal",
@@ -153,6 +157,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Manager has opened a case for a submitted report"
                 ),
                 anchor="create-case",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Create case",
                 description=(
                     "Mints the vulnerability case, seats its initial "
@@ -176,6 +181,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant accepts the case for further action",
                 anchor="report-accepted",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Joins the case, moving the sender's RM state to Accepted."
                     " Engaging is a case-participation decision, so the verb "
@@ -206,6 +212,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant defers further action on the case",
                 anchor="report-deferred",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Ignores the case, moving the sender's RM state to "
                     "Deferred. Deferring is a case-participation decision, so "
@@ -232,6 +239,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Owner links a further report to an existing case"
                 ),
                 anchor="add-report-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Add report to case",
                 description=(
                     "Adds a vulnerability report to the case named by the "

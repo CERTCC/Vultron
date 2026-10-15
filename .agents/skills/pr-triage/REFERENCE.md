@@ -216,7 +216,7 @@ by GitHub, so check both.
 |---|---|---|
 | `CLEAN` | Mergeable, checks green | none |
 | `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
-| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute merges the base to clear it, PAD-18-004) |
+| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-004) |
 | `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
 | `BLOCKED` | Missing required review or failing required check | **IMPROVE** (note the cause; not fixable by execute) |
 | `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |
@@ -235,8 +235,9 @@ only by whoever holds it. Do not tag a conflict `defer-ask` or
 
 `base_ref` is not always `main`. When a PR targets another task branch, all
 sync operations in execute must use that base — see `sync-with-main.sh`, which
-takes the base branch as its first argument, and `targeted-tests --base
-origin/<base_ref>` for the overlap check and the targeted set.
+takes the base branch as its first argument, `git merge-tree --write-tree HEAD
+origin/<base_ref>` for the conflict check, and `targeted-tests --base
+origin/<base_ref>` for the overlap record and the targeted set.
 
 ---
 

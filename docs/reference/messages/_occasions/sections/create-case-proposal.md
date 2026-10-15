@@ -6,6 +6,7 @@ Submits a case proposal for the attached report to the service's inbox. No case 
 
 - **When…** a report receiver asks a Case Actor Service to open a case for a report
 - **Send:** `Create(CaseProposal)`
+- **Send to:** an actor outside any case
 - **Sent by:** not yet checked (usually: vendor, coordinator)
 - **Mapping status:** [none](../../index.md#mapping-status)
 

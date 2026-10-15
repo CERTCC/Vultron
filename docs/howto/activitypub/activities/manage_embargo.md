@@ -8,6 +8,7 @@ level: 400
 Use this guide once a case already has an active embargo.
 A revision runs the same propose, accept, or reject cycle that established the embargo; a termination removes it outright.
 You finish with the case at Embargo Management (EM) state `EM.ACTIVE` under new terms, or at `EM.EXITED`.
+A participant that no longer wants to be bound by the embargo can also withdraw from it, which leaves the case's EM state where it is.
 
 ---
 
@@ -122,8 +123,11 @@ Put a human-readable account in `summary` if you want one; the protocol does not
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination.md" %}
 
 Only the CASE_MANAGER changes the case's EM state (EP-09-008).
-If you are the CASE_MANAGER, address `Remove(Event)` to every other participant and never to yourself (EMB-19-001).
 If you are not the CASE_MANAGER, address `Remove(Event)` to the CASE_MANAGER.
+If you are the CASE_MANAGER, address `Remove(Event)` to every other participant and never to yourself (EMB-19-001).
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination-notice.md" %}
+
 The CASE_MANAGER commits the termination to the case ledger and fans the entry out to every participant.
 Your own copy of the case moves to `EM.EXITED` when the CASE_MANAGER's ledger entry for the termination reaches you, not when you send.
 
@@ -144,6 +148,36 @@ If the embargo has already ended, the trigger answers with no activity and commi
 
 ---
 
+## Withdraw from the embargo
+
+A participant bound by the active embargo can stop complying with it at any time (VP-13-017).
+Withdrawal is implemented in ActivityStreams as `Leave(Event)`, with the embargo in force as its `object` and the case as its `context` (MSM-07-010).
+It is not an answer to an Invite, so you need no `Invite(Event)` to withdraw: a Reporter whose consent was recorded when the case was created can withdraw too.
+
+1. Call `withdraw-embargo` with the case's ID.
+   The trigger reads the embargo in force from your copy of the case.
+2. The trigger sends `Leave(Event)` to the CASE_MANAGER.
+   The CASE_MANAGER marks your consent row for the embargo in force `DECLINED`, and also every row you had marked `AGREED` for an open revision, because each open revision replaces the embargo you left.
+   It commits the withdrawal to the case ledger, and your own copy of the case changes when that entry reaches you.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/embargo-withdrawal.md" %}
+
+The embargo stays in force for every other participant, and the case's EM state does not move.
+Because you are no longer bound by the embargo, the CASE_MANAGER stops sending you case content until the embargo ends, or until you are invited to it again and agree (CM-10-005).
+
+The trigger refuses the withdrawal in three cases:
+
+- No embargo is in force.
+- Your consent row for the embargo in force is not `AGREED`; to refuse terms you never agreed to, reject the Invite instead (see [How to Establish an Embargo](establish_embargo.md#answer-an-embargo-already-in-force)).
+- You are the Case Owner, which ends an embargo by terminating it, as in the previous section.
+
+!!! warning "A Reject never withdraws"
+
+    `Reject(Invite(Event))` refuses terms; it is not a way to leave an embargo you agreed to.
+    A `Reject` of the embargo in force from an `AGREED` row is refused, and `reject-embargo` with no `proposal_id` rejects an open revision while your consent to the embargo in force stays `AGREED` (MSM-07-004).
+
+---
+
 ## Verify
 
 | What you sent | What to confirm |
@@ -153,6 +187,7 @@ If the embargo has already ended, the trigger answers with no activity and commi
 | `Reject(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the terms are unchanged. |
 | `Reject(Invite(Event))` on a revision | Your consent row for the revision is `DECLINED`; the case `em_state` is still `REVISE`. |
 | `Remove(Event)` | Once the CASE_MANAGER's ledger entry arrives, the case `em_state` is `EXITED` and no embargo is active. |
+| `Leave(Event)` | Once the CASE_MANAGER's ledger entry arrives, your consent row for the embargo in force is `DECLINED`; the case `em_state` is unchanged. |
 
 ---
 
@@ -177,4 +212,4 @@ If the embargo has already ended, the trigger answers with no activity and commi
 - [Embargo Management (EM) Messages](../../../reference/messages/em.md) — the wire format and a rendered example for each activity above, and the state-context rule that distinguishes a revision from a proposal
 - [Embargo Management](../../../topics/process_models/em/index.md) — the state machine these activities drive
 - [Participant Embargo Consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) ([§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)) — how each participant's own commitment is tracked alongside the case EM state
-- [Trigger API Reference](../../../reference/trigger-api.md#embargo-management) — request schema and endpoint details for `propose-embargo-revision` and `terminate-embargo`
+- [Trigger API Reference](../../../reference/trigger-api.md#embargo-management) — request schema and endpoint details for `propose-embargo-revision`, `terminate-embargo` and `withdraw-embargo`

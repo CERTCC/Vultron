@@ -235,6 +235,16 @@ def parse_inline(source: str, filename: str = "<inline>") -> ast.AST:
     return ast.parse(source, filename=filename)
 
 
+def callee_name(func: ast.expr) -> str | None:
+    """The bare name a call's ``func`` names: ``f`` for ``f()`` and
+    ``m.f()``, ``None`` for any other callee."""
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
 def node_line(node: ast.AST) -> int:
     """Source line of *node*, ``0`` when the node type carries none.
 

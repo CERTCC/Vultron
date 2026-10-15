@@ -149,7 +149,7 @@ Why: the presentation will often run with no live service to call, so an offline
 A hand-written TypeScript copy of the protocol cannot be regenerated from the code; recordings of the real scenarios can.
 The audit of the merged UI also found that the simulation shows the audience protocol behavior that the protocol rejects, which "frozen" did not prevent.
 
-The title's "React/ReactFlow" names the prior-art branch; the timeline is drawn without ReactFlow, and the UI does not depend on it.
+The title's "React/ReactFlow" names the prior-art branch; the timeline is drawn without ReactFlow, and the leftover ReactFlow dependency is removed in #4728.
 
 - Source: the 2026-10-15 demo UI planning session; #4730, #4731, #4732, #3901
 

@@ -42,6 +42,7 @@ from vultron.core.behaviors.embargo.nodes import (
     IsRejectableEmbargoNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
+    RejectIsNotWithdrawalNode,
     ValidateCaseExistsNode,
 )
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
@@ -152,6 +153,7 @@ def reject_invite_to_embargo_tree(
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
+        ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
            └─ RecordParticipantRejectionNode  # consent (MSM-07-004)
@@ -159,11 +161,13 @@ def reject_invite_to_embargo_tree(
     The guard refuses a Reject naming an embargo that is neither active nor
     an open proposal (a late Reject of a decided proposal, or an unknown
     embargo) *before* the commit, so no replica is sent an entry it cannot
-    replay (SYNC-12-001).  :class:`RecordParticipantRejectionNode` records
-    the rejecting actor's consent under the MSM-07-004 rule (ADR-0093): a
-    Reject naming the *active* embargo is consent withdrawal, one naming a
-    *proposed* embargo declines that embargo's row only.  It decides no
-    proposal: the owner's rejection for the case is
+    replay (SYNC-12-001).  The second guard refuses a Reject of the embargo
+    in force from an ``AGREED`` row: that would be a withdrawal, and
+    withdrawal is ``Leave(EmbargoEvent)`` (MSM-07-004, MSM-07-010).
+    :class:`RecordParticipantRejectionNode` records the rejecting actor's
+    consent under the MSM-07-004 rule: the named embargo's row becomes
+    ``DECLINED`` and nothing else moves.  It decides no proposal: the owner's
+    rejection for the case is
     ``Reject(EmbargoEvent, target=Case)``
     (``reject_embargo_proposal_on_case_tree``).
 
@@ -195,6 +199,11 @@ def reject_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 answering_actor_id=rejecting_actor_id,
                 answer=EmbargoConsentState.DECLINED,
+            ),
+            RejectIsNotWithdrawalNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                rejecting_actor_id=rejecting_actor_id,
             ),
         ],
         manager_effects=[

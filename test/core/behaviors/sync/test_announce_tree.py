@@ -34,6 +34,8 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+    UPDATE_CASE_OWNER_EVENT_TYPE,
+    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.received_activity_record import (
@@ -1459,30 +1461,40 @@ NEW_OWNER_ID = "https://example.org/actors/new-owner"
 
 
 def _make_ownership_transfer_entry(
-    log_index: int, new_owner_id: str, prev_hash: str = _ZERO_HASH
+    log_index: int, new_owner_id: str | None, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
-    """Create a ledger entry with event_type='accept_case_ownership_transfer'."""
+    """The CASE_MANAGER's ``update_case_owner`` entry, carrying the case.
+
+    *new_owner_id* ``None`` leaves ``attributedTo`` out of the carried case.
+    """
+    carried: dict[str, str] = {"id": CASE_ID, "type": "VulnerabilityCase"}
+    if new_owner_id is not None:
+        carried["attributedTo"] = new_owner_id
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/ownership-{log_index}",
-            event_type="accept_case_ownership_transfer",
-            payload_snapshot={"actor": new_owner_id},
+            event_type=UPDATE_CASE_OWNER_EVENT_TYPE,
+            payload_snapshot={
+                "type": "Update",
+                "actor": OWNER_ACTOR_ID,
+                "object": carried,
+            },
             prev_log_hash=prev_hash,
         )
     )
 
 
 class TestAnnounceLogEntryAppliesOwnershipTransfer:
-    """Participant receiving accept_case_ownership_transfer entry updates attributed_to."""
+    """A participant copies the new owner from the ``update_case_owner`` entry."""
 
     @pytest.mark.spec("SYNC-12-001")
     @pytest.mark.spec("SYNC-12-002")
     def test_participant_updates_attributed_to_on_ownership_transfer(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """BT updates attributed_to on case replica when entry is accept_case_ownership_transfer."""
+        """BT copies attributed_to onto the replica from an update_case_owner entry."""
         entry = _make_ownership_transfer_entry(
             0, NEW_OWNER_ID, case_obj.genesis_hash
         )
@@ -1539,6 +1551,158 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
         )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == OWNER_ACTOR_ID
+
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("CM-23-016")
+    def test_an_entry_carrying_no_owner_fails_and_is_not_persisted(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """No owner to copy: the replica computes none, and stores no entry."""
+        entry = _make_ownership_transfer_entry(0, None, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.FAILURE
+        assert datalayer.read(entry.id_) is None
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == OWNER_ACTOR_ID
+
+
+def _run_announce(bridge, case_actor, entry: CaseLedgerEntry):
+    return bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=_make_event(entry, actor_id=case_actor.id_),
+        sync_port=MagicMock(spec=SyncActivityPort),
+    )
+
+
+class TestAnnounceLogEntryAppliesParticipantUpdate:
+    """A participant stores the record an ``update_case_participant`` carries.
+
+    The CASE_MANAGER commits one per participant record an ownership transfer
+    changes (CLP-07-013); a replica copies it and derives nothing (CM-23-016).
+    """
+
+    _HELD_ID = "https://example.org/participants/new-owner"
+
+    def _held(self, datalayer, case_obj) -> CaseParticipant:
+        participant = CaseParticipant(
+            id_=self._HELD_ID,
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        datalayer.create(participant)
+        case_obj.add_participant(participant)
+        datalayer.save(case_obj)
+        return participant
+
+    def _entry(self, case_obj, record: CaseParticipant) -> CaseLedgerEntry:
+        return _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/participant-update",
+                event_type=UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+                payload_snapshot={
+                    "type": "Update",
+                    "actor": OWNER_ACTOR_ID,
+                    "object": record.model_dump(mode="json", by_alias=True),
+                },
+                prev_log_hash=case_obj.genesis_hash,
+            )
+        )
+
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("CM-21-002")
+    def test_the_carried_record_replaces_the_held_one(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        held = self._held(datalayer, case_obj)
+        carried = held.model_copy(deep=True)
+        carried.add_role(CVDRole.CASE_OWNER)
+
+        result = _run_announce(
+            bridge, case_actor, self._entry(case_obj, carried)
+        )
+
+        assert result.status == Status.SUCCESS
+        stored = datalayer.read(self._HELD_ID)
+        assert isinstance(stored, CaseParticipant)
+        assert stored.model_dump() == carried.model_dump()
+
+    @pytest.mark.spec("CM-23-016")
+    def test_a_record_the_replica_does_not_hold_is_not_created(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """An update seats no one: the roster entry that seats it does."""
+        stranger = CaseParticipant(
+            id_="https://example.org/participants/stranger",
+            attributed_to="https://example.org/actors/stranger",
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+
+        result = _run_announce(
+            bridge, case_actor, self._entry(case_obj, stranger)
+        )
+
+        assert result.status == Status.SUCCESS
+        assert datalayer.read(stranger.id_) is None
+
+    @pytest.mark.spec("CM-23-016")
+    def test_a_record_under_another_id_is_left_alone(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The replica indexes the actor under another record: nothing stored."""
+        held = self._held(datalayer, case_obj)
+        carried = held.model_copy(
+            deep=True,
+            update={"id_": "https://example.org/participants/other-id"},
+        )
+        carried.add_role(CVDRole.CASE_OWNER)
+
+        result = _run_announce(
+            bridge, case_actor, self._entry(case_obj, carried)
+        )
+
+        assert result.status == Status.SUCCESS
+        assert datalayer.read(carried.id_) is None
+        stored = datalayer.read(self._HELD_ID)
+        assert isinstance(stored, CaseParticipant)
+        assert not stored.has_role(CVDRole.CASE_OWNER)
+
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("CM-21-007")
+    def test_the_accept_entry_alone_moves_no_owner(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The Accept's consequences are entries of their own (#4439)."""
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/accept",
+                event_type="accept_case_ownership_transfer",
+                payload_snapshot={"type": "Accept", "actor": NEW_OWNER_ID},
+                prev_log_hash=case_obj.genesis_hash,
+            )
+        )
+
+        result = _run_announce(bridge, case_actor, entry)
 
         assert result.status == Status.SUCCESS
         updated = datalayer.read(CASE_ID)

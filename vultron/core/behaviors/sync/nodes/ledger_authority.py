@@ -24,78 +24,56 @@ from vultron.core.behaviors.store_scope import store_for_actor
 
 
 class DeclineForeignLedgerCommitNode(DataLayerActionWithPorts):
-    """SUCCESS when this store is not the one whose ledger is being appended to.
+    """Fail fast when this store is not the one whose ledger is being appended to.
 
-    **This is a store-consistency / anti-fork guard, not an authority check**
-    (ARCH-24-005). Despite the module name, it never asks "is this actor the
-    case authority" — that question has exactly one answer, the
-    ``CVDRole.CASE_MANAGER`` role via ``CheckIsCaseManagerNode`` (ADR-0088,
-    ARCH-24-003), and it has already been answered by the guarded-commit
-    composition upstream of here. This node asks the strictly downstream
-    question: *given* that role-authority said "you may commit", is the store in
-    hand the one that actually holds the log? Conflating the two would make the
-    role look like a property of a store, which it is not.
+    **This is a store-consistency / anti-fork invariant, not an authority
+    check** (ARCH-24-005). It never asks "is this actor the case authority" —
+    that question has exactly one answer, the ``CVDRole.CASE_MANAGER`` role via
+    ``CheckIsCaseManagerNode`` (ADR-0088, ARCH-24-003), and it has already been
+    answered by the guarded-commit composition upstream of here. This node
+    asserts the strictly downstream fact: *given* that role-authority said "you
+    may commit", the store in hand is the one that holds the log. Conflating the
+    two would make the role look like a property of a store, which it is not.
 
     ``CommitLogEntryBT`` mints a canonical index and fans the entry out to the
     case's participants.  Only the store that *holds* that canonical log may do
     either: an index is a claim on a position in one hash chain, and two stores
-    claiming the same position fork it irreparably (CLP-08-005).
+    claiming the same position fork it irreparably (CLP-08-005, #2626).
 
-    The delegated-emit path is how a second claimant arises.  A trigger the case
-    *owner* runs emits as the CaseActor — ``actor`` is the CaseActor,
-    ``attributedTo`` the owner (PCR-08-007, CM-24-001) — and the emit node
-    commits the ledger entry under that same ``actor_id``.  When the owner hosts
-    the CaseActor, ``BTBridge._store_for_actor`` hands the tree the CaseActor's
-    own store and the commit is the canonical one.  After an ownership handoff it
-    does not: the CaseActor stays on the container that first received the report
-    (CP-08-003) while the owner is elsewhere, and the bridge deliberately falls
-    through to the *requester's* store so the activity is created and outboxed
-    where it can actually be delivered (BT-05-005).  Without this guard the
-    commit rides along on that fall-through and mints index N in the owner's
-    replica while the real CaseActor mints its own index N from the ``cc:`` copy
-    — two entries, one position, different bytes, because the owner's snapshot
-    carries local enrichment (``attributedTo``, ``name``, the case's
-    ``caseStatus``) the wire copy does not (CM-17-002).  Both then fan out, and
-    the case partitions into the participants each reached first (#2626).
+    No sanctioned path reaches this node with a foreign store.  A container
+    executes trees only as actors it hosts, and a participant whose container
+    does not host the CASE_MANAGER reaches it by sending the CASE_MANAGER its
+    own activity (CM-24-004, ADR-0109); ``BTBridge._store_for_actor`` already
+    refuses an unhosted executing actor before any tree ticks (BT-05-005).
+    Reaching this node as one is therefore a programming error, and it raises
+    :class:`~vultron.errors.VultronUnhostedActorError` having written nothing,
+    rather than reporting a decline as success (CLP-10-014).  The name is kept
+    from the retired declining guard, so the commit tree's first child is still
+    found under it.
 
-    Declining is not a lost entry.  The activity still goes out with the
-    CaseActor ``cc:``'d, so the canonical log gains it the only way a remote
-    store ever can (CLP-10-001), and the owner's replica gains it by replication
-    from that log — byte-identical, as a replica must be (DL-07-009).
-
-    SUCCESS means "handled, by declining", so this sits as the first child of a
-    Selector ahead of the commit Sequence: every existing caller keeps treating a
-    non-SUCCESS tree as a real failure.  FAILURE means "not foreign — go commit".
+    ``SUCCESS`` means "this store holds the log — go commit".  It is the first
+    child of the commit Sequence, so a raise stops the tree before the port
+    guard, the chain reconstruction, the persist or the fan-out run.
 
     Reuses :func:`~vultron.core.behaviors.store_scope.store_for_actor` with the
-    same ``require_same_authority`` the bridge uses, so the guard and the
-    fall-through it guards cannot drift on what "not hosted here" means.  A store
-    that reports no ``actor_id`` — a test double — is never foreign, and such
-    callers commit exactly as they did before per-actor storage.
+    same ``require_same_authority`` the bridge uses, so the two cannot drift on
+    what "not hosted here" means.  A store that reports no ``actor_id`` — a test
+    double — is never foreign, and such callers commit exactly as they did
+    before per-actor storage.
 
-    Spec: BT-05-006, CLP-08-005, CLP-10-001, DL-07-009, ARCH-24-005.
-    Per ADR-0073, reclassified by ADR-0088.
+    Spec: BT-05-005, BT-05-006, CLP-08-005, CLP-10-014, DL-07-009, ARCH-24-005.
+    Per ADR-0073, reclassified by ADR-0088, made fail-fast by ADR-0109.
     """
 
     def update(self) -> Status:
         if self.datalayer is None or not self.actor_id:
             # Nothing to compare; the commit nodes downstream raise their own
             # clearer error for a missing store or actor.
-            return Status.FAILURE
-        if (
-            store_for_actor(
-                self.datalayer, self.actor_id, require_same_authority=True
-            )
-            is not None
-        ):
-            return Status.FAILURE
-        self.logger.info(
-            "%s: not minting a canonical ledger index for '%s' — this store"
-            " belongs to '%s' and does not host that actor's log; the entry"
-            " arrives by replication from it (CLP-10-001)",
-            self.name,
-            self.actor_id,
-            getattr(self.datalayer, "actor_id", None),
+            return Status.SUCCESS
+        # Raises VultronUnhostedActorError for an actor this store's node
+        # does not host; nothing has been written yet.
+        store_for_actor(
+            self.datalayer, self.actor_id, require_same_authority=True
         )
         return Status.SUCCESS
 

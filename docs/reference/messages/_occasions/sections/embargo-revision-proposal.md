@@ -6,6 +6,7 @@ Proposes a revision to the terms of the active embargo. The wire form is the sam
 
 - **When…** a Participant proposes revised terms for the active embargo
 - **Send:** `Invite(Event)[context=VulnerabilityCase]`
+- **Send to:** the case manager
 - **Sent by:** the case manager or an active participant
 - **Distinguished by:** EM state `ACTIVE` or `REVISE`
 - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)

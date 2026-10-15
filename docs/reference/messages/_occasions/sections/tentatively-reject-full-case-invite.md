@@ -6,6 +6,7 @@ Tentatively rejects the Full-Case Invite, which records RM Invalid. It carries t
 
 - **When…** a Participant asked by a Full-Case Invite judges the case invalid
 - **Send:** `TentativeReject(Invite(Actor)[target=VulnerabilityCase])`
+- **Send to:** the case manager
 - **Sent by:** the invitee
 - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
 - **Formal definition:** [Report Invalid (RI)](../../../formal_protocol/messages.md#rm-message-types)

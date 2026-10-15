@@ -200,7 +200,12 @@ def test_handle_outbox_item_raises_when_to_is_empty_list():
 def test_handle_outbox_item_warns_when_non_standard_addr_field_present(
     addr_field, caplog
 ):
-    """handle_outbox_item logs WARNING when cc/bto/bcc set, but still delivers (OX-08-004)."""
+    """handle_outbox_item logs WARNING when cc/bto/bcc set (OX-08-004).
+
+    The activity is still delivered, to its ``to`` recipients only: a
+    secondary addressing field names no Vultron recipient (OX-08-001,
+    ADR-0109).
+    """
     other = "https://example.org/actors/charlie"
     sealed = _sealed(
         "urn:test:act-warn",
@@ -222,7 +227,7 @@ def test_handle_outbox_item_warns_when_non_standard_addr_field_present(
     )
     mock_emitter.emit.assert_called_once()
     _, _, recipients = mock_emitter.emit.call_args[0]
-    assert recipients == [RECIPIENT, other]
+    assert recipients == [RECIPIENT]
 
 
 def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
@@ -262,3 +267,6 @@ def test_handle_outbox_item_warns_for_the_senders_own_cc_copy(caplog):
         "cc" in r.message and r.levelname == "WARNING" for r in caplog.records
     )
     mock_emitter.emit.assert_called_once()
+    # The sender is not mailed a copy of its own activity.
+    _, _, recipients = mock_emitter.emit.call_args[0]
+    assert recipients == [RECIPIENT]

@@ -81,9 +81,9 @@ the CaseActor here?". Conflating any two has produced bugs.
   (CM-02-013, `test/architecture/test_role_authority_resolver.py`).
 - **Address resolution is downstream of authority** (ARCH-24-005). A `None` from
   `_find_case_actor_id` means "no resolvable address", never "no authority".
-- **The store guard is not an authority check** (ARCH-24-005). It stops a
-  delegated-emit fall-through from minting an index in a store that is not the
-  log's home, which would fork the chain.
+- **The store guard is not an authority check** (ARCH-24-005). It raises when a
+  commit would mint an index in a store that is not the log's home, which would
+  fork the chain; no sanctioned path gets there (CLP-10-014, ADR-0109).
 - **A resolver that cannot answer says so.** Never fall back to "the first
   `Service` in the store": a failed lookup must not look like a successful one.
 
@@ -98,6 +98,13 @@ is only the replication wrapper around it.
 Replicas need the asserted content to rebuild state, so the hash chain is
 computed over entries that each include the payload snapshot, never over pointers
 to prior assertions.
+
+**Planned: `event_type` is the registry's label for the payload (ADR-0140,
+proposed).** Every payload is a valid AS2 activity, and an entry's `event_type`
+must equal the semantic type the registry assigns to its `payload_snapshot`,
+including for the CASE_MANAGER's own acts. Today each write path stamps
+`event_type` from its own string constant. The shapes for ledger-only acts are
+decided in #4723; the equality test is #4724.
 
 ## Refusals Go to the Process Log
 

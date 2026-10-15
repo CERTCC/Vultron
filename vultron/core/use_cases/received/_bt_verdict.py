@@ -70,6 +70,9 @@ from vultron.core.behaviors.case.nodes.reference_list import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
 )
+from vultron.core.behaviors.embargo.nodes.withdrawal import (
+    IsWithdrawableEmbargoNode,
+)
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
@@ -254,7 +257,11 @@ def reference_edit_verdict(
 
 def _redelivery_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
-    guard_type: type[OwnershipOfferOpenNode] | type[NoOpenOwnershipOfferNode],
+    guard_type: (
+        type[OwnershipOfferOpenNode]
+        | type[NoOpenOwnershipOfferNode]
+        | type[IsWithdrawableEmbargoNode]
+    ),
     verdict: HandlerResult,
     fallback: str,
 ) -> HandlerResult:
@@ -282,6 +289,25 @@ def embargo_answer_repeat_verdict(
             guard.feedback_message or "embargo answer repeated"
         )
     return verdict
+
+
+def embargo_withdrawal_redelivery_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered ``Leave(EmbargoEvent)`` as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.embargo.nodes.withdrawal.IsWithdrawableEmbargoNode`
+    fails with ``is_redelivery`` set when the case's ledger already records
+    the Leave, so nothing is re-applied.  That is the benign no-op of a
+    redelivery, not a refusal (HP-01-003, MSM-07-010).
+    """
+    return _redelivery_verdict(
+        tree,
+        IsWithdrawableEmbargoNode,
+        verdict,
+        "Leave(EmbargoEvent) redelivered",
+    )
 
 
 def ownership_answer_verdict(

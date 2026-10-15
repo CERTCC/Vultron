@@ -48,6 +48,13 @@ either resolves or fails a check (DEMOCI-11-003). If a scenario cannot satisfy a
 convention, change the convention or rename the file: an override field re-opens
 the drift channel for every scenario.
 
+**Planned: a scenario's place in the scenario tree.** The ADR-0098 amendment of
+2026-10-15 adds one more self-known fact: each scenario declares its branch on
+`@scenario` (parent, branch point, choice), and the scenario-tree index is a
+derived artifact of those declarations (#4726, #4727). Composition, where a
+branching story is written once as shared steps then one continuation per
+choice, is the target that retires the declarations (#4736). Not built yet.
+
 ## Registration means built; planned scenarios live in the other register
 
 A scenario gets a spec group before its demo exists. **Do not register it.** A

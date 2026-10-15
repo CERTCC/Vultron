@@ -29,24 +29,32 @@ If they went directly between the two parties, no ledger entry would be written,
 
 ```text
 Offering actor sends trigger: offer-case-ownership-transfer
-  → Case Actor sends Offer(VulnerabilityCase, target=transferee)
-      actor:        case_actor_id       (delegated-message contract)
-      attributed_to: offering_actor_id
+  → Owner sends Offer(VulnerabilityCase, target=transferee)
+      actor:        offering_actor_id   (the owner's own activity)
       to:           [case_actor_id]     ← MUST route through Case Actor (CM-21-005)
 
 Case Actor inbox receives Offer:
+  0. Checks the sender holds CASE_OWNER
+     (anyone else: refused, nothing written).        ← CM-21-019
   1. Records the Offer.
   2. Commits CaseLedgerEntry (offer-recorded).
   3. Announce(CaseLedgerEntry) → all participants.   ← all parties learn the offer
-  4. Forwards Offer to transferee's inbox.
+  4. Forwards Offer to transferee's inbox:
+       actor:         case_actor_id     (delegated-message contract)
+       attributed_to: offering_actor_id
+       in_reply_to:   recorded Offer id ← CM-21-018
 ```
 
-The owner asks for the transfer, and the offer goes to the CASE_MANAGER — in the prototype, the Case Actor.
+The owner asks for the transfer by sending its own offer to the CASE_MANAGER — in the prototype, the Case Actor.
+The owner's offer leaves from the owner's own outbox, under the owner's own identity: no container sends a message as an actor it does not host ([CM-24-004](../../reference/specs/architecture.md#cm-24-004), [ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
 The CASE_MANAGER records the offer in the ledger, so every participant learns that a transfer is being offered, and then forwards the offer to the proposed new owner.
-The forwarded `Offer` is a new activity with its own `id`: the proposed new owner never sees the original offer, whose `id` exists only in the CASE_MANAGER's store.
+It accepts an offer only from the current Case Owner, and refuses one from anyone else before it writes or sends anything ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)).
+The proposed new owner, in turn, takes the offer only as the CASE_MANAGER's forward.
+The forwarded `Offer` is a new activity with its own `id`: the proposed new owner never sees the original offer, whose `id` exists only in the owner's and the CASE_MANAGER's stores.
+The forwarded offer points back to the recorded offer: its `inReplyTo` is the recorded offer's `id` ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
 
-The CASE_MANAGER sends the offer under its own identity, with the owner who asked for it named as the author (`attributed_to`).
-This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001 through CM-24-004](../../reference/specs/protocol.md#cm-24)).
+The CASE_MANAGER sends the forwarded offer under its own identity, with the owner who asked for it named as the author (`attributed_to`).
+This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001 through CM-24-005](../../reference/specs/protocol.md#cm-24)).
 
 ## The answer
 
@@ -61,18 +69,39 @@ Case Actor inbox receives Accept:
   1. Commits CaseLedgerEntry (ownership-transferred).   ← CM-21-007
   2. Announce(CaseLedgerEntry) → all participants.
   3. Applies the CASE_OWNER role change (CM-21-001 through CM-21-004).
+  4. Commits one entry per changed object, each        ← CLP-07-013
+     Announce(CaseLedgerEntry) → all participants:
+       update_case_participant  (previous owner, CASE_OWNER removed)
+       update_case_participant  (new owner, CASE_OWNER added)
+       update_case_owner        (the case, attributed_to = new owner)
 ```
 
 The proposed owner answers the CASE_MANAGER, not the participant who made the offer.
 The CASE_MANAGER acts on an acceptance only when its sender is the proposed owner named in an offer it recorded for the case ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)).
 That offer must also still be open, with no other answer to it recorded.
+The proposed owner answers the forwarded offer, so the CASE_MANAGER matches the answer to its recorded offer through the forwarded offer's `inReplyTo` link, never by when the offers were sent ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
+An answer to a forwarded offer that carries no link, or whose link names no recorded offer for that case and proposed owner, is refused, and nothing is recorded or sent.
 It refuses an acceptance from anyone else, or a second acceptance of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
-On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
+On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
 The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008, CM-21-009](../../reference/specs/protocol.md#cm-21)).
-The CASE_MANAGER then records the completed transfer in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
-The new owner's own copy of the case is updated by that same entry; nothing is delivered to it separately.
+The CASE_MANAGER records the acceptance in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
+
+The acceptance entry records what the proposed owner sent, not the changes it causes.
+Each change the CASE_MANAGER makes because of it follows as an entry of its own, in the order the CASE_MANAGER writes them ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)):
+
+1. An `update_case_participant` entry carries the previous owner's participant record, without `CASE_OWNER`.
+2. An `update_case_participant` entry carries the new owner's participant record, with `CASE_OWNER`.
+3. An `update_case_owner` entry carries the case, whose `attributed_to` now names the new owner.
+
+Each entry is an `Update` that the CASE_MANAGER authors, and it carries the changed object in full.
+A participant's copy of the case changes only by copying what these entries carry: it stores each participant record as received and takes `attributed_to` from the carried case ([CM-23-016](../../reference/specs/protocol.md#cm-23-016)).
+It does not decide for itself who the new owner is, and it assigns no ids or times of its own, so every copy holds the same owner and the same roles as the CASE_MANAGER.
+The previous owner's record changes first, so no copy ever shows two owners.
+A copy applies the entries one at a time, so between the first two it briefly shows no participant with `CASE_OWNER`, and until the third its `attributed_to` still names the previous owner.
+The CASE_MANAGER records all three entries before it saves the change, so it never makes a change that has no entry.
+The new owner's own copy is updated by the same entries; nothing is delivered to it separately.
 
 ```text
 Declining actor sends trigger: reject-case-ownership-transfer

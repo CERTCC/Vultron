@@ -44,7 +44,7 @@ relevant_packages:
 # Interactive Demo UI — Scenarios and Architecture
 
 Decision records: ADR-0104 (the demo UI, amended 2026-10-15), ADR-0098 (scenarios
-self-register, amended 2026-10-15 for the scenario tree), and ADR-0138 (a ledger
+self-register, amended 2026-10-15 for the scenario tree), and ADR-0140 (a ledger
 entry's semantic type is the registry label of its AS2 payload).
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording).
@@ -83,8 +83,9 @@ exchange that tells a story.
 2. **The audience sees only what Vultron did.** Live mode reads the running
    system's ledgers. Offline mode replays **recordings**: the case ledgers each
    scenario writes, produced by running the real scenario code
-   deterministically and drift-tested against a fresh run. The UI never
-   invents protocol state.
+   deterministically and drift-tested against a fresh run. Neither mode
+   invents protocol state; the whole UI holds to this once the TypeScript
+   simulation is deleted (#4732, decision 5).
 3. **The scenarios form one scenario tree.** Its root is a Reporter who has
    found a vul and must choose whom to tell. Each branch point is a role
    facing a decision; each choice is a trigger that role calls. Who joins and
@@ -124,7 +125,7 @@ exporters to the files they write.
 
 | Seam | Producer | Consumer | Guard | Status |
 |---|---|---|---|---|
-| State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built; EM table hand-copied until #4427 |
+| State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built (EM read from the EM transition table since #4427) |
 | Semantic registry table | registry exporter (#4725) | ledger parser and mapper | drift test | planned |
 | Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
 | Scenario-tree index | `@scenario` branch declarations (#4726, #4727) | offline mode, live branch points | drift test; shared-prefix check | planned |
@@ -134,7 +135,7 @@ exporters to the files they write.
 Rules for the TypeScript side:
 
 - A ledger entry's meaning is its `eventType`, which equals the registry's
-  semantic type for its AS2 payload (ADR-0138). The UI reads the exported
+  semantic type for its AS2 payload (ADR-0140). The UI reads the exported
   registry table; it never keeps its own list of event names or phrasing.
 - TypeScript types for anything the UI reads match the current Python models,
   and a Python test fails when a field the TypeScript side declares is gone.
@@ -185,8 +186,6 @@ demo tooling, not a replication channel (SYNC-02-001).
 
 ---
 
----
-
 ## Choose-Your-Own-Adventure (CYOA) Model
 
 The human viewer "plays" one or more actors, making real protocol decisions
@@ -195,13 +194,13 @@ decision: **"As the Vendor, choose one of the following..."** Choices POST to
 the same trigger endpoints the Python demo scripts use
 (`POST /actors/{id}/trigger/{behavior}`, `POST /actors/{id}/demo/{behavior}`);
 the UI then animates from the ledger entries that result. It never invents
-state client-side in the live mode.
+state client-side.
 
 ### Branch points (in priority order)
 
 1. **Report validation** — As the Vendor: validate / invalidate-hold /
-   invalidate-close. *First to build, on scenario A.*
-2. **Embargo negotiation** — As the Finder or Vendor: accept the proposed
+   invalidate-close. *First to build, on the `fv` path.*
+2. **Embargo negotiation** — As the Reporter or Vendor: accept the proposed
    embargo / reject / counter-propose different terms
 3. **Publication** — As any participant: publish on the agreed date /
    announce early publication / request embargo extension
@@ -238,10 +237,10 @@ any branch point is interactive.
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  VULTRON DEMO   [Scenario A ▼]   [Reset]   [Run Auto]   │
+│  VULTRON DEMO   [Branch: fv ▸]   [Reset]   [Run Auto]   │
 │  CERT/CC — Research Prototype                           │
 ├─────────────────────────────────────────────────────────┤
-│   [Finder]  ──msgs──>  [Vendor]  ──msgs──>  [Case Actor]│
+│  [Reporter] ──msgs──> [Vendor] ──msgs──> [CASE_MANAGER] │
 │   scorecard            scorecard            scorecard   │
 ├─────────────────────────────────────────────────────────┤
 │  Message Timeline (newest at top, history grows down)   │
@@ -252,14 +251,13 @@ any branch point is interactive.
   node carries a scorecard.
 - **Bottom**: vertical swimlane timeline, newest at top — sender → receiver,
   activity type, human-readable description.
-- **Landing page**: scenario selector with CERT/CC branding and a
+- **Landing page**: the scenario tree's root branch point (the Reporter
+  choosing whom to tell), with CERT/CC branding and a
   "Research Prototype — Not for Production Use" disclaimer.
 - **Scorecard**: LED-style RM / EM / CS indicators (raw labels such as
   `RM.V` on hover, not primary), a plain-language narrative label
   ("Embargo active", "Waiting for vendor response"), and role badges
   (REPORTER, VENDOR, COORDINATOR, CASE_MANAGER).
-
----
 
 ---
 
@@ -270,7 +268,7 @@ and the interface to Python. Findings and where each went:
 
 | Gap | Where it went |
 |---|---|
-| The ledger had no contract: free-form event names, scattered literals, a closed TypeScript list that had drifted | ADR-0138; #4723, #4724, #4725 |
+| The ledger had no contract: free-form event names, scattered literals, a closed TypeScript list that had drifted | ADR-0140; #4723, #4724, #4725 |
 | The parser read removed fields (`vfdState`, `emConsentState`) and missed current semantic types, hidden by tolerant parsing | #4729 |
 | The bundled sample ledgers predated the current `CaseLedgerEntry`, and nothing regenerated or checked them | #3901 |
 | The simulation, the default mode, showed embargo acceptance as a unanimous vote, and activity names Vultron does not have | #4730, #4731, #4732 |

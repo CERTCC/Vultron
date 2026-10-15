@@ -1,7 +1,7 @@
 # The occasion table, generated from SEMANTIC_REGISTRY (ADR-0128).
 # Do not edit: edit the occasions and run `uv run msm-occasions --write`.
 # Internal; not a published interface (#2959).
-format_version: 2
+format_version: 3
 groups:
 - page: rm
   title: Report
@@ -11,6 +11,7 @@ groups:
     heading: Create report
     when: a Reporter has written up a vulnerability and is about to submit the report
     send: Create(VulnerabilityReport)
+    send_to: an actor outside any case
     sent_by: 'any actor (usually: finder, reporter)'
     semantics: create_report
     status: none
@@ -24,6 +25,7 @@ groups:
     heading: Report Submission (RS)
     when: a Reporter submits a vulnerability report to a Vendor or Coordinator
     send: Offer(VulnerabilityReport)
+    send_to: an actor outside any case
     sent_by: 'any actor (usually: reporter)'
     semantics: submit_report
     shorthand: RS
@@ -38,7 +40,8 @@ groups:
     heading: Report Acknowledgment (RK)
     when: a report receiver has read a submitted report
     send: Read(Offer(VulnerabilityReport))
-    sent_by: 'the addressee of the vulnerability report (usually: vendor, coordinator)'
+    send_to: an actor outside any case
+    sent_by: 'the addressee of the vulnerability report offer (usually: vendor, coordinator)'
     semantics: ack_report
     shorthand: RK
     status: direct
@@ -54,6 +57,7 @@ groups:
     heading: Validate report
     when: a report receiver judges the report valid
     send: Accept(Offer(VulnerabilityReport))
+    send_to: the case manager
     sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: validate_report
     shorthand: RV
@@ -67,6 +71,7 @@ groups:
     heading: Invalidate report
     when: a report receiver judges the report invalid
     send: TentativeReject(Offer(VulnerabilityReport))
+    send_to: the case manager
     sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: invalidate_report
     shorthand: RI
@@ -80,6 +85,7 @@ groups:
     heading: Close report
     when: a report receiver closes the report
     send: Reject(Offer(VulnerabilityReport))
+    send_to: the case manager
     sent_by: 'a participant (usually: vendor, coordinator)'
     semantics: close_report
     shorthand: RC
@@ -95,6 +101,7 @@ groups:
     heading: Report/Case Accepted (RA)
     when: a Participant accepts the case for further action
     send: Join(VulnerabilityCase)
+    send_to: the case manager
     sent_by: a participant
     semantics: engage_case
     shorthand: RA
@@ -109,6 +116,7 @@ groups:
     heading: Report/Case Deferred (RD)
     when: a Participant defers further action on the case
     send: Ignore(VulnerabilityCase)
+    send_to: the case manager
     sent_by: a participant
     semantics: defer_case
     shorthand: RD
@@ -127,6 +135,7 @@ groups:
     heading: Create case proposal
     when: a report receiver asks a Case Actor Service to open a case for a report
     send: Create(CaseProposal)
+    send_to: an actor outside any case
     sent_by: 'not yet checked (usually: vendor, coordinator)'
     semantics: create_case_proposal
     status: none
@@ -138,6 +147,7 @@ groups:
     heading: Accept case proposal
     when: a Case Actor Service agrees to open the proposed case
     send: Accept(CaseProposal)
+    send_to: an actor outside any case
     sent_by: the addressee of the case proposal
     semantics: accept_case_proposal
     status: none
@@ -149,6 +159,7 @@ groups:
     heading: Reject case proposal
     when: a Case Actor Service declines to open the proposed case
     send: Reject(CaseProposal)
+    send_to: an actor outside any case
     sent_by: the addressee of the case proposal
     semantics: reject_case_proposal
     status: none
@@ -163,6 +174,7 @@ groups:
     heading: Create case
     when: the Case Manager has opened a case for a submitted report
     send: Create(VulnerabilityCase)
+    send_to: a participant
     sent_by: not yet checked
     semantics: create_case
     status: none
@@ -176,6 +188,7 @@ groups:
     heading: Add report to case
     when: the Case Owner links a further report to an existing case
     send: Add(VulnerabilityReport)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: the case owner
     semantics: add_report_to_case
     status: none
@@ -188,6 +201,7 @@ groups:
     heading: Offer case participant role
     when: a Participant offers a CVD role on the case to another actor
     send: Offer(CaseParticipantRole)[context=VulnerabilityCase]
+    send_to: a participant
     sent_by: not yet checked
     semantics: offer_case_participant_role
     status: none
@@ -200,6 +214,7 @@ groups:
     heading: Accept case participant role
     when: an actor accepts a role offered to it on the case
     send: Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])
+    send_to: a participant
     sent_by: not yet checked
     semantics: accept_case_participant_role
     status: none
@@ -212,6 +227,7 @@ groups:
     heading: Reject case participant role
     when: an actor declines a role offered to it on the case
     send: Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])
+    send_to: a participant
     sent_by: not yet checked
     semantics: reject_case_participant_role
     status: none
@@ -224,7 +240,8 @@ groups:
     heading: Offer case ownership transfer
     when: the Case Owner offers to transfer ownership of the case to another actor
     send: Offer(VulnerabilityCase)
-    sent_by: not yet checked
+    send_to: the case manager
+    sent_by: the case owner
     semantics: offer_case_ownership_transfer
     status: none
     description: Offers the case to the actor named by the target, for example from a Reporter
@@ -236,7 +253,8 @@ groups:
     heading: Accept case ownership transfer
     when: an actor accepts an offer of case ownership
     send: Accept(Offer(VulnerabilityCase))
-    sent_by: the addressee of the vulnerability case
+    send_to: the case manager
+    sent_by: the addressee of the vulnerability case offer
     semantics: accept_case_ownership_transfer
     status: none
     description: Accepts the ownership transfer offer.
@@ -246,7 +264,8 @@ groups:
     heading: Reject case ownership transfer
     when: an actor declines an offer of case ownership
     send: Reject(Offer(VulnerabilityCase))
-    sent_by: the addressee of the vulnerability case
+    send_to: the case manager
+    sent_by: the addressee of the vulnerability case offer
     semantics: reject_case_ownership_transfer
     status: none
     description: Declines the ownership transfer offer. The current Case Owner keeps the case.
@@ -256,6 +275,7 @@ groups:
     heading: Withdraw case ownership transfer
     when: the Case Owner withdraws an open offer of case ownership
     send: Undo(Offer(VulnerabilityCase))
+    send_to: the case manager
     sent_by: the case owner
     semantics: undo_case_ownership_transfer
     status: none
@@ -267,6 +287,7 @@ groups:
     heading: Invite actor to case
     when: the Case Manager invites an actor to join the case
     send: Invite(Actor)[target=VulnerabilityCaseStub]
+    send_to: a participant
     sent_by: not yet checked
     semantics: invite_actor_to_case
     status: none
@@ -282,6 +303,7 @@ groups:
     heading: Accept invite to case
     when: an invited actor agrees to join the case
     send: Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+    send_to: the case manager
     sent_by: the invitee
     semantics: accept_invite_actor_to_case
     status: none
@@ -296,6 +318,7 @@ groups:
     heading: Reject invite to case
     when: an invited actor declines to join the case
     send: Reject(Invite(Actor)[target=VulnerabilityCaseStub])
+    send_to: the case manager
     sent_by: the invitee
     semantics: reject_invite_actor_to_case
     status: none
@@ -308,6 +331,7 @@ groups:
     heading: Send Full-Case Invite
     when: the Case Manager has replayed the case ledger to a newly joined Participant
     send: Invite(Actor)[target=VulnerabilityCase]
+    send_to: a participant
     sent_by: the case manager
     semantics: invite_actor_to_full_case
     status: none
@@ -321,6 +345,7 @@ groups:
     heading: Accept Full-Case Invite
     when: a Participant asked by a Full-Case Invite judges the case valid
     send: Accept(Invite(Actor)[target=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the invitee
     semantics: accept_invite_actor_to_full_case
     shorthand: RV
@@ -335,6 +360,7 @@ groups:
     heading: Tentatively reject Full-Case Invite
     when: a Participant asked by a Full-Case Invite judges the case invalid
     send: TentativeReject(Invite(Actor)[target=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the invitee
     semantics: tentative_reject_invite_actor_to_full_case
     shorthand: RI
@@ -349,6 +375,7 @@ groups:
     heading: Reject Full-Case Invite
     when: a Participant asked by a Full-Case Invite closes the case
     send: Reject(Invite(Actor)[target=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the invitee
     semantics: reject_invite_actor_to_full_case
     shorthand: RC
@@ -363,6 +390,7 @@ groups:
     heading: Announce vulnerability case
     when: the Case Manager has admitted a new Participant to the case
     send: Announce(VulnerabilityCase)
+    send_to: a participant
     sent_by: not yet checked
     semantics: announce_vulnerability_case
     status: none
@@ -376,6 +404,7 @@ groups:
     heading: Close case
     when: a Participant ends its participation in the case
     send: Leave(VulnerabilityCase)
+    send_to: the case manager
     sent_by: not yet checked
     semantics: close_case
     status: none
@@ -388,6 +417,7 @@ groups:
     heading: Add case participant to case
     when: the Case Owner reinstates a removed Participant
     send: Add(CaseParticipant)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: the case owner
     semantics: add_case_participant_to_case
     status: none
@@ -401,6 +431,7 @@ groups:
     heading: Remove case participant from case
     when: the Case Owner removes a Participant from active participation
     send: Remove(CaseParticipant)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: the case owner
     semantics: remove_case_participant_from_case
     status: none
@@ -418,6 +449,7 @@ groups:
     heading: Embargo Termination (ET)
     when: the Case Owner terminates the active embargo
     send: Remove(Event)
+    send_to: the case manager
     sent_by: the case manager or the case owner
     semantics: remove_embargo_event_from_case
     shorthand: ET
@@ -427,10 +459,28 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: remove_embargo
+  - anchor: embargo-termination-notice
+    heading: Tell a participant the embargo has ended
+    when: the Case Manager ends the active embargo, on its own decision or on the Case Owner's
+    send: Remove(Event)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: remove_embargo_event_from_case
+    status: direct
+    description: Tells one participant that the embargo has ended, with immediate effect.
+      The Case Manager sends one to each participant other than itself, naming the Case Owner
+      in `attributedTo` when the Case Owner asked for the termination.
+    notes: The wire form is the Embargo Termination (ET) a Case Owner sends; only its sender
+      and addressee differ.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: notify_embargo_termination
   - anchor: announce-embargo
     heading: Announce embargo
     when: the Case Manager states the terms of the embargo in force
     send: Announce(Event)[context=VulnerabilityCase]
+    send_to: a participant
     sent_by: the case manager
     semantics: announce_embargo_event_to_case
     status: none
@@ -445,6 +495,7 @@ groups:
     heading: Embargo Proposal (EP)
     when: a Participant proposes embargo terms for a case with no active embargo
     send: Invite(Event)[context=VulnerabilityCase]
+    send_to: the case manager
     sent_by: the case manager or an active participant
     distinguished_by: EM state `NONE` or `PROPOSED`
     semantics: invite_to_embargo_on_case
@@ -459,6 +510,7 @@ groups:
     heading: Embargo Revision Proposal (EV)
     when: a Participant proposes revised terms for the active embargo
     send: Invite(Event)[context=VulnerabilityCase]
+    send_to: the case manager
     sent_by: the case manager or an active participant
     distinguished_by: EM state `ACTIVE` or `REVISE`
     semantics: invite_to_embargo_on_case
@@ -470,10 +522,29 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: propose_embargo_revision
+  - anchor: relay-embargo-proposal
+    heading: Ask a participant about proposed embargo terms
+    when: the Case Manager asks a Participant to answer embargo terms another Participant
+      proposed
+    send: Invite(Event)[context=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    semantics: invite_to_embargo_on_case
+    status: collapse
+    description: Asks one participant to accept or reject proposed embargo terms, or a proposed
+      revision. The Case Manager sends one to each participant other than the proposer, naming
+      the proposer in `attributedTo`, and the participant's answer names this Invite.
+    notes: The wire form is the Embargo Proposal (EP) or Embargo Revision Proposal (EV) a
+      participant sends; only its sender and addressee differ.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    example: relay_embargo_proposal
   - anchor: embargo-proposal-acceptance
     heading: Embargo Proposal Acceptance (EA)
     when: a Participant agrees to proposed embargo terms
     send: Accept(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `PROPOSED`
     semantics: accept_invite_to_embargo_on_case
@@ -489,6 +560,7 @@ groups:
     heading: Embargo Revision Acceptance (EC)
     when: a Participant agrees to a proposed embargo revision
     send: Accept(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `REVISE`
     semantics: accept_invite_to_embargo_on_case
@@ -504,6 +576,7 @@ groups:
     heading: Embargo Proposal Rejection (ER)
     when: a Participant refuses proposed embargo terms
     send: Reject(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `PROPOSED`
     semantics: reject_invite_to_embargo_on_case
@@ -519,6 +592,7 @@ groups:
     heading: Embargo Revision Rejection (EJ)
     when: a Participant refuses a proposed embargo revision
     send: Reject(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `REVISE`
     semantics: reject_invite_to_embargo_on_case
@@ -534,6 +608,7 @@ groups:
     heading: Activate embargo
     when: the Case Owner decides to activate a proposed embargo
     send: Accept(Event)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: the case owner
     semantics: activate_embargo_on_case
     status: none
@@ -549,6 +624,7 @@ groups:
     heading: Reject embargo proposal
     when: the Case Owner decides to reject a proposed embargo
     send: Reject(Event)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: the case owner
     semantics: reject_embargo_proposal_on_case
     status: none
@@ -560,6 +636,20 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: reject_embargo_proposal
+  - anchor: embargo-withdrawal
+    heading: Withdraw from embargo
+    when: a Participant bound by the active embargo stops complying with it
+    send: Leave(Event)[context=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: a participant
+    semantics: withdraw_from_embargo_on_case
+    status: none
+    description: Ends the sender's own consent to the embargo in force, and to any revision
+      it had agreed to. The embargo stays in force for every other participant.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: withdraw_from_embargo
 - page: cs
   title: Case status
   mechanics: false
@@ -568,6 +658,7 @@ groups:
     heading: Public Awareness (CP)
     when: a Participant learns that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: not yet checked
     distinguished_by: '`pxaState` = `Pxa`'
     semantics: add_case_status_to_case
@@ -582,6 +673,7 @@ groups:
     heading: Exploit Public (CX)
     when: a Participant learns that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: not yet checked
     distinguished_by: '`pxaState` = `PXa`'
     semantics: add_case_status_to_case
@@ -596,6 +688,7 @@ groups:
     heading: Attacks Observed (CA)
     when: a Participant observes attacks that exploit the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: not yet checked
     distinguished_by: '`pxaState` = `pxA`'
     semantics: add_case_status_to_case
@@ -610,6 +703,7 @@ groups:
     heading: Vendor Awareness (CV)
     when: a Vendor becomes aware of the vulnerability
     send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
     sent_by: 'a participant (usually: vendor)'
     distinguished_by: '`vfState` = `Vf`'
     semantics: add_participant_status_to_participant
@@ -625,6 +719,7 @@ groups:
     heading: Fix Readiness (CF)
     when: a Vendor has a fix ready
     send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
     sent_by: 'a participant (usually: vendor)'
     distinguished_by: '`vfState` = `VF`'
     semantics: add_participant_status_to_participant
@@ -640,6 +735,7 @@ groups:
     heading: Fix Deployed (CD)
     when: a Deployer has deployed the fix
     send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
     sent_by: 'a participant (usually: deployer)'
     distinguished_by: '`dState` = `D`'
     semantics: add_participant_status_to_participant
@@ -659,6 +755,7 @@ groups:
     heading: Suggest actor to case
     when: a Participant suggests an actor that the case should include
     send: Offer(Actor)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: a participant
     semantics: offer_actor_to_case
     shorthand: GI
@@ -672,6 +769,7 @@ groups:
     heading: Offer case participant
     when: the Case Manager presents a suggested actor to the Case Owner
     send: Offer(CaseParticipant)[target=VulnerabilityCase]
+    send_to: a participant
     sent_by: the case manager
     semantics: offer_case_participant
     shorthand: GI
@@ -686,6 +784,7 @@ groups:
     heading: Accept case participant offer
     when: the Case Owner approves a suggested actor
     send: Accept(Offer(CaseParticipant)[target=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the case owner
     semantics: accept_offer_case_participant
     shorthand: GI
@@ -700,6 +799,7 @@ groups:
     heading: Reject case participant offer
     when: the Case Owner declines a suggested actor
     send: Reject(Offer(CaseParticipant)[target=VulnerabilityCase])
+    send_to: the case manager
     sent_by: the case owner
     semantics: reject_offer_case_participant
     shorthand: GI
@@ -713,6 +813,7 @@ groups:
     heading: Create note
     when: a Participant posts a new note to the case
     send: Create(Note)
+    send_to: the case manager
     sent_by: not yet checked
     semantics: create_note
     shorthand: GI
@@ -730,6 +831,7 @@ groups:
     heading: Add note to case
     when: a Participant attaches a note that already exists to the case
     send: Add(Note)[target=VulnerabilityCase]
+    send_to: the case manager
     sent_by: not yet checked
     semantics: add_note_to_case
     shorthand: GI
@@ -746,7 +848,8 @@ groups:
     heading: Remove note from case
     when: a note's author or the Case Owner withdraws a note from the case
     send: Remove(Note)[target=VulnerabilityCase]
-    sent_by: the case owner or the author of the note
+    send_to: the case manager
+    sent_by: the case owner or the note's author
     semantics: remove_note_from_case
     shorthand: GI
     status: expansion
@@ -763,6 +866,7 @@ groups:
     heading: Create processing fault
     when: a Participant has received a message it cannot process
     send: Create(ProcessingFault)
+    send_to: the case manager
     sent_by: not yet checked
     semantics: create_processing_fault
     status: evolved
@@ -781,6 +885,7 @@ groups:
     heading: Announce case ledger entry
     when: the Case Manager has committed a case event to the case ledger
     send: Announce(CaseLedgerEntry)
+    send_to: a participant
     sent_by: the case manager
     semantics: announce_case_ledger_entry
     status: none
@@ -791,6 +896,7 @@ groups:
     heading: Reject case ledger entry
     when: a received ledger entry does not chain onto the Participant's own ledger
     send: Reject(CaseLedgerEntry)
+    send_to: the case manager
     sent_by: an active participant
     semantics: reject_case_ledger_entry
     status: evolved

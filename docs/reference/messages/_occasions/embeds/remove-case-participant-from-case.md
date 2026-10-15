@@ -6,6 +6,7 @@
 
     - **When…** the Case Owner removes a Participant from active participation
     - **Send:** `Remove(CaseParticipant)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Remove case participant from case](../../case_management.md#remove-case-participant-from-case)
 

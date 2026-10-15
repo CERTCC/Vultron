@@ -44,9 +44,11 @@ an Offer can also close without an answer (#4490):
   `create_undo_ownership_transfer_tree`); ownership is unchanged.
   - **Who may withdraw.** The rule is `CASE_OWNER` at the CASE_MANAGER, which the
     factory checks against the recorded Offer with `SenderIsOwnershipOffererNode`:
-    the sender must be the participant the Offer speaks for. That is its
-    `attributedTo` only when the CASE_MANAGER is its `actor` (the delegated shape,
-    CM-24-002), else its `actor`. An `attributedTo` on an Offer a participant sent
+    the sender must be the participant the Offer speaks for: its `actor`, since
+    the CASE_MANAGER records only the Case Owner's own Offer (CM-21-019). Its
+    `attributedTo` counts only when the CASE_MANAGER is its `actor` (the delegated
+    shape, CM-24-002), which only an Offer recorded before CM-21-019 can have.
+    An `attributedTo` on an Offer a participant sent
     itself is an unchecked claim, ignored as the Offer handler ignores it when
     forwarding (`RecordedOwnershipOffer.offerer_id`). The offerer must still hold
     `CASE_OWNER`; that is standing too, so an offerer whose Offer an Accept closed
@@ -97,6 +99,7 @@ an Offer can also close without an answer (#4490):
     (Accept, Reject) or offerer (Undo) — `ExpiryPrompt` / `OfferParty` — so a
     sender with no standing never makes the CASE_MANAGER write (HP-01-006), as
     the embargo Invite expiry checks the invitee first. A new Offer prompts it
-    with no sender check, since the Offer itself has none yet (#4540).
+    with no prompt, because its handler refuses a sender that is not the Case
+    Owner before the expiry runs (CM-21-019).
   - **Ask kind.** `OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY` is `AskExpiry.VOID`
     (ASK-03-002): a late reply authorizes nothing.

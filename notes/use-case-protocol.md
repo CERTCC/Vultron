@@ -62,7 +62,7 @@ A handler refines the default by asking which node decided (`node_failed`,
 | Activity about a case this actor does not hold | `REFUSED` |
 | Invalid transition; untrusted, non-participant or non-owner sender | `REFUSED` |
 | The handler answered with a `Reject` or a decline | `REFUSED` |
-| Not this actor's role (a CASE_MANAGER-addressed message at a non-manager, via `not_case_manager_refusal()`), a copy naming it in neither `to` nor `cc`, or an addressing the message's protocol gives it no standing to act on (`cc`-only `Offer(Report)`, HP-09-001) | `REFUSED` (HP-01-005) |
+| Not this actor's role (a CASE_MANAGER-addressed message at a non-manager, via `not_case_manager_refusal()`), or a copy whose `to` does not name it (`cc` addresses nobody, ADR-0109; a `cc`-only `Offer(Report)` is one, HP-10-001) | `REFUSED` (HP-01-005) |
 | An addressee's first receipt of a message now pending its own decision (the Case Owner and `Offer(CaseParticipant)`) | `APPLIED` |
 | Duplicate or redelivery of a message the receiver was entitled to act on | `SKIPPED` |
 | Buffered out-of-order or pre-genesis ledger entry | `DEFERRED` |

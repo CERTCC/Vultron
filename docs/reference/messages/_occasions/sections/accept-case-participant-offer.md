@@ -6,6 +6,7 @@ Accepts the proposed participant record. The Case Manager then invites the sugge
 
 - **When…** the Case Owner approves a suggested actor
 - **Send:** `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`
+- **Send to:** the case manager
 - **Sent by:** the case owner
 - **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)

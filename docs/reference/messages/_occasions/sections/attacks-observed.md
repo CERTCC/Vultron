@@ -6,6 +6,7 @@ Announces evidence that attackers are exploiting the vulnerability.
 
 - **When…** a Participant observes attacks that exploit the vulnerability
 - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
+- **Send to:** the case manager
 - **Sent by:** not yet checked
 - **Distinguished by:** `pxaState` = `pxA`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)

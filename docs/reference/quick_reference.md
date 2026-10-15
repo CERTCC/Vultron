@@ -87,7 +87,7 @@ Every message is emitted by the Participant whose state changed; the "Response E
 
 The table above is keyed by formal message.
 Vultron narrows the `RK` responses (VP-03-009, VP-03-011): `RK` acknowledges only `RS`, sent to the reporter, and once a case exists the CASE_MANAGER's ledger entry is the acknowledgment of every other `R*` message, including `RE`.
-The [occasion table](messages/index.md) on Message Types reads the other way: from a situation in a case to the ActivityStreams 2.0 (AS2) activity that conveys it, who may send it, and the section that documents it.
+The [occasion table](messages/index.md) on Message Types reads the other way: from a situation in a case to the ActivityStreams 2.0 (AS2) activity that conveys it, whom to send it to, who may send it, and the section that documents it.
 
 !!! note "AS2 wire-format collapse"
 

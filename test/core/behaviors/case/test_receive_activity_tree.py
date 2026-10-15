@@ -45,6 +45,11 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     OFFER_ROLE,
     ReplicaEmitExemption,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderRule,
+)
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
@@ -389,7 +394,10 @@ class TestRefusalEffects:
         tree = create_receive_activity_tree(
             name="SampleBT",
             case_id=CASE_ID,
-            sender_guard=_effect("SenderGuard"),
+            sender_rule=SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+            sender_context=SenderCheckContext(
+                sender_id="https://example.org/actors/sender", case_id=CASE_ID
+            ),
             precondition_guards=[guard],
             replica_effects=[_effect("Replica")],
             refusal_effects=[note],
@@ -397,7 +405,7 @@ class TestRefusalEffects:
 
         assert _names(tree)[1:] == [
             POST_CLOSE,
-            "SenderGuard",
+            "SenderIsCaseManagerNode",
             "PreconditionGuardStage",
             COMMIT,
             "Replica",

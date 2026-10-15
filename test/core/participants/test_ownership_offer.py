@@ -71,11 +71,24 @@ def _ledger(
     )
 
 
-def _forward(dl: SqliteDataLayer, offer_id: str, actor: str, at: datetime):
+def _forward(
+    dl: SqliteDataLayer,
+    offer_id: str,
+    actor: str,
+    at: datetime,
+    in_reply_to: str | None,
+):
+    """Store a forward *actor* sent, linked to *in_reply_to* (CM-21-018)."""
     case = dl.read_case(_CASE_ID)
     assert case is not None
+    extra = {} if in_reply_to is None else {"in_reply_to": in_reply_to}
     offer = offer_case_ownership_transfer_activity(
-        case, target=_TRANSFEREE, actor=actor, id_=offer_id, published=at
+        case,
+        target=_TRANSFEREE,
+        actor=actor,
+        id_=offer_id,
+        published=at,
+        **extra,
     )
     dl.create(offer)
     return offer
@@ -115,9 +128,10 @@ def test_ledgered_offer_naming_no_transferee_is_not_found(dl):
 
 
 @pytest.mark.spec("CM-21-005")
-def test_forward_stands_for_the_offer_it_forwards(dl):
+@pytest.mark.spec("CM-21-018")
+def test_forward_stands_for_the_offer_it_links_to(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0)
+    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
 
     offer = recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
 
@@ -126,18 +140,55 @@ def test_forward_stands_for_the_offer_it_forwards(dl):
 
 def test_offer_issued_by_another_actor_is_not_a_forward(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", "https://example.org/actors/other", _T0)
+    _forward(
+        dl,
+        "urn:forward:1",
+        "https://example.org/actors/other",
+        _T0,
+        "urn:offer:1",
+    )
+
+    with pytest.raises(VultronNotFoundError):
+        recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
+
+
+@pytest.mark.spec("CM-21-018")
+def test_forward_with_no_link_stands_for_no_offer(dl):
+    """No ``inReplyTo``, no Offer: nothing falls back to comparing times."""
+    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
+    _forward(dl, "urn:forward:1", _MANAGER, _T0, None)
+
+    with pytest.raises(VultronNotFoundError):
+        recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
+
+
+@pytest.mark.spec("CM-21-018")
+def test_forward_linked_to_no_recorded_offer_stands_for_none(dl):
+    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
+    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:never")
+
+    with pytest.raises(VultronNotFoundError):
+        recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
+
+
+@pytest.mark.spec("CM-21-018")
+def test_forward_linked_to_another_transferees_offer_stands_for_none(dl):
+    """The link must name an Offer to the transferee the forward names."""
+    other = "https://example.org/actors/other-transferee"
+    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0, other)
+    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
 
     with pytest.raises(VultronNotFoundError):
         recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
 
 
 @pytest.mark.spec("CM-21-011")
+@pytest.mark.spec("CM-21-018")
 def test_stale_forward_stands_for_its_own_offer_not_a_later_one(dl):
     """A forward of an answered Offer is not an answer to the next Offer."""
     later = _T0 + timedelta(minutes=5)
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0)
+    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
     _ledger(dl, 1, "urn:reject:1", "reject_case_ownership_transfer", _T0)
     _ledger(dl, 2, "urn:offer:2", "offer_case_ownership_transfer", later)
 
@@ -147,26 +198,25 @@ def test_stale_forward_stands_for_its_own_offer_not_a_later_one(dl):
     assert offer.is_answered_other_than("urn:accept:late")
 
 
-@pytest.mark.spec("CM-21-011")
-def test_same_second_forward_resolves_to_the_later_offer_for_its_transferee(
-    dl,
-):
-    """Times are second-precision, so a same-second tie picks the later Offer.
+@pytest.mark.spec("CM-21-018")
+def test_same_second_forward_resolves_to_its_own_offer_not_the_later_one(dl):
+    """A later Offer recorded in the forward's second does not capture it.
 
-    It is safe because the later Offer names the same transferee, and its own
-    answered state still decides whether an answer through the old forward is
-    admitted.
+    Second-precision times cannot tell the two Offers apart; the link can, so
+    an answer through the old forward finds the old, answered Offer and
+    leaves the new one open (#4565).
     """
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
+    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
     _ledger(dl, 1, "urn:accept:1", "accept_case_ownership_transfer", _T0)
     _ledger(dl, 2, "urn:offer:2", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0)
 
     offer = recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
 
-    assert offer.offer_id == "urn:offer:2"
-    assert offer.transferee_id == _TRANSFEREE
-    assert offer.pair.is_pending()
+    assert offer.offer_id == "urn:offer:1"
+    assert offer.answer_id == "urn:accept:1"
+    newer = open_ownership_offer(dl, _CASE_ID)
+    assert newer is not None and newer.offer_id == "urn:offer:2"
 
 
 _OWNER = "https://example.org/actors/owner"

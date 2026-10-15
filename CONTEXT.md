@@ -185,7 +185,7 @@ prioritization outcome. Do not use this term for Vultron workflow call-out point
 ## Demo
 
 **Scenario tree**:
-The single authored tree of demo stories, rooted at a Reporter who has found a vul and
+The single authored tree of demo scenarios, rooted at a Reporter who has found a vul and
 must choose whom to tell. The presenter of the demo UI walks it by making choices; it is
 a choose-your-own-adventure story, not an open-world simulation.
 *Avoid*: scenario graph, phylogeny

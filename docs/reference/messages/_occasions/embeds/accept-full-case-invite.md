@@ -6,6 +6,7 @@
 
     - **When…** a Participant asked by a Full-Case Invite judges the case valid
     - **Send:** `Accept(Invite(Actor)[target=VulnerabilityCase])`
+    - **Send to:** the case manager
     - **Sent by:** the invitee
     - **Reference:** [Accept Full-Case Invite](../../case_management.md#accept-full-case-invite)
 

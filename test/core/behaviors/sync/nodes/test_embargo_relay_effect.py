@@ -690,7 +690,19 @@ class TestApplyEmbargoAnswers:
     def test_a_repeated_rejection_replays_as_a_no_op(
         self, bridge, datalayer, revising_case
     ):
-        """A Reject of the active embargo declines; its replay is no fault."""
+        """A Reject of the active embargo declines; its replay is no fault.
+
+        The rejecter never agreed to the embargo in force: from an ``AGREED``
+        row a Reject would be a withdrawal, which the CASE_MANAGER refuses
+        and so never commits (MSM-07-004).
+        """
+        record = _record(datalayer, PARTICIPANT_ACTOR_ID)
+        record.embargo_consents = [
+            EmbargoConsent(
+                embargo_id=ACTIVE_EMBARGO_ID, state=EmbargoConsentState.INVITED
+            )
+        ]
+        datalayer.save(record)
         reject = _answer_snapshot("Reject", PARTICIPANT_ACTOR_ID)
         reject["object"]["object"] = _embargo_snapshot(ACTIVE_EMBARGO_ID)
         entry = _entry(_ANSWER_EVENT_TYPE["Reject"], reject)

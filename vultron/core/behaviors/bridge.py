@@ -194,66 +194,41 @@ class BTBridge:
         all — correct by construction, rather than correct only when the caller
         remembered to inject a matching DataLayer.
 
-        The delegated-emit pattern is what makes this load-bearing.  A trigger
-        that emits on the CaseActor's behalf runs with ``actor_id`` set to the
-        CaseActor (CM-24-001) while the injected DataLayer belongs to the
-        *requesting* actor.  Without reconciliation the activity is created in
-        one store and queued in the other's outbox, so the CaseActor never
-        delivers it and the outbox entry names an activity its own store does
-        not hold (PCR-08-007, CM-24-004).
+        It is load-bearing wherever a tree runs as a co-hosted actor other than
+        the one whose store was injected — the demo-only ``sync-log-entry``
+        trigger runs as the case's CASE_MANAGER from the requesting actor's
+        route.  Without reconciliation the work lands in one store and is
+        queued in the other's outbox, and the outbox entry names an activity
+        its own store does not hold (PCR-08-007, CM-24-004).
 
         Scoping is skipped unless the DataLayer reports a concrete ``actor_id``
         that differs, which leaves test doubles and any non-actor-scoped
-        implementation untouched.  That fall-through is the first of BT-05-005's
-        two recorded exceptions: a store that cannot name its own actor has
-        nothing to reconcile against.
+        implementation untouched.  That fall-through is BT-05-005's one
+        recorded exception: a store that cannot name its own actor has nothing
+        to reconcile against.
 
         The guard logic itself lives in
         :func:`~vultron.core.behaviors.store_scope.store_for_actor` so that this
         node, ``WritePendingReportCaseLinkNode`` and the demo seeding helpers
         cannot drift apart on what "that actor's store" means.
 
-        ``require_same_authority`` is set, and the fall-through is the point of
-        it — BT-05-005's second exception.  The executing actor is not always one
-        this node hosts: after a
-        handoff the case's CaseActor is on the container that first received the
-        report (CP-08-003) while the owner is elsewhere, and
-        ``_find_case_actor_id`` resolves it from the case's own participant
-        roster — the ``CVDRole.CASE_MANAGER`` role (ADR-0088, ARCH-24-004) —
-        which names remote actors just as readily as local ones.
-        ``clone_for_actor`` would then mint an empty local
-        store under a foreign actor's name, and the tree would run against
-        nothing: no case to enrich the wire object from (CM-17-002), no case to
-        read a genesis hash out of, so ``ReconstructChainTailNode`` cannot
-        anchor the chain and the ledger commit fails outright (CLP-08-005) —
-        ``invite-actor-to-case`` returns 422 rather than degrading (#2484).
-
-        So a foreign-authority actor keeps the store it was handed: the store of
-        the actor whose request this is, which does hold the case and its
-        ledger.  The *wire* identity is unaffected — the Invite still goes out
-        with ``actor`` set to the CaseActor and ``attributedTo`` the requester
-        (PCR-08-007) — and the CaseActor's canonical ledger learns of it the
-        only way a remote store ever can, over the wire via the ``cc:`` copy
-        (CLP-10-001).  Callers that queue work for the executing actor must fall
-        back the same way; see ``trigger_invite_actor_to_case``.
-
-        That last part is enforced, not merely intended: a *ledger commit* must
-        not ride along on this fall-through, or the requester mints a canonical
-        index in its own replica while the real CaseActor mints its own from the
-        ``cc:`` copy and the chain forks (#2626).
-        :class:`~vultron.core.behaviors.sync.nodes.ledger_authority.DeclineForeignLedgerCommitNode`
-        makes ``CommitLogEntryBT`` decline in exactly the case this method falls
-        through on, reusing this same guard so the two cannot disagree
-        (CLP-10-014).
+        ``require_same_authority`` is set, so an executing actor under an
+        authority this node does not host is refused with
+        :class:`~vultron.errors.VultronUnhostedActorError` rather than handed
+        a store.  ``clone_for_actor`` would mint an empty local store under the
+        foreign actor's name, and keeping the injected store instead would run
+        the tree as one actor against another actor's data.  Neither is
+        sanctioned: a container executes trees only as actors it hosts, and a
+        participant reaches a CASE_MANAGER on another container by sending it
+        its own activity, never by executing a tree in its name (BT-05-005,
+        CM-24-004, ADR-0109).  ``execute_with_setup`` classifies the raise as
+        an internal error, so a trigger that tries answers 500, not 422.
 
         Reconciling the store is necessary but not sufficient — see
         :meth:`_ports_for_store` for the other half.
         """
-        return (
-            store_for_actor(
-                self.datalayer, actor_id, require_same_authority=True
-            )
-            or self.datalayer
+        return store_for_actor(
+            self.datalayer, actor_id, require_same_authority=True
         )
 
     def _ports_for_store(
@@ -276,12 +251,10 @@ class BTBridge:
         "not found in DataLayer for actor …", skips delivery, and the invitee is
         never told it was invited (ISSUE-2548).
 
-        A trigger that still runs a delegated emit locally has this shape: the
-        trigger is addressed to the requesting participant but runs with
-        ``actor_id`` set to the CaseActor, so the two references disagree by
-        construction rather than by mistake.  CM-24-004 (ADR-0109) retires that
-        shape — #3821 for the invite, #3822 for the ownership-transfer offer — and the reconciliation
-        stays for the triggers that have not moved yet.
+        No trigger runs a delegated emit any more (CM-24-004, ADR-0109): the
+        invite and the ownership-transfer offer both send the requester's own
+        activity to the CASE_MANAGER.  The reconciliation stays for any tree
+        that runs as a co-hosted actor other than the injected store's own.
 
         A port this bridge was not given is *inherited* from the blackboard
         rather than left alone, because the blackboard is process-global
@@ -792,18 +765,15 @@ class BTBridge:
                 # nested call read the *inner* execution's actor, not the actor
                 # its own tree was executing as (#3516).
                 #
-                # The two only diverge on `_store_for_actor`'s foreign-authority
-                # fall-through: reconciliation normally makes
-                # `self.datalayer.actor_id` and `/actor_id` the same actor, and
-                # the sites that pass the store's own actor to a nested call
-                # (`case/nodes/participant/rm_closure.py`, reached from
-                # `case/nodes/leave/advance.py` twice) therefore usually pass the
-                # value already on the blackboard.  Where they do not — a case
-                # whose CASE_MANAGER sits on another container after a handoff
-                # (CP-08-003) — `OwnerLeaveSeq`
+                # Reconciliation makes `self.datalayer.actor_id` and `/actor_id`
+                # the same actor, and the sites that pass the store's own actor
+                # to a nested call (`case/nodes/participant/rm_closure.py`,
+                # reached from `case/nodes/leave/advance.py` twice) usually pass
+                # the value already on the blackboard.  Where a nested call runs
+                # as another actor, `OwnerLeaveSeq`
                 # (`case/receive_close_case_tree.py`) ticks the ledger-committing
-                # sibling downstream of `AdvanceParticipantToRMClosedNode`, and
-                # the leaked actor reached `payloadSnapshot.actor`: a CLP-07-003
+                # sibling downstream of `AdvanceParticipantToRMClosedNode`, and a
+                # leaked actor would reach `payloadSnapshot.actor`: a CLP-07-003
                 # identity fault in a canonical entry.
                 #
                 # Restoring is safe, not merely safer: the restore runs in the

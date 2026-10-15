@@ -6,6 +6,7 @@ Offers the report to a new Participant. The Offer may carry proposed embargo ter
 
 - **When…** a Reporter submits a vulnerability report to a Vendor or Coordinator
 - **Send:** `Offer(VulnerabilityReport)`
+- **Send to:** an actor outside any case
 - **Sent by:** any actor (usually: reporter)
 - **Seen in:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Formal definition:** [Report Submission (RS)](../../../formal_protocol/messages.md#rm-message-types)
