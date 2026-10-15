@@ -263,7 +263,13 @@ File: `.claude/pr-{number}-triage.json`
     "needs_integration_tests": true,
     "mergeable": "CONFLICTING",
     "merge_state_status": "DIRTY",
-    "is_draft": false
+    "is_draft": false,
+    "review_mode": "full",
+    "prepush_artifact": null,
+    "delta_files": [],
+    "reviewed_base_sha": null,
+    "reviewed_head_sha": null,
+    "affected_docs_pages": []
   },
   "findings": [
     {
@@ -277,12 +283,32 @@ File: `.claude/pr-{number}-triage.json`
       "line": 42,
       "spec_ids": ["CS-20-001"],
       "adr_refs": [],
-      "notes": null
+      "notes": null,
+      "resolution": null
     }
   ],
   "triage_comment_url": "https://github.com/CERTCC/Vultron/pull/1234#issuecomment-..."
 }
 ```
+
+### Review-Mode Fields
+
+`review_mode` is `pre-push`, `delta` or `full` (SKILL.md § "Modes"). A
+pre-push artifact has `pr_number: null`, fills `reviewed_base_sha` and
+`reviewed_head_sha`, and leaves `head_sha`, `ci_status` and the merge fields
+`null`. A delta artifact names its `prepush_artifact` path and the
+`delta_files` it reviewed. `affected_docs_pages` is Phase 9 step 5's
+determination: the pre-push run writes it, and the delta run adds the pages its
+delta affects before comparing the `Docs:` line.
+
+`resolution` is written by `build` into the pre-push artifact only, once per
+finding, before `create-pr` (PAD-07-003): `{"status": "fixed", "note": "<what
+changed, where>"}`, or `{"status": "filed-and-fixed", "note": "...", "issue":
+N}` for a `fix-now-file`, or `{"status": "held", "note": "<why>"}` when the PR
+opens as a draft held on it. It names no commit: `create-pr`'s cherry-pick
+gives every pre-push commit a new SHA, so the carry-forward check reads the
+fix on the PR head instead. The delta run's carry-forward check reads it.
+`pr-triage` itself always writes `null`.
 
 ### Finding ID Rules
 

@@ -213,6 +213,11 @@ bash .agents/skills/shared/freshen-branch.sh
 | `1`  | Cherry-pick conflict | Run Phase 3, then open a draft PR with `needs-rebase` label (see Phase 4) |
 | `2`  | Unexpected error | Stop and investigate |
 
+A clean freshen leaves `build`'s pre-push review standing: the post-push
+triage measures its delta on the branch's own lines, so the new base adds
+nothing to it. A conflict sends that triage back to a full run, because the
+resolution came after the review (PAD-07-008).
+
 ---
 
 ## Phase 3 — Post-Freshen Validation

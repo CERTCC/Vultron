@@ -373,7 +373,7 @@ related requirements across files.
   `stale-claim`, `needs-rebase`, `specs-notes`, `needs-info`,
   `ready-for-human`), task claiming protocol (GitHub branch as distributed
   lock), size labeling (AC count + diff-based update), auto-merge rules,
-  pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim sweeper,
+  fresh-agent pre-push review and the post-push delta triage, stale-claim sweeper,
   merge conflict recovery, and the two paths through Project #24 (`Schedule`
   on Epics; mirrored `Status` and PR `Ship stage`). See also
   `notes/parallel-development.md`.
