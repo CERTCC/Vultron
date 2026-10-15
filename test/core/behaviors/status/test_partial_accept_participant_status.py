@@ -152,26 +152,33 @@ def _state_name(value: Any) -> str | None:
     return getattr(value, "name", None) or str(value)
 
 
-def _dim_state(obj: Any, core_field: str, flat_field: str) -> str | None:
-    """Return a dimension's state name from a core or wire object/dict."""
+def _dim_state(
+    obj: Any, core_field: str, wire_field: str, flat_field: str | None = None
+) -> str | None:
+    """Return a dimension's state name from a core or wire object/dict.
+
+    *flat_field* names a flat view the object still carries
+    (``ParticipantStatus.rm_state``, until #4377); ``CaseStatus`` has none
+    (SDO-03-003).
+    """
     if isinstance(obj, dict):
         nested = obj.get(core_field)
         if isinstance(nested, dict):
             return _state_name(nested.get("state"))
-        camel = flat_field[0] + flat_field.title().replace("_", "")[1:]
-        return _state_name(obj.get(flat_field) or obj.get(camel))
+        flat = obj.get(flat_field) if flat_field else None
+        return _state_name(flat or obj.get(wire_field))
     nested = getattr(obj, core_field, None)
     if nested is not None and hasattr(nested, "state"):
         return _state_name(nested.state)
-    return _state_name(getattr(obj, flat_field, None))
+    return _state_name(getattr(obj, flat_field, None) if flat_field else None)
 
 
 def _rm_of(obj: Any) -> str | None:
-    return _dim_state(obj, "rm", "rm_state")
+    return _dim_state(obj, "rm", "rmState", "rm_state")
 
 
 def _vf_of(obj: Any) -> str | None:
-    return _dim_state(obj, "vf", "vf_state")
+    return _dim_state(obj, "vf", "vfState", "vf_state")
 
 
 def _case_status_of(obj: Any) -> Any:
@@ -182,12 +189,12 @@ def _case_status_of(obj: Any) -> Any:
 
 def _pxa_of(obj: Any) -> str | None:
     cs = _case_status_of(obj)
-    return None if cs is None else _dim_state(cs, "pxa", "pxa_state")
+    return None if cs is None else _dim_state(cs, "pxa", "pxaState")
 
 
 def _em_of(obj: Any) -> str | None:
     cs = _case_status_of(obj)
-    return None if cs is None else _dim_state(cs, "em", "em_state")
+    return None if cs is None else _dim_state(cs, "em", "emState")
 
 
 def _latest_status(dl: SqliteDataLayer, participant_id: str) -> Any:
@@ -580,7 +587,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert case_status["pxaState"] == CS_pxa.Pxa.name
         assert case_status["emState"] == EM.NONE.name
         assert case_status.get("id") == f"{ASSERTED_STATUS_ID}/cs"
-        assert "pxa_state" not in case_status
+        assert "pxa" not in case_status
 
 
 # ---------------------------------------------------------------------------
@@ -1087,7 +1094,7 @@ class TestMergeSnapshotObjectFields:
                     "id": f"{ASSERTED_STATUS_ID}/cs",
                     "type": "CaseStatus",
                     "pxaState": "PXA",
-                    "pxa_state": "PXA",
+                    "pxa": "PXA",
                     "emState": "NONE",
                 },
             },
@@ -1095,7 +1102,7 @@ class TestMergeSnapshotObjectFields:
         )
         case_status = merged["caseStatus"]
         assert case_status["pxaState"] == "pxa"
-        assert "pxa_state" not in case_status
+        assert "pxa" not in case_status
         assert case_status["id"] == f"{ASSERTED_STATUS_ID}/cs"
         assert case_status["type"] == "CaseStatus"
 
