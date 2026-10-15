@@ -2332,14 +2332,26 @@ groups:
   - id: CM-17-002
     priority: MUST
     kind: protocol
-    statement: When `CaseStatus.em.state == ACTIVE` at the time the Invite is sent, the case stub MUST include at minimum
-      the `activeEmbargo` reference (ID + `end_time`) and the embedded `CaseStatus.em.state` field so the invitee can give
-      informed consent before accepting.
-    rationale: 'The invite-accept cycle is the only consent signal for late-joining participants when an active embargo already
-      exists. Accepting without seeing embargo terms is not meaningfully informed consent (issue #1289, MV-10-006).'
-    verification: Integration tests in `test/demo/` confirm that when `CaseStatus.em.state ==
-      ACTIVE` at invite time, the case stub includes the `activeEmbargo` reference and embedded
-      `emState` field.
+    statement: >-
+      When the case's EM state is `ACTIVE` at the time the stub Invite is sent, the
+      invitation MUST let the invitee learn the active embargo's terms before it
+      accepts: the case stub MUST carry the case's EM state (`caseStatus.emState`)
+      and the active embargo (`activeEmbargo`), either inline or by an ID the invitee
+      can ask the inviter to resolve.
+    rationale: >-
+      The invite-accept cycle is the only consent signal for late-joining participants
+      when an active embargo already exists. Accepting without seeing embargo terms is
+      not meaningfully informed consent (issue #1289, MV-10-006). An invited actor that
+      has not joined holds nothing but the invitation, so the terms come from it: inline
+      in the stub, or fetched from the inviter by the ID the stub names. ActivityStreams
+      allows either form; which one this prototype sends is CM-17-011.
+    verification: >-
+      Integration tests in `test/demo/` confirm that when the case's EM state is
+      `ACTIVE` at invite time, the case stub on the wire carries `activeEmbargo` and
+      `caseStatus.emState`; unit tests marked `CM-17-002` in
+      `test/core/use_cases/triggers/test_actor_triggers.py` and
+      `test/wire/as2/factories/test_case_factories.py` confirm the same, and that a
+      stub sent with no active embargo carries neither.
     relationships:
     - rel_type: implements
       spec_id: MV-10-006
@@ -2570,6 +2582,39 @@ groups:
     - story_2022_014
     adr:
     - ADR-0114
+  - id: CM-17-011
+    priority: MUST
+    kind: project
+    statement: >-
+      When the stub Invite carries the active embargo (CM-17-002), this codebase MUST
+      embed the full `EmbargoEvent` in the case stub, every term as the inviter holds
+      it, not only its ID and `end_time`. When the inviter cannot embed the active
+      embargo (it holds only the ID, or the embargo object it holds is not the case's
+      active embargo), it MUST NOT send the stub Invite.
+    rationale: >-
+      A prototype decision, not a protocol one (maintainer ruling, 2026-10-15, #4673).
+      A real implementation could let the invitee fetch the embargo from the inviter by
+      its ID; this prototype does not build that fetch, so the stub carries the embargo
+      whole, and a stub naming it by ID alone would leave the invitee no way to read
+      the terms (CM-17-002). Embedding the object as held keeps the sender's own start
+      time and name, which a copy rebuilt from the ID and end time did not.
+    verification: >-
+      `test_rm_invite_stub_embeds_the_full_active_embargo` in
+      `test/wire/as2/factories/test_case_factories.py`, run once with the case naming
+      the embargo by ID and once with it holding the embargo inline, confirms the
+      stub's `activeEmbargo` equals the stored embargo's full serialization;
+      `test_rm_invite_refuses_an_active_embargo_it_cannot_embed`,
+      `test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one` and
+      `test_stub_embargo_refuses_when_no_active_embargo_is_named` confirm the Invite
+      is refused when the active embargo cannot be embedded; the
+      `TestInviteActorToCaseWithEmbargoHeldById` tests in
+      `test/adapters/driven/trigger_activity_adapter/test_actors.py` confirm the same
+      for an embargo the inviter reads from its store, and the refusal when it is
+      missing there.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-002
+      note: CM-17-002 lets the stub carry the embargo inline or by ID; this codebase always carries it inline
 - id: CM-18
   title: Participant Embargo Consent (per-embargo rows)
   specs:

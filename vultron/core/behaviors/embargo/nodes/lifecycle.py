@@ -15,6 +15,8 @@
 
 """Embargo state machine and lifecycle transition nodes."""
 
+from datetime import datetime
+
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
@@ -28,6 +30,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.embargo_termination import TerminationRequest
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -37,7 +40,6 @@ from vultron.core.states.em import (
     is_em_embargo_active,
     is_em_exited,
 )
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
     BtNodePreconditionError,
     VultronError,
@@ -312,23 +314,27 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
 
 
 class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
-    """Apply STRICT terminate-active-embargo transition, for *reason*.
+    """Apply STRICT terminate-active-embargo transition, recording *termination*.
 
     AC-3: terminate semantics require an active embargo; the upstream
     ``HasActiveEmbargoNode`` guard in ``terminate_embargo_bt`` enforces that
     the case satisfies ``EmbargoedCase`` preconditions before this node runs.
+    *terminated_at* is the time an ``END_TIME_REACHED`` termination is
+    claimed at; the lifecycle refuses it before the embargo's end time.
     """
 
     def __init__(
         self,
         case_id: str,
         result_out: dict[str, object],
-        reason: TerminationReason,
+        termination: TerminationRequest,
+        terminated_at: datetime | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
         self._case_id_value = case_id
-        self._reason = reason
+        self._termination = termination
+        self._terminated_at = terminated_at
 
     def _case_id(self) -> str:
         return self._case_id_value
@@ -340,9 +346,10 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
     ) -> EmbargoLifecycleResult:
         return lifecycle.terminate_active_embargo(
             case_id=self._case_id_value,
-            reason=self._reason,
+            termination=self._termination,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
+            terminated_at=self._terminated_at,
         )
 
 

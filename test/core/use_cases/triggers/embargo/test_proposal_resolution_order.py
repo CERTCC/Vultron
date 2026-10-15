@@ -54,9 +54,9 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -429,7 +429,9 @@ def test_tearing_down_an_embargo_removes_its_entry_from_the_index(
     owner_dl.create(revision)
 
     result = lifecycle.terminate_active_embargo(
-        case_id=case.id_, actor_id=owner.id_, reason=TerminationReason.EARLY
+        case_id=case.id_,
+        actor_id=owner.id_,
+        termination=EmbargoTermination.early(),
     )
 
     assert result.em_after == EM.EXITED

@@ -28,6 +28,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     ActivateEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
@@ -175,6 +176,7 @@ class TestEmbargoTermRevise:
             origin=as_VulnerabilityCase(id_=case.id_),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
+            reason=TerminationReason.EARLY,
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
@@ -231,6 +233,7 @@ class TestEmbargoTermRevise:
             origin=as_VulnerabilityCase(id_=case.id_),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
+            reason=TerminationReason.EARLY,
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
@@ -293,6 +296,7 @@ class TestEmbargoTermRevise:
             origin=as_VulnerabilityCase(id_=case.id_),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
+            reason=TerminationReason.EARLY,
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
