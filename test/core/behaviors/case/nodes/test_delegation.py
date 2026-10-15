@@ -20,7 +20,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from py_trees.common import Status
 
+import vultron.core.behaviors.sync.commit_tree as _commit_mod
+from test.support.ledger import fail_commits, record_sends_and_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -49,7 +52,11 @@ def dl():
     # These trees execute as ACTOR_ID, so the store under test is ACTOR_ID's
     # own (BT-05-005).  There is no unscoped DataLayer to open (ADR-0073).
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Delegation Test Case")
+    # attributed_to triggers genesis_hash computation so that
+    # commit_emitted_activity can bootstrap the chain (CLP-08-005).
+    case = as_VulnerabilityCase(
+        id_=CASE_ID, name="Delegation Test Case", attributed_to=ACTOR_ID
+    )
     dl.create(case)
     return dl
 
@@ -62,6 +69,16 @@ def factory(dl):
 @pytest.fixture
 def bridge(dl, factory):
     return BTBridge(datalayer=dl, trigger_activity=factory)
+
+
+@pytest.fixture
+def bridge_with_sync(dl, factory):
+    """Bridge with a sync_port so ledger commits can fan out (ADR-0119)."""
+    return BTBridge(
+        datalayer=dl,
+        trigger_activity=factory,
+        sync_port=SyncActivityAdapter(dl),
+    )
 
 
 def _make_accept_node(
@@ -210,17 +227,19 @@ class TestAutoAcceptIsSentThenRecorded:
 class TestEmitRejectCaseParticipantRoleNode:
     """Unit tests for EmitRejectCaseParticipantRoleNode (ADR-0039)."""
 
-    def test_success_path(self, bridge, dl):
-        """Happy path: creates Reject activity and enqueues it."""
+    def test_success_path(self, bridge_with_sync, dl):
+        """Happy path: creates Reject activity, enqueues it, and ledgers it."""
         node = _make_reject_node()
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = bridge_with_sync.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
 
         assert result.status == Status.SUCCESS
 
-    def test_reject_enqueued_to_outbox(self, bridge, dl):
+    def test_reject_enqueued_to_outbox(self, bridge_with_sync, dl):
         """Reject activity ID is enqueued to the actor's outbox after success."""
         node = _make_reject_node()
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        bridge_with_sync.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         queued = dl.outbox_list()
         assert len(queued) >= 1
@@ -309,3 +328,49 @@ class TestGrantCaseParticipantRoleNode:
 
         assert result.status == Status.SUCCESS
         assert ACTOR_ID not in dl.read(CASE_ID).actor_participant_index
+
+
+class TestEmitRejectIsSentThenRecorded:
+    """The Reject reaches the outbox before its ledger entry (ADR-0119)."""
+
+    @pytest.mark.spec("SYNC-09-002")
+    def test_the_reject_is_queued_before_it_is_committed(
+        self, bridge_with_sync, dl, monkeypatch
+    ):
+        """Reject reaches the outbox; commit records it after (ADR-0119)."""
+        events = record_sends_and_commits(monkeypatch, ACTOR_ID)
+        node = _make_reject_node()
+        result = bridge_with_sync.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.SUCCESS
+        assert len(events) == 2
+        assert events[0][0] == "queued"
+        assert events[1][0] == "reject_case_participant_role"
+
+    @pytest.mark.spec("OX-06-002")
+    def test_a_retry_after_a_failed_commit_queues_the_reject_once(
+        self, bridge_with_sync, dl, monkeypatch
+    ):
+        """The Reject's id derives from the Offer, so a retry rebuilds it.
+
+        A failed commit raises (not FAILURE) so the Selector cannot send a
+        contradictory Accept after the Reject is already in the outbox.
+        """
+        fail_commits(monkeypatch, _commit_mod, allowed=0)
+        node = _make_reject_node()
+        first = bridge_with_sync.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert first.internal_error, first
+        (reject_id,) = dl.outbox_list()
+
+        # Clear forced failure; retry must rebuild the same Reject id.
+        monkeypatch.undo()
+        retry = bridge_with_sync.execute_with_setup(
+            tree=_make_reject_node(), actor_id=ACTOR_ID
+        )
+
+        assert retry.status == Status.SUCCESS
+        assert dl.outbox_list() == [reject_id]

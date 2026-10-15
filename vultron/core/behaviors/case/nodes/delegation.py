@@ -48,6 +48,9 @@ logger = logging.getLogger(__name__)
 #: Ledger ``event_type`` of the auto-accept, and the kind label of its id.
 _ACCEPT_EVENT_TYPE = "accept_case_participant_role"
 
+#: Ledger ``event_type`` of the emitted Reject, and the kind label of its id.
+_REJECT_EVENT_TYPE = "reject_case_participant_role"
+
 
 class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
     """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
@@ -242,14 +245,20 @@ class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
 
 
 class EmitRejectCaseParticipantRoleNode(_EmitSingleActivityBase):
-    """Emit a Reject(Offer(CaseParticipantRole)) to the offering Vendor (ADR-0039).
+    """Emit a Reject(Offer(CaseParticipantRole)) to the offering Vendor and ledger it (ADR-0039).
 
     Fallback branch of the ``AcceptOrReject`` Selector after
     :class:`AutoAcceptCaseParticipantRoleNode`.  When the local actor cannot
     auto-accept the role delegation offer, this node sends an explicit
     ``Reject`` so the offering Vendor is notified rather than receiving silence.
 
-    Returns ``FAILURE`` on any error so callers can observe the failure.
+    The Reject's id is derived from the Offer it answers (OX-06-002), so a
+    retry rebuilds the same Reject the first attempt used.  The outbox write
+    happens first; the ledger commit follows (ADR-0119).  A commit failure
+    after the outbox write MUST raise (not return FAILURE) so the Selector
+    cannot fall through and send an inconsistent second reply.
+
+    Returns ``FAILURE`` on any factory error so callers can observe the failure.
 
     See SE-08-003, ADR-0039.
     """
@@ -286,11 +295,33 @@ class EmitRejectCaseParticipantRoleNode(_EmitSingleActivityBase):
             vendor_id=self.vendor_id,
             actor=self.actor_id,
             to=[self.vendor_id],
+            id_=derived_activity_id(
+                _REJECT_EVENT_TYPE, self.actor_id, self.case_id, self.offer_id
+            ),
+        )
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        """Commit the queued Reject as a canonical ledger entry (ADR-0119).
+
+        The Reject is already in the outbox, so a failed commit MUST NOT
+        return FAILURE: the Selector would then fall through and send a
+        contradictory Accept.  Raises instead so the exception escapes to
+        BTBridge as an internal error (BT-14-001, ARCH-15-001).
+        """
+        assert self.actor_id is not None
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+            event_type=_REJECT_EVENT_TYPE,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "%s: emitted Reject '%s' to vendor '%s' for offer '%s'",
+            "%s: emitted Reject '%s' to vendor '%s' for offer '%s';"
+            " queued and ledgered",
             self.name,
             activity_id,
             self.vendor_id,

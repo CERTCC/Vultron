@@ -76,9 +76,7 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "accept_case_participant_role": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
-    # The CASE_MANAGER's Reject of a role offer is not yet ledgered, which
-    # CLP-02-012 requires.
-    "reject_case_participant_role": "#4588",
+    "reject_case_participant_role": NotACaseEvent.SENT_BY_CASE_MANAGER,
 }
 
 

@@ -807,6 +807,7 @@ class _ActorsMixin:
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         target = as_Actor(id_=target_actor_id)
@@ -818,9 +819,8 @@ class _ActorsMixin:
             id_=offer_id,
             actor=vendor_id,
         )
-        activity = reject_case_participant_role_activity(
-            offer=offer, actor=actor, to=to
-        )
+        extra = _addressing(actor, to, id_)
+        activity = reject_case_participant_role_activity(offer=offer, **extra)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
