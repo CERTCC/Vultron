@@ -41,6 +41,10 @@ Entitlement kinds
   It is a declared rule, not an exemption, and has no condition node: there is
   no standing to check, so no tree composes a sender guard for it.
 
+Each kind declares its "Sent by" wording and its glossary term
+(``SenderEntitlementKind.sent_by``, ``SenderEntitlementKind.term``;
+MSM-08-010).
+
 Sender rules
 ------------
 A received use case declares a ``SenderRule`` (HP-01-008, ADR-0129): per
@@ -49,7 +53,9 @@ an any-of set of kinds.  ``SenderRule.in_case(kind)`` states the same kinds at
 the CASE_MANAGER and at a participant; ``SenderRule.to_case_manager(kind)``
 states the kinds at the CASE_MANAGER and the CASE_MANAGER at a participant
 (PCR-03-001); ``SenderRule.before_case(kind)`` states the side for an activity
-sent before any case exists.  The receive-tree
+sent before any case exists.  ``AddresseeSide`` names the three sides, and
+``SenderRule.side(addressee)`` reads one; an occasion declares its addressee
+as a side (MSM-08-009).  The receive-tree
 factory composes the guard from the rule
 (``vultron.core.behaviors.sender_guard.compose_sender_guard``).
 
@@ -99,6 +105,9 @@ Nodes
   (``CASE_OWNER`` kind; CM-21-015).  Whether that Offer is still open is a
   precondition guard after the sender check
   (``vultron.core.behaviors.case.nodes.ownership_offer_guard``)
+- ``SenderIsOfferingCaseOwnerNode`` — guards that the sender of a new
+  ownership-transfer Offer holds CVDRole.CASE_OWNER, or is the recorded sender
+  of the Offer it redelivers (``CASE_OWNER`` kind; CM-21-019)
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
   merged from ``CheckIsCaseOwnerNode``
 - ``SenderIsNoteAuthorNode`` — guards that the sender is the note's author and
@@ -118,8 +127,8 @@ Spec: HP-01-006, HP-01-007, CM-10-004, PCR-03-001.
 
 import logging
 from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Any, ClassVar
+from enum import Enum
+from typing import Any, ClassVar, Self
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -139,6 +148,7 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     recorded_ownership_offer,
+    recorded_ownership_offer_sender,
 )
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
@@ -180,6 +190,17 @@ def _log_entry_from(activity: Any, node_name: str) -> CaseLedgerEntry:
 # ---------------------------------------------------------------------------
 
 
+def _numbered_member[E: Enum](cls: type[E]) -> E:
+    """A new member of the enum *cls*, valued by its declaration position.
+
+    The declared tuple carries the member's wording, so its value is numbered
+    as ``auto()`` would number it.
+    """
+    member = object.__new__(cls)
+    member._value_ = len(cls.__members__) + 1
+    return member
+
+
 class SenderEntitlementKind(Enum):
     """One sender standing a :class:`SenderRule` may require.
 
@@ -187,15 +208,34 @@ class SenderEntitlementKind(Enum):
     ``ANY_ACTOR``, which requires no standing and so has no guard.
     A use case never declares a kind on its own: it declares a
     :class:`SenderRule` composed of kinds (HP-01-008).
+
+    Each kind also declares how a "Sent by" value words it and the glossary
+    term that defines it (MSM-08-010, ADR-0129):
+
+    - :attr:`sent_by` is the wording.  A position held within one exchange
+      names the object it is held over with an ``{object}`` placeholder,
+      filled from the object type of the activity the sender answers or
+      changes: ``NAMED_ACTOR`` reads "the addressee of the case proposal"
+      for ``Accept(CaseProposal)``, whatever the request (HP-01-009).
+    - :attr:`term` is the term's bold name in ``docs/reference/glossary.md``.
     """
 
-    CASE_MANAGER = auto()
+    sent_by: str
+    term: str
+
+    def __new__(cls, sent_by: str, term: str) -> Self:
+        member = _numbered_member(cls)
+        member.sent_by = sent_by
+        member.term = term
+        return member
+
+    CASE_MANAGER = ("the case manager", "Case Manager")
     """Sender must be the case's ``CVDRole.CASE_MANAGER``."""
 
-    CASE_OWNER = auto()
+    CASE_OWNER = ("the case owner", "Case Owner")
     """Sender must hold ``CVDRole.CASE_OWNER``."""
 
-    ACTIVE_PARTICIPANT = auto()
+    ACTIVE_PARTICIPANT = ("an active participant", "Active Participant")
     """Sender must be an active participant per CM-10-004.
 
     Active means joined and, while an embargo is in force, a signatory to it;
@@ -203,7 +243,7 @@ class SenderEntitlementKind(Enum):
     participant record on the case satisfies.
     """
 
-    PARTICIPANT = auto()
+    PARTICIPANT = ("a participant", "Participant")
     """Sender must have a participant record on the case.
 
     The record may be inert or removed: an invitee that has not answered and a
@@ -211,7 +251,7 @@ class SenderEntitlementKind(Enum):
     sender must be entitled to the case's content (CM-10-004).
     """
 
-    NAMED_ACTOR = auto()
+    NAMED_ACTOR = ("the addressee of the {object}", "Addressee")
     """Sender must be the addressee of the request it answers (HP-01-009).
 
     The one addressee kind, whatever the request: the receiver checks the
@@ -220,23 +260,63 @@ class SenderEntitlementKind(Enum):
     ownership-transfer Offer), never against the copy the reply embeds.
     """
 
-    INVITEE = auto()
+    INVITEE = ("the invitee", "Invitee")
     """Sender must be the sole ``to`` recipient of the recorded Invite."""
 
-    AUTHOR = auto()
+    AUTHOR = ("the {object}'s author", "Author")
     """Sender must be the author of the object being changed (HP-01-009).
 
     The author is the object's ``attributed_to`` as this store recorded it,
     and must still be an active participant of the case (CM-10-004).
     """
 
-    ANY_ACTOR = auto()
+    ANY_ACTOR = ("any actor", "Actor")
     """Any actor may send it; no standing is required (HP-01-010).
 
     Declared only by the use cases that receive a new report, which precedes
     any case (HP-01-011).  It has no condition node, so no tree composes a
     sender guard for it.
     """
+
+    def worded(self, object_words: str) -> str:
+        """The "Sent by" words for this kind, its ``{object}`` placeholder
+        filled with *object_words* ("case proposal") when it has one."""
+        return self.sent_by.format(object=object_words)
+
+
+class AddresseeSide(Enum):
+    """Whom an activity is sent to: one side of a :class:`SenderRule`.
+
+    The sides are the standings a receiver can hold for one activity: the
+    case's CASE_MANAGER, any other participant of the case, or, for an
+    activity sent before a case exists, an actor outside any case
+    (HP-01-008).  An occasion declares its addressee as one of them, which
+    picks the side of its use case's rule that gives "Sent by" and renders
+    as "Send to" (MSM-08-009, ADR-0129).
+
+    Like a kind, each side declares its :attr:`send_to` wording and the
+    glossary :attr:`term` that defines it.
+    """
+
+    send_to: str
+    term: str
+
+    def __new__(cls, send_to: str, term: str) -> Self:
+        member = _numbered_member(cls)
+        member.send_to = send_to
+        member.term = term
+        return member
+
+    CASE_MANAGER = ("the case manager", "Case Manager")
+    """Sent to the case's CASE_MANAGER (``SenderRule.at_case_manager``)."""
+
+    PARTICIPANT = ("a participant", "Participant")
+    """Sent to a participant other than the CASE_MANAGER
+    (``SenderRule.at_participant``)."""
+
+    OUTSIDE_CASE = ("an actor outside any case", "Actor")
+    """Sent before any case exists, to an actor outside any case
+    (``SenderRule.outside_case``)."""
 
 
 @dataclass(frozen=True)
@@ -342,6 +422,22 @@ class SenderRule:
     def kinds(self) -> frozenset[SenderEntitlementKind]:
         """Every kind the rule names, on any side."""
         return self.at_case_manager | self.at_participant | self.outside_case
+
+    def side(
+        self, addressee: AddresseeSide
+    ) -> frozenset[SenderEntitlementKind]:
+        """The kinds that entitle a sender of an activity sent to *addressee*.
+
+        An empty set means the rule admits no sender on that side
+        (MSM-08-009).
+        """
+        match addressee:
+            case AddresseeSide.CASE_MANAGER:
+                return self.at_case_manager
+            case AddresseeSide.PARTICIPANT:
+                return self.at_participant
+            case AddresseeSide.OUTSIDE_CASE:
+                return self.outside_case
 
 
 #: Union type for the per-use-case ``sender_entitlement`` class variable: a
@@ -1378,6 +1474,82 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
             )
 
 
+class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
+    """Guard: the sender of a new ownership-transfer Offer is the Case Owner.
+
+    At the CASE_MANAGER only the actor holding ``CVDRole.CASE_OWNER`` on the
+    case may offer it (CM-21-019); the kind is ``CASE_OWNER``.  It runs on
+    the CASE_MANAGER's side of the rule, which holds the case (Regime 1).
+
+    A redelivery of an Offer the CASE_MANAGER already ledgered from this
+    sender is a duplicate, not a new Offer: its standing was established when
+    it was admitted, and the sender may since have handed ownership on, so
+    the role is not re-checked and the open-Offer guard reports it
+    ``SKIPPED`` (HP-01-003).  The same Offer id from any other sender is
+    judged as a new Offer.
+
+    Spec: CM-21-019, HP-01-003, HP-01-006.
+    """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.CASE_OWNER
+    )
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the Offer names.
+            offer_id: The Offer's own id, so a redelivery is recognised.
+            sender_actor_id: The Offer's sender.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._offer_id = offer_id
+        self._sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        sender = self._sender_actor_id
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: the CASE_MANAGER holds its case
+        if _holds_case_owner_role(self.datalayer, case, sender):
+            return Status.SUCCESS
+        recorded_sender = recorded_ownership_offer_sender(
+            self.datalayer, self._case_id, self._offer_id
+        )
+        if recorded_sender is not None and same_actor_id(
+            recorded_sender, sender
+        ):
+            self.logger.debug(
+                "%s: Offer '%s' was recorded from '%s' — redelivery"
+                " (HP-01-003)",
+                self.name,
+                self._offer_id,
+                sender,
+            )
+            return Status.SUCCESS
+        return self._refuse(
+            f"Sender '{sender}' is not the Case Owner of case"
+            f" '{self._case_id}', so it may not offer its ownership"
+        )
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (CM-21-019, HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 # ---------------------------------------------------------------------------
 # Condition node: a side the declared rule leaves empty
 # ---------------------------------------------------------------------------
@@ -1600,6 +1772,7 @@ class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
 
 __all__ = [
     # Declaration types
+    "AddresseeSide",
     "SenderEntitlementKind",
     "SenderExemption",
     "SenderEntitlement",
@@ -1623,6 +1796,7 @@ __all__ = [
     "SenderIsProposalAddresseeNode",
     "SenderIsOwnershipOfferPartyNode",
     "SenderIsOwnershipTransfereeNode",
+    "SenderIsOfferingCaseOwnerNode",
     "SenderIsOwnershipOffererNode",
     "SenderIsInviteeNode",
     "SenderIsOfferAddresseeNode",

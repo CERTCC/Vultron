@@ -6,6 +6,7 @@
 
     - **When…** a Participant asked by a Full-Case Invite judges the case invalid
     - **Send:** `TentativeReject(Invite(Actor)[target=VulnerabilityCase])`
+    - **Send to:** the case manager
     - **Sent by:** the invitee
     - **Reference:** [Tentatively reject Full-Case Invite](../../case_management.md#tentatively-reject-full-case-invite)
 

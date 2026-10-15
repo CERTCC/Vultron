@@ -75,19 +75,24 @@ The same activity carries a revision, Embargo Revision Proposal (EV); a receiver
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
 
-2. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(Event))`, or Embargo Proposal Rejection (ER), `Reject(Invite(Event))`.
+2. The CASE_MANAGER asks each other participant about the terms with an `Invite(Event)` of its own, addressed to that participant and naming the proposer in `attributedTo`.
+   If you are the CASE_MANAGER, this is the Invite you send; if you are not, it is the Invite you answer.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/relay-embargo-proposal.md" %}
+
+3. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(Event))`, or Embargo Proposal Rejection (ER), `Reject(Invite(Event))`.
    Either answer records only that participant's own consent, the Case Owner's included; the case stays at `EM.PROPOSED`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-acceptance.md" %}
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-rejection.md" %}
 
-3. As Case Owner, send `Accept(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `target`, once you judge the proposal has carried.
+4. As Case Owner, send `Accept(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `target`, once you judge the proposal has carried.
    The case moves to `EM.ACTIVE`, and your own consent to the terms is recorded with it.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/activate-embargo.md" %}
 
-4. Send `Announce(Event)` so every participant has the terms in hand.
+5. Send `Announce(Event)` so every participant has the terms in hand.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 

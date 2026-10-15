@@ -19,7 +19,7 @@ Structure (after intake, which the shared factory supplies first)::
 
     CreateCaseReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
-    ├─ ClassifyBootstrapRouteNode           # trusted | redelivery | direct
+    ├─ ClassifyBootstrapRouteNode           # trusted | redelivery | unanchored
     └─ BootstrapRoute (Selector)
        ├─ TrustedBootstrap (Sequence)       # CBT-01-005 / CBT-01-006
        │  ├─ BootstrapRouteIs_trusted
@@ -34,12 +34,9 @@ Structure (after intake, which the shared factory supplies first)::
        ├─ RedeliveredBootstrap (Sequence)   # already accepted
        │  ├─ BootstrapRouteIs_redelivery
        │  └─ IntroduceCaseManagerToReporterNode   # retry a failed introduction
-       ├─ DirectParticipantBootstrap (Sequence)   # ADR-0041 AC-5
-       │  ├─ BootstrapRouteIs_direct
-       │  ├─ CheckSenderIsSnapshotManagerNode
-       │  ├─ HoldCarriedEmbargoNode
-       │  ├─ SeedCaseReplicaNode
-       │  └─ StoreEmbeddedParticipantsNode
+       ├─ UnanchoredBootstrap (Sequence)    # CBT-01-011, ADR-0132
+       │  ├─ BootstrapRouteIs_unanchored
+       │  └─ RefuseUnanchoredBootstrapNode
        └─ RefuseBootstrapNode               # carries the chosen route's reason
 
 On the trusted route the receiver may be the report receiver, which then
@@ -78,10 +75,10 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     BootstrapRouteName,
     CheckInlineParticipantsNode,
     CheckReportReferenceNode,
-    CheckSenderIsSnapshotManagerNode,
     CheckTrustedCreatorNode,
     ClassifyBootstrapRouteNode,
     RefuseBootstrapNode,
+    RefuseUnanchoredBootstrapNode,
     SeedCaseReplicaNode,
 )
 from vultron.core.behaviors.case.nodes.reporter_introduction import (
@@ -136,21 +133,19 @@ def create_create_case_received_tree(
             IntroduceCaseManagerToReporterNode(case_id, retry=True),
         ],
     )
-    direct = py_trees.composites.Sequence(
-        name="DirectParticipantBootstrap",
+    # No anchor the receiver wrote names the sender: refuse, store nothing.
+    unanchored = py_trees.composites.Sequence(
+        name="UnanchoredBootstrap",
         memory=False,
         children=[
-            BootstrapRouteIsNode(route, "direct"),
-            CheckSenderIsSnapshotManagerNode(case_obj, sender_id, case_id),
-            HoldCarriedEmbargoNode(case_obj, case_id),
-            SeedCaseReplicaNode(route, case_obj, case_id),
-            StoreEmbeddedParticipantsNode(case_obj, case_id),
+            BootstrapRouteIsNode(route, "unanchored"),
+            RefuseUnanchoredBootstrapNode(sender_id, case_id),
         ],
     )
     arms: dict[BootstrapRouteName, py_trees.behaviour.Behaviour] = {
         "trusted": trusted,
         "redelivery": redelivered,
-        "direct": direct,
+        "unanchored": unanchored,
     }
     choose = py_trees.composites.Selector(
         name="BootstrapRoute",
@@ -158,7 +153,7 @@ def create_create_case_received_tree(
         children=[
             trusted,
             redelivered,
-            direct,
+            unanchored,
             RefuseBootstrapNode(route, arms),
         ],
     )

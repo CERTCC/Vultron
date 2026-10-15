@@ -1,21 +1,23 @@
 ---
 name: pr-triage
 description: >
-  Pure-discovery phase of the PR review pipeline. Runs all 12 inspection
+  Pure-discovery phase of the PR review pipeline. Runs the 12 inspection
   phases (orient through merge state), produces a machine-readable finding list
   at .claude/pr-{number}-triage.json, and posts a human-readable PR comment.
-  Makes NO code changes. Use as the first step of /pr-ship, or standalone
-  when you want a full finding inventory before deciding whether to execute
-  fixes.
+  Makes NO code changes. Use as the first step of /pr-ship, standalone for a
+  full finding inventory, or with --pre-push from build's fresh review
+  subagent before a branch's first push; a PR with a pre-push record gets only
+  the live-PR phases plus the delta.
 ---
 
 # Skill: PR Triage
 
 ## Purpose
 
-Triage closes the finding list before any mutation occurs. All 12 inspection
-phases run to completion; then and only then is the artifact written and the
-comment posted. `pr-execute` reads the artifact — it never re-runs discovery.
+Triage closes the finding list before any mutation occurs. Every inspection
+phase the mode selects (§ "Modes") runs to completion; then and only then is
+the artifact written and the comment posted. `pr-execute` reads the artifact —
+it never re-runs discovery.
 
 Merge conflicts are discovered here (Phase 12) but re-checked authoritatively in
 `pr-verify`, because conflicts can appear *after* triage runs — either from
@@ -69,13 +71,53 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 
 # Triage a specific PR
 /pr-triage 1234
+
+# Pre-push review of the current branch (build Phase 7, in a fresh subagent)
+/pr-triage --pre-push <issue> [<issue>...] --body <draft-body-file>
 ```
+
+## Modes
+
+Every phase runs once per change: before the push on the reviewed diff, and
+after the push on what the PR adds to it (PAD-07-007, ADR-0139). The mode
+decides which phases run on which diff.
+
+| Mode | When | Phases | Diff |
+|---|---|---|---|
+| **pre-push** | `--pre-push`, from `build` Phase 7 | 1 (orient only), 2 (scope against the issues), 4–8, 9 (steps 1–4, and step 5's page determination), 10 | `origin/main...HEAD` |
+| **delta** | `prepush-delta.sh` exits 0 on the PR branch, and the PR does not carry `needs-rebase` | 1–3, 9 step 5's `Docs:` comparison, 11, 12; then 2 (scope), 4–10 on the delta files alone; then the carry-forward check below | the delta files |
+| **full** | `prepush-delta.sh` exits 3 (for any cause PAD-07-008 lists, named in its `reason=`), or the PR carries `needs-rebase` | 1–12 | the PR diff |
+
+**Choosing post-push.** After Phase 1 identifies the PR, run
+`bash .agents/skills/pr-triage/prepush-delta.sh origin/<base_ref>` on the PR
+branch. Exit 0 means delta mode, with one `delta_file=` line per file to
+review; exit 3 means full mode, with `reason=` saying why. Exit 2 means the
+script could not compare (a detached checkout, `jq` missing, or no merge base
+with an unfetched base): fetch the base, check out the PR branch and re-run;
+if it still exits 2, run full mode and name the cause in the comment header.
+A `needs-rebase` PR is full mode whatever the script says: its conflict was
+resolved by hand after the review.
+
+**Carry-forward check (delta mode).** For each pre-push finding, read its
+`resolution`, recorded by `build`. Confirm the fix is on the PR head the way
+`pr-verify` spot-checks a claimed fix: the cited file and line now meet the
+finding, not just a commit touching the file. A finding whose fix is absent is
+re-emitted with its pre-push `id`; a finding with no `resolution` is checked
+the same way. A `fix-now-file` finding also needs its filed issue on the PR's
+closing list (Phase 2). Findings that check out are
+not re-emitted, so `pr-execute` sees only what still stands.
 
 ## Workflow
 
 ### Phase 1 — Orient
 
 1. Invoke `orient-agent` to load baseline context.
+
+   **Pre-push mode** stops this phase here: there is no PR. The branch, the
+   issue numbers and the draft body file come from the arguments; record
+   `reviewed_base_sha` (`git merge-base origin/main HEAD`) and
+   `reviewed_head_sha` (`git rev-parse HEAD`). Read the closed issues as
+   Phase 2 would, and the Spec manifest from the draft body's `## Specs`.
 2. Identify the target PR:
    - If a PR number was provided, use it.
    - Otherwise detect the PR for the current branch:
@@ -166,9 +208,13 @@ Check the diff for violations of non-negotiable coding rules. See
 ### Phase 8 — Code Review Sub-Agent
 
 Invoke a `code-review` sub-agent (`agent_type: "code-reviewer"`) against the
-branch diff to surface bugs, logic errors, and security issues. Wait for the
-sub-agent to complete before proceeding — its findings must be merged into the
-finding list before the artifact is written.
+branch diff to surface bugs, logic errors, and security issues. Pass
+`.agents/skills/shared/pre-review-self-check.md` as a standards source and its
+four items as explicit review prompts, along with the author's `Self-check:`
+record from the PR body (the draft body in pre-push mode); that file's § "As
+review prompts" sets the severity of a miss. Wait for the sub-agent to complete
+before proceeding — its findings must be merged into the finding list before
+the artifact is written.
 
 ### Phase 9 — Notes and Docs Currency
 
@@ -199,6 +245,12 @@ finding list before the artifact is written.
    - `Docs: no docs impact — <reason>` when your determination found an
      affected page → **IMPROVE** (the page is affected but neither updated nor
      deferred).
+
+   In pre-push mode the body's line is still the placeholder, and
+   `check-docs-sync` runs after the push (PD-03-008), so record the
+   determination in `pr_metadata.affected_docs_pages` and emit no finding for
+   it. In delta mode, the determination is that list plus the pages the delta
+   files affect; compare it with the `Docs:` line as above.
 
 ### Phase 10 — Test Coverage
 
@@ -241,7 +293,7 @@ Also emit findings for these `merge_state_status` values even when
 `mergeable` is `MERGEABLE`:
 
 - `BEHIND` — base has advanced and a ruleset requires branches be up to date:
-  **IMPROVE**, `fix-now` (execute's sync merges the base to clear it,
+  **IMPROVE**, `fix-now` (execute clears it with `gh pr update-branch`,
   PAD-18-004). This repository sets no such ruleset today (ADR-0126), so say
   in the description that the premise changed; `pr-verify` still blocks on a
   live `BEHIND` (PAD-18-005).
@@ -258,13 +310,23 @@ in scope for the PR that has it.
 
 **Being behind the base is not a finding.** A branch that lacks the base's
 latest commits but is `MERGEABLE` and not `BEHIND` gets no merge-state finding:
-CI tests the PR merged into its base on every push, and execute decides
-whether to merge from a live conflict and overlap check (PAD-18-004), not from
-triage's snapshot. Do not emit a "sync with main" finding for it.
+CI tests the PR merged into its base on every push, execute merges only on a
+live conflict (PAD-18-004), and the merger refreshes an overlapping PR on
+GitHub before merging it (PAD-18-009), none of them from triage's snapshot. Do
+not emit a "sync with main" finding for it, overlapping files or not.
 
 ### Phase 13 — Emit Artifact and Post Comment
 
 This is the only phase that produces output. No mutations before this point.
+
+**Pre-push mode** writes the artifact to the path
+`bash .agents/skills/pr-triage/prepush-delta.sh --path` prints, with
+`pr_number: null`, `review_mode: "pre-push"`, and `head_ref` (the branch),
+`reviewed_base_sha` and `reviewed_head_sha` in `pr_metadata`, and posts
+nothing: steps 1, 2 and 6 only. The carry-forward check keys on the ids
+step 1 assigns.
+**Delta mode** records `review_mode: "delta"`, `prepush_artifact`, and
+`delta_files` in `pr_metadata`, and names the mode in the comment header.
 
 1. Assign a stable `id` slug to each finding: `phase{N}-{kebab-description}-{index}`
    where index is a sequential integer suffix that guarantees uniqueness within
@@ -279,7 +341,9 @@ This is the only phase that produces output. No mutations before this point.
 
 ## Artifact Location
 
-`.claude/pr-{number}-triage.json` — never committed; must be gitignored.
+`.claude/pr-{number}-triage.json` — never committed; must be gitignored. The
+pre-push artifact, at the path `prepush-delta.sh --path` prints (named for the
+branch), is covered by the same `.claude/pr-*.json` pattern.
 
 ## No Code Changes
 

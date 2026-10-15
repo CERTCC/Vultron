@@ -3,16 +3,16 @@ status: accepted-provisional
 date: 2026-10-15
 created: 2026-10-15
 updated: 2026-10-15
-revision: 1
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; specs/vultron-as2-mapping.yaml VAM-01-010; CLP-07-013;
-  RSH-08-004; issues #4598, #4635, #4676
+  RSH-08-004; issues #4598, #4635, #4676, #4550
 informed: []
 stakeholder_type: [project-contributor]
 ---
 
-# Case Records Are Attached by One Message, Never Created First
+# Case Records and Notes Are Attached by One Message, Never Created First
 
 ## Context and Problem Statement
 
@@ -25,15 +25,19 @@ A participant record comes into existence only as a consequence of an act the CA
 Its inbox refuses a received `Create` of any of these objects as an unrecognized activity (#4598).
 That was recorded as a choice of the prototype, and the question of what the protocol allows stayed open (#4635, #4676).
 
-A note works differently.
-A note is content that can stand on its own, so `Create(Note)` mints it.
-When the note's `context` names the case, the CASE_MANAGER also attaches it to the case on that `Create`; a separate `Add(Note)` attaches it as well.
+A note was the exception.
+A note is content that can stand on its own, so `Create(Note)` minted it.
+When the note's `context` named the case, the CASE_MANAGER attached it to the case on that `Create`, and a separate `Add(Note)` attached it as well.
+The participant add-note trigger sent the `Create`, and the CASE_MANAGER sent its own notes (the RM anomaly clarification, the CS invariant diagnostic, the reinforcing-suggestion notice) as `Add(Note)`.
+A receiver had to accept both shapes for one act, and nothing said which one the protocol meant (#4550).
 
-This ADR records the maintainer's decision from a live interview on 2026-10-15.
+This ADR records the maintainer's decisions from live interviews on 2026-10-15.
 
 ## Decision Drivers
 
 - A case status, a participant status, an embargo proposal and a participant record have no meaning apart from the case they belong to.
+- Every note in Vultron is about a case; no protocol act sends a note outside one.
+- When ActivityStreams allows several forms for one act, a receiver that must accept all of them carries the cost of every form any sender picks.
 - Every change to the case file is its own committed ledger entry, and every committed entry needs a replica apply step or a declared no-replica-effect row (CLP-07-013, RSH-08-004).
 - The message vocabulary is being made stable, so a form the protocol allows binds every future implementation.
 
@@ -52,7 +56,9 @@ A case status is attached by `Add(CaseStatus)` with the case as `target`.
 A participant status is attached by `Add(ParticipantStatus)` with the participant as `target`.
 A proposed embargo event travels on the `Invite` that proposes it.
 A participant record is made by the CASE_MANAGER as a consequence of an act it records, such as the `Invite` that brings an invitee into the case.
-A `Create` of any of these records, sent to an inbox, is not a protocol message, and a receiver MUST NOT change the case file because of one.
+A note is attached by `Add(Note)` with the case as `target`, from a participant and from the CASE_MANAGER alike.
+A `Create` of any of these records or of a note, sent to an inbox, is not a protocol message, and a receiver MUST NOT change the case file because of one.
+The forms not chosen — `Create` then `Add`, a `Create` whose case `context` attaches the object, and a note outside any case — are deferred, not rejected: whether the protocol adds any of them is an open question for later protocol design.
 This does not cover the `Create` that a CASE_MANAGER-authored ledger entry carries as its payload snapshot (CLP-07-013): that `Create` records a change the CASE_MANAGER made, and it is not a message a participant sends.
 
 The protocol does not say how a receiver handles such a `Create`.
@@ -64,7 +70,8 @@ This codebase refuses it as an unrecognized activity, and it carries each record
 - Good, because a record exists in the case only once it is attached, so no "created but not attached" state needs a definition, a ledger entry or a replica step.
 - Good, because a status change stays one message and one ledger entry.
 - Neutral, because a general ActivityStreams client that mints objects with `Create` first cannot attach these records that way.
-- Neutral, because a note can still be attached by its `Create` with a case `context` or by an `Add`, so the vocabulary has two attachment shapes.
+- Good, because a note now attaches the way every other case record does, so the vocabulary has one attachment shape and a receiver handles one message per act.
+- Bad, because the ActivityPub convention of posting content with `Create(Note)` does not attach a note to a case, so a general ActivityPub client must send the `Add`.
 
 ## Validation
 
@@ -81,14 +88,14 @@ It confirms that the case, the ledger and the outbox stay unchanged.
 
 ### `Create` then `Add`
 
-- Good, because it is the general ActivityStreams pattern, and a note may already be attached this way.
+- Good, because it is the general ActivityStreams pattern.
 - Bad, because each `Create` changes the case file, so each one needs its own committed ledger entry and replica apply step.
 - Bad, because the protocol must define a record that exists but is not attached.
 
 ### `Create` with a case `context` attaches the record
 
 - Good, because it is one message, like the chosen option.
-- Good, because `Create(Note)` with a case `context` already attaches a note this way.
+- Good, because it is how ActivityPub servers post content, and `Create(Note)` with a case `context` attached a note this way before this decision.
 - Bad, because each record would have two attaching messages, the `Create` and its `Add` or `Invite`, so a receiver must handle both for one act.
 - Bad, because each `Create` form is a new committed event type, with its own ledger entry and replica apply step, for an act the `Add` or `Invite` already expresses.
 
@@ -96,3 +103,4 @@ It confirms that the case, the ledger and the outbox stay unchanged.
 
 Generated spec requirements: `vultron-as2-mapping.yaml` VAM-01-011.
 VAM-01-010 holds this codebase's inline and refusal rules.
+The rule that one protocol act names one wire form, and that the forms not chosen are recorded as an open question, is MS-18-001.

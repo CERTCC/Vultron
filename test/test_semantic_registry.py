@@ -5,6 +5,7 @@ import inspect
 
 import pytest
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.base import VultronEvent
@@ -181,6 +182,7 @@ def _make_entry(
             Occasion(
                 when="a stub situation arises",
                 anchor="stub",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Stub",
                 description="Stands in for a real occasion.",
                 example="stub_example",

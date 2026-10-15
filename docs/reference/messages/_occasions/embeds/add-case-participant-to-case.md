@@ -6,6 +6,7 @@
 
     - **When…** the Case Owner reinstates a removed Participant
     - **Send:** `Add(CaseParticipant)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Add case participant to case](../../case_management.md#add-case-participant-to-case)
 

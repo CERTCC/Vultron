@@ -6,6 +6,7 @@
 
     - **When…** a Participant proposes embargo terms for a case with no active embargo
     - **Send:** `Invite(Event)[context=VulnerabilityCase]`
+    - **Send to:** the case manager
     - **Sent by:** the case manager or an active participant
     - **Distinguished by:** EM state `NONE` or `PROPOSED`
     - **Reference:** [Embargo Proposal (EP)](../../em.md#embargo-proposal)

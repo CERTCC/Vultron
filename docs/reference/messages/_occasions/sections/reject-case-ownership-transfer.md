@@ -6,7 +6,8 @@ Declines the ownership transfer offer. The current Case Owner keeps the case.
 
 - **When…** an actor declines an offer of case ownership
 - **Send:** `Reject(Offer(VulnerabilityCase))`
-- **Sent by:** the addressee of the vulnerability case
+- **Send to:** the case manager
+- **Sent by:** the addressee of the vulnerability case offer
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""

@@ -6,6 +6,7 @@ Closes the report, moving the sender's RM state to Closed.
 
 - **When…** a report receiver closes the report
 - **Send:** `Reject(Offer(VulnerabilityReport))`
+- **Send to:** the case manager
 - **Sent by:** a participant (usually: vendor, coordinator)
 - **Seen in:** [How to Advance a Case Through Report Management](../../../../howto/activitypub/activities/manage_case.md), [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Formal definition:** [Report Closed (RC)](../../../formal_protocol/messages.md#rm-message-types)

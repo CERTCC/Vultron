@@ -6,6 +6,7 @@
 
     - **When…** a Case Actor Service declines to open the proposed case
     - **Send:** `Reject(CaseProposal)`
+    - **Send to:** an actor outside any case
     - **Sent by:** the addressee of the case proposal
     - **Reference:** [Reject case proposal](../../case_proposal.md#reject-case-proposal)
 

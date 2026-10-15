@@ -28,6 +28,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
@@ -63,6 +64,7 @@ def _occasion(**overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": "a stub situation arises",
         "anchor": "stub-situation",
+        "addressee": AddresseeSide.CASE_MANAGER,
         "heading": "Stub situation",
         "description": "Stands in for a real occasion.",
         "example": "stub_example",

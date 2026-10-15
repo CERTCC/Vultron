@@ -6,6 +6,7 @@ Activates the proposal for the case. If an embargo is already active, the propos
 
 - **When…** the Case Owner decides to activate a proposed embargo
 - **Send:** `Accept(Event)[target=VulnerabilityCase]`
+- **Send to:** the case manager
 - **Sent by:** the case owner
 - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md), [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
 - **Mapping status:** [none](../../index.md#mapping-status)

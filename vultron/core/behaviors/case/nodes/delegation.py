@@ -59,8 +59,8 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
     commit follows **only when the executing actor holds**
     ``CVDRole.CASE_MANAGER`` **for the case**.  The actor a role is offered to
     is usually an ordinary participant, and a participant never commits
-    (CLP-09-001): its answer goes out with no entry in its own ledger (how the
-    CASE_MANAGER records it on receipt is #4672).
+    (CLP-09-001): its answer goes out with no entry in its own ledger.  The
+    CASE_MANAGER commits it on receipt (CM-33-006), which #4703 builds.
 
     Neither the outbox write nor the commit is caught: once the answer is
     queued a FAILURE would let the Selector send the contradictory answer

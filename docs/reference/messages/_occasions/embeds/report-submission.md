@@ -6,6 +6,7 @@
 
     - **When…** a Reporter submits a vulnerability report to a Vendor or Coordinator
     - **Send:** `Offer(VulnerabilityReport)`
+    - **Send to:** an actor outside any case
     - **Sent by:** any actor (usually: reporter)
     - **Reference:** [Report Submission (RS)](../../rm.md#report-submission)
 

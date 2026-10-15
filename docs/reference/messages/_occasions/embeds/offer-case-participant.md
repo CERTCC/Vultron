@@ -6,6 +6,7 @@
 
     - **When…** the Case Manager presents a suggested actor to the Case Owner
     - **Send:** `Offer(CaseParticipant)[target=VulnerabilityCase]`
+    - **Send to:** a participant
     - **Sent by:** the case manager
     - **Reference:** [Offer case participant](../../general.md#offer-case-participant)
 

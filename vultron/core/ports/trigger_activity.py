@@ -1072,11 +1072,15 @@ class TriggerActivityPort(Protocol):
         to: list[str] | None = None,
         attributed_to: str | None = None,
         end_time: datetime | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 
         *end_time*, when given, is the Offer's activity-level ``end_time``:
-        the deadline to answer it (TRIG-11-007, CM-21-016).
+        the deadline to answer it (TRIG-11-007, CM-21-016).  *in_reply_to*,
+        when given, is the id of the recorded Offer this one forwards: the
+        CASE_MANAGER's forward to the transferee carries it (CM-21-018); the
+        Case Owner's own Offer carries none.
 
         Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
         """

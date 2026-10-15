@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.conftest import seed_case_owner_participant
 from test.support.embargo_register import (
     activate,
     write_consent_rows,
@@ -1379,10 +1380,13 @@ def _seed_managed_case(owner, dl, *peers):
     dl.create(manager)
     case.case_participants.append(manager.id_)
     case.actor_participant_index[case_actor.id_] = manager.id_
+    # The owner holds CASE_OWNER on the roster: only it may offer the case
+    # (CM-21-019).
+    owner_record = seed_case_owner_participant(dl, case)
     dl.create(case)
     case_actor_dl = dl.clone_for_actor(case_actor.id_)
     _CREATED_DLS.append(case_actor_dl)
-    for obj in (owner, *peers, case, case_actor, manager):
+    for obj in (owner, *peers, case, case_actor, manager, owner_record):
         case_actor_dl.create(obj)
     return case, case_actor
 
@@ -1415,6 +1419,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("CM-21-018")
     def test_offer_is_the_owners_own_offer_to_the_case_manager(self):
         """The Offer comes from the owner, to the CASE_MANAGER, naming no one
         else as its author (ADR-0109)."""
@@ -1434,6 +1439,9 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_data.get("target") == transferee.id_
         assert "attributedTo" not in activity_data
         assert "cc" not in activity_data
+        # Only the CASE_MANAGER's forward links to a recorded Offer
+        # (CM-21-018); the owner's own Offer replies to nothing.
+        assert "inReplyTo" not in activity_data
 
     @pytest.mark.spec("TRIG-11-007")
     @pytest.mark.spec("CM-21-016")

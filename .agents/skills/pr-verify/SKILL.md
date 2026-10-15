@@ -62,16 +62,21 @@ comment.
    `execute.merge_state` is absent, if `merge_state.conflict_free` is not
    `true`, or if `merge_state.merge_required` is `true` with a null
    `sync_commit_ref` (PAD-18-004 called for a merge that never happened).
+   `merge_reason: "deferred"` with `merge_required: false` and a null
+   `sync_commit_ref` is **not** that: execute found an overlap and, by design,
+   left it to the merger's `gh pr update-branch` (PAD-18-009, ADR-0138). Do not
+   flag it.
    Continue to Phase 2 — the live check there is what decides the verdict —
    but this flag alone blocks `READY-TO-MERGE`, because it means execute never
    established the branch was conflict-free.
 
    This check reads the artifact and nothing else. **Do not compare the branch
    to the base tip** (`git merge-base --is-ancestor`, `rev-list` counts, or
-   similar): a branch behind its base that neither conflicts nor overlaps is
-   conflict-free, and execute was right not to merge (PAD-18-005). Whether
-   being behind blocks the merge is GitHub's call, read in Phase 2 as
-   `BEHIND`, which execute clears by merging.
+   similar): a branch behind its base that does not conflict is
+   conflict-free, overlapping files or not, and execute was right not to
+   merge (PAD-18-005). Whether being behind blocks the merge is GitHub's call,
+   read in Phase 2 as `BEHIND`, which execute clears with
+   `gh pr update-branch`.
 
 ### Phase 2 — Merge State Gate
 
@@ -96,9 +101,10 @@ cannot be ready to merge no matter what those checks find.
    - `DIRTY` → flag `MERGE-CONFLICT` even if `mergeable` says `MERGEABLE`
    - `BEHIND` → flag `BRANCH-BEHIND`; blocks `READY-TO-MERGE`. GitHub reports
      it only when a ruleset requires up-to-date branches, which this
-     repository does not set (ADR-0126). `pr-execute` merges the base when it
-     sees `BEHIND` (PAD-18-004), so a live `BEHIND` here means the base moved
-     again after execute's last check: re-run `/pr-execute`, which clears it.
+     repository does not set (ADR-0126). `pr-execute` updates the branch on
+     GitHub when it sees `BEHIND` (PAD-18-004), so a live `BEHIND` here means
+     the base moved again after execute's last check: re-run `/pr-execute`,
+     which clears it.
    - `DRAFT` → flag `PR-IS-DRAFT`; blocks `READY-TO-MERGE`. Report whether the
      `needs-rebase` label is still attached.
    - `BLOCKED` → note it in the comment (missing required review, etc.). This
@@ -279,7 +285,10 @@ Do **not** clean up on `PENDING-CI`, `CONFLICTS-FOUND`, or `PENDING-MERGE-CHECK`
 — all three may need a follow-up pass, which needs the artifacts.
 
 1. Delete `.claude/pr-{number}-triage.json`
-2. Delete `.claude/pr-{number}-execute.json`
+2. Delete `.claude/pr-{number}-execute.json`, and the pre-push artifact if
+   present, at the path
+   `bash .agents/skills/pr-triage/prepush-delta.sh --path <head_ref>` prints
+   for the PR's `pr_metadata.head_ref`
 3. Print:
 
    ```text

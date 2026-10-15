@@ -89,11 +89,9 @@ Write the status file, then run up to the agent cap at once. Per task:
    branch, another agent took it. Drop it, keep going, and report it as
    "taken elsewhere". Otherwise spawn `bugfix <N>`.
 3. On PR open, spawn a **fresh** agent in the same worktree to run `pr-ship`.
-4. Merge only on `READY-TO-MERGE`, as soon as it arrives. If another PR merged
-   after that verify ran, run the checks below on this PR first and re-run
-   `pr-ship` instead of merging if any of them fires. After each merge, run them
-   for every other open PR from a worktree on that PR's head — its own, or a
-   fresh one (PAD-18-004):
+4. Merge only on `READY-TO-MERGE`, as soon as it arrives. Right before
+   merging, check this PR, and only this PR, against current `main` from its
+   worktree (its own, or a fresh one on its head) (PAD-18-009):
 
    ```bash
    # fresh worktree only if the PR's own is gone:
@@ -101,15 +99,38 @@ Write the status file, then run up to the agent cap at once. Per task:
    # in that worktree:
    git fetch origin main
    bash .agents/skills/shared/merge-state.sh <pr>   # exit 1 = CONFLICTING; JSON merge_state_status BEHIND
+   git merge-tree --write-tree --name-only HEAD origin/main > /dev/null   # exit 1 = conflict
    PYTHONPATH= uv run targeted-tests --base origin/main --overlap   # exit 1 = overlap
    ```
 
-   Re-run `pr-ship` (a fresh agent; its execute phase merges `main` and
-   resolves) **only** for a PR that is `CONFLICTING` or `BEHIND`, or whose
-   overlap check lists files. Leave every other PR alone, even though it is
-   now behind `main`. A PR still in `pr-ship` before its verify phase needs no
-   nudge: its execute phase runs the same checks before each push and again
-   on CI green.
+   Take the first row that matches:
+
+   | Check | Action |
+   |---|---|
+   | `CONFLICTING`, `DIRTY`, or `merge-tree` exit `1` | Re-run `pr-ship` (a fresh agent; its execute phase merges `main` and resolves). The only case that needs an agent |
+   | `BEHIND`, or overlap lists files | Update on GitHub and wait: `gh pr update-branch <pr>`, then `bash .agents/skills/shared/wait-for-ci.sh <pr>`. Exit `0`: merge. Exit `1`: re-run `pr-ship` with the failure as input. Exit `2` (timeout): wait again; never merge before green |
+   | Neither | Merge |
+
+   Merge the head that CI passed on, and only that head:
+
+   ```bash
+   sha=$(gh pr view <pr> --json headRefOid --jq .headRefOid)   # after any update-branch
+   gh pr merge <pr> --merge --match-head-commit "$sha"
+   ```
+
+   Read `sha` after `gh pr update-branch` and before `wait-for-ci.sh`, so a
+   push that lands during the wait makes the merge fail rather than ship an
+   untested head; a refused merge goes back through `pr-ship`.
+
+   Update at most once per merge: if `main` moves again during the CI wait,
+   merge on green anyway unless GitHub now reports a conflict. Repeating the
+   update on every movement is the loop ADR-0138 removed; a semantic conflict
+   between files neither PR shares is caught by CI on `main` (ADR-0126).
+
+   After a merge, leave every other open PR alone. Each gets this same check
+   when its own turn to merge comes; a PR still in `pr-ship` needs no nudge,
+   because its execute phase merges `main` itself on a conflict and
+   `pr-verify` re-reads the live merge state.
 5. Remove that worktree by explicit path.
 
 Parked tasks (waiting on the user) do not use a slot. Keep running everything

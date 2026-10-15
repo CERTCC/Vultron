@@ -7,8 +7,10 @@ by hand:
 - the mapping status of an entry (MSM-06-003, MSM-08-006);
 - the "Distinguished by" value of an occasion, the field value or state
   context that tells it apart from its entry's other occasions;
-- the "Sent by" value of an occasion, from the sender entitlement its received
-  use case declares (MSM-08-005).
+- the "Sent by" value of an occasion, from the side of the sender rule its
+  received use case declares that matches the occasion's addressee, worded by
+  each kind (MSM-08-005, MSM-08-010);
+- the "Send to" value of an occasion, from its addressee (MSM-08-009).
 
 :class:`RowSpec` is the derived view of one entry that the MSM-06-002 ratchet
 reads.
@@ -40,6 +42,7 @@ from typing import Annotated, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
     SenderEntitlementKind,
     SenderExemption,
     SenderRule,
@@ -141,22 +144,8 @@ def mapping_status(
 
 
 # ---------------------------------------------------------------------------
-# "Sent by" (MSM-08-005).
+# "Sent by" and "Send to" (MSM-08-005, MSM-08-009, MSM-08-010).
 # ---------------------------------------------------------------------------
-
-#: The "Sent by" wording per entitlement kind (MSM-08-005, decided in #4418).
-#: Moving it onto the kind itself is planned (MSM-08-010,
-#: ``notes/message-occasion-table.md``).
-#: ``NAMED_ACTOR`` is worded from the answered request and ``AUTHOR`` from the
-#: changed object; see :func:`sent_by`.
-SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
-    SenderEntitlementKind.CASE_MANAGER: "the case manager",
-    SenderEntitlementKind.CASE_OWNER: "the case owner",
-    SenderEntitlementKind.ACTIVE_PARTICIPANT: "an active participant",
-    SenderEntitlementKind.PARTICIPANT: "a participant",
-    SenderEntitlementKind.INVITEE: "the invitee",
-    SenderEntitlementKind.ANY_ACTOR: "any actor",
-}
 
 #: The "Sent by" wording for a use case whose sender is not yet checked.
 NOT_YET_CHECKED = "not yet checked"
@@ -168,46 +157,60 @@ def _words(type_name: str) -> str:
 
 
 def answered_request(entry: SemanticEntry) -> str:
-    """Name the request *entry*'s activity answers, from its object type.
+    """Name the request or object *entry*'s activity answers or changes.
 
-    ``Accept(CaseProposal)`` answers a case proposal; for a nested pattern
-    such as ``Accept(Offer(VulnerabilityCase))`` the request is the inner
-    object, a vulnerability case.
+    The name is taken from the object type of the activity being answered
+    (MSM-08-010).  ``Accept(CaseProposal)`` answers a case proposal and
+    ``Remove(Note)`` changes a note.  When the answered activity is itself
+    nested, as in ``Accept(Offer(VulnerabilityCase))``, the request is that
+    inner activity, named by its object type and its verb: a vulnerability
+    case offer.
 
     Raises:
         ValueError: When the entry's pattern names no object type.
     """
     pattern = entry.pattern
     obj = None if pattern is None else pattern.object_
+    verb = ""
     if isinstance(obj, ActivityPattern):
+        verb = f" {_words(str(obj.activity_))}"
         obj = obj.object_
     if obj is None or isinstance(obj, ActivityPattern):
         raise ValueError(
             f"{entry.semantics.name}: the pattern names no object type to"
             " word an addressee from (MSM-08-005)"
         )
-    return _words(str(obj))
+    return f"{_words(str(obj))}{verb}"
 
 
 def _kind_wording(kind: SenderEntitlementKind, entry: SemanticEntry) -> str:
-    """The "Sent by" words for one kind; ``NAMED_ACTOR`` names its request
-    and ``AUTHOR`` the object it changes."""
-    if kind is SenderEntitlementKind.NAMED_ACTOR:
-        return f"the addressee of the {answered_request(entry)}"
-    if kind is SenderEntitlementKind.AUTHOR:
-        return f"the author of the {answered_request(entry)}"
-    return SENT_BY_WORDING[kind]
+    """The "Sent by" words *kind* declares (MSM-08-010).
 
-
-def rule_wording(rule: SenderRule, entry: SemanticEntry) -> str:
-    """Word *rule* for a "Sent by" cell: one side's kinds joined with "or".
-
-    The side is the CASE_MANAGER's when the rule states it, else the one for
-    an actor outside any case, else a participant's.  Occasions do not yet
-    declare their addressee (MSM-08-009), so a cell names one side: the
-    CASE_MANAGER's is the one a participant's message is addressed to.
+    A position held over an object names it from the entry's pattern
+    (:func:`answered_request`): ``NAMED_ACTOR`` the request it answers,
+    ``AUTHOR`` the object it changes.  A role's wording has no placeholder,
+    so the pattern is read only when the wording needs it.
     """
-    side = rule.at_case_manager or rule.outside_case or rule.at_participant
+    if "{object}" not in kind.sent_by:
+        return kind.sent_by
+    return kind.worded(answered_request(entry))
+
+
+def rule_wording(
+    rule: SenderRule, entry: SemanticEntry, addressee: AddresseeSide
+) -> str:
+    """Word the side of *rule* for *addressee*: its kinds joined with "or".
+
+    Raises:
+        ValueError: When the rule states no side for *addressee*, which
+            ``SemanticEntry`` already refuses at construction (MSM-08-009).
+    """
+    side = rule.side(addressee)
+    if not side:
+        raise ValueError(
+            f"{entry.semantics.name}: the sender rule states no side for an"
+            f" activity sent to {addressee.send_to} (MSM-08-009)"
+        )
     return " or ".join(
         _kind_wording(kind, entry) for kind in in_declaration_order(side)
     )
@@ -216,9 +219,9 @@ def rule_wording(rule: SenderRule, entry: SemanticEntry) -> str:
 def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """Derive the "Sent by" value of *occasion* on *entry* (MSM-08-005).
 
-    The value is the wording of the sender rule that the entry's received use
-    case declares (:func:`rule_wording`), or :data:`NOT_YET_CHECKED` for an
-    exemption.
+    The value is the wording of the side of the sender rule the entry's
+    received use case declares that matches the occasion's addressee
+    (:func:`rule_wording`), or :data:`NOT_YET_CHECKED` for an exemption.
     The occasion's usual sender roles, when it has any, follow in
     parentheses: "an active participant (usually: vendor)".
 
@@ -232,7 +235,7 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
         case SenderExemption():
             wording = NOT_YET_CHECKED
         case SenderRule():
-            wording = rule_wording(declared, entry)
+            wording = rule_wording(declared, entry, occasion.addressee)
         case _:
             raise ValueError(
                 f"{entry.use_case_class.__name__} declares no"
@@ -244,6 +247,12 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
         role.value.replace("_", " ") for role in occasion.usual_senders
     )
     return f"{wording} (usually: {usual})"
+
+
+def send_to(occasion: Occasion) -> str:
+    """Derive the "Send to" value of *occasion*: its addressee's declared
+    wording (MSM-08-009)."""
+    return occasion.addressee.send_to
 
 
 # ---------------------------------------------------------------------------
@@ -385,8 +394,9 @@ OCCASION_TABLE_PATH: Path = Path(__file__).with_name("occasions.yaml")
 
 #: The occasion table's format version, written into the file from the start
 #: so that a later reader can tell the shapes apart.  Version 2 replaced each
-#: row's declared ``howto`` link with the derived ``seen_in`` pages (#4432).
-OCCASION_TABLE_FORMAT_VERSION: Final = 2
+#: row's declared ``howto`` link with the derived ``seen_in`` pages (#4432);
+#: version 3 added each row's derived ``send_to`` (#4438).
+OCCASION_TABLE_FORMAT_VERSION: Final = 3
 
 _ANCHOR = Annotated[str, Field(pattern=ANCHOR_PATTERN)]
 _RECORD = ConfigDict(frozen=True, extra="forbid")
@@ -415,6 +425,8 @@ class OccasionRow(BaseModel):
             (MSM-08-008).
         when: The sender's situation, completing "When…".
         send: The wire summary, rendered from the entry's ``ActivityPattern``.
+        send_to: The "Send to" value, from the occasion's addressee
+            (MSM-08-009).
         sent_by: The "Sent by" value (MSM-08-005).
         distinguished_by: What tells the occasion apart, as markdown.
         semantics: The ``SEMANTIC_REGISTRY`` entry the occasion belongs to.
@@ -434,6 +446,7 @@ class OccasionRow(BaseModel):
     heading: NonEmptyString
     when: NonEmptyString
     send: NonEmptyString
+    send_to: NonEmptyString
     sent_by: NonEmptyString
     distinguished_by: NonEmptyString | None = None
     semantics: MessageSemantics
@@ -473,7 +486,7 @@ class OccasionTable(BaseModel):
 
     model_config = _RECORD
 
-    format_version: Literal[2]
+    format_version: Literal[3]
     groups: tuple[OccasionGroup, ...] = Field(min_length=1)
 
     @model_validator(mode="after")

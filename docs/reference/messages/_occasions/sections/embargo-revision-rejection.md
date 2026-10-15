@@ -6,6 +6,7 @@ Records the sender's own refusal of the revision. The Case Owner keeps the prior
 
 - **When…** a Participant refuses a proposed embargo revision
 - **Send:** `Reject(Invite(Event)[context=VulnerabilityCase])`
+- **Send to:** the case manager
 - **Sent by:** the invitee
 - **Distinguished by:** EM state `REVISE`
 - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)

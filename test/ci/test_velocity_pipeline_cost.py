@@ -81,6 +81,29 @@ def test_parse_suite_runs_line_extra_whitespace(velocity: ModuleType) -> None:
     ) == (4, 2)
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Suite runs**: 5 full, 0 targeted",
+        "**Suite runs:** 5 full, 0 targeted",
+        "Suite runs: full 5, targeted 0.",
+        "**Suite runs**: full 5, targeted 0",
+    ],
+)
+def test_parse_suite_runs_line_hand_written_forms(
+    velocity: ModuleType, line: str
+) -> None:
+    """Forms agents write by hand in the execute summary still count."""
+    body = f"## PR Execute: #1\n\n{line}\n**CI**: passing"
+    assert velocity.parse_suite_runs_line(body) == (5, 0)
+
+
+def test_parse_suite_runs_line_words_first_partial(
+    velocity: ModuleType,
+) -> None:
+    assert velocity.parse_suite_runs_line("Suite runs: full 5") is None
+
+
 # ── _count_merges_from_main ────────────────────────────────────────────────
 
 

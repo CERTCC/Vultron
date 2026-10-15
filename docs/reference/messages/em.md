@@ -27,6 +27,10 @@ Whether the protocol should support that separate `Create` is an [open question]
 - **Triggering transition:** None or Proposed → Proposed ({N,P} → P).
 - **Wire form:** `Invite(Event)[context=VulnerabilityCase]`, and no other (MSM-02-001).
 
+{% include-markdown "./_occasions/sections/relay-embargo-proposal.md" %}
+
+- **Recipient:** one Invite per participant other than the proposer, each addressed to that participant alone, so its answer names the Invite it received (EP-09-002, EP-09-010).
+
 {% include-markdown "./_occasions/sections/announce-embargo.md" %}
 
 `Announce(Event)` also carries notice of a change significant enough to warrant attention beyond the corresponding `CaseStatus` message, such as an embargo being removed from a case.
@@ -109,6 +113,10 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
   The notice carries the embargo and nothing else, and it is not a ledger entry.
   The participant applies it only when the CASE_MANAGER sent it.
   A termination on or after the embargo's agreed end date is expiry, and sends no notice.
+
+{% include-markdown "./_occasions/sections/embargo-termination-notice.md" %}
+
+- **Recipient:** one `Remove(Event)` per participant other than the CASE_MANAGER, never the CASE_MANAGER itself (EMB-19-001).
 
 {% include-markdown "./_occasions/sections/embargo-withdrawal.md" %}
 

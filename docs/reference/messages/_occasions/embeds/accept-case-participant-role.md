@@ -6,6 +6,7 @@
 
     - **When…** an actor accepts a role offered to it on the case
     - **Send:** `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
+    - **Send to:** a participant
     - **Sent by:** not yet checked
     - **Reference:** [Accept case participant role](../../case_management.md#accept-case-participant-role)
 

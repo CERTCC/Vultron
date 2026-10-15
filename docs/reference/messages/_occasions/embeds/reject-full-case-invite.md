@@ -6,6 +6,7 @@
 
     - **When…** a Participant asked by a Full-Case Invite closes the case
     - **Send:** `Reject(Invite(Actor)[target=VulnerabilityCase])`
+    - **Send to:** the case manager
     - **Sent by:** the invitee
     - **Reference:** [Reject Full-Case Invite](../../case_management.md#reject-full-case-invite)
 

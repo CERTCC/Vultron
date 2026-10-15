@@ -17,6 +17,7 @@ original dispatch order and precedes the case-ledger sync entries.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import (
@@ -60,6 +61,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant ends its participation in the case",
                 anchor="close-case",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Close case",
                 description=(
                     "Leaves the case, moving the sender's RM state to Closed."
@@ -84,6 +86,7 @@ ENTRIES: list[SemanticEntry] = [
                     "ledger"
                 ),
                 anchor="announce-case-ledger-entry",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Announce case ledger entry",
                 description=(
                     "Fans out the newly committed ledger entry to each active "
@@ -108,6 +111,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Participant's own ledger"
                 ),
                 anchor="reject-case-ledger-entry",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject case ledger entry",
                 description=(
                     "Tells the Case Manager that the entry's previous hash "

@@ -173,6 +173,12 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             f"{_NODES}/proposal_consent.py",
             "SeedReporterSignatoryNode._resolve_participant",
         ),
+        # R3 — case-under-construction: an absent candidate case is skipped,
+        # and no stored case means the Selector creates one (#4650).
+        (
+            f"{_NODES}/proposal_case_resolution.py",
+            "LoadExistingCaseNode._find_case",
+        ),
         # R3 — optional addressing / stub enrichment; factory tolerates None.
         (f"{_NODES}/invite_actor_emit.py", "build_stub_invite"),
         (
