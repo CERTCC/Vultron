@@ -162,62 +162,58 @@ def test_the_inbox_does_not_take_the_outbox_check(dl):
 
 
 # ---------------------------------------------------------------------------
-# UNIQUE index on (queue, activity_id) — AC-3 for issue #4629
+# The store enforces OX-06-002: a partial UNIQUE index on outbox rows (#4629)
 # ---------------------------------------------------------------------------
 
 
+def _insert_raw_queue_row(dl, queue: str, activity_id: str) -> None:
+    """Insert a queue row with plain SQL, bypassing every code-level check."""
+    from sqlalchemy import text
+
+    with dl._engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO vultron_queue (queue, activity_id)"
+                " VALUES (:queue, :activity_id)"
+            ),
+            {"queue": queue, "activity_id": activity_id},
+        )
+
+
 @pytest.mark.spec("OX-06-002")
-def test_unique_index_exists_on_queue_entry_table(dl):
-    """The vultron_queue table carries a UNIQUE index on (queue, activity_id).
+def test_the_store_refuses_a_second_pending_outbox_row(dl):
+    """The index, not the append code, rejects a raw duplicate outbox row."""
+    from sqlalchemy.exc import IntegrityError
 
-    Asserts the schema-level constraint so that a store-reset note without a
-    test would be easy to miss.
-    """
-    from sqlalchemy import inspect as sa_inspect
+    _insert_raw_queue_row(dl, "outbox", "urn:test:dup")
+    with pytest.raises(IntegrityError):
+        _insert_raw_queue_row(dl, "outbox", "urn:test:dup")
+    assert dl.outbox_list() == ["urn:test:dup"]
 
-    inspector = sa_inspect(dl._engine)
-    unique_constraints = inspector.get_unique_constraints("vultron_queue")
-    # SQLite also surfaces UNIQUE indexes through get_indexes; check both.
-    unique_indexes = [
-        idx
-        for idx in inspector.get_indexes("vultron_queue")
-        if idx.get("unique")
-    ]
-    all_unique_cols = [
-        tuple(sorted(uc["column_names"])) for uc in unique_constraints
-    ] + [tuple(sorted(idx["column_names"])) for idx in unique_indexes]
-    assert ("activity_id", "queue") in all_unique_cols, (
-        f"No UNIQUE(queue, activity_id) found on vultron_queue; "
-        f"unique_constraints={unique_constraints!r}, "
-        f"unique_indexes={unique_indexes!r}"
-    )
+
+def test_the_outbox_index_does_not_cover_the_inbox(dl):
+    """The inbox has no no-duplicate rule; a repeated inbox id is kept."""
+    dl.inbox_append("urn:test:again")
+    dl.inbox_append("urn:test:again")
+    assert dl.inbox_list() == ["urn:test:again", "urn:test:again"]
 
 
 @pytest.mark.integration
 @pytest.mark.spec("OX-06-002")
-def test_two_sessions_appending_same_pending_id_leave_one_row(file_dl):
-    """Two independent DataLayer instances sharing a file store queue one row.
+def test_a_store_without_the_outbox_index_is_refused_at_open(file_dl):
+    """A store written before the index fails loudly, naming the reset."""
+    from sqlalchemy import text
 
-    The UNIQUE constraint on (queue, activity_id) ensures the second insert is
-    rejected at the store level, regardless of whether either session checked
-    for an existing row beforehand.
-    """
-    import vultron.adapters.driven.datalayer_sqlite as _mod
+    from vultron.adapters.driven.datalayer_sqlite.schema import (
+        OUTBOX_PENDING_INDEX,
+    )
+    from vultron.errors import VultronStaleStoreError
 
-    # Open a second DataLayer pointing at the same on-disk database.
-    actor_id = file_dl._actor_id
-    db_url = file_dl._db_url
-    second_dl = _mod.SqliteDataLayer(db_url, actor_id=actor_id)
-    try:
-        first_queued = file_dl.outbox_append("urn:test:shared-id")
-        second_queued = second_dl.outbox_append("urn:test:shared-id")
+    with file_dl._engine.begin() as conn:
+        conn.execute(text(f"DROP INDEX {OUTBOX_PENDING_INDEX}"))
 
-        assert first_queued is True
-        assert second_queued is False
-        assert file_dl.outbox_list() == ["urn:test:shared-id"]
-    finally:
-        second_dl.clear_all()
-        second_dl.close()
+    with pytest.raises(VultronStaleStoreError, match="must be reset"):
+        SqliteDataLayer(file_dl.db_url, actor_id=file_dl.actor_id)
 
 
 # ---------------------------------------------------------------------------

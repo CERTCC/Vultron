@@ -38,7 +38,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import col, select
 
@@ -47,7 +47,7 @@ from vultron.adapters.outbox_dead_letter import (
     OutboxDeadLetterEntry,
 )
 
-from .schema import QueueAttemptEntry, QueueEntry
+from .schema import OUTBOX_PENDING_PREDICATE, QueueAttemptEntry, QueueEntry
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
     # ``datalayer`` imports this module to build its own methods, so the name
@@ -116,26 +116,28 @@ def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
         session.commit()
 
 
-def _queue_append_unless_pending(
-    dl: "SqliteDataLayer", queue: str, activity_id: str
+def _outbox_append_unless_pending(
+    dl: "SqliteDataLayer", activity_id: str
 ) -> bool:
-    """Append *activity_id* to *queue* unless it is already there.
+    """Append *activity_id* to the outbox unless it is already pending there.
 
-    Relies on the UNIQUE constraint on ``(queue, activity_id)`` in
-    :class:`~.schema.QueueEntry` to make the store itself reject a duplicate.
-    ``INSERT OR IGNORE`` attempts the insert and silently skips it when the
-    constraint fires, returning no rows.  SQLite executes the statement
-    atomically, so two concurrent writers cannot both insert the same row —
-    on a file-backed store too, where sessions are not serialized (OX-06-002).
+    One ``INSERT ... ON CONFLICT DO NOTHING`` statement against the partial
+    UNIQUE index on outbox rows (:data:`~.schema.OUTBOX_PENDING_INDEX`): the
+    store itself refuses the duplicate, and SQLite runs the statement
+    atomically, so two writers cannot both queue the id — on a file-backed
+    store too, where sessions are not serialized (OX-06-002).  The conflict
+    target repeats the index's ``WHERE`` clause, as SQLite requires for a
+    partial index, so only the outbox can use this function.
 
     Returns:
         ``True`` when the id was queued, ``False`` when it was already pending.
     """
     stmt = (
         sqlite_insert(QueueEntry)
-        .values(queue=queue, activity_id=activity_id)
+        .values(queue="outbox", activity_id=activity_id)
         .on_conflict_do_nothing(
             index_elements=["queue", "activity_id"],
+            index_where=text(OUTBOX_PENDING_PREDICATE),
         )
         .returning(col(QueueEntry.id))
     )
@@ -201,7 +203,7 @@ def outbox_append(
     Returns:
         ``True`` when the id was queued, ``False`` when it was already pending.
     """
-    if not _queue_append_unless_pending(dl, "outbox", activity_id):
+    if not _outbox_append_unless_pending(dl, activity_id):
         logger.debug(
             "outbox_append: activity '%s' already pending for actor '%s'"
             " — not queued again (OX-06-002)",

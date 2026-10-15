@@ -17,11 +17,12 @@
 
 from typing import Any
 
-from sqlalchemy import Column, UniqueConstraint
+from sqlalchemy import Column, Engine, Index, text
 from sqlalchemy.dialects.sqlite import JSON
 from sqlmodel import Field, SQLModel
 
 from vultron.adapters.utils import strip_id_prefix
+from vultron.errors import VultronStaleStoreError
 
 
 class VultronObjectRecord(SQLModel, table=True):
@@ -42,6 +43,17 @@ class VultronObjectRecord(SQLModel, table=True):
     data: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
 
+OUTBOX_PENDING_PREDICATE = "queue = 'outbox'"
+"""Rows the outbox no-duplicate index covers (OX-06-002).
+
+An ``ON CONFLICT`` target against a partial index must repeat its ``WHERE``
+clause, so the index and :mod:`.queues` share this one string.
+"""
+
+OUTBOX_PENDING_INDEX = "uq_vultron_queue_outbox_pending"
+"""Name of the partial UNIQUE index on ``vultron_queue`` (OX-06-002)."""
+
+
 class QueueEntry(SQLModel, table=True):
     """A single inbox or outbox entry.
 
@@ -51,24 +63,63 @@ class QueueEntry(SQLModel, table=True):
     under another (BUG-2026040901; see ``notes/datalayer-design.md``
     § "One Actor Id Is One Database").
 
-    The UNIQUE constraint on ``(queue, activity_id)`` makes the store itself
-    enforce OX-06-002: a pending outbox entry cannot be inserted twice.  The
-    table holds only *pending* rows (they are deleted when popped), so the
-    constraint does not prevent re-queuing an id after delivery removes its row.
-    Existing stores do not gain the constraint automatically
-    (``create_all`` never alters a table); they must be reset — see the PR body
-    for issue #4629.
+    A partial UNIQUE index over ``(queue, activity_id)`` for outbox rows
+    (:data:`OUTBOX_PENDING_INDEX`) makes the store itself enforce OX-06-002: an
+    activity id cannot be pending in the outbox twice.  Popping or withdrawing
+    an entry deletes its row, so the table holds only pending rows and a
+    delivered id can be queued again.  The index is scoped to the outbox: the
+    inbox has no no-duplicate rule, and its re-queue paths append plainly.
+
+    ``create_all`` never alters an existing table, so a store created before
+    the index was added would run without it.  Such a store is refused when it
+    is opened (:func:`require_outbox_pending_index`); it must be reset.
     """
 
     __tablename__ = "vultron_queue"  # type: ignore[assignment]
     __table_args__ = (
-        UniqueConstraint("queue", "activity_id", name="uq_queue_activity_id"),
+        Index(
+            OUTBOX_PENDING_INDEX,
+            "queue",
+            "activity_id",
+            unique=True,
+            sqlite_where=text(OUTBOX_PENDING_PREDICATE),
+        ),
         {"extend_existing": True},
     )
 
     id: int | None = Field(default=None, primary_key=True)
     queue: str = Field(index=True)  # "inbox" or "outbox"
     activity_id: str
+
+
+def require_outbox_pending_index(engine: Engine) -> None:
+    """Refuse a store whose ``vultron_queue`` table lacks the outbox index.
+
+    ``create_all`` creates a missing table with its indexes but never adds an
+    index to a table that already exists, so a store written before the
+    OX-06-002 index would otherwise open without it, and every
+    ``outbox_append`` would then fail on its ``ON CONFLICT`` target.  The store
+    is refused at open instead, naming the reset; there is no migration.
+
+    Raises:
+        VultronStaleStoreError: If the index is absent.
+    """
+    with engine.connect() as conn:
+        found = conn.execute(
+            text(
+                "SELECT 1 FROM sqlite_master"
+                " WHERE type = 'index' AND tbl_name = 'vultron_queue'"
+                " AND name = :name"
+            ),
+            {"name": OUTBOX_PENDING_INDEX},
+        ).first()
+    if found is None:
+        raise VultronStaleStoreError(
+            f"Store at {engine.url} predates the outbox no-duplicate index"
+            f" ({OUTBOX_PENDING_INDEX}, OX-06-002); no migration is made, so"
+            " the store must be reset (for the container demo,"
+            " `docker compose down -v`)"
+        )
 
 
 class QueueAttemptEntry(SQLModel, table=True):

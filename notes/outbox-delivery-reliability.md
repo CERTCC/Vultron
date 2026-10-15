@@ -165,8 +165,9 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
 - Call `outbox_append` and read its result; never test `id in outbox_list()` first.
   The append itself leaves a pending id alone (OX-06-002), atomically, and returns
   `False`. It only sees what is pending: a delivered id is queued again.
-  The `vultron_queue` table carries a `UNIQUE(queue, activity_id)` constraint (#4629)
-  so the store itself rejects a duplicate row — the check is not code-only.
+  A partial UNIQUE index on outbox rows of `vultron_queue` backs it, so the store
+  itself refuses a duplicate pending id, and a store without the index is refused
+  at open (#4629). The inbox is not covered: it has no no-duplicate rule.
 - A rebuilt activity carries its first attempt's sealed body, so its first
   `published`. `CreateLogEntryNode` therefore reuses an equivalent recorded entry
   before the claimed-timestamp guard runs; checking first would refuse a late retry
