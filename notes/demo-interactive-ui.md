@@ -22,6 +22,7 @@ description: >
 related_notes:
   - notes/demo-future-ideas.md
   - notes/demo-scenario-registry.md
+  - notes/demo-scenario-tree.md
   - notes/demo-scenario-authoring.md
   - notes/case-ledger-authority.md
   - notes/configuration.md
@@ -128,7 +129,7 @@ exporters to the files they write.
 | State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built (EM read from the EM transition table since #4427) |
 | Semantic registry table | registry exporter (#4725) | ledger parser and mapper | drift test | planned |
 | Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
-| Scenario-tree index | `@scenario` branch declarations (#4726, #4727) | offline mode, live branch points | drift test; shared-prefix check | planned |
+| Scenario-tree index | branch-point table and `@scenario` path declarations (#4727; design in `demo-scenario-tree.md`) | offline mode, live branch points | drift test; isomorphic shared-prefix check | planned |
 | Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |
 | Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}`) | live mode (#3643) | — | planned |
 

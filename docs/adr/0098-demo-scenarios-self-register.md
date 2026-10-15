@@ -268,6 +268,7 @@ That still holds, and a scenario's place in the scenario tree is now part of wha
   The scenario-tree index that the demo UI reads is a derived artifact of those declarations, like every other table here, and a check proves each declared branch by comparing the parent's and the child's recorded ledgers up to the branch point.
 - The target form is **composition**: a branching story written once, as shared steps up to a branch point, then one continuation per choice.
   Ancestry then follows from the code itself, and each family's declarations are retired as it is composed.
+- Planning of #4726 (the same day) settled the declaration as the scenario's full path from the root, as (branch point, choice) pairs naming one branch-point table, rather than a parent pointer: siblings such as `fv` and `fvv` are neither a prefix of the other. See DEMOCI-11-013 through DEMOCI-11-017.
 
 Why: sibling scenarios are today full copies of one another up to the point where they differ, and nothing records that they are one story.
 The demo UI's offline mode replays the tree ([ADR-0104](0104-interactive-demo-ui-live-ledger-watcher.md) amendment of the same date), so the tree must be stated by the code, not inferred from scenario names.
