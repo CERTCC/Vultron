@@ -333,8 +333,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         The tree's FAILURE is the expiry guard refusing the late Accept as
         an answer, which this routing replaces; an internal error is still
-        the handler's to raise (ADR-0095).  The expiry entry was committed by
-        the clock decision (CM-28-009).
+        the handler's to raise (ADR-0095).  The clock decision has already
+        committed the expiry entry (CM-28-009), logged its refused commit,
+        or found the row already closed, so nothing here commits it.
         """
         if result.internal_error:
             raise VultronBTInternalError(

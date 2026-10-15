@@ -285,7 +285,9 @@ guards, commit, effects.
    the decision as `clock_decisions`: the factory wraps each in a
    `ClockDecision` inside a `ClockDecisionStage`
    (`case/nodes/clock_decision_stage.py`) behind a CASE_MANAGER gate, and
-   refuses one that holds the received activity's commit. The ownership
+   refuses one that holds the received activity's commit, or a tree with no
+   `sender_rule` or with a `post_close_exemption`, where a door guard would
+   not run before the decision writes (HP-01-006, CM-23-013). The ownership
    Offer expiry (`ExpireOverdueOwnershipOfferNode`,
    [ownership-transfer-close-paths](ownership-transfer-close-paths.md)) and
    the embargo Invite expiry (`invite_expiry_decision`) are clock decisions;

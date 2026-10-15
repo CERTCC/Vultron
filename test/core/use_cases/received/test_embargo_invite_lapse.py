@@ -1883,6 +1883,143 @@ class TestLateAcceptHandling:
             participant.consent_for(embargo_id) == EmbargoConsentState.AGREED
         )
 
+    def _late_accept_with_expiry_commit(
+        self, make_payload, monkeypatch, case_slug, commit_node
+    ):
+        """Run a late Accept whose expiry commit-and-apply is *commit_node*.
+
+        Returns the store, the case and embargo ids, and the list that
+        records each call of the EMB-17 routing.
+        """
+        from vultron.core.behaviors.embargo import expiry_tree as _et_module
+
+        dl = _make_dl(actor_id=_COORD)
+        case_id = f"https://example.org/cases/{case_slug}"
+        embargo_id = f"{case_id}/embargos/e1"
+        case, embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.INVITED,
+            invitee_deadline=_PAST,
+        )
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+        monkeypatch.setattr(
+            _et_module,
+            "create_commit_and_record_expiry_tree",
+            lambda **_: commit_node,
+        )
+        routed: list[str] = []
+        original = (
+            AcceptInviteToEmbargoOnCaseReceivedUseCase._handle_emb17_routing
+        )
+
+        def _spy(self, **kwargs):
+            routed.append(kwargs["case_id"])
+            return original(self, **kwargs)
+
+        monkeypatch.setattr(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase,
+            "_handle_emb17_routing",
+            _spy,
+        )
+        use_case = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            _make_accept_event(proposal, case, _INVITEE, make_payload),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        return dl, case_id, embargo_id, routed, use_case
+
+    @pytest.mark.spec("CLP-10-025", "EMB-17-001")
+    def test_late_accept_is_routed_when_the_expiry_commit_is_refused(
+        self, make_payload, monkeypatch, caplog
+    ):
+        """A refused expiry commit warns; the late Accept is still routed.
+
+        The clock decision's FAILURE does not end the tree (CLP-10-025), and
+        the expiry guard still refuses the Accept as an answer, so the
+        handler routes it by EMB-17 instead of recording it (EMB-17-001).
+        No expiry entry is ledgered and the row is not timed out.
+        """
+        import py_trees
+
+        class _Refused(py_trees.behaviour.Behaviour):
+            def update(self):
+                self.feedback_message = "ledger refused the expiry entry"
+                return py_trees.common.Status.FAILURE
+
+        dl, case_id, embargo_id, routed, use_case = (
+            self._late_accept_with_expiry_commit(
+                make_payload,
+                monkeypatch,
+                "late-refused",
+                _Refused(name="RefusedExpiryCommit"),
+            )
+        )
+
+        with caplog.at_level("WARNING"):
+            result = use_case.execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert routed == [case_id]
+        assert any(
+            r.levelname == "WARNING"
+            and "ledger refused the expiry entry" in r.getMessage()
+            for r in caplog.records
+        )
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.case_id == case_id
+            and e.event_type == INVITE_EXPIRED_EVENT_TYPE
+        ]
+        assert entries == []
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        participant = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(participant, CaseParticipant)
+        assert (
+            participant.consent_for(embargo_id)
+            is not EmbargoConsentState.TIMED_OUT
+        )
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_late_accept_with_an_internal_error_raises_and_is_not_routed(
+        self, make_payload, monkeypatch
+    ):
+        """An internal error in the expiry decision ends the handler (ADR-0095).
+
+        The late-Accept routing must not run on a tree that crashed: the
+        handler raises instead of reporting the Accept as routed.
+        """
+        import py_trees
+
+        from vultron.errors import VultronBTInternalError
+
+        class _Crashing(py_trees.behaviour.Behaviour):
+            def update(self):
+                raise KeyError("bug")
+
+        _, _, _, routed, use_case = self._late_accept_with_expiry_commit(
+            make_payload,
+            monkeypatch,
+            "late-crash",
+            _Crashing(name="CrashingExpiryCommit"),
+        )
+
+        with pytest.raises(VultronBTInternalError):
+            use_case.execute()
+        assert routed == []
+
     @pytest.mark.spec("EMB-17-002", "CM-18-003")
     @pytest.mark.parametrize(
         "start, triggers",

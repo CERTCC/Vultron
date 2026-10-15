@@ -663,11 +663,11 @@ class _Crashing(py_trees.behaviour.Behaviour):
         raise KeyError("bug")
 
 
-def _sender_args() -> dict:
+def _sender_args(case_id: str | None = CASE_ID) -> dict:
     return {
         "sender_rule": SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
         "sender_context": SenderCheckContext(
-            sender_id="https://example.org/actors/sender", case_id=CASE_ID
+            sender_id="https://example.org/actors/sender", case_id=case_id
         ),
     }
 
@@ -734,9 +734,10 @@ class TestClockDecisionStage:
             case_id=CASE_ID,
             precondition_guards=[],
             clock_decisions=[first, second],
+            **_sender_args(),
         )
 
-        gate = tree.children[2]
+        gate = tree.children[3]
         assert isinstance(gate, CaseManagerGate)
         stage = gate.gated_branch
         assert isinstance(stage, ClockDecisionStage)
@@ -764,6 +765,7 @@ class TestClockDecisionStage:
             clock_decisions=[_effect("Expiry")],
             manager_effects=[_Emitter()],
             manager_case_id=CASE_ID,
+            **_sender_args(case_id=None),
         )
 
         gate = next(
@@ -798,6 +800,35 @@ class TestClockDecisionStage:
                 clock_decisions=[
                     create_guarded_commit_case_ledger_entry_tree(CASE_ID)
                 ],
+                **_sender_args(),
+            )
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("HP-01-006")
+    def test_decisions_without_a_sender_guard_are_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="need a sender_rule"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                clock_decisions=[_effect("Expiry")],
+            )
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CM-23-013")
+    def test_decisions_on_a_post_close_exempt_tree_are_refused(self) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            PostCloseExemption,
+        )
+
+        with pytest.raises(VultronWiringError, match="post-close boundary"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                clock_decisions=[_effect("Expiry")],
+                post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
+                **_sender_args(),
             )
 
     def test_without_decisions_there_is_no_stage(self) -> None:

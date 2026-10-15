@@ -364,6 +364,9 @@ def _clock_decision_stage(
     name: str,
     case_id: str | None,
     decisions: list[py_trees.behaviour.Behaviour],
+    *,
+    sender_guarded: bool,
+    post_close_exemption: PostCloseExemption | None,
 ) -> CaseManagerGate:
     """The tree's clock decisions, run only at the case's CASE_MANAGER.
 
@@ -372,20 +375,39 @@ def _clock_decision_stage(
     node nor the guarded-commit subtree around it (CLP-10-025): either would
     commit the activity's own assertion before the guards judge it.
 
+    It writes, so both door guards must run first: the sender guard, so a
+    sender with no standing never makes the CASE_MANAGER write (HP-01-006),
+    and the post-close boundary, so nothing is recorded once the case is
+    fully closed (CM-23-013).  A tree with no sender guard or with a
+    post-close exemption cannot take clock decisions.
+
     The gate reads a case this store does not hold as "not the CASE_MANAGER"
     at ``debug`` level: a replica, or an invitee holding only a stub, never
     computes a clock decision (CM-21-017, CM-28-014).
 
     Raises:
         VultronWiringError: *case_id* is ``None`` — there is no case whose
-            CASE_MANAGER could take the decision — or a decision holds the
-            received activity's commit.
+            CASE_MANAGER could take the decision — the tree has no sender
+            guard or is exempt from the post-close boundary, or a decision
+            holds the received activity's commit.
     """
     where = f"create_receive_activity_tree({name})"
     if case_id is None:
         raise VultronWiringError(
             f"{where}: clock_decisions need a case_id or manager_case_id,"
             " the case whose CASE_MANAGER takes them (CLP-10-025)"
+        )
+    if not sender_guarded:
+        raise VultronWiringError(
+            f"{where}: clock_decisions need a sender_rule, so the sender"
+            " guard runs before the CASE_MANAGER writes (HP-01-006,"
+            " CLP-10-025)"
+        )
+    if post_close_exemption is not None:
+        raise VultronWiringError(
+            f"{where}: clock_decisions cannot run on a tree exempt from the"
+            f" post-close boundary ({post_close_exemption.name}); nothing is"
+            " recorded once the case is fully closed (CM-23-013, CLP-10-025)"
         )
     activity_commits = sorted(
         {
@@ -479,7 +501,9 @@ def create_receive_activity_tree(
     from the CASE_MANAGER's clock, policy and the case's ledger and file; the
     received activity may prompt it and name what it concerns, never be its
     evidence.  It commits only its own entry: one holding the received
-    activity's commit is refused at construction.
+    activity's commit is refused at construction, as is a tree with no
+    ``sender_rule`` or with a ``post_close_exemption``, where a door guard
+    would not run first.
 
     ``CaseOpenToExternalWrites`` is the post-close write boundary
     (CM-23-013, ADR-0085, ADR-0131): at the case's CASE_MANAGER, once the
@@ -616,8 +640,9 @@ def create_receive_activity_tree(
             inconsistent: ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
             ``sender_context`` naming another case than ``case_id``
-            (HP-01-008), or ``clock_decisions`` name no case or hold the
-            received activity's commit (CLP-10-025).
+            (HP-01-008), or ``clock_decisions`` name no case, come without
+            a ``sender_rule`` or with a ``post_close_exemption``, or hold
+            the received activity's commit (CLP-10-025).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, CLP-10-025, ``specs/behavior-tree-integration.yaml``
@@ -654,7 +679,11 @@ def create_receive_activity_tree(
     if clock_decisions:
         children.append(
             _clock_decision_stage(
-                name, case_id or manager_case_id, clock_decisions
+                name,
+                case_id or manager_case_id,
+                clock_decisions,
+                sender_guarded=guard is not None,
+                post_close_exemption=post_close_exemption,
             )
         )
     if refusal_effects:

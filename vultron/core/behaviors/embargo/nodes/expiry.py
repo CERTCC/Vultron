@@ -188,7 +188,7 @@ class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
 
     def __init__(
         self,
-        result_out: dict[str, Any],
+        result_out: dict[str, object],
         invitee_id: str,
         case_id: str,
         name: str | None = None,

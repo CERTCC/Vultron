@@ -32,10 +32,13 @@ CASE_MANAGER gate (BT-17-001)::
        └─ ClockDecision(<decision 2>) …
 
 Each :class:`ClockDecision` turns its decision's ``FAILURE`` — a commit the
-ledger refused — into a WARNING and ``SUCCESS``, so the tree continues and
-the precondition guards refuse what the unrecorded decision forbids.  An
-internal error is an exception, which no node here catches, so it ends the
-tree as an internal error (ADR-0095).
+ledger refused, or any other failure the decision reports as a status — into
+a WARNING and ``SUCCESS``, so the tree continues and the precondition guards
+refuse what the unrecorded decision forbids.  An internal error is an
+exception, which no node here catches, so it ends the tree as an internal
+error (ADR-0095).  A node that catches its own error and returns ``FAILURE``
+hides it from this stage as from the bridge (CONCERN #3019), so a new decision
+should raise what it cannot attribute to the protocol.
 
 The factory owns this structure; a tree supplies only the decisions.
 """
@@ -53,8 +56,8 @@ class ClockDecision(py_trees.decorators.Decorator):
     """One clock decision; a refused commit never ends the tree.
 
     ``SUCCESS`` when the decision recorded nothing or committed its entry.
-    When the decision fails — its commit was refused — the refusal is logged
-    at WARNING and reported as ``SUCCESS`` (CLP-10-025).  The child keeps
+    When the decision fails — typically its commit was refused — the failure
+    is logged at WARNING and reported as ``SUCCESS`` (CLP-10-025).  The child keeps
     its ``FAILURE`` status for inspection.  An exception the decision raises
     is not caught, so an internal error still ends the tree (ADR-0095).
     """
@@ -65,7 +68,7 @@ class ClockDecision(py_trees.decorators.Decorator):
             self.feedback_message = BTBridge.get_failure_reason(child)
             log = node_logger(self)
             log.warning(
-                "%s: clock decision '%s' recorded nothing: %s",
+                "%s: clock decision '%s' failed; the tree continues: %s",
                 self.name,
                 child.name,
                 self.feedback_message,

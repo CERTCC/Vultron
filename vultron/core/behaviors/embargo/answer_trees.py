@@ -33,7 +33,6 @@ CS-18-001 size cap; it re-exports both factories.
 
 import logging
 from datetime import datetime
-from typing import Any
 
 import py_trees
 
@@ -75,7 +74,7 @@ def accept_invite_to_embargo_tree(
     sender_rule: SenderRule,
     now: datetime,
     published: str,
-    expiry_out: dict[str, Any],
+    expiry_out: dict[str, object],
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting an embargo invitation.
 
