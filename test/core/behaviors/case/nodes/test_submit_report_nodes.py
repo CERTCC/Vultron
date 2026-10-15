@@ -63,22 +63,22 @@ def test_offer_record_node_is_idempotent():
 
 
 @pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("HP-10-001")
 @pytest.mark.parametrize(
-    ("to", "cc", "status", "reason"),
+    ("to", "status"),
     [
-        ([VENDOR], [], Status.SUCCESS, None),
-        ([], [VENDOR], Status.FAILURE, "cc"),
-        (
-            ["https://example.org/actors/other"],
-            [],
-            Status.FAILURE,
-            "not a recipient",
-        ),
+        ([VENDOR], Status.SUCCESS),
+        # A receiver the sender put only in cc arrives with an empty `to`:
+        # core does not carry cc (ADR-0109).
+        ([], Status.FAILURE),
+        (["https://example.org/actors/other"], Status.FAILURE),
     ],
 )
-def test_addressing_guard(to, cc, status, reason):
-    node = CheckOfferAddressedToReceiverNode(to=to, cc=cc, report_id=REPORT)
+def test_addressing_guard(to, status):
+    node = CheckOfferAddressedToReceiverNode(to=to, report_id=REPORT)
     _, result = _run(node)
     assert result.status == status
-    if reason:
-        assert reason in node.feedback_message
+    if status is Status.FAILURE:
+        assert node.misaddressed is True
+        assert "not a to recipient" in node.feedback_message
+        assert "cc addressing not supported" in node.feedback_message

@@ -92,7 +92,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AnnounceEmbargoEventToCaseReceivedUseCase,
         phrase="{actor} announced an embargo change",
         wire_activity_class=_AnnounceEmbargoActivity,
-        # The use case's door check reads to/cc (HP-01-005, ADR-0118).
+        # The use case's door check reads `to` (HP-01-005, ADR-0118).
         include_activity=True,
         occasions=(
             Occasion(

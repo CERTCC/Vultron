@@ -531,12 +531,14 @@ def test_an_invite_with_pxa_set_addressed_to_another_actor_gets_no_er(caplog):
 
 
 @pytest.mark.spec("EMB-01-002")
-@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("HP-10-001")
 def test_a_cc_copy_of_an_invite_with_pxa_set_gets_no_er(caplog):
-    """A ``cc`` recipient is addressed but is not the invitee: no ER.
+    """A ``cc`` recipient is not addressed at all: no ER.
 
-    The copy passes the door check (HP-01-005) and is refused by the
-    invitee check instead (EP-09-010); only the invitee answers.
+    ``cc`` has no handler semantics and the extractor does not carry it into
+    core (ADR-0109), so the copy is refused at the door check (HP-01-005)
+    before any tree runs; only the invitee answers.
     """
     net = _Network("https://example.org/cases/relay-replay-pxa-cc")
     _set_pxa(net, BYSTANDER)
@@ -546,11 +548,12 @@ def test_a_cc_copy_of_an_invite_with_pxa_set_gets_no_er(caplog):
         verdict = net.receive(BYSTANDER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
-    assert verdict.reason is not None and "EP-09-010" in verdict.reason
+    assert verdict.reason is not None
+    assert "neither the sender nor a recipient" in verdict.reason
     assert net.queued(BYSTANDER, to=MANAGER) == []
     assert net.queued(BYSTANDER, to=OWNER) == []
     assert any(
-        "EP-09-010" in record.getMessage() and record.levelname == "WARNING"
+        "HP-01-005" in record.getMessage() and record.levelname == "WARNING"
         for record in caplog.records
     )
 

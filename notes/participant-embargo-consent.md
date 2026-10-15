@@ -206,8 +206,9 @@ partition of its own.
 ADR-0118). A participant that is neither owner nor CASE_MANAGER answers a
 revision Invite with ER to the CASE_MANAGER and does not move its own EM state;
 termination is the owner's (or delegated CASE_MANAGER's) decision. A store that
-is not the sender and not in `to`/`cc` refuses the copy at the door
-(`unaddressed_copy_refusal()`) and answers nothing.
+is not the sender and not in `to` refuses the copy at the door
+(`unaddressed_copy_refusal()`) and answers nothing; `cc` addresses nobody
+(ADR-0109).
 
 ---
 

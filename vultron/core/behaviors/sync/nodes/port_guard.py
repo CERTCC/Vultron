@@ -45,8 +45,9 @@ class RequireSyncPortNode(DataLayerActionWithPorts):
     declared optional so its absence surfaces as this wiring error rather
     than as ``NoDataAvailable``.
 
-    It sits after ``DeclineForeignLedgerCommitNode``. A store that declines
-    mints nothing and fans out nothing, so it needs no port.
+    It sits after ``DeclineForeignLedgerCommitNode``, which raises for a
+    store that does not hold the log, so this node only ever runs in the store
+    that mints and fans out.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

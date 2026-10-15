@@ -25,6 +25,9 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
@@ -191,6 +194,7 @@ class TestOwnershipTransferUseCases:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         # Nothing to establish the sender's standing against, so it is
@@ -213,6 +217,7 @@ class TestOwnershipTransferUseCases:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -713,6 +718,7 @@ class TestOwnershipTransferUseCases:
             make_payload(accept, receiving_actor_id=None),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert _owner(dl, case_id) == _COORDINATOR_ID, (
@@ -897,6 +903,7 @@ def _accept(dl, make_payload, offer, sender=_COORDINATOR_ID, accept=None):
         make_payload(accept, receiving_actor_id=dl.actor_id),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
 

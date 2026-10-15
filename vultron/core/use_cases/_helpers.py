@@ -150,7 +150,7 @@ def resolve_receiving_actor_id(
 def is_recipient(
     receiving_actor_id: str, activity: VultronActivity | None
 ) -> bool:
-    """True when *receiving_actor_id* is in *activity*'s ``to`` or ``cc``.
+    """True when *receiving_actor_id* is in *activity*'s ``to``.
 
     A received-side handler that acts for an addressee (the Case Owner
     deciding an ``Offer(CaseParticipant)``, the transferee of a forwarded
@@ -158,16 +158,17 @@ def is_recipient(
     merely holds a copy.  The copy-holder refuses (HP-01-005): the sender
     addressed the wrong party, and the receiver's own record says so.
 
-    The extractor has already normalised ``to``/``cc`` to id lists, so this
-    reads them as such.  Matching is by
+    Only ``to`` addresses a Vultron recipient: ``cc`` has no handler
+    semantics and the extractor does not carry it into core (OX-08-001,
+    HP-10-001, ADR-0109).  The extractor has already normalised ``to`` to an
+    id list, so this reads it as such.  Matching is by
     :func:`~vultron.core.predicates.addressing.is_addressed_to`, so a
     recipient written with a trailing slash still counts.  An event without
     an activity names no recipient at all.
     """
     if activity is None:
         return False
-    recipients = [*(activity.to or []), *(activity.cc or [])]
-    return is_addressed_to(receiving_actor_id, recipients)
+    return is_addressed_to(receiving_actor_id, list(activity.to or []))
 
 
 def unaddressed_copy_refusal(
@@ -177,7 +178,7 @@ def unaddressed_copy_refusal(
 
     The door check of every received embargo use case (HP-01-005, ADR-0118,
     #4132): a receiver acts on an activity only when it sent it or is named
-    in its ``to`` or ``cc``.  Any other store holds a misaddressed copy — it
+    in its ``to``.  Any other store holds a misaddressed copy — it
     runs no tree, writes nothing and answers nothing (EMB-01-002's ER duty
     binds only the addressee) — and its refusal names the receiver and the
     recipients the sender actually chose, so the misrouting can be traced.
@@ -188,11 +189,10 @@ def unaddressed_copy_refusal(
         return None
     activity = request.activity
     to = list(activity.to or []) if activity is not None else []
-    cc = list(activity.cc or []) if activity is not None else []
     verdict = HandlerResult.refused(
         f"'{receiving_actor_id}' is neither the sender nor a recipient of"
-        f" {label} '{request.activity_id}' (to={to}, cc={cc}); an"
-        " unaddressed copy is refused (HP-01-005)"
+        f" {label} '{request.activity_id}' (to={to}); an unaddressed copy"
+        " is refused (HP-01-005)"
     )
     logger.warning(
         "%s: refused '%s' (actor '%s'): %s",

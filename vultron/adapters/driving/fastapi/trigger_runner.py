@@ -62,21 +62,17 @@ def emitting_outbox(
 ) -> tuple[str, DataLayer]:
     """Return the ``(actor_id, store)`` whose outbox the trigger just wrote to.
 
-    A delegated emit (CM-24-001, PCR-08-007) is authored as the CaseActor and
-    queued in the *CaseActor's* outbox, not the requesting actor's, so the
-    drain scheduled after the trigger has to target that queue.  Draining the
-    requesting actor's queue instead leaves the row until the CaseActor next
-    happens to drain — in CI run 36643399281 an ownership-transfer Offer sat
-    unpopped for 111 s while the 90 s gate on its forwarding expired (#3602;
-    invite-actor-to-case had the same fault fixed in #2484).
+    A trigger that runs as another actor than the one its route names — the
+    demo-only ``sync-log-entry``, which commits as the case's CASE_MANAGER —
+    queues in *that* actor's outbox, so the drain scheduled after the trigger
+    has to target that queue.  Draining the requesting actor's queue instead
+    leaves the row until the other actor next happens to drain (#3602, #2484).
 
-    Unless the CaseActor is on another container, which it is after a handoff
-    (CP-08-003).  A node cannot reach a foreign authority's store, so
-    ``BTBridge._store_for_actor`` keeps the emit in the requesting actor's own
-    store and the activity is queued *there*; resolving the queue any other way
-    would drain an empty store minted for a foreign slug and deliver nothing.
-    ``store_for_actor`` is the same guard the bridge applies, so the two cannot
-    disagree about which queue holds the activity.
+    The emitting actor is always one this node hosts: ``BTBridge`` refuses to
+    execute a tree as any other (BT-05-005, ADR-0109), so a trigger that
+    returned names a co-hosted actor.  ``store_for_actor`` is the same guard
+    the bridge applies, so the two cannot disagree about which queue holds the
+    activity.
 
     Args:
         emitting_actor_id: ``result.emitting_actor_id`` — who the activity
@@ -87,12 +83,9 @@ def emitting_outbox(
     """
     if emitting_actor_id == actor_id:
         return actor_id, dl
-    emitting_dl = store_for_actor(
+    return emitting_actor_id, store_for_actor(
         dl, emitting_actor_id, require_same_authority=True
     )
-    if emitting_dl is None:
-        return actor_id, dl
-    return emitting_actor_id, emitting_dl
 
 
 def run_trigger(

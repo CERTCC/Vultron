@@ -116,7 +116,9 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     IsOfferOwnershipTransferEventNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
+    ApplyCaseParticipantUpdateFromLedgerNode,
     ApplyCreateCaseParticipantFromLedgerNode,
+    IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     ApplyReinstateCaseParticipantFromLedgerNode,
@@ -171,6 +173,7 @@ __all__ = [
     "IsAddNoteEventNode",
     "IsRemoveNoteEventNode",
     "IsCreateCaseParticipantEventNode",
+    "IsUpdateCaseParticipantEventNode",
     "IsInviteAcceptEventNode",
     "IsInviteRejectEventNode",
     "IsSubmitReportEventNode",
@@ -190,6 +193,7 @@ __all__ = [
     "ApplyCaseParticipantRoleGrantFromLedgerNode",
     "ApplyRemoveNoteFromLedgerNode",
     "ApplyCreateCaseParticipantFromLedgerNode",
+    "ApplyCaseParticipantUpdateFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
     "ApplyInviteRejectFromLedgerNode",
     # participant_status_effect
