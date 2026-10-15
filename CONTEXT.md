@@ -68,6 +68,28 @@ a layer under the EM state machine; it does not replace the machine.
 
 ---
 
+## Documents
+
+**Protocol Specification**:
+The normative definition of the Vultron protocol, published at
+`docs/reference/vultron-spec/`. Every other description of the protocol (message
+reference, conformance matrix, quick reference, formal protocol) is a companion that
+defers to it.
+*Avoid*: bare "spec" (it also means a requirements spec), "the protocol docs"
+
+**Requirements spec**:
+A machine-readable requirements file under `specs/`, holding testable statements about
+this repository and its documentation as well as the protocol. Called "Implementation
+Requirements" on the site.
+*Avoid*: "the spec" or "specification" alone (that is the Protocol Specification)
+
+**Reference implementation**:
+CERT/CC's Python implementation of the protocol, in this repository. It shows one way
+to conform; it does not define what conforming means.
+*Avoid*: treating its APIs (such as the Trigger API) or demos as part of the protocol
+
+---
+
 ## Messages
 
 Canonical definitions: `docs/reference/glossary.md` § Messaging and Protocol, which

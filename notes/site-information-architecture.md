@@ -234,6 +234,55 @@ pages are the design-intent view the generated reference pages do not carry
 (see the three-views table in `notes/documentation-strategy.md`). Demoting
 them from the reader path is not a step toward deleting them (#3281).
 
+## The front desk and the floors
+
+The site's top level is organized by reader, not by Diátaxis type (ADR-0136).
+The team thinks of it as a building: the home page is the **front desk**, which
+says what kind of thing Vultron is and sends each visitor to the floor they
+came for. **The metaphor is internal**, like the levels and stakeholder types:
+it shapes the nav and never appears on the site.
+
+| Floor | Tab | Stakeholder type | Landing page |
+|---|---|---|---|
+| Front desk | Home | `ALL` | `index.md` |
+| Lobby signage | How Vultron Works | `ALL`, levels 200–300 | (shared concepts) |
+| Offices | Coordinate Cases | `cvd-practitioner` | `start/coordinate-cases.md` |
+| Engineering | Implement the Protocol | `platform-developer` | `start/connect-your-tracker.md` |
+| Basement | Reference Implementation | `project-contributor` | `start/contribute.md` |
+| Observation deck | Research | `process-researcher` | `start/study-the-process.md` |
+| (building office) | Project | `ALL` | versioning, open questions, proposing a change |
+
+Rules that keep the floors distinct:
+
+- **The protocol and the reference implementation never share a section.** A
+  page about CERT/CC's codebase, such as the Trigger API or a demo, is basement
+  material however protocol-shaped its subject is. Engineering holds only what
+  binds every implementation and what explains it.
+- **The Protocol Specification is the Engineering floor's centrepiece**, linked
+  from the front desk. Messages, the Conformance Matrix, the Quick Reference
+  and Formal Protocol are labelled companions that defer to it; the notation's
+  nav entry is the specification's annex.
+- **Shared concepts go in How Vultron Works**, not on whichever floor asked
+  first. A page every floor links to is lobby signage.
+- **Edge placements decided so far:** Behavior Logic is Engineering;
+  Federation is Project; User Stories and the taxonomy are basement; Measuring
+  Your Program is Offices.
+
+### Page type is a label, not a section
+
+Each reader-facing page declares one `page_type` (`tutorial`, `how-to`,
+`explanation`, `reference`); routing pages and the front desk declare none. The
+theme renders it as a badge from frontmatter, and the same badge is a CSS class
+an author can write by hand next to a link on a routing page. Diátaxis still
+governs how a page is written (DF-01); it no longer decides where the page
+sits. The key is not `content_type`, which reads as a MIME type.
+
+### Nav first, files later
+
+The tabs change in `mkdocs.yml` first, and the directories stay where they are,
+so no URL breaks. Moving the files to match waits for the usability test under
+"Validation". Until then a page's directory is not evidence of its floor.
+
 ## Routing: nav enumerates groups, routing pages carry leaves
 
 A large set of leaf pages goes behind a routing page; the nav carries the
@@ -241,11 +290,10 @@ group, not the members (DF-11-006). `docs/reference/user_stories/` is the
 model: its story pages are out of the nav and reached through
 `traceability.md`.
 
-Research is the one reader-facing group with its own top-level section:
-Measuring CVD and Other Uses sit under `docs/research/index.md` (500,
-`process-researcher`), off the adoption path without being hidden. Future Work
-stays in Explanation, because its pages are addressed to `platform-developer`
-at 400.
+Research has its own tab (ADR-0136): Measuring CVD and Other Uses sit under
+`docs/research/index.md` (500, `process-researcher`), off the adoption path
+without being hidden. Future Work stays out of it, because its pages are
+addressed to `platform-developer` at 400.
 
 ### Landing pages are generated, never hand-maintained
 
@@ -296,9 +344,9 @@ label, and a later `cvd-practitioner` split then just adds a page with a
 narrower situation.
 
 The entry pages are hand-written curated paths, not enumerations, so
-DF-11-005's generate-and-gate rule does not apply. They sit in the nav as a
-*Start Here* section opened by `start/index.md`; its cards come from
-`docs/includes/start_here_cards.md`, the fragment the home page also includes.
+DF-11-005's generate-and-gate rule does not apply. Each one opens its floor's
+tab (see "The front desk and the floors"); there is no separate *Start Here*
+tab, because every tab is an entry.
 
 ### The coverage matrix is generated too
 
@@ -353,4 +401,20 @@ There is no analytics, search-log data, or observed newcomer for this site, so
 every audience claim here rests on indirect signals — the questions the team
 answers repeatedly. A cold read of the entry path by someone who has never seen
 Vultron is the test that would falsify it; it is a person, not a check, so it
-cannot gate a change.
+cannot gate a change. It remains an open goal; nobody is available to do it.
+
+What can gate a change is an **agent usability test**, which ADR-0136 uses to
+gate the file move:
+
+1. **Tree test.** Agents see only nav labels, current and proposed, and say
+   where they would look for each task.
+2. **Walkthrough.** Agents get the built site as HTML only: no repository, no
+   site search, a click budget, and an explicit option to give up.
+
+Brief about five personas, each with explicit "you don't know X" constraints;
+an agent that knows the repo will find anything. Draw tasks from the user
+stories, the FAQ and a few real questions from the maintainer, and **fix the
+task list before anyone sees the proposed tree**, or the tasks get written to
+fit it. The proposed tree passes when it beats the current one on task success
+and no task stalls at the front desk. An agent catches a nav that cannot work;
+it cannot show that a person finds one natural.
