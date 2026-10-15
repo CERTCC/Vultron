@@ -9,7 +9,7 @@ description: >
 related_specs:
   - specs/stub-objects.yaml
   - specs/message-validation.yaml
-  - specs/case-management.yaml (CM-11-013, CM-17-010, MV-10-001)
+  - specs/case-management.yaml (CM-11-013, CM-17-002, CM-17-010, CM-17-011, MV-10-001)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
@@ -69,6 +69,11 @@ already held (MV-10-003) and never creates a new domain record (MV-10-004).
 - The stub's `caseStatus` is built for the stub, not read from the case, and
   serializes only its identity and `emState` (CM-17-002). A `pxaState` on the wire
   would state a PXA value nobody observed.
+- The stub's `activeEmbargo` is the full `EmbargoEvent` as the sender holds it,
+  never a copy rebuilt from its ID and `end_time` (CM-17-011). The protocol lets a
+  stub name the embargo by ID for the invitee to fetch (CM-17-002), but this
+  prototype builds no fetch, so `_project_case_to_stub()` refuses an embargo it
+  holds only by ID rather than send terms the invitee cannot read.
 - `AnnounceVulnerabilityCaseReceivedUseCase` needs the full inline case on
   `activity.object_`, so `extract_intent()` keeps rich `object_`, `target`, and
   `context` values when `include_activity=True`.
