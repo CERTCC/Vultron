@@ -185,8 +185,8 @@ The distinction between the two authority roles matters throughout:
   may be transferred ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
 - The **Case Manager** is the participant holding the `CASE_MANAGER` role. It
   writes the canonical case ledger, relays case-scoped messages, and acts on the
-  Case Owner's behalf. The Case Owner may delegate this role
-  ([§11.1 Role Assignment](interactions.md#111-role-assignment-n)).
+  Case Owner's behalf.
+  The role cannot be granted by a role offer ([§11.1 Role Assignment](interactions.md#111-role-assignment-n)); how it is handed to another actor is not yet specified.
 
 Roles are assigned through the case's authority chain, not claimed. An actor does
 not acquire a case role by asserting that it holds one
