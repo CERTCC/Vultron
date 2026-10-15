@@ -62,10 +62,14 @@ lookup table is mostly links.
 
 - The column states the `sender_entitlement` the received use case declares,
   because that is what another implementation must satisfy, and it cannot drift.
-  It is often broader than CVD convention (any active participant may send
+  It is often broader than CVD convention (any participant may send
   `Add(ParticipantStatus)` with `vf_state` `VF`), so an occasion may add a
-  "usually" note typed as `CVDRole` values: "an active participant (usually:
-  vendor)" (MSM-08-005).
+  "usually" note typed as `CVDRole` values: "a participant (usually: vendor)"
+  (MSM-08-005).
+- "A participant" (`PARTICIPANT`) is any actor with a participant record on the
+  case, active or not; "an active participant" (`ACTIVE_PARTICIPANT`) is one
+  entitled to the case's content (CM-10-004). The two kinds split in #4437 so
+  that each declaration says which one its handler checks.
 - Each `SenderEntitlementKind` declares its own wording and glossary term
   (MSM-08-010), so no wording table is kept by hand; an exemption reads "not yet
   checked". About half the received use cases are exempt today, so the column
@@ -88,12 +92,14 @@ lookup table is mostly links.
   keeps it, so it is the `LEDGER_PEER` kind, not `ACTIVE_PARTICIPANT` (SYNC-03-005,
   CM-23-018). The invitee stays its own kind: it is checked
   against the `to` of the recorded Invite (EP-09-010, CM-11-017).
-- **A declaration is the full rule, per addressee side** (HP-01-008). Today some
-  declarations are a floor with the rest in the tree (`Remove(Note)` declares an
-  active participant while CM-30-001 entitles the author or Case Owner;
-  `SenderMayAssertEmbargoNode` checks two sides). A declaration becomes "any of"
-  several kinds, stated per addressee (the CASE_MANAGER, a participant, or an
-  actor outside any case), and the factory builds the guard from it alone.
+- **A declaration is the full rule, per addressee side** (HP-01-008). It is
+  "any of" several kinds, stated per addressee (the CASE_MANAGER, a participant,
+  or an actor outside any case), and the factory builds the guard from it alone.
+  Declarations that used to be a floor with the rest in the tree now state the
+  whole rule (#4437): `Remove(Note)` admits the note's author or the Case Owner
+  at the CASE_MANAGER, and the embargo `Invite(Event)` admits the CASE_MANAGER or
+  an active participant there; at a participant both admit only the
+  CASE_MANAGER.
 - **Each occasion names its addressee; "Sent by" and "Send to" are derived**
   (MSM-08-009). One wire activity can carry occasions with different senders: a
   participant's `Invite(Event)` to the CASE_MANAGER and the CASE_MANAGER's

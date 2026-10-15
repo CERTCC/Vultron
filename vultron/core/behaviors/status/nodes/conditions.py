@@ -19,7 +19,7 @@ Two precondition nodes extracted from AutoCloseBranchNode per DEMOMA-07-006:
 AllParticipantsRMClosedConditionNode and CloseNotYetEmittedConditionNode.
 
 Note: VerifySenderIsParticipantNode has been consolidated into
-``SenderIsActiveParticipantNode`` in
+``SenderIsParticipantNode`` in
 ``vultron.core.behaviors.sender_entitlement`` (ADR-0115, AC-2).
 """
 

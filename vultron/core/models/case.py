@@ -736,17 +736,16 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         Every other participant is **inert**.  A removed participant is inert
         whatever its embargo consent: a removed signatory stays bound but
         receives no content (CM-31-008, ADR-0116).  RM ``CLOSED`` is deliberately
-        not part of this check: a closed participant still receives the
-        ledger entries that record its own closure, and a replay of them when
-        it asks for one (CM-23-004, SYNC-03-005).  It does not receive later
-        entries, ``case_fully_closed`` included.  The callers that must leave
-        a closed participant out apply that filter themselves
-        (:mod:`vultron.core.participants.recipients`): the case-content
-        sends (CM-23-004) and the sender check, under which a closed
-        participant may act on nothing further (CM-23-018).  The answer is
-        computed from the replicated participant record and this case's own
-        status, never stored, so every replica derives the same answer.
-        Recipients are selected through :mod:`vultron.core.participants.recipients`, which
+        not part of this check: a closed participant is still owed the
+        ledger entries that record its own closure, and nothing after them,
+        ``case_fully_closed`` included (CM-23-004), so each recipient
+        selection applies the ``CLOSED`` filter itself
+        (:mod:`vultron.core.participants.recipients`).  The sender checks
+        apply it too: a closed participant may act on nothing further
+        (CM-23-018).  The answer is computed from the
+        replicated participant record and this case's own status, never
+        stored, so every replica derives the same answer.  Recipients are
+        selected through :mod:`vultron.core.participants.recipients`, which
         resolves each roster entry to its record and asks this method.
         """
         if not participant.joined or participant.removed:

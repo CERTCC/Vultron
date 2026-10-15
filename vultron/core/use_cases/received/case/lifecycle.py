@@ -55,7 +55,9 @@ class AddReportToCaseReceivedUseCase:
     already lists is ``SKIPPED``.
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The Case Owner asks the CASE_MANAGER; a participant takes the report
+    # from the CASE_MANAGER alone (CM-30-002, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.CASE_OWNER
     )
 
@@ -88,6 +90,7 @@ class AddReportToCaseReceivedUseCase:
             report_id=report_id,
             case_id=case_id,
             sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,

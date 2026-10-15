@@ -18,7 +18,8 @@ Only the CASE_MANAGER attaches the report to ``case.vulnerability_reports`` and
 commits the canonical ledger entry; every other participant learns of the report
 from the entry's ``Announce`` fan-out, applied by
 ``ApplyOfferReportFromLedgerNode`` (SYNC-02-002, RSH-08-004).  Sender
-entitlement is the Case Owner at the manager (CM-30-002, ADR-0115).
+entitlement is the Case Owner at the manager and the CASE_MANAGER at a
+replica (CM-30-002, PCR-03-001, ADR-0115).
 """
 
 import py_trees
@@ -27,19 +28,19 @@ from vultron.core.behaviors.case.nodes.reference_list import (
     AttachReportToCaseNode,
     CaseReferenceEditPendingNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_role_scoped_sender_guard,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 
 def create_add_report_to_case_received_tree(
     report_id: str,
     case_id: str,
     sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Single-BT received-side tree for ``Add(Report, Case)`` (ADR-0111).
 
@@ -47,7 +48,7 @@ def create_add_report_to_case_received_tree(
 
         GuardedAttachReportAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                    # intake
-        ├── AddReportSenderGuard (Selector)               # sender guard
+        ├── SenderRuleGuard (Sequence)                    # sender guard
         ├── CaseReferenceEditPendingNode                  # duplicate guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit
         └── GuardedAttachReportBT (Selector)              # effect
@@ -60,16 +61,15 @@ def create_add_report_to_case_received_tree(
         report_id: ID of the report being added.
         case_id: ID of the case receiving the report.
         sender_id: The activity's sender.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
     """
     return create_receive_activity_tree(
         name="GuardedAttachReportAndCommitBT",
         case_id=case_id,
-        sender_guard=create_role_scoped_sender_guard(
-            name="AddReportSenderGuard",
-            case_id=case_id,
-            at_case_manager=SenderIsCaseOwnerNode(
-                sender_actor_id=sender_id, case_id=case_id
-            ),
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
         ),
         precondition_guards=[
             CaseReferenceEditPendingNode(

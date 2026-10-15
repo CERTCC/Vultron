@@ -278,7 +278,7 @@ class ValidateReportReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -371,7 +371,7 @@ class InvalidateReportReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -475,7 +475,7 @@ class CloseReportReceivedUseCase:
     # The sender declares its own RM state; only a participant of the case may
     # (HP-01-006, RSH-06-006).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(

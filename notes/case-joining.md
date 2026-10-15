@@ -17,6 +17,7 @@ related_specs:
   - specs/received-status-handling.yaml
   - specs/case-ledger-processing.yaml
   - specs/embargo-policy.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/case-ledger-authority.md
@@ -193,8 +194,9 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   reference, and persistence never stores it.
 - **Removal and reinstatement share one frame.** Both received trees
   (`create_remove_case_participant_received_tree`,
-  `create_add_case_participant_received_tree`) run a role-scoped sender guard (Case
-  Owner at the manager, CASE_MANAGER at a replica), their admission guard, the guarded
+  `create_add_case_participant_received_tree`) run the sender guard the factory
+  composes from the declared rule (Case Owner at the manager, CASE_MANAGER at a
+  replica, HP-01-008), their admission guard, the guarded
   commit, then CASE_MANAGER-gated effects and notice, built on
   `ParticipantMoveGuardNode` / `ParticipantMoveEffectNode` /
   `EmitParticipantMoveNoticeNode`. Every reinstatement guard failure is `REFUSED`,

@@ -52,7 +52,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsOwnershipTransfereeNode,
     SenderIsProposalAddresseeNode,
     SenderIsRequestAddresseeNode,
-    SenderMayAssertEmbargoNode,
     SenderRule,
     any_of,
 )
@@ -605,13 +604,8 @@ _VENDOR_GUARDS = pytest.mark.parametrize(
     [
         lambda: _composed_vendor_guard(Kind.ACTIVE_PARTICIPANT),
         lambda: _composed_vendor_guard(Kind.AUTHOR),
-        lambda: SenderMayAssertEmbargoNode(
-            case_id=CASE_ID,
-            sender_actor_id=VENDOR,
-            manager_arm=Kind.ACTIVE_PARTICIPANT,
-        ),
     ],
-    ids=["active-participant", "note-author", "embargo-manager-arm"],
+    ids=["active-participant", "note-author"],
 )
 
 
@@ -643,6 +637,28 @@ def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.parametrize(
+    ("standing", "admitted"),
+    [(None, True), (_leave, False), (_uninvite, True), (_remove, True)],
+    ids=["open", "closed", "inert", "removed"],
+)
+def test_participant_kind_refuses_only_a_closed_sender(
+    standing: Callable[[CaseParticipant], None] | None, admitted: bool
+) -> None:
+    """``PARTICIPANT`` admits any listed record but one at RM CLOSED.
+
+    An inert or removed participant keeps the standing (#4437); a closed one
+    has left the case and may act on nothing further (CM-23-018).
+    """
+    result = _store_where_vendor(standing).run(
+        _composed_vendor_guard(Kind.PARTICIPANT),
+        activity=SimpleNamespace(actor_id=VENDOR),
+    )
+    assert not result.internal_error, result.feedback_message
+    assert (result.status == Status.SUCCESS) is admitted
+
+
 @pytest.mark.spec("CM-23-018", "SYNC-03-005")
 def test_ledger_peer_kind_composes_the_resync_guard() -> None:
     """``LEDGER_PEER`` is guarded by the bare active check of SYNC-03-005."""
@@ -662,15 +678,9 @@ def test_ledger_peer_kind_composes_the_resync_guard() -> None:
 ROLE_KINDS = frozenset({Kind.CASE_MANAGER, Kind.CASE_OWNER})
 
 #: Condition nodes that are no one kind's guard: the factory's structural
-#: refusals, and the two-kind embargo guard that #4437 piece 3 retires.
+#: refusals.
 NOT_ONE_KINDS_GUARD: frozenset[type[SenderEntitlementConditionNode]] = (
-    frozenset(
-        {
-            NoSenderAdmittedNode,
-            SenderHoldsNoneOfNode,
-            SenderMayAssertEmbargoNode,
-        }
-    )
+    frozenset({NoSenderAdmittedNode, SenderHoldsNoneOfNode})
 )
 
 

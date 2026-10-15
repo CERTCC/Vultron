@@ -1038,7 +1038,7 @@ def test_embargo_invite_from_a_stranger_is_refused(
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "active participant" in (result.reason or "")
+    assert "ACTIVE_PARTICIPANT" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert case.current_status.em.state == EM.NONE
     assert case.pending_embargo_proposal_index == {}
@@ -1284,7 +1284,7 @@ def test_embargo_remove_from_a_non_owner_is_refused(
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "Case Owner" in (result.reason or "")
+    assert "CASE_OWNER" in (result.reason or "")
     _assert_embargo_untouched(
         cm_store,
         owned_case.id_,
