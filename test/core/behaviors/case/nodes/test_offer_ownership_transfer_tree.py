@@ -114,6 +114,14 @@ def _offer_event() -> OfferCaseOwnershipTransferReceivedEvent:
     )
 
 
+def _forward_nodes(node) -> list[ForwardOfferToTransfereeNode]:
+    """Every ``ForwardOfferToTransfereeNode`` anywhere in the tree under *node*."""
+    found = [node] if isinstance(node, ForwardOfferToTransfereeNode) else []
+    for child in getattr(node, "children", []):
+        found.extend(_forward_nodes(child))
+    return found
+
+
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.executes_as(CASE_ACTOR_ID)
 def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
@@ -130,6 +138,7 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=VENDOR_ID,
+        offer_id=OFFER_ID,
         sender_rule=_SENDER_RULE,
         sender_id=VENDOR_ID,
     )
@@ -146,11 +155,6 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-21-018: the forward links to its recorded Offer with"
-    " inReplyTo. Tracked by #4631.",
-)
 @pytest.mark.spec("CM-21-018")
 @pytest.mark.executes_as(CASE_ACTOR_ID)
 def test_forward_offer_replies_to_the_recorded_offer(
@@ -162,6 +166,7 @@ def test_forward_offer_replies_to_the_recorded_offer(
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=VENDOR_ID,
+        offer_id=OFFER_ID,
         sender_rule=_SENDER_RULE,
         sender_id=VENDOR_ID,
     )
@@ -189,6 +194,7 @@ def test_non_case_manager_skips_forward(bt_scenario_factory) -> None:
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=VENDOR_ID,
+        offer_id=OFFER_ID,
         sender_rule=_SENDER_RULE,
         sender_id=CASE_ACTOR_ID,  # the forward, from the CASE_MANAGER
     )
@@ -220,6 +226,7 @@ def test_forward_offer_warns_when_no_factory(
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=VENDOR_ID,
+        offer_id=OFFER_ID,
     )
     # Inject datalayer and actor_id manually; leave trigger_activity_factory None.
     node.datalayer = bt_scenario.dl
@@ -244,22 +251,12 @@ def test_tree_factory_omits_forward_node_when_transferee_id_is_none() -> None:
         case_id=CASE_ID,
         transferee_id=None,
         original_actor_id=VENDOR_ID,
+        offer_id=OFFER_ID,
         sender_rule=_SENDER_RULE,
         sender_id=VENDOR_ID,
     )
 
-    # Walk the tree: ForwardOfferToTransfereeNode must not appear anywhere.
-    def _collect(node):
-        nodes = [node]
-        for child in getattr(node, "children", []):
-            nodes.extend(_collect(child))
-        return nodes
-
-    all_nodes = _collect(tree)
-    fwd_nodes = [
-        n for n in all_nodes if isinstance(n, ForwardOfferToTransfereeNode)
-    ]
-    assert len(fwd_nodes) == 0, (
+    assert _forward_nodes(tree) == [], (
         "ForwardOfferToTransfereeNode must not appear when transferee_id is None"
     )
 
@@ -273,20 +270,27 @@ def test_tree_factory_omits_forward_node_when_original_actor_id_is_none() -> (
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=None,
+        offer_id=OFFER_ID,
         sender_rule=_SENDER_RULE,
         sender_id=VENDOR_ID,
     )
 
-    def _collect(node):
-        nodes = [node]
-        for child in getattr(node, "children", []):
-            nodes.extend(_collect(child))
-        return nodes
-
-    all_nodes = _collect(tree)
-    fwd_nodes = [
-        n for n in all_nodes if isinstance(n, ForwardOfferToTransfereeNode)
-    ]
-    assert len(fwd_nodes) == 0, (
+    assert _forward_nodes(tree) == [], (
         "ForwardOfferToTransfereeNode must not appear when original_actor_id is None"
+    )
+
+
+@pytest.mark.spec("CM-21-018")
+def test_tree_factory_omits_forward_node_when_offer_id_is_none() -> None:
+    """No forward is built without the recorded Offer's id to link it to."""
+    tree = create_offer_ownership_transfer_tree(
+        case_id=CASE_ID,
+        transferee_id=TRANSFEREE_ID,
+        original_actor_id=VENDOR_ID,
+        sender_rule=_SENDER_RULE,
+        sender_id=VENDOR_ID,
+    )
+
+    assert _forward_nodes(tree) == [], (
+        "a forward with no inReplyTo link must never be built (CM-21-018)"
     )

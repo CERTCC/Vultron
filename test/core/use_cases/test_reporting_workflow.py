@@ -179,8 +179,8 @@ def test_tentative_reject_triggers_invalidation(reporter, report, dl):
 
 
 def test_create_case_from_untrusted_sender_is_refused(coordinator, case, dl):
-    # No pending link and no CASE_MANAGER in the snapshot, so nothing makes
-    # the sender a trusted creator of this replica (#2255).
+    # No anchor this actor wrote names the sender, so nothing makes it a
+    # trusted creator of this replica (#2255, CBT-01-011).
     activity = as_Create(actor=coordinator, object_=case)
     _call_use_case(
         activity,

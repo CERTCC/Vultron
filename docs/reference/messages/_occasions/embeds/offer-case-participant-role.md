@@ -6,6 +6,7 @@
 
     - **When…** a Participant offers a CVD role on the case to another actor
     - **Send:** `Offer(CaseParticipantRole)[context=VulnerabilityCase]`
+    - **Send to:** a participant
     - **Sent by:** not yet checked
     - **Reference:** [Offer case participant role](../../case_management.md#offer-case-participant-role)
 

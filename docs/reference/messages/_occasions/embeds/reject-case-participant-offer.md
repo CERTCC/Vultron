@@ -6,6 +6,7 @@
 
     - **When…** the Case Owner declines a suggested actor
     - **Send:** `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`
+    - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Reject case participant offer](../../general.md#reject-case-participant-offer)
 

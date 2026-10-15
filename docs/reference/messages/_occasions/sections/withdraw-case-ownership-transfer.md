@@ -6,6 +6,7 @@ Withdraws the ownership transfer offer before it is answered. The current Case O
 
 - **When…** the Case Owner withdraws an open offer of case ownership
 - **Send:** `Undo(Offer(VulnerabilityCase))`
+- **Send to:** the case manager
 - **Sent by:** the case owner
 - **Mapping status:** [none](../../index.md#mapping-status)
 

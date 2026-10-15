@@ -582,62 +582,13 @@ def test_unprocessable_activity_is_not_committed_to_the_ledger() -> None:
 # ASK-08 — Lost-Reply Recovery
 # ---------------------------------------------------------------------------
 
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-08-001: CP-05-006 previously specified a *new* Accept and no "
-        "re-send of the stored one is implemented, so a duplicate request "
-        "produces nothing. Tracked by #2890."
-    ),
-)
-@pytest.mark.spec("ASK-08-001")
-def test_duplicate_request_resends_the_stored_reply_unchanged() -> None:
-    """A duplicate request MUST re-send the stored reply unchanged (ASK-08-001).
-
-    Re-sending the frozen original (VM-08-003) reads as the first acceptance
-    arriving late; a new Accept is indistinguishable from a second, independent
-    decision, which CP-05-005's irrevocability rule precludes.
-    """
-    resend = _first_available(
-        (
-            (
-                "vultron.core.behaviors.case.nodes.proposal",
-                "ResendStoredAcceptNode",
-            ),
-            (
-                "vultron.core.behaviors.case.proposal_tree",
-                "ResendStoredAcceptNode",
-            ),
-        )
-    )
-    assert resend is not None, "No stored-reply re-send node is importable."
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-08-002: behaviour on a duplicate Create(CaseProposal) after "
-        "acceptance is undefined (CONCERN-2367); no guard prevents a second "
-        "object being created. Tracked by #2890."
-    ),
-)
-@pytest.mark.spec("ASK-08-002")
-def test_duplicate_request_creates_no_second_object() -> None:
-    """A duplicate request MUST NOT create a second object (ASK-08-002)."""
-    resend = _first_available(
-        (
-            (
-                "vultron.core.behaviors.case.nodes.proposal",
-                "ResendStoredAcceptNode",
-            ),
-            (
-                "vultron.core.behaviors.case.proposal_tree",
-                "ResendStoredAcceptNode",
-            ),
-        )
-    )
-    assert resend is not None, "No stored-reply re-send node is importable."
+# Promoted.  The CaseProposal flow re-sends the stored Accept under its
+# proposal-derived id and creates no second case, so ASK-08-001 and ASK-08-002
+# are pinned by behavioural tests in
+# test/core/behaviors/case/test_case_proposal_admission.py
+# (TestAFormerOwnersRedeliveryReusesTheAcceptedCase, #4650) and
+# test/core/behaviors/case/test_case_proposal_received_tree.py
+# (TestARedeliveryAnnouncesTheCaseOnce, #4146).
 
 
 # ---------------------------------------------------------------------------

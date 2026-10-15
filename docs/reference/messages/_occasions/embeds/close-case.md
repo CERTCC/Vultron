@@ -6,6 +6,7 @@
 
     - **When…** a Participant ends its participation in the case
     - **Send:** `Leave(VulnerabilityCase)`
+    - **Send to:** the case manager
     - **Sent by:** not yet checked
     - **Reference:** [Close case](../../case_management.md#close-case)
 

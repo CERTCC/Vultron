@@ -16,6 +16,7 @@ Covers both case-level and participant-level status entries.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.status import (
@@ -65,6 +66,7 @@ ENTRIES: list[SemanticEntry] = [
                     "vulnerability"
                 ),
                 anchor="public-awareness",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Announces evidence that the vulnerability is known to the"
                     " public."
@@ -82,6 +84,7 @@ ENTRIES: list[SemanticEntry] = [
                     "vulnerability is public"
                 ),
                 anchor="exploit-public",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Announces evidence that an exploit is publicly available."
                 ),
@@ -98,6 +101,7 @@ ENTRIES: list[SemanticEntry] = [
                     "vulnerability"
                 ),
                 anchor="attacks-observed",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Announces evidence that attackers are exploiting the "
                     "vulnerability."
@@ -125,6 +129,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Vendor becomes aware of the vulnerability",
                 anchor="vendor-awareness",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Announces that the report has reached the Vendor whose "
                     "participant record is the target."
@@ -142,6 +147,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Vendor has a fix ready",
                 anchor="fix-readiness",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Announces that the Vendor whose participant record is the"
                     " target has a fix ready."
@@ -159,6 +165,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Deployer has deployed the fix",
                 anchor="fix-deployed",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Announces that the Deployer whose participant record is "
                     "the target has deployed the fix."

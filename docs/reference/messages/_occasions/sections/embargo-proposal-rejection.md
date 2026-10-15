@@ -6,6 +6,7 @@ Records the sender's own refusal of the proposed terms. The proposal is rejected
 
 - **When…** a Participant refuses proposed embargo terms
 - **Send:** `Reject(Invite(Event)[context=VulnerabilityCase])`
+- **Send to:** the case manager
 - **Sent by:** the invitee
 - **Distinguished by:** EM state `PROPOSED`
 - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)

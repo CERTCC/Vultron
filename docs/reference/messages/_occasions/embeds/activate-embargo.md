@@ -6,6 +6,7 @@
 
     - **When…** the Case Owner decides to activate a proposed embargo
     - **Send:** `Accept(Event)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Activate embargo](../../em.md#activate-embargo)
 

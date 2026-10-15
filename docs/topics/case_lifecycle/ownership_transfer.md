@@ -42,6 +42,7 @@ Case Actor inbox receives Offer:
   4. Forwards Offer to transferee's inbox:
        actor:         case_actor_id     (delegated-message contract)
        attributed_to: offering_actor_id
+       in_reply_to:   recorded Offer id ← CM-21-018
 ```
 
 The owner asks for the transfer by sending its own offer to the CASE_MANAGER — in the prototype, the Case Actor.
@@ -50,6 +51,7 @@ The CASE_MANAGER records the offer in the ledger, so every participant learns th
 It accepts an offer only from the current Case Owner, and refuses one from anyone else before it writes or sends anything ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)).
 The proposed new owner, in turn, takes the offer only as the CASE_MANAGER's forward.
 The forwarded `Offer` is a new activity with its own `id`: the proposed new owner never sees the original offer, whose `id` exists only in the owner's and the CASE_MANAGER's stores.
+The forwarded offer points back to the recorded offer: its `inReplyTo` is the recorded offer's `id` ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
 
 The CASE_MANAGER sends the forwarded offer under its own identity, with the owner who asked for it named as the author (`attributed_to`).
 This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001 through CM-24-005](../../reference/specs/protocol.md#cm-24)).
@@ -77,6 +79,8 @@ Case Actor inbox receives Accept:
 The proposed owner answers the CASE_MANAGER, not the participant who made the offer.
 The CASE_MANAGER acts on an acceptance only when its sender is the proposed owner named in an offer it recorded for the case ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)).
 That offer must also still be open, with no other answer to it recorded.
+The proposed owner answers the forwarded offer, so the CASE_MANAGER matches the answer to its recorded offer through the forwarded offer's `inReplyTo` link, never by when the offers were sent ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
+An answer to a forwarded offer that carries no link, or whose link names no recorded offer for that case and proposed owner, is refused, and nothing is recorded or sent.
 It refuses an acceptance from anyone else, or a second acceptance of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.

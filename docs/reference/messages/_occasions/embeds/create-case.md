@@ -6,6 +6,7 @@
 
     - **When…** the Case Manager has opened a case for a submitted report
     - **Send:** `Create(VulnerabilityCase)`
+    - **Send to:** a participant
     - **Sent by:** not yet checked
     - **Reference:** [Create case](../../case_management.md#create-case)
 

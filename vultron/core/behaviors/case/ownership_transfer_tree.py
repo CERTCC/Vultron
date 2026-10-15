@@ -314,9 +314,10 @@ def create_offer_ownership_transfer_tree(
     ensures only the CaseActor forwards the offer to the transferee
     (CM-21-005, ADR-0053, CLP-10-006, BT-17-008).
 
-    When ``transferee_id`` or ``original_actor_id`` is ``None`` the forwarding
-    node is omitted: the ledger-commit gate still fires but no outbox write
-    occurs.
+    When ``transferee_id``, ``original_actor_id`` or ``offer_id`` is ``None``
+    the forwarding node is omitted: the ledger-commit gate still fires but no
+    outbox write occurs.  The forward links to the recorded Offer through
+    ``offer_id`` (CM-21-018), so it is never sent without one.
 
     Args:
         case_id: URI of the case whose ownership is being offered; ``None``
@@ -332,7 +333,9 @@ def create_offer_ownership_transfer_tree(
         offer_id: The received Offer's id.  With a case, the CASE_MANAGER
             refuses it while an earlier ownership-transfer Offer for the case
             is open (CM-21-014); a redelivery of the same Offer is not an
-            earlier one.
+            earlier one.  It is also the recorded Offer's id (the ledger
+            entry's ``log_object_id``) the forward names in ``in_reply_to``
+            (CM-21-018).
         answer_deadline: The Offer's ``end_time`` in UTC, if it carries one
             (CM-21-016); the forward carries it, so the transferee knows
             when it may no longer answer.
@@ -354,12 +357,14 @@ def create_offer_ownership_transfer_tree(
         case_id is not None
         and transferee_id is not None
         and original_actor_id is not None
+        and offer_id is not None
     ):
         manager_effects.append(
             ForwardOfferToTransfereeNode(
                 case_id=case_id,
                 transferee_id=transferee_id,
                 original_actor_id=original_actor_id,
+                offer_id=offer_id,
                 end_time=answer_deadline,
             )
         )

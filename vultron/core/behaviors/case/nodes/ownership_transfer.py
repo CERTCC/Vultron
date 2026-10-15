@@ -138,6 +138,11 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
     Logs WARNING and returns FAILURE when ``trigger_activity_factory`` is absent
     from the blackboard — this leaves all outboxes untouched.
 
+    The forward carries ``in_reply_to`` set to *offer_id*, the recorded
+    Offer's id (the ``offer_case_ownership_transfer`` entry's
+    ``log_object_id``), so an answer naming the forward resolves to the Offer
+    it forwards by that link, never by time (CM-21-018).
+
     The forward carries the received Offer's ``end_time``, so the transferee,
     which holds and answers the forward, knows its deadline (CM-21-016).  The
     forward is an activity this node mints, so its timestamps serialise in
@@ -150,6 +155,7 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         case_id: str,
         transferee_id: str,
         original_actor_id: str,
+        offer_id: str,
         captured: dict | None = None,
         name: str | None = None,
         end_time: datetime | None = None,
@@ -158,6 +164,7 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.original_actor_id = original_actor_id
+        self.offer_id = offer_id
         self.end_time = end_time
 
     def update(self) -> Status:
@@ -194,16 +201,19 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
             to=[self.transferee_id],
             attributed_to=authorship.attributed_to,
             end_time=self.end_time,
+            in_reply_to=self.offer_id,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "%s: CaseActor '%s' forwarded ownership-transfer offer '%s'"
-            " to transferee '%s' (CM-21-005)",
+            " to transferee '%s' in reply to recorded offer '%s'"
+            " (CM-21-005, CM-21-018)",
             self.name,
             self.actor_id,
             activity_id,
             self.transferee_id,
+            self.offer_id,
         )
 
 

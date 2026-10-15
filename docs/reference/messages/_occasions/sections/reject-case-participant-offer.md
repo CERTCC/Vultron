@@ -6,6 +6,7 @@ Rejects the proposed participant record. The Case Manager tells the recommender.
 
 - **When…** the Case Owner declines a suggested actor
 - **Send:** `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`
+- **Send to:** the case manager
 - **Sent by:** the case owner
 - **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)

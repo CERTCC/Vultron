@@ -1419,6 +1419,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("CM-21-018")
     def test_offer_is_the_owners_own_offer_to_the_case_manager(self):
         """The Offer comes from the owner, to the CASE_MANAGER, naming no one
         else as its author (ADR-0109)."""
@@ -1438,6 +1439,9 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_data.get("target") == transferee.id_
         assert "attributedTo" not in activity_data
         assert "cc" not in activity_data
+        # Only the CASE_MANAGER's forward links to a recorded Offer
+        # (CM-21-018); the owner's own Offer replies to nothing.
+        assert "inReplyTo" not in activity_data
 
     @pytest.mark.spec("TRIG-11-007")
     @pytest.mark.spec("CM-21-016")
