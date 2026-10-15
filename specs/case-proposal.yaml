@@ -289,8 +289,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The BT node responsible for sending `Create(as_CaseProposal)` MUST be a distinct node (`ProposeReportCaseToActorNode`)
-      separate from `CreateCaseActorNode`. `CreateCaseActorNode` is responsible only for registering the case-actor service
-      resource; it MUST NOT send a `CaseProposal` activity.
+      separate from `EnsureCaseActorHostedNode`. `EnsureCaseActorHostedNode` is responsible only for making the case-actor a
+      hosted actor; it MUST NOT send a `CaseProposal` activity.
     rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal
       to be sent before the case-actor service is ready. See `notes/case-proposal.md` for the pitfall.
   - id: CP-04-003

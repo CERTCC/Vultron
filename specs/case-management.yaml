@@ -4544,9 +4544,9 @@ groups:
       Rebuilding the actor/attributed_to assignment at each callsite drifted:
       CONCERN-2170 found two wrong callsites. Neither value needs computing, since the
       doer and the asker are known where the emit happens, and the received-side relay
-      is a delegated emit too (CM-24-004). Today the helper sits in the trigger layer,
-      which BT nodes may not import, and the relay rebuilds the pattern by hand; #4160
-      owns moving it.
+      is a delegated emit too (CM-24-004). The helper first sat in the trigger layer,
+      which BT nodes may not import, so the relay rebuilt the pattern by hand; #4160
+      moved it to `vultron/core/behaviors/delegated_authorship.py`.
     verification: >-
       `test/architecture/test_delegated_attribution_uses_helper.py` confirms
       that every trigger use case and every received-side tree emitting a

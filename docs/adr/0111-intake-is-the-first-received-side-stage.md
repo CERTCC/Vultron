@@ -132,9 +132,9 @@ CLP-10-013 required every factory-built tree to pass `case_id` and commit.
 `Update(VulnerabilityCase)` has no canonical payload signature, so the CASE_MANAGER refused its own commit the moment the update tree moved onto the factory.
 CLP-10-013 is amended to require the commit exactly when the received `(type, object)` pair is a canonical signature; the update tree and the sync trees pass `case_id=None`.
 
-Two canonical signatures are exempt (#4304).
+One canonical signature is exempt (#4304); a second, `Add(CaseParticipant)`, was exempt until #4081.
 `Announce(VulnerabilityCase)` is sent only by the CASE_MANAGER and received only by a participant replica, which is never the manager the commit is gated on, so its tree passes `case_id=None`.
-`Add(CaseParticipant)` would put an `add_case_participant_to_case` entry on every replica that no replica apply node reads (RSH-08-004); #4081 made the Add the Case Owner's reinstatement request and added that node, so the tree now passes `case_id` and the commit lands with it.
+`Add(CaseParticipant)` was exempt because its commit would have put an `add_case_participant_to_case` entry on every replica that no replica apply node read (RSH-08-004); #4081 made the Add the Case Owner's reinstatement request and added that node, so the tree now passes `case_id` and the commit lands with it.
 The `Reject(Offer)` and `TentativeReject(Offer)` trees, which a CASE_MANAGER does receive and replicas replay, commit.
 
 **An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (#3936).**
