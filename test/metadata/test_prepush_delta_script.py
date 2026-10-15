@@ -12,7 +12,7 @@ SCRIPT = (
 )
 
 _BRANCH = "task/1-demo"
-_ARTIFACT = ".claude/pr-prepush-task-1-demo-triage.json"
+_ARTIFACT = ".claude/pr-prepush-task%2F1-demo-triage.json"
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -25,10 +25,12 @@ def _git(repo: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-def _run(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _run(
+    repo: Path, *args: str, cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", str(SCRIPT), *args],
-        cwd=repo,
+        cwd=cwd or repo,
         capture_output=True,
         text=True,
         check=False,
@@ -165,4 +167,100 @@ def test_unknown_reviewed_head_is_a_full_triage(repo: Path) -> None:
 def test_detached_head_is_a_usage_error(repo: Path) -> None:
     _git(repo, "checkout", "-q", "--detach")
     result = _run(repo, "main")
+    assert result.returncode == 2
+
+
+def test_path_takes_an_explicit_branch(repo: Path) -> None:
+    _git(repo, "checkout", "-q", "--detach")
+    result = _run(repo, "--path", _BRANCH)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(repo / _ARTIFACT)
+
+
+def test_path_encoding_keeps_slash_and_dash_branches_apart(repo: Path) -> None:
+    slash = _run(repo, "--path", "task/1-x").stdout.strip()
+    dash = _run(repo, "--path", "task-1-x").stdout.strip()
+    assert slash != dash
+
+
+def test_run_from_a_subdirectory_sees_the_whole_diff(repo: Path) -> None:
+    (repo / "sub").mkdir()
+    _write(repo, "sub/c.txt", "c\n")
+    _commit_all(repo, "sub file")
+    result = _run(repo, "main", cwd=repo / "sub")
+    fields = _fields(result)
+    assert fields["reviewed_lines"] == "2"
+    assert fields["delta_files"] == "sub/c.txt"
+
+
+def test_non_ascii_file_names_count_toward_the_delta(repo: Path) -> None:
+    _write(repo, "\u00e9.txt", "1\n2\n3\n")
+    _commit_all(repo, "accented")
+    result = _run(repo, "main")
+    assert result.returncode == 3
+    fields = _fields(result)
+    assert fields["delta_lines"] == "3"
+    assert fields["delta_files"] == "\u00e9.txt"
+
+
+def test_content_lines_that_look_like_headers_are_counted(repo: Path) -> None:
+    _write(repo, "b.txt", "x\n-- signature\n")
+    _commit_all(repo, "dash dash line")
+    assert _fields(_run(repo, "main"))["delta_lines"] == "1"
+
+
+def test_binary_change_counts_toward_the_delta(repo: Path) -> None:
+    (repo / "blob.bin").write_bytes(b"\x00\x01\x02")
+    _commit_all(repo, "binary")
+    fields = _fields(_run(repo, "main"))
+    assert fields["delta_files"] == "blob.bin"
+    assert fields["delta_lines"] == "1"
+
+
+def test_empty_reviewed_diff_is_a_full_triage(repo: Path) -> None:
+    base = _git(repo, "rev-parse", "main")
+    _record_review(repo, base, base)
+    result = _run(repo, "main")
+    assert result.returncode == 3
+    assert _fields(result)["reason"] == "the reviewed diff is empty"
+
+
+def test_malformed_artifact_is_a_full_triage(repo: Path) -> None:
+    (repo / _ARTIFACT).write_text('{"pr_metadata": ')
+    result = _run(repo, "main")
+    assert result.returncode == 3
+    assert _fields(result)["reason"] == "artifact is not valid JSON"
+
+
+def test_artifact_without_reviewed_head_is_a_full_triage(repo: Path) -> None:
+    base = _git(repo, "rev-parse", "main")
+    artifact = {"pr_metadata": {"reviewed_base_sha": base}}
+    (repo / _ARTIFACT).write_text(json.dumps(artifact))
+    result = _run(repo, "main")
+    assert result.returncode == 3
+    assert "reviewed_head_sha" in _fields(result)["reason"]
+
+
+def test_artifact_for_another_branch_is_a_full_triage(repo: Path) -> None:
+    artifact = json.loads((repo / _ARTIFACT).read_text())
+    artifact["pr_metadata"]["head_ref"] = "task/2-other"
+    (repo / _ARTIFACT).write_text(json.dumps(artifact))
+    result = _run(repo, "main")
+    assert result.returncode == 3
+    assert "task/2-other" in _fields(result)["reason"]
+
+
+def test_unknown_reviewed_base_is_a_full_triage(repo: Path) -> None:
+    head = _git(repo, "rev-parse", "HEAD")
+    _record_review(repo, "0" * 40, head)
+    result = _run(repo, "main")
+    assert result.returncode == 3
+    assert "reviewed base" in _fields(result)["reason"]
+
+
+def test_unrelated_base_ref_is_a_usage_error(repo: Path) -> None:
+    _git(repo, "checkout", "-q", "--orphan", "island")
+    _commit_all(repo, "island root")
+    _git(repo, "checkout", "-q", _BRANCH)
+    result = _run(repo, "island")
     assert result.returncode == 2

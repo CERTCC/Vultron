@@ -72,8 +72,8 @@ Before running any phase, check for existing artifacts:
 
 When resuming, print which phase is being skipped and why.
 
-A pre-push artifact (`.claude/pr-prepush-<branch>-triage.json`, written by
-`build`'s fresh-agent review) is not a `pr-{N}-triage.json` and skips nothing:
+A pre-push artifact (named for the branch, written by `build`'s fresh-agent
+review) is not a `pr-{N}-triage.json` and skips nothing:
 triage still runs, in delta mode, and the PR still enters `Triage`
 (PAD-17-002).
 
@@ -271,9 +271,9 @@ then picks its mode (`pr-triage` § "Modes"):
 | 11 CI status, 12 merge state | — | yes | yes |
 | Carry-forward check of pre-push findings | — | yes | — |
 
-Full mode runs when no pre-push artifact exists (a PR not from `build`, or a
-`pr-ship` on another machine), when the PR carries `needs-rebase`, or when the
-delta is more than half the size of the reviewed change (PAD-07-008).
+Full mode runs on the causes PAD-07-008 lists, as `pr-triage` § "Modes"
+detects them; the common one is a PR with no pre-push artifact (not from
+`build`, or shipped from another machine).
 `pr-execute` and `pr-verify` are the same in every mode: they read
 `pr-{N}-triage.json`, which lists only the findings that still stand.
 

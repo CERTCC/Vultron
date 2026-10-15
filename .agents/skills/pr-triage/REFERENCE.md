@@ -301,10 +301,12 @@ determination: the pre-push run writes it, and the delta run adds the pages its
 delta affects before comparing the `Docs:` line.
 
 `resolution` is written by `build` into the pre-push artifact only, once per
-finding, before `create-pr` (PAD-07-003): `{"status": "fixed", "commit":
-"<sha>"}`, or `{"status": "filed-and-fixed", "commit": "<sha>", "issue": N}`
-for a `fix-now-file`, or `{"status": "held", "note": "<why>"}` when the PR
-opens as a draft held on it. The delta run's carry-forward check reads it.
+finding, before `create-pr` (PAD-07-003): `{"status": "fixed", "note": "<what
+changed, where>"}`, or `{"status": "filed-and-fixed", "note": "...", "issue":
+N}` for a `fix-now-file`, or `{"status": "held", "note": "<why>"}` when the PR
+opens as a draft held on it. It names no commit: `create-pr`'s cherry-pick
+gives every pre-push commit a new SHA, so the carry-forward check reads the
+fix on the PR head instead. The delta run's carry-forward check reads it.
 `pr-triage` itself always writes `null`.
 
 ### Finding ID Rules

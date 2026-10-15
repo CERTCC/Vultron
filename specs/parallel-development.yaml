@@ -590,19 +590,20 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          `pr-triage` MUST run the full triage when no readable pre-push
-          artifact exists for the PR's branch, when the PR carries the
-          `needs-rebase` label, or when the delta's changed lines exceed half
-          of the reviewed diff's changed lines.
+          `pr-triage` MUST run the full triage when the PR carries the
+          `needs-rebase` label, when the PR's branch has no usable pre-push
+          artifact (none exists, it is not valid JSON, it lacks a reviewed
+          SHA, it names another branch, or a reviewed commit is not in the
+          object store), when the reviewed diff is empty, or when the delta's
+          changed lines exceed half of the reviewed diff's changed lines.
         rationale: >-
           A PR not opened by `build`, a conflict resolved by hand, or a
           delta most of the size of the change gives the pre-push review too
           little claim on the tree that will merge.
         verification: >-
-          Inspection: `prepush-delta.sh` exits 3 (full triage) when the
-          artifact is missing or unreadable, its reviewed head is not in the
-          object store, or the delta exceeds half of the reviewed lines, and
-          `pr-triage` § "Modes" runs the full triage on exit 3 or on a
+          Inspection: `prepush-delta.sh` exits 3 (full triage) for each
+          artifact, empty-diff and delta-size cause this requirement lists,
+          and `pr-triage` § "Modes" runs the full triage on exit 3 or on a
           `needs-rebase` PR.
         relationships:
         - rel_type: refines

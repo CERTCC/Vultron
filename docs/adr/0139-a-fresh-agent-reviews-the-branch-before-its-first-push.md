@@ -59,7 +59,7 @@ The author and the reviewer each get a pass:
    It also re-runs the reviewer's phases on the delta.
    The delta is the change to the branch's own added and removed lines since the review, so `create-pr`'s cherry-pick onto a newer base adds nothing to it.
    It confirms each pre-push finding's recorded fix is on the head, and re-emits any that is not.
-4. **Full triage instead of a delta** runs when there is no usable pre-push record, when `create-pr` could not freshen the branch without a conflict, or when the delta is more than half the size of the reviewed change.
+4. **Full triage instead of a delta** runs when there is no usable pre-push record, when the reviewed diff was empty, when `create-pr` could not freshen the branch without a conflict, or when the delta is more than half the size of the reviewed change.
 
 The first-push gate does not move.
 The review runs no tests, and `create-pr` still runs the full suites once, after the review's fixes (PAD-18-001, PAD-18-008).

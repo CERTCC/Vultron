@@ -85,8 +85,8 @@ decides which phases run on which diff.
 | Mode | When | Phases | Diff |
 |---|---|---|---|
 | **pre-push** | `--pre-push`, from `build` Phase 7 | 1 (orient only), 2 (scope against the issues), 4–8, 9 (steps 1–4, and step 5's page determination), 10 | `origin/main...HEAD` |
-| **delta** | a PR whose branch has a pre-push artifact, and `prepush-delta.sh` exits 0 | 1–3, 9 step 5's `Docs:` comparison, 11, 12; then 2 (scope), 4–10 on the delta files alone; then the carry-forward check below | the delta files |
-| **full** | no pre-push artifact, `prepush-delta.sh` exits 3, or the PR carries `needs-rebase` (PAD-07-008) | 1–12 | the PR diff |
+| **delta** | `prepush-delta.sh` exits 0 on the PR branch, and the PR does not carry `needs-rebase` | 1–3, 9 step 5's `Docs:` comparison, 11, 12; then 2 (scope), 4–10 on the delta files alone; then the carry-forward check below | the delta files |
+| **full** | `prepush-delta.sh` exits 3 (for any cause PAD-07-008 lists, named in its `reason=`), or the PR carries `needs-rebase` | 1–12 | the PR diff |
 
 **Choosing post-push.** After Phase 1 identifies the PR, run
 `bash .agents/skills/pr-triage/prepush-delta.sh origin/<base_ref>` on the PR
@@ -100,8 +100,8 @@ review.
 `pr-verify` spot-checks a claimed fix: the cited file and line now meet the
 finding, not just a commit touching the file. A finding whose fix is absent is
 re-emitted with its pre-push `id`; a finding with no `resolution` is checked
-the same way. A `fix-now-file` finding also needs its
-filed issue on the PR's closing list (Phase 2). Findings that check out are
+the same way. A `fix-now-file` finding also needs its filed issue on the PR's
+closing list (Phase 2). Findings that check out are
 not re-emitted, so `pr-execute` sees only what still stands.
 
 ## Workflow
@@ -243,11 +243,11 @@ the artifact is written.
      affected page → **IMPROVE** (the page is affected but neither updated nor
      deferred).
 
-   In pre-push mode the body's line is still the placeholder, so skip the
-   comparison: record the pages in `pr_metadata.affected_docs_pages`, and
-   emit an **IMPROVE** naming each one the diff does not update. In delta
-   mode, the determination is that list plus the pages the delta files
-   affect; compare it with the `Docs:` line as above.
+   In pre-push mode the body's line is still the placeholder, and
+   `check-docs-sync` runs after the push (PD-03-008), so record the
+   determination in `pr_metadata.affected_docs_pages` and emit no finding for
+   it. In delta mode, the determination is that list plus the pages the delta
+   files affect; compare it with the `Docs:` line as above.
 
 ### Phase 10 — Test Coverage
 
@@ -318,8 +318,10 @@ This is the only phase that produces output. No mutations before this point.
 
 **Pre-push mode** writes the artifact to the path
 `bash .agents/skills/pr-triage/prepush-delta.sh --path` prints, with
-`pr_number: null`, `review_mode: "pre-push"`, and `reviewed_base_sha` and
-`reviewed_head_sha` in `pr_metadata`, and posts nothing: steps 2 and 6 only.
+`pr_number: null`, `review_mode: "pre-push"`, and `head_ref` (the branch),
+`reviewed_base_sha` and `reviewed_head_sha` in `pr_metadata`, and posts
+nothing: steps 1, 2 and 6 only. The carry-forward check keys on the ids
+step 1 assigns.
 **Delta mode** records `review_mode: "delta"`, `prepush_artifact`, and
 `delta_files` in `pr_metadata`, and names the mode in the comment header.
 
@@ -337,8 +339,8 @@ This is the only phase that produces output. No mutations before this point.
 ## Artifact Location
 
 `.claude/pr-{number}-triage.json` — never committed; must be gitignored. The
-pre-push artifact, `.claude/pr-prepush-<branch, "/" as "-">-triage.json`, is
-covered by the same `.claude/pr-*.json` pattern.
+pre-push artifact, at the path `prepush-delta.sh --path` prints (named for the
+branch), is covered by the same `.claude/pr-*.json` pattern.
 
 ## No Code Changes
 
