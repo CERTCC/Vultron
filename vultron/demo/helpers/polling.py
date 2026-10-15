@@ -1559,6 +1559,7 @@ def wait_for_reporter_introduction(
     reporter_id: str,
     receiver_id: str,
     report_id: str,
+    case_id: str | None = None,
     timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> str:
@@ -1578,6 +1579,9 @@ def wait_for_reporter_introduction(
         reporter_id: The report submitter, whose store is read (ADR-0073).
         receiver_id: The actor the report was submitted to.
         report_id: Id of the submitted ``VulnerabilityReport``.
+        case_id: The case the link must be bound to, when the caller knows
+            which case the receiver opened for the report.  ``None`` accepts
+            a link bound to any case.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between poll attempts.
 
@@ -1585,14 +1589,17 @@ def wait_for_reporter_introduction(
         The id of the case the reporter's link is bound to.
 
     Raises:
-        AssertionError: If no bound link naming *receiver_id* appears in time.
+        AssertionError: If no bound link naming *receiver_id* (and bound to
+            *case_id*, when given) appears in time.
     """
 
     def _bound_by_receiver(link: dict) -> bool:
+        bound_to = link.get("case_id")
         return (
             link.get("report_id") == report_id
             and link.get("case_creator_id") == receiver_id
-            and bool(link.get("case_id"))
+            and bool(bound_to)
+            and (case_id is None or bound_to == case_id)
         )
 
     return _poll_datalayer_for(
@@ -1607,7 +1614,9 @@ def wait_for_reporter_introduction(
         ),
         error_msg=(
             f"Timed out waiting for {reporter_id!r}'s ReportCaseLink for report"
-            f" {report_id!r} to be bound by {receiver_id!r}'s introduction —"
+            f" {report_id!r} to be bound by {receiver_id!r}'s introduction"
+            + (f" of case {case_id!r}" if case_id is not None else "")
+            + " —"
             " the report did not go through the reporter's submit-report"
             " trigger, or the introduction was refused (CBT-01-011)"
         ),

@@ -55,18 +55,9 @@ def _client() -> DataLayerClient:
     return DataLayerClient(base_url=_NODE, actor_id=_RECEIVER.id_)
 
 
-class TestNoInMemoryArm:
-    @pytest.mark.spec("DEMOMA-05-001")
-    @pytest.mark.spec("CBT-01-005")
-    def test_reporter_client_is_required(self):
-        """There is no path that builds the Offer and posts it to an inbox."""
-        with pytest.raises(TypeError):
-            workflow.reporter_submits_report(  # type: ignore[call-arg]
-                _client(), _REPORTER, _RECEIVER
-            )
-
-
 class TestTriggerArm:
+    @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("EP-04-009")
     def test_terms_are_handed_to_the_reporters_trigger(self, monkeypatch):
         seen: dict = {}
 
@@ -167,7 +158,10 @@ class TestTriggerArmDeliversOnlyThroughTheOutbox:
         )
         return calls
 
+    @pytest.mark.spec("DEMOMA-05-001")
+    @pytest.mark.spec("CBT-01-005")
     def test_never_hand_delivers(self, monkeypatch):
+        """No path builds the Offer and posts it into the receiver's inbox."""
         assert "post" not in self._run(monkeypatch)
 
     def test_provisions_before_the_trigger_then_waits(self, monkeypatch):

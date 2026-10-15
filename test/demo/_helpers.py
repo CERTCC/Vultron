@@ -15,6 +15,7 @@
 
 import contextlib
 import importlib
+import logging
 from collections.abc import Iterator, Mapping, Sequence
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -452,6 +453,24 @@ def assert_reset_reseeds_case_actor(
     reseed_mock.assert_called_once_with(case_actor_client)
 
 
+def _reporter_links(
+    reporter_id: str, report_id: str
+) -> list[tuple[str | None, str | None]]:
+    """``(case_creator_id, case_id)`` of each of the reporter's links for a report.
+
+    Read from the reporter's own store, where the links are written.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.core.models.report_case_link import VultronReportCaseLink
+
+    return [
+        (link.case_creator_id, link.case_id)
+        for link in get_datalayer(reporter_id).list_objects("ReportCaseLink")
+        if isinstance(link, VultronReportCaseLink)
+        and link.report_id == report_id
+    ]
+
+
 @contextlib.contextmanager
 def expect_trusted_introductions(
     caplog: pytest.LogCaptureFixture,
@@ -461,16 +480,22 @@ def expect_trusted_introductions(
     Wrap a demo run in this.  It records each call the demo makes to
     ``wait_for_reporter_introduction`` and, while the reporter's store still
     holds the result (the exchange runner resets it on teardown), reads the
-    reporter's own ``ReportCaseLink`` for the report.  On exit it asserts that
-    at least one introduction was checked, that each link names the receiver
-    as ``case_creator_id`` and is bound to the case (CBT-01-001, CBT-01-005),
-    and that nothing logged a ``CBT-01-011`` refusal.  The caller's ``caplog``
-    level must let WARNING records through (#4675).
+    reporter's own ``ReportCaseLink`` for the report.  A wait that fails is
+    recorded too, then re-raised for the demo's ``demo_check`` to record.
+    On exit it asserts that at least one introduction was checked, that each
+    link names the receiver as ``case_creator_id`` and is bound to the case
+    the wait found (the case the demo expected, when it passed one;
+    CBT-01-001, CBT-01-005), and that nothing logged a ``CBT-01-011``
+    refusal.  The refusal is logged at WARNING, so the caller's ``caplog``
+    level must let WARNING records through; entering at a higher level fails
+    at once (#4675).
     """
-    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
-    from vultron.core.models.report_case_link import VultronReportCaseLink
-
-    checked: list[tuple[str, str, list[tuple[str | None, str | None]]]] = []
+    assert caplog.handler.level <= logging.WARNING, (
+        "expect_trusted_introductions needs caplog at WARNING or lower, or a"
+        " CBT-01-011 refusal could not be seen"
+    )
+    checked: list[tuple[str, str | None, list[tuple[str | None, str | None]]]]
+    checked = []
     real_wait = workflow.wait_for_reporter_introduction
 
     def _recording_wait(
@@ -480,18 +505,18 @@ def expect_trusted_introductions(
         report_id: str,
         **kwargs: Any,
     ) -> str:
-        case_id = real_wait(
-            client, reporter_id, receiver_id, report_id, **kwargs
-        )
-        links = [
-            (link.case_creator_id, link.case_id)
-            for link in get_datalayer(reporter_id).list_objects(
-                "ReportCaseLink"
+        try:
+            case_id = real_wait(
+                client, reporter_id, receiver_id, report_id, **kwargs
             )
-            if isinstance(link, VultronReportCaseLink)
-            and link.report_id == report_id
-        ]
-        checked.append((receiver_id, case_id, links))
+        except AssertionError:
+            checked.append(
+                (receiver_id, None, _reporter_links(reporter_id, report_id))
+            )
+            raise
+        checked.append(
+            (receiver_id, case_id, _reporter_links(reporter_id, report_id))
+        )
         return case_id
 
     with patch.object(
@@ -510,6 +535,10 @@ def expect_trusted_introductions(
     )
     assert checked, "the demo never checked the reporter's introduction"
     for receiver_id, case_id, links in checked:
+        assert case_id is not None, (
+            f"the reporter's ReportCaseLink was never bound by {receiver_id!r}'s"
+            f" introduction; it holds {links!r}"
+        )
         assert links == [(receiver_id, case_id)], (
             f"the reporter's ReportCaseLink should name {receiver_id!r} and be"
             f" bound to {case_id!r}; it holds {links!r}"

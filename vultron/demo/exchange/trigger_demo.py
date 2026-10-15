@@ -55,41 +55,9 @@ from vultron.demo.utils import (
     get_offer_from_datalayer,
     setup_demo_logging,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Shared setup helpers
-# ---------------------------------------------------------------------------
-
-
-def _submit_report(
-    client: DataLayerClient,
-    finder: as_Actor,
-    vendor: as_Actor,
-    name: str,
-    content: str,
-) -> tuple[as_VulnerabilityReport, as_Offer]:
-    """Finder submits a vulnerability report to the vendor.
-
-    Through the finder's own ``submit-report`` trigger, which writes the anchor
-    the vendor's case introduction is checked against (CBT-01-005, #4675).
-    Returns the ``(report, offer)`` pair once both are stored at the vendor.
-    """
-    return reporter_submits_report(
-        client,
-        finder,
-        vendor,
-        reporter_client=client,
-        report_name=name,
-        report_content=content,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -116,12 +84,13 @@ def demo_validate_and_engage(
 
     report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report, offer = _submit_report(
-            client=client,
-            finder=finder,
-            vendor=vendor,
-            name="Remote Code Execution in Network Stack",
-            content=(
+        report, offer = reporter_submits_report(
+            client,
+            finder,
+            vendor,
+            reporter_client=client,
+            report_name="Remote Code Execution in Network Stack",
+            report_content=(
                 "A use-after-free in the TCP/IP stack allows a remote "
                 "attacker to execute arbitrary code."
             ),
@@ -193,12 +162,13 @@ def demo_invalidate_and_close(
 
     report = offer = None
     with demo_step("Step 1: Finder submits a low-quality report to vendor"):
-        report, offer = _submit_report(
-            client=client,
-            finder=finder,
-            vendor=vendor,
-            name="Alleged Vulnerability in Demo Component",
-            content=(
+        report, offer = reporter_submits_report(
+            client,
+            finder,
+            vendor,
+            reporter_client=client,
+            report_name="Alleged Vulnerability in Demo Component",
+            report_content=(
                 "The reporter claims a vulnerability exists but provides no "
                 "reproduction steps or supporting evidence."
             ),

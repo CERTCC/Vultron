@@ -164,6 +164,7 @@ def demo_validate_report(
             )
 
     with demo_step("Step 3: Vendor creates case and introduces it to finder"):
+        case_data = None
         with demo_check("Case created for report"):
             case_data = find_case_by_report(client, report.id_)
             if not case_data:
@@ -171,7 +172,13 @@ def demo_validate_report(
                 raise ValueError("Could not find case related to this report.")
         # The vendor's own Create(VulnerabilityCase) introduces the case to
         # the finder (CBT-01-001); the demo builds and posts none (#4675).
-        verify_reporter_trusts_introduction(client, finder, vendor, report)
+        verify_reporter_trusts_introduction(
+            client,
+            finder,
+            vendor,
+            report,
+            case_id=case_data.id_ if case_data else None,
+        )
 
     logger.info(
         "✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the finder."

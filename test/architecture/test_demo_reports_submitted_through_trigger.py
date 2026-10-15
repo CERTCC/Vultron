@@ -46,13 +46,28 @@ _FORGED_FACTORIES = frozenset(
 
 
 def _forged_activity_calls(tree: ast.AST) -> list[tuple[int, str]]:
-    """Return ``(line, factory)`` for every call to a forbidden factory."""
-    return [
-        (node.lineno, name)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and (name := _corpus.callee_name(node.func) or "") in _FORGED_FACTORIES
-    ]
+    """Return ``(line, factory)`` for every reference to a forbidden factory.
+
+    Any reference counts, not only a call: an import (aliased or not), a bare
+    name passed as a value (``partial(rm_submit_report_activity, ...)``) and
+    an attribute (``factories.create_case_activity``).  A demo has no reason
+    to name either factory at all, so a call through an alias cannot slip by.
+    """
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            found.extend(
+                (node.lineno, alias.name)
+                for alias in node.names
+                if alias.name in _FORGED_FACTORIES
+            )
+        elif isinstance(node, ast.Name) and node.id in _FORGED_FACTORIES:
+            found.append((node.lineno, node.id))
+        elif (
+            isinstance(node, ast.Attribute) and node.attr in _FORGED_FACTORIES
+        ):
+            found.append((node.lineno, node.attr))
+    return sorted(found)
 
 
 def _demo_trees() -> list[tuple[Path, ast.AST]]:
@@ -96,3 +111,33 @@ def test_gate_detects_both_forged_activities() -> None:
         name
         for _, name in _forged_activity_calls(_corpus.parse_inline(source))
     ] == ["rm_submit_report_activity", "create_case_activity"]
+
+
+def test_gate_detects_an_aliased_or_passed_factory() -> None:
+    """An alias or a factory passed as a value is caught at its import."""
+    source = (
+        "from functools import partial\n"
+        "from vultron.wire.as2.factories import (\n"
+        "    rm_submit_report_activity as _offer,\n"
+        ")\n"
+        "from vultron.wire.as2 import factories\n"
+        "make = partial(_offer, report)\n"
+        "build = getattr(factories, 'x') or factories.create_case_activity\n"
+    )
+    assert [
+        name
+        for _, name in _forged_activity_calls(_corpus.parse_inline(source))
+    ] == ["rm_submit_report_activity", "create_case_activity"]
+
+
+def test_gate_ignores_other_factories() -> None:
+    """Factories a demo may use, and their aliases, are not flagged."""
+    source = (
+        "from vultron.wire.as2.factories import (\n"
+        "    rm_validate_report_activity as validate,\n"
+        "    add_report_to_case_activity,\n"
+        ")\n"
+        "a = validate(offer, actor=v)\n"
+        "b = add_report_to_case_activity(report, actor=v, target=c)\n"
+    )
+    assert _forged_activity_calls(_corpus.parse_inline(source)) == []

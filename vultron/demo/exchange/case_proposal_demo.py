@@ -123,19 +123,27 @@ def demo_case_proposal_round_trip(
             )
             logger.info("Accept activities found: %d", len(accept_activities))
 
+        case = None
         with demo_check(
             "VulnerabilityCase for this report exists — case-actor created"
             " the case"
         ):
-            # Nothing after this check reads the case, so a timeout cannot
-            # leave a later step on unestablished state: demo_check, not
-            # demo_gate.
-            wait_for_initialized_case(client, report.id_)
+            # Only the introduction check below reads the case, and it
+            # checks any bound case when this one is missing, so a timeout
+            # cannot leave a later step on unestablished state: demo_check,
+            # not demo_gate.
+            case = wait_for_initialized_case(client, report.id_)
 
     with demo_step("Step 3: Vendor introduces the case to the finder"):
         # The vendor's own Create(VulnerabilityCase) introduces the case
         # (CBT-01-001); the finder accepts it on the trusted route.
-        verify_reporter_trusts_introduction(client, finder, vendor, report)
+        verify_reporter_trusts_introduction(
+            client,
+            finder,
+            vendor,
+            report,
+            case_id=case.id_ if case is not None else None,
+        )
 
 
 def main(

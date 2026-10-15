@@ -68,10 +68,12 @@ never build a `Create(VulnerabilityCase)` for the receiver.
   receiver's case introduction (CBT-01-011). The demo still passes when the
   reporter gets a case another way, so the defect stays hidden (#4675).
 - **How to apply:** once the case exists, call
-  `verify_reporter_trusts_introduction`; its test wraps the run in
+  `verify_reporter_trusts_introduction`, passing `case_id` when the demo
+  knows which case the receiver opened, or the check cannot tell that case
+  from any other. Its test wraps the run in
   `expect_trusted_introductions` (`test/demo/_helpers.py`).
   `test/architecture/test_demo_reports_submitted_through_trigger.py` fails on
-  any call to `rm_submit_report_activity` or `create_case_activity` under
+  any reference to `rm_submit_report_activity` or `create_case_activity` under
   `vultron/demo/`.
 
 ---

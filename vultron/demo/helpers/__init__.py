@@ -50,7 +50,8 @@ Sub-modules
   ``receiver_validates_report``, ``receiver_engages_case``,
   ``find_case_by_report_id``, ``find_case_for_offer``,
   ``wait_for_case_for_offer``, ``seat_participant_through_stub_invite``,
-  ``setup_initialized_case``, ``setup_two_participant_case``, and
+  ``setup_initialized_case``, ``setup_two_participant_case``,
+  ``submit_validate_and_create_case``, and
   ``verify_reporter_trusts_introduction``.
 - :mod:`~vultron.demo.helpers.invite_chain` — ``run_case_invite_chain``,
   ``CaseInviter``, and ``EmittedBy``: the invite → deliver → answer → replica
@@ -194,6 +195,7 @@ from vultron.demo.helpers.workflow import (
     seat_participant_through_stub_invite,
     setup_initialized_case,
     setup_two_participant_case,
+    submit_validate_and_create_case,
     verify_reporter_trusts_introduction,
     wait_for_case_for_offer,
 )

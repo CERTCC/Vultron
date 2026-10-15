@@ -212,6 +212,7 @@ def verify_reporter_trusts_introduction(
     reporter: as_Actor,
     receiver: as_Actor,
     report: as_VulnerabilityReport,
+    case_id: str | None = None,
 ) -> str | None:
     """Check the reporter took the receiver's case introduction on the trusted route.
 
@@ -231,20 +232,29 @@ def verify_reporter_trusts_introduction(
         reporter: The report submitter.
         receiver: The actor the report was submitted to.
         report: The submitted report.
+        case_id: The case the receiver opened for the report, when the demo
+            knows it; the link must then be bound to that case.  ``None``
+            checks only that the link is bound to some case, which is all a
+            demo that also mints a second case through ``create-case`` can
+            say: the introduction is of the case opened on receipt.
 
     Returns:
         The id of the case the reporter's link is bound to, or ``None`` when
         the check failed and was recorded.
     """
-    case_id = None
+    bound_case_id = None
     with demo_check(
         "Reporter accepted the receiver's case introduction on the trusted"
         " route (CBT-01-005)"
     ):
-        case_id = wait_for_reporter_introduction(
-            reporter_client, reporter.id_, receiver.id_, report.id_
+        bound_case_id = wait_for_reporter_introduction(
+            reporter_client,
+            reporter.id_,
+            receiver.id_,
+            report.id_,
+            case_id=case_id,
         )
-    return case_id
+    return bound_case_id
 
 
 def receiver_validates_report(
@@ -867,6 +877,81 @@ def seat_participant_through_stub_invite(
     return participant
 
 
+def submit_validate_and_create_case(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    *,
+    report_name: str,
+    report_content: str,
+    validation_note: str,
+    case_name: str,
+    case_content: str,
+    stub_summary: str | None = None,
+) -> tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
+    """Take a report from submission to a vendor-minted case holding it.
+
+    The shared opening of the single-container exchange demos whose vendor
+    mints its case through ``create-case`` (DEMOMA-17-001, #4770):
+
+    1. The finder submits the report through its own ``submit-report``
+       trigger (:func:`reporter_submits_report`).
+    2. The vendor validates it with a Report Valid (RV),
+       ``Accept(Offer(VulnerabilityReport))``, posted to its own inbox.
+    3. The vendor mints the case through the ``create-case`` trigger
+       (:func:`create_case_via_trigger`), which seats it as CASE_OWNER and
+       CASE_MANAGER.
+    4. The vendor adds the report to that case.
+    5. The finder is checked to have taken the vendor's introduction of the
+       case opened on receipt on the trusted route
+       (:func:`verify_reporter_trusts_introduction`).
+
+    Args:
+        client: DataLayerClient for the shared container.
+        finder: The reporting ``as_Actor``.
+        vendor: The receiving vendor ``as_Actor``.
+        report_name: ``name`` of the submitted report.
+        report_content: ``content`` of the submitted report.
+        validation_note: ``content`` of the vendor's Report Valid.
+        case_name: ``name`` of the minted case.
+        case_content: ``content`` of the minted case.
+        stub_summary: The minted case's ``stub_summary``, for a demo that
+            later invites to it (CM-17-010); ``None`` sets none.
+
+    Returns:
+        Tuple of ``(report, case)``, the case being the trigger-minted one.
+    """
+    report, report_offer = reporter_submits_report(
+        client,
+        finder,
+        vendor,
+        reporter_client=client,
+        report_name=report_name,
+        report_content=report_content,
+    )
+
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
+    validate_activity = rm_validate_report_activity(
+        offer, actor=vendor.id_, content=validation_note
+    )
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
+
+    case = create_case_via_trigger(
+        client,
+        vendor,
+        name=case_name,
+        content=case_content,
+        stub_summary=stub_summary,
+    )
+
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    return report, case
+
+
 def setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
@@ -884,20 +969,18 @@ def setup_initialized_case(
     Performs the standard setup shared by ``invite_actor_demo``,
     ``suggest_actor_demo``, and ``status_updates_demo``:
 
-    1. Finder submits the report through its own ``submit-report`` trigger
-       (:func:`reporter_submits_report`), which writes the anchor it checks
-       the vendor's case introduction against (CBT-01-005)
-    2. Vendor validates the report
-    3. Vendor creates the case (via trigger endpoint — registers CASE_OWNER+CASE_MANAGER)
-    4. Vendor adds the report to the case
-    5. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
+    1. :func:`submit_validate_and_create_case`: the finder submits the
+       report through its own ``submit-report`` trigger, which writes the
+       anchor it checks the vendor's case introduction against (CBT-01-005);
+       the vendor validates it, creates the case through the trigger endpoint
+       (registering CASE_OWNER+CASE_MANAGER) and adds the report to it; and
+       the finder is checked to have taken the vendor's introduction of the
+       case it created on receipt on the trusted route
+    2. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
        sends the stub Invite
-    6. Finder accepts, which seats it as FINDER (ADR-0114;
+    3. Finder accepts, which seats it as FINDER (ADR-0114;
        ``Add(CaseParticipant)`` only reinstates, CM-31-011)
-    7. Checks the finder took the vendor's introduction of the case it
-       created on receipt on the trusted route
-       (:func:`verify_reporter_trusts_introduction`)
-    8. Logs final case state
+    4. Logs final case state
 
     Args:
         client: DataLayerClient for the shared (or single) container.
@@ -907,45 +990,28 @@ def setup_initialized_case(
     Returns:
         The newly created ``as_VulnerabilityCase``.
     """
-    report, report_offer = reporter_submits_report(
+    _report, case = submit_validate_and_create_case(
         client,
         finder,
         vendor,
-        reporter_client=client,
         report_name="Remote Code Execution Vulnerability",
         report_content=(
             "A remote code execution vulnerability in the web framework."
         ),
-    )
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — remote code execution via unsanitized input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = create_case_via_trigger(
-        client,
-        vendor,
-        name="RCE Case — Web Framework",
-        content="Tracking the RCE vulnerability in the web framework.",
+        validation_note=(
+            "Confirmed — remote code execution via unsanitized input."
+        ),
+        case_name="RCE Case — Web Framework",
+        case_content="Tracking the RCE vulnerability in the web framework.",
         stub_summary=(
             "Remote code execution in web framework"
             " — details shared after acceptance."
         ),
     )
 
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
     seat_participant_through_stub_invite(
         client, case, owner=vendor, invitee=finder, role=CVDRole.FINDER
     )
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
 
     log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with report and finder participant")
@@ -1016,7 +1082,9 @@ def setup_canonical_case(
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = wait_for_initialized_case(client, report.id_)
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    verify_reporter_trusts_introduction(
+        client, finder, vendor, report, case_id=case.id_
+    )
     # Attach a stub_summary so demo Invites carry the required non-empty
     # summary (CM-17-010, MV-10-001, #4165).  The BT-created case never has
     # this field; set it on the local object before any Invite factory call.
