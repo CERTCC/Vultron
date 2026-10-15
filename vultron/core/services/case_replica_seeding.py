@@ -189,18 +189,6 @@ def find_pending_report_case_link(
     return pending[0] if pending else None
 
 
-def find_any_pending_report_case_link(
-    dl: CasePersistence,
-) -> VultronReportCaseLink | None:
-    """Return any pending ``ReportCaseLink`` that names an expected sender.
-
-    The receiver wrote it before the case arrived, so it is the receiver's
-    own trust anchor: a bootstrap from any other actor is refused
-    (CBT-01-011, ADR-0132).
-    """
-    return next(iter(_pending_links(dl)), None)
-
-
 def _pending_links(dl: CasePersistence) -> list[VultronReportCaseLink]:
     """Every ``ReportCaseLink`` awaiting a bootstrap from a named sender."""
     return [

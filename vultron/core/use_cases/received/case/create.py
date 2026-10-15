@@ -41,10 +41,10 @@ class CreateCaseReceivedUseCase:
     The trust decision and every write run in
     :func:`~vultron.core.behaviors.case.create_case_received_tree.create_create_case_received_tree`
     (CLP-10-005, CLP-10-007): a sender the receiver expected (a pending
-    ``VultronReportCaseLink``, CBT-01-005 / CBT-01-006), a redelivery of a
-    bootstrap already accepted, or a CASE_MANAGER bootstrapping a participant
-    directly (ADR-0041 AC-5).  ``execute()`` builds the tree, runs it once, and
-    reports the outcome.
+    ``VultronReportCaseLink``, CBT-01-005 / CBT-01-006) or a redelivery of a
+    bootstrap already accepted.  Any other sender is refused and nothing is
+    stored, whatever its snapshot claims (CBT-01-011, ADR-0132).
+    ``execute()`` builds the tree, runs it once, and reports the outcome.
 
     The report receiver that accepts a trusted bootstrap then introduces the
     CASE_MANAGER to the reporter with its own ``Create(VulnerabilityCase)``

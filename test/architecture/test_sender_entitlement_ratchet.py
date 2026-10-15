@@ -587,12 +587,8 @@ def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
 
 #: Sender checks defined outside the sender-entitlement module, each naming
 #: the open issue that retires it (HP-01-007: the module has no twin).
-SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {
-    (
-        "vultron/core/behaviors/case/nodes/replica_bootstrap.py",
-        "CheckSenderIsSnapshotManagerNode",
-    ): "#4472",
-}
+#: Empty: #4472 deleted the last one, so a new entry is a regression.
+SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {}
 
 
 @pytest.mark.spec("HP-01-007")

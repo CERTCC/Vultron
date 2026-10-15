@@ -39,7 +39,11 @@ the handler's side effect (note appended to ``replica.notes``).
 
 import pytest
 
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.demo.conftest import (
+    _TestClientRouter,
+    create_isolated_actor_app,
+    submit_report_through_reporter,
+)
 from test.support.embargo_register import activate
 from vultron.core.models.dimensions import (
     RmDimension,
@@ -51,7 +55,6 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
-    rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -60,9 +63,6 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -239,9 +239,10 @@ def _bootstrap_case_for_participant(
 
     Exercises the full bootstrap sequence for PCR-07-006 AC-1:
 
-    1. Participant submits a ``SubmitReport`` offer to owner's inbox, which
-       triggers the ``create_receive_report_case_tree`` BT and creates the
-       preliminary ``as_VulnerabilityCase`` with embargo.
+    1. Participant submits a report through its own ``submit-report``
+       trigger, which records its trust anchor and delivers the Offer to the
+       owner's inbox; the ``create_receive_report_case_tree`` BT there creates
+       the preliminary ``as_VulnerabilityCase`` with embargo.
     2. Owner validates the report (``trigger/validate-report``), which
        triggers the ``create_validate_report_tree`` BT and causes the
        CaseActor to emit ``Announce(as_VulnerabilityCase)`` to participant.
@@ -276,25 +277,23 @@ def _bootstrap_case_for_participant(
     # Register participant as peer on owner's app so the router can deliver there.
     _register_peer(owner_tc, owner_slug, participant_actor_id, "Participant")
 
-    # Build the SubmitReport offer and deliver it to owner's inbox.
-    # This triggers the create_receive_report_case_tree BT which creates
-    # the preliminary as_VulnerabilityCase with embargo — required for the
-    # subsequent validate-report step.
-    report = as_VulnerabilityReport(
-        attributed_to=participant_actor_id,
-        name="PCR-07-006 bootstrap test report",
-        content=(
+    _register_peer(participant_tc, participant_slug, owner_actor_id, "Owner")
+
+    # The participant submits through its own trigger, which writes its trust
+    # anchor (the pending ReportCaseLink naming the owner) and delivers the
+    # Offer to the owner's inbox.  That runs create_receive_report_case_tree,
+    # which creates the preliminary as_VulnerabilityCase with embargo needed
+    # by the validate-report step below.
+    report, offer = submit_report_through_reporter(
+        participant_tc,
+        participant_actor_id,
+        owner_actor_id,
+        report_name="PCR-07-006 bootstrap test report",
+        report_content=(
             "A critical remote code execution vulnerability was discovered "
             "during integration testing for PCR-07-006."
         ),
     )
-    offer = rm_submit_report_activity(
-        report,
-        actor=participant_actor_id,
-        target=owner_actor_id,
-        to=owner_actor_id,
-    )
-    _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
     # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
     # sends Create(as_CaseProposal) to CaseActor — no VulnerabilityCase yet.
@@ -473,6 +472,39 @@ class TestBootstrapSequence:
             f"DataLayer has no record of it.  Bootstrap sequence may be "
             f"broken (PCR-07-006 AC-1)."
         )
+
+    @pytest.mark.spec("CBT-01-005", "CBT-01-006")
+    def test_participant_accepts_the_owners_create_on_the_trusted_route(
+        self, two_app_setup
+    ):
+        """The owner, acting as CASE_MANAGER, introduces the case (#4472).
+
+        The participant's own link, written when it submitted the report,
+        names the owner, so the owner's ``Create(VulnerabilityCase)`` takes
+        the trusted route and binds that link to the case (CBT-01-006).
+        """
+        owner_iso, participant_iso, owner_tc, participant_tc = two_app_setup
+
+        case_id, owner_actor_id, participant_actor_id = (
+            _bootstrap_case_for_participant(
+                owner_iso,
+                participant_iso,
+                owner_tc,
+                participant_tc,
+                owner_slug="owner-pcr-006-trusted",
+                participant_slug="participant-pcr-006-trusted",
+            )
+        )
+
+        actor_dl = participant_iso.store_for(participant_actor_id)
+        [link] = [
+            link
+            for link in actor_dl.list_objects("ReportCaseLink")
+            if isinstance(link, VultronReportCaseLink)
+        ]
+        assert link.case_creator_id == owner_actor_id
+        assert link.case_id == case_id
+        assert link.case_manager_id == owner_actor_id
 
     def test_case_fields_preserved_in_replica(self, two_app_setup):
         """AC-1 (fields): The seeded replica retains fields from the Announce.
