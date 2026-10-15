@@ -625,3 +625,30 @@ class TestRejectCaseParticipantRole:
         )
 
         assert dl.read(activity_id) is not None
+
+
+@pytest.mark.spec("OX-06-002")
+@pytest.mark.parametrize(
+    "method", ["accept_case_participant_role", "reject_case_participant_role"]
+)
+def test_role_offer_answer_keeps_a_caller_supplied_id(adapter, dl, method):
+    """A deterministic id survives the adapter, so a retry rebuilds it."""
+    from vultron.enums.roles import CVDRole
+
+    _make_role_case(dl)
+    given_id = f"https://example.org/activities/{method}-given"
+
+    activity_id, activity_json = getattr(adapter, method)(
+        offer_id=_OFFER_ID,
+        case_id=_CASE_ID,
+        role=CVDRole.CASE_MANAGER,
+        target_actor_id=_CASE_ACTOR,
+        vendor_id=_VENDOR,
+        actor=_CASE_ACTOR,
+        to=[_VENDOR],
+        id_=given_id,
+    )
+
+    assert activity_id == given_id
+    assert json.loads(activity_json)["id"] == given_id
+    assert dl.read(given_id) is not None
