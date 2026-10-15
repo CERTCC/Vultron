@@ -83,6 +83,8 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.examples._base import gen_report
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -592,8 +594,19 @@ def _decline(proposer: str) -> CaseProposalDeclineRecord:
     )
 
 
+def _stored_proposal(proposer: str) -> as_CaseProposal:
+    """The proposal as the Accept or Reject path stores it, with no record:
+    a store written before the admission record existed."""
+    return as_CaseProposal(
+        id_=PROPOSAL_ID,
+        attributed_to=proposer,
+        object_=gen_report(),
+        target=MANAGER,
+    )
+
+
 @pytest.mark.spec("HP-01-009")
-@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CP-05-010")
 @pytest.mark.parametrize(
     ("records", "sender", "admitted"),
     [
@@ -603,6 +616,9 @@ def _decline(proposer: str) -> CaseProposalDeclineRecord:
         ((_decline(VENDOR),), VENDOR, True),
         ((_decline(VENDOR),), STRANGER, False),
         ((_admission(VENDOR), _decline(VENDOR)), STRANGER, False),
+        ((_stored_proposal(VENDOR),), VENDOR, True),
+        ((_stored_proposal(VENDOR),), STRANGER, False),
+        ((_stored_proposal(VENDOR + "/"),), VENDOR, True),
     ],
     ids=[
         "new-proposal",
@@ -611,6 +627,9 @@ def _decline(proposer: str) -> CaseProposalDeclineRecord:
         "declined-proposer",
         "declined-for-another",
         "both-records-for-another",
+        "stored-proposal-proposer",
+        "stored-proposal-for-another",
+        "stored-proposal-trailing-slash",
     ],
 )
 def test_author_kind_admits_only_a_proposals_recorded_proposer(
@@ -628,6 +647,25 @@ def test_author_kind_admits_only_a_proposals_recorded_proposer(
     if not admitted:
         assert VENDOR in result.feedback_message
         assert "HP-01-006" in result.feedback_message
+
+
+class _FailingReads:
+    """A store whose reads fail, standing in for a store error."""
+
+    def read(self, *_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("store unavailable")
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CP-05-010")
+def test_a_store_error_never_admits_the_proposal_sender() -> None:
+    """A read error propagates: it fails the tree, which refuses, and the
+    guard never answers ``SUCCESS`` because it could not tell."""
+    guard = _proposal_author_guard(STRANGER)
+    assert isinstance(guard, SenderIsProposalAuthorNode)
+    guard.datalayer = _FailingReads()  # type: ignore[assignment]
+    with pytest.raises(RuntimeError, match="store unavailable"):
+        guard.update()
 
 
 def test_author_without_a_case_is_a_wiring_error() -> None:

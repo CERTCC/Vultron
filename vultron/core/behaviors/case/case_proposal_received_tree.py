@@ -36,7 +36,7 @@ Admission (CP-05-002) and idempotency (CP-05-006):
 Ahead of the branches, the receive-tree factory composes the sender guard from
 the use case's ``AUTHOR`` declaration: the proposal id is chosen by the sender,
 so one this store recorded for another proposer is refused before any branch
-reads or writes a proposal-keyed record (HP-01-008, #4719).
+reads or writes a proposal-keyed record (CP-05-010, HP-01-008, #4719).
 
 The top-level tree is a Selector with five branches, tried in order:
 
@@ -369,7 +369,7 @@ def create_case_proposal_received_tree(
             composes the guard from it, with the proposal as the object an
             ``AUTHOR`` sender must have written.  The proposal id is the
             sender's choice, so a proposal id this store recorded for another
-            proposer is refused before any arm runs (CP-05-006, HP-01-008).
+            proposer is refused before any arm runs (CP-05-010, HP-01-008).
 
     Returns:
         The root ``Sequence`` (intake, then the idempotency Selector), ready

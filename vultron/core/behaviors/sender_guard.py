@@ -158,7 +158,7 @@ class AuthoredNote:
 @dataclass(frozen=True)
 class AuthoredCaseProposal:
     """An ``AUTHOR`` sender must be this proposal's proposer, as the
-    CASE_MANAGER recorded it for the proposal id (CP-05-006).
+    CASE_MANAGER recorded it for the proposal id (CP-05-010).
 
     Attributes:
         proposal_id: The proposal the ``Create(CaseProposal)`` carries.

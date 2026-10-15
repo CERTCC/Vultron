@@ -133,7 +133,7 @@ class CreateCaseProposalReceivedUseCase:
     ``Reject(as_CaseProposal)`` and reported ``REFUSED`` (CP-05-006,
     CP-05-008, CM-23-013).
 
-    Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008.
+    Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008, CP-05-010.
     """
 
     # The proposal precedes the case, so the rule is for an actor outside
@@ -141,7 +141,7 @@ class CreateCaseProposalReceivedUseCase:
     # proposal id; an id it has not recorded is a new proposal, which any
     # actor may make, the admission decision being the call-out point's
     # (CP-05-002).  The proposal id is the sender's choice, so another
-    # proposer's admitted or declined id is refused (CP-05-006, #4719).
+    # proposer's admitted or declined id is refused (CP-05-010, #4719).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
         SenderEntitlementKind.AUTHOR
     )

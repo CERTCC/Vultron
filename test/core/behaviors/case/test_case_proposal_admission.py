@@ -1652,6 +1652,7 @@ class TestARedeliveryNamingAnotherReportReusesTheAcceptedCase:
 
 
 @pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CP-05-010")
 @pytest.mark.spec("CM-21-001")
 class TestAnotherSendersReuseOfAnAcceptedProposalId:
     """Another sender's reuse of an accepted proposal id never reaches its case.
@@ -1721,6 +1722,7 @@ class TestAnotherSendersReuseOfAnAcceptedProposalId:
 
 
 @pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CP-05-010")
 @pytest.mark.spec("HP-01-006")
 class TestAnotherSendersReuseOfAClosedCasesProposalId:
     """The closed-case arm never declines on another proposer's proposal id.
@@ -1752,6 +1754,7 @@ class TestAnotherSendersReuseOfAClosedCasesProposalId:
 
 
 @pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CP-05-010")
 @pytest.mark.spec("HP-01-006")
 class TestAnotherSendersReuseOfADeclinedProposalId:
     """A declined proposal id reused by another sender is refused, not
@@ -1775,6 +1778,88 @@ class TestAnotherSendersReuseOfADeclinedProposalId:
             == record_before
         )
         assert _cases(dl) == []
+
+
+def _drop_admission_record(dl) -> None:
+    """Leave the store as one written before the admission record existed:
+    the stored ``Accept`` and the proposal it carries, and no record."""
+    assert dl.delete(
+        "CaseProposalAdmissionRecord",
+        CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI),
+    )
+
+
+@pytest.mark.spec("CP-05-010")
+@pytest.mark.spec("HP-01-006")
+class TestAnotherSendersReuseOnAStoreWithNoAdmissionRecord:
+    """The stored proposal names its proposer when no record does.
+
+    A store written before the admission record existed holds only the
+    stored ``Accept`` and the proposal it carries.  The guard reads that
+    proposal's ``attributed_to``, so another sender is still refused.
+    """
+
+    def test_an_open_case_is_not_reached(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        (case,) = _cases(dl)
+        _drain_outbox(dl)
+        _drop_admission_record(dl)
+        ledger_before = _ledger_count(dl)
+        case_rows_before = _case_rows(dl, str(case.id_))
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE, "the sender guard refuses it"
+        assert _types_in_outbox(dl) == []
+        assert [c.id_ for c in _cases(dl)] == [case.id_]
+        assert _ledger_count(dl) == ledger_before
+        assert _case_rows(dl, str(case.id_)) == case_rows_before
+        assert (
+            dl.read(CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI))
+            is None
+        ), "no admission record is written for the other sender"
+
+    def test_a_closed_case_is_not_declined_for_the_other_sender(self, dl):
+        _accepted_then_closed(dl)
+        _drop_admission_record(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE
+        assert _types_in_outbox(dl) == []
+        assert (
+            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
+        )
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "The sender guard compares the proposer with same_actor_id, but the"
+        " accept path compares raw strings, so a trailing-slash redelivery"
+        " re-runs native initialization. Tracked by #4772."
+    ),
+)
+def test_a_redelivery_naming_the_proposer_with_a_trailing_slash_is_answered(
+    dl,
+):
+    """A redelivery from the proposer is answered the same way however its
+    actor id is written.
+
+    ``same_actor_id`` treats a trailing slash as the same actor, so the
+    guard admits the redelivery; the accept path must then treat it as that
+    proposer's redelivery too.
+    """
+    assert _run_tree(dl) == Status.SUCCESS
+    (case,) = _cases(dl)
+    _drain_outbox(dl)
+
+    status = _run_tree(dl, proposer_uri=_VENDOR_URI + "/")
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Accept"]
+    assert [c.id_ for c in _cases(dl)] == [case.id_]
 
 
 def _case_rows(dl, case_id: str) -> list[str]:

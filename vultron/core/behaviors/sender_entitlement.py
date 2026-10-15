@@ -42,7 +42,7 @@ Entitlement kinds
   it answers (EP-09-010, CM-11-017)
 - ``AUTHOR`` — sender must be the author of the object it sends or changes, as
   this store recorded it: a note's author, who must also be an active
-  participant (CM-30-001), or a case proposal's proposer (CP-05-006)
+  participant (CM-30-001), or a case proposal's proposer (CP-05-010)
   (HP-01-009)
 - ``ANY_ACTOR`` — any actor may send it, whatever its standing in any case: a new
   report, which precedes any case (HP-01-010, HP-01-011).
@@ -125,7 +125,7 @@ Nodes
   CM-30-001, CM-23-018)
 - ``SenderIsProposalAuthorNode`` — guards that the sender of a
   ``Create(CaseProposal)`` is the proposer this store recorded for the
-  proposal id, when it recorded one (``AUTHOR`` kind; CP-05-006)
+  proposal id, when it recorded one (``AUTHOR`` kind; CP-05-010)
 - ``SenderClosureNotRecordedNode`` — guards that the case does not record the
   sender's closure; the closed-sender pre-flight runs it to tell a repeated
   closing act (``SKIPPED``) from any other act (``REFUSED``) (CM-23-018)
@@ -318,9 +318,10 @@ class SenderEntitlementKind(Enum):
     The author is the object's ``attributed_to`` as this store recorded it.
     A note's author must still be an active participant of the case
     (CM-10-004, CM-30-001).  A case proposal's author is the proposer the
-    CASE_MANAGER recorded for its proposal id when it admitted or declined
-    it; a proposal id it has not recorded is a new proposal, whose author
-    the parse edge has already matched to the sender (CP-05-006, CP-01-010).
+    CASE_MANAGER recorded for its proposal id when it admitted, declined or
+    stored it; a proposal id it has not recorded is a new proposal, whose
+    author the parse edge has already matched to the sender (CP-05-010,
+    CP-01-010).
     """
 
     ANY_ACTOR = ("any actor", "Actor")
@@ -1897,17 +1898,25 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
     The proposal id is chosen by the sender, and every proposal-keyed record
     is keyed on it alone.  The CASE_MANAGER records the proposer when it
     admits the proposal (``CaseProposalAdmissionRecord``) or declines it
-    (``CaseProposalDeclineRecord``), so a delivery of that proposal id is a
-    redelivery only from that proposer (CP-05-006).
+    (``CaseProposalDeclineRecord``), and it stores the proposal itself, whose
+    ``attributed_to`` is the proposer, when it sends the ``Accept`` or
+    ``Reject``.  A store written before the admission record existed holds
+    only that stored proposal, so it is read too.  A delivery of that
+    proposal id is a redelivery only from that proposer (CP-05-006,
+    CP-05-010).
 
-    - No record for the proposal id: ``SUCCESS``.  It is a new proposal, and
-      the parse edge has already refused a proposal whose ``attributed_to``
-      is not its sender (CP-01-010).
-    - Every record names the sender: ``SUCCESS``, a redelivery.
-    - A record names another actor: ``FAILURE``, so the tree ends
+    - Nothing recorded for the proposal id: ``SUCCESS``.  It is a new
+      proposal, and the parse edge has already refused a proposal whose
+      ``attributed_to`` is not its sender (CP-01-010).
+    - Every recorded proposer is the sender: ``SUCCESS``, a redelivery.
+    - Any recorded proposer is another actor: ``FAILURE``, so the tree ends
       ``REFUSED`` before any arm writes a record or sends an answer.
 
-    Spec: CP-05-006, HP-01-006, HP-01-009.
+    A store error is not caught: it fails the tree, which refuses rather than
+    admits (``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails
+    Toward 'Admit'").
+
+    Spec: CP-05-006, CP-05-010, HP-01-006, HP-01-009.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -1932,23 +1941,33 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
         self.proposal_id = proposal_id
         self.sender_actor_id = sender_actor_id
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
+    def _recorded_proposers(self) -> list[str]:
+        """Every proposer this store recorded for the proposal id."""
         assert self.datalayer is not None
+        proposers: list[str] = []
         for record_type in self._RECORDS:
             record = self.datalayer.read(
                 record_type.build_id(self.proposal_id)
             )
-            if not isinstance(record, record_type):
-                continue
-            if same_actor_id(record.proposer_uri, self.sender_actor_id):
+            if isinstance(record, record_type):
+                proposers.append(record.proposer_uri)
+        stored = self.datalayer.read(self.proposal_id)
+        author = _as_id(getattr(stored, "attributed_to", None))
+        if author:
+            proposers.append(author)
+        return proposers
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        for proposer in self._recorded_proposers():
+            if same_actor_id(proposer, self.sender_actor_id):
                 continue
             self.feedback_message = (
                 f"Sender '{self.sender_actor_id}' is not the author of"
                 f" CaseProposal '{self.proposal_id}', which this store"
-                f" recorded for '{record.proposer_uri}' — REFUSED"
-                " (CP-05-006, HP-01-006)"
+                f" recorded for '{proposer}' — REFUSED"
+                " (CP-05-010, HP-01-006)"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

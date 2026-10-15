@@ -17,6 +17,7 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/semantic-extraction.yaml
   - specs/case-ledger-processing.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
@@ -233,15 +234,16 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   this delivery (`RecordProposalAdmissionNode`'s `admission_record_was_prior`), not
   on the report: the report id is sender-chosen, so a redelivery may name a report
   with no case.
-- **Same proposal id, another sender**: the proposal id is sender-chosen, so the
-  use case declares `SenderRule.before_case(AUTHOR)` and the factory composes
-  `SenderIsProposalAuthorNode` ahead of every arm: a proposal id whose admission or
-  decline record names another proposer is `REFUSED` before any proposal-keyed
-  record is read or written (HP-01-008, #4719). Add any new proposal-keyed record
-  that names the proposer to that node. `LoadExistingCaseNode` still reuses the
-  stored `Accept`'s case only for the admitted proposer
-  (`accepted_for_proposer_only`), so a guard bypass cannot lead another sender
-  into the case (#4650).
+- **Same proposal id, another sender** (CP-05-010): the proposal id is
+  sender-chosen, so the use case declares `SenderRule.before_case(AUTHOR)` and the
+  factory composes `SenderIsProposalAuthorNode` ahead of every arm. A proposal id
+  whose admission record, decline record or stored proposal (`attributed_to`) names
+  another proposer is `REFUSED` before any proposal-keyed record is read or written
+  (HP-01-008, #4719). The stored proposal covers a store written before the
+  admission record existed. Add any new proposal-keyed record that names the
+  proposer to that node. `LoadExistingCaseNode`'s `accepted_for_proposer_only`
+  (#4650) is not a second defense: it reads the admission record, which the accept
+  arm writes for the current sender when none exists.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its

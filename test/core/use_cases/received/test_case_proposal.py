@@ -905,7 +905,7 @@ class TestCaseProposalDisposition:
         assert again.disposition == HandlerDisposition.SKIPPED
 
     @pytest.mark.spec("HP-01-006")
-    @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("CP-05-010")
     def test_another_senders_reuse_of_a_proposal_id_is_refused(
         self, make_payload
     ):

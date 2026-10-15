@@ -140,7 +140,7 @@ So the CASE_MANAGER answers the duplicate with `Reject(as_CaseProposal)` instead
 The `Reject` declines only the redelivery: the stored `Accept` stands, and the proposer learns only that nothing more will be done for the proposal.
 The same lookup gives a former owner this answer after an ownership transfer.
 Only the proposal's author can redeliver it.
-The proposal identifier is chosen by the sender, so the CASE_MANAGER refuses a delivery whose identifier it recorded for another proposer, and writes and sends nothing for it.
+The proposal identifier is chosen by the sender, so the CASE_MANAGER refuses a delivery whose identifier it recorded for another proposer, and writes and sends nothing for it (CP-05-010).
 The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
 A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
