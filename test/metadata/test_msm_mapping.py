@@ -242,6 +242,10 @@ def test_only_positions_name_the_object_they_are_held_over():
         (SenderEntitlementKind.CASE_OWNER, "the case owner"),
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
         (SenderEntitlementKind.PARTICIPANT, "a participant"),
+        (
+            SenderEntitlementKind.LEDGER_PEER,
+            "an active participant, including one that has left the case",
+        ),
         (SenderEntitlementKind.INVITEE, "the invitee"),
         (SenderEntitlementKind.ANY_ACTOR, "any actor"),
     ],

@@ -2516,3 +2516,52 @@ class TestStandingIsCheckedBeforeTheOfferState:
         assert result.reason is not None and "too late" in result.reason
         assert f"from '{party}' came too late" in result.reason
         assert _owner(dl, case_id) == _VENDOR_ID
+
+
+def _close_coordinator(dl, case_id: str) -> None:
+    """Record the coordinator's closure: it left the case (RM ``CLOSED``)."""
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase)
+    record = dl.read(case.actor_participant_index[_COORDINATOR_ID])
+    assert isinstance(record, CaseParticipant)
+    record.participant_statuses.append(
+        ParticipantStatus(
+            context=case_id,
+            attributed_to=_COORDINATOR_ID,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+    )
+    dl.save(record)
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("CM-21-011")
+@pytest.mark.parametrize("answer", ["accept", "reject"])
+def test_a_closed_transferees_answer_is_refused(make_payload, answer):
+    """A transferee that left the case after the Offer answers nothing.
+
+    Its answer is REFUSED: ownership does not move, no answer is ledgered
+    and nothing is sent (CM-23-018).
+    """
+    case_id = f"https://example.org/cases/case_ot_closed_{answer}"
+    dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+    disposition, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
+    assert disposition is HandlerDisposition.APPLIED
+    _close_coordinator(dl, case_id)
+    entries_before = _event_types(dl)
+    outbox_before = list(dl.outbox_list())
+
+    result = {"accept": _accept, "reject": _reject}[answer](
+        dl, make_payload, offer
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert "CM-23-018" in (result.reason or "")
+    assert _owner(dl, case_id) == _VENDOR_ID
+    assert _event_types(dl) == entries_before
+    assert list(dl.outbox_list()) == outbox_before

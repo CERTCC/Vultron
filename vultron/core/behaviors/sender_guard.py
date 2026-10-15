@@ -56,8 +56,10 @@ import py_trees
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
+    SenderClosureNotRecordedNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
+    SenderIsActiveLedgerParticipantNode,
     SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -81,6 +83,7 @@ __all__ = [
     "OwnershipOfferRequest",
     "ReportOfferRequest",
     "SenderCheckContext",
+    "closed_sender_guard",
     "compose_sender_guard",
     "embargo_sender_context",
 ]
@@ -193,6 +196,22 @@ def embargo_sender_context(
     )
 
 
+def closed_sender_guard(
+    case_id: str, sender_id: str
+) -> SenderClosureNotRecordedNode:
+    """The CM-23-018 check that the case does not record the sender's closure.
+
+    Built here, beside the kinds' guards, so the closed-sender pre-flight
+    (``vultron.core.use_cases.received._sender_preflight``) never names a
+    sender node itself (HP-01-007).  It is not a kind: it tells a repeated
+    closing act (``SKIPPED``) from any other act of a closed sender
+    (``REFUSED``) before a handler's received tree runs.
+    """
+    return SenderClosureNotRecordedNode(
+        case_id=case_id, sender_actor_id=sender_id
+    )
+
+
 def _addressee_node(
     ctx: SenderCheckContext,
 ) -> SenderIsRequestAddresseeNode:
@@ -270,6 +289,12 @@ def _kind_node(
     """The condition node that checks *kind* for the activity in *ctx*."""
     if (membership := _MEMBERSHIP_NODES.get(kind)) is not None:
         return membership(sender_actor_id=ctx.sender_id, case_id=ctx.case_id)
+    if kind is SenderEntitlementKind.LEDGER_PEER:
+        # Reads the sender and the case from the ledger activity on the
+        # blackboard (SYNC-03-005).
+        return SenderIsActiveLedgerParticipantNode(
+            name="SenderIsActiveLedgerParticipant"
+        )
     if kind is SenderEntitlementKind.CASE_MANAGER:
         return SenderIsCaseManagerNode(
             case_id=ctx.case_id,
@@ -303,6 +328,7 @@ def _kind_node(
             invite_id=ctx.invite_id,
             sender_actor_id=ctx.sender_id,
             case_id=ctx.case_id if ctx.invite_is_case_join else None,
+            closure_case_id=ctx.case_id,
         )
     # ANY_ACTOR composes no node (see _any_of), so no kind reaches here.
     raise VultronWiringError(

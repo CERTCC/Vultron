@@ -4389,8 +4389,9 @@ groups:
       `Reject(CaseLedgerEntry)` with a replay of only the entries that record its own
       closure (CM-23-004); the guard for that resync request stays the active check
       of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`
-      standing defined below. Second, a repeated
-      Leave(VulnerabilityCase) from that sender MUST be reported `SKIPPED`, with no
+      standing defined below. Second, a repeated act that would close that sender,
+      who is already closed (a Leave(VulnerabilityCase), a `Close(Report)`, or a
+      `Reject` of its stub or full-case Invite), MUST be reported `SKIPPED`, with no
       ledger entry committed and nothing sent, whatever its activity id: its effect is
       already in place (ID-05-003). The `ACTIVE_PARTICIPANT` sender standing
       (HP-01-009) MUST mean an active participant (CM-10-004) whose closure is not
@@ -4400,8 +4401,9 @@ groups:
       RM.CLOSED is terminal (ADR-0085). A closed participant is sent no later case
       content (CM-23-004), so its act would be recorded in a case it cannot see, and
       CM-23-013 stops writes only at case_fully_closed. The resync request stays open:
-      its replay appends nothing and is capped. A second Leave changes nothing, and a
-      repeat is decided by effect, not by activity id. Resolves CONCERN-4556.
+      its replay appends nothing and is capped. A second closing act changes nothing,
+      whichever act closed the sender first, and a repeat is decided by effect, not by
+      activity id. Resolves CONCERN-4556 and #4660.
     verification: >-
       Unit tests on the shared sender predicate and on every guard node for the
       `ACTIVE_PARTICIPANT` kind assert that a sender at RM.CLOSED, an inert sender and
@@ -4410,8 +4412,10 @@ groups:
       and no outbound activity. A test drives a closed sender's
       `Reject(CaseLedgerEntry)` and asserts the replay stops at its own closure
       entries, and a unit test asserts the `Reject(CaseLedgerEntry)` use case does
-      not declare the `ACTIVE_PARTICIPANT` standing. A test drives a second Leave with a new activity id from a closed
-      sender and asserts `SKIPPED` with no ledger entry.
+      not declare the `ACTIVE_PARTICIPANT` standing. Tests drive a second Leave, a
+      repeated `Close(Report)` and a repeated `Reject` of a stub and of a full-case
+      Invite, each with a new activity id, from a closed sender and assert `SKIPPED`
+      with no ledger entry and no outbound activity.
     relationships:
     - rel_type: refines
       spec_id: CM-23-004

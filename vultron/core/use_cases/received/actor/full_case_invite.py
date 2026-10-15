@@ -42,6 +42,9 @@ from vultron.core.use_cases.received._bt_verdict import (
     rm_declaration_verdict,
     verdict_from_bt,
 )
+from vultron.core.use_cases.received._sender_preflight import (
+    closed_sender_preflight,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -173,6 +176,22 @@ class _FullCaseInviteReplyReceivedUseCase:
         actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
+        # A sender the case already records as closed may act on nothing
+        # further; a Reject would close it again, so it is SKIPPED, and any
+        # other reply is REFUSED, before the rule runs and with nothing
+        # committed or sent (CM-23-018, RSH-06-006, ID-05-003).
+        preflight = closed_sender_preflight(
+            self._dl,
+            actor_id,
+            request,
+            case_id=case_id,
+            sender_actor_id=request.actor_id,
+            closes=self.rm_state is RM.CLOSED,
+            label=self.tree_name,
+            sync_port=self._sync_port,
+        )
+        if preflight is not None:
+            return preflight
         tree = self._tree()
         result = BTBridge(
             datalayer=self._dl,

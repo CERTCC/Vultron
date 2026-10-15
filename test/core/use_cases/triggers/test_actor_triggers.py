@@ -33,6 +33,7 @@ from pydantic import ValidationError
 from test.conftest import seed_case_owner_participant
 from test.support.embargo_register import (
     activate,
+    agree_to_active_embargo,
     write_consent_rows,
 )
 from test.support.received import archive_received
@@ -181,8 +182,14 @@ def _shared_case_with_case_manager(
     return case
 
 
-def _activate_embargo(dl: SqliteDataLayer, case_id: str) -> str:
-    """Give *case_id* an ACTIVE embargo in *dl*; return the embargo id."""
+def _activate_embargo(
+    dl: SqliteDataLayer, case_id: str, *signatories: str
+) -> str:
+    """Give *case_id* an ACTIVE embargo in *dl*; return the embargo id.
+
+    Each of *signatories* agrees to it, so it stays an active participant
+    that may act on the case (CM-10-004, CM-23-018).
+    """
     from datetime import datetime
 
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -198,6 +205,7 @@ def _activate_embargo(dl: SqliteDataLayer, case_id: str) -> str:
     activate(case, embargo.id_)
     dl.save(case)
     write_consent_rows(dl, case)
+    agree_to_active_embargo(dl, case, *signatories)
     return embargo.id_
 
 
@@ -221,7 +229,7 @@ class _OwnerDirectInvite:
             self.owner.id_, self.manager.id_, self.owner_dl, self.manager_dl
         )
         if with_active_embargo:
-            _activate_embargo(self.manager_dl, self.case.id_)
+            _activate_embargo(self.manager_dl, self.case.id_, self.owner.id_)
 
     def trigger(self, roles: list[CVDRole] | None = None) -> dict[str, Any]:
         """Run the owner's trigger; return the activity it captured."""

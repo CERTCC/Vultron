@@ -68,6 +68,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.sender_entitlement import SenderEntitlementKind
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -928,6 +929,18 @@ def test_ledger_reject_for_unknown_case_is_refused():
         case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
     ).id_
     assert dl.read(state_id) is None
+
+
+@pytest.mark.spec("CM-23-018", "HP-01-009")
+def test_ledger_reject_does_not_declare_the_active_participant_standing():
+    """A closed participant keeps its resync request, so its kind is its own.
+
+    ``ACTIVE_PARTICIPANT`` refuses a sender at RM ``CLOSED`` (CM-23-018); the
+    resync request is the ``LEDGER_PEER`` kind, checked by SYNC-03-005.
+    """
+    rule = RejectLedgerEntryReceivedUseCase.sender_entitlement
+    assert SenderEntitlementKind.ACTIVE_PARTICIPANT not in rule.kinds
+    assert rule.kinds == {SenderEntitlementKind.LEDGER_PEER}
 
 
 # ---------------------------------------------------------------------------
