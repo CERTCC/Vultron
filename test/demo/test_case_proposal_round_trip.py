@@ -249,7 +249,7 @@ class TestCaseProposalRoundTrip:
 
     @pytest.mark.spec("CP-04-001")
     def test_proposal_queued_after_submit_report(self, two_app_setup):
-        """ProposeCaseToActorNode queues Create(as_CaseProposal) after SubmitReport.
+        """ProposeReportCaseToActorNode queues Create(as_CaseProposal) after SubmitReport.
 
         After the vendor processes a SubmitReport, a ``Create`` activity
         whose ``object_`` is an ``as_CaseProposal`` must exist in the
@@ -299,7 +299,7 @@ class TestCaseProposalRoundTrip:
         _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 
         # Verify a CaseProposal object was created and stored by
-        # ProposeCaseToActorNode via TriggerActivityAdapter.create_case_proposal()
+        # ProposeReportCaseToActorNode via TriggerActivityAdapter.create_case_proposal()
         # (CP-04-001).  The DataLayer stores objects by type; by_type("Create")
         # returns raw dicts with dehydrated object_ ID strings, so we check the
         # proposal object directly rather than scanning Create activities.
@@ -307,7 +307,7 @@ class TestCaseProposalRoundTrip:
         assert len(proposal_records) >= 1, (
             "Expected at least one CaseProposal object in the vendor DataLayer "
             "after SubmitReport processing.  "
-            "ProposeCaseToActorNode may not have run (CP-04-001, CP-04-002)."
+            "ProposeReportCaseToActorNode may not have run (CP-04-001, CP-04-002)."
         )
 
     def _submit_report(self, two_app_setup, caplog, label):
@@ -365,7 +365,7 @@ class TestCaseProposalRoundTrip:
 
         # The full chain runs synchronously inside TestClient's
         # BackgroundTask model:
-        #   vendor inbox → ProposeCaseToActorNode → vendor outbox flush →
+        #   vendor inbox → ProposeReportCaseToActorNode → vendor outbox flush →
         #   case-actor inbox → CreateCaseProposalReceivedUseCase →
         #   Accept + Create(VulnerabilityCase) → case-actor outbox flush
         #   (via run_inbox_pipeline's outbox_handler call) →

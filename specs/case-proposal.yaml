@@ -288,7 +288,7 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The BT node responsible for sending `Create(as_CaseProposal)` MUST be a distinct node (`ProposeCaseToActorNode`)
+    statement: The BT node responsible for sending `Create(as_CaseProposal)` MUST be a distinct node (`ProposeReportCaseToActorNode`)
       separate from `CreateCaseActorNode`. `CreateCaseActorNode` is responsible only for registering the case-actor service
       resource; it MUST NOT send a `CaseProposal` activity.
     rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal

@@ -134,7 +134,7 @@ CLP-10-013 is amended to require the commit exactly when the received `(type, ob
 
 Two canonical signatures are exempt (#4304).
 `Announce(VulnerabilityCase)` is sent only by the CASE_MANAGER and received only by a participant replica, which is never the manager the commit is gated on, so its tree passes `case_id=None`.
-`Add(CaseParticipant)` would put an `add_case_participant_to_case` entry on every replica that no replica apply node reads (RSH-08-004); #4081 makes the Add the Case Owner's reinstatement request and adds that node, so the commit lands with it and the tree passes `case_id=None` until then.
+`Add(CaseParticipant)` would put an `add_case_participant_to_case` entry on every replica that no replica apply node reads (RSH-08-004); #4081 made the Add the Case Owner's reinstatement request and added that node, so the tree now passes `case_id` and the commit lands with it.
 The `Reject(Offer)` and `TentativeReject(Offer)` trees, which a CASE_MANAGER does receive and replicas replay, commit.
 
 **An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (#3936).**
