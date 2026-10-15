@@ -46,7 +46,7 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.embargo.copy_commit import (
+from vultron.core.behaviors.embargo_case_file import (
     read_embargo_case_file,
     save_case_file,
 )
