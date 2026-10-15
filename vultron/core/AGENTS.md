@@ -125,8 +125,8 @@ When accessing an attribute that exists on a subtype but not its base type
 assertion rather than suppressing the error with `# type: ignore`. Example:
 `as_Offer.object_` is loosely typed but `_RmSubmitReportActivity.object_` is an
 `as_VulnerabilityReport`, so `assert isinstance(activity, _RmSubmitReportActivity)`
-before reading report fields off `activity.object_`. This keeps the type checker accurate and
-makes implicit subtype assumptions explicit and runtime-verified.
+before reading report fields off `activity.object_`. This keeps the type checker
+accurate and makes implicit subtype assumptions explicit and runtime-verified.
 
 ### Untyped Closures Are Invisible to mypy — Extract to Named Functions
 

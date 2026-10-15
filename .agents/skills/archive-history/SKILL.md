@@ -107,7 +107,8 @@ git push -u origin HEAD
 - **One entry per invocation** — for multiple entries, call this skill in a loop.
 - **Skip git steps when output is a URL** — GitHub comment mode writes no file;
   `git add`, commit, and push are not needed (HM-08-004, HM-08-006).
-- **Do not call `git push` separately** — this skill always pushes as its final step (file mode only).
+- **Do not call `git push` separately** — this skill always pushes as its final step
+  (file mode only).
 - **Do not amend** — open a new commit via a fresh invocation rather than amending.
 - History files are **immutable once merged into main** — not once pushed. While the
   entry is still on an unmerged branch it is ordinary working-branch content: if a

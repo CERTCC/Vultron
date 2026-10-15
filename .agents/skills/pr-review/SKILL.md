@@ -38,14 +38,25 @@ Use this decision tree for anything you find beyond the original issue. FILE
 **separate** decisions; the default is fix-now. See
 `.agents/skills/shared/completeness-doctrine.md`.
 
-1. **Not an "also" excursion** — you can explain fixing it and the original thing in one sentence without the word "also" → fix it now, no issue. The diff is the record.
-2. **An "also" excursion** → fix it now **and** file an issue this PR closes (`- Closes #N`), with a one-line "why". Filing does not mean deferring.
-3. **Genuinely too big to finish now** → defer only through Gate 1: file, present a *measured remainder* (what you did, what concretely remains) in plain language, and get explicit approval. On silence, fix it now. Only *second-order* findings (revealed while fixing an excursion) are eligible.
-4. **Inverts a premise** the issue or its backing specs/ADRs rested on → Gate 2: explain the overturned premise in plain language, ask if/what to file, and do not act on it unreviewed. On silence, halt the PR.
+1. **Not an "also" excursion** — you can explain fixing it and the original thing in one
+   sentence without the word "also" → fix it now, no issue. The diff is the record.
+2. **An "also" excursion** → fix it now **and** file an issue this PR closes
+   (`- Closes #N`), with a one-line "why". Filing does not mean deferring.
+3. **Genuinely too big to finish now** → defer only through Gate 1: file, present a
+   *measured remainder* (what you did, what concretely remains) in plain language, and
+   get explicit approval. On silence, fix it now. Only *second-order* findings (revealed
+   while fixing an excursion) are eligible.
+4. **Inverts a premise** the issue or its backing specs/ADRs rested on → Gate 2: explain
+   the overturned premise in plain language, ask if/what to file, and do not act on it
+   unreviewed. On silence, halt the PR.
 
-**The "also" test**: if explaining why you fixed both things needs the word "also," it is a genuine excursion (file it). If not, it is simply doing the task (no file). Siblings, cousins, aunts/uncles of the original problem share the same parent concept; a fix that needs "also" has drifted far enough to warrant its own record.
+**The "also" test**: if explaining why you fixed both things needs the word "also," it
+is a genuine excursion (file it). If not, it is simply doing the task (no file).
+Siblings, cousins, aunts/uncles of the original problem share the same parent concept; a
+fix that needs "also" has drifted far enough to warrant its own record.
 
-**Never** create a NEW-ISSUE finding and leave it unaddressed in the report without following the decision tree above.
+**Never** create a NEW-ISSUE finding and leave it unaddressed in the report without
+following the decision tree above.
 
 ## Quick Start
 

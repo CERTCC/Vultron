@@ -50,7 +50,10 @@ from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.events.report import CloseReportReceivedEvent
+from vultron.core.models.events.report import (
+    CloseReportReceivedEvent,
+    InvalidateReportReceivedEvent,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -235,7 +238,14 @@ class TestCloseAndInvalidateReportCommit:
                 False,
                 RM.RECEIVED,
             ),
-            # Closed is terminal: declaring INVALID afterwards is backward.
+            # Declaring INVALID after ACCEPTED is backward.
+            (
+                InvalidateReportReceivedUseCase,
+                rm_invalidate_report_activity,
+                True,
+                RM.ACCEPTED,
+            ),
+            # A sender at RM CLOSED has left and may not act (CM-23-018).
             (
                 InvalidateReportReceivedUseCase,
                 rm_invalidate_report_activity,
@@ -247,6 +257,7 @@ class TestCloseAndInvalidateReportCommit:
             "close-sender_not_a_participant",
             "invalidate-sender_not_a_participant",
             "invalidate-backward_declaration",
+            "invalidate-sender_already_closed",
         ],
     )
     def test_refused_declaration_commits_nothing(
@@ -267,21 +278,76 @@ class TestCloseAndInvalidateReportCommit:
         assert _committed(dl) == []
 
     def test_redelivered_activity_commits_once(self):
-        """A repeat of the same activity is skipped and adds no entry."""
+        """A repeat of the same activity is skipped and adds no entry.
+
+        Invalidate, not Close: a repeated Close comes from a sender already
+        at RM CLOSED, which is skipped by effect, whatever its id, before the
+        tree runs (CM-23-018; see
+        ``test_a_repeated_close_from_the_closed_sender_is_skipped``).
+        """
         dl = _store(MANAGER_ID)
         event = cast(
-            CloseReportReceivedEvent,
+            InvalidateReportReceivedEvent,
             extract_event(
-                rm_close_report_activity(_offer(), actor=FINDER_ID)
+                rm_invalidate_report_activity(_offer(), actor=FINDER_ID)
             ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
         )
 
-        first = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
-        second = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+        first = InvalidateReportReceivedUseCase(
+            dl, event, **_ports(dl)
+        ).execute()
+        second = InvalidateReportReceivedUseCase(
+            dl, event, **_ports(dl)
+        ).execute()
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
-        assert _committed(dl).count("close_report") == 1
+        assert _committed(dl).count("invalidate_report") == 1
+
+    @pytest.mark.spec("CM-23-018", "ID-05-003")
+    @pytest.mark.parametrize(
+        "new_id", [False, True], ids=["same-id", "new-id"]
+    )
+    def test_a_repeated_close_from_the_closed_sender_is_skipped(
+        self, new_id: bool
+    ):
+        """The first Close records the closure; a repeat changes nothing.
+
+        Whatever its activity id, the repeat is SKIPPED with no ledger entry
+        and nothing sent (CM-23-018, ID-05-003).
+        """
+        dl = _store(MANAGER_ID)
+
+        def close_event(activity_id: str | None) -> CloseReportReceivedEvent:
+            kwargs = {"id_": activity_id} if activity_id else {}
+            return cast(
+                CloseReportReceivedEvent,
+                extract_event(
+                    rm_close_report_activity(
+                        _offer(), actor=FINDER_ID, **kwargs
+                    )
+                ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
+            )
+
+        first_event = close_event(None)
+        first = CloseReportReceivedUseCase(
+            dl, first_event, **_ports(dl)
+        ).execute()
+        assert first.disposition is HandlerDisposition.APPLIED
+        outbox_before = list(dl.outbox_list())
+        entries_before = _committed(dl)
+
+        repeat = (
+            close_event("https://example.org/activities/close-again")
+            if new_id
+            else first_event
+        )
+        second = CloseReportReceivedUseCase(dl, repeat, **_ports(dl)).execute()
+
+        assert second.disposition is HandlerDisposition.SKIPPED, second.reason
+        assert "CM-23-018" in (second.reason or "")
+        assert _committed(dl) == entries_before
+        assert list(dl.outbox_list()) == outbox_before
 
 
 @pytest.mark.spec("CLP-10-013")

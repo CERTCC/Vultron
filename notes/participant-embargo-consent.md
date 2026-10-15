@@ -221,9 +221,10 @@ Change consent by applying a `PEC_Trigger` through
 preferably through `EmbargoLifecycle`'s `_apply_where_legal()`, and persist the
 participant. `write_uninvited_rows()` and the copy write below are the only other
 row writes; the first records no answer. Direct assignment bypasses the
-transition table, so the content gate (CM-10-004) can admit an actor the protocol never bound;
-`apply_pec_transition()` raises `VultronInvalidStateTransitionError` instead, so
-consent writes are fail-closed even when an upstream guard is wrong.
+transition table, so the content gate (CM-10-004) can admit an actor the protocol
+never bound; `apply_pec_transition()` raises
+`VultronInvalidStateTransitionError` instead, so consent writes are fail-closed
+even when an upstream guard is wrong.
 
 Keep the MSM-07-004 classification in the service (`_assert_rejectable`,
 `reject_is_withdrawal_refusal`), not in a node: the received `Reject(Invite)`

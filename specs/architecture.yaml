@@ -1005,7 +1005,9 @@ groups:
       gate, so inspection confirms that each such body in `vultron/adapters/driving/`,
       and each value or element of a keyed dict or list of objects, is the dump of a
       `CoreObject` or `as_Base` instance.
-      `test_datalayer_contents_is_plain_json_not_as2` holds the whole-store dump, whose
+      `test_datalayer_contents_is_plain_json_not_as2` in
+      `test/adapters/driving/fastapi/routers/test_datalayer_serialization.py` holds the
+      whole-store dump, whose
       contents include bare `CoreRecord` rows, to `application/json`. A route that returns a plain dict without `AS2JSONResponse`
       (for example the `get_object` and `get_object_by_key` fallbacks and
       `get_objects` in `routers/datalayer.py`, or the demo ledger routes) serves

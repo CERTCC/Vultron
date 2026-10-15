@@ -285,7 +285,8 @@ Conventions are lobby signage, out of the basement; User Stories are basement;
 Measuring Your Program is Offices.
 
 **Open Questions pages:** the specification's
-(`reference/vultron-spec/open-questions.md`) is Engineering, beside the specification it qualifies; the design one
+(`reference/vultron-spec/open-questions.md`) is Engineering, beside the
+specification it qualifies; the design one
 (`topics/future_work/open_questions.md`, `platform-developer` at 400) goes with
 Future Work; a project one, when written, is Project.
 

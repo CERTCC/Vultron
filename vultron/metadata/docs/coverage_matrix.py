@@ -130,7 +130,7 @@ def render_matrix(coverage: Coverage) -> str:
     return (
         f"{_FRONTMATTER}\n"
         "<!-- GENERATED from docs/ page frontmatter by "
-        f"`{WRITE_COMMAND}` — do not edit (DF-11-008) -->\n\n"
+        f"`{WRITE_COMMAND}` —\n     do not edit (DF-11-008) -->\n\n"
         "# Site Coverage Matrix — Stakeholder Type × Level\n\n"
         "How many reader-facing `docs/` pages declare each `stakeholder_type`\n"
         "at each `level`. Read it against the expected shape described in\n"

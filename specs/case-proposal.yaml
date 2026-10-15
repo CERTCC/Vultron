@@ -376,7 +376,7 @@ groups:
       `context` MUST be the case URI (consistent with all other case-scoped activities; required for inbox deferral routing).
       `in_reply_to` carries the causal antecedent (the Accept URI) in the AS2-correct field for responses.
       See ADR-0045.'
-    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::test_case_actor_sends_accept_and_create_case`
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::TestCaseProposalRoundTrip::test_case_actor_sends_accept_and_create_case`
       confirm the two-activity sequence with correct `actor`, `context`, and `in_reply_to` on `Create(VulnerabilityCase)`.
     stories:
     - story_2022_012
@@ -422,7 +422,7 @@ groups:
       stores the pre-constructed `Create(VulnerabilityCase)` payload verbatim. The corrected field assignment
       (`context=case_uri`, `in_reply_to=accept_uri` per CP-05-003 and ADR-0045) is baked into the payload so the retry
       runner can replay the exact activity without re-running the BT.
-    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::test_marker_present_when_create_fails`
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTMarkerWiring::test_marker_present_when_create_fails`
       confirm the retry marker is stored when `Create(VulnerabilityCase)` fails, without resending `Accept(as_CaseProposal)`.
       The Create's id is derived from the proposal, so a redelivery after the marker is cleared queues no second
       `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and after
@@ -631,7 +631,9 @@ groups:
     kind: project
     statement: Integration tests MUST cover the full `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)`
       round-trip between a report receiver and a case-actor service.
-    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::test_demo_round_trip` confirm the full
+    verification: Integration tests in
+      `test/demo/test_case_proposal_round_trip.py::TestCaseProposalDemo::test_demo_round_trip`
+      confirm the full
       `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)` round-trip completes successfully.
 - id: CP-08
   title: Case-Actor Service URL Configuration
@@ -886,7 +888,7 @@ groups:
       Embargo state is protocol-significant.  Deferring initialization to the
       report receiver or to a later message would produce a window in which
       embargo-gated operations are undefined (ADR-0041).
-    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::test_active_embargo_set`
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::TestADR0041EmbargoInit::test_active_embargo_set`
       confirm the default embargo is initialized before `Create(VulnerabilityCase)` is emitted.
     relationships:
     - rel_type: refines

@@ -7,15 +7,14 @@ metadata files and validates them. It backs every `vultron.metadata.*` entry
 in `pyproject.toml` `[project.scripts]` (`spec-dump`, `spec-backstop`,
 `targeted-tests`, `append-history`, and the rest), plus pre-commit hooks.
 
-Two exceptions to "reads the repository's metadata files". `planning/` reads a
-GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its
-selection logic stays pure and testable without the network. The shell script
-that fetches the payload owns the query
-(`.agents/skills/shared/query-epic-subissues.sh`). And `docs/withheld.py`,
-`docs/links.py` and `docs/legacy_urls.py` read the **built** `site/` tree, so
-they only run after `mkdocs build` — they are the tools here whose input is a
-build product rather than a source file, and all three fail rather than passing
-when that input is missing (`docs/built_site.py`; DOCBW-03-005, DOCBW-03-007,
+Two exceptions to "reads the repository's metadata files". `planning/` reads a GitHub
+payload piped in on **stdin** rather than files on disk, so its logic stays pure and
+testable without the network. The caller fetches the payload
+(`.agents/skills/shared/query-epic-subissues.sh`; `gh pr view` for `pr_body_lint.py`).
+And `docs/withheld.py`, `docs/links.py` and `docs/legacy_urls.py` read the **built**
+`site/` tree, so they only run after `mkdocs build` — they are the tools here whose
+input is a build product rather than a source file, and all three fail rather than
+passing when that input is missing (`docs/built_site.py`; DOCBW-03-005, DOCBW-03-007,
 DOCBW-03-008, DF-09-009).
 
 Nothing here is protocol code. The audience for its output is a human or an
@@ -33,7 +32,7 @@ are the product**.
 | `msm/` | the `occasions` and `page` on each `SEMANTIC_REGISTRY` entry, and the include directives of every `docs/` page; derives mapping status, "Sent by", section headings and "Seen in"; generates `msm/occasions.yaml` and `docs/reference/messages/_occasions/` (tables, sections, how-to embeds) (`occasions.py`) | `OccasionTable` (`_mapping.py`) |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); the assembled `full.md` Markdown at build time (`full_page_links.py`, an `on_page_markdown` hook under `hooks:` — rewrites the Protocol Specification's same-section `page.md#fragment` links to in-page `#fragment` links on its single-page edition only, #4092); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
-| `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests.py`) | — (selection rules: PAD-15; local test gate: PAD-18) |
+| `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests.py`); a PR body file or `gh pr view` payload (`pr_body_lint.py`) | — (selection rules: PAD-15; local test gate: PAD-18; PR body rules: PAD-20) |
 
 Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
 `file_loading.py` (see [Loader Failure Attribution](#loader-failure-attribution-ms-17)).
@@ -49,6 +48,7 @@ that costs.
 | `mkdocs_config()` | the parsed `mkdocs.yml` |
 | `nav_paths()` | every document path reachable from the nav, flattened. The ADR nav check, the docs-frontmatter check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
 | `not_in_nav_spec()` | the `not_in_nav` patterns, matched as MkDocs matches them (gitignore lines via `pathspec`); a hand-rolled glob here would disagree with the build |
+| `iter_tree_texts()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 line guards (`line_length.py`, also at the package root) and the MS-10-010 test index read through it |
 | `nav_exclusion_fault()` | why a page that must stay out of the nav is misplaced (navved, or matched by no `not_in_nav` pattern), or `None`. The ADR check and the docs-frontmatter check share it (#3528) |
 
 `markdown_tables.py` — the structural reader for every ratchet over
@@ -183,10 +183,10 @@ directly, and prefer file-scoped exclusions over package-scoped ones. Full
 write-up: [`notes/spec-authoring-rules.md`](../../notes/spec-authoring-rules.md)
 § "A Grep-Corpus Guard Can Resolve Its Own Documentation".
 
-A per-item advisory that is routinely true is not enforcement — mark each
-remaining hit with its owning issue and check items one at a time, printing a
-per-kind count computed from the markers (`specs/verification.py`,
-MS-10-005..008); never pin a committed count to its live value. Select by tier, never by keyword: `priority.is_must_tier`, not
+A per-item advisory that is routinely true is not enforcement — mark each remaining hit
+with its owning issue and check items one at a time, printing a per-kind count computed
+from the markers (`specs/verification.py`, MS-10-005..008); never pin a committed count
+to its live value. Select by tier, never by keyword: `priority.is_must_tier`, not
 `== RFC2119Priority.MUST` (MS-02-004; `test_priority_tier_gate.py` fails it).
 
 ## Related
@@ -195,6 +195,6 @@ MS-10-005..008); never pin a committed count to its live value. Select by tier, 
 - `notes/specs-vs-adrs.md` — whether a rule belongs in a spec at all
 - `notes/history-management.md` — writing and reading rules for `plan/history/`;
   the entry format and layout are in `specs/history-management.yaml` (HM)
-- `.agents/skills/shared/notes-writing-guide.md` — note kinds, `tracks:`, and how a note is written
+- `.agents/skills/shared/notes-writing-guide.md` — note kinds, `tracks:`, how to write
 - `specs/spec-registry.yaml` (SR), `specs/meta-specifications.yaml` (MS),
   `specs/notes-frontmatter.yaml` (NF), `specs/history-management.yaml` (HM)
