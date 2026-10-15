@@ -2,7 +2,7 @@
 """
 Wire-layer aliases for Vultron actor types.
 
-Per ADR-0099 detail 3: core actor classes are the canonical form.
+Per ARCH-25-003 (ADR-0099): core actor classes are the canonical form.
 The as_-prefixed names and WIRE_TYPE_MAP entries are retained for
 backward compatibility and vocabulary lookup.
 """
@@ -35,7 +35,7 @@ from vultron.core.models.actor import (
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
-# Backward-compatibility aliases (ADR-0099 detail 3)
+# Backward-compatibility aliases (ARCH-25-003, ADR-0099)
 as_VultronPerson = VultronPerson
 as_VultronOrganization = VultronOrganization
 as_VultronService = VultronService

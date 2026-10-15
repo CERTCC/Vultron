@@ -29,14 +29,22 @@ never on the report. ``report_id`` arrives from the report the sender embedded i
 its own proposal, so a report-keyed guard can be skipped by naming a report the
 service has already seen.
 
-Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004, CP-05-005, CP-05-006.
+Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004, CP-05-005, CP-05-006,
+CP-05-008.
 """
 
 import logging
+from collections.abc import Iterator
 from typing import Any, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.post_close import (
+    case_is_fully_closed,
+)
+from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
+    find_proposer_case,
+)
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
@@ -45,6 +53,7 @@ from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +66,9 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
     is irrevocable (CP-05-005), so a later "decline" must never reach the wire.
 
     "Answered" is deliberately wider than "an Accept was sent". ``main_flow``
-    creates the case and commits its ledger entries *before* it emits the
-    ``Accept``, so a delivery that fails in between leaves a case with no stored
-    ``Accept``. An Accept-only guard cannot see that, and a later declining
+    creates the case *before* it emits the ``Accept`` (its ledger entries are
+    committed after it, CP-09-009), so a delivery that fails in between leaves
+    a case with no stored ``Accept``. An Accept-only guard cannot see that, and a later declining
     delivery would then Reject a case this store had already half-built — and,
     because the decline record blocks the accept arm from then on, that case
     could never be completed.
@@ -128,22 +137,12 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        # Negative prefilter only: no case for this report means nothing was
-        # answered, so the Accept scan below can be skipped.  A case that *does*
-        # exist proves nothing on its own — it may belong to another proposal
-        # naming the same report — so the positive answer still comes from the
-        # proposal-keyed scan.
-        if self._report_id is not None:
-            existing = cast(
-                CasePersistence, self.datalayer
-            ).find_case_by_report_id(self._report_id)
-            if existing is None:
-                return Status.FAILURE
+        datalayer = cast(CasePersistence, self.datalayer)
+        if not accept_scan_can_match(datalayer, self._report_id):
+            return Status.FAILURE
 
         if (
-            find_activity_for_proposal(
-                self.datalayer, self._proposal_id, "Accept"
-            )
+            find_activity_for_proposal(datalayer, self._proposal_id, "Accept")
             is not None
         ):
             logger.info(
@@ -152,6 +151,119 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
                 self._proposal_id,
             )
             return Status.SUCCESS
+        return Status.FAILURE
+
+
+class CheckProposalCaseFullyClosedNode(DataLayerAction):
+    """Return SUCCESS if this proposal resolves to a fully closed case.
+
+    A ``Create(as_CaseProposal)`` names a report, not a case, so the factory's
+    post-close guard (``CaseOpenToExternalWritesNode``) cannot see which case
+    it would touch.  This node answers that question for the proposal tree.
+    When the case is fully closed (its ledger holds ``case_fully_closed``), the
+    proposal is declined with ``Reject(as_CaseProposal)`` and nothing is
+    written for the case (CP-05-006, CP-05-008, CM-23-013).
+
+    A proposal resolves to a case in one of two ways, and both are checked:
+
+    - **The proposer's own case for the report**, the case
+      ``LoadExistingCaseNode`` would reuse (CP-05-008).  This covers a new
+      proposal id from the case's owner.
+    - **The case this proposal's stored ``Accept`` names** (its ``result``).
+      This covers a redelivery of the original proposal (CP-05-006), also
+      after an ownership transfer, when the proposer is no longer the owner
+      and the owner lookup finds nothing.  The ``Accept`` scan runs only when
+      the proposal began the accept path or the store holds a case for the
+      report, as in ``CheckProposalAlreadyAnsweredNode``.
+
+    A different proposer's case for the same report is never this proposal's
+    case: that proposer gets a separate case (CP-05-008), so another party's
+    closed case does not decline it.
+
+    **Store errors are not caught here**, and a missing DataLayer raises.  The
+    node sits on a refusal arm, so FAILURE ("not closed") runs the accept arm
+    against a case that may be closed.  Only a whole-tree failure is safe.  See
+    ``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails Toward
+    'Admit'".
+
+    Attributes:
+        closed_case_id: The fully closed case the proposal resolved to, set
+            when the node returns SUCCESS; ``None`` otherwise.  The use case
+            reads it to name the case in its ``REFUSED`` reason.
+    """
+
+    def __init__(
+        self,
+        proposal_id: str,
+        proposer_uri: str,
+        report_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._proposal_id = proposal_id
+        self._proposer_uri = proposer_uri
+        self._report_id = report_id
+        self.closed_case_id: str | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.closed_case_id = None
+
+    def _candidate_case_ids(self, datalayer: CasePersistence) -> Iterator[str]:
+        """Yield the case ids this proposal resolves to, the owner's case first.
+
+        Lazy, so the ``Accept`` scan runs only when the owner's case is absent
+        or open.
+        """
+        own_id: str | None = None
+        if self._report_id is not None:
+            own = find_proposer_case(
+                datalayer, self._report_id, self._proposer_uri
+            )
+            if own is not None:
+                own_id = str(own.id_)
+                yield own_id
+
+        if self._may_have_been_accepted(datalayer):
+            accepted = accepted_case_id(datalayer, self._proposal_id)
+            if accepted is not None and accepted != own_id:
+                yield accepted
+
+    def _may_have_been_accepted(self, datalayer: CasePersistence) -> bool:
+        """Whether the ``Accept`` scan can find anything for this proposal.
+
+        The scan rehydrates every stored ``Accept``, so a first-time proposal
+        for a report with no case skips it.
+        """
+        admission_id = CaseProposalAdmissionRecord.build_id(self._proposal_id)
+        if datalayer.read(admission_id) is not None:
+            return True
+        return accept_scan_can_match(datalayer, self._report_id)
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            raise VultronWiringError(
+                f"{self.name}: no DataLayer, so it cannot tell whether"
+                f" proposal '{self._proposal_id}' resolves to a fully closed"
+                f" case; failing the tree rather than admitting"
+            )
+        datalayer = cast(CasePersistence, self.datalayer)
+        for case_id in self._candidate_case_ids(datalayer):
+            if case_is_fully_closed(datalayer, case_id):
+                self.closed_case_id = case_id
+                self.feedback_message = (
+                    f"proposal '{self._proposal_id}' resolves to case"
+                    f" '{case_id}', which is fully closed (CM-23-013)"
+                )
+                self.logger.info(
+                    "%s: declining proposal '%s' from actor_id=%s: case '%s'"
+                    " is fully closed (CP-05-006, CP-05-008, CM-23-013)",
+                    self.name,
+                    self._proposal_id,
+                    self._proposer_uri,
+                    case_id,
+                )
+                return Status.SUCCESS
         return Status.FAILURE
 
 
@@ -273,8 +385,25 @@ def activity_names_proposal(activity: Any, proposal_id: str) -> bool:
     return isinstance(obj, dict) and obj.get("id") == proposal_id
 
 
+def accept_scan_can_match(
+    datalayer: CasePersistence, report_id: str | None
+) -> bool:
+    """Whether a scan of the stored ``Accept`` activities can find a match.
+
+    A negative prefilter only.  The scan rehydrates every ``Accept`` row, and
+    no case for the report means no proposal for it was accepted, so the scan
+    is skipped.  A case that *does* exist proves nothing on its own: it may
+    belong to another proposal that names the same report, so a positive
+    answer still comes from the proposal-keyed scan.  With no *report_id*
+    nothing can be ruled out.  Store errors propagate.
+    """
+    if report_id is None:
+        return True
+    return datalayer.find_case_by_report_id(report_id) is not None
+
+
 def find_activity_for_proposal(
-    datalayer: Any, proposal_id: str, activity_type: str
+    datalayer: CasePersistence, proposal_id: str, activity_type: str
 ) -> Any | None:
     """Return a stored *activity_type* activity whose object is *proposal_id*."""
     for activity in datalayer.list_objects(activity_type) or []:
@@ -285,11 +414,34 @@ def find_activity_for_proposal(
     return None
 
 
+def accepted_case_id(
+    datalayer: CasePersistence, proposal_id: str
+) -> str | None:
+    """Return the case the stored ``Accept`` for *proposal_id* names.
+
+    The ``Accept``'s ``result`` is the case the proposal produced or reused
+    (CP-05-006, CP-05-008).  Like ``object_`` in
+    :func:`activity_names_proposal`, it round-trips as the bare case id, as a
+    rehydrated object, or as a plain dict, so all three shapes are read.
+    Returns ``None`` when no ``Accept`` is stored or it names no case.
+    """
+    accept = find_activity_for_proposal(datalayer, proposal_id, "Accept")
+    result = getattr(accept, "result", None)
+    if isinstance(result, dict):
+        case_id = result.get("id")
+    else:
+        case_id = getattr(result, "id_", result)
+    return case_id if isinstance(case_id, str) and case_id else None
+
+
 __all__ = [
     "CheckProposalAlreadyAnsweredNode",
+    "CheckProposalCaseFullyClosedNode",
     "CheckDeclineRecordExistsNode",
     "CheckNoDeclineRecordNode",
     "CheckRejectAlreadyAnsweredNode",
+    "accept_scan_can_match",
+    "accepted_case_id",
     "activity_names_proposal",
     "find_activity_for_proposal",
 ]

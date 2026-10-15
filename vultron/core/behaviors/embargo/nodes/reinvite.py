@@ -49,7 +49,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     A late ``Accept`` named an embargo that is no longer the case's current
     one, so the manager asks the accepter again about the current embargo
     (EMB-17-003).  The frame is the relay's — stamp a fresh deadline (ASK-03-004,
-    CM-28-012), build, commit before the outbox write, queue, apply PEC
+    CM-28-012), build, queue, commit once queued (ADR-0119), apply PEC
     ``INVITE`` and record the deadline (CM-18-003, CM-28-013) — with two
     differences: the Invite is the manager's own ask, so it has no
     ``attributedTo``, and it is committed under
@@ -57,6 +57,10 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     a replica replays the invitee's record and never re-adjudicates a proposal
     (EP-09-007, RSH-08-004).  The recipient and embargo are fixed at
     construction; the collect node and the recipients key are not used.
+    *answers* is the received activity the re-invite answers (the late
+    ``Accept``, or the ``Add(CaseParticipant)`` that reinstated the
+    invitee): given, the Invite's id is derived from it, so a redelivery
+    after a send whose commit failed rebuilds the same Invite (OX-06-002).
 
     The one recipient is still judged by
     :func:`~vultron.core.participants.recipients.invitation_recipients`
@@ -73,6 +77,8 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         invitee_id: str,
         name: str | None = None,
         actor_config: "ActorConfig | None" = None,
+        *,
+        answers: str | None = None,
     ) -> None:
         # No proposer: ``_attributed_to`` answers ``None``.
         super().__init__(
@@ -81,6 +87,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
             proposer_id="",
             name=name or self.__class__.__name__,
             actor_config=actor_config,
+            answers=answers,
         )
         self._invitee_id = invitee_id
 
@@ -162,6 +169,8 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
         participant_id: str,
         name: str | None = None,
         actor_config: "ActorConfig | None" = None,
+        *,
+        answers: str | None = None,
     ) -> None:
         # The embargo and the invitee are resolved at tick time.
         super().__init__(
@@ -170,6 +179,7 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
             invitee_id="",
             name=name or self.__class__.__name__,
             actor_config=actor_config,
+            answers=answers,
         )
         self._participant_id = participant_id
 

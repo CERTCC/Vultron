@@ -435,7 +435,7 @@ def _all_fetchable_participants_rm_closed(
         if not p_data:
             return False
         # No projection step: as_CaseParticipant *is* CaseParticipant
-        # (ADR-0099 detail 3), so validating the fetched payload already yields the
+        # (ARCH-25-003, ADR-0099), so validating the fetched payload already yields the
         # core object ``all_participants_rm_closed`` expects.
         participant = as_CaseParticipant(**p_data)
         if not participant.joined:

@@ -167,6 +167,7 @@ class TestBroadcastCaseUpdateNodePorts:
             result, reason=f"case '{CASE_ID}' not found"
         )
 
+    @pytest.mark.spec("AKM-02-004")
     @pytest.mark.spec("CBT-01-007")
     @pytest.mark.spec("CM-06-001")
     def test_refused_announce_is_a_reported_failure(
@@ -175,7 +176,7 @@ class TestBroadcastCaseUpdateNodePorts:
         """An ``Announce`` the adapter refuses is this node's FAILURE.
 
         The adapter will not build an ``Announce(VulnerabilityCase)`` that
-        cannot embed every report the case names (CBT-01-007).  That refusal
+        cannot embed every report the case names (AKM-02-004).  That refusal
         is a reported outcome of the node, not an exception escaping
         ``update()`` as an internal error of the whole tree (BT-HELPER-01).
         """

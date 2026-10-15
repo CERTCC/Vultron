@@ -43,6 +43,7 @@ from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     _example_stamp,
     case,
+    case_actor,
     finder,
     vendor,
 )
@@ -200,8 +201,15 @@ def reject_invite_to_case() -> as_Reject:
     return _activity
 
 
-def create_participant():
-    _vendor = vendor()
+def create_participant() -> as_Create:
+    """The snapshot of a ``create_case_participant`` ledger entry.
+
+    The CASE_MANAGER creates a participant record when it sends a stub Invite
+    and commits ``Create(CaseParticipant)`` as its own entry (ADR-0114).  This
+    implementation does not support a received ``Create(CaseParticipant)``
+    message (#4598), so the example is authored by the case actor and carries
+    no sender-voice ``content``.
+    """
     _case = case()
     _coordinator = _COORDINATOR
     _coord_participant = as_CaseParticipant(
@@ -212,10 +220,9 @@ def create_participant():
         case_roles=[CVDRole.COORDINATOR],
     )
     _activity = as_Create(
-        actor=_vendor.id_,
+        actor=case_actor().id_,
         object_=_coord_participant,
         context=_case.id_,
-        content=f"We're adding {_coordinator.name} to the case.",
     )
     return _activity
 

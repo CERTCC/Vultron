@@ -42,10 +42,8 @@ from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.participants.recipients import case_content_participants
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import read_embargo_event
-from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronNotFoundError,
     VultronProtocolViolationError,
@@ -224,26 +222,6 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         except (NoDataAvailable, NotImplementedError):
             self._accept_activity_id_bb = None
 
-    def _collect_reporter_uris(self, raw_case: VulnerabilityCase) -> list[str]:
-        """Return URIs of active REPORTER/FINDER participants, excluding the owner.
-
-        CaseActor bootstraps non-owner participants (ADR-0041 AC-5) by including
-        them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
-        DataLayers can seed a case replica immediately via
-        ``CreateCaseReceivedUseCase`` without waiting for the
-        ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
-        """
-        assert self.datalayer is not None
-        # Only active participants are sent case content (CM-10-004); the
-        # reporter is seeded signatory before this node runs (CM-14-005).
-        return [
-            uri
-            for uri, p in case_content_participants(
-                raw_case, self.datalayer, excluding={self._owner_uri}
-            )
-            if CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
-        ]
-
     def _build_case_object(
         self, raw_case: VulnerabilityCase
     ) -> dict[str, Any]:
@@ -275,7 +253,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         case_dict = port.render(case_copy)
         case_dict.setdefault("type", "VulnerabilityCase")
         # Inline full VulnerabilityReport dicts after render so invited
-        # actors' _store_embedded_reports stores them (CBT-01-007, ISSUE-2134).
+        # actors' _store_embedded_reports stores them (CBT-01-012, ISSUE-2134).
         # Done post-render because VulnerabilityCase.vulnerability_reports is
         # typed list[str]; embedding objects directly triggers Pydantic warnings.
         inlined_reports: list[Any] = []
@@ -370,13 +348,13 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        # ADR-0041 AC-5: bootstrap all known participants directly.
-        # Include REPORTER/FINDER URIs so their DataLayers receive the case
-        # replica immediately; CreateCaseReceivedUseCase handles them via the
-        # non-owner participant path (no ReportCaseLink required).
+        # The report receiver (the Case Owner) is the only addressee
+        # (CBT-01-010, CM-22-001): it introduces the CASE_MANAGER to the
+        # reporter with its own Create(VulnerabilityCase) (CBT-01-001,
+        # ADR-0132).  The reporter never addressed this actor, so a Create from
+        # it would give the reporter nothing to check the sender against.
         # CP-05-003 / ADR-0045: context = case URI (deferral routing key);
         # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
-        reporter_uris = self._collect_reporter_uris(case)
         create_activity = VultronCreateCaseActivity(
             id_=PendingCreateCaseActivity.create_activity_id(
                 self._proposal_id
@@ -385,7 +363,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             object_=case_object,
             context=case_id,
             in_reply_to=accept_activity_id,
-            to=[self._owner_uri, *reporter_uris],
+            to=[self._owner_uri],
         )
         # The marker's payload is the AS2 document the retry runner re-sends
         # over HTTP (#1139), and ``create_activity`` is a core-branch object, so

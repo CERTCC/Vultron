@@ -82,6 +82,12 @@ _KNOWN_UNDISPATCHABLE: dict[str, str] = {
     # the received path changed the case with no entry, so #4443 removed it.
     # The example renders the snapshot shape on the case-management page.
     "update_case": "ADR-0124 — Update(VulnerabilityCase) is a ledger-entry snapshot only, never a sent message, so this example has no ActivityPattern and no MessageSemantics by decision (CLP-07-013, #4443)",
+    # A decision, not debt: the CASE_MANAGER commits Create(CaseParticipant) as
+    # its own create_case_participant entry when it sends a stub Invite
+    # (ADR-0114), and replicas apply it from the ledger.  This implementation
+    # does not support a received Create(CaseParticipant) message, so #4598
+    # removed the route; the example renders the entry's snapshot shape.
+    "create_participant": "ADR-0114 — Create(CaseParticipant) is the snapshot of the CASE_MANAGER's create_case_participant ledger entry; this implementation does not support it as a received message, so it has no ActivityPattern and no MessageSemantics (CLP-07-013, #4598)",
 }
 
 

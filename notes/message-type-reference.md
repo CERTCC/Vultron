@@ -55,8 +55,9 @@ before claiming a shorthand maps to a wire form.
   broadcast. A disagreement is flagged (RSH-06), not resolved by preferring one
   (RSH-08-002). Do not propose retiring either form.
 - **`EP` is `Invite(Event)[context=VulnerabilityCase]` and nothing else**
-  (MSM-02-001). `Create(Event)` mints terms and `Announce(Event)` reports the
-  terms in force; neither proposes, so neither is tagged `EP`.
+  (MSM-02-001). `Announce(Event)` reports the terms in force and does not
+  propose, so it is not tagged `EP`. The proposal carries its terms inline;
+  this implementation does not support a separate `Create(Event)` (#4635).
 - **`GI` is an open umbrella** (MSM-04-001/002). Do not write as though the
   current split-off set is complete, and do not count it in prose (MS-16-002).
   `(GI)` identifies no activity: name the act in plain language and cite `GI`
@@ -252,6 +253,5 @@ how-to tree.
   skipped, since production withholds it.
 - **A declared guide must embed its occasion.** `derive_table` fails when
   `Occasion.howto` names a guide that does not include the embed. Declare the
-  guide whose step sends the occasion, or none: `Create(CaseParticipant)` is the
-  CASE_MANAGER's ledger entry for an inert record and no guide's step sends it
-  (#4576). Two steps send an activity no occasion fits yet (#4578).
+  guide whose step sends the occasion, or none (#4576). Two steps send an
+  activity no occasion fits yet (#4578).

@@ -500,37 +500,6 @@ groups:
 - id: VAM-05
   title: Embargo Management Messages
   specs:
-  - id: VAM-05-001
-    priority: MUST
-    kind: protocol
-    statement: >-
-      `CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`
-      or `Create(Event)[context=VulnerabilityReport]`. The context identifies the subject the
-      embargo concerns, per EP-04-009.
-    note: >-
-      Widened by ADR-0096, so that a `Create(Event)` naming a report as its subject is a
-      recognised mapping rather than an accident of permissive matching. The report context
-      exists because EP-04-004's sender-side proposal precedes the case (EP-04-009).
-
-      Two things this widening does *not* do. It does not affect the proposal embedded on
-      `Offer(VulnerabilityReport)`: `ActivityPattern.match()` compares `activity_` before any
-      context check, so an `Offer` never matches a `TAtype.CREATE` pattern whatever its context —
-      extracting the embedded proposal is the `Offer` pattern's job, not this one. And it does not
-      change today's matching behaviour: `context_` is compared with `strict=False` hardcoded in
-      `ActivityPattern.match()`, so a bare URI string already matched. What changes is the
-      declared intent, which is what an implementer reads.
-    verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(EmbargoEvent)` with a
-      `VulnerabilityCase` context maps to `CREATE_EMBARGO_EVENT`, that the same activity with a
-      `VulnerabilityReport` context also maps to `CREATE_EMBARGO_EVENT`, and inspection of `_instances.py`
-      confirms `CreateEmbargoEventPattern` uses `TAtype.CREATE`, `AOtype.EVENT`, and admits both contexts.
-    relationships:
-    - rel_type: refines
-      spec_id: EP-04-009
-    adr:
-    - ADR-0096
-    stories:
-    - story_2022_014
-    - story_2022_010
   - id: VAM-05-003
     priority: MUST
     kind: protocol
@@ -611,7 +580,7 @@ groups:
     statement: >-
       `ACTIVATE_EMBARGO_ON_CASE` MUST be represented as
       `Accept(Event)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
-      itself, carried inline, and not the `Invite` that proposed it (ADR-0122).
+      itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
     rationale: >-
       The case owner's activation is a decision about the embargo for the case, so it accepts
       the embargo; an `Accept` of the `Invite` is each sender's own consent (VAM-05-006).
@@ -633,7 +602,7 @@ groups:
     statement: >-
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` MUST be represented as
       `Reject(Event)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
-      itself, carried inline, and not the `Invite` that proposed it (ADR-0122).
+      itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
     rationale: >-
       The case owner's rejection is a decision about the embargo for the case; a `Reject` of
       the `Invite` is each sender's own consent (VAM-05-007).
@@ -651,11 +620,38 @@ groups:
     - story_2022_014
   - id: VAM-05-010
     priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the proposed `EmbargoEvent` inline as the object of the
+      `Accept(Event)[target=VulnerabilityCase]` of VAM-05-008 and of the
+      `Reject(Event)[target=VulnerabilityCase]` of VAM-05-009.
+    rationale: >-
+      How this codebase meets VAM-05-008 and VAM-05-009; split from them so they state only
+      what other participants observe (MS-12-010). This codebase matches the semantic on the
+      typed inline object and does not yet dereference (AKM-05-003), so the event travels
+      inline. That is a shortcut of this prototype reference implementation, not a protocol
+      rule.
+    verification: >-
+      Inspection of `_ActivateEmbargoActivity` and `_RejectEmbargoProposalActivity` in
+      `vultron/wire/as2/vocab/activities/embargo.py` confirms each types `object_` as
+      `as_EmbargoEvent`, not a reference union, so this codebase cannot build either with
+      a bare URI. Unit tests in `test/test_semantic_activity_patterns.py` confirm that
+      `Accept(EmbargoEvent, target=VulnerabilityCase)` and
+      `Reject(EmbargoEvent, target=VulnerabilityCase)`, each carrying the typed inline
+      `EmbargoEvent`, map to `ACTIVATE_EMBARGO_ON_CASE` and
+      `REJECT_EMBARGO_PROPOSAL_ON_CASE`.
+    relationships:
+    - rel_type: implements
+      spec_id: VAM-05-008
+    - rel_type: implements
+      spec_id: VAM-05-009
+  - id: VAM-05-011
+    priority: MUST
     kind: protocol
     statement: >-
       `WITHDRAW_FROM_EMBARGO_ON_CASE` MUST be represented as
       `Leave(Event)[context=VulnerabilityCase]`, whose object is the embargo in force,
-      carried inline, and not an `Invite` (ADR-0122).
+      carried inline or by reference, and not an `Invite` (ADR-0122).
     rationale: >-
       Withdrawal answers no Invite, so it names the embargo itself; it is told apart from
       `Leave(VulnerabilityCase)`, which leaves the case, by its object (MSM-07-010).
@@ -673,20 +669,30 @@ groups:
     stories:
     - story_2022_014
     - story_2022_080
+  - id: VAM-05-012
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the `EmbargoEvent` in force inline as the object of the
+      `Leave(Event)[context=VulnerabilityCase]` of VAM-05-011.
+    rationale: >-
+      How this codebase meets VAM-05-011; split from it so it states only what other
+      participants observe (MS-12-010). This codebase matches the semantic on the typed
+      inline object and does not yet dereference (AKM-05-003), so the event travels inline.
+      That is a shortcut of this prototype reference implementation, not a protocol rule.
+    verification: >-
+      Inspection of `_WithdrawFromEmbargoActivity` in
+      `vultron/wire/as2/vocab/activities/embargo.py` confirms it types `object_` as
+      `as_EmbargoEvent`, not a reference union, and a unit test in
+      `test/test_semantic_activity_patterns.py` confirms that
+      `Leave(EmbargoEvent)[context=VulnerabilityCase]`, carrying the typed inline
+      `EmbargoEvent`, maps to `WITHDRAW_FROM_EMBARGO_ON_CASE`.
+    relationships:
+    - rel_type: implements
+      spec_id: VAM-05-011
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
-  - id: VAM-06-001
-    priority: MUST
-    kind: protocol
-    statement: '`CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)[context=VulnerabilityCase]`'
-    verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(CaseParticipant)` with a
-      `VulnerabilityCase` context maps to `CREATE_CASE_PARTICIPANT`, and inspection of `_instances.py` confirms
-      `CreateCaseParticipantPattern` uses `TAtype.CREATE`, `AOtype.CASE_PARTICIPANT`, and
-      `context_=VULNERABILITY_CASE`.
-    stories:
-    - story_2022_013
-    - story_2022_052
   - id: VAM-06-002
     priority: MUST
     kind: protocol
@@ -752,16 +758,6 @@ groups:
 - id: VAM-08
   title: Status Tracking Messages
   specs:
-  - id: VAM-08-001
-    priority: MUST
-    kind: protocol
-    statement: '`CREATE_CASE_STATUS` MUST be represented as `Create(CaseStatus)[context=VulnerabilityCase]`'
-    verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(CaseStatus)` with a
-      `VulnerabilityCase` context maps to `CREATE_CASE_STATUS`, and inspection of `_instances.py` confirms the
-      pattern uses `TAtype.CREATE`, `AOtype.CASE_STATUS`, and `context_=VULNERABILITY_CASE`.
-    stories:
-    - story_2022_062
-    - story_2022_088
   - id: VAM-08-002
     priority: MUST
     kind: protocol
@@ -791,16 +787,6 @@ groups:
     stories:
     - story_2022_062
     - story_2022_081
-    - story_2022_088
-  - id: VAM-08-003
-    priority: MUST
-    kind: protocol
-    statement: '`CREATE_PARTICIPANT_STATUS` MUST be represented as `Create(ParticipantStatus)`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `CreateParticipantStatusPattern` uses `TAtype.CREATE` and `AOtype.PARTICIPANT_STATUS`; integration
-      tests in `test/demo/` exercise the full create-participant-status flow.
-    stories:
-    - story_2022_062
     - story_2022_088
   - id: VAM-08-004
     priority: MUST

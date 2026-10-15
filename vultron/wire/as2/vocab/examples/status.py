@@ -25,12 +25,9 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    create_case_status_activity,
-    create_status_for_participant_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
-    as_Create,
 )
 from vultron.wire.as2.vocab.examples._base import (
     _example_stamp,
@@ -53,17 +50,6 @@ def case_status(pxa: CS_pxa = CS_pxa.pxa, number: int = 1) -> as_CaseStatus:
         **_example_stamp(),
     )
     return status
-
-
-def create_case_status():
-    actor = vendor()
-    status = case_status()
-    _case = case()
-
-    activity = create_case_status_activity(
-        status, actor=actor.id_, context=_case.id_
-    )
-    return activity
 
 
 def add_status_to_case() -> as_Add:
@@ -114,16 +100,6 @@ def participant_status() -> as_ParticipantStatus:
         **_example_stamp(),
     )
     return status
-
-
-def create_participant_status() -> as_Create:
-    pstatus = participant_status()
-    _vendor = vendor()
-
-    activity = create_status_for_participant_activity(
-        pstatus, actor=_vendor.id_
-    )
-    return activity
 
 
 def _add_participant_status(

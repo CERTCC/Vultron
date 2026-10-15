@@ -88,7 +88,6 @@ from vultron.wire.as2.vocab.examples.embargo import (
     accept_embargo_revision,
     activate_embargo,
     announce_embargo,
-    create_embargo_event,
     embargo_event,
     propose_embargo,
     propose_embargo_revision,
@@ -146,8 +145,6 @@ from vultron.wire.as2.vocab.examples.status import (
     add_status_to_participant,
     add_vendor_awareness_to_participant,
     case_status,
-    create_case_status,
-    create_participant_status,
     participant_status,
 )
 from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403
@@ -304,9 +301,6 @@ def main(outdir=None):
     _case_status = case_status()
     obj_to_file(_case_status, f"{outdir}/case_status.json")
 
-    _create_case_status = create_case_status()
-    obj_to_file(_create_case_status, f"{outdir}/create_case_status.json")
-
     _add_status_to_case = add_status_to_case()
     obj_to_file(_add_status_to_case, f"{outdir}/add_status_to_case.json")
 
@@ -321,11 +315,6 @@ def main(outdir=None):
 
     _invite_to_case = invite_to_case()
     obj_to_file(_invite_to_case, f"{outdir}/invite_to_case.json")
-
-    _create_participant_status = create_participant_status()
-    obj_to_file(
-        _create_participant_status, f"{outdir}/create_participant_status.json"
-    )
 
     _add_status_to_participant = add_status_to_participant()
     obj_to_file(
@@ -412,7 +401,6 @@ def main(outdir=None):
         add_public_awareness_to_case,
         add_exploit_public_to_case,
         add_attacks_observed_to_case,
-        create_embargo_event,
         propose_embargo_revision,
         accept_embargo_revision,
         reject_embargo_revision,

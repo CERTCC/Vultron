@@ -13,6 +13,7 @@ description: >
 related_specs:
   - specs/encryption.yaml
   - specs/message-validation.yaml
+  - specs/actor-knowledge-model.yaml
 related_notes:
   - archived_notes/federation_ideas.md
   - notes/case-ledger-genesis-hardening.md
@@ -118,8 +119,9 @@ registers a per-case identity (ADR-0088).
 - When persisting activities, store ciphertext only if you intend to retain
   encrypted blobs; otherwise store the canonical plaintext activity objects.
 - For Accept/Reject responses and similar reply activities, carry the
-  referenced activity **inline** in `object`, as every outbound activity must
-  (MV-09-001); a bare ID string is refused at delivery (MV-09-002). Encryption
+  referenced activity **inline** in `object`, as this codebase does for every
+  outbound activity (AKM-03-003); a bare ID string is refused at delivery
+  (MV-09-002). Encryption
   wraps the whole sealed body, so it does not change this.
 
 ## Open questions (to decide)

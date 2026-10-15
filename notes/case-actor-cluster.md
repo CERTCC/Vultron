@@ -43,8 +43,8 @@ Both use the `Announce(CaseLedgerEntry)` wire format.
 - **Static membership**: cluster size is deployment configuration. Dynamic
   membership is out of scope.
 - **Commit**: an entry commits once a majority of cluster peers acknowledge it.
-  The emit-after-commit invariant is unchanged, so participant fan-out stays
-  downstream of the commit index.
+  `Announce(CaseLedgerEntry)` still follows its commit (SYNC-09-002), so
+  participant fan-out stays downstream of the commit index.
 - **`term`**: `CaseLedgerEntry.term` is optional now and becomes required here.
 - **Leadership guard and leadership vs. ownership**: the cluster supplies a real
   Raft check behind the `is_leader` seam; the single-node rules are in

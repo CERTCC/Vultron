@@ -18,7 +18,6 @@ from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
-    CreateEmbargoEventReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
@@ -30,7 +29,6 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
     AnnounceEmbargoEventToCaseReceivedUseCase,
-    CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
@@ -49,7 +47,6 @@ from vultron.wire.as2.extractor import (
     AcceptInviteToEmbargoOnCasePattern,
     ActivateEmbargoOnCasePattern,
     AnnounceEmbargoEventToCasePattern,
-    CreateEmbargoEventPattern,
     InviteToEmbargoOnCasePattern,
     RejectEmbargoProposalOnCasePattern,
     RejectInviteToEmbargoOnCasePattern,
@@ -68,32 +65,6 @@ from vultron.wire.as2.vocab.activities.embargo import (
 )
 
 ENTRIES: list[SemanticEntry] = [
-    SemanticEntry(
-        semantics=MessageSemantics.CREATE_EMBARGO_EVENT,
-        pattern=CreateEmbargoEventPattern,
-        event_class=CreateEmbargoEventReceivedEvent,
-        use_case_class=CreateEmbargoEventReceivedUseCase,
-        phrase="{actor} created an embargo event",
-        # The use case's door check reads to/cc (HP-01-005, ADR-0118).
-        include_activity=True,
-        occasions=(
-            Occasion(
-                when=(
-                    "a Participant has drafted embargo terms it is about to "
-                    "propose"
-                ),
-                anchor="create-embargo-event",
-                heading="Create embargo event",
-                description=(
-                    "Mints the embargo event that carries the proposed terms. "
-                    "It precedes the Invite that proposes them."
-                ),
-                example="create_embargo_event",
-                howto=HowToGuide.ESTABLISH_EMBARGO,
-            ),
-        ),
-        page=MessagePage.EM,
-    ),
     SemanticEntry(
         semantics=MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
         pattern=RemoveEmbargoEventFromCasePattern,

@@ -41,6 +41,7 @@ from vultron.core.models._helpers import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
@@ -78,25 +79,39 @@ class LoadExistingCaseNode(RequireCaseForReport):
 
     def _find_case(self, report_id: str) -> VulnerabilityCase | None:
         assert self.datalayer is not None
-        first = self.datalayer.find_case_by_report_id(report_id)
-        if first is None:
-            return None
-        if str(first.attributed_to) == self._owner_id:
-            return first
-        for case in self.datalayer.list_objects("VulnerabilityCase"):
-            if (
-                isinstance(case, VulnerabilityCase)
-                and str(case.attributed_to) == self._owner_id
-                and report_id in _report_ids(case)
-            ):
-                return case
-        return None
+        return find_proposer_case(self.datalayer, report_id, self._owner_id)
 
     def _absence_message(self, report_id: str) -> str:
         return (
             f"no VulnerabilityCase for report '{report_id}' owned by"
             f" '{self._owner_id}' in this actor's store"
         )
+
+
+def find_proposer_case(
+    datalayer: CasePersistence, report_id: str, owner_id: str
+) -> VulnerabilityCase | None:
+    """Return the case for *report_id* that *owner_id* owns, or ``None``.
+
+    The owner is the case's ``attributed_to``.  The store may hold several
+    cases for one report (one per proposer, CP-05-008), so the single-row
+    ``find_case_by_report_id`` lookup is only the fast path; when it returns
+    another owner's case the cases are scanned for *owner_id*'s.  Store errors
+    propagate.
+    """
+    first = datalayer.find_case_by_report_id(report_id)
+    if first is None:
+        return None
+    if str(first.attributed_to) == owner_id:
+        return first
+    for case in datalayer.list_objects("VulnerabilityCase"):
+        if (
+            isinstance(case, VulnerabilityCase)
+            and str(case.attributed_to) == owner_id
+            and report_id in _report_ids(case)
+        ):
+            return case
+    return None
 
 
 def _report_ids(case: VulnerabilityCase) -> set[str]:
@@ -196,12 +211,12 @@ class StoreProposalReportNode(DataLayerAction):
     (CP-01-004) — so it has to be written here.
 
     Prefers *inline_report*, the ``VulnerabilityReport`` the wire parser
-    validated on the proposal — under ADR-0099 detail 3 that object already
+    validated on the proposal — under ARCH-25-003 (ADR-0099) that object already
     *is* the core class, so the caller hands it down unchanged (ARCH-20-008).
     The fallback — rebuilding from the proposal's serialised ``object`` — can
     only be as good as that dict's spelling, and the dict the received-side use
     case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
-    the proposal inline on the wire (CP-05-003, AKM-03-001). In wire spelling the
+    the proposal inline on the wire (CP-05-009, AKM-03-003). In wire spelling the
     reporter is ``attributedTo``; before the core model carried the AS2 alias,
     validating that dict quietly produced a report with no reporter, and the
     complaint surfaced three nodes later as "has no attributed_to" (#2482). The

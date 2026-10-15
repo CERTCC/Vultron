@@ -78,8 +78,8 @@ class EmbargoEvent(CoreObject):
         """Label the embargo by its case and window when it carries no name.
 
         The derivation the deleted ``as_EmbargoEvent.set_name`` performed,
-        relocated here because this class is now its own wire class (ADR-0099
-        detail 3).  Activity labels compose the object's name, and the name
+        relocated here because this class is now its own wire class (ARCH-25-003,
+        ADR-0099).  Activity labels compose the object's name, and the name
         reaches peers in the ledger payload snapshot, so dropping it changed the
         wire.  A name the object already carries is kept: it is the sender's.
         """

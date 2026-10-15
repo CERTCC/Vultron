@@ -43,7 +43,6 @@
 | a Participant asked by a Full-Case Invite closes the case | `Reject(Invite(Actor)[target=VulnerabilityCase])` | the invitee | — | [Reject Full-Case Invite](../case_management.md#reject-full-case-invite) |
 | the Case Manager has admitted a new Participant to the case | `Announce(VulnerabilityCase)` | not yet checked | — | [Announce vulnerability case](../case_management.md#announce-vulnerability-case) |
 | a Participant ends its participation in the case | `Leave(VulnerabilityCase)` | not yet checked | — | [Close case](../case_management.md#close-case) |
-| a Participant is about to add an actor's participant record to the case | `Create(CaseParticipant)[context=VulnerabilityCase]` | not yet checked | — | [Create case participant](../case_management.md#create-case-participant) |
 | the Case Owner reinstates a removed Participant | `Add(CaseParticipant)[target=VulnerabilityCase]` | the case owner | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
 | the Case Owner removes a Participant from active participation | `Remove(CaseParticipant)[target=VulnerabilityCase]` | the case owner | — | [Remove case participant from case](../case_management.md#remove-case-participant-from-case) |
 
@@ -51,7 +50,6 @@
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| a Participant has drafted embargo terms it is about to propose | <code>Create(Event)&#91;context=VulnerabilityCase&#124;VulnerabilityReport&#93;</code> | the case owner | — | [Create embargo event](../em.md#create-embargo-event) |
 | the Case Owner terminates the active embargo | `Remove(Event)` | the case owner | — | [Embargo Termination (ET)](../em.md#embargo-termination) |
 | the Case Manager states the terms of the embargo in force | `Announce(Event)[context=VulnerabilityCase]` | the case manager | — | [Announce embargo](../em.md#announce-embargo) |
 | a Participant proposes embargo terms for a case with no active embargo | `Invite(Event)[context=VulnerabilityCase]` | an active participant | EM state `NONE` or `PROPOSED` | [Embargo Proposal (EP)](../em.md#embargo-proposal) |
@@ -68,11 +66,9 @@
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| a Participant is about to announce a change to the public state of the case | `Create(CaseStatus)[context=VulnerabilityCase]` | not yet checked | — | [Create case status](../cs.md#create-case-status) |
 | a Participant learns that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `Pxa` | [Public Awareness (CP)](../cs.md#public-awareness) |
 | a Participant learns that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `PXa` | [Exploit Public (CX)](../cs.md#exploit-public) |
 | a Participant observes attacks that exploit the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | not yet checked | `pxa_state` = `pxA` | [Attacks Observed (CA)](../cs.md#attacks-observed) |
-| a Participant is about to announce a change to its own state in the case | `Create(ParticipantStatus)` | not yet checked | — | [Create participant status](../cs.md#create-participant-status) |
 | a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: vendor) | `vf_state` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
 | a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: vendor) | `vf_state` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
 | a Deployer has deployed the fix | `Add(ParticipantStatus)[target=CaseParticipant]` | an active participant (usually: deployer) | `d_state` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |

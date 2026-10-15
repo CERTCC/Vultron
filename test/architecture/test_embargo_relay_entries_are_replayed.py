@@ -166,7 +166,6 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
 
 #: Embargo event types outside the revision relay, and who owns them.
 OUTSIDE_THE_RELAY: dict[str, str] = {
-    MessageSemantics.CREATE_EMBARGO_EVENT.value: "stores an object; commits nothing",
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (
         "no receiver-side state change; commits nothing"
     ),

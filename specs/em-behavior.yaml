@@ -1278,7 +1278,7 @@ groups:
     rationale: >-
       Once the embargo exits, no consent row binds anyone: with no `ACTIVE`
       register entry nobody is a signatory, and a register with a `TERMINATED`
-      entry accepts no further change (ADR-0122 invariant 4), so no later
+      entry accepts no further change (ADR-0122), so no later
       invitation to the terminated embargo can rebind anyone. The position is
       derived from the case, so it is not copied onto each participant record.
     testable: true
@@ -2195,6 +2195,9 @@ groups:
       was received and acknowledged; its chain position would be missing,
       silently blocking replay of all subsequent entries (SYNC-12-001,
       ADR-0118).
+      Carrying the late Accept inline is a protocol rule, not this prototype's
+      inline-object shortcut: it is ledger snapshot content, which the hash
+      chain covers only when carried in full (CLP-07-006).
     verification: >-
       `test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica`
       drives the full path across per-actor stores: the late Accept reaches the
@@ -2224,7 +2227,7 @@ groups:
       When the CASE_MANAGER re-invites a late accepter to the case's current
       embargo (EMB-17-003), it MUST commit the fresh `Invite(EmbargoEvent)` as a
       distinct ledger entry of event type `invite_to_embargo_on_case_reinvite`
-      before it queues the Invite, and a replica MUST replay the entry by
+      once it has queued the Invite (SYNC-09-002), and a replica MUST replay the entry by
       applying the invitee's PEC `INVITE` and recording the Invite's `endTime`
       as its RSVP deadline, without moving EM state (CM-28-013, RSH-08-004).
     rationale: >-

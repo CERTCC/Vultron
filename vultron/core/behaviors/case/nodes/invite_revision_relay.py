@@ -60,19 +60,28 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
 
     Skips a proposal the joiner's row for has already left ``UNINVITED``.
     Each relay applies PEC ``INVITE`` to the joiner's row, so a re-run of the
-    effects (a resumed accept) does not invite the joiner twice.  Everything that
+    effects (a resumed accept) does not invite the joiner twice.  *answers*
+    is the stub Invite the joiner accepted: a re-run after an Invite was
+    queued but not committed, its row still ``UNINVITED``, rebuilds that
+    Invite under the same id rather than sending a second (OX-06-002).  Everything that
     goes wrong here is the manager's own store failing, never a refusal of
     the joiner's Accept, so it raises (Regime 1, ADR-0087).
     """
 
     def __init__(
-        self, case_id: str, invitee_id: str, name: str | None = None
+        self,
+        case_id: str,
+        invitee_id: str,
+        name: str | None = None,
+        *,
+        answers: str | None = None,
     ) -> None:
         super().__init__(
             case_id=case_id,
             embargo_id="",
             proposer_id="",
             name=name or self.__class__.__name__,
+            answers=answers,
         )
         self._invitee_id = invitee_id
 

@@ -188,7 +188,7 @@ def _field_annotation(object_type: type, field_name: str) -> object:
 
     A field may be a declared Pydantic field or a read property; the flat
     status views (``vf_state``, ``pxa_state``) are properties over their
-    dimension objects (ADR-0099 detail 5).
+    dimension objects (ARCH-25-005, ADR-0099).
     """
     attribute = getattr(object_type, field_name, None)
     if isinstance(attribute, property) and attribute.fget is not None:

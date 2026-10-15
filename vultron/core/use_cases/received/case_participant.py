@@ -19,17 +19,12 @@ from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     EmitParticipantReinstatementNoticeNode,
     ReinstateCaseParticipantReceivedNode,
 )
-from vultron.core.behaviors.case.nodes.store_received_object import (
-    StoreReceivedObjectNode,
-)
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
@@ -38,7 +33,6 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
-    CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.models.use_case_result import (
@@ -59,52 +53,12 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._store_only import (
+from vultron.core.use_cases.received._intake_only import (
     refuse_after_intake,
-    run_store_only,
-    store_only_verdict,
 )
 from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
-
-
-class CreateCaseParticipantReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for case participant operations"
-    )
-
-    def __init__(
-        self,
-        dl: CasePersistence,
-        request: CreateCaseParticipantReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._wire_render_port = wire_render_port
-        self._sync_port = sync_port
-        self._request: CreateCaseParticipantReceivedEvent = request
-
-    def execute(self) -> HandlerResult:
-        request = self._request
-        tree, result = run_store_only(
-            self._dl,
-            request,
-            name="CreateCaseParticipantReceivedBT",
-            sync_port=self._sync_port,
-            wire_render_port=self._wire_render_port,
-            store_node=StoreReceivedObjectNode(
-                request.object_type,
-                request.participant_id,
-                request.participant,
-                "CaseParticipant",
-                request.activity_id,
-            ),
-        )
-        return store_only_verdict(
-            tree, result, label="CreateCaseParticipantReceivedBT"
-        )
 
 
 class _CaseOwnerParticipantMoveUseCase[
@@ -313,6 +267,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
             case_id=case_id,
             sender_id=self._request.actor_id,
             claimed_actor_id=self._claimed_actor_id(),
+            activity_id=self._request.activity_id,
         )
 
 

@@ -63,6 +63,9 @@ from test.architecture._ledger_commit_inventory import (
     received_commit_semantics,
 )
 from vultron.core.models.events.base import MessageSemantics as MS
+from vultron.core.models.participant_event_types import (
+    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
 )
@@ -84,7 +87,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
     for event_type in (
         MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value,
         "accept_case_participant_role",
-        MS.CREATE_CASE_PARTICIPANT.value,
+        CREATE_CASE_PARTICIPANT_EVENT_TYPE,
         MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_CASE.value,
         MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,

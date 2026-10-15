@@ -26,7 +26,6 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
-    as_Create,
     as_Invite,
     as_Leave,
     as_Reject,
@@ -69,16 +68,6 @@ def embargo_event(days: int = 90) -> as_EmbargoEvent:
         **_example_stamp(),
     )
     return event
-
-
-def create_embargo_event() -> as_Create:
-    """``Create(Event)``: the Vendor mints the terms it is about to propose."""
-    _case = case()
-    return as_Create(
-        actor=vendor().id_,
-        object_=embargo_event(),
-        context=_case.id_,
-    )
 
 
 def propose_embargo() -> as_Invite:

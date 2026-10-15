@@ -192,7 +192,7 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
         if vocab_key not in WIRE_TYPE_MAP:
             # Not a wire type, so ingress never stores a wire-shaped row of it.
             # Keyed on the ``type`` value rather than an ``as_{name}`` class:
-            # under ADR-0099 detail 3 those classes are aliases, not entries.
+            # under ARCH-25-003 (ADR-0099) those classes are aliases, not entries.
             continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
         row_id = f"urn:test:{vocab_key.lower()}:wire-row-ratchet"

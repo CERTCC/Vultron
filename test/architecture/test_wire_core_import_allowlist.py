@@ -17,7 +17,7 @@
 ``vultron/wire/`` MAY import the object model and the state definitions it
 serializes.  It MUST NOT import anything else under ``vultron/core/``.
 
-Spec: ARCH-22-001, ARCH-22-002, ARCH-22-003.  ADR-0099 detail 6.
+Spec: ARCH-22-001, ARCH-22-002, ARCH-22-003.  ARCH-25-006 (ADR-0099).
 
 Two properties this test exists to hold, both easy to lose in a rewrite:
 
@@ -68,7 +68,7 @@ _CORE_MODULE = "vultron.core"
 _WIRE_ROOT = _corpus.REPO_ROOT / "vultron" / "wire"
 
 # ---------------------------------------------------------------------------
-# The allow-list (ADR-0099 detail 6).
+# The allow-list (ARCH-25-006, ADR-0099).
 #
 # ``models/`` is the object model itself: AS2 is a serialization of those
 # classes, so the message shapes in ``wire/`` necessarily name them.
@@ -95,7 +95,7 @@ _WIRE_ROOT = _corpus.REPO_ROOT / "vultron" / "wire"
 # * ``vultron/core/participants/`` — FORBIDDEN.  It is a service, not a data
 #   shape: ``authority.py`` and ``_lookup.py`` take a ``CasePersistence`` port
 #   and resolve participants and case-manager authority through it.  A wire
-#   module reaching for that would be doing domain work.  ADR-0099 detail 6
+#   module reaching for that would be doing domain work.  ARCH-25-006 (ADR-0099)
 #   already named ``participants/`` in its forbidden list; this confirms the
 #   classification rather than revisiting it.
 # ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ def _type_checking_import_nodes(tree: ast.AST) -> set[ast.stmt]:
     resolve and nothing for wire to *call*.  It can only be used in an
     annotation, which means it cannot be a route around the rule: a wire module
     cannot invoke a core behaviour it imported under TYPE_CHECKING.  Wire stays
-    replaceable as a unit, which is the property ADR-0009 rule 6 actually asks
+    replaceable as a unit, which is the property ARCH-06-001 (ADR-0009) asks
     for.
 
     Exempting the one current case instead — ``vultron/wire/as2/rehydration.py``,
@@ -215,7 +215,7 @@ def _collect_violations() -> list[str]:
 def test_wire_imports_only_allow_listed_core_packages() -> None:
     """No module under ``vultron/wire/`` may import outside the core allow-list.
 
-    Spec: ARCH-22-001, ARCH-22-002.  ADR-0099 detail 6.
+    Spec: ARCH-22-001, ARCH-22-002.  ARCH-25-006 (ADR-0099).
     """
     violations = _collect_violations()
 

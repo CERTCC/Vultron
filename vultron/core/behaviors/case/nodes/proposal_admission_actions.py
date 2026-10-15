@@ -150,17 +150,24 @@ class RecordProposalDeclineNode(DataLayerAction):
     an unrelated node's guards — exactly the coupling
     ``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails Toward
     'Admit'" warns against.
+
+    *reason*, when given, is stored on the record, and the ``Reject`` carries
+    it as its ``summary`` (CP-06-004).  The arm that knows why it declines
+    passes it: the closed-case arm does; the admission call-out point has no
+    channel for a reason yet (#3446).
     """
 
     def __init__(
         self,
         proposal_id: str,
         proposer_uri: str,
+        reason: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
         self._proposer_uri = proposer_uri
+        self._reason = reason
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -190,6 +197,7 @@ class RecordProposalDeclineNode(DataLayerAction):
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
                 proposer_uri=self._proposer_uri,
+                reason=self._reason,
             )
             self.datalayer.create(record)
         except ValueError as exc:
@@ -210,8 +218,9 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
     """Emit ``Reject(as_CaseProposal)`` through the shared outbox seam.
 
     CP-05-004: when the case actor service declines a proposal it MUST send
-    ``Reject(as_CaseProposal)`` with the proposal embedded inline as ``object_``
-    so the report receiver has full context without a second round-trip (AKM-03-001).
+    ``Reject(as_CaseProposal)`` with the proposal as ``object_``.  This codebase
+    embeds it inline (CP-05-009) so the report receiver has full context without
+    a second round-trip (AKM-03-003).
 
     The node writes no case state and creates no participants.  It is reachable
     only from the decline arm, which runs ahead of ``ResolveCaseIdSelector`` and
@@ -244,7 +253,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         assert self.actor_id is not None
         assert self.datalayer is not None
         if self._proposal_dict is None:
-            # A bare URI would be unreadable to the receiver (AKM-03-001), and
+            # A bare URI would be unreadable to the receiver (AKM-03-003), and
             # there is no inline proposal to fall back on, so refuse loudly
             # rather than sending a Reject the receiver cannot interpret.
             raise ValueError(

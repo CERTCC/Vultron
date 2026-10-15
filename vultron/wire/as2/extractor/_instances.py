@@ -19,18 +19,6 @@ from vultron.wire.as2.extractor._pattern import ActivityPattern
 # Embargo patterns
 # ---------------------------------------------------------------------------
 
-CreateEmbargoEventPattern = ActivityPattern(
-    description=(
-        "Create an embargo event. This is the initial step in the embargo "
-        "management process, where a coordinator creates an embargo event to "
-        "manage the embargo on a vulnerability case."
-    ),
-    activity_=TAtype.CREATE,
-    object_=AOtype.EVENT,
-    # The subject may be a case or, before a case exists, the report the
-    # embargo is about (VAM-05-001, EP-04-009, ADR-0096).
-    context_=(VOtype.VULNERABILITY_CASE, VOtype.VULNERABILITY_REPORT),
-)
 RemoveEmbargoEventFromCasePattern = ActivityPattern(
     description=(
         "Remove an embargo event from a vulnerability case. This is typically "
@@ -422,11 +410,6 @@ RemoveNoteFromCasePattern = ActivityPattern(
 # Case participant patterns
 # ---------------------------------------------------------------------------
 
-CreateCaseParticipantPattern = ActivityPattern(
-    activity_=TAtype.CREATE,
-    object_=VOtype.CASE_PARTICIPANT,
-    context_=VOtype.VULNERABILITY_CASE,
-)
 AddCaseParticipantToCasePattern = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.CASE_PARTICIPANT,
@@ -457,19 +440,10 @@ CreateProcessingFaultPattern = ActivityPattern(
 # Case status / participant status patterns
 # ---------------------------------------------------------------------------
 
-CreateCaseStatusActivityPattern = ActivityPattern(
-    activity_=TAtype.CREATE,
-    object_=VOtype.CASE_STATUS,
-    context_=VOtype.VULNERABILITY_CASE,
-)
 AddCaseStatusToCasePattern = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.CASE_STATUS,
     target_=VOtype.VULNERABILITY_CASE,
-)
-CreateParticipantStatusPattern = ActivityPattern(
-    activity_=TAtype.CREATE,
-    object_=VOtype.PARTICIPANT_STATUS,
 )
 AddParticipantStatusToParticipantPattern = ActivityPattern(
     activity_=TAtype.ADD,

@@ -13,7 +13,7 @@
 
 """Ratchet: core never duck-types a wire→core projection (ARCH-20-008).
 
-Under ADR-0099 detail 3 the wire class of a domain type *is* the core class,
+Under ARCH-25-003 (ADR-0099) the wire class of a domain type *is* the core class,
 so no object core holds carries a ``to_core()`` projection.  A
 ``getattr(obj, "to_core", None)`` in core therefore always answers ``None``
 and the branch behind it is dead code that reads as a live fallback (#3840).

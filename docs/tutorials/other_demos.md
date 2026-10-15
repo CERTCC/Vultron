@@ -168,7 +168,7 @@ sequenceDiagram
     alt Participant accepts
         P-->>O: Accept Invite to Case<br/>Accept(Invite)
         Note over O: Accept ledgered<br/>participant seated
-        P->>P: Create(ParticipantStatus)<br/>Add(ParticipantStatus)
+        P->>P: Add(ParticipantStatus)
         Note over O: Remove(CaseParticipant), ledgered<br/>record kept, removal fact set
         O->>P: Removal notice<br/>Remove(CaseParticipant)
         Note over O: Add(CaseParticipant), ledgered<br/>removal fact cleared

@@ -98,7 +98,7 @@ def test_vfd_dimensions_ride_participant_status_not_case_status():
 
     # V and F ride the VF dimension; D rides the D dimension. Both are
     # participant-scoped.  They used to be flat ``vf_state``/``d_state`` *fields*;
-    # ADR-0099 detail 5 makes the dimension the field and the flat spelling its
+    # ARCH-25-005 (ADR-0099) makes the dimension the field and the flat spelling its
     # serialization, so the check is on the dimension field and the AS2 name it
     # emits — which is what MSM-03 is actually about.
     assert as_ParticipantStatus.model_fields["vf"].serialization_alias == (

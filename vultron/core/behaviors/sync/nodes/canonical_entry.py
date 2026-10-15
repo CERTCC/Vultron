@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 #: How CLP-07 spells ``CaseLedgerEntry.payload_snapshot`` in every requirement it
 #: states, read from the field's own alias so the diagnostics below can quote the
-#: spec's spelling without core logic typing an AS2 name (ADR-0099 detail 2).
+#: spec's spelling without core logic typing an AS2 name (ARCH-25-002, ADR-0099).
 _PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 
 # Every ``(activity_type, object_type)`` pair that may appear as a canonical

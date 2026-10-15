@@ -22,25 +22,22 @@ auto-accepting and explicitly rejecting the delegation.
 See SE-08-003, ADR-0039.
 """
 
-import json
 import logging
 from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
-)
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     grant_role_to_target,
 )
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -48,14 +45,20 @@ from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
+#: Ledger ``event_type`` of the auto-accept, and the kind label of its id.
+_ACCEPT_EVENT_TYPE = "accept_case_participant_role"
+
 
 class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
     """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
 
     When the local actor receives an ``Offer(CaseParticipantRole)`` it MUST
     auto-accept so the offering Vendor receives confirmation.  This node
-    creates the ``Accept`` activity via ``trigger_activity_factory`` and
-    queues it in the local actor's outbox.
+    creates the ``Accept`` activity via ``trigger_activity_factory``, queues
+    it in the local actor's outbox, and then commits it (ADR-0119).  The
+    Accept's id is derived from the Offer it answers, so a redelivery after
+    a send whose commit failed rebuilds the same Accept, which the outbox
+    does not queue twice (OX-06-002) and the commit records once.
 
     See SE-08-003, ADR-0039.
     """
@@ -87,6 +90,9 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
             vendor_id=self.vendor_id,
             actor=self.actor_id,
             to=[self.vendor_id],
+            id_=derived_activity_id(
+                _ACCEPT_EVENT_TYPE, self.actor_id, self.case_id, self.offer_id
+            ),
         )
 
     def _enqueue_accept(self, accept_id: str) -> None:
@@ -119,37 +125,31 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
                 self.offer_id,
             )
             return Status.FAILURE
-        return None
+        # The Accept is queued before it is committed (ADR-0119), so a case
+        # the commit cannot find is checked for first: the Selector then
+        # answers with the Reject, as it did when the commit came first.
+        _, failure = self._require_case(self.case_id)
+        return failure
 
     def _commit_accept_to_ledger(
         self, accept_id: str, payload_snapshot: str
-    ) -> bool:
-        assert self.datalayer is not None
+    ) -> None:
+        """Commit the queued Accept; raise when the commit fails.
+
+        Exact blob as snapshot (VM-08-003): the factory sets ``context`` to
+        the case URI from the offer it embeds, so nothing is patched here.
+        The Accept is already queued, so a failed commit MUST NOT return
+        FAILURE either: the Selector would send a Reject after it.
+        """
         assert self.actor_id is not None
-        # Exact blob as snapshot (VM-08-003): the factory sets ``context`` to
-        # the case URI from the offer it embeds, so nothing is patched here.
-        snapshot_dict: dict = json.loads(payload_snapshot)
-        commit_tree = create_commit_log_entry_tree(
-            case_id=self.case_id,
-            object_id=accept_id,
-            event_type="accept_case_participant_role",
-            payload_snapshot=snapshot_dict,
-        )
-        result = BTBridge(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer)
-        ).execute_with_setup(
-            tree=commit_tree,
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
             actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=accept_id,
+            activity_blob=payload_snapshot,
+            event_type=_ACCEPT_EVENT_TYPE,
         )
-        if result.status != Status.SUCCESS:
-            self.logger.error(
-                "%s: ledger commit failed for Accept '%s' on offer '%s'",
-                self.name,
-                accept_id,
-                self.offer_id,
-            )
-            return False
-        return True
 
     def update(self) -> Status:
         if (f := self._validate_context()) is not None:
@@ -164,11 +164,14 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
                 exc,
             )
             return Status.FAILURE
-        if not self._commit_accept_to_ledger(accept_id, payload_snapshot):
-            return Status.FAILURE
+        # Sent, then recorded (ADR-0119).  Neither write is caught: once the
+        # Accept is stored a FAILURE would send a Reject after it, so a fault
+        # escapes to BTBridge as an internal error, as in the relay node and
+        # ``_CommitCaseManagerActivityBase`` (BT-14-001, ARCH-15-001).
         self._enqueue_accept(accept_id)
+        self._commit_accept_to_ledger(accept_id, payload_snapshot)
         self.logger.info(
-            "%s: auto-accepted offer '%s' as '%s'; ledgered and queued"
+            "%s: auto-accepted offer '%s' as '%s'; queued and ledgered"
             " Accept '%s'",
             self.name,
             self.offer_id,
