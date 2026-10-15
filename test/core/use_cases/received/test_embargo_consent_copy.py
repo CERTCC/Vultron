@@ -29,6 +29,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo.copy_commit import (
     PlannedEmbargoEntry,
@@ -51,6 +52,7 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.use_cases.received.sync import drain_gap_buffer
 from vultron.errors import VultronEntryRefusedError
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -261,3 +263,46 @@ class TestReplicaCopies:
         assert replica.read(entry_id) is None, "a refused entry is not stored"
         assert get_ledger_gap_buffer(BYSTANDER).depth(net.case_id) == 1
         assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
+
+    @pytest.mark.spec("CM-23-016")
+    def test_a_held_entry_applies_once_the_case_reaches_its_start(self):
+        """The gap buffer retries a refused entry; it is never dropped.
+
+        Once this replica's case is where the entry starts (here the
+        diverged row is put back), the next drain applies and stores it.
+        """
+        net = _net("cc-gap-retry")
+        replica = net.stores[BYSTANDER]
+        record = _record(net, BYSTANDER, BYSTANDER)
+        agreed = _rows(record)
+        record.copy_consent_row(_row_change(net, BYSTANDER, _S.DECLINED).row)
+        replica.save(record)
+        commit_and_apply_embargo_entries(
+            net.stores[MANAGER],
+            net.case_id,
+            [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+        )
+        (body,) = _announcements(net, BYSTANDER)
+        entry_id = body["object"]["id"]
+        assert (
+            net.receive(BYSTANDER, body).disposition
+            is HandlerDisposition.DEFERRED
+        )
+
+        restored = _record(net, BYSTANDER, BYSTANDER)
+        restored.copy_consent_row(_row_change(net, BYSTANDER, _S.AGREED).row)
+        replica.save(restored)
+        assert _rows(restored) == agreed
+        drain_gap_buffer(
+            replica,
+            net.case_id,
+            BYSTANDER,
+            get_ledger_gap_buffer(BYSTANDER),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+
+        assert replica.read(entry_id) is not None
+        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(
+            _record(net, MANAGER, BYSTANDER)
+        )
+        assert get_ledger_gap_buffer(BYSTANDER).depth(net.case_id) == 0

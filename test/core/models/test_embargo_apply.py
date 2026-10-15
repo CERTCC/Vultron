@@ -18,6 +18,7 @@ its own entry.  The function checks the starting state, writes what the entry
 carries, reads no clock and no store, and leaves its input as it was.
 """
 
+import sys
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -401,11 +402,11 @@ def test_a_dropped_entry_refuses_the_next_and_is_never_patched_over():
         apply_embargo_change(rows_dropped, _update(ALICE, E1, _S.AGREED))
 
 
-class _NoClock:
-    """A ``datetime`` stand-in whose clock reads fail the test."""
+class _NoClock(datetime):
+    """A ``datetime`` whose clock reads fail the test (and isinstance holds)."""
 
-    @staticmethod
-    def now(*_args, **_kwargs):
+    @classmethod
+    def now(cls, tz=None):
         raise AssertionError("the apply function read the clock")
 
 
@@ -416,11 +417,20 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
     """AC-5: no clock, no minted id, and only the case file it is given.
 
     The function takes no store: its only inputs are the case file and the
-    change.  Every clock read and id mint in core goes through
-    ``now_utc`` and ``_new_urn``; both fail here.
+    change.  Every core module's ``datetime`` reads the clock through
+    ``datetime.now``, and every minted id goes through ``uuid.uuid4``; all of
+    them fail here.
     """
     case_file = _case_file()
-    monkeypatch.setattr(model_helpers, "datetime", _NoClock)
+    patched = [
+        name
+        for name, module in list(sys.modules.items())
+        if name.startswith("vultron.core")
+        and getattr(module, "datetime", None) is datetime
+    ]
+    assert "vultron.core.models.case" in patched
+    for name in patched:
+        monkeypatch.setattr(sys.modules[name], "datetime", _NoClock)
 
     def _no_mint() -> str:
         raise AssertionError("the apply function minted an id")

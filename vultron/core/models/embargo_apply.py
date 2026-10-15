@@ -371,14 +371,7 @@ def _apply_consent_row(
     participant = _participant_for(case_file, change)
     embargo_id = change.row.embargo_id
     _entry_status(case_file.case, embargo_id)
-    held = next(
-        (
-            r
-            for r in participant.embargo_consents
-            if r.embargo_id == embargo_id
-        ),
-        None,
-    )
+    held = participant.held_row(embargo_id)
     problem = _row_problem(held, change)
     if problem is not None:
         raise VultronEntryRefusedError(

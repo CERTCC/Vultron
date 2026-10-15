@@ -36,6 +36,8 @@ relevant_packages:
   - vultron/bt/embargo_management
   - vultron/core/behaviors/embargo
   - vultron/core/models/case_participant.py
+  - vultron/core/models/embargo_apply.py
+  - vultron/core/behaviors/sync/nodes
   - vultron/core/use_cases
 ---
 
@@ -218,8 +220,7 @@ Change consent by applying a `PEC_Trigger` through
 `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`,
 preferably through `EmbargoLifecycle`'s `_apply_where_legal()`, and persist the
 participant. `write_uninvited_rows()` and the copy write below are the only other
-row writes; the first records
-no answer. Direct assignment bypasses the transition table, so the content gate
+row writes; the first records no answer. Direct assignment bypasses the transition table, so the content gate
 (CM-10-004) can admit an actor the protocol never bound;
 `apply_pec_transition()` raises `VultronInvalidStateTransitionError` instead, so
 consent writes are fail-closed even when an upstream guard is wrong.

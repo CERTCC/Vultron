@@ -273,16 +273,16 @@ A consent row is an AS2 object, so each of these activities carries the row in f
 | `state` | the row's consent state |
 | `rsvpDeadline` | the invitation's RSVP deadline, on an `INVITED` row only |
 
-A row carries no `published` or `updated` time, so building or copying one reads no clock.
+A row is built with no `published` or `updated` time, so building or copying one reads no clock.
 Every row a participant record holds has the same shape, attributed to that participant's actor.
 
 **One apply function copies every entry.**
 The CASE_MANAGER and every replica apply each entry through the same function (ADR-0124).
 For a register step it performs the step the activity names; for a consent row it writes the row as carried.
-Before writing, it checks the starting state the entry implies: the step must be legal on the case's register, a created row must be new, an updated row must be held and reach the carried state by one consent transition (or be an `INVITED` row taking a fresh deadline), and a row for an entry in a final status accepts no change.
+Before writing, it checks the starting state the entry implies: the step must be legal on the case's register, a created row must be new and start `UNINVITED` or one consent transition from it (when the act that creates it also answers it, as a proposer's own row does), an updated row must be held and reach the carried state by one consent transition (or be an `INVITED` row taking a fresh deadline), and a row for an entry in a final status accepts no change.
 It mints no id, reads no clock or store, and runs no lifecycle logic, and EM is never written: it is derived from the register.
 An entry that does not start where the case is, is refused.
-On the CASE_MANAGER a refusal during the trial apply stops the act before anything is committed.
+On the CASE_MANAGER a refusal during the trial apply stops the act before anything is committed; for a received act the trial runs among its guards, before the act's own entry is committed.
 On a replica it means an earlier entry is missing or the replica has diverged, so the entry is held for gap handling and never patched over.
 
 ### Consequences

@@ -37,7 +37,7 @@ the embargo acts subclass the same frame (#4714 – #4717).
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -51,16 +51,15 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     _EventTypeSetNode,
 )
 from vultron.core.models._helpers import project_wire_snapshot_to_core
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
-    ConsentRowVerb,
     EmbargoChange,
     apply_embargo_change,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_event_types import (
-    CREATE_EMBARGO_CONSENT_EVENT_TYPE,
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    CONSENT_ROW_VERBS,
 )
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.errors import VultronEntryRefusedError
@@ -101,8 +100,8 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         except (NoDataAvailable, NotImplementedError):
             self._gap_buffer = None
 
-    def _change(self, snapshot: dict[str, Any]) -> EmbargoChange:
-        """The change the entry's *snapshot* carries.
+    def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
+        """The change *entry* carries.
 
         Raises:
             TypeError: the snapshot carries no object of the expected shape.
@@ -116,7 +115,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         assert self.datalayer is not None
         entry = self._get_entry()
         try:
-            change = self._change(entry.payload_snapshot)
+            change = self._change(entry)
         except (TypeError, ValueError) as exc:
             self.feedback_message = (
                 f"{self.name}: '{entry.event_type}' entry '{entry.id_}' does"
@@ -141,7 +140,9 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         self.logger.info("%s", self.feedback_message)
         return Status.SUCCESS
 
-    def _refuse(self, entry: Any, exc: VultronEntryRefusedError) -> Status:
+    def _refuse(
+        self, entry: CaseLedgerEntry, exc: VultronEntryRefusedError
+    ) -> Status:
         """Hold a refused entry for gap handling; never patch it over."""
         buffered = self._gap_buffer is not None and self._gap_buffer.buffer(
             entry
@@ -167,27 +168,22 @@ class IsEmbargoConsentEventNode(_EventTypeSetNode):
     CASE_MANAGER's own entry for one consent row (ADR-0122, CLP-07-013).
     """
 
-    matched_event_types = frozenset(
-        {CREATE_EMBARGO_CONSENT_EVENT_TYPE, UPDATE_EMBARGO_CONSENT_EVENT_TYPE}
-    )
+    matched_event_types = frozenset(CONSENT_ROW_VERBS)
 
 
 class ApplyEmbargoConsentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
     """Copy the consent row a ``Create``/``Update(EmbargoConsent)`` entry carries."""
 
-    def _change(self, snapshot: dict[str, Any]) -> EmbargoChange:
-        data = snapshot.get("object")
+    def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
+        data = entry.payload_snapshot.get("object")
         if not isinstance(data, dict):
             raise TypeError("the entry carries no EmbargoConsent object")
         row = EmbargoConsent.model_validate(
             project_wire_snapshot_to_core(EmbargoConsent, data)
         )
-        verb = (
-            ConsentRowVerb.CREATE
-            if snapshot.get("type") == "Create"
-            else ConsentRowVerb.UPDATE
+        return ConsentRowChange(
+            verb=CONSENT_ROW_VERBS[entry.event_type], row=row
         )
-        return ConsentRowChange(verb=verb, row=row)
 
 
 __all__ = [

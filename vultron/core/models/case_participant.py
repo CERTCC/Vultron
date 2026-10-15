@@ -202,11 +202,23 @@ class CaseParticipant(CoreObject):
                 register entry has a row on every participant (ADR-0122), so
                 a missing one is a defect, never "not asked".
         """
-        for row in self.embargo_consents:
-            if row.embargo_id == embargo_id:
-                return row
+        row = self.held_row(embargo_id)
+        if row is not None:
+            return row
         raise VultronNotFoundError(
             "EmbargoConsent", f"{embargo_id} on participant {self.id_}"
+        )
+
+    def held_row(self, embargo_id: str) -> EmbargoConsent | None:
+        """The row for *embargo_id*, or ``None`` when the record holds none.
+
+        For the apply function's starting-state check, where "no row yet" is
+        what a ``Create`` entry expects.  Every other reader uses
+        :meth:`consent_for`, which raises on a missing row.
+        """
+        return next(
+            (r for r in self.embargo_consents if r.embargo_id == embargo_id),
+            None,
         )
 
     def consent_for(self, embargo_id: str) -> EmbargoConsentState:
@@ -386,7 +398,7 @@ class CaseParticipant(CoreObject):
         of the row for the same embargo, or after the others when it is new.
         The caller persists the record.
         """
-        if any(r.embargo_id == row.embargo_id for r in self.embargo_consents):
+        if self.held_row(row.embargo_id) is not None:
             self._replace_row(row)
         else:
             self.embargo_consents = [*self.embargo_consents, row]

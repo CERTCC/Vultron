@@ -39,7 +39,14 @@ order.  :func:`commit_and_apply_embargo_entries` then:
    change is ever made without its entry (CLP-07-013).
 
 The trial is the result: a replica applying the same entries through the same
-function reaches the same case file (CM-23-016).  Call it from a BT node's
+function reaches the same case file (CM-23-016).
+
+A **received** act's own entry is committed by intake before this helper runs
+(ADR-0111), so its trial must also run earlier, as a guard: call
+:func:`trial_apply` on :func:`read_embargo_case_file`'s result in the guard
+phase, before the guarded commit, so a refused step refuses the act and no
+entry is committed for it.  The helper then repeats the trial, which passes
+unless the case changed in between, and commits the consequence entries.  Call it from a BT node's
 ``update()``, never from a use case's ``execute()`` (CLP-10-020).
 """
 
@@ -59,8 +66,7 @@ from vultron.core.models.embargo_apply import (
     changed_objects,
 )
 from vultron.core.models.embargo_consent_event_types import (
-    CREATE_EMBARGO_CONSENT_EVENT_TYPE,
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    CONSENT_ROW_EVENT_TYPES,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -90,6 +96,10 @@ def read_embargo_case_file(
     datalayer: CasePersistence, case_id: str
 ) -> EmbargoCaseFile:
     """The case *case_id* and the participant records its roster indexes.
+
+    A roster entry whose record this store does not hold is left out, as on a
+    partial replica (ADR-0087); a consent-row entry for that actor is then
+    refused by the apply function rather than written.
 
     Raises:
         VultronNotFoundError: *datalayer* holds no such case.
@@ -186,14 +196,12 @@ def consent_row_entry(
 
     def _commit() -> dict[str, Any]:
         if change.verb == ConsentRowVerb.CREATE:
-            event_type = CREATE_EMBARGO_CONSENT_EVENT_TYPE
             activity_id, blob = (
                 trigger_activity.record_embargo_consent_created(
                     row=change.row, case_id=case_id, actor=actor_id
                 )
             )
         else:
-            event_type = UPDATE_EMBARGO_CONSENT_EVENT_TYPE
             activity_id, blob = (
                 trigger_activity.record_embargo_consent_updated(
                     row=change.row,
@@ -208,7 +216,7 @@ def consent_row_entry(
             case_id=case_id,
             activity_id=activity_id,
             activity_blob=blob,
-            event_type=event_type,
+            event_type=CONSENT_ROW_EVENT_TYPES[change.verb],
             sync_port=sync_port,
         )
 

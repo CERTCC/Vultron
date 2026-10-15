@@ -33,13 +33,32 @@ Both are ledger event types only: no actor sends either as a message, so no
 ``MessageSemantics`` member names them.
 """
 
+from collections.abc import Mapping
+from types import MappingProxyType
+
+from vultron.core.models.embargo_apply import ConsentRowVerb
+
 #: ``Create(EmbargoConsent)`` -- the CASE_MANAGER created a consent row.
 CREATE_EMBARGO_CONSENT_EVENT_TYPE = "create_embargo_consent"
 
 #: ``Update(EmbargoConsent)`` -- the CASE_MANAGER changed a consent row.
 UPDATE_EMBARGO_CONSENT_EVENT_TYPE = "update_embargo_consent"
 
+#: The event type of each consent-row verb, and back: the one map every
+#: builder and replica slot reads.
+CONSENT_ROW_EVENT_TYPES: Mapping[ConsentRowVerb, str] = MappingProxyType(
+    {
+        ConsentRowVerb.CREATE: CREATE_EMBARGO_CONSENT_EVENT_TYPE,
+        ConsentRowVerb.UPDATE: UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    }
+)
+CONSENT_ROW_VERBS: Mapping[str, ConsentRowVerb] = MappingProxyType(
+    {event_type: verb for verb, event_type in CONSENT_ROW_EVENT_TYPES.items()}
+)
+
 __all__ = [
+    "CONSENT_ROW_EVENT_TYPES",
+    "CONSENT_ROW_VERBS",
     "CREATE_EMBARGO_CONSENT_EVENT_TYPE",
     "UPDATE_EMBARGO_CONSENT_EVENT_TYPE",
 ]
