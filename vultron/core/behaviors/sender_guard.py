@@ -247,23 +247,6 @@ def _case_of(ctx: SenderCheckContext, what: str) -> str:
     return ctx.case_id
 
 
-def _case_owner_node(
-    ctx: SenderCheckContext,
-) -> py_trees.behaviour.Behaviour:
-    """The ``CASE_OWNER`` check: the Offer's maker for an ownership-transfer
-    reply (CM-21-015), otherwise the holder of the role."""
-    if isinstance(ctx.request, OwnershipOfferRequest):
-        return SenderIsOwnershipOffererNode(
-            case_id=_case_of(ctx, "an ownership-transfer Offer"),
-            offer_id=ctx.request.offer_id,
-            sender_actor_id=ctx.sender_id,
-            reply_id=ctx.request.reply_id,
-        )
-    return SenderIsCaseOwnerNode(
-        sender_actor_id=ctx.sender_id, case_id=ctx.case_id
-    )
-
-
 #: The two participant-record kinds: any record on the case, or an active one
 #: (CM-10-004).  Each reads only the sender and the case.
 _MEMBERSHIP_NODES: dict[
