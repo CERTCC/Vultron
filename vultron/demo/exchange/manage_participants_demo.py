@@ -55,7 +55,9 @@ from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     create_case_via_trigger,
+    reporter_submits_report,
     seat_participant_through_stub_invite,
+    verify_reporter_trusts_introduction,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -78,16 +80,12 @@ from vultron.wire.as2.factories import (
     remove_participant_from_case_activity,
     rm_invite_to_case_activity,
     rm_reject_invite_to_case_activity,
-    rm_submit_report_activity,
     rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,16 +112,16 @@ def _setup_case_with_vendor(
 
     Returns the created as_VulnerabilityCase.
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A use-after-free vulnerability in the memory allocator.",
-        name="Use-After-Free in Memory Allocator",
+    report, report_offer = reporter_submits_report(
+        client,
+        finder,
+        vendor,
+        reporter_client=client,
+        report_name="Use-After-Free in Memory Allocator",
+        report_content=(
+            "A use-after-free vulnerability in the memory allocator."
+        ),
     )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = rm_validate_report_activity(
@@ -148,6 +146,7 @@ def _setup_case_with_vendor(
         report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
 
     log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with vendor as sole participant")

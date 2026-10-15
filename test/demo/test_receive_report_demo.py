@@ -13,7 +13,10 @@
 
 import pytest
 
-from test.demo._helpers import route_exchange_demo_at_testclient
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    route_exchange_demo_at_testclient,
+)
 from vultron.demo.exchange import receive_report_demo as demo
 
 
@@ -47,10 +50,18 @@ def test_demo(demo_env, demo_fn, caplog):
 
     Regression test for bug: setup_clean_environment does not clear ACTOR_IO_STORE,
     causing demos 2 and 3 to fail with KeyError when re-initializing actor IOs.
+
+    The finder submits through its own ``submit-report`` trigger, so it takes
+    the vendor's case introduction on the trusted route (CBT-01-005, #4675).
     """
     import logging
 
-    with caplog.at_level(logging.ERROR):
+    # WARNING, not ERROR: a refused case introduction (CBT-01-011) is logged
+    # at WARNING, and the run must log none (#4675).
+    with (
+        caplog.at_level(logging.WARNING),
+        expect_trusted_introductions(caplog),
+    ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 
     assert "ERROR SUMMARY" not in caplog.text, (

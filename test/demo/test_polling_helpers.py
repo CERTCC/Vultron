@@ -1158,3 +1158,80 @@ class TestStoreScanFindersReadOnlyTheirTypes:
             else:
                 # Only a typed collection may be read unfiltered.
                 assert path.endswith("s/"), call
+
+
+# ---------------------------------------------------------------------------
+# wait_for_reporter_introduction (#4675)
+# ---------------------------------------------------------------------------
+
+_INTRO_NODE = "http://node.test/api/v2"
+_INTRO_REPORTER = f"{_INTRO_NODE}/actors/finder"
+_INTRO_RECEIVER = f"{_INTRO_NODE}/actors/vendor"
+_INTRO_REPORT = "urn:uuid:44444444-4444-4444-4444-444444444444"
+_INTRO_CASE = "urn:uuid:55555555-5555-5555-5555-555555555555"
+
+
+def _served_link(**fields) -> dict:
+    """A ReportCaseLink as the datalayer list route serializes it."""
+    from vultron.core.models.report_case_link import VultronReportCaseLink
+
+    link = VultronReportCaseLink(report_id=_INTRO_REPORT, **fields)
+    return {
+        link.id_: link.model_dump(
+            mode="json", exclude_none=True, by_alias=True
+        )
+    }
+
+
+def _wait_for_introduction(served: dict, **kwargs):
+    from vultron.demo.helpers.polling import wait_for_reporter_introduction
+    from vultron.demo.utils import DataLayerClient
+
+    seen: dict = {}
+
+    def _get(self, path, **get_kwargs):
+        seen["path"] = path
+        seen["params"] = get_kwargs.get("params")
+        return served
+
+    with patch.object(DataLayerClient, "get", _get):
+        result = wait_for_reporter_introduction(
+            DataLayerClient(base_url=_INTRO_NODE, actor_id=_INTRO_RECEIVER),
+            _INTRO_REPORTER,
+            _INTRO_RECEIVER,
+            _INTRO_REPORT,
+            **kwargs,
+        )
+    return result, seen
+
+
+@pytest.mark.spec("CBT-01-005")
+def test_wait_for_reporter_introduction_returns_the_bound_case():
+    """A link the receiver's introduction bound answers with its case."""
+    case_id, seen = _wait_for_introduction(
+        _served_link(case_id=_INTRO_CASE, case_creator_id=_INTRO_RECEIVER)
+    )
+    assert case_id == _INTRO_CASE
+    # It reads the reporter's own store, not the client's bound actor.
+    assert "/actors/finder/" in seen["path"]
+    assert seen["params"] == {"type": ["ReportCaseLink"]}
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        # Pending: the trigger wrote the anchor, no introduction bound it.
+        {"case_creator_id": _INTRO_RECEIVER},
+        # Bound, but by an actor the report was not sent to.
+        {"case_id": _INTRO_CASE, "case_creator_id": f"{_INTRO_NODE}/actors/x"},
+    ],
+    ids=["pending", "other_introducer"],
+)
+def test_wait_for_reporter_introduction_times_out_without_a_trusted_one(
+    fields,
+):
+    """No bound link naming the receiver: the wait raises."""
+    with pytest.raises(AssertionError, match="CBT-01-011"):
+        _wait_for_introduction(
+            _served_link(**fields), timeout_seconds=0.05, poll_interval=0.01
+        )

@@ -21,11 +21,12 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
+import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain, runner
+from vultron.demo.helpers import invite_chain, runner, workflow
 from vultron.demo.utils import DataLayerClient
 
 # Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
@@ -449,3 +450,67 @@ def assert_reset_reseeds_case_actor(
     reset_clients = [c.kwargs["client"] for c in reset_mock.call_args_list]
     assert reset_clients == [*participant_clients.values(), case_actor_client]
     reseed_mock.assert_called_once_with(case_actor_client)
+
+
+@contextlib.contextmanager
+def expect_trusted_introductions(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[None]:
+    """Assert every reporter took its receiver's case introduction as trusted.
+
+    Wrap a demo run in this.  It records each call the demo makes to
+    ``wait_for_reporter_introduction`` and, while the reporter's store still
+    holds the result (the exchange runner resets it on teardown), reads the
+    reporter's own ``ReportCaseLink`` for the report.  On exit it asserts that
+    at least one introduction was checked, that each link names the receiver
+    as ``case_creator_id`` and is bound to the case (CBT-01-001, CBT-01-005),
+    and that nothing logged a ``CBT-01-011`` refusal.  The caller's ``caplog``
+    level must let WARNING records through (#4675).
+    """
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.core.models.report_case_link import VultronReportCaseLink
+
+    checked: list[tuple[str, str, list[tuple[str | None, str | None]]]] = []
+    real_wait = workflow.wait_for_reporter_introduction
+
+    def _recording_wait(
+        client: DataLayerClient,
+        reporter_id: str,
+        receiver_id: str,
+        report_id: str,
+        **kwargs: Any,
+    ) -> str:
+        case_id = real_wait(
+            client, reporter_id, receiver_id, report_id, **kwargs
+        )
+        links = [
+            (link.case_creator_id, link.case_id)
+            for link in get_datalayer(reporter_id).list_objects(
+                "ReportCaseLink"
+            )
+            if isinstance(link, VultronReportCaseLink)
+            and link.report_id == report_id
+        ]
+        checked.append((receiver_id, case_id, links))
+        return case_id
+
+    with patch.object(
+        workflow, "wait_for_reporter_introduction", side_effect=_recording_wait
+    ):
+        yield
+
+    refusals = [
+        record.getMessage()
+        for record in caplog.records
+        if "(CBT-01-011)" in record.getMessage()
+    ]
+    assert not refusals, (
+        "a reporter refused its receiver's case introduction:\n"
+        + "\n".join(refusals)
+    )
+    assert checked, "the demo never checked the reporter's introduction"
+    for receiver_id, case_id, links in checked:
+        assert links == [(receiver_id, case_id)], (
+            f"the reporter's ReportCaseLink should name {receiver_id!r} and be"
+            f" bound to {case_id!r}; it holds {links!r}"
+        )

@@ -22,7 +22,8 @@ ADR-0023 and ``specs/case-proposal.yaml`` CP-07-003.
 
 Workflow
 --------
-1. Finder submits a vulnerability report to the vendor inbox.
+1. Finder submits a vulnerability report through its own ``submit-report``
+   trigger, which writes its pending ``ReportCaseLink`` (CBT-01-005).
 2. The vendor processes the report: ``create_receive_report_case_tree``
    runs, which includes ``ProposeReportCaseToActorNode`` — this queues
    ``Create(as_CaseProposal)`` addressed to the case-actor service and
@@ -39,6 +40,8 @@ Workflow
      (the case-actor's acceptance of the proposal).
    - At least one ``VulnerabilityCase`` exists in the DataLayer
      (the case created by the case-actor service).
+   - The finder accepted the vendor's ``Create(VulnerabilityCase)``
+     introduction on the trusted route (CBT-01-001, CBT-01-005).
 
 Note: In the current prototype the case-actor service is co-located on
 the same server as the vendor actor.  Inter-actor delivery happens via
@@ -54,6 +57,10 @@ import sys
 from collections.abc import Callable, Sequence
 
 from vultron.demo.helpers.polling import wait_for_initialized_case
+from vultron.demo.helpers.workflow import (
+    reporter_submits_report,
+    verify_reporter_trusts_introduction,
+)
 from vultron.demo.utils import (  # BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -61,16 +68,9 @@ from vultron.demo.utils import (  # BASE_URL needed for test monkeypatching
     demo_check,
     demo_environment,
     demo_step,
-    post_to_inbox_and_wait,
-    seed_case_actor_for_report,
     setup_demo_logging,
-    verify_object_stored,
 )
-from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ def demo_case_proposal_round_trip(
 ) -> None:
     """Exercise the full CaseProposal round-trip (CP-07-003).
 
-    Finder submits a report to vendor's inbox.  The vendor's BT tree
+    Finder submits a report through its own trigger.  The vendor's BT tree
     includes ``ProposeReportCaseToActorNode``, which queues
     ``Create(as_CaseProposal)`` to the case-actor service.  The
     case-actor responds with ``Accept(as_CaseProposal)`` and
@@ -92,29 +92,21 @@ def demo_case_proposal_round_trip(
         vendor: The vendor actor (receives the report, hosts the
             case-actor service).
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        name="CP-07-003 demo report",
-        content=(
+    # Step 1: through the finder's own submit-report trigger, which writes
+    # the anchor the vendor's case introduction is checked against
+    # (CBT-01-005, #4675).  The helper records its own steps and raises when
+    # the trigger fails, so nothing below runs on a missing report.
+    report, _offer = reporter_submits_report(
+        client,
+        finder,
+        vendor,
+        reporter_client=client,
+        report_name="CP-07-003 demo report",
+        report_content=(
             "A buffer-overflow vulnerability discovered during testing "
             "of the CaseProposal protocol round-trip demo."
         ),
     )
-
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        offer = rm_submit_report_activity(
-            report,
-            actor=finder.id_,
-            to=vendor.id_,
-        )
-        # Provision the CaseActor this report's proposal will be
-        # addressed to; its id is derived from the report and this
-        # node hosts it in single-container demo mode (#2469).
-        seed_case_actor_for_report(client, report.id_)
-        post_to_inbox_and_wait(client, vendor.id_, offer)
-        with demo_check("Report and offer persisted in DataLayer"):
-            verify_object_stored(client, report.id_)
-            verify_object_stored(client, offer.id_)
 
     with demo_step(
         "Step 2: Verify ProposeReportCaseToActorNode sent Create(as_CaseProposal)"
@@ -139,6 +131,11 @@ def demo_case_proposal_round_trip(
             # leave a later step on unestablished state: demo_check, not
             # demo_gate.
             wait_for_initialized_case(client, report.id_)
+
+    with demo_step("Step 3: Vendor introduces the case to the finder"):
+        # The vendor's own Create(VulnerabilityCase) introduces the case
+        # (CBT-01-001); the finder accepts it on the trusted route.
+        verify_reporter_trusts_introduction(client, finder, vendor, report)
 
 
 def main(

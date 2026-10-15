@@ -77,8 +77,15 @@ from typing import cast
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
-from test.demo._helpers import make_testclient_call
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    make_testclient_call,
+)
+from test.demo.conftest import (
+    _TestClientRouter,
+    create_isolated_actor_app,
+    submit_report_through_reporter,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -94,10 +101,6 @@ from vultron.demo.utils import case_actor_id_for_report
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
-    rm_submit_report_activity,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -154,21 +157,27 @@ def _create_vendor_and_reporter(vendor_tc, reporter_tc) -> tuple[str, str]:
     return vendor_actor_id, reporter_actor_id
 
 
-def _post_to_inbox(client, actor_slug: str, activity) -> None:
-    """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
-    resp = client.post(
-        f"/api/v2/actors/{actor_slug}/inbox/",
-        content=activity.model_dump_json(by_alias=True, exclude_none=True),
-        headers={"Content-Type": "application/json"},
-    )
-    assert resp.status_code == 202, (
-        f"Inbox POST returned {resp.status_code}: {resp.text}"
-    )
-
-
 def _actor_slug(actor_id: str) -> str:
     """Return the last URL path segment of *actor_id*."""
     return actor_id.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _provision_case_actor(vendor_tc) -> str:
+    """Host the CaseActor on the vendor's node; return its id.
+
+    The vendor is the case-actor service here, so its node must host the
+    CaseActor the proposal is addressed to, or the ``Create(CaseProposal)``
+    delivery answers 404 and the round trip never begins.  One CaseActor per
+    container (#1872), so it is provisioned before the report id exists.
+    """
+    case_actor_id = case_actor_id_for_report("")
+    _create_actor(
+        vendor_tc,
+        f"{_VENDOR_BASE}/api/v2",
+        _actor_slug(case_actor_id),
+        "Case Actor CP",
+    )
+    return case_actor_id
 
 
 # ---------------------------------------------------------------------------
@@ -256,47 +265,20 @@ class TestCaseProposalRoundTrip:
         DataLayer (CP-04-001, CP-04-002).
         """
         vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
-
-        vendor_base_api = f"{_VENDOR_BASE}/api/v2"
-        reporter_base_api = f"{_REPORTER_BASE}/api/v2"
-
-        vendor_actor_id = _create_actor(
-            vendor_tc, vendor_base_api, _VENDOR_SLUG, "Vendor CP"
+        vendor_actor_id, reporter_actor_id = _create_vendor_and_reporter(
+            vendor_tc, reporter_tc
         )
-        reporter_actor_id = _create_actor(
-            reporter_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
-        )
-        # Register reporter as peer on vendor app so the outbox emitter can
-        # route any outbound deliveries back to the reporter (ADR-0081).
-        _register_peer(
-            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
-        )
-
-        report = as_VulnerabilityReport(
-            attributed_to=reporter_actor_id,
-            name="CP-07-003 round-trip report",
-            content=(
+        _provision_case_actor(vendor_tc)
+        submit_report_through_reporter(
+            reporter_tc,
+            reporter_actor_id,
+            vendor_actor_id,
+            report_name="CP-07-003 round-trip report",
+            report_content=(
                 "A vulnerability discovered during CaseProposal integration "
                 "testing (CP-07-003)."
             ),
         )
-        offer = rm_submit_report_activity(
-            report,
-            actor=reporter_actor_id,
-            to=vendor_actor_id,
-        )
-        # Provision the CaseActor the proposal will be addressed to.  Its id is
-        # *derived* from the report (ResolveCaseActorUrlsNode), and the vendor is
-        # the case-actor service here, so the vendor's node must host it — or the
-        # Create(CaseProposal) delivery answers 404 and the round-trip never
-        # begins.  Spawning one on demand for an unknown case is #1700.
-        _create_actor(
-            vendor_tc,
-            vendor_base_api,
-            _actor_slug(case_actor_id_for_report(str(report.id_))),
-            "Case Actor CP",
-        )
-        _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 
         # Verify a CaseProposal object was created and stored by
         # ProposeCaseToActorNode via TriggerActivityAdapter.create_case_proposal()
@@ -313,37 +295,21 @@ class TestCaseProposalRoundTrip:
     def _submit_report(self, two_app_setup, caplog, label):
         """Run the report-to-case round trip; return the isolates and actor ids."""
         vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
-        vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         vendor_actor_id, reporter_actor_id = _create_vendor_and_reporter(
             vendor_tc, reporter_tc
         )
-
-        report = as_VulnerabilityReport(
-            attributed_to=reporter_actor_id,
-            name=label,
-            content=(
-                "Verifying that Accept(as_CaseProposal) is delivered to "
-                "the vendor during the CaseProposal round-trip (CP-05-003)."
-            ),
-        )
-        offer = rm_submit_report_activity(
-            report,
-            actor=reporter_actor_id,
-            to=vendor_actor_id,
-        )
-        # Provision the CaseActor the proposal will be addressed to.  Its id is
-        # *derived* from the report (ResolveCaseActorUrlsNode), and the vendor is
-        # the case-actor service here, so the vendor's node must host it — or the
-        # Create(CaseProposal) delivery answers 404 and the round-trip never
-        # begins.  Spawning one on demand for an unknown case is #1700.
-        _create_actor(
-            vendor_tc,
-            vendor_base_api,
-            _actor_slug(case_actor_id_for_report(str(report.id_))),
-            "Case Actor CP",
-        )
+        _provision_case_actor(vendor_tc)
         with caplog.at_level(logging.WARNING):
-            _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
+            submit_report_through_reporter(
+                reporter_tc,
+                reporter_actor_id,
+                vendor_actor_id,
+                report_name=label,
+                report_content=(
+                    "Verifying that Accept(as_CaseProposal) is delivered to "
+                    "the vendor during the CaseProposal round-trip (CP-05-003)."
+                ),
+            )
         return vendor_iso, reporter_iso, vendor_actor_id, reporter_actor_id
 
     @pytest.mark.spec("CP-09-001")
@@ -435,24 +401,14 @@ class TestCaseProposalRoundTrip:
         vendor_actor_id, reporter_actor_id = _create_vendor_and_reporter(
             vendor_tc, reporter_tc
         )
-        # One CaseActor per container (#1872), so it is provisioned before
-        # the report id exists.
-        case_actor_id = case_actor_id_for_report("")
-        _create_actor(
-            vendor_tc,
-            f"{_VENDOR_BASE}/api/v2",
-            _actor_slug(case_actor_id),
-            "Case Actor CP",
+        case_actor_id = _provision_case_actor(vendor_tc)
+        submit_report_through_reporter(
+            reporter_tc,
+            reporter_actor_id,
+            vendor_actor_id,
+            report_name=label,
+            report_content="Checking the reporter's introduction.",
         )
-        resp = reporter_tc.post(
-            f"/api/v2/actors/{_REPORTER_SLUG}/trigger/submit-report",
-            json={
-                "report_name": label,
-                "report_content": "Checking the reporter's introduction.",
-                "recipient_id": vendor_actor_id,
-            },
-        )
-        assert resp.status_code == 202, resp.text
         return (
             vendor_iso,
             reporter_iso,
@@ -603,40 +559,21 @@ class TestCaseProposalRejectRoundTrip:
             declining,
         )
 
-        vendor_base_api = f"{_VENDOR_BASE}/api/v2"
-        reporter_base_api = f"{_REPORTER_BASE}/api/v2"
-
-        vendor_actor_id = _create_actor(
-            vendor_tc, vendor_base_api, _VENDOR_SLUG, "Vendor CP"
+        vendor_actor_id, reporter_actor_id = _create_vendor_and_reporter(
+            vendor_tc, reporter_tc
         )
-        reporter_actor_id = _create_actor(
-            reporter_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
-        )
-        _register_peer(
-            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
-        )
-
-        report = as_VulnerabilityReport(
-            attributed_to=reporter_actor_id,
-            name="CP-05-002 reject round-trip report",
-            content=(
+        _provision_case_actor(vendor_tc)
+        submit_report_through_reporter(
+            reporter_tc,
+            reporter_actor_id,
+            vendor_actor_id,
+            report_name="CP-05-002 reject round-trip report",
+            report_content=(
                 "Verifying that a declining case actor service sends "
                 "Reject(as_CaseProposal) and creates nothing (CP-05-002, "
                 "CP-05-004)."
             ),
         )
-        offer = rm_submit_report_activity(
-            report,
-            actor=reporter_actor_id,
-            to=vendor_actor_id,
-        )
-        _create_actor(
-            vendor_tc,
-            vendor_base_api,
-            _actor_slug(case_actor_id_for_report(str(report.id_))),
-            "Case Actor CP",
-        )
-        _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 
         reject_activities = vendor_iso.dl.by_type("Reject")
         assert len(reject_activities) >= 1, (
@@ -692,7 +629,12 @@ class TestCaseProposalDemo:
 
         from vultron.demo.exchange import case_proposal_demo as demo
 
-        with caplog.at_level(logging.ERROR):
+        # WARNING, not ERROR: a refused case introduction (CBT-01-011) is
+        # logged at WARNING, and the run must log none (#4675).
+        with (
+            caplog.at_level(logging.WARNING),
+            expect_trusted_introductions(caplog),
+        ):
             demo.main(
                 skip_health_check=True,
                 demos=[demo.demo_case_proposal_round_trip],

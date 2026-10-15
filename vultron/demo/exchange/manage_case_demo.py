@@ -56,7 +56,11 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import create_case_via_trigger
+from vultron.demo.helpers.workflow import (
+    create_case_via_trigger,
+    reporter_submits_report,
+    verify_reporter_trusts_introduction,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -77,7 +81,6 @@ from vultron.wire.as2.factories import (
     rm_defer_case_activity,
     rm_engage_case_activity,
     rm_invalidate_report_activity,
-    rm_submit_report_activity,
     rm_validate_report_activity,
 )
 
@@ -108,15 +111,14 @@ def setup_report_and_case(
 
     Returns the created report and case objects.
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content=report_content,
-        name=report_name,
+    report, report_offer = reporter_submits_report(
+        client,
+        finder,
+        vendor,
+        reporter_client=client,
+        report_name=report_name,
+        report_content=report_content,
     )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = rm_validate_report_activity(
@@ -133,6 +135,7 @@ def setup_report_and_case(
         report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report)
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
 
     return report, case
 
@@ -299,20 +302,19 @@ def demo_invalidate_path(
 
     report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            content="The login page shows a different error for valid vs invalid "
-            "usernames.",
-            name="Alleged Username Enumeration",
+        # Through the finder's own submit-report trigger (CBT-01-005, #4675).
+        report, offer = reporter_submits_report(
+            client,
+            finder,
+            vendor,
+            reporter_client=client,
+            report_name="Alleged Username Enumeration",
+            report_content=(
+                "The login page shows a different error for valid vs invalid "
+                "usernames."
+            ),
         )
-        logger.info("Created report: %s", logfmt(report))
-        offer = rm_submit_report_activity(
-            report, actor=finder.id_, to=vendor.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, offer)
-        with demo_check("Report and offer stored"):
-            verify_object_stored(client, report.id_)
-            verify_object_stored(client, offer.id_)
+        logger.info("Submitted report: %s", logfmt(report))
 
     stored_offer = None
     with demo_step(
@@ -341,8 +343,12 @@ def demo_invalidate_path(
         with demo_check("RmCloseReportActivity activity stored"):
             verify_object_stored(client, close_report.id_)
 
+    # The case was created on receipt (auto_create_case), so the vendor still
+    # introduces it to the finder (CBT-01-001); it is never engaged.
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
+
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report invalidated and closed (no case created)."
+        "✅ DEMO 3 COMPLETE: Report invalidated and closed (no case engaged)."
     )
 
 

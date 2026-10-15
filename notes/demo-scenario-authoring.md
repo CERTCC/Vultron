@@ -12,6 +12,7 @@ description: >
   inside a demo context, share the replica-sync phase, and close every case
   with the Case Owner leaving last.
 related_specs:
+  - specs/case-bootstrap-trust.yaml
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/event-driven-control-flow.yaml
@@ -56,6 +57,22 @@ proves nothing about it (DEMOMA-05-001).
 **How to apply:** before writing a step where one actor responds to another,
 check the trigger endpoint exists. If it does not, build the full stack
 (endpoint → service → BT) first, then the step.
+
+**Report submissions too, in every demo.** Submit a report only through
+`reporter_submits_report` (`helpers/workflow.py`), exchange demos included, and
+never build a `Create(VulnerabilityCase)` for the receiver.
+
+- **Why:** the reporter's `submit-report` trigger writes the pending
+  `ReportCaseLink` naming the receiver (CBT-01-005). An Offer posted straight
+  to the receiver's inbox leaves the reporter no anchor, so it refuses the
+  receiver's case introduction (CBT-01-011). The demo still passes when the
+  reporter gets a case another way, so the defect stays hidden (#4675).
+- **How to apply:** once the case exists, call
+  `verify_reporter_trusts_introduction`; its test wraps the run in
+  `expect_trusted_introductions` (`test/demo/_helpers.py`).
+  `test/architecture/test_demo_reports_submitted_through_trigger.py` fails on
+  any call to `rm_submit_report_activity` or `create_case_activity` under
+  `vultron/demo/`.
 
 ---
 

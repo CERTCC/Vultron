@@ -11,12 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``reporter_submits_report`` carries the Reporter's terms on both arms.
+"""``reporter_submits_report`` submits through the reporter's own trigger.
 
-The trigger arm hands ``proposed_embargo_end_time`` to ``ActorSession``; the
-in-memory arm builds the ``EmbargoEvent`` itself, about the report
-(EP-04-009), and hands it to the factory.  Transport and verification are
-stubbed: what is under test is the Offer the helper produces, not delivery.
+It hands ``proposed_embargo_end_time`` and the report text to
+``ActorSession``, and never posts an Offer into the receiver's inbox: the
+trigger is where the reporter writes the anchor it later checks the
+receiver's case introduction against (CBT-01-005, #4675).  Transport and
+verification are stubbed: what is under test is the call the helper makes,
+not delivery.
 """
 
 from datetime import UTC, datetime
@@ -53,25 +55,15 @@ def _client() -> DataLayerClient:
     return DataLayerClient(base_url=_NODE, actor_id=_RECEIVER.id_)
 
 
-class TestInMemoryArm:
-    @pytest.mark.spec("EP-04-004")
-    @pytest.mark.spec("EP-04-009")
-    def test_terms_ride_the_offer_about_the_report(self):
-        report, offer = workflow.reporter_submits_report(
-            _client(), _REPORTER, _RECEIVER, proposed_embargo_end_time=_END
-        )
-
-        proposed = offer.proposed_embargo
-        assert isinstance(proposed, as_EmbargoEvent)
-        assert proposed.context == report.id_
-        assert proposed.end_time == _END
-
-    def test_no_terms_means_the_default_path(self):
-        _, offer = workflow.reporter_submits_report(
-            _client(), _REPORTER, _RECEIVER
-        )
-
-        assert offer.proposed_embargo is None
+class TestNoInMemoryArm:
+    @pytest.mark.spec("DEMOMA-05-001")
+    @pytest.mark.spec("CBT-01-005")
+    def test_reporter_client_is_required(self):
+        """There is no path that builds the Offer and posts it to an inbox."""
+        with pytest.raises(TypeError):
+            workflow.reporter_submits_report(  # type: ignore[call-arg]
+                _client(), _REPORTER, _RECEIVER
+            )
 
 
 class TestTriggerArm:
@@ -116,6 +108,7 @@ class TestTriggerArm:
 
         assert seen["actor"] == _REPORTER.id_
         assert seen["kwargs"]["proposed_embargo_end_time"] == _END
+        assert seen["kwargs"]["recipient_id"] == _RECEIVER.id_
         assert isinstance(offer.proposed_embargo, as_EmbargoEvent)
         assert offer.proposed_embargo.context == report.id_
 
@@ -186,3 +179,44 @@ class TestTriggerArmDeliversOnlyThroughTheOutbox:
         assert receiver_id == _RECEIVER.id_
         assert report_id.startswith("urn:uuid:2222")
         assert offer_id
+
+
+class TestReportText:
+    def test_callers_name_their_own_report(self, monkeypatch):
+        """Exchange demos submit their own report text through the trigger."""
+        seen: dict = {}
+
+        class _FakeSession:
+            def __init__(self, *, client, actor):
+                pass
+
+            def submit_report(self, **kwargs):
+                seen.update(kwargs)
+                offer = {
+                    "type": "Offer",
+                    "actor": _REPORTER.id_,
+                    "to": [_RECEIVER.id_],
+                    "object": {
+                        "type": "VulnerabilityReport",
+                        "id": "urn:uuid:33333333-3333-3333-3333-333333333333",
+                        "attributedTo": _REPORTER.id_,
+                        "name": kwargs["report_name"],
+                        "content": kwargs["report_content"],
+                    },
+                }
+                return type("R", (), {"offer": offer})()
+
+        monkeypatch.setattr(workflow, "ActorSession", _FakeSession)
+
+        report, _ = workflow.reporter_submits_report(
+            _client(),
+            _REPORTER,
+            _RECEIVER,
+            reporter_client=_client(),
+            report_name="Use-After-Free",
+            report_content="A use-after-free in the allocator.",
+        )
+
+        assert seen["report_name"] == "Use-After-Free"
+        assert seen["report_content"] == "A use-after-free in the allocator."
+        assert report.name == "Use-After-Free"

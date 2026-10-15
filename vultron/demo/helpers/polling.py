@@ -1554,6 +1554,67 @@ def wait_for_report_submission_stored(
     )
 
 
+def wait_for_reporter_introduction(
+    client: DataLayerClient,
+    reporter_id: str,
+    receiver_id: str,
+    report_id: str,
+    timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll the reporter's store until its report's link is bound by the receiver.
+
+    The reporter's ``submit-report`` trigger writes a pending
+    ``ReportCaseLink`` that names the actor it sent the report to
+    (CBT-01-005).  The receiver's ``Create(VulnerabilityCase)`` introduction
+    binds that link to the case only on the trusted route, and records the
+    receiver as ``case_creator_id`` (CBT-01-001, CBT-01-006).  So a bound link
+    naming *receiver_id* is the committed effect of a trusted introduction, read
+    where it commits (EDF-06-002).  An introduction refused on the unanchored
+    route (CBT-01-011) leaves no such link, and this wait times out.
+
+    Args:
+        client: DataLayerClient connected to the reporter's container.
+        reporter_id: The report submitter, whose store is read (ADR-0073).
+        receiver_id: The actor the report was submitted to.
+        report_id: Id of the submitted ``VulnerabilityReport``.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between poll attempts.
+
+    Returns:
+        The id of the case the reporter's link is bound to.
+
+    Raises:
+        AssertionError: If no bound link naming *receiver_id* appears in time.
+    """
+
+    def _bound_by_receiver(link: dict) -> bool:
+        return (
+            link.get("report_id") == report_id
+            and link.get("case_creator_id") == receiver_id
+            and bool(link.get("case_id"))
+        )
+
+    return _poll_datalayer_for(
+        client.model_copy(update={"actor_id": reporter_id}),
+        ("ReportCaseLink",),
+        _bound_by_receiver,
+        timeout_seconds,
+        poll_interval,
+        log_msg=(
+            f"Reporter {reporter_id!r} trusted {receiver_id!r}'s introduction"
+            " of case %s"
+        ),
+        error_msg=(
+            f"Timed out waiting for {reporter_id!r}'s ReportCaseLink for report"
+            f" {report_id!r} to be bound by {receiver_id!r}'s introduction —"
+            " the report did not go through the reporter's submit-report"
+            " trigger, or the introduction was refused (CBT-01-011)"
+        ),
+        id_fn=lambda _raw_id, link: str(link["case_id"]),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Participant-state polling helpers
 # ---------------------------------------------------------------------------
