@@ -170,6 +170,7 @@ from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
@@ -340,11 +341,14 @@ def create_case_proposal_received_tree(
             extracted — the case will be created without a report link.
         proposal_id: URI of the ``as_CaseProposal`` object.
         proposer_uri: URI of the proposing actor — the report receiver — to
-            whom the responses are sent.  If the proposal is admitted, it
-            becomes the case's CASE_OWNER: the new case is attributed to it
-            (CP-09-001) and it is the participant given
-            ``CVDRole.CASE_OWNER``.  A declined proposer owns nothing, so
-            the nodes that run before the case exists name it the proposer.
+            whom the responses are sent.  It is normalised with
+            ``normalise_actor_id``, so a trailing slash names the same
+            proposer and nothing is stored under the slash spelling (#4772).
+            If the proposal is admitted, it becomes the case's CASE_OWNER:
+            the new case is attributed to it (CP-09-001) and it is the
+            participant given ``CVDRole.CASE_OWNER``.  A declined proposer
+            owns nothing, so the nodes that run before the case exists name
+            it the proposer.
         proposal_dict: The proposal's AS2 rendering (from ``WireRenderPort``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-009 and the AKM-03-003 outbox requirement. Falls back
@@ -376,6 +380,12 @@ def create_case_proposal_received_tree(
         for ``BTBridge.execute_with_setup``.
     """
     bundle = call_out if call_out is not None else CASE_PROPOSAL_DETERMINISTIC
+
+    # The sender wrote this id; from here on it is the proposer's identity,
+    # which the tree stores and looks up.  Every node below gets the canonical
+    # spelling, so the sender guard's ``same_actor_id`` and the accept path's
+    # lookups agree on who the proposer is (#4772).
+    proposer_uri = normalise_actor_id(proposer_uri)
 
     offer_id, offer_actor_id = offer_provenance_from_proposal(proposal_dict)
 
