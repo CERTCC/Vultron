@@ -8,7 +8,7 @@ type: learning
 
 ## Summary
 
-# 4598 removed four received routes from this implementation: `Create(CaseStatus)`, `Create(ParticipantStatus)`, `Create(EmbargoEvent)` and a direct `Create(CaseParticipant)`. Each stored the object it carried with no ledger entry, and nothing in the system sent them except one demo. The demos now send the status inline on the `Add` that attaches it, and an embargo proposal carries its `EmbargoEvent` inline on the `Invite`
+Issue #4598 removed four received routes from this implementation: `Create(CaseStatus)`, `Create(ParticipantStatus)`, `Create(EmbargoEvent)` and a direct `Create(CaseParticipant)`. Each stored the object it carried with no ledger entry, and nothing in the system sent them except one demo. The demos now send the status inline on the `Add` that attaches it, and an embargo proposal carries its `EmbargoEvent` inline on the `Invite`
 
 That is a choice this prototype made, not a requirement of the protocol. The maintainer's decision on #4598 is explicit: removing the routes does not disallow the mechanism. Docs say "not supported by this implementation", never "invalid".
 
