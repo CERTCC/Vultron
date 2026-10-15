@@ -236,52 +236,119 @@ them from the reader path is not a step toward deleting them (#3281).
 
 ## The front desk and the floors
 
-The site's top level is organized by reader, not by Diátaxis type (ADR-0136).
-The team thinks of it as a building: the home page is the **front desk**, which
-says what kind of thing Vultron is and sends each visitor to the floor they
-came for. **The metaphor is internal**, like the levels and stakeholder types:
-it shapes the nav and never appears on the site.
+The site's top level is organized by subject and reader, not by Diátaxis type
+(ADR-0136). The team thinks of it as a building: the home page is the **front
+desk**, which says what kind of thing Vultron is and sends each visitor to the
+floor they came for. **The metaphor is internal**, like the levels and
+stakeholder types: it shapes the nav and never appears on the site.
 
-| Floor | Tab | Stakeholder type | Landing page |
+| Floor | Tab | Primary stakeholder type | Landing page |
 |---|---|---|---|
 | Front desk | Home | `ALL` | `index.md` |
-| Lobby signage | How Vultron Works | `ALL`, levels 200–300 | (shared concepts) |
+| Lobby signage | How Vultron Works | `ALL`, levels 200–300 | its own landing page (to write) |
 | Offices | Coordinate Cases | `cvd-practitioner` | `start/coordinate-cases.md` |
 | Engineering | Implement the Protocol | `platform-developer` | `start/connect-your-tracker.md` |
 | Basement | Reference Implementation | `project-contributor` | `start/contribute.md` |
 | Observation deck | Research | `process-researcher` | `start/study-the-process.md` |
 | (building office) | Project | `ALL` | versioning, open questions, proposing a change |
 
-Rules that keep the floors distinct:
+The table maps each tab to its *primary* type; it is not one tab per type. A
+later `stakeholder_type` split adds a thread, not a tab, which keeps the types
+invisible (ADR-0102). The CERT/CC link stays as the parent-site link, outside
+the seven tabs.
 
-- **The protocol and the reference implementation never share a section.** A
-  page about CERT/CC's codebase, such as the Trigger API or a demo, is basement
-  material however protocol-shaped its subject is. Engineering holds only what
-  binds every implementation and what explains it.
-- **The Protocol Specification is the Engineering floor's centrepiece**, linked
-  from the front desk. Messages, the Conformance Matrix, the Quick Reference
-  and Formal Protocol are labelled companions that defer to it; the notation's
-  nav entry is the specification's annex.
-- **Shared concepts go in How Vultron Works**, not on whichever floor asked
-  first. A page every floor links to is lobby signage.
-- **Edge placements decided so far:** Behavior Logic is Engineering;
-  Federation is Project; User Stories and the taxonomy are basement; Measuring
-  Your Program is Offices.
+### Placement: the first rule that matches
+
+1. Binds every implementation, or explains or teaches what does → Engineering.
+2. About how *this* implementation is built or run → basement.
+3. Otherwise, the tab of the page's `stakeholder_type`. `ALL`, or a page several
+   tabs depend on → lobby signage. Project process → Project.
+
+So **the protocol and the reference implementation never share a section.** A
+page about CERT/CC's codebase, such as the Trigger API or a demo, is basement
+material however protocol-shaped its subject is.
+
+**The normative protocol is the Protocol Specification plus the Protocol and
+Foundation requirement tiers**, all on Engineering and labeled *Protocol
+Requirements* there. The YAML is the source of truth; prose in the
+specification that diverges from it is a bug (#4749 renders the YAML into the
+specification so the two cannot drift). In the basement, the Architecture,
+Project and Process tiers are *Implementation Requirements*: how we build ours,
+not how others must build theirs. Messages, the Conformance Matrix, the Quick
+Reference and Formal Protocol are companions that never add to the normative
+set; protocol-floor pages outside it carry `not_normative.md`
+(`reference/conventions.md`). Normative status is not a `page_type`.
+
+**Edge placements decided so far:** Behavior Logic and Federation
+(`platform-developer`) are Engineering; the Concept Taxonomy and Documentation
+Conventions are lobby signage, out of the basement; User Stories are basement;
+Measuring Your Program is Offices.
+
+**Open Questions pages:** the specification's
+(`reference/vultron-spec/open-questions.md`) is Engineering, beside the specification it qualifies; the design one
+(`topics/future_work/open_questions.md`, `platform-developer` at 400) goes with
+Future Work; a project one, when written, is Project.
+
+**Tutorials go by what they teach.** A tutorial that teaches protocol behavior
+is Engineering, with a short note that it uses the reference implementation as
+a test bench. One about running, configuring or extending the code is basement.
+
+| Tutorial | Floor | Why |
+|---|---|---|
+| `tutorials/worked_example.md` | Engineering | sequence diagrams of protocol scenarios |
+| `tutorials/submit-a-report.md` | Engineering | teaches the `Create(VulnerabilityReport)` message; the implementation is the test bench |
+| `tutorials/fv-demo.md` | Engineering | walks a whole case through the protocol states |
+| `tutorials/receive_report_demo.md` | basement | running the demo environment |
+| `tutorials/container_demos.md` | basement | running the multi-actor containers |
+| `tutorials/other_demos.md` | basement | running the remaining demos |
+
+### Inside a tab: topics, landing pages, threads
+
+Groups inside a tab are named by topic, never by Diátaxis type ("Run the
+Demos", not "Tutorials"). Every tab opens on a landing page. Large groups go
+behind a routing page (DF-11-006) rather than nesting deeper.
+
+Each reader tab's landing page starts a **thread**: an ordered reading path that
+may cross tabs; lobby signage has a shared thread. The nav is the structure and
+the threads give the route. ADR-0102's level rule already guarantees an order
+exists for each audience. How threads are shown (curated lists, "next on this
+path" links, or a draft from `stakeholder_type` and `level`), and what to do
+with a page on several threads, is #4750.
+
+A returning reader gets one cross-tab lookup page, linked from the front desk,
+listing the reference pages (specification, requirement tiers, messages,
+glossary, conformance matrix, quick reference); it can be generated from
+`page_type: reference` (#4751).
 
 ### Page type is a label, not a section
 
-Each reader-facing page declares one `page_type` (`tutorial`, `how-to`,
-`explanation`, `reference`); routing pages and the front desk declare none. The
-theme renders it as a badge from frontmatter, and the same badge is a CSS class
-an author can write by hand next to a link on a routing page. Diátaxis still
-governs how a page is written (DF-01); it no longer decides where the page
-sits. The key is not `content_type`, which reads as a MIME type.
+Every reader-facing page declares one `page_type`: `tutorial`, `how-to`,
+`explanation`, `reference` or `routing`. The key is required, so a missing key is
+a fault (the same reasoning `contents:` uses in `landing_pages.py`). `routing` is
+validated but not rendered; the other four render as a badge from frontmatter.
+`page_type` is independent of `contents:`: an index that mostly explains is
+`explanation`. Working-record pages declare none (DF-11-003 marks them). A
+mixed-type page is split or clearly sectioned (DF-01-003); the Protocol
+Specification declares a type per page. There are no hand-written badges.
+Diátaxis still governs how a page is written (DF-01); it no longer decides where
+the page sits. The key is not `content_type`, which reads as a MIME type.
 
-### Nav first, files later
+### Type signal first, nav gated, files stay
 
-The tabs change in `mkdocs.yml` first, and the directories stay where they are,
-so no URL breaks. Moving the files to match waits for the usability test under
-"Validation". Until then a page's directory is not evidence of its floor.
+The order is: the `page_type` schema, validator and badge land with the
+DF-01-001 rewording (#4683); the usability test runs against a build with badges
+(#4687); then the nav changes (#4684). The proposed nav stays on a branch or
+preview build until it passes against `main`'s nav; a failing nav is revised
+and retested, and `main` keeps its current top level meanwhile.
+
+**Files stay where they are**, so no URL breaks, and a page's directory is not
+evidence of its floor. Moving them is reconsidered only if contributors
+repeatedly misplace pages or the routing check's directory assumption causes
+real friction (#4686). That assumption is a known coupling: `landing_pages.py`
+requires a routing page to link the reader pages in its own directory. The old
+section indexes (`tutorials/`, `topics/`, `reference/`, `howto/`,
+`start/index.md`) keep their URLs and are retargeted as routing pages or
+redirect stubs.
 
 ## Routing: nav enumerates groups, routing pages carry leaves
 
@@ -404,17 +471,29 @@ Vultron is the test that would falsify it; it is a person, not a check, so it
 cannot gate a change. It remains an open goal; nobody is available to do it.
 
 What can gate a change is an **agent usability test**, which ADR-0136 uses to
-gate the file move:
+gate the nav change. ADR-0136 § "Validation" fixes its essentials: `main`'s nav
+is the baseline; the proposed nav passes when it is no worse on task success and
+no task stalls at the front desk; personas and tasks are committed before the
+proposed nav is evaluated; each pairing is repeated; the evaluator is
+independent of the design. How to run it:
 
-1. **Tree test.** Agents see only nav labels, current and proposed, and say
+1. **Tree test.** Agents see only nav labels, baseline and proposed, and say
    where they would look for each task.
 2. **Walkthrough.** Agents get the built site as HTML only: no repository, no
    site search, a click budget, and an explicit option to give up.
 
 Brief about five personas, each with explicit "you don't know X" constraints;
 an agent that knows the repo will find anything. Draw tasks from the user
-stories, the FAQ and a few real questions from the maintainer, and **fix the
-task list before anyone sees the proposed tree**, or the tasks get written to
-fit it. The proposed tree passes when it beats the current one on task success
-and no task stalls at the front desk. An agent catches a nav that cannot work;
-it cannot show that a person finds one natural.
+stories, the FAQ and a few real questions from the maintainer, include at least
+one "follow your thread" task per persona, and **fix the task list before anyone
+sees the proposed tree**, or the tasks get written to fit it. The evaluator is a
+different model, or a fresh context without access to the proof of concept. An
+agent catches a nav that cannot work; it cannot show that a person finds one
+natural.
+
+**Rerun policy (guidance, not CI).** Rerun only on a structural nav change:
+tabs or second-level groups added, removed, renamed or reordered, or a page
+moving between tabs. A single rename or move needs only the tree test. To keep
+cost down, run the cheap tree test on every pairing, escalate to walkthroughs
+only where the navs differ or a task fails, reuse baseline results keyed on a
+hash of the nav, and repeat runs only for pairings with mixed results.

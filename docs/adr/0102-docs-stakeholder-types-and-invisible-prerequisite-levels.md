@@ -8,7 +8,7 @@ deciders: Allen Householder
 consulted: CERT/CC Vultron team
 informed: Vultron contributors
 stakeholder_type: [project-contributor]
-partially_superseded_by: 0136-organize-the-site-top-level-by-reader-floor-not-diataxis-type.md
+partially_superseded_by: 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
 ---
 
 # Organize reader-facing documentation by stakeholder type and invisible prerequisite level
@@ -297,10 +297,9 @@ register of reader types.
 The per-page decisions are in `notes/site-information-architecture.md` § "Sub-section index decisions".
 That section defines roles held in a case and is not a register of reader types; the distinction above stands, and stakeholder-type descriptions must not be added to it.
 
-**Partially superseded 2026-10-14 by ADR-0136:** the four Diátaxis sections no
-longer form the site's top level. The navigation is organized by reader, and
-Diátaxis survives as a per-page `page_type`. Everything else in this record
-stands.
+**Partially superseded 2026-10-14 by ADR-0136:** the four Diátaxis sections no longer form the site's top level.
+The navigation is organized by subject and reader, and Diátaxis survives as a per-page `page_type`.
+Everything else in this record stands.
 
 This decision makes the stakeholder-type enumeration authoritative and retires
 the competing audience lists in `docs/index.md` and in #607/#3511.
