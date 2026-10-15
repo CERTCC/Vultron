@@ -2,9 +2,9 @@
 
 !!! info "Add note to case"
 
-    Attaches the note to the case named by the target, for example to ask or answer a question.
+    Attaches the note to the case named by the target, and the Case Manager records the attachment in the case ledger. A receiver accepts it on its own, for a note created earlier or elsewhere, or after a Create of the same note. This implementation's add-note trigger does not send it: a new note goes as a Create alone.
 
-    - **When…** a Participant posts a note to the case
+    - **When…** a Participant attaches a note that already exists to the case
     - **Send:** `Add(Note)[target=VulnerabilityCase]`
     - **Sent by:** not yet checked
     - **Reference:** [Add note to case](../../general.md#add-note-to-case)
