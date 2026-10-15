@@ -1,6 +1,8 @@
 """`prepush-delta.sh` measures the delta on the branch's own lines (PAD-07-007/008)."""
 
 import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -26,14 +28,18 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def _run(
-    repo: Path, *args: str, cwd: Path | None = None
+    repo: Path,
+    *args: str,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bash", str(SCRIPT), *args],
+        [shutil.which("bash") or "bash", str(SCRIPT), *args],
         cwd=cwd or repo,
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
 
@@ -43,6 +49,14 @@ def _fields(result: subprocess.CompletedProcess[str]) -> dict[str, str]:
         for line in result.stdout.splitlines()
         if "=" in line
     )
+
+
+def _delta_files(result: subprocess.CompletedProcess[str]) -> list[str]:
+    return [
+        line.removeprefix("delta_file=")
+        for line in result.stdout.splitlines()
+        if line.startswith("delta_file=")
+    ]
 
 
 def _write(repo: Path, name: str, text: str) -> None:
@@ -109,7 +123,7 @@ def test_unchanged_branch_is_a_delta_review(repo: Path) -> None:
     assert fields["mode"] == "delta"
     assert fields["reviewed_lines"] == "2"
     assert fields["delta_lines"] == "0"
-    assert fields["delta_files"] == ""
+    assert _delta_files(result) == []
 
 
 def test_freshen_onto_a_newer_base_adds_no_delta(repo: Path) -> None:
@@ -127,7 +141,7 @@ def test_small_fix_is_reviewed_as_delta(repo: Path) -> None:
     fields = _fields(result)
     assert fields["mode"] == "delta"
     assert fields["delta_lines"] == "1"
-    assert fields["delta_files"] == "b.txt"
+    assert _delta_files(result) == ["b.txt"]
 
 
 def test_delta_over_half_the_reviewed_lines_is_a_full_triage(
@@ -183,14 +197,31 @@ def test_path_encoding_keeps_slash_and_dash_branches_apart(repo: Path) -> None:
     assert slash != dash
 
 
+def test_path_encoding_escapes_a_literal_percent(repo: Path) -> None:
+    slash = _run(repo, "--path", "a/b").stdout.strip()
+    percent = _run(repo, "--path", "a%2Fb").stdout.strip()
+    assert slash != percent
+    assert percent.endswith("pr-prepush-a%252Fb-triage.json")
+
+
+def test_path_on_a_detached_head_without_a_branch_is_a_usage_error(
+    repo: Path,
+) -> None:
+    _git(repo, "checkout", "-q", "--detach")
+    result = _run(repo, "--path")
+    assert result.returncode == 2
+    assert result.stdout == ""
+
+
 def test_run_from_a_subdirectory_sees_the_whole_diff(repo: Path) -> None:
     (repo / "sub").mkdir()
     _write(repo, "sub/c.txt", "c\n")
     _commit_all(repo, "sub file")
     result = _run(repo, "main", cwd=repo / "sub")
+    assert result.returncode == 3, result.stderr
     fields = _fields(result)
     assert fields["reviewed_lines"] == "2"
-    assert fields["delta_files"] == "sub/c.txt"
+    assert _delta_files(result) == ["sub/c.txt"]
 
 
 def test_non_ascii_file_names_count_toward_the_delta(repo: Path) -> None:
@@ -199,8 +230,8 @@ def test_non_ascii_file_names_count_toward_the_delta(repo: Path) -> None:
     result = _run(repo, "main")
     assert result.returncode == 3
     fields = _fields(result)
-    assert fields["delta_lines"] == "3"
-    assert fields["delta_files"] == "\u00e9.txt"
+    assert fields["delta_lines"] == "4"
+    assert _delta_files(result) == ["\u00e9.txt"]
 
 
 def test_content_lines_that_look_like_headers_are_counted(repo: Path) -> None:
@@ -212,9 +243,10 @@ def test_content_lines_that_look_like_headers_are_counted(repo: Path) -> None:
 def test_binary_change_counts_toward_the_delta(repo: Path) -> None:
     (repo / "blob.bin").write_bytes(b"\x00\x01\x02")
     _commit_all(repo, "binary")
-    fields = _fields(_run(repo, "main"))
-    assert fields["delta_files"] == "blob.bin"
-    assert fields["delta_lines"] == "1"
+    result = _run(repo, "main")
+    assert _delta_files(result) == ["blob.bin"]
+    # One line for the file's creation, one for its blob ids.
+    assert _fields(result)["delta_lines"] == "2"
 
 
 def test_empty_reviewed_diff_is_a_full_triage(repo: Path) -> None:
@@ -263,4 +295,62 @@ def test_unrelated_base_ref_is_a_usage_error(repo: Path) -> None:
     _commit_all(repo, "island root")
     _git(repo, "checkout", "-q", _BRANCH)
     result = _run(repo, "island")
+    assert result.returncode == 2
+
+
+def test_empty_new_file_counts_toward_the_delta(repo: Path) -> None:
+    _write(repo, "__init__.py", "")
+    _commit_all(repo, "empty file")
+    result = _run(repo, "main")
+    assert result.returncode == 0, result.stderr
+    assert _delta_files(result) == ["__init__.py"]
+    assert _fields(result)["delta_lines"] == "1"
+
+
+def test_mode_only_change_counts_as_one_line(repo: Path) -> None:
+    (repo / "b.txt").chmod(0o755)
+    _commit_all(repo, "executable")
+    result = _run(repo, "main")
+    assert result.returncode == 0, result.stderr
+    assert _delta_files(result) == ["b.txt"]
+    assert _fields(result)["delta_lines"] == "1"
+
+
+def test_glob_characters_in_file_names_match_literally(repo: Path) -> None:
+    _write(repo, "x1.txt", "1\n2\n3\n")
+    _write(repo, "x[1].txt", "1\n")
+    _commit_all(repo, "glob-like name")
+    result = _run(repo, "main")
+    assert sorted(_delta_files(result)) == ["x1.txt", "x[1].txt"]
+    # 3 lines plus a creation for x1.txt, 1 plus a creation for x[1].txt.
+    assert _fields(result)["delta_lines"] == "6"
+
+
+def test_non_object_artifact_is_a_full_triage(repo: Path) -> None:
+    (repo / _ARTIFACT).write_text("null")
+    result = _run(repo, "main")
+    assert result.returncode == 3
+    assert _fields(result)["reason"] == "artifact is not a JSON object"
+    assert result.stderr == ""
+
+
+def test_missing_jq_is_a_usage_error(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    bin_dir = tmp_path_factory.mktemp("bin-without-jq")
+    git = shutil.which("git")
+    assert git is not None
+    (bin_dir / "git").symlink_to(git)
+    env = {**os.environ, "PATH": str(bin_dir)}
+    result = _run(repo, "main", env=env)
+    assert result.returncode == 2
+    assert "jq not found" in result.stderr
+
+
+def test_outside_a_git_repository_is_a_usage_error(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    outside = tmp_path_factory.mktemp("not-a-repo")
+    env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(outside.parent)}
+    result = _run(outside, "main", env=env)
     assert result.returncode == 2

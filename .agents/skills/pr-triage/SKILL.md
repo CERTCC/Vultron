@@ -90,10 +90,13 @@ decides which phases run on which diff.
 
 **Choosing post-push.** After Phase 1 identifies the PR, run
 `bash .agents/skills/pr-triage/prepush-delta.sh origin/<base_ref>` on the PR
-branch. Exit 0 means delta mode, with `delta_files=` as the files to review;
-exit 3 means full mode, with `reason=` saying why. A `needs-rebase` PR is full
-mode whatever the script says: its conflict was resolved by hand after the
-review.
+branch. Exit 0 means delta mode, with one `delta_file=` line per file to
+review; exit 3 means full mode, with `reason=` saying why. Exit 2 means the
+script could not compare (a detached checkout, `jq` missing, or no merge base
+with an unfetched base): fetch the base, check out the PR branch and re-run;
+if it still exits 2, run full mode and name the cause in the comment header.
+A `needs-rebase` PR is full mode whatever the script says: its conflict was
+resolved by hand after the review.
 
 **Carry-forward check (delta mode).** For each pre-push finding, read its
 `resolution`, recorded by `build`. Confirm the fix is on the PR head the way

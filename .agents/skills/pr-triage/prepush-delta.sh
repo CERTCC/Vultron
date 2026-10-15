@@ -16,14 +16,17 @@
 # added and removed lines of `git diff -U0 reviewed_base reviewed_head` are
 # compared with those of `git diff -U0 merge-base(base, HEAD) HEAD`. Context
 # lines and hunk headers are dropped, so `create-pr`'s cherry-pick onto a newer
-# base adds nothing. A binary or mode-only change counts as one line.
+# base adds nothing. A binary change, a mode change, and a file's creation or
+# deletion each count as one line, so an empty new file still has a delta.
+# File names are literal pathspecs: `a[1].txt` never matches `a1.txt`.
 #
 # Output (compare mode), one `key=value` per line:
 #   artifact=<path>  reviewed_lines=<N>  delta_lines=<M>
-#   delta_files=<space-separated paths>  mode=<delta|full>  reason=<text>
+#   delta_file=<path>  (one line per delta file, none when the delta is empty)
+#   mode=<delta|full>  reason=<text>
 # Exit: 0  delta review is enough (mode=delta)
 #       3  run the full triage (mode=full): any cause PAD-07-008 lists —
-#          no artifact, artifact not valid JSON, missing reviewed SHAs, artifact
+#          no artifact, artifact not a JSON object, missing reviewed SHAs, artifact
 #          for another branch, a reviewed commit not in the object store, an
 #          empty reviewed diff, or a delta over half the reviewed lines
 #       2  usage error, not on a branch, jq missing, or no merge base
@@ -31,6 +34,7 @@ set -uo pipefail
 
 root="$(git rev-parse --show-toplevel)" || exit 2
 cd "${root}" || exit 2
+export GIT_LITERAL_PATHSPECS=1
 
 artifact_for() {
   local name="${1//%/%25}"
@@ -57,12 +61,14 @@ full() {
 }
 
 [ -f "${artifact}" ] || full "no pre-push artifact"
-jq -e . "${artifact}" >/dev/null 2>&1 || full "artifact is not valid JSON"
-rbase="$(jq -er '.pr_metadata.reviewed_base_sha' "${artifact}")" \
+jq empty "${artifact}" >/dev/null 2>&1 || full "artifact is not valid JSON"
+jq -e 'type == "object"' "${artifact}" >/dev/null 2>&1 \
+  || full "artifact is not a JSON object"
+rbase="$(jq -er '.pr_metadata.reviewed_base_sha' "${artifact}" 2>/dev/null)" \
   || full "artifact has no reviewed_base_sha"
-rhead="$(jq -er '.pr_metadata.reviewed_head_sha' "${artifact}")" \
+rhead="$(jq -er '.pr_metadata.reviewed_head_sha' "${artifact}" 2>/dev/null)" \
   || full "artifact has no reviewed_head_sha"
-rref="$(jq -r '.pr_metadata.head_ref // empty' "${artifact}")"
+rref="$(jq -r '.pr_metadata.head_ref // empty' "${artifact}" 2>/dev/null)"
 [ -z "${rref}" ] || [ "${rref}" = "${branch}" ] \
   || full "artifact reviewed branch ${rref}, not ${branch}"
 git cat-file -e "${rhead}^{commit}" 2>/dev/null \
@@ -73,8 +79,9 @@ cbase="$(git merge-base "${base_ref}" HEAD)" \
   || { echo "prepush-delta: no merge base with ${base_ref}" >&2; exit 2; }
 
 # Own lines of one file's patch. Everything after the first hunk header is
-# content; before it, only a binary marker (as its blob ids) or a mode change
-# is kept, so the `---`/`+++` file headers never mix with content lines.
+# content; before it, only a binary marker (as its blob ids), a mode change
+# (old and new on one line) or a file creation or deletion is kept, so the
+# `---`/`+++` file headers never mix with content lines.
 own_lines() {
   git -c core.quotePath=false diff --no-renames --full-index -U0 \
     "$1" "$2" -- "$3" | awk '
@@ -82,7 +89,9 @@ own_lines() {
       hunk && /^[+-]/ { print; next }
       !hunk && /^index / { blobs = $0; next }
       !hunk && /^Binary files / { print blobs; next }
-      !hunk && /^(old|new) mode / { print }'
+      !hunk && /^old mode / { mode = $0; next }
+      !hunk && /^new mode / { print mode " " $0; next }
+      !hunk && /^(new|deleted) file mode / { print }'
 }
 
 # Print a captured line list, printing nothing for an empty one.
@@ -108,7 +117,7 @@ done < <( { git diff -z --no-renames --name-only "${rbase}" "${rhead}"
 echo "artifact=${artifact}"
 echo "reviewed_lines=${reviewed}"
 echo "delta_lines=${delta}"
-echo "delta_files=${delta_files[*]:-}"
+for f in "${delta_files[@]}"; do echo "delta_file=${f}"; done
 if [ "${reviewed}" -eq 0 ]; then
   echo "mode=full"
   echo "reason=the reviewed diff is empty"

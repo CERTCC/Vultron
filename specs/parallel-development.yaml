@@ -582,8 +582,11 @@ groups:
           base out of it.
         verification: >-
           Inspection: `pr-triage` § "Modes" assigns each phase to the
-          pre-push or the delta run, and `prepush-delta.sh` compares only the
-          added and removed lines of the reviewed and current branch diffs.
+          pre-push or the delta run. Test:
+          `test/metadata/test_prepush_delta_script.py` pins that
+          `prepush-delta.sh` compares only the added and removed lines of the
+          reviewed and current branch diffs (a freshen onto a newer base adds
+          no delta) and lists every file whose own lines changed.
       - id: PAD-07-008
         adr:
         - ADR-0139
@@ -592,7 +595,7 @@ groups:
         statement: >-
           `pr-triage` MUST run the full triage when the PR carries the
           `needs-rebase` label, when the PR's branch has no usable pre-push
-          artifact (none exists, it is not valid JSON, it lacks a reviewed
+          artifact (none exists, it is not a JSON object, it lacks a reviewed
           SHA, it names another branch, or a reviewed commit is not in the
           object store), when the reviewed diff is empty, or when the delta's
           changed lines exceed half of the reviewed diff's changed lines.
@@ -601,9 +604,10 @@ groups:
           delta most of the size of the change gives the pre-push review too
           little claim on the tree that will merge.
         verification: >-
-          Inspection: `prepush-delta.sh` exits 3 (full triage) for each
-          artifact, empty-diff and delta-size cause this requirement lists,
-          and `pr-triage` § "Modes" runs the full triage on exit 3 or on a
+          Test: `test/metadata/test_prepush_delta_script.py` pins that
+          `prepush-delta.sh` exits 3 (full triage) for each artifact,
+          empty-diff and delta-size cause this requirement lists. Inspection:
+          `pr-triage` § "Modes" runs the full triage on exit 3 or on a
           `needs-rebase` PR.
         relationships:
         - rel_type: refines
