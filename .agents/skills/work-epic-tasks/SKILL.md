@@ -111,11 +111,21 @@ Write the status file, then run up to the agent cap at once. Per task:
    | `BEHIND`, or overlap lists files | Update on GitHub and wait: `gh pr update-branch <pr>`, then `bash .agents/skills/shared/wait-for-ci.sh <pr>`. Exit `0`: merge. Exit `1`: re-run `pr-ship` with the failure as input. Exit `2` (timeout): wait again; never merge before green |
    | Neither | Merge |
 
-   Merge with `gh pr merge <pr> --merge`. Update at most once per merge: if
-   `main` moves again during the CI wait, merge on green anyway unless GitHub
-   now reports a conflict. Repeating the update on every movement is the loop
-   ADR-0138 removed; a semantic conflict between files neither PR shares is
-   caught by CI on `main` (ADR-0126).
+   Merge the head that CI passed on, and only that head:
+
+   ```bash
+   sha=$(gh pr view <pr> --json headRefOid --jq .headRefOid)   # after any update-branch
+   gh pr merge <pr> --merge --match-head-commit "$sha"
+   ```
+
+   Read `sha` after `gh pr update-branch` and before `wait-for-ci.sh`, so a
+   push that lands during the wait makes the merge fail rather than ship an
+   untested head; a refused merge goes back through `pr-ship`.
+
+   Update at most once per merge: if `main` moves again during the CI wait,
+   merge on green anyway unless GitHub now reports a conflict. Repeating the
+   update on every movement is the loop ADR-0138 removed; a semantic conflict
+   between files neither PR shares is caught by CI on `main` (ADR-0126).
 
    After a merge, leave every other open PR alone. Each gets this same check
    when its own turn to merge comes; a PR still in `pr-ship` needs no nudge,

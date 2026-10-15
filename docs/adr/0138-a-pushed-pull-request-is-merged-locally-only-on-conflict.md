@@ -32,7 +32,7 @@ Of the 41 Pull Requests whose execute summary could be read, the pipeline record
 Two parts of the pipeline turned each merge into a loop.
 `pr-execute` re-checked for overlap when CI went green and returned to the merge step if `main` had moved onto the Pull Request's files during the CI wait.
 `work-epic-tasks` re-checked every open Pull Request after each merge and re-ran the whole review pipeline for any that overlapped.
-At about 40 merges a day, `main` usually moves during a seven-minute CI wait, so a ready Pull Request could go through the loop several times.
+On the busiest day of that window 42 Pull Requests merged, so `main` moved during almost every seven-minute CI wait, and a ready Pull Request could go through the loop several times.
 
 The question this record settles: once a Pull Request is pushed, which syncs with the base need an agent and a local test run, and which can GitHub and CI do alone?
 

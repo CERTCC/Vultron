@@ -364,6 +364,12 @@ run by default. Which set depends on what this iteration changed:
   `pyproject.toml`, `uv.lock`, `vultron/__init__.py`) sends it to the full
   suite: the merge changed no other line the PR wrote, and CI runs the full
   suite on the push.
+- **A Step 2 merge that resolved no conflict, and nothing else**
+  (`sync-with-main.sh` exit `0`: GitHub's `CONFLICTING` was stale, or
+  `merge-tree` and `git merge` disagreed): the linters alone. The merge
+  changed no line the PR wrote, `conflicts_resolved` is `[]`, and
+  `targeted-tests --paths` with no path is a usage error, not an empty gate.
+  Record no gate run.
 - **Both**: the branch-diff set; it already covers the conflicted files the PR
   changed.
 
