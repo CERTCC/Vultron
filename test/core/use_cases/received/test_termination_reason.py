@@ -19,8 +19,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+    create_clock_decision_gate,
+)
 from vultron.core.behaviors.embargo.end_time_tree import (
-    end_embargo_if_end_time_passed,
+    end_time_clock_decision,
 )
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -68,6 +72,7 @@ def _receive(dl, event):
         dl,
         event,
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -282,14 +287,17 @@ def test_an_owner_remove_after_the_end_time_termination_changes_nothing(
     dl, case, embargo = _case_with_embargo(
         "https://example.org/cases/tr-late-owner", ended=True
     )
-    end_embargo_if_end_time_passed(
+    BTBridge(
         datalayer=dl,
-        case_id=case.id_,
-        actor_id=OWNER,
-        now=now_utc(),
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+    ).execute_with_setup(
+        tree=create_clock_decision_gate(
+            case.id_,
+            [end_time_clock_decision(case_id=case.id_, now=now_utc())],
+        ),
+        actor_id=OWNER,
     )
     before = {e.id_ for e in _ledger(dl, case.id_)}
     assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.EXITED

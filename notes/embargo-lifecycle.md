@@ -126,15 +126,21 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 - **End-time termination is one idempotent path (EMB-13-003).**
   `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers an
   already-`EXITED` case as done and otherwise runs `terminate_embargo_bt` with
-  `END_TIME_REACHED`. The CASE_MANAGER's lazy check is a `CaseUpkeep` hook
-  (`end_time_case_upkeep`) that the composition roots install on the inbox and trigger
-  dispatchers, so it runs before each activity or trigger for a case; the dispatchers
-  know only the hook's shape. A Sentinel reaches the path through the terminate trigger
-  with `reason=END_TIME_REACHED`. That trigger's registry row sets
-  `runs_case_upkeep=False`: it takes the end-time path itself once the end time has
-  passed, an `EARLY` request included, so the lazy check never pre-empts the answer it
-  owes. `termination_timing_violations()` refuses an `END_TIME_REACHED` claimed before
-  the end time — in the trigger's `_prepare`, the lifecycle, the received tree's guard
+  `END_TIME_REACHED`. The CASE_MANAGER's lazy check (`end_time_clock_decision`) is a
+  clock decision in the one tree, never a dispatcher hook or a tree run before it: the
+  received-tree factory adds it to every case tree with both door guards, so a sender
+  with no standing never provokes the termination (CLP-10-025), and `SvcBTTriggerBase`
+  runs it as the first, CASE_MANAGER-gated step of every case-scoped trigger's tree
+  (BT-15-003). It commits one entry per AS2 activity — the `Remove`, whose register
+  step cancels every open proposal, then the `Add(CaseStatus)` and re-issued stubs —
+  and a split of the cancels into entries of their own must keep the register from
+  showing `TERMINATED` beside `PROPOSED` at any prefix (EP-08-004). A Sentinel reaches
+  the path through the terminate trigger with `reason=END_TIME_REACHED`. That trigger
+  sets `_takes_case_clock_decisions = False`: it takes the end-time path itself once
+  the end time has passed, an `EARLY` request included, so the lazy check never
+  pre-empts the answer it owes. `termination_timing_violations()` refuses an
+  `END_TIME_REACHED` claimed before the end time — in the trigger's `_prepare`, the
+  lifecycle, the received tree's guard
   (`TerminationIsTimelyNode`, before the commit) and replica replay.
 
 ---

@@ -307,8 +307,10 @@ class AnnounceLedgerEntryReceivedUseCase:
         pending_assertions: PendingAssertionStore | None = None,
         gap_buffer: LedgerGapBuffer | None = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port

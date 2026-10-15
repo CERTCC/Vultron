@@ -22,9 +22,12 @@ that prompted it is then admitted, so it cannot be a refusal effect, and it
 must not wait for the activity's commit.
 
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
-builds the stage when a tree passes ``clock_decisions``, after the door
-guards and before the precondition guards (CLP-10-010), inside a
-CASE_MANAGER gate (BT-17-001)::
+builds the stage after the door guards and before the precondition guards
+(CLP-10-010), inside a CASE_MANAGER gate (BT-17-001), from the case-wide
+decisions every case tree takes
+(:func:`~vultron.core.behaviors.case.case_clock_decisions.case_clock_decisions`,
+the embargo end-time check) and the tree's own ``clock_decisions`` (an
+expiry)::
 
     ClockDecisionsIfCaseManager (CaseManagerGate)
     └─ ClockDecisionStage (Sequence)
@@ -40,16 +43,36 @@ error (ADR-0095).  A node that catches its own error and returns ``FAILURE``
 hides it from this stage as from the bridge (CONCERN #3019), so a new decision
 should raise what it cannot attribute to the protocol.
 
-The factory owns this structure; a tree supplies only the decisions.
+A clock decision commits one CASE_MANAGER entry for each AS2 activity
+needed to express what it decided, and nothing about the received activity
+(CLP-10-025): an expiry is one entry, an end-time termination the
+``Remove`` and each status update and re-issued stub ``Invite`` it needs.
+
+The factory owns this structure; a tree supplies only the decisions.  A
+case-scoped trigger composes the same gated stage ahead of its own tree
+(``SvcBTTriggerBase``), so an overdue embargo is ended whatever the entry
+point; :func:`create_clock_decision_gate` builds it for both.
 """
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.role_gates import (
+    CaseManagerGate,
+    create_case_manager_gated_tree,
+)
 from vultron.core.behaviors.node_logger import node_logger
 
-__all__ = ["ClockDecision", "ClockDecisionStage"]
+__all__ = [
+    "CLOCK_DECISION_GATE_NAME",
+    "ClockDecision",
+    "ClockDecisionStage",
+    "create_clock_decision_gate",
+]
+
+#: Name of the CASE_MANAGER gate around the clock-decision stage.
+CLOCK_DECISION_GATE_NAME = "ClockDecisionsIfCaseManager"
 
 
 class ClockDecision(py_trees.decorators.Decorator):
@@ -82,8 +105,8 @@ class ClockDecisionStage(py_trees.composites.Sequence):
 
     A plain ``Sequence`` in behaviour; the subclass names the stage, so the
     ordering ratchet can tell the one place a commit may precede the
-    precondition guards (CLP-10-025).  Only the received-tree factory
-    constructs one.
+    precondition guards (CLP-10-025).  Only
+    :func:`create_clock_decision_gate` constructs one.
     """
 
     def __init__(
@@ -106,3 +129,24 @@ class ClockDecisionStage(py_trees.composites.Sequence):
             for child in self.children
             if isinstance(child, ClockDecision)
         ]
+
+
+def create_clock_decision_gate(
+    case_id: str, decisions: list[py_trees.behaviour.Behaviour]
+) -> CaseManagerGate:
+    """The clock-decision stage for *case_id*, run only at its CASE_MANAGER.
+
+    The gate reads a case this store does not hold as "not the CASE_MANAGER"
+    at ``debug`` level: a replica, or an invitee holding only a stub, never
+    computes a clock decision (CM-21-017, CM-28-014).  The received-tree
+    factory places it after the door guards (CLP-10-025); a case-scoped
+    trigger places it ahead of its own tree.
+    """
+    return create_case_manager_gated_tree(
+        name=CLOCK_DECISION_GATE_NAME,
+        case_id=case_id,
+        children=[
+            ClockDecisionStage(name="ClockDecisions", decisions=decisions)
+        ],
+        case_may_be_absent=True,
+    )

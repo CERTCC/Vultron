@@ -474,12 +474,26 @@ def test_case_manager_termination_sends_et_without_attribution(
 def test_termination_on_or_after_the_agreed_end_is_expiry_and_sends_nothing() -> (
     None
 ):
-    """Expiry on the agreed date owes no notice: the signatory knows it."""
-    manager = _Manager(end_in_days=-1)
+    """Expiry on the agreed date owes no notice: the signatory knows it.
+
+    The CASE_MANAGER ends the expired embargo with its own end-time check
+    before it judges the owner's ``Remove`` (EMB-13-003); its teardown
+    ``Remove`` is case content for the active participants, and no
+    unreached signatory gets a ``Remove`` of its own.
+    """
+    manager = _Manager()
+    # The agreed end passes after REMOVED was removed.
+    manager.dl.save(
+        as_EmbargoEvent(
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(-1)
+        )
+    )
 
     manager.terminate_as_owner()
 
-    assert manager.notices("Remove", EMBARGO_ID) == {}
+    removes = manager.notices("Remove", EMBARGO_ID)
+    assert removes, "the end-time teardown is announced to the participants"
+    assert not _unreached_signatories() & set(removes)
 
 
 # ---------------------------------------------------------------------------

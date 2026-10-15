@@ -5,13 +5,14 @@ ADR-0122: a termination records its *what* (``END_TIME_REACHED`` or
 entry, its *why* (a ``THREAT_SIGNAL`` cause naming the signals).  An embargo
 reaches its end time through the CASE_MANAGER's lazy check or an outside
 request such as a Sentinel; both share one idempotent path, and whichever
-arrives second commits nothing.
+arrives second commits nothing.  The lazy check is a clock decision composed
+into the one tree that handles a received activity or a case-scoped trigger
+(CLP-10-025, ADR-0135), never a separate tree run ahead of it.
 """
 
 import threading
 from datetime import datetime, timedelta
 from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
 from py_trees.common import Status
@@ -25,16 +26,17 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+    create_clock_decision_gate,
+)
 from vultron.core.behaviors.embargo.end_time_tree import (
-    end_embargo_if_end_time_passed,
-    end_time_case_upkeep,
+    end_time_clock_decision,
 )
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
-from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -47,8 +49,13 @@ from vultron.core.models.embargo_termination import (
     ThreatSignal,
     ThreatSignalTermination,
 )
-from vultron.core.models.events import MessageSemantics
-from vultron.core.models.use_case_result import ActivityResult, HandlerResult
+from vultron.core.models.events.status import (
+    AddParticipantStatusToParticipantReceivedEvent,
+)
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    HandlerDisposition,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
@@ -56,16 +63,28 @@ from vultron.core.states.embargo_register import (
     TerminationReason,
 )
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
-from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
+from vultron.core.use_cases.triggers.embargo import (
+    SvcAcceptEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
+)
 from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
     AddParticipantStatusTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
+from vultron.semantic_registry import extract_event
 from vultron.trigger_registry import entries
+from vultron.wire.as2.factories import add_status_to_participant_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.case_status import (
+    as_CaseStatus,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 S = EmbargoRegisterStatus
@@ -82,11 +101,13 @@ class _World:
     def __init__(self, end_time: datetime) -> None:
         self.manager = as_Service(name="Vendor Co")
         self.finder = as_Service(name="Finder Co")
+        self.stranger = as_Service(name="Stranger Co")
         self.dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=self.manager.id_
         )
         self.dl.create(self.manager)
         self.dl.create(self.finder)
+        self.dl.create(self.stranger)
         case = VulnerabilityCase(
             name="End-time case", attributed_to=self.manager.id_
         )
@@ -109,6 +130,7 @@ class _World:
         activate(case, self.embargo.id_)
         propose(case, self.revision.id_)
         self.case_id = case.id_
+        self.finder_participant = finder
         for obj in (case, self.embargo, self.revision, owner, finder):
             self.dl.create(obj)
         write_consent_rows(self.dl, case)
@@ -123,14 +145,38 @@ class _World:
             "wire_render_port": As2WireRenderAdapter(),
         }
 
-    def lazy_check(self, now: datetime):
-        return end_embargo_if_end_time_passed(
-            datalayer=self.dl,
-            case_id=self.case_id,
-            actor_id=self.manager.id_,
-            now=now,
-            **self.ports(),
+    def lazy_check(self, now: datetime, actor_id: str | None = None):
+        """Run the end-time check as the clock-decision stage runs it."""
+        return BTBridge(datalayer=self.dl, **self.ports()).execute_with_setup(
+            tree=create_clock_decision_gate(
+                self.case_id,
+                [end_time_clock_decision(case_id=self.case_id, now=now)],
+            ),
+            actor_id=actor_id or self.manager.id_,
         )
+
+    def status_from(self, sender_id: str):
+        """A received ``Add(ParticipantStatus)`` from *sender_id*, handled
+        by the CASE_MANAGER's real received use case."""
+        status = as_ParticipantStatus(
+            context=self.case_id, attributed_to=sender_id
+        )
+        self.dl.create(status)
+        activity = add_status_to_participant_activity(
+            status,
+            target=self.finder_participant,
+            actor=sender_id,
+            context=self.case_id,
+        )
+        event = cast(
+            AddParticipantStatusToParticipantReceivedEvent,
+            extract_event(activity).model_copy(
+                update={"receiving_actor_id": self.manager.id_}
+            ),
+        )
+        return AddParticipantStatusToParticipantReceivedUseCase(
+            self.dl, event, **self.ports()
+        ).execute()
 
     def sentinel_request(self, reason=TerminationReason.END_TIME_REACHED):
         return SvcTerminateEmbargoUseCase(
@@ -202,13 +248,7 @@ def test_lazy_check_does_nothing_for_a_participant_that_is_not_manager() -> (
 ):
     world = _World(end_time=now_utc() - timedelta(hours=1))
 
-    result = end_embargo_if_end_time_passed(
-        datalayer=world.dl,
-        case_id=world.case_id,
-        actor_id=world.finder.id_,
-        now=now_utc(),
-        **world.ports(),
-    )
+    result = world.lazy_check(now_utc(), actor_id=world.finder.id_)
 
     assert result.status == Status.SUCCESS
     assert world.case().em_state is EM.REVISE
@@ -328,16 +368,13 @@ def test_an_early_request_after_the_end_time_ends_it_at_its_end_time() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("BT-15-001")
 def test_a_case_trigger_after_the_end_time_runs_the_lazy_check_first() -> None:
     """A threat status the manager triggers after the end time finds the
-    embargo already ended at its end time, not ended early."""
+    embargo already ended at its end time, not ended early: the check is the
+    first step of the trigger's own tree (ADR-0135)."""
     world = _World(end_time=now_utc() - timedelta(minutes=5))
-    ports = world.ports()
-    dispatcher = RegistryTriggerDispatcher(
-        entries(),
-        **ports,
-        case_upkeep=(end_time_case_upkeep(lambda _dl: ports),),
-    )
+    dispatcher = RegistryTriggerDispatcher(entries(), **world.ports())
 
     dispatcher.trigger(
         AddParticipantStatusTriggerRequest(
@@ -352,37 +389,83 @@ def test_a_case_trigger_after_the_end_time_runs_the_lazy_check_first() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
-def test_an_inbound_activity_after_the_end_time_sees_the_embargo_ended() -> (
-    None
-):
-    """The inbox dispatcher's lazy check commits the termination before the
-    use case for the activity runs."""
+def test_accepting_a_revision_after_the_end_time_does_not_extend_it() -> None:
+    """The owner's accept of the open revision, triggered after the end
+    time, finds the embargo ended and the revision cancelled, so it cannot
+    silently extend an expired embargo."""
     world = _World(end_time=now_utc() - timedelta(minutes=5))
-    seen: list[EM] = []
+    case = world.case()
+    case.pending_embargo_proposal_index = {
+        world.revision.id_: f"{world.case_id}/proposals/revision"
+    }
+    world.dl.save(case)
 
-    class _UseCase:
-        def __init__(self, dl, event) -> None:
-            pass
+    # The register refuses to activate the cancelled revision.
+    with pytest.raises(VultronInvalidStateTransitionError, match="CANCELLED"):
+        SvcAcceptEmbargoUseCase(
+            world.dl,
+            AcceptEmbargoTriggerRequest(
+                actor_id=world.manager.id_,
+                case_id=world.case_id,
+            ),
+            **world.ports(),
+        ).execute()
 
-        def execute(self) -> HandlerResult:
-            seen.append(world.case().em_state)
-            return HandlerResult.applied()
-
-    dispatcher = DirectActivityDispatcher(
-        use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: _UseCase},
-        case_upkeep=(end_time_case_upkeep(lambda _dl: world.ports()),),
-    )
-    event = MagicMock()
-    event.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-    event.actor_id = None  # skips the join-backfill gate
-    event.case_id = world.case_id
-    event.activity_id = f"{world.case_id}/activities/note"
-    event.receiving_actor_id = world.manager.id_
-
-    dispatcher.dispatch(event, world.dl)
-
-    assert seen == [EM.EXITED]
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+    assert world.case().active_embargo_id is None
+
+
+@pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("CLP-10-025")
+def test_a_participants_activity_after_the_end_time_ends_the_embargo() -> None:
+    """The end-time check is a clock decision of the received tree: a
+    participant's activity naming the overdue case lets the CASE_MANAGER end
+    the embargo before it judges the activity."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+
+    world.status_from(world.finder.id_)
+
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+
+
+@pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("HP-01-006")
+def test_a_non_participants_activity_commits_no_termination() -> None:
+    """The sender guard runs before the clock decisions, so a sender with no
+    standing in the case never makes the CASE_MANAGER write (AC-9)."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+    before = len(ledger_entries(world.dl, world.case_id))
+
+    result = world.status_from(world.stranger.id_)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert world.case().em_state is EM.REVISE
+    assert world.teardown_entries() == []
+    assert len(ledger_entries(world.dl, world.case_id)) == before
+
+
+@pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("EP-08-004")
+def test_the_termination_commits_one_entry_per_as2_activity_in_order() -> None:
+    """Each entry the end-time decision commits is one CASE_MANAGER-authored
+    AS2 activity: the ``Remove`` first, whose register step already cancelled
+    the open revision, then the ``Add(CaseStatus)`` (ADR-0135)."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+    before = {e.id_ for e in ledger_entries(world.dl, world.case_id)}
+
+    world.lazy_check(now_utc())
+
+    added = [
+        e
+        for e in ledger_entries(world.dl, world.case_id)
+        if e.id_ not in before
+    ]
+    assert [e.payload_snapshot["type"] for e in added] == ["Remove", "Add"]
+    assert all(e.payload_snapshot["actor"] == world.manager.id_ for e in added)
+    assert len({e.log_object_id for e in added}) == len(added)
+    # No register state shows TERMINATED beside a PROPOSED entry.
+    case = world.case()
+    assert case.embargo_register_status(world.revision.id_) is S.CANCELLED
 
 
 # ---------------------------------------------------------------------------

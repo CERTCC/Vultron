@@ -1651,8 +1651,18 @@ groups:
       that decision to `create_receive_activity_tree` as a clock decision. The
       factory MUST run the clock decisions after the door guards and before the
       precondition guards (CLP-10-010), and only at the case's CASE_MANAGER
-      (BT-17-001). A clock decision MUST commit only its own CASE_MANAGER-authored
-      entry and the case-file change that entry records. It MUST decide from the
+      (BT-17-001). A decision about the case itself, the embargo end-time check
+      (EMB-13-003), MUST be a clock decision of every receive-side tree that
+      names a case and has a sender guard and the post-close boundary, with no
+      argument from the tree. A clock decision MUST commit only
+      CASE_MANAGER-authored entries, one for each AS2 activity needed to express
+      what it decided, and the case-file changes those entries record, and
+      nothing about the received activity: an expiry is one entry, and an
+      end-time termination is the `Remove(EmbargoEvent)` and each proposal
+      cancellation, status update and re-issued stub Invite it needs. Its
+      entries MUST be ordered so that no prefix of them leaves the embargo
+      register showing an entry `TERMINATED` while another is still `PROPOSED`
+      (EP-08-004, ADR-0122). It MUST decide from the
       CASE_MANAGER's clock, its local policy and the case's ledger and file; the
       received activity MAY prompt the decision and name what it concerns, but
       MUST NOT be its evidence; the entry MAY carry the activity's claimed
@@ -1670,16 +1680,29 @@ groups:
       activity's commit. Running it as a separate tree before the received tree
       broke the one-tree rule (CLP-10-005); a named stage keeps it in the one
       tree and limits it so the stage cannot become a way to commit the
-      activity's own effects before the guards (ISSUE-4585, ADR-0135).
+      activity's own effects before the guards (ISSUE-4585, ADR-0135). A case
+      ledger entry is one AS2 activity and its object, and the CASE_MANAGER
+      does only what AS2 activities express, ledgering each, so a decision that
+      takes several activities commits several entries; the limit is on whose
+      act they record, not on their count (ISSUE-4641). The end-time check ran
+      as a dispatcher hook ahead of every tree, so any sender naming the case
+      could provoke the termination; as a clock decision it runs only after the
+      sender guard.
     verification: >-
       `test/core/behaviors/case/test_receive_activity_tree.py` asserts the
       factory places the clock decisions after the sender guard and before the
       precondition guards, gates them on the CASE_MANAGER, continues the tree
       when a decision records nothing or its commit is refused, and ends it on
-      an internal error; `test_receive_side_bt_commit_ordering.py` accepts a
-      commit ahead of the guards only inside the clock-decision stage, and
-      there only from the stage's own commit node, so a stage that committed
-      the activity's own effects fails it;
+      an internal error, and that a case tree with both door guards takes the
+      end-time decision while one without a sender guard does not;
+      `test_receive_side_bt_commit_ordering.py` accepts a commit ahead of the
+      guards only inside the clock-decision stage, and there only from the
+      decision's own CASE_MANAGER commit nodes, so a stage that committed the
+      activity's own effects fails it;
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      asserts that a non-participant's activity naming an overdue case commits
+      no termination, a participant's does, and the termination's entries are
+      the `Remove` then the status update, with no proposal left `PROPOSED`;
       `test/core/use_cases/received/actor/test_ownership_deadline.py` asserts
       that an expiry verdict does not change when only the received activity's
       claimed `published` time changes.

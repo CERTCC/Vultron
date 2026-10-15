@@ -275,13 +275,18 @@ guards, commit, effects.
    late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
    check and the sender guard follow.
 3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock
-   or policy before judging the activity, today an expiry (CLP-10-025). It runs
-   after the door guards, so an unentitled sender never makes it write, and
-   before the guards, because it is ledgered even when the activity is then
-   admitted (a new ownership Offer after the open one expired, CM-21-014). It
-   runs only at the CASE_MANAGER, commits only its own entry, reads only the
-   clock, policy and the case's ledger and file. A commit the ledger refuses
-   logs a warning and does not end the tree; an internal error does. Pass
+   or policy before judging the activity: an expiry, or the embargo end-time
+   check (CLP-10-025). It runs after the door guards, so an unentitled sender
+   never makes it write, and before the guards, because it is ledgered even
+   when the activity is then admitted (a new ownership Offer after the open one
+   expired, CM-21-014). It runs only at the CASE_MANAGER, commits only its own
+   entries — one per AS2 activity it needs, never the received activity's —
+   and reads only the clock, policy and the case's ledger and file. The
+   end-time check is about the case, so the factory adds it to every tree with
+   a case and both door guards (`case_clock_decisions`), and a case-scoped
+   trigger runs the same gated stage first in its own tree (BT-15-003). A
+   commit the ledger refuses logs a warning and does not end the tree; an
+   internal error does. Pass
    the decision as `clock_decisions`: the factory wraps each in a
    `ClockDecision` inside a `ClockDecisionStage`
    (`case/nodes/clock_decision_stage.py`) behind a CASE_MANAGER gate, and
