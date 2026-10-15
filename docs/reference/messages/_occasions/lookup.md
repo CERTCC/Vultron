@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|
 | a Reporter has written up a vulnerability and is about to submit the report | `Create(VulnerabilityReport)` | an actor outside any case | any actor (usually: finder, reporter) | — | [Create report](../rm.md#create-report) |
 | a Reporter submits a vulnerability report to a Vendor or Coordinator | `Offer(VulnerabilityReport)` | an actor outside any case | any actor (usually: reporter) | — | [Report Submission (RS)](../rm.md#report-submission) |
-| a report receiver has read a submitted report | `Read(Offer(VulnerabilityReport))` | an actor outside any case | the addressee of the vulnerability report (usually: vendor, coordinator) | — | [Report Acknowledgment (RK)](../rm.md#report-acknowledgment) |
+| a report receiver has read a submitted report | `Read(Offer(VulnerabilityReport))` | an actor outside any case | the addressee of the vulnerability report offer (usually: vendor, coordinator) | — | [Report Acknowledgment (RK)](../rm.md#report-acknowledgment) |
 | a report receiver judges the report valid | `Accept(Offer(VulnerabilityReport))` | the case manager | a participant (usually: vendor, coordinator) | — | [Validate report](../rm.md#report-valid) |
 | a report receiver judges the report invalid | `TentativeReject(Offer(VulnerabilityReport))` | the case manager | a participant (usually: vendor, coordinator) | — | [Invalidate report](../rm.md#report-invalid) |
 | a report receiver closes the report | `Reject(Offer(VulnerabilityReport))` | the case manager | a participant (usually: vendor, coordinator) | — | [Close report](../rm.md#report-closed) |
@@ -31,8 +31,8 @@
 | an actor accepts a role offered to it on the case | `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | a participant | not yet checked | — | [Accept case participant role](../case_management.md#accept-case-participant-role) |
 | an actor declines a role offered to it on the case | `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | a participant | not yet checked | — | [Reject case participant role](../case_management.md#reject-case-participant-role) |
 | the Case Owner offers to transfer ownership of the case to another actor | `Offer(VulnerabilityCase)` | the case manager | not yet checked | — | [Offer case ownership transfer](../case_management.md#offer-case-ownership-transfer) |
-| an actor accepts an offer of case ownership | `Accept(Offer(VulnerabilityCase))` | the case manager | the addressee of the vulnerability case | — | [Accept case ownership transfer](../case_management.md#accept-case-ownership-transfer) |
-| an actor declines an offer of case ownership | `Reject(Offer(VulnerabilityCase))` | the case manager | the addressee of the vulnerability case | — | [Reject case ownership transfer](../case_management.md#reject-case-ownership-transfer) |
+| an actor accepts an offer of case ownership | `Accept(Offer(VulnerabilityCase))` | the case manager | the addressee of the vulnerability case offer | — | [Accept case ownership transfer](../case_management.md#accept-case-ownership-transfer) |
+| an actor declines an offer of case ownership | `Reject(Offer(VulnerabilityCase))` | the case manager | the addressee of the vulnerability case offer | — | [Reject case ownership transfer](../case_management.md#reject-case-ownership-transfer) |
 | the Case Owner withdraws an open offer of case ownership | `Undo(Offer(VulnerabilityCase))` | the case manager | the case owner | — | [Withdraw case ownership transfer](../case_management.md#withdraw-case-ownership-transfer) |
 | the Case Manager invites an actor to join the case | `Invite(Actor)[target=VulnerabilityCaseStub]` | a participant | not yet checked | — | [Invite actor to case](../case_management.md#invite-actor-to-case) |
 | an invited actor agrees to join the case | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` | the case manager | the invitee | — | [Accept invite to case](../case_management.md#accept-invite-to-case) |

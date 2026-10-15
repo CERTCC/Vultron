@@ -186,6 +186,17 @@ def _log_entry_from(activity: Any, node_name: str) -> CaseLedgerEntry:
 # ---------------------------------------------------------------------------
 
 
+def _numbered_member[E: Enum](cls: type[E]) -> E:
+    """A new member of the enum *cls*, valued by its declaration position.
+
+    The declared tuple carries the member's wording, so its value is numbered
+    as ``auto()`` would number it.
+    """
+    member = object.__new__(cls)
+    member._value_ = len(cls.__members__) + 1
+    return member
+
+
 class SenderEntitlementKind(Enum):
     """One sender standing a :class:`SenderRule` may require.
 
@@ -209,8 +220,7 @@ class SenderEntitlementKind(Enum):
     term: str
 
     def __new__(cls, sent_by: str, term: str) -> Self:
-        member = object.__new__(cls)
-        member._value_ = len(cls.__members__) + 1
+        member = _numbered_member(cls)
         member.sent_by = sent_by
         member.term = term
         return member
@@ -269,11 +279,6 @@ class SenderEntitlementKind(Enum):
         filled with *object_words* ("case proposal") when it has one."""
         return self.sent_by.format(object=object_words)
 
-    @property
-    def names_an_object(self) -> bool:
-        """Whether the wording names the object the position is held over."""
-        return "{object}" in self.sent_by
-
 
 class AddresseeSide(Enum):
     """Whom an activity is sent to: one side of a :class:`SenderRule`.
@@ -293,8 +298,7 @@ class AddresseeSide(Enum):
     term: str
 
     def __new__(cls, send_to: str, term: str) -> Self:
-        member = object.__new__(cls)
-        member._value_ = len(cls.__members__) + 1
+        member = _numbered_member(cls)
         member.send_to = send_to
         member.term = term
         return member

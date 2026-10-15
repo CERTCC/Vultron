@@ -226,7 +226,7 @@ def test_every_addressee_side_declares_wording_and_a_glossary_term(
 @pytest.mark.spec("MSM-08-010")
 def test_only_positions_name_the_object_they_are_held_over():
     """A role is worded alone; a position names its request or object."""
-    named = {k for k in SenderEntitlementKind if k.names_an_object}
+    named = {k for k in SenderEntitlementKind if "{object}" in k.sent_by}
     assert named == {
         SenderEntitlementKind.NAMED_ACTOR,
         SenderEntitlementKind.AUTHOR,
@@ -302,7 +302,7 @@ def test_sent_by_reads_the_inner_object_of_a_nested_request():
     )
     assert (
         sent_by(entry, entry.occasions[0])
-        == "the addressee of the vulnerability case"
+        == "the addressee of the vulnerability case offer"
     )
 
 
@@ -392,25 +392,26 @@ def test_an_occasion_sent_to_a_side_its_rule_lacks_fails(
 
 
 @pytest.mark.spec("MSM-08-009")
-def test_an_exempt_occasion_may_name_any_addressee():
+@pytest.mark.parametrize("addressee", list(AddresseeSide), ids=str)
+def test_an_exempt_occasion_may_name_any_addressee(addressee: AddresseeSide):
     """An exemption has no sides yet, so it constrains no addressee."""
-    for addressee in AddresseeSide:
-        occasion = _occasion(addressee=addressee)
-        entry = _entry(occasion, entitlement=exempt("#0000", "stub"))
-        assert sent_by(entry, occasion) == NOT_YET_CHECKED
+    occasion = _occasion(addressee=addressee)
+    entry = _entry(occasion, entitlement=exempt("#0000", "stub"))
+    assert sent_by(entry, occasion) == NOT_YET_CHECKED
+
+
+#: The "Send to" wording of each addressee, pinned as literals.
+_SEND_TO: dict[AddresseeSide, str] = {
+    AddresseeSide.CASE_MANAGER: "the case manager",
+    AddresseeSide.PARTICIPANT: "a participant",
+    AddresseeSide.OUTSIDE_CASE: "an actor outside any case",
+}
 
 
 @pytest.mark.spec("MSM-08-009")
-@pytest.mark.parametrize(
-    ("addressee", "wording"),
-    [
-        (AddresseeSide.CASE_MANAGER, "the case manager"),
-        (AddresseeSide.PARTICIPANT, "a participant"),
-        (AddresseeSide.OUTSIDE_CASE, "an actor outside any case"),
-    ],
-)
-def test_send_to_words_the_addressee(addressee: AddresseeSide, wording: str):
-    assert send_to(_occasion(addressee=addressee)) == wording
+@pytest.mark.parametrize("addressee", list(AddresseeSide), ids=str)
+def test_send_to_words_the_addressee(addressee: AddresseeSide):
+    assert send_to(_occasion(addressee=addressee)) == _SEND_TO[addressee]
 
 
 def test_sent_by_refuses_an_undeclared_entitlement():
@@ -484,7 +485,7 @@ def test_registry_sent_by_follows_the_side_of_the_addressee(
     entry: SemanticEntry, occasion: Occasion
 ):
     assert sent_by(entry, occasion) == _expected_sent_by(entry, occasion)
-    assert send_to(occasion) == occasion.addressee.send_to
+    assert send_to(occasion) == _SEND_TO[occasion.addressee]
     for role in occasion.usual_senders:
         assert isinstance(role, CVDRole)
 
@@ -522,7 +523,7 @@ def test_registry_sent_by_follows_the_side_of_the_addressee(
         (
             "report-acknowledgment",
             AddresseeSide.OUTSIDE_CASE,
-            "the addressee of the vulnerability report"
+            "the addressee of the vulnerability report offer"
             " (usually: vendor, coordinator)",
         ),
     ],

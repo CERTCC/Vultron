@@ -7,7 +7,7 @@
     - **When…** an actor declines an offer of case ownership
     - **Send:** `Reject(Offer(VulnerabilityCase))`
     - **Send to:** the case manager
-    - **Sent by:** the addressee of the vulnerability case
+    - **Sent by:** the addressee of the vulnerability case offer
     - **Reference:** [Reject case ownership transfer](../../case_management.md#reject-case-ownership-transfer)
 
     ??? example "Example activity"

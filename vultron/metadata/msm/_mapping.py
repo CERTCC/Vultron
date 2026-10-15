@@ -157,25 +157,32 @@ def _words(type_name: str) -> str:
 
 
 def answered_request(entry: SemanticEntry) -> str:
-    """Name the request *entry*'s activity answers, from its object type.
+    """Name the request or object *entry*'s activity answers or changes.
 
-    ``Accept(CaseProposal)`` answers a case proposal; for a nested pattern
-    such as ``Accept(Offer(VulnerabilityCase))`` the request is the inner
-    object, a vulnerability case.
+    The name is taken from the object type of the activity being answered
+    (MSM-08-010).  ``Accept(CaseProposal)`` answers a case proposal and
+    ``Remove(Note)`` changes a note.  When the answered activity is itself
+    nested, as in ``Accept(Offer(VulnerabilityCase))``, the request is that
+    inner activity, named by its object type and its verb: a vulnerability
+    case offer.
 
     Raises:
         ValueError: When the entry's pattern names no object type.
     """
     pattern = entry.pattern
     obj = None if pattern is None else pattern.object_
+    verb = ""
     if isinstance(obj, ActivityPattern):
+        verb = (
+            "" if obj.activity_ is None else f" {_words(str(obj.activity_))}"
+        )
         obj = obj.object_
     if obj is None or isinstance(obj, ActivityPattern):
         raise ValueError(
             f"{entry.semantics.name}: the pattern names no object type to"
             " word an addressee from (MSM-08-005)"
         )
-    return _words(str(obj))
+    return f"{_words(str(obj))}{verb}"
 
 
 def _kind_wording(kind: SenderEntitlementKind, entry: SemanticEntry) -> str:
@@ -183,9 +190,10 @@ def _kind_wording(kind: SenderEntitlementKind, entry: SemanticEntry) -> str:
 
     A position held over an object names it from the entry's pattern
     (:func:`answered_request`): ``NAMED_ACTOR`` the request it answers,
-    ``AUTHOR`` the object it changes.
+    ``AUTHOR`` the object it changes.  A role's wording has no placeholder,
+    so the pattern is read only when the wording needs it.
     """
-    if not kind.names_an_object:
+    if "{object}" not in kind.sent_by:
         return kind.sent_by
     return kind.worded(answered_request(entry))
 

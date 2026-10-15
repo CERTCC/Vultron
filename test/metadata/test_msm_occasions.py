@@ -488,6 +488,19 @@ def test_slice_has_the_lookup_columns(table):
     assert len(lines) == 2 + len(table.groups[0].occasions)
 
 
+@pytest.mark.spec("MSM-08-009")
+def test_every_row_renders_its_occasions_addressee_as_send_to(table):
+    """Each lookup row's "Send to" cell names the occasion's addressee."""
+    addressees = {
+        o.anchor: o.addressee for e in SEMANTIC_REGISTRY for o in e.occasions
+    }
+    for group in table.groups:
+        lines = gen.render_slice(group).splitlines()[2:]
+        for row, line in zip(group.occasions, lines, strict=True):
+            assert row.send_to == addressees[row.anchor].send_to
+            assert line.split(" | ")[2] == row.send_to, line
+
+
 @pytest.mark.spec("MSM-08-005")
 @pytest.mark.spec("MSM-08-008")
 def test_fix_readiness_row_reads_as_specified(table):

@@ -74,9 +74,10 @@ lookup table is mostly links.
   `vultron/core/behaviors/sender_entitlement.py` (MSM-08-010). A test holds every
   term to a glossary row. A position's wording names its object with an
   `{object}` placeholder ("the addressee of the case proposal", "the note's
-  author"); an exemption reads "not yet checked". About half the received use cases are exempt today, so the column
-  fills in only as exemptions close; never paper over that with hand-written
-  values.
+  author"), and a nested request by its object and verb ("the addressee of the
+  vulnerability case offer"); an exemption reads "not yet checked". About half
+  the received use cases are exempt today, so the column fills in only as
+  exemptions close; never paper over that with hand-written values.
 - **Positions are entitlement kinds, not roles and not a second list**
   (HP-01-009). "The invitee" holds that position only within one exchange, and a
   report precedes any case, so no position joins `CVDRole`. A separate

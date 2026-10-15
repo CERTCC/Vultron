@@ -41,7 +41,7 @@ groups:
     when: a report receiver has read a submitted report
     send: Read(Offer(VulnerabilityReport))
     send_to: an actor outside any case
-    sent_by: 'the addressee of the vulnerability report (usually: vendor, coordinator)'
+    sent_by: 'the addressee of the vulnerability report offer (usually: vendor, coordinator)'
     semantics: ack_report
     shorthand: RK
     status: direct
@@ -254,7 +254,7 @@ groups:
     when: an actor accepts an offer of case ownership
     send: Accept(Offer(VulnerabilityCase))
     send_to: the case manager
-    sent_by: the addressee of the vulnerability case
+    sent_by: the addressee of the vulnerability case offer
     semantics: accept_case_ownership_transfer
     status: none
     description: Accepts the ownership transfer offer.
@@ -265,7 +265,7 @@ groups:
     when: an actor declines an offer of case ownership
     send: Reject(Offer(VulnerabilityCase))
     send_to: the case manager
-    sent_by: the addressee of the vulnerability case
+    sent_by: the addressee of the vulnerability case offer
     semantics: reject_case_ownership_transfer
     status: none
     description: Declines the ownership transfer offer. The current Case Owner keeps the case.
