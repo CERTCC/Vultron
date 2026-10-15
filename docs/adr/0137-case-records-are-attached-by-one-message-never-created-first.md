@@ -21,12 +21,13 @@ The sender can send one `Add` that carries the object.
 As an alternative, the sender can send a `Create` that mints the object, and then an `Add` that attaches it.
 
 The reference implementation attaches a case status and a participant status with one `Add`, and it carries a proposed embargo event on the `Invite` that proposes it.
-A participant record comes into existence only when the CASE_MANAGER records the `Invite` that brings the invitee into the case ([ADR-0114](0114-joining-a-case-stub-invite-inert-participant.md)).
+A participant record comes into existence only as a consequence of an act the CASE_MANAGER records: the creation of the case, or the `Invite` that brings an invitee into the case ([ADR-0114](0114-joining-a-case-stub-invite-inert-participant.md)).
 Its inbox refuses a received `Create` of any of these objects as an unrecognized activity (#4598).
 That was recorded as a choice of the prototype, and the question of what the protocol allows stayed open (#4635, #4676).
 
 A note works differently.
-A note is content that can stand on its own, so `Create(Note)` mints it and a separate `Add(Note)` attaches it to the case.
+A note is content that can stand on its own, so `Create(Note)` mints it.
+When the note's `context` names the case, the CASE_MANAGER also attaches it to the case on that `Create`; a separate `Add(Note)` attaches it as well.
 
 This ADR records the maintainer's decision from a live interview on 2026-10-15.
 
@@ -44,13 +45,13 @@ This ADR records the maintainer's decision from a live interview on 2026-10-15.
 
 ## Decision Outcome
 
-Chosen option: "One message attaches the record", because the records have no meaning apart from their attachment, and the other two options add a protocol state that nothing needs.
+Chosen option: "One message attaches the record", because the records have no meaning apart from their attachment, `Create` then `Add` adds a "created but not attached" state that nothing needs, and `Create` with a case `context` adds a second message for an act that already has one.
 
 The protocol brings each record into the case with exactly one message.
 A case status is attached by `Add(CaseStatus)` with the case as `target`.
 A participant status is attached by `Add(ParticipantStatus)` with the participant as `target`.
 A proposed embargo event travels on the `Invite` that proposes it.
-A participant record is made by the CASE_MANAGER as a consequence of the `Invite` it records.
+A participant record is made by the CASE_MANAGER as a consequence of an act it records, such as the `Invite` that brings an invitee into the case.
 A `Create` of any of these records, sent to an inbox, is not a protocol message, and a receiver MUST NOT change the case file because of one.
 This does not cover the `Create` that a CASE_MANAGER-authored ledger entry carries as its payload snapshot (CLP-07-013): that `Create` records a change the CASE_MANAGER made, and it is not a message a participant sends.
 
@@ -63,7 +64,7 @@ This codebase refuses it as an unrecognized activity, and it carries each record
 - Good, because a record exists in the case only once it is attached, so no "created but not attached" state needs a definition, a ledger entry or a replica step.
 - Good, because a status change stays one message and one ledger entry.
 - Neutral, because a general ActivityStreams client that mints objects with `Create` first cannot attach these records that way.
-- Neutral, because notes keep their separate `Create` and `Add`, so the vocabulary has two attachment shapes.
+- Neutral, because a note can still be attached by its `Create` with a case `context` or by an `Add`, so the vocabulary has two attachment shapes.
 
 ## Validation
 
@@ -80,15 +81,16 @@ It confirms that the case, the ledger and the outbox stay unchanged.
 
 ### `Create` then `Add`
 
-- Good, because it is the general ActivityStreams pattern, and notes already use it.
+- Good, because it is the general ActivityStreams pattern, and a note may already be attached this way.
 - Bad, because each `Create` changes the case file, so each one needs its own committed ledger entry and replica apply step.
-- Bad, because the `Add` must resolve a reference to the stored object, and the protocol must define a record that exists but is not attached.
+- Bad, because the protocol must define a record that exists but is not attached.
 
 ### `Create` with a case `context` attaches the record
 
 - Good, because it is one message, like the chosen option.
-- Bad, because each `Create` still needs its own ledger entry and replica apply step.
-- Bad, because nothing in the vocabulary attaches by `context` today: even `Create(Note)` with a case `context` only mints the note, and the `Add` attaches it.
+- Good, because `Create(Note)` with a case `context` already attaches a note this way.
+- Bad, because each record would have two attaching messages, the `Create` and its `Add` or `Invite`, so a receiver must handle both for one act.
+- Bad, because each `Create` form is a new committed event type, with its own ledger entry and replica apply step, for an act the `Add` or `Invite` already expresses.
 
 ## More Information
 

@@ -129,6 +129,12 @@ groups:
     - rel_type: refines
       spec_id: VAM-01-011
       note: this codebase's inline sending and refusal of the Create forms
+    - rel_type: implements
+      spec_id: VAM-08-002
+    - rel_type: implements
+      spec_id: VAM-08-004
+    - rel_type: implements
+      spec_id: VAM-05-005
   - id: VAM-01-011
     priority: MUST
     kind: protocol
@@ -148,9 +154,10 @@ groups:
       These records mean nothing apart from their case, so a separate `Create` would
       add a "created but not attached" state needing its own ledger entry and replica
       step (CLP-07-013, RSH-08-004) for no gain (ADR-0137). A note stands alone, so
-      `Create(Note)` and `Add(Note)` stay separate. The `Create` a CASE_MANAGER
-      ledger entry carries as its payload snapshot records a change; it is not a
-      received message.
+      its `Create` may attach it through a case `context` and an `Add(Note)` may
+      attach it too; these records get one attaching message each. The `Create` a
+      CASE_MANAGER ledger entry carries as its payload snapshot records a change; it
+      is not a received message.
     stories:
     - story_2022_088
     - story_2022_045
@@ -162,12 +169,15 @@ groups:
       four `Create` activities to an inbox and confirms that the case, the ledger and
       the outbox stay unchanged.
     relationships:
-    - rel_type: implements
+    - rel_type: constrains
       spec_id: VAM-08-002
-    - rel_type: implements
+      note: the Add(CaseStatus) is the only way a case status enters a case
+    - rel_type: constrains
       spec_id: VAM-08-004
-    - rel_type: implements
+      note: the Add(ParticipantStatus) is the only way a participant status enters a case
+    - rel_type: constrains
       spec_id: VAM-05-005
+      note: the Invite is the only way a proposed embargo event enters a case
 - id: VAM-02
   title: Report Management Messages
   specs:
