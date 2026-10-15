@@ -255,6 +255,16 @@ docker compose -f docker/docker-compose-multi-actor.yml \
     build --no-cache demo-runner
 ```
 
+### An actor container exits saying its store must be reset
+
+The SQLite database in that container's volume was written by an older version whose stored shape has since changed.
+Vultron does not migrate stored data, so it refuses to open the old store.
+Remove the volumes, then run the demo again:
+
+```bash
+docker compose -f docker/docker-compose-multi-actor.yml down -v
+```
+
 ### The demo fails partway through and leaves volumes dirty
 
 Clean up volumes before retrying:
