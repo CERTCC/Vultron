@@ -81,9 +81,12 @@ the wire.
 *Avoid*: message type (that is the formal message set)
 
 **Semantic type**:
-What a receiver recognizes an incoming wire activity as, judged from its shape alone.
-Not a Message Type: the two are many-to-many.
-*Avoid*: meaning (use *occasion* for the sender's situation)
+What a wire activity means, judged from its shape alone — the same label whether the
+activity is sent, received, or written to a case ledger. Vultron's vocabulary is the
+complete set of semantic types. Not a Message Type: the two are many-to-many.
+Recognizing a semantic type does not imply that a handler for it exists.
+*Avoid*: meaning (use *occasion* for the sender's situation); event type (the ledger
+field `eventType` holds a semantic type)
 
 **Occasion**:
 A situation in a case that a sender conveys with a particular wire activity, sometimes
@@ -176,3 +179,36 @@ call-out points.
 Within an SSVC tree, a specific question with an enumerated answer set that contributes to a
 prioritization outcome. Do not use this term for Vultron workflow call-out points more broadly.
 *Avoid*: (using this term outside the SSVC context)
+
+---
+
+## Demo
+
+**Scenario tree**:
+The single authored tree of demo stories, rooted at a Reporter who has found a vul and
+must choose whom to tell. The presenter of the demo UI walks it by making choices; it is
+a choose-your-own-adventure story, not an open-world simulation.
+*Avoid*: scenario graph, phylogeny
+
+**Branch point**:
+A node of the scenario tree where one role faces a decision, such as the Vendor deciding
+whether to validate a report or the Reporter deciding where to report.
+*Avoid*: decision node (the demo UI's name for a timeline node), fork
+
+**Choice**:
+One of the triggers the role at a branch point may call; an edge of the scenario tree.
+Only authored choices are offered, never every action the protocol would allow.
+*Avoid*: option, action
+
+**Ending**:
+A leaf of the scenario tree.
+
+**Scenario**:
+One path through the scenario tree from its root to an ending, registered as a
+`vultron-demo` sub-command.
+*Avoid*: demo (the whole demo program), story (the tree as a whole)
+
+**Recording**:
+The case ledgers a scenario writes when it runs, captured deterministically so that
+replaying it shows exactly what Vultron did.
+*Avoid*: sample log, fixture

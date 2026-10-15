@@ -4,6 +4,7 @@ date: 2026-09-24
 created: 2026-09-24
 updated: 2026-09-24
 revision: 1
+amended: "2026-10-15"
 deciders: Allen D. Householder
 consulted: Greg Strom
 informed: CERT/CC Vultron protocol team
@@ -124,6 +125,33 @@ Implementation guidance and the Task sequence live in `notes/demo-interactive-ui
 
 - Good, because it pushes instantly without repeated reads.
 - Bad, because every ledger write path needs a hook, and app-scoped queues risk leaking state across `create_app()` instances.
+
+## Amendment — 2026-10-15
+
+The offline mode changes; the chosen options (the React app, the real system's ledgers as the source of truth, operator-side, SSE with polling) are unchanged.
+Decision point 2 read:
+
+> The headline mode is the branch's Log Replay mode grown into a live view of a running scenario.
+> The TypeScript simulation remains as an offline mode labelled illustrative, and is frozen: it receives no new protocol logic.
+
+It now reads:
+
+1. The headline mode is the Log Replay mode grown into a live view of a running scenario.
+2. The long-lived offline mode is a **recorded scenario tree**, not the TypeScript simulation.
+   The demo scenarios form one scenario tree: each branch point is a role facing a decision, and each choice is a trigger that role calls ([ADR-0098](0098-demo-scenarios-self-register.md) amendment of the same date).
+   Each scenario's case ledgers are recorded by running the real scenario code deterministically, and are drift-tested against a fresh run, so the offline mode shows only what Vultron did.
+   The presenter makes the same choices offline as live, and the UI switches to the matching recording.
+3. Live mode offers exactly the scenario tree's authored choices, the same as offline mode.
+   An off-tree mode that offers every action the protocol allows is future work with its own design.
+4. The TypeScript simulation stays the default offline mode until the recorded scenario tree covers its branch points, and is then deleted.
+
+Why: the presentation will often run with no live service to call, so an offline mode must last, and it must keep up with the code as the code changes.
+A hand-written TypeScript copy of the protocol cannot be regenerated from the code; recordings of the real scenarios can.
+The audit of the merged UI also found that the simulation shows the audience protocol behavior that the protocol rejects, which "frozen" did not prevent.
+
+The title's "React/ReactFlow" names the prior-art branch; the timeline is drawn without ReactFlow, and the UI does not depend on it.
+
+- Source: the 2026-10-15 demo UI planning session; #4730, #4731, #4732, #3901
 
 ## More Information
 

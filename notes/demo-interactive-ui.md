@@ -4,36 +4,53 @@ status: active
 kind: plan
 tracks:
   - "#676"
-  - "#3640"
   - "#3642"
   - "#3643"
+  - "#3901"
+  - "#4723"
+  - "#4726"
+  - "#4730"
+  - "#4733"
 description: >
-  Design for the Vultron interactive demo UI: a React/ReactFlow dashboard for
-  stakeholder presentations that watches the real system's case ledgers live
-  over a prototype-only SSE stream, operator-side with no case identity, with
-  branch-point choices driven through the real trigger endpoints. Records the
-  feature/demo-ui prior art and the remaining Tasks under epic #676.
+  Design for the Vultron interactive demo UI: a React dashboard for stakeholder
+  presentations that shows only what the real system did. Live, it watches each
+  actor's case ledger over a prototype-only SSE stream; offline, it replays a
+  recorded scenario tree regenerated deterministically from the real scenario
+  code. The presenter walks the tree's authored choices in both modes. Records
+  the interface contract between ui/ and the Python code, the 2026-10-15 gap
+  analysis of the merged UI, and the Task sequence under epic #676.
 related_notes:
   - notes/demo-future-ideas.md
   - notes/demo-scenario-registry.md
+  - notes/demo-scenario-authoring.md
   - notes/case-ledger-authority.md
   - notes/configuration.md
 related_specs:
   - specs/multi-actor-demo.yaml
   - specs/triggerable-behaviors.yaml
   - specs/demo-report.yaml
+  - specs/demo-ci.yaml
+  - specs/semantic-extraction.yaml
+  - specs/case-ledger-processing.yaml
 relevant_packages:
+  - ui
   - vultron/demo/scenario
+  - vultron/metadata/demo_scenarios
+  - vultron/semantic_registry
   - vultron/adapters/driving/fastapi/routers
   - vultron/adapters/driving/fastapi/ledger_stream.py
 ---
 
 # Interactive Demo UI — Scenarios and Architecture
 
-Decision record: ADR-0104.
+Decision records: ADR-0104 (the demo UI, amended 2026-10-15), ADR-0098 (scenarios
+self-register, amended 2026-10-15 for the scenario tree), and ADR-0138 (a ledger
+entry's semantic type is the registry label of its AS2 payload).
+Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
+choice, ending, scenario, recording).
 
 This is presentation tooling, not protocol work. It generates no `specs/`
-requirements; everything below is design guidance.
+requirements of its own; everything below is design guidance.
 
 ---
 
@@ -61,63 +78,70 @@ exchange that tells a story.
 
 ## Decisions
 
-1. **Vehicle: the React/ReactFlow app on `feature/demo-ui`.** The lighter
-   alternatives (a self-contained HTML live page reusing
-   `vultron/demo/report.py`, or presenting the static report after the
-   fact) were considered and rejected: the prior art already exists and is
-   the more compelling presentation artifact.
-2. **Backbone: the real system, live.** The headline mode is the branch's
-   *Log Replay* mode grown into a live view of a running scenario. What the
-   audience sees is what the containers actually did.
-3. **The TypeScript simulation is frozen.** The branch's client-side
-   *Multi-Vendor* mode re-implements protocol rules in TypeScript. It stays
-   as an offline, explicitly *illustrative* mode, but receives no new
-   protocol logic — a second protocol implementation drifts silently, and an
-   audience watching it is not watching Vultron.
-4. **The dashboard is operator-side, with no case identity.** It reads each
-   actor's prototype-only ledger stream; it is never a case
-   participant, never appears in a roster, and never changes the case being
-   demonstrated. It is the watching half of a **Sentinel** (a call-in
-   pattern, ADR-0097 — not a capability shape); it becomes a full Sentinel
-   once branch-point choices call trigger endpoints. The rejected
-   alternative — an Observer participant receiving `Announce(CaseLedgerEntry)`
-   — would alter every scenario's roster and see only what it is sent.
-5. **Transport: server-sent events of case ledger entries, polled
+1. **Vehicle: the React app in `ui/`.** It landed from `feature/demo-ui` in
+   PR #3754. The timeline is drawn as SVG; the UI does not use ReactFlow.
+2. **The audience sees only what Vultron did.** Live mode reads the running
+   system's ledgers. Offline mode replays **recordings**: the case ledgers each
+   scenario writes, produced by running the real scenario code
+   deterministically and drift-tested against a fresh run. The UI never
+   invents protocol state.
+3. **The scenarios form one scenario tree.** Its root is a Reporter who has
+   found a vul and must choose whom to tell. Each branch point is a role
+   facing a decision; each choice is a trigger that role calls. Who joins and
+   how a decision goes are both branch points.
+4. **A choose-your-own-adventure story, not an open-world simulation.** The
+   presenter plays the roles, but only the tree's authored choices are
+   offered, offline and live alike. An off-tree "sandbox" mode is future
+   work.
+5. **The TypeScript simulation is temporary.** The Multi-Vendor mode
+   re-implements protocol rules in TypeScript and stays the default only
+   until the recorded scenario tree covers its branch points; then it is
+   deleted (#4732). It receives no new protocol logic meanwhile.
+6. **The dashboard is operator-side, with no case identity.** It reads each
+   actor's prototype-only ledger stream; it is never a case participant,
+   never appears in a roster, and never changes the case being demonstrated.
+   It is the watching half of a **Sentinel** (a call-in pattern, ADR-0097 —
+   not a capability shape); it becomes a full Sentinel once branch-point
+   choices call trigger endpoints.
+7. **Transport: server-sent events of case ledger entries, polled
    server-side.** One direction of flow only (choices go out as ordinary
    trigger POSTs), so SSE rather than a WebSocket. The stream is justified
-   on its own observability merits (`curl -N` tailing during debugging and
-   CI), independent of the UI.
-6. **The UI Tasks wait for the branch to land** (#3640).
+   on its own observability merits (`curl -N` tailing), independent of the
+   UI.
+8. **Quality bar: sized to the risk.** Test what could show the audience
+   something Vultron did not do — ledger parsing and mapping, tree walking,
+   and every generated artifact the UI reads. Rendering and layout are
+   checked by eye.
 
 ---
 
-## Prior Art — `origin/feature/demo-ui`
+## Interface Contract between `ui/` and Python
 
-About 16k lines:
+Every protocol fact the UI uses comes from Python as a generated, committed,
+drift-tested artifact (ADR-0128's rule), never as a hand-kept TypeScript copy.
+Nothing in `vultron/` imports `ui/`; the only dependency runs from the
+exporters to the files they write.
 
-- **`ui/`** — React 19 + TypeScript + Vite + `@xyflow/react` (ReactFlow).
-  `DemoSelector.tsx` toggles two modes:
-  - **Multi-Vendor** (`App-multivendor.tsx`, `ui/src/actions/*.ts`) —
-    client-side CYOA simulation; Finder, up to two extra vendors, Case
-    Actor; decision and consequence nodes in per-participant swimlanes;
-    external-event buttons for exploit publication and attacks.
-  - **Log Replay** (`App-logreplay.tsx`, `ui/src/utils/caseLedgerParser.ts`,
-    `caseLedgerMapper.ts`) — loads case-ledger JSONL by file upload or from
-    bundled samples (`ui/src/sample-logs/`) and renders it with the same
-    swimlane components (`ActorPanel`, `AnimatedNode`, `Swimlanes`).
-- **`vultron/metadata/demo_scenarios/export_states.py`** →
-  `ui/src/data/protocol_states.json` (deterministic export of the
-  RM/EM/VFD/PXA machines — RM and PXA read from their `create_*_machine()`
-  factories; VFD and EM reconstructed where the core no longer exposes a
-  standalone machine) plus `test/metadata/demo_scenarios/test_export_states.py`
-  as a drift test, so the UI does not hard-code which transitions exist.
-- **No network code**: no `fetch`, `EventSource`, or `WebSocket`. Live mode
-  is the missing piece.
-- **Housekeeping before landing**: file-mode flips on several `.sh`
-  scripts, a deleted `docs/reference/codebase/.codebase-scan.txt`, and
-  stale `ui/LOG_REPLAY_README.md` content (old `case-log.jsonl` file names
-  and event types). Several files are very large (`caseLedgerMapper.ts`,
-  `vendorActions.ts`).
+| Seam | Producer | Consumer | Guard | Status |
+|---|---|---|---|---|
+| State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built; EM table hand-copied until #4427 |
+| Semantic registry table | registry exporter (#4725) | ledger parser and mapper | drift test | planned |
+| Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
+| Scenario-tree index | `@scenario` branch declarations (#4726, #4727) | offline mode, live branch points | drift test; shared-prefix check | planned |
+| Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |
+| Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}`) | live mode (#3643) | — | planned |
+
+Rules for the TypeScript side:
+
+- A ledger entry's meaning is its `eventType`, which equals the registry's
+  semantic type for its AS2 payload (ADR-0138). The UI reads the exported
+  registry table; it never keeps its own list of event names or phrasing.
+- TypeScript types for anything the UI reads match the current Python models,
+  and a Python test fails when a field the TypeScript side declares is gone.
+- Loading a ledger validates its shape. An unrecognized semantic type is shown
+  as such, never dropped silently.
+- Lane identity comes from actor ids and roles in the ledger, never from
+  container hostnames or display names.
 
 ---
 
@@ -161,20 +185,6 @@ demo tooling, not a replication channel (SYNC-02-001).
 
 ---
 
-## Three-Scenario Presentation Set
-
-All presentation scenarios share one UI; only the number of actor lanes
-differs. They map onto registered demo scenarios (`vultron-demo` sub-commands,
-ADR-0098). The UI takes its lanes and streams from the scenario's ledger
-targets (see *One stream per actor* above), not from a fixed container
-layout.
-
-| Presentation | Narrative | Closest registered scenario |
-|---|---|---|
-| A — Two-Actor | Researcher reports a bug directly to a single vendor | `fv` |
-| B — Coordinator | Reporter routes through a neutral coordinator for a widely-used library | `fcv` |
-| C — Multi-Vendor | Shared component used by several vendors; the vendor set expands | `fvv`, `fvcv-*`, `fcvcv` |
-
 ---
 
 ## Choose-Your-Own-Adventure (CYOA) Model
@@ -203,6 +213,17 @@ state client-side in the live mode.
 The full set of branch points corresponds to the protocol decision nodes the
 original Vultron simulator exposed via fuzzer BT nodes; any place a demo
 script calls a trigger that advances protocol state is a candidate.
+
+### Presentation paths
+
+The earlier three-presentation set maps onto paths through the scenario tree.
+All share one UI; only the number of actor lanes differs.
+
+| Presentation | Narrative | Path today |
+|---|---|---|
+| A — Two-Actor | Reporter reports directly to a single vendor | `fv` |
+| B — Coordinator | Reporter routes through a neutral coordinator | `fcv` |
+| C — Multi-Vendor | A shared component's vendor set expands | `fvv`, `fvcv-*`, `fcvcv` |
 
 ### Scripted baseline
 
@@ -240,34 +261,65 @@ any branch point is interactive.
 
 ---
 
+---
+
+## Gap Analysis of the Merged UI (2026-10-15)
+
+An audit of PR #3754 on `main` covered test coverage, internal architecture,
+and the interface to Python. Findings and where each went:
+
+| Gap | Where it went |
+|---|---|
+| The ledger had no contract: free-form event names, scattered literals, a closed TypeScript list that had drifted | ADR-0138; #4723, #4724, #4725 |
+| The parser read removed fields (`vfdState`, `emConsentState`) and missed current semantic types, hidden by tolerant parsing | #4729 |
+| The bundled sample ledgers predated the current `CaseLedgerEntry`, and nothing regenerated or checked them | #3901 |
+| The simulation, the default mode, showed embargo acceptance as a unanimous vote, and activity names Vultron does not have | #4730, #4731, #4732 |
+| No UI tests, no strict typing, CI path filters that missed changes on the other side of the seam | #4728, #4729 |
+| The two app modes shared little and duplicated their layout and controls | removed with the simulation (#4732) |
+| Dead code (`protocolActions.ts`, unused components, the ReactFlow dependency, scaffold assets) and stale paths | #4728 |
+| CaseActor used for CASE_MANAGER (ADR-0088); Finder used for Reporter (ADR-0078) | #4728, #4736 |
+| Sibling scenarios are full copies up to the point where they differ | #4726, #4733 |
+| A ledger payload used a non-AS2 activity type (`Expire`) | #4723 |
+
+What was already solid: the state-machine export is generated, committed,
+drift-tested, and in sync; the layering is clean; the simulation freeze held.
+
+---
+
 ## Task Sequence (epic #676)
 
-1. **Land `feature/demo-ui` on `main`** (#3640). Blocks 2 and 3.
-2. **Live mode** (#3642) — compose service with reverse proxy; Log Replay
-   subscribes to each actor's stream; scenario selector, branding,
-   disclaimer.
-3. **Branch-point choices via real triggers** (#3643) — report validation
-   on scenario A first. Blocked by 2.
+Design Ideas and Concerns come first and are decided interactively; the Tasks
+they block wait for them.
+
+1. **Vocabulary.** Concern #4723 (AS2 shapes for ledger-only acts) →
+   #4724 (the registry labels every ledger entry) → #4725 (export the registry
+   table to `ui/`).
+2. **Recordings and the tree.** #3901 (deterministic recordings) and Idea
+   #4726 (scenario-tree design) → #4727 (tree index and shared-prefix check);
+   #4736 (Finder → Reporter) after #4726 and #2677; Idea #4733 (scenarios as
+   composition) after #4727, producing one Task per scenario family.
+3. **UI correctness.** #4728 (tooling baseline) → #4729 (Log Replay reads the
+   current ledger, golden tests over the recordings).
+4. **Offline mode.** Idea #4730 (presentation design) → #4731 (offline
+   choose-your-own-adventure mode) → #4732 (delete the simulation).
+5. **Live mode.** #3642 (watch a running scenario) after #4729 → #3643
+   (branch points through real triggers) after #4727 and #4730.
+
+Independent follow-ups: Idea #4734 (rename `eventType` to match the glossary)
+and #4735 (log "no use case found" at WARNING).
 
 ---
 
 ## Open Questions / Future Work
 
-- **CI for `ui/`**: whether `ui/` gets a lint/build job is a maintainer
-  decision (agents do not touch CI); raised in #3640.
-- **Duplicated display logic**: `caseLedgerMapper.ts` holds its own event
-  phrasing, parallel to the `SEMANTIC_REGISTRY` phrases `report.py` renders
-  (DRPT-03-005 forbids that duplication *within* the report tool). Consider
-  exporting the registry phrases to JSON the way `export_states.py` exports
-  the state machines.
-- **CYOA script format**: branching logic may benefit from a declarative
-  format (e.g., a YAML scenario tree) rather than hard-coded React state.
+- **Sandbox mode**: an off-tree mode offering every action the protocol
+  allows. It would need either protocol rules in the client or a server
+  endpoint listing the triggers a role may call; both need their own design.
 - **State machine visualization**: LED-style indicators need a visual design
   pass; the SVG state diagrams in the Vultron docs are a candidate base.
 - **Container startup**: whether "Start Demo" spins up containers or assumes
   they are already running.
-- **Accessibility**: the graph must be usable by viewers who cannot read
+- **Accessibility**: the timeline must be usable by viewers who cannot read
   color-coded state indicators.
-- **Later branches**: once the happy-path UI exists, failure-mode scenarios
-  (embargo collapse, vendor decline, reporter going silent) are a matter of
-  wiring new CYOA options.
+- **Later branches**: failure-mode endings (embargo collapse, vendor decline,
+  reporter going silent) become new branch points in the scenario tree.

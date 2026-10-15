@@ -242,6 +242,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)*
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
+- [ADR-0138 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0138-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md)
 
 ## Rejected ADRs
 
