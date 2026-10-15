@@ -57,7 +57,7 @@ before claiming a shorthand maps to a wire form.
 - **`EP` is `Invite(Event)[context=VulnerabilityCase]` and nothing else**
   (MSM-02-001). `Announce(Event)` reports the terms in force and does not
   propose, so it is not tagged `EP`. The proposal carries its terms inline;
-  this implementation does not support a separate `Create(Event)` (#4635).
+  a separate `Create(Event)` is not a protocol message (VAM-01-011, ADR-0137).
 - **`GI` is an open umbrella** (MSM-04-001/002). Do not write as though the
   current split-off set is complete, and do not count it in prose (MS-16-002).
   `(GI)` identifies no activity: name the act in plain language and cite `GI`
