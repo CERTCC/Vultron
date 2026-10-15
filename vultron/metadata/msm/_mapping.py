@@ -173,9 +173,7 @@ def answered_request(entry: SemanticEntry) -> str:
     obj = None if pattern is None else pattern.object_
     verb = ""
     if isinstance(obj, ActivityPattern):
-        verb = (
-            "" if obj.activity_ is None else f" {_words(str(obj.activity_))}"
-        )
+        verb = f" {_words(str(obj.activity_))}"
         obj = obj.object_
     if obj is None or isinstance(obj, ActivityPattern):
         raise ValueError(

@@ -154,6 +154,37 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         embargo = cast(EmbargoEvent, embargo_raw)
         self.assertEqual(embargo.context, case.id_)
 
+    def test_relay_embargo_proposal(self):
+        """The CASE_MANAGER's relay of a proposal to one participant."""
+        activity = examples.relay_embargo_proposal()
+        self.assertIsInstance(activity, as_Invite)
+        case = examples.case()
+        embargo = examples.embargo_event()
+
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(activity.attributed_to, examples.vendor().id_)
+        self.assertEqual(activity.to, [examples.coordinator().id_])
+        self.assertEqual(activity.context, case.id_)
+        self.assertEqual(activity.object_, embargo)
+        # The relay always carries the RSVP deadline the CASE_MANAGER
+        # stamped, inside the embargo (CM-28-012, EP-07-006).
+        assert activity.end_time is not None
+        assert activity.published is not None
+        self.assertGreater(activity.end_time, activity.published)
+        self.assertLessEqual(activity.end_time, embargo.end_time)
+
+    def test_notify_embargo_termination(self):
+        """The CASE_MANAGER's termination notice to one participant."""
+        activity = examples.notify_embargo_termination()
+        self.assertIsInstance(activity, as_Remove)
+        case = examples.case()
+
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(activity.attributed_to, examples.vendor().id_)
+        self.assertEqual(activity.to, [examples.coordinator().id_])
+        self.assertEqual(activity.origin, case.id_)
+        self.assertIsInstance(activity.object_, EmbargoEvent)
+
 
 if __name__ == "__main__":
     unittest.main()

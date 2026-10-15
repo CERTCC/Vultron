@@ -94,7 +94,10 @@ def relay_embargo_proposal() -> as_Invite:
     of its own, one per participant other than the proposer, naming the
     proposer in ``attributedTo`` (EP-09-002, CM-24).  The wire form is the
     proposer's ``Invite(Event)``; only the sender and addressee differ
-    (MSM-08-009).
+    (MSM-08-009).  The CASE_MANAGER stamps every relayed Invite with the
+    RSVP deadline it alone evaluates, carried as the activity's ``endTime``
+    and measured from its ``published`` time (CM-28-012, EP-07-002); here a
+    week after publication, well inside the embargo.
     """
     embargo = embargo_event()
     _case = case()
@@ -105,6 +108,8 @@ def relay_embargo_proposal() -> as_Invite:
         attributed_to=vendor().id_,
         to=[coordinator().id_],
         context=_case.id_,
+        published=EXAMPLE_TIMESTAMP,
+        rsvp_deadline=EXAMPLE_TIMESTAMP + timedelta(days=7),
         summary="The vendor proposes to embargo case 1 for 90 days.",
     )
 
