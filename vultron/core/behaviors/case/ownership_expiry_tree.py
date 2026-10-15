@@ -72,7 +72,8 @@ def create_ownership_offer_expiry_tree(
             caller passes the same one to the received tree it runs next.
         prompt: The Accept, Reject or Undo that prompts the check, so the
             expiry is ledgered only for a reply to the open Offer from its
-            party (HP-01-006); ``None`` for a new Offer (#4540).
+            party (HP-01-006); ``None`` for a new Offer, whose handler has
+            already checked its sender is the Case Owner (CM-21-019).
 
     Returns:
         A tree that succeeds when nothing was due or the expiry was committed,

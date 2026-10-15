@@ -97,6 +97,7 @@ an Offer can also close without an answer (#4490):
     (Accept, Reject) or offerer (Undo) — `ExpiryPrompt` / `OfferParty` — so a
     sender with no standing never makes the CASE_MANAGER write (HP-01-006), as
     the embargo Invite expiry checks the invitee first. A new Offer prompts it
-    with no sender check, since the Offer itself has none yet (#4540).
+    with no prompt, because its handler refuses a sender that is not the Case
+    Owner before the expiry runs (CM-21-019).
   - **Ask kind.** `OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY` is `AskExpiry.VOID`
     (ASK-03-002): a late reply authorizes nothing.

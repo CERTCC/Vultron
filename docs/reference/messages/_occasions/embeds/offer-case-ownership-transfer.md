@@ -6,7 +6,7 @@
 
     - **When…** the Case Owner offers to transfer ownership of the case to another actor
     - **Send:** `Offer(VulnerabilityCase)`
-    - **Sent by:** not yet checked
+    - **Sent by:** the case owner
     - **Reference:** [Offer case ownership transfer](../../case_management.md#offer-case-ownership-transfer)
 
     ??? example "Example activity"

@@ -1379,10 +1379,21 @@ def _seed_managed_case(owner, dl, *peers):
     dl.create(manager)
     case.case_participants.append(manager.id_)
     case.actor_participant_index[case_actor.id_] = manager.id_
+    # The owner holds CASE_OWNER on the roster: only it may offer the case
+    # (CM-21-019).
+    owner_record = as_CaseParticipant(
+        id_=f"{case.id_}/participants/case-owner",
+        context=case.id_,
+        attributed_to=owner.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    dl.create(owner_record)
+    case.case_participants.append(owner_record.id_)
+    case.actor_participant_index[owner.id_] = owner_record.id_
     dl.create(case)
     case_actor_dl = dl.clone_for_actor(case_actor.id_)
     _CREATED_DLS.append(case_actor_dl)
-    for obj in (owner, *peers, case, case_actor, manager):
+    for obj in (owner, *peers, case, case_actor, manager, owner_record):
         case_actor_dl.create(obj)
     return case, case_actor
 

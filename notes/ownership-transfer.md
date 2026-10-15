@@ -116,9 +116,11 @@ before the Offer's state is read (#4437).
 - **Either answer closes the Offer for the other.** The Accept and the Reject share
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".
-- **The Offer itself is not sender-checked** (#4540): anyone can record an Offer
-  naming itself and then accept it, so do not treat a recorded Offer as proof of
-  the offerer's authority.
+- **Only the Case Owner's Offer is recorded** (CM-21-019): the Offer's sender is
+  checked before the expiry pre-step, its first write (`rule_refusal`), so a
+  stranger's Offer leaves no entry, forward or expiry. A redelivery is recognised
+  by the recorded entry's `actor`, not the role, because the sender may have
+  handed ownership on since (`SenderIsOfferingCaseOwnerNode`, HP-01-003).
 
 ### The Accepting Actor's Replica Updates via the CASE_MANAGER's Announce
 

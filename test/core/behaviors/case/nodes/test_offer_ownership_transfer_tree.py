@@ -40,6 +40,9 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
 )
+from vultron.core.use_cases.received.actor.ownership import (
+    OfferCaseOwnershipTransferReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/case-fwd"
@@ -47,6 +50,8 @@ CASE_ACTOR_ID = "https://example.org/actors/case-actor-fwd"
 VENDOR_ID = "https://example.org/actors/vendor-fwd"
 TRANSFEREE_ID = "https://example.org/actors/transferee-fwd"
 OFFER_ID = "https://example.org/activities/offer-fwd"
+#: The rule the received use case declares; the vendor is the Case Owner.
+_SENDER_RULE = OfferCaseOwnershipTransferReceivedUseCase.sender_entitlement
 
 
 def _seed_case(bt_scenario: BTTestScenario) -> None:
@@ -56,16 +61,36 @@ def _seed_case(bt_scenario: BTTestScenario) -> None:
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
+    # Only the Case Owner may offer the case (CM-21-019).
+    owner_participant = CaseParticipant(
+        id_="https://example.org/participants/vendor-fwd-cp",
+        attributed_to=VENDOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
     case = VulnerabilityCase(
         id_=CASE_ID,
         name="ForwardOffer test case",
         attributed_to=VENDOR_ID,
-        case_participants=[case_actor_participant.id_],
+        case_participants=[case_actor_participant.id_, owner_participant.id_],
         actor_participant_index={
             CASE_ACTOR_ID: case_actor_participant.id_,
+            VENDOR_ID: owner_participant.id_,
         },
     )
-    bt_scenario.seed(case_actor_participant, case)
+    bt_scenario.seed(case_actor_participant, owner_participant, case)
+
+
+def _forwards(bt_scenario: BTTestScenario) -> list[str]:
+    """The Offers in the outbox: the forward, beside the ledger Announce."""
+    return [
+        item
+        for item in bt_scenario.dl.outbox_list()
+        if getattr(
+            getattr(bt_scenario.dl.read(item), "type_", None), "value", None
+        )
+        == "Offer"
+    ]
 
 
 def _offer_event() -> OfferCaseOwnershipTransferReceivedEvent:
@@ -105,6 +130,8 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=VENDOR_ID,
+        sender_rule=_SENDER_RULE,
+        sender_id=VENDOR_ID,
     )
 
     result = bt_scenario.run(
@@ -113,9 +140,9 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
 
     assert result.status == Status.SUCCESS
     # The real TriggerActivityAdapter creates the activity; check outbox non-empty.
-    outbox = bt_scenario.dl.outbox_list()
-    assert len(outbox) == 1, (
-        f"Expected exactly 1 forwarded offer in CaseActor outbox; got {outbox}"
+    forwards = _forwards(bt_scenario)
+    assert len(forwards) == 1, (
+        f"Expected exactly 1 forwarded offer in CaseActor outbox; got {forwards}"
     )
 
 
@@ -135,6 +162,8 @@ def test_forward_offer_replies_to_the_recorded_offer(
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=VENDOR_ID,
+        sender_rule=_SENDER_RULE,
+        sender_id=VENDOR_ID,
     )
 
     result = bt_scenario.run(
@@ -142,7 +171,7 @@ def test_forward_offer_replies_to_the_recorded_offer(
     )
 
     assert result.status == Status.SUCCESS
-    (forward_id,) = bt_scenario.dl.outbox_list()
+    (forward_id,) = _forwards(bt_scenario)
     forward = bt_scenario.dl.read(forward_id)
     assert _as_id(getattr(forward, "in_reply_to", None)) == OFFER_ID
 
@@ -160,6 +189,8 @@ def test_non_case_manager_skips_forward(bt_scenario_factory) -> None:
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=VENDOR_ID,
+        sender_rule=_SENDER_RULE,
+        sender_id=CASE_ACTOR_ID,  # the forward, from the CASE_MANAGER
     )
 
     with patch.object(
@@ -213,6 +244,8 @@ def test_tree_factory_omits_forward_node_when_transferee_id_is_none() -> None:
         case_id=CASE_ID,
         transferee_id=None,
         original_actor_id=VENDOR_ID,
+        sender_rule=_SENDER_RULE,
+        sender_id=VENDOR_ID,
     )
 
     # Walk the tree: ForwardOfferToTransfereeNode must not appear anywhere.
@@ -240,6 +273,8 @@ def test_tree_factory_omits_forward_node_when_original_actor_id_is_none() -> (
         case_id=CASE_ID,
         transferee_id=TRANSFEREE_ID,
         original_actor_id=None,
+        sender_rule=_SENDER_RULE,
+        sender_id=VENDOR_ID,
     )
 
     def _collect(node):

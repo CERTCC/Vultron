@@ -320,6 +320,26 @@ def is_recorded_ownership_offer(
     )
 
 
+def recorded_ownership_offer_sender(
+    dl: CasePersistence, case_id: str, offer_id: str
+) -> str | None:
+    """The sender (``actor``) of the Offer ledgered as *offer_id*, if any.
+
+    ``None`` when the ledger records no Offer for *case_id* under
+    *offer_id*.  A resent Offer is a redelivery only when it comes from this
+    sender (HP-01-003, CM-21-019).
+    """
+    entry = next(
+        (
+            entry
+            for entry in _offer_entries(dl, case_id)
+            if entry.log_object_id == offer_id
+        ),
+        None,
+    )
+    return _entry_actor(entry) if entry is not None else None
+
+
 def open_ownership_offer(
     dl: CasePersistence, case_id: str
 ) -> RecordedOwnershipOffer | None:
@@ -355,4 +375,5 @@ __all__ = [
     "is_recorded_ownership_offer",
     "open_ownership_offer",
     "recorded_ownership_offer",
+    "recorded_ownership_offer_sender",
 ]
