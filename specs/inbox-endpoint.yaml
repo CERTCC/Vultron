@@ -472,19 +472,18 @@ groups:
     - story_2022_043
   - id: IE-11-003
     priority: MUST
-    kind: foundation
+    kind: protocol
     statement: >-
       The inbox endpoint MUST consider all four addressing fields — to, cc,
       bto, bcc — when determining whether the receiving actor is named as a
       recipient. A match on any one field is sufficient.
     rationale: >-
-      ActivityStreams 2.0 makes every actor named in `to`, `cc`, `bto` or `bcc` a
-      recipient; this restates that rule for the IE-11-001 refusal. Vultron itself
-      sets only `to` (OX-08) and never addresses a copy to its own sender (ADR-0109), but an inbound
-      Activity from another implementation that names this actor only in `cc`,
-      `bto` or `bcc` has not excluded it, so checking only `to` would refuse it
-      wrongly. What a handler then does with a `cc`-only address is HP-10's
-      question, not the endpoint's.
+      Vultron chooses which ActivityStreams audience-targeting properties count as
+      addressing, so the rule is its own (maintainer ruling, 2026-10-15, #4673).
+      Vultron defines no use for `audience` on any object or activity, so an actor
+      named only there is not addressed. Vultron sets only `to` (OX-08), but another
+      implementation may name this actor only in `cc`, `bto` or `bcc`; checking only
+      `to` would refuse it wrongly. A `cc`-only address is HP-10's question.
     verification: >-
       `test/adapters/driving/fastapi/routers/actors/test_inbox.py` asserts that an
       Activity naming the receiving actor only in `to`, `cc`, `bto`, or `bcc` passes the
@@ -497,5 +496,3 @@ groups:
     - story_2022_040
     - story_2022_042
     - story_2022_044
-    tags:
-    - as2
