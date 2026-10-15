@@ -894,6 +894,8 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
         self.case_id = case_id
         self.target_actor_id = target_actor_id
         self.participant_key = participant_key
+        self.found_participant: CaseParticipant | None = None
+        """The record the last successful run found, else ``None``."""
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "participant": PortInformation(data_type=object, required=True),
@@ -919,6 +921,12 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
 
     def _participant_id(self, participant: object) -> str:
         return str(getattr(participant, "id_", participant))
+
+    def _found(self, participant: object) -> None:
+        """Publish the matched *participant* and keep it for subclasses."""
+        self._set_output("participant", participant)
+        if isinstance(participant, CaseParticipant):
+            self.found_participant = participant
 
     def _fail(self, message: str) -> Status:
         self.feedback_message = message
@@ -977,6 +985,7 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
         return matched_participant, matched_participant_id, None
 
     def update(self) -> Status:
+        self.found_participant = None
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -1008,7 +1017,7 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
 
         if index_match != matched_participant_id:
             if index_match is None:
-                self._set_output("participant", matched_participant)
+                self._found(matched_participant)
                 self.feedback_message = (
                     f"Found participant for actor {self.target_actor_id}"
                 )
@@ -1021,7 +1030,7 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
                 f"actor_participant_index maps to {index_match}."
             )
 
-        self._set_output("participant", matched_participant)
+        self._found(matched_participant)
         self.feedback_message = (
             f"Found participant for actor {self.target_actor_id}"
         )

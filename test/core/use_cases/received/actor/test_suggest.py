@@ -24,7 +24,11 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
-from test.support.embargo_register import activate, write_consent_rows
+from test.support.embargo_register import (
+    activate,
+    agree_to_active_embargo,
+    write_consent_rows,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -145,6 +149,51 @@ class TestOfferActorToCaseReceivedUseCase:
         queued = dl.read(outbox[0])
         assert getattr(queued, "actor", None) == TEST_ACTOR_ID
         assert getattr(queued, "to", None) == [local_actor_id]
+
+    @pytest.mark.spec("CM-23-018")
+    def test_offer_actor_to_case_from_a_closed_recommender_is_refused(
+        self, make_payload, seed_case_manager
+    ):
+        """A recommender at RM CLOSED has left: nothing is committed or sent."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.dimensions import RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+
+        dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
+        case = dl.read_case(case_id)
+        assert case is not None
+        record = dl.read(case.actor_participant_index[self._RECOMMENDER_ID])
+        assert isinstance(record, CaseParticipant)
+        record.participant_statuses.append(
+            ParticipantStatus(
+                context=case_id,
+                attributed_to=self._RECOMMENDER_ID,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        )
+        dl.save(record)
+        activity = recommend_actor_activity(
+            as_Actor(id_="https://example.org/actors/vendor-new"),
+            target=_case_ref(case_id),
+            actor=self._RECOMMENDER_ID,
+            to=[local_actor_id],
+            suggested_roles=["vendor"],
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-018" in (result.reason or "")
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        assert dl.outbox_list() == []
 
     def test_offer_actor_to_case_runs_as_the_store_owner_without_a_request_actor(
         self, make_payload, caplog
@@ -460,6 +509,10 @@ class TestOwnerDirectInviteAtCaseManager:
             activate(case, embargo.id_)
         dl.create(case)
         write_consent_rows(dl, case)
+        if with_active_embargo:
+            # The owner recommends, so it must be an active participant: a
+            # signatory to the embargo in force (CM-10-004, CM-23-018).
+            agree_to_active_embargo(dl, case, self._OWNER_ID)
         return dl
 
     def _deliver(self, dl, make_payload, roles=None):

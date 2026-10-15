@@ -51,9 +51,9 @@ from test.support.rm_declaration import (
     PARTICIPANT_ID,
     RMAnomalyProbe,
     RMDeclarationCase,
-    all_cases,
     assert_note_owed,
     current_status as _current_status,
+    received_cases,
     recorded_rm,
     seed_case as _seed_case,
 )
@@ -668,43 +668,62 @@ class TestTerminalClosedParticipant:
     """``RM.CLOSED`` freezes ``rm`` only — not the other dimensions."""
 
     @pytest.mark.spec("RSH-05-006")
-    def test_closed_participant_still_accepts_vfd_advance(
+    def test_a_status_reaching_closed_still_records_its_vfd_advance(
         self, store_for, make_payload
     ):
-        """A CLOSED vendor deploying its fix must still be recorded.
+        """A vendor that deploys its fix as it closes has both recorded.
 
-        ``rm`` stays CLOSED (terminal); ``vfd`` advances Vfd → VFd.
+        ``rm`` reaches CLOSED (terminal) and ``vfd`` advances Vf → VF in the
+        same status.
         """
         dl = store_for(
             CASE_MANAGER_ID
         )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
-        current = _current_status(RM.CLOSED, CS_vf.Vf, CS_pxa.pxa)
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
         asserted = _asserted_status(RM.CLOSED, CS_vf.VF, CS_pxa.pxa)
         _seed_case(dl, current, asserted)
 
         result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
-        assert result.status == Status.SUCCESS, (
-            "a CLOSED participant may still report vfd/pxa progress"
-            f" (feedback: {result.feedback_message})"
-        )
+        assert result.status == Status.SUCCESS, result.feedback_message
 
         latest = _latest_status(dl, PARTICIPANT_ID)
         assert _rm_of(latest) == RM.CLOSED.name
         assert _vf_of(latest) == CS_vf.VF.name
 
+    @pytest.mark.spec("CM-23-018", "RSH-05-006")
+    def test_a_closed_participants_later_update_is_refused_in_full(
+        self, store_for, make_payload
+    ):
+        """Once its closure is recorded, the sender may not act (CM-23-018).
+
+        Its later VFD advance is refused with the rest of the update: nothing
+        is appended and no ledger entry is committed.
+        """
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(RM.CLOSED, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(RM.CLOSED, CS_vf.VF, CS_pxa.pxa)
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+
+        assert result.status == Status.FAILURE
+        assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
+        assert _vf_of(_latest_status(dl, PARTICIPANT_ID)) == CS_vf.Vf.name
+        assert _ledger_entries(dl) == []
+
     @pytest.mark.spec("RSH-05-005")
     def test_wholly_refused_update_is_not_appended_and_commits_no_entry(
         self, store_for, make_payload
     ):
-        """CLOSED + duplicate CLOSED with no other change → refused outright.
+        """A backward rm with no other change → refused outright.
 
         Nothing is appended and no canonical ledger entry is committed: the
         assertion carried no acceptable information.  Executed as the Case
         Manager so a commit *would* fire if the guards let it through.
         """
         dl = store_for(CASE_MANAGER_ID)
-        current = _current_status(RM.CLOSED, CS_vf.Vf, CS_pxa.pxa)
-        asserted = _asserted_status(RM.CLOSED, CS_vf.Vf, CS_pxa.pxa)
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
         _seed_case(dl, current, asserted)
 
         result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
@@ -1201,7 +1220,7 @@ class TestSharedRMAcceptanceRule:
     @pytest.mark.spec("RSH-06-003")
     @pytest.mark.spec("RSH-06-004")
     @pytest.mark.spec("RSH-06-006")
-    @pytest.mark.parametrize("case", all_cases())
+    @pytest.mark.parametrize("case", received_cases())
     def test_status_path_applies_the_shared_rule(
         self, case: RMDeclarationCase, store_for, make_payload
     ):

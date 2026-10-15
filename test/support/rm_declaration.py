@@ -230,6 +230,16 @@ class RMDeclarationCase:
         """The RM state recorded for the sender afterwards."""
         return self.declared if self.accepted else self.current
 
+    @property
+    def sender_closed(self) -> bool:
+        """The sender is at RM ``CLOSED`` before the declaration arrives.
+
+        A received declaration from such a sender is refused before the
+        rule is applied, with no note (CM-23-018): its row exercises the
+        rule itself, not a received handler.
+        """
+        return self.current is RM.CLOSED
+
 
 _C = RMDeclarationCase
 _V = RMDeclaration
@@ -319,12 +329,31 @@ def assert_note_owed(case: RMDeclarationCase, dl: SqliteDataLayer) -> None:
     assert kind in content
 
 
-def cases_declaring(*declared: RM) -> list[Any]:
-    """Return :data:`RM_DECLARATION_CASES` declaring one of *declared*, as params."""
+def cases_declaring(*declared: RM, sender_closed: bool = False) -> list[Any]:
+    """Return :data:`RM_DECLARATION_CASES` declaring one of *declared*, as params.
+
+    By default only the rows whose sender may still act on the case, which a
+    received handler adjudicates.  With *sender_closed* the rows whose sender
+    is at RM ``CLOSED``, which a received handler refuses before adjudicating
+    (CM-23-018).
+    """
     return [
         pytest.param(case, id=case.id)
         for case in RM_DECLARATION_CASES
-        if case.declared in declared
+        if case.declared in declared and case.sender_closed is sender_closed
+    ]
+
+
+def received_cases(*, sender_closed: bool = False) -> list[Any]:
+    """Return every row a received handler adjudicates, as pytest params.
+
+    :func:`all_cases` without the rows whose sender is at RM ``CLOSED``; with
+    *sender_closed*, only those rows (CM-23-018).
+    """
+    return [
+        pytest.param(case, id=case.id)
+        for case in RM_DECLARATION_CASES
+        if case.sender_closed is sender_closed
     ]
 
 

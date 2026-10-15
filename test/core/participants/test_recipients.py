@@ -37,6 +37,7 @@ from vultron.core.participants.recipients import (
     invitation_recipients,
     is_case_content_recipient,
     ledger_entry_recipients,
+    may_act_on_case,
     reporter_introduction_recipients,
 )
 from vultron.core.states.participant_embargo_consent import (
@@ -444,3 +445,61 @@ def test_reporter_introduction_reaches_only_active_open_reporters(
     assert reporter_introduction_recipients(case, dl, excluding={_SENDER}) == [
         _SIGNATORY
     ]
+
+
+# ---------------------------------------------------------------------------
+# CM-23-018: the sender predicate behind the ACTIVE_PARTICIPANT standing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-23-018", "CM-10-004")
+def test_only_an_active_open_participant_may_act_on_the_case(
+    dl: SqliteDataLayer,
+) -> None:
+    """Closed, inert, removed and unlisted senders may not act."""
+    case = _embargoed_case(dl)
+    removed = _seat(dl, case, _REMOVED)
+    removed.removal_activity = f"{_CASE_ID}/activities/remove-1"
+    dl.save(removed)
+
+    assert may_act_on_case(case, dl, _SIGNATORY)
+    for actor_id in (
+        _CLOSED,
+        _INVITED,
+        _UNJOINED,
+        _REMOVED,
+        "https://example.org/actors/stranger",
+    ):
+        assert not may_act_on_case(case, dl, actor_id), actor_id
+
+
+@pytest.mark.spec("CM-23-018", "SYNC-03-005")
+def test_a_closed_participant_keeps_the_recipient_check_but_not_the_sender_one(
+    dl: SqliteDataLayer,
+) -> None:
+    """The bare active check still admits a closed participant (its replay)."""
+    case = _embargoed_case(dl)
+    assert is_case_content_recipient(case, dl, _CLOSED)
+    assert not may_act_on_case(case, dl, _CLOSED)
+
+
+@pytest.mark.spec("CM-23-018")
+def test_the_sender_predicate_matches_the_case_content_selection(
+    dl: SqliteDataLayer,
+) -> None:
+    """A sender may act exactly when it would be sent the case's content."""
+    case = _embargoed_case(dl)
+    may_act = [
+        a for a in case.actor_participant_index if may_act_on_case(case, dl, a)
+    ]
+    assert may_act == case_content_recipients(case, dl)
+
+
+@pytest.mark.spec("CM-23-018")
+def test_an_unresolvable_sender_record_may_not_act(
+    dl: SqliteDataLayer,
+) -> None:
+    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    _seat(dl, case, _SIGNATORY, store=False)
+    case.case_participants.clear()
+    assert not may_act_on_case(case, dl, _SIGNATORY)

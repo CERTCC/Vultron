@@ -34,6 +34,10 @@ asks the one guard rather than carrying a closed-case check of its own.
 :func:`repeat_answer_skip` does the same for the repeat guard of an answer to
 an embargo Invite (CM-13-005): the Accept handler's P/X/A, expiry and late-Accept
 paths write or send before its tree runs, so a repeat must be caught first.
+
+:func:`closed_sender_preflight` does the same for a sender whose closure the
+case already records (CM-23-018): a repeat of a closing act is ``SKIPPED``,
+any other act ``REFUSED``, before the received tree commits or sends.
 """
 
 import py_trees
@@ -49,6 +53,7 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
+    closed_sender_guard,
     compose_sender_guard,
 )
 from vultron.core.models.events.base import VultronEvent
@@ -223,6 +228,61 @@ def repeat_answer_skip(
     if guard is None or not guard.is_repeat:
         return None
     return embargo_answer_repeat_verdict(tree, verdict)
+
+
+def closed_sender_preflight(
+    dl: CasePersistence,
+    receiving_actor_id: str,
+    request: VultronEvent,
+    *,
+    case_id: str | None,
+    sender_actor_id: str,
+    closes: bool,
+    label: str,
+    sync_port: SyncActivityPort | None = None,
+) -> HandlerResult | None:
+    """The verdict owed to a sender whose closure the case records, or ``None``.
+
+    For a handler whose sender guard does not ask
+    :func:`~vultron.core.participants.recipients.may_act_on_case` (an
+    invitee's reply), or whose act may close its sender.  When the case
+    already records the sender's closure (CM-23-018):
+
+    - an act that would close it again (*closes*: ``Close(Report)``, a
+      ``Reject`` of a stub or full-case Invite) changes nothing, so it is
+      ``SKIPPED``, whatever its activity id (ID-05-003);
+    - any other act is ``REFUSED``.
+
+    Either way nothing is committed or sent.  Otherwise ``None``, and the
+    handler runs its tree.  A *case_id* this store does not resolve records
+    no closure.  The post-close boundary is asked first: on a fully closed
+    case the act is left to the tree, which drops it (CM-23-013).
+
+    Raises:
+        VultronBTInternalError: The guard failed on an internal error.
+    """
+    if not case_id:
+        return None
+    guard = closed_sender_guard(case_id, sender_actor_id)
+    tree = py_trees.composites.Sequence(
+        name="ClosedSenderPreflight",
+        memory=False,
+        children=[CaseOpenToExternalWritesNode(case_id=case_id), guard],
+    )
+    result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
+        tree=tree, actor_id=receiving_actor_id, activity=request
+    )
+    verdict_from_bt(tree, result, label="ClosedSenderPreflight")
+    if not guard.sender_closed:
+        return None
+    if closes:
+        return HandlerResult.skipped(
+            f"{label}: {guard.feedback_message} — a repeat of a closing act,"
+            " nothing to apply (ID-05-003)"
+        )
+    return HandlerResult.refused(
+        f"{label}: {guard.feedback_message} — it may act on nothing further"
+    )
 
 
 def door_refusal(

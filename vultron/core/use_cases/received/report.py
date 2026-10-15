@@ -48,6 +48,9 @@ from vultron.core.use_cases.received._bt_verdict import (
     rm_declaration_verdict,
     verdict_from_bt,
 )
+from vultron.core.use_cases.received._sender_preflight import (
+    closed_sender_preflight,
+)
 from vultron.errors import (
     VultronBTInternalError,
 )
@@ -500,9 +503,23 @@ class CloseReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
         # The case the sender guard and the RM adjudication read.
-        tree = create_close_report_received_tree(
-            request, case_id=_case_id_for_report(self._dl, request.report_id)
+        case_id = _case_id_for_report(self._dl, request.report_id)
+        # A Close from a sender the case already records as closed would
+        # close it again: its effect is in place, so it is SKIPPED with
+        # nothing committed or sent, whatever its id (CM-23-018, ID-05-003).
+        skip = closed_sender_preflight(
+            self._dl,
+            receiving_actor_id,
+            request,
+            case_id=case_id,
+            sender_actor_id=request.actor_id,
+            closes=True,
+            label="CloseReportReceivedBT",
+            sync_port=self._sync_port,
         )
+        if skip is not None:
+            return skip
+        tree = create_close_report_received_tree(request, case_id=case_id)
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
