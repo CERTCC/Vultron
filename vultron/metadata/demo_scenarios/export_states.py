@@ -28,17 +28,21 @@ this script never needs to know how each enum serializes:
 - **RM**  — Report Management (per-participant)
 - **PXA** — Public / eXploit / Attacks (case-level)
 
-The other two no longer exist as standalone machines in
-:mod:`vultron.core.states`, so the exporter reconstructs each one the demo UI
-needs (see each function's docstring for the demo-scoped detail):
+One machine no longer exists as a standalone machine in
+:mod:`vultron.core.states`, so the exporter reconstructs it from sub-machines:
 
 - **VFD** (Vendor Fix Development; the ``vfd``→``VFD`` ladder) was split into
   the orthogonal ``CS_vf`` and ``CS_d`` sub-machines; :func:`create_vfd_machine`
   projects those two authoritative sub-machines back onto the ladder.
-- **EM** (Embargo Management; case-level) was moved off a transition machine by
-  ADR-0122 — EM is now derived from the embargo register — so
-  :func:`create_em_machine` encodes the case-level EM machine as a *temporary*
-  stand-in until epic #4283 exposes it declaratively (tracked in #4427).
+
+The remaining three machines are all read from their authoritative
+``create_*_machine()`` factories:
+
+- **RM**  — Report Management (per-participant)
+- **PXA** — Public / eXploit / Attacks (case-level)
+- **EM**  — Embargo Management (case-level); read from
+  :func:`vultron.core.states.em.create_em_machine` (restored by #4449,
+  closes #4427).
 
 Output is written to ``ui/src/data/protocol_states.json``, co-located with its
 only consumer (``ui/src/protocol.ts``). The output is **deterministic**
@@ -71,7 +75,7 @@ from vultron.core.states.cs import (
     _vf_transitions,
     create_pxa_machine,
 )
-from vultron.core.states.em import EM
+from vultron.core.states.em import create_em_machine
 from vultron.core.states.rm import create_rm_machine
 
 # Where the artifact lives, co-located with its only consumer under ``ui/``.
@@ -138,87 +142,6 @@ def create_vfd_machine() -> Machine:
         initial=_vfd_token(vf_initial, d_initial),
         auto_transitions=False,
         name="Demo VFD ladder (vf × d projection)",
-    )
-
-
-def create_em_machine() -> Machine:
-    """Build the case-level EM machine the demo consumes.
-
-    TEMPORARY (2026-10) — tracked in #4427, blocked on epic #4283. ADR-0122
-    moved Embargo Management off a standalone transition machine: a case's EM
-    state is now *derived* from its embargo register
-    (:func:`vultron.core.states.embargo_register.derive_em`), and
-    :mod:`vultron.core.states.em` no longer exposes ``create_em_machine``.
-
-    The case-level EM machine itself is NOT going away — per the maintainer it
-    remains the authoritative top-level view that the register derivation must
-    stay consistent with. But until epic #4283 settles and exposes that
-    case-level machine declaratively, there is no transition table to read, so
-    the transitions are encoded here as a demo-scoped stand-in. The five states
-    are still read from the :class:`EM` enum; only the ``propose``/``accept``/
-    ``reject``/``terminate`` transition table below is hand-held. Switch this
-    back to reading the authoritative machine once #4283 provides an accessor
-    (see #4427); the drift test guards the committed artifact meanwhile.
-    """
-    states = [e.value for e in EM]  # NONE, PROPOSED, ACTIVE, REVISE, EXITED
-    transitions = [
-        {
-            "trigger": "propose",
-            "source": EM.NONE.value,
-            "dest": EM.PROPOSED.value,
-        },
-        {
-            "trigger": "propose",
-            "source": EM.PROPOSED.value,
-            "dest": EM.PROPOSED.value,
-        },
-        {
-            "trigger": "propose",
-            "source": EM.ACTIVE.value,
-            "dest": EM.REVISE.value,
-        },
-        {
-            "trigger": "propose",
-            "source": EM.REVISE.value,
-            "dest": EM.REVISE.value,
-        },
-        {
-            "trigger": "reject",
-            "source": EM.PROPOSED.value,
-            "dest": EM.NONE.value,
-        },
-        {
-            "trigger": "reject",
-            "source": EM.REVISE.value,
-            "dest": EM.ACTIVE.value,
-        },
-        {
-            "trigger": "accept",
-            "source": EM.PROPOSED.value,
-            "dest": EM.ACTIVE.value,
-        },
-        {
-            "trigger": "accept",
-            "source": EM.REVISE.value,
-            "dest": EM.ACTIVE.value,
-        },
-        {
-            "trigger": "terminate",
-            "source": EM.ACTIVE.value,
-            "dest": EM.EXITED.value,
-        },
-        {
-            "trigger": "terminate",
-            "source": EM.REVISE.value,
-            "dest": EM.EXITED.value,
-        },
-    ]
-    return Machine(
-        states=states,
-        transitions=transitions,
-        initial=EM.NONE.value,
-        auto_transitions=False,
-        name="Demo EM machine (temporary stand-in; see #4427 / #4283)",
     )
 
 
