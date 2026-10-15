@@ -104,8 +104,8 @@ mechanics are `uv run bundle-fit`, so no skill re-derives them in prose (PAD-15)
    → null linkedBranch: it already exists, abort (taken)
 5. Assign @me; set Status = In Progress
 6. Comment "Claimed on branch <branch>"
-7. Implement, validate, pre-PR code review; push the branch at each
-   checkpoint (PAD-04-004)
+7. Implement and self-check, validate, fresh-agent pre-push review; push the
+   branch at each checkpoint (PAD-04-004)
 8. create-pr: cherry-pick onto a fresh origin/main (freshen-branch.sh), push
 9. gh pr create with "- Closes #<N>"
    → a draft PR keeps the issue In Progress; a ready PR moves it to In Review
@@ -118,9 +118,12 @@ Because every agent is the same GitHub user, only that flag tells the run from a
 stray session (PAD-19-003). An Epic claimed to plan it is commented on, never
 assigned: an Epic's assignee means an epic run (PAD-04-002).
 
-Pre-PR review findings are FAIL, IMPROVE or DEFER
+Pre-push review findings are FAIL, IMPROVE or DEFER
 (`.agents/skills/shared/completeness-doctrine.md`): FAIL and IMPROVE are fixed
-before the PR opens; there is no advisory category to log and forget.
+before the PR opens; there is no advisory category to log and forget. The
+reviewer is a fresh subagent, because an author reviewing its own change shares
+the blind spots it wrote with; the post-push triage then reviews only the
+live-PR phases and the delta (PAD-07-007, ADR-0139).
 
 ## Stale Claim Recovery
 

@@ -471,59 +471,165 @@ groups:
           `test/metadata/test_size_bands.py::TestBandForAcs::test_no_ac_count_can_reach_a_measured_only_band`
 
   - id: PAD-07
-    title: Pre-PR Code Review Protocol
+    title: Pre-PR Review Protocol
+    description: >-
+      Who reviews a branch before its first push, and how the post-push
+      triage reuses that review. The author runs a four-item self-check; a
+      fresh agent then runs the `pr-triage` phases that need no Pull Request,
+      and the post-push triage runs only the phases that do, plus the delta.
     specs:
       - id: PAD-07-001
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The `build` skill MUST invoke the `code-review` agent before
-          opening a PR.
+          Before invoking `create-pr`, the `build` skill MUST have the
+          PR-independent phases of `pr-triage` (its pre-push mode) run on the
+          branch by a subagent that did not write the change. Those phases
+          include the code-review subagent.
+        rationale: >-
+          An author reviewing its own change misses what it overlooked while
+          writing it; the post-push fresh-agent triage still found a median of
+          six problems per PR, each fixed after the push at the cost of a fix
+          commit and a CI run.
       - id: PAD-07-005
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The `code-review` agent MUST run against the current branch diff
-          relative to `main`.
+          The pre-push review MUST run against the branch diff relative to
+          `origin/main` with every change committed, and MUST be given the
+          draft PR body so it can check the author's `Self-check:` record
+          (PAD-07-009).
         relationships:
         - rel_type: refines
           spec_id: PAD-07-001
       - id: PAD-07-002
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          Every finding produced by the `code-review` agent MUST be tagged
-          either `[BLOCKING]` or `[ADVISORY]`. `[BLOCKING]` findings are bugs
-          and security issues that MUST be resolved before the PR is opened.
-          `[ADVISORY]` findings are style and quality observations that do not
-          block PR creation.
+          Every pre-push review finding MUST carry a `pr-triage` severity
+          (`FAIL`, `IMPROVE`, or `NEW-ISSUE`) and a `pr-triage` decision
+          outcome (`fix-now`, `fix-now-file`, `defer-ask`, or
+          `inversion-halt`).
+        rationale: >-
+          One taxonomy across the pre-push and post-push reviews lets the
+          post-push triage carry a pre-push finding forward unchanged.
       - id: PAD-07-003
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The `build` skill MUST resolve all `[BLOCKING]` findings before
-          opening a PR.
+          The `build` skill MUST resolve every pre-push review finding by its
+          decision outcome before invoking `create-pr`, and MUST record each
+          finding's resolution in the pre-push artifact.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-001
       - id: PAD-07-006
-        priority: MUST
+        adr:
+        - ADR-0139
+        priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-
-          After resolving `[BLOCKING]` findings, the `build` skill MUST re-run
-          the code review to confirm no new `[BLOCKING]` findings were
-          introduced.
+          The `build` skill MUST NOT re-run the pre-push review after
+          resolving its findings. The post-push triage reviews those fixes as
+          part of its delta (PAD-07-007).
+        rationale: >-
+          A second full review before the push would repeat every phase on a
+          diff that changed only where the fixes landed; the delta review
+          covers exactly those lines, once.
         relationships:
         - rel_type: refines
           spec_id: PAD-07-003
       - id: PAD-07-004
+        adr:
+        - ADR-0139
         priority: SHOULD
         kind: process
         statement: >-
-          After a PR is opened, `[ADVISORY]` findings SHOULD be posted as a
-          comment on the PR for human review.
+          After a PR is opened, the pre-push review's findings and their
+          resolutions SHOULD be posted as a comment on the PR for human
+          review.
+      - id: PAD-07-007
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          When a pre-push artifact exists for a PR's branch and PAD-07-008
+          does not call for a full triage, `pr-triage` MUST run the phases
+          that need the PR (issue linkage as posted, PR body format, the
+          `Docs:` line comparison, CI status, and merge state), MUST re-run
+          the PR-independent phases on the delta alone, and MUST confirm each
+          pre-push finding's recorded resolution on the PR head, re-emitting
+          any finding whose fix is absent. The delta is the change to the
+          branch's own added and removed lines between the reviewed head and
+          the PR head.
+        rationale: >-
+          Every phase still runs, once per change. Defining the delta on the
+          branch's own lines keeps `create-pr`'s cherry-pick onto a newer
+          base out of it.
+        verification: >-
+          Inspection: `pr-triage` § "Modes" assigns each phase to the
+          pre-push or the delta run, and `prepush-delta.sh` compares only the
+          added and removed lines of the reviewed and current branch diffs.
+      - id: PAD-07-008
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-triage` MUST run the full triage when the PR carries the
+          `needs-rebase` label, when the PR's branch has no usable pre-push
+          artifact (none exists, it is not a JSON object, it lacks a reviewed
+          SHA, it names another branch, or a reviewed commit is not in the
+          object store), when the reviewed diff is empty, or when the delta's
+          changed lines exceed half of the reviewed diff's changed lines.
+        rationale: >-
+          A PR not opened by `build`, a conflict resolved by hand, or a
+          delta most of the size of the change gives the pre-push review too
+          little claim on the tree that will merge.
+        verification: >-
+          Inspection: `prepush-delta.sh` exits 3 (full triage) for each
+          artifact, empty-diff and delta-size cause this requirement lists,
+          and `pr-triage` § "Modes" runs the full triage on exit 3 or on a
+          `needs-rebase` PR.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-007
+      - id: PAD-07-009
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          The `build` and `bugfix` skills MUST run the four-item pre-review
+          self-check (affected-text sweep, failure-path pass, branch
+          coverage, and reuse check) on the finished diff and record its four
+          results under `Self-check:` in the PR body's `## Verification`
+          section. The code-review subagent of `pr-triage` MUST be given the
+          same four items as review prompts.
+        rationale: >-
+          About 45% of post-push triage findings fall into these four
+          oversights. A written result per item shows the reviewer the check
+          ran, and the reviewer checking the same four items against the
+          diff catches what the author missed.
+        verification: >-
+          Inspection: `build` Phase 5 and `bugfix` Phase 4 run
+          `shared/pre-review-self-check.md`, `pr-body-guide.md` carries the
+          `Self-check:` lines, and `pr-triage` Phase 8 passes that file to the
+          code-review subagent.
 
   - id: PAD-08
     title: Build Skill — Issue-Based Task Selection
@@ -1127,13 +1233,18 @@ groups:
           Inspection: every open non-draft PR is on Project #24 with a
           `Ship stage` value.
       - id: PAD-17-002
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         statement: >-
           `pr-ship` MUST set a Pull Request's `Ship stage` to `Triage`,
           `Execute`, or `Verify` on entering that phase, including when it
-          resumes into it; to `Needs you` while paused at a gate awaiting a
-          human; and to `Ready to merge` when verification completes.
+          resumes into it and when its triage reviews only the delta over a
+          pre-push review (PAD-07-007); to `Needs you` while paused at a gate
+          awaiting a human; and to `Ready to merge` when verification
+          completes. The pre-push review sets no `Ship stage`, because no
+          Pull Request exists yet.
         rationale: >-
           The one skill that knows its own phase writes the value, so the
           field is a mirror of pipeline progress that needs no manual upkeep.

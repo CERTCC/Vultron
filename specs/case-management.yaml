@@ -2333,25 +2333,37 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case's EM state is `ACTIVE` at the time the stub Invite is sent, the
-      invitation MUST let the invitee learn the active embargo's terms before it
-      accepts: the case stub MUST carry the case's EM state (`caseStatus.emState`)
-      and the active embargo (`activeEmbargo`), either inline or by an ID the invitee
-      can ask the inviter to resolve.
+      When an embargo is in force at the time the stub Invite is sent (EM `ACTIVE` or
+      `REVISE`: the case's embargo register holds an `ACTIVE` entry), the invitation
+      MUST let the invitee learn the active embargo's terms before it accepts: the
+      case stub MUST carry the case's EM state (`caseStatus.emState`) and the active
+      embargo (`activeEmbargo`), either inline or by an ID the invitee can ask the
+      inviter to resolve. The stub MUST NOT carry an open revision proposal; the
+      invitee learns of it from `caseStatus.emState` and receives it after joining
+      (EP-09-011).
     rationale: >-
       The invite-accept cycle is the only consent signal for late-joining participants
       when an active embargo already exists. Accepting without seeing embargo terms is
       not meaningfully informed consent (issue #1289, MV-10-006). An invited actor that
       has not joined holds nothing but the invitation, so the terms come from it: inline
       in the stub, or fetched from the inviter by the ID the stub names. ActivityStreams
-      allows either form; which one this prototype sends is CM-17-011.
+      allows either form; which one this prototype sends is CM-17-011. In EM `REVISE`
+      the prior embargo stays in force until the owner decides the revision (EP-05-002),
+      and accepting the stub binds the invitee to it (CM-11-001, CM-11-006), so the
+      terms are owed in `REVISE` as in `ACTIVE` (#4697). The revision itself stays out
+      of the stub: it is not yet binding, CM-17-010 keeps other case content out, and
+      EP-09-011 already relays each open proposal the joiner has not yet been asked
+      about once it holds the case.
     verification: >-
-      Integration tests in `test/demo/` confirm that when the case's EM state is
-      `ACTIVE` at invite time, the case stub on the wire carries `activeEmbargo` and
+      Integration tests in `test/demo/` confirm that when an embargo is in force at
+      invite time, the case stub on the wire carries `activeEmbargo` and
       `caseStatus.emState`; unit tests marked `CM-17-002` in
       `test/core/use_cases/triggers/test_actor_triggers.py` and
-      `test/wire/as2/factories/test_case_factories.py` confirm the same, and that a
-      stub sent with no active embargo carries neither.
+      `test/wire/as2/factories/test_case_factories.py` confirm the same for EM
+      `ACTIVE`, and that a stub sent with no embargo in force carries neither;
+      `test_revise_stub_carries_the_embargo_in_force_not_the_revision` in the latter
+      file confirms that a `REVISE` stub carries the embargo in force and not the
+      revision (strict `xfail` until #4744 implements it).
     relationships:
     - rel_type: implements
       spec_id: MV-10-006
@@ -2544,7 +2556,7 @@ groups:
     statement: >-
       A case stub that a sender emits MUST carry exactly its `id`, its `type`, the
       `caseId` naming the case it stands for (CM-11-013) and a non-empty `summary`
-      (MV-10-001), plus, when an embargo is active, the embargo terms CM-17-002
+      (MV-10-001), plus, when an embargo is in force, the embargo terms CM-17-002
       requires (`activeEmbargo` and `caseStatus.emState`). The sender chooses the
       `summary`: it MAY be the case name, or a deliberately less revealing string,
       and the sender MUST NOT assume the case name is safe to share with an invitee
@@ -2568,8 +2580,8 @@ groups:
       factory was implemented.
       `test_rm_invite_stub_carries_no_case_content` and
       `test_enriched_stub_carries_only_the_embargo_terms` in the same file assert the
-      stub carries no other case content, and that an embargo-active stub adds only
-      `activeEmbargo` and `caseStatus`.
+      stub carries no other case content, and that a stub sent with an embargo in force
+      adds only `activeEmbargo` and `caseStatus`.
     relationships:
     - rel_type: refines
       spec_id: CM-11-013
@@ -2785,9 +2797,12 @@ groups:
   - id: CM-18-005
     priority: MUST
     kind: project
-    statement: A participant's consent row MUST be changed by applying a `PEC_Trigger` through
+    statement: A participant's consent row MUST be changed either by applying a `PEC_Trigger` through
       `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`, given the
-      register status of the embargo's entry, and persisting the participant. Code MUST NOT assign
+      register status of the embargo's entry, and persisting the participant, or, when a ledger
+      entry carries the row in full, by writing the row as carried through
+      `CaseParticipant.copy_consent_row()`, called only by the one apply function after it checks the
+      row's starting state (ADR-0124, CM-23-016). Code MUST NOT assign
       `CaseParticipant.embargo_consents` directly as the means of recording a consent change; the
       `UNINVITED` rows that record no answer are written by `CaseParticipant.write_uninvited_rows()`.
     rationale: '`apply_pec_transition()` validates the trigger against the consent table and the
@@ -2796,10 +2811,16 @@ groups:
       the table, so a row could reach a state no trigger leads to. The legacy `apply_pec_trigger()`
       soft-fail helper was removed (CONCERN-1871); all consent-write sites MUST use
       `CaseParticipant.apply_pec_transition()` (or `apply_pec_transition_if_legal()` where an
-      illegal trigger is a recorded no-op). Per ADR-0048, ADR-0122.'
+      illegal trigger is a recorded no-op), except the copy write, which the apply function keeps
+      fail-closed (CM-23-016). Per ADR-0048, ADR-0122, ADR-0124.'
     verification: Inspection of `vultron/core/` confirms that all consent-write sites call
-      `CaseParticipant.apply_pec_transition()` or `apply_pec_transition_if_legal()` and that no site
-      assigns `embargo_consents` outside `CaseParticipant`.
+      `CaseParticipant.apply_pec_transition()` or `apply_pec_transition_if_legal()`, or copy a
+      carried row through `apply_embargo_change()` in `vultron/core/models/embargo_apply.py`, and
+      that no site assigns `embargo_consents` outside `CaseParticipant`.
+      `test/core/models/test_embargo_apply.py` asserts the copy write refuses a row that does not
+      start where its entry implies, and
+      `test/architecture/test_consent_copy_write_has_one_caller.py` asserts that only
+      `apply_embargo_change()` calls `CaseParticipant.copy_consent_row()`.
     relationships:
     - rel_type: refines
       spec_id: CM-18-003

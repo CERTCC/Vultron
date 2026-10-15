@@ -17,7 +17,8 @@ description: >
 2. Select the target issue or bundle (auto or explicit) and fail fast on blockers.
 3. Claim every member.
 4. Invoke `deepen-context` with hints and the `Governing specs:` floor from the issue(s).
-5. Implement, validate, code-review, open one PR closing every member, archive.
+5. Implement and self-check, validate, have a fresh subagent review the branch,
+   open one PR closing every member, archive.
 
 ## Workflow
 
@@ -283,14 +284,13 @@ on what "done" means — loaded by `orient-agent` in Phase 1.
       violations regardless of context and must be caught before review.
 
 5. Sub-agents may help, but main-agent validation is mandatory.
-6. **Pattern-change checklist** — run this before opening the PR:
-   - If this PR retires a method or establishes a new pattern, grep
-     `AGENTS.md` for the old name and update any stale pitfalls in this PR.
-   - Grep `notes/` for references to any symbol, method, or table entry
-     you changed and update stale rows in this PR.
-   - If any new `SvcXxxUseCase` class was added, confirm a matching file
-     exists under `test/core/use_cases/triggers/` (see
-     `notes/triggers-test-coverage.md`).
+6. **Pre-review self-check** — on every PR, once the diff is finished, run the
+   four items in `.agents/skills/shared/pre-review-self-check.md`: affected-text
+   sweep, failure-path pass, branch coverage, reuse check. Fix what each one
+   turns up, then write its result into a draft PR body at
+   `/tmp/pr-body-<N>.md` (the `pr-body-guide.md` implementation template, with
+   the four results under `Self-check:` in `## Verification`). The step is done
+   when all four results are written; the Phase 7 reviewer reads them.
 
 **Scope expansion judgment:** If implementing this task reveals adjacent work,
 the default is to **fix it now** — FILE (keep a record) and DEFER (leave it for
@@ -351,29 +351,37 @@ later) are separate decisions. Apply
    task (and therefore the same epic) where it was discovered — this keeps it
    visible in the epic tree and off the `no:parent-issue` orphan list.
 
-### Phase 7 — Pre-PR Code Review
+### Phase 7 — Pre-Push Review by a Fresh Agent
 
-Invoke the `code-review` agent against the current branch diff vs `main`.
+The review runs in a subagent that did not write the change, before the first
+push, so its findings cost no fix commit and no CI run (PAD-07-001, ADR-0139).
 
-Findings use the three-category system from
-`.claude/skills/shared/completeness-doctrine.md`:
+1. Commit everything. The reviewer reads `origin/main...HEAD`, so uncommitted
+   work is invisible to it (PAD-07-005).
+2. Spawn a fresh subagent with exactly this prompt:
 
-- **FAIL** — broken, spec violated, changed behavior untested → fix before
-  the PR opens
-- **IMPROVE** — correct but incomplete → fix in this session, document in the
-  PR body
-- **DEFER** — genuinely out of scope → requires creating a follow-up GitHub
-  issue immediately **and** explicit user approval (Gate 1). Unattended, there
-  is no approval: fix it in this PR or hold the PR. Do not defer unilaterally
+   ```text
+   In <worktree>, on branch <branch>, run the pr-triage skill in pre-push
+   mode: /pr-triage --pre-push <N> [<M>...] --body /tmp/pr-body-<N>.md
+   Make no code changes. Return the artifact path and the finding count.
+   ```
 
-There is no "ADVISORY" category that can be logged and forgotten. Every
-finding is either fixed here or gated via DEFER; an unattended run never
-reaches the DEFER outcome.
+   The prompt is the whole hand-off: the reviewer's value is a context that
+   never saw the author's reasoning, so its blind spots differ. The subagent
+   writes the artifact to the path
+   `bash .agents/skills/pr-triage/prepush-delta.sh --path` prints.
+3. Resolve every finding by its `decision_outcome`, as `pr-execute` would:
+   `fix-now` inline; `fix-now-file` inline plus an issue the PR closes; a
+   `defer-ask` or `inversion-halt` through the gates in Phase 5's scope
+   judgment, which on an unattended run means fix it or hold the PR as a draft.
+   Write each finding's `resolution` into the artifact (`pr-triage/REFERENCE.md`
+   § "Review-Mode Fields") and commit the fixes (PAD-07-003).
+4. Hand the fixes to the post-push triage, which reviews them as part of its
+   delta; the pre-push review runs once (PAD-07-006).
 
-Because this phase runs before the final commit, `git diff main...HEAD` may
-be empty if changes are unstaged. Stage all changed files first (`git add`),
-then pass `git diff --cached` as the diff source for the review, or do a
-draft commit and use `git diff main...HEAD` normally.
+The step is done when every finding in the artifact has a `resolution`.
+There is no advisory category: every finding is fixed here, filed and fixed,
+or holds the PR.
 
 ### Nearby debt
 
@@ -401,7 +409,7 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
    ```text
    type:         implementation
    title:        <short title>
-   body:         <composed per pr-body-guide.md implementation template>
+   body:         </tmp/pr-body-<N>.md from Phase 5, completed per pr-body-guide.md>
    labels:       <topic labels only — never size:, see step 1>
    issue_number: <N>        # the first bundle member
    ```
@@ -423,7 +431,8 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
    before `archive-history`. The session is not done while the placeholder
    remains.
 
-4. Post `[ADVISORY]` findings as a PR comment (if any).
+4. Post the pre-push review on the PR as a comment: each finding with its
+   resolution, so a human sees what the review found (PAD-07-004).
 
 5. Invoke `archive-history` — once per bundle member, each entry carrying the
    same PR URL:
@@ -453,7 +462,7 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
   say which you left and why.
 - Every member is implemented to the standard it would get alone — its own
   tests, its own acceptance criteria. A bundle amortizes context, never rigor.
-- Do not skip validation or the pre-PR code review.
+- Do not skip validation, the self-check, or the fresh-agent pre-push review.
 - Do not commit directly to `main`. All work goes through a PR.
 - The run is not done while the PR body still reads
   `Docs: pending check-docs-sync` (Phase 8 step 3, PD-03-008).

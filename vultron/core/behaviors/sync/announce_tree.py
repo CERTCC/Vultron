@@ -77,6 +77,10 @@ from vultron.core.behaviors.sync.nodes import (
     ReconstructChainTailNode,
     SendRejectLogEntryNode,
 )
+from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
+    ApplyEmbargoConsentFromLedgerNode,
+    IsEmbargoConsentEventNode,
+)
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     EmitImpossibleStateFaultNode,
 )
@@ -175,6 +179,13 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             "EmbargoAbandonment",
             IsEmbargoAbandonmentEventNode,
             ApplyEmbargoAbandonmentFromLedgerNode,
+        ),
+        # The CASE_MANAGER's own consent-row entries, each one row copied
+        # through the one apply function (ADR-0122, ADR-0124, CM-23-016).
+        _event_effect_slot(
+            "EmbargoConsent",
+            IsEmbargoConsentEventNode,
+            ApplyEmbargoConsentFromLedgerNode,
         ),
     ]
 

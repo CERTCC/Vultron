@@ -41,6 +41,9 @@ from vultron.core.behaviors.sync.nodes import (
     ReconstructChainTailNode,
     SendRejectLogEntryNode,
 )
+from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
+    ApplyEmbargoChangeFromLedgerNode,
+)
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
@@ -150,6 +153,16 @@ def _refused_announce_verdict(
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' (log_index={entry.log_index})"
             " buffered until its predecessor arrives (SYNC-14-001)"
+        )
+    if any(
+        isinstance(node, ApplyEmbargoChangeFromLedgerNode)
+        and node.refused_into_gap
+        for node in tree.iterate()
+    ):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' does not apply to this replica's"
+            f" case '{entry.case_id}'; held in the gap buffer, never patched"
+            " over (ADR-0124)"
         )
     if node_succeeded(tree, BufferPreGenesisEntryNode):
         return HandlerResult.deferred(

@@ -13,6 +13,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | `asking-the-user.md` | How to present a question or decision to the user: one at a time, problem before decision, plain language, no bare IDs, restate rather than point by number, which tool to use | `AGENTS.md` (every session), `grill-me`, `plan-issue`, `learn`, `decision-audit`, `spec-audit`, `bugfix`, `process-concerns`, `review-priorities` |
 | `sizing.md` | What the `size:` labels mean, estimate vs. measurement, who applies each, and why `size:XL` is a review-coverage warning (PAD-05). Band values come from `pr-size`, never prose | `plan-issue`, `update-plan`, `build`, `bugfix` |
 | `weighing-decision-records.md` | How far to trust a decision record whose body you read: settled versus challengeable, and why a stale code reference is not a challenge (ADR-0127, ADR-0043) | `deepen-context` Step 2, whose exception table names every skill that loads it |
+| `pre-review-self-check.md` | The four-item check the author runs on a finished diff (affected-text sweep, failure-path pass, branch coverage, reuse check) and the reviewer runs as review prompts; results go under `Self-check:` in the PR body (PAD-07-009) | `build` Phase 5, `bugfix` Phase 4, `pr-triage` Phase 8 |
 | `upward-reflection.md` | Mandatory end-of-session checklist and the routing table that sends each finding to a GitHub issue, an in-session fix, an assertion at the site, or a learning file | `build` Phase 8, `bugfix` Phase 3, `pr-execute` Phase 3 |
 
 ## Scripts
