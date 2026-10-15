@@ -2538,7 +2538,7 @@ groups:
       asserts `Announce(VulnerabilityCase)` precedes every `Announce(CaseLedgerEntry)`
       addressed to the invitee, and `test_accept_invite_backfills_canonical_ledger_from_genesis`
       asserts the invitee receives entries 0, 1, 2, 3 in order;
-      `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_add_participant_fanout`
+      `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_first_committing_effect`
       pins the effect order in the tree.
     relationships:
     - rel_type: refines
@@ -4223,7 +4223,8 @@ groups:
       and `TestPostCloseWriteBoundary`. `test/core/behaviors/case/test_receive_activity_tree.py::TestPostCloseStage`
       confirms every received tree carries the guard and that the resync tree is
       exempt. Over each demo scenario's exported ledger,
-      `test_invariant_18_no_participant_act_after_case_fully_closed` confirms no
+      `test_invariant_18_no_participant_act_after_case_fully_closed` in
+      `test/ci/invariants/universal_harness.py` confirms no
       participant act follows `case_fully_closed`.
     relationships:
     - rel_type: refines
@@ -4384,8 +4385,9 @@ groups:
     statement: >-
       The CASE_MANAGER MUST refuse every activity for a case from a sender whose
       closure that case's ledger records (its status entry with rm_state=RM.CLOSED),
-      with no ledger entry committed and nothing sent except the refusal notice
-      CLP-05-001 permits, with two exceptions. First, it MUST answer that sender's
+      with no ledger entry committed and nothing sent: the refusal is the sender
+      guard's, so it gets no refusal notice (CLP-05-001, HP-01-006). There are two
+      exceptions. First, it MUST answer that sender's
       `Reject(CaseLedgerEntry)` with a replay of only the entries that record its own
       closure (CM-23-004); the guard for that resync request stays the active check
       of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`

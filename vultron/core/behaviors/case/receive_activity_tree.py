@@ -13,15 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Receive-side tree composition: the four-stage shared factory (ADR-0111).
+"""Receive-side tree composition: the staged shared factory (ADR-0111, ADR-0135).
 
 :func:`create_receive_activity_tree` is the one way to build a received-side
 BT.
-It fixes the stage order intake → post-close guard → sender guard →
-precondition guards → guarded commit → protocol effects (CLP-10-006,
-CLP-10-010, ADR-0115, CM-23-013) and supplies the shared intake node and the
-post-close write-boundary guard itself (CLP-10-017, ADR-0131), so no handler
-opts out of recording what arrived or forgets the closed-case boundary.
+It fixes the stage order intake → door guards (post-close guard, sender
+guard) → clock decisions → precondition guards → guarded commit → protocol
+effects (CLP-10-006, CLP-10-010, CLP-10-025, ADR-0115, CM-23-013) and
+supplies the shared intake node and the post-close write-boundary guard
+itself (CLP-10-017, ADR-0131), so no handler opts out of recording what
+arrived or forgets the closed-case boundary.
+A tree whose CASE_MANAGER must record a decision from its own clock before
+it judges the activity (an expiry) passes ``clock_decisions``: the factory
+runs them at the CASE_MANAGER only, after the door guards, and a refused
+commit there never ends the tree (CLP-10-025).
 A tree that owes the sender feedback when its guards refuse passes
 ``refusal_effects``: the factory runs them only on that refusal, at the
 CASE_MANAGER, once per received activity, and the tree still fails before
@@ -60,6 +65,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+    ClockDecisionStage,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -352,6 +360,78 @@ def _post_close_stage(
     ]
 
 
+def _clock_decision_stage(
+    name: str,
+    case_id: str | None,
+    decisions: list[py_trees.behaviour.Behaviour],
+    *,
+    sender_guarded: bool,
+    post_close_exemption: PostCloseExemption | None,
+) -> CaseManagerGate:
+    """The tree's clock decisions, run only at the case's CASE_MANAGER.
+
+    A clock decision commits only its own CASE_MANAGER-authored entry and the
+    change it records, so it may hold neither the received activity's commit
+    node nor the guarded-commit subtree around it (CLP-10-025): either would
+    commit the activity's own assertion before the guards judge it.
+
+    It writes, so both door guards must run first: the sender guard, so a
+    sender with no standing never makes the CASE_MANAGER write (HP-01-006),
+    and the post-close boundary, so nothing is recorded once the case is
+    fully closed (CM-23-013).  A tree with no sender guard or with a
+    post-close exemption cannot take clock decisions.
+
+    The gate reads a case this store does not hold as "not the CASE_MANAGER"
+    at ``debug`` level: a replica, or an invitee holding only a stub, never
+    computes a clock decision (CM-21-017, CM-28-014).
+
+    Raises:
+        VultronWiringError: *case_id* is ``None`` — there is no case whose
+            CASE_MANAGER could take the decision — the tree has no sender
+            guard or is exempt from the post-close boundary, or a decision
+            holds the received activity's commit.
+    """
+    where = f"create_receive_activity_tree({name})"
+    if case_id is None:
+        raise VultronWiringError(
+            f"{where}: clock_decisions need a case_id or manager_case_id,"
+            " the case whose CASE_MANAGER takes them (CLP-10-025)"
+        )
+    if not sender_guarded:
+        raise VultronWiringError(
+            f"{where}: clock_decisions need a sender_rule, so the sender"
+            " guard runs before the CASE_MANAGER writes (HP-01-006,"
+            " CLP-10-025)"
+        )
+    if post_close_exemption is not None:
+        raise VultronWiringError(
+            f"{where}: clock_decisions cannot run on a tree exempt from the"
+            f" post-close boundary ({post_close_exemption.name}); nothing is"
+            " recorded once the case is fully closed (CM-23-013, CLP-10-025)"
+        )
+    activity_commits = sorted(
+        {
+            type(n).__name__
+            for root in decisions
+            for n in root.iterate()
+            if isinstance(n, CommitCaseLedgerEntryNode)
+        }
+    )
+    if activity_commits:
+        raise VultronWiringError(
+            f"{where}: a clock decision commits only its own entry, never"
+            f" the received activity; found {activity_commits} (CLP-10-025)"
+        )
+    return create_case_manager_gated_tree(
+        name="ClockDecisionsIfCaseManager",
+        case_id=case_id,
+        children=[
+            ClockDecisionStage(name="ClockDecisions", decisions=decisions)
+        ],
+        case_may_be_absent=True,
+    )
+
+
 def _sender_guard_stage(
     name: str,
     case_id: str | None,
@@ -395,15 +475,35 @@ def create_receive_activity_tree(
     refusal_effects: list[py_trees.behaviour.Behaviour] | None = None,
     post_close_exemption: PostCloseExemption | None = None,
     post_close_reply: list[py_trees.behaviour.Behaviour] | None = None,
+    clock_decisions: list[py_trees.behaviour.Behaviour] | None = None,
 ) -> py_trees.composites.Sequence:
-    """Compose a receive-side BT with the four CLP-10-010 stages in order.
+    """Compose a receive-side BT with the CLP-10-010 stages in order.
 
     Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
-    BT-17-008, CM-23-013)::
+    ADR-0135, BT-17-008, CM-23-013)::
 
         Intake → CaseOpenToExternalWrites → [sender guard]
+            → [CaseManagerGate[ClockDecisionStage[*clock_decisions]]]
             → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
+
+    ``clock_decisions`` are decisions the CASE_MANAGER takes from its own
+    clock or local policy before it judges the activity, such as an expiry
+    (CLP-10-025, CLP-07-013).  They run after the door guards, so a sender
+    with no standing never makes the CASE_MANAGER write (HP-01-006), and
+    before the precondition guards, because the decision is ledgered even
+    when the activity is then admitted (CM-21-014).  The factory gates them
+    on the CASE_MANAGER of ``case_id`` (else ``manager_case_id``) and wraps
+    each in a :class:`~vultron.core.behaviors.case.nodes.clock_decision_stage.ClockDecision`:
+    a decision with nothing to record succeeds, one whose commit the ledger
+    refuses is logged at WARNING and the tree continues, and an internal
+    error (a raised exception) ends the tree (ADR-0095).  A decision decides
+    from the CASE_MANAGER's clock, policy and the case's ledger and file; the
+    received activity may prompt it and name what it concerns, never be its
+    evidence.  It commits only its own entry: one holding the received
+    activity's commit is refused at construction, as is a tree with no
+    ``sender_rule`` or with a ``post_close_exemption``, where a door guard
+    would not run first.
 
     ``CaseOpenToExternalWrites`` is the post-close write boundary
     (CM-23-013, ADR-0085, ADR-0131): at the case's CASE_MANAGER, once the
@@ -526,6 +626,9 @@ def create_receive_activity_tree(
             ``None`` (the default) places it (CM-23-013).
         post_close_reply: Emit-capable nodes run only when the post-close
             guard refuses, at the CASE_MANAGER, once per received activity.
+        clock_decisions: The CASE_MANAGER's own decisions from its clock or
+            policy, run after the door guards and before the precondition
+            guards, at the CASE_MANAGER only (CLP-10-025).
 
     Raises:
         VultronWiringError: ``manager_effects`` has no ``manager_case_id``, a
@@ -537,10 +640,12 @@ def create_receive_activity_tree(
             inconsistent: ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
             ``sender_context`` naming another case than ``case_id``
-            (HP-01-008).
+            (HP-01-008), or ``clock_decisions`` name no case, come without
+            a ``sender_rule`` or with a ``post_close_exemption``, or hold
+            the received activity's commit (CLP-10-025).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
-    CLP-10-017, CLP-10-022, ``specs/behavior-tree-integration.yaml``
+    CLP-10-017, CLP-10-022, CLP-10-025, ``specs/behavior-tree-integration.yaml``
     BT-17-008 and ``specs/case-management.yaml`` CM-23-013.
     """
     replica = replica_effects or []
@@ -571,6 +676,16 @@ def create_receive_activity_tree(
     guard = _sender_guard_stage(name, case_id, sender_rule, sender_context)
     if guard is not None:
         children.append(guard)
+    if clock_decisions:
+        children.append(
+            _clock_decision_stage(
+                name,
+                case_id or manager_case_id,
+                clock_decisions,
+                sender_guarded=guard is not None,
+                post_close_exemption=post_close_exemption,
+            )
+        )
     if refusal_effects:
         children.append(
             _refusal_stage(

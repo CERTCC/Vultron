@@ -294,3 +294,76 @@ groups:
       begins rather than after most of the epic is already complete.
     tags:
     - documentation
+- id: PD-10
+  title: Line Length Outside docs/
+  description: >-
+    Prose outside `docs/` wraps at 88 characters (AGENTS.md § Markdown
+    Formatting); `docs/` keeps one sentence per line with no limit (SG-38).
+    Markdown is held to it by markdownlint; spec YAML and Python doc lines,
+    whose corpus predates the limit, are held to it per added line.
+  specs:
+  - id: PD-10-001
+    priority: MUST
+    kind: process
+    statement: >-
+      Markdown files outside `docs/` MUST keep lines to 88 characters or fewer,
+      except in tables and code blocks and where the overflow is one unbreakable
+      token such as a URL. markdownlint's `MD013` MUST enforce the limit in
+      every directory except `docs/` and the archives `plan/history/`,
+      `plan/retired-specs/` and `archived_notes/`.
+    rationale: >-
+      With `MD013` off for the whole repository because `docs/` has no limit,
+      the 88-character rule was checked only by eye and reached triage as
+      findings. `plan/history/` is append-only (HM-01-005) and
+      `plan/retired-specs/` keeps retired text as it was (MS-09-005), so
+      neither can be rewrapped; nor can the retired notes in `archived_notes/`.
+    verification: >-
+      `test/metadata/test_line_length.py::TestMarkdownlintConfig` pins `MD013`
+      at 88 with tables and code blocks exempt at the root, and off in the
+      four exempt directories; the markdownlint pre-commit hook runs it over
+      the tree.
+    tags:
+    - documentation
+    - tooling
+  - id: PD-10-002
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A change MUST NOT add a line over 88 characters with whitespace past the
+      limit to a `specs/*.yaml` file, or to a comment or docstring of a Python
+      file under `vultron/`, `test/`, `integration_tests/`, `scripts/` or
+      `.agents/`.
+    rationale: >-
+      Both corpora hold thousands of longer lines written before the limit was
+      checked, so a whole-file rule cannot be turned on. Holding each added or
+      edited line to the limit moves the corpus toward it with no baseline file
+      for concurrent changes to race on.
+    verification: >-
+      `test/metadata/test_line_length.py` covers what counts as an overlong
+      line and as a Python doc line; PD-10-003's guards enforce it.
+    tags:
+    - documentation
+    - tooling
+  - id: PD-10-003
+    priority: MUST
+    kind: process
+    statement: >-
+      A pull-request growth guard MUST fail on each line PD-10-002 forbids that
+      the branch adds, compared with the merge base, and `spec-lint
+      --changed-since <ref>` MUST report each such spec YAML line. The limit
+      MUST be one number shared by the guard, the root markdownlint `MD013`
+      setting and ruff's `max-doc-length`.
+    rationale: >-
+      The guard runs in CI for every pull request; the `spec-lint` flag lets
+      `create-pr` catch a spec line before a docs pull request is pushed.
+    verification: >-
+      `test/architecture/test_line_length_ratchet.py` holds the guards,
+      `test/metadata/specs/test_branch_checks.py::TestAddedYamlLines` covers
+      the flag, and `test/metadata/test_line_length.py::TestLimitsAgree` pins
+      the three settings to `LINE_LIMIT`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: PD-10-002
+    tags:
+    - documentation
+    - tooling

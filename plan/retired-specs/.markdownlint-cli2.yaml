@@ -1,0 +1,6 @@
+# plan/retired-specs/ keeps each retired requirement's last text as it was
+# (MS-09-005), written by spec-retire, so the root config's 88-character MD013
+# stops here (PD-10-001). markdownlint-cli2 merges this file over the root
+# config, so every other rule still applies.
+config:
+  "MD013": false

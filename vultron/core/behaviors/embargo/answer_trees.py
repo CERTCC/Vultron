@@ -32,12 +32,14 @@ CS-18-001 size cap; it re-exports both factories.
 """
 
 import logging
+from datetime import datetime
 
 import py_trees
 
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.expiry_tree import invite_expiry_decision
 from vultron.core.behaviors.embargo.nodes import (
     IsRejectableEmbargoNode,
     RecordParticipantAcceptanceNode,
@@ -48,6 +50,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
+from vultron.core.behaviors.embargo.nodes.expiry import InviteNotExpiredNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
@@ -69,6 +72,9 @@ def accept_invite_to_embargo_tree(
     invite_id: str,
     *,
     sender_rule: SenderRule,
+    now: datetime,
+    published: str,
+    expiry_out: dict[str, object],
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting an embargo invitation.
 
@@ -82,6 +88,13 @@ def accept_invite_to_embargo_tree(
     the backfill still runs because a participant that accepts the embargo in
     force becomes a signatory the fan-out of this entry withheld (CM-10-006).
 
+    The CASE_MANAGER first evaluates the Invite's RSVP deadline, a clock
+    decision the factory runs after the door guards (CLP-10-025, CM-28-014):
+    an expired invitation is ledgered ``TIMED_OUT`` (CM-28-009) and
+    :class:`~vultron.core.behaviors.embargo.nodes.expiry.InviteNotExpiredNode`
+    then refuses the Accept as an answer, so the handler routes it as a late
+    Accept (EMB-17-001), reading *expiry_out*.
+
     Args:
         case_id: ID of the VulnerabilityCase.
         embargo_id: ID of the EmbargoEvent being accepted.
@@ -89,6 +102,13 @@ def accept_invite_to_embargo_tree(
         invite_id: ID of the InviteToEmbargoOnCase activity.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
+        now: The CASE_MANAGER's clock reading the RSVP deadline is compared
+            against.
+        published: The Accept's claimed ``published`` time, carried as
+            received on the expiry entry (CLP-15-003); it decides nothing.
+        expiry_out: Receives the expiry decision's ``IS_EXPIRED_KEY`` and
+            ``NEEDS_APPLY_KEY`` at the CASE_MANAGER; the handler reads it to
+            route a late Accept.
 
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
@@ -100,8 +120,26 @@ def accept_invite_to_embargo_tree(
         sender_context=SenderCheckContext(
             sender_id=accepting_actor_id, case_id=case_id, invite_id=invite_id
         ),
+        clock_decisions=[
+            invite_expiry_decision(
+                case_id=case_id,
+                invitee_id=accepting_actor_id,
+                invite_id=invite_id,
+                embargo_id=embargo_id,
+                published=published,
+                now=now,
+                result_out=expiry_out,
+            )
+        ],
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
+            # A late Accept is not an answer: the handler routes it by its
+            # compatibility with the case's embargo (EMB-17-001).
+            InviteNotExpiredNode(
+                result_out=expiry_out,
+                invitee_id=accepting_actor_id,
+                case_id=case_id,
+            ),
             # A repeat of an Accept already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-003).
             case_manager_admits_embargo_answer_guard(

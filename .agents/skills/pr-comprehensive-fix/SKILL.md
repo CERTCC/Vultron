@@ -70,6 +70,7 @@ If proceeding, invoke sub-skills in order:
 
 Based on Step 1 decision point:
 
+<!-- markdownlint-disable-next-line MD013 -->
 - **Unit only**: `uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)`
 - **Full (unit + integration)**: Run both unit and integration test suites
 
@@ -93,7 +94,8 @@ For each unresolved comment:
 
 1. Check if the code change addresses it
 2. If YES: resolve the comment with a note like "Addressed in latest commit: [summary]"
-3. If NO or PARTIAL: add a comment explaining why it couldn't be fully addressed, and ask for clarification
+3. If NO or PARTIAL: add a comment explaining why it couldn't be fully addressed, and
+   ask for clarification
 
 **Final verification**: All comments resolved, CI green, tests passing?
 

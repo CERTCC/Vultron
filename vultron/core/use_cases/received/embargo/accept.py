@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.admission_backfill_tree import (
     embargo_admission_backfill_tree,
 )
@@ -19,7 +19,6 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
 from vultron.core.behaviors.embargo.expiry_tree import (
     IS_EXPIRED_KEY,
     create_honour_late_accept_tree,
-    create_invite_expiry_tree,
     create_noop_ledger_entry_tree,
     create_reinvite_stale_accepter_tree,
 )
@@ -54,6 +53,7 @@ from vultron.core.use_cases.received._sender_preflight import (
     door_refusal,
     repeat_answer_skip,
 )
+from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -156,34 +156,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             actor_id=receiving_actor_id,
         )
         applied_or_raise(tree, result, label="EmbargoAdmissionBackfillBT")
-
-    def _run_expiry_tree(
-        self,
-        *,
-        case_id: str,
-        accepting_actor_id: str,
-        invite_id: str,
-        embargo_id: str,
-        receiving_actor_id: str,
-        now: "datetime",
-    ) -> dict[str, object]:
-        """Run the gated expiry evaluation; extracted for CLP-10-005 (ADR-0022)."""
-        expiry_out: dict[str, object] = {}
-        expiry_tree = create_invite_expiry_tree(
-            case_id=case_id,
-            invitee_id=accepting_actor_id,
-            invite_id=invite_id,
-            embargo_id=embargo_id,
-            published=claimed_published_iso(self._request.activity),
-            now=now,
-            result_out=expiry_out,
-        )
-        BTBridge(
-            datalayer=self._dl,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(tree=expiry_tree, actor_id=receiving_actor_id)
-        return expiry_out
 
     def _commit_noop_ledger_entry(
         self,
@@ -347,6 +319,37 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 receiving_actor_id=receiving_actor_id,
             )
 
+    def _route_late_accept(
+        self,
+        result: BTExecutionResult,
+        *,
+        case_id: str,
+        embargo_id: str,
+        accepting_actor_id: str,
+        receiving_actor_id: str,
+        invite_id: str,
+    ) -> HandlerResult:
+        """Route an Accept the tree's clock decision found late (EMB-17).
+
+        The tree's FAILURE is the expiry guard refusing the late Accept as
+        an answer, which this routing replaces; an internal error is still
+        the handler's to raise (ADR-0095).  The clock decision has already
+        committed the expiry entry (CM-28-009), logged its refused commit,
+        or found the row already closed, so nothing here commits it.
+        """
+        if result.internal_error:
+            raise VultronBTInternalError(
+                f"AcceptInviteToEmbargoBT: {result.feedback_message}"
+            )
+        self._handle_emb17_routing(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            accepting_actor_id=accepting_actor_id,
+            receiving_actor_id=receiving_actor_id,
+            invite_id=invite_id,
+        )
+        return HandlerResult.applied()
+
     def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
@@ -376,8 +379,8 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         case_id = _case.id_
         accepting_actor_id = request.actor_id
 
-        # Before any tree or write, since the expiry, EMB-17 and P/X/A paths
-        # below all write or send: the case must not be fully closed
+        # Before any tree or write, since the P/X/A path below writes or
+        # sends before the received tree runs: the case must not be fully closed
         # (CM-23-013), the copy must be addressed here (HP-01-005, ADR-0118),
         # and the sender must be the Invite's invitee (EP-09-010, HP-01-006).
         if (
@@ -422,36 +425,22 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         ) is not None:
             return pxa_refusal
 
-        # Expiry eval gated on CASE_MANAGER (CM-28-014, BT-17-001, CLP-10-005).
-        expiry_out = self._run_expiry_tree(
-            case_id=case_id,
-            accepting_actor_id=accepting_actor_id,
-            invite_id=invite_id,
-            embargo_id=embargo_id,
-            receiving_actor_id=receiving_actor_id,
-            now=datetime.now(tz=UTC),
-        )
-
-        if bool(expiry_out.get(IS_EXPIRED_KEY)):
-            # CM-28-009: expiry entry already committed by the tree above.
-            # Route via EMB-17 compatibility branches.
-            self._handle_emb17_routing(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-                receiving_actor_id=receiving_actor_id,
-                invite_id=invite_id,
-            )
-            return HandlerResult.applied()
-
-        # Normal path: invite still open.  accepting_actor_id is passed so the
-        # node records acceptance for the right actor when receiving != accepting.
+        # One received tree (CLP-10-005).  Its clock decision evaluates the
+        # Invite's RSVP deadline at the CASE_MANAGER and ledgers an expiry
+        # (CM-28-009, CM-28-014, CLP-10-025); a late Accept is then refused
+        # as an answer and routed below.  accepting_actor_id is passed so the
+        # node records acceptance for the right actor when receiving !=
+        # accepting.
+        expiry_out: dict[str, object] = {}
         tree = accept_invite_to_embargo_tree(
             case_id=case_id,
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             invite_id=invite_id,
             sender_rule=self.sender_entitlement,
+            now=datetime.now(tz=UTC),
+            published=claimed_published_iso(request.activity),
+            expiry_out=expiry_out,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -466,6 +455,16 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
+
+        if bool(expiry_out.get(IS_EXPIRED_KEY)):
+            return self._route_late_accept(
+                result,
+                case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
+                receiving_actor_id=receiving_actor_id,
+                invite_id=invite_id,
+            )
 
         verdict = embargo_answer_repeat_verdict(
             tree,

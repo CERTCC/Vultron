@@ -14,7 +14,8 @@ devlogs/fv/
     └── urn_uuid_...-case-ledger.jsonl
 ```
 
-Browser file pickers **only let you select files from one folder at a time**, so you can't Ctrl+click files across different folders.
+Browser file pickers **only let you select files from one folder at a time**, so you
+can't Ctrl+click files across different folders.
 
 ## The Solution: Sequential Upload with Accumulation
 
@@ -179,6 +180,7 @@ This would require:
 
 - [App-logreplay.tsx](src/App-logreplay.tsx) - Main component with accumulation logic
 - [caseLedgerParser.ts](src/utils/caseLedgerParser.ts) - `parseCaseLedger()` / `normalizeLedger()`
-- [caseLedgerMapper.ts](src/utils/caseLedgerMapper.ts) - `buildTimelineFromCaseLedger()` timeline builder
+- [caseLedgerMapper.ts](src/utils/caseLedgerMapper.ts) - `buildTimelineFromCaseLedger()`
+  timeline builder
 
 All changes are non-breaking and the sequential upload pattern is now the primary UX.

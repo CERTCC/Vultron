@@ -18,6 +18,7 @@ related_specs:
   - specs/protocol-asks.yaml
 related_notes:
   - notes/ownership-transfer.md
+  - notes/bt-integration.md
 ---
 
 # Ownership Transfer — Closing an Offer Without an Answer
@@ -82,18 +83,19 @@ an Offer can also close without an answer (#4490):
   lazily, when it next processes an Accept, Reject or Undo of the Offer or a new
   Offer for the case, and commits a distinct
   `offer_case_ownership_transfer_expired` entry before acting
-  (`create_ownership_offer_expiry_tree`, `ExpireOverdueOwnershipOfferNode`). The
+  (`ExpireOverdueOwnershipOfferNode`, a clock decision). The
   snapshot is the CASE_MANAGER's own `Expire(Offer)`, stamped with its clock; its
   `event_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it closes
   the Offer. It is `NO_REPLICA_EFFECT`: replicas learn expiry from the entry and
   never compute it, as for embargo Invite expiry (CM-28-014).
-  - **Why a tree of its own.** The expiry is the CASE_MANAGER's clock decision,
-    committed as its own entry before the activity changes anything (CLP-07-013),
-    and a received tree commits nothing before its guards (CLP-10-010). So each
-    of the four use cases runs the CASE_MANAGER-gated expiry tree, then its
-    received tree — the split the embargo Invite expiry makes
-    (`AcceptInviteToEmbargoOnCaseReceivedUseCase._run_expiry_tree`). After
-    `case_fully_closed` the expiry tree changes nothing (CM-23-013).
+  - **Why a clock decision.** The expiry is the CASE_MANAGER's own decision
+    from its clock, committed as its own entry before the activity is judged
+    (CLP-07-013), and ledgered even when that activity is then admitted (a new
+    Offer, CM-21-014). So each of the four received trees passes it as a
+    clock decision, which the factory runs after the door guards and before
+    the open-Offer guards (CLP-10-025, ADR-0135; [bt-integration](bt-integration.md)
+    § "The Received-Side Stages"); after `case_fully_closed`
+    the post-close door guard ends the tree first (CM-23-013).
   - **Only the party prompts it.** An Accept, Reject or Undo prompts the expiry
     only when it names the open Offer and its sender is that Offer's transferee
     (Accept, Reject) or offerer (Undo) — `ExpiryPrompt` / `OfferParty` — so a

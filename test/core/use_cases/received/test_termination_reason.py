@@ -195,6 +195,10 @@ def test_case_manager_refuses_an_end_time_remove_before_the_end_time(
 def _teardown_entry(case_id: str, content: object, published) -> dict:
     return {
         "type": "Remove",
+        "object": {
+            "id": f"{case_id}/embargo_events/e1",
+            "type": "EmbargoEvent",
+        },
         "content": content,
         "published": published.isoformat(),
         "context": case_id,
@@ -215,7 +219,7 @@ def _replay(dl, case_id: str, snapshot: dict) -> Status:
     node = ApplyEmbargoTeardownNode()
     node.datalayer = dl
     node.actor_id = OWNER
-    node._activity = type("Carrier", (), {"log_entry": entry})()
+    node.activity = type("Carrier", (), {"log_entry": entry})()
     return node.update()
 
 
@@ -233,7 +237,7 @@ def test_replica_replay_records_the_what_the_remove_carries() -> None:
 
     assert status == Status.SUCCESS
     ended = cast(VulnerabilityCase, dl.read(case.id_))
-    # The why stays on the CASE_MANAGER's entry until #4294 copies entries.
+    # The Remove carries the what alone; copying the why is #4748.
     assert ended.embargo_termination == EmbargoTermination.end_time_reached()
 
 

@@ -33,8 +33,8 @@ Run Reports Exit 0 Under `tail -5`".
 uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
-If `vultron/demo/` or `test/demo/` was touched, run the full suite:
-`uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
+<!-- markdownlint-disable-next-line MD013 -->
+If `vultron/demo/` or `test/demo/` was touched, run the full suite: `uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
 
 ---
 

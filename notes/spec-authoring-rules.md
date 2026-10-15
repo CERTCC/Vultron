@@ -281,7 +281,15 @@ A build, lint or type-check that never examines the constrained artifact fails
 the question, and so does a test you have not opened — `mkdocs build --strict`
 never sees a link a build-time block prints, so assert on the built `site/`
 (`docs-links`) or the rendered string instead. MS-15-001 makes a named path
-resolve; a named test function is not checked (#4170), so open it.
+resolve and `spec-lint` resolves a named test (MS-10-010), but neither says the
+test inspects the property, so open it.
+
+Name a test the way pytest does: `file.py::Class::method`, not
+`file.py::method` for a method in a class. A bare `test_<name>` is looked up in
+the files and directories the clause names, so name its module when it lives
+elsewhere. A `protocol` or `foundation` clause that names test files needs the
+spec's marker in one of them (MS-10-011); `spec-lint --changed-since
+origin/main` reports a requirement you touched that lacks it.
 
 ---
 

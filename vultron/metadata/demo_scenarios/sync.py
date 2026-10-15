@@ -72,10 +72,11 @@ WRITE_COMMAND = "uv run demo-scenarios --write"
 
 #: Opening marker of a generated table. Carries the regeneration command so a
 #: reader who found the table by grep, not by reading this module, still learns
-#: that hand-editing it will be reverted.
+#: that hand-editing it will be reverted. Two lines, so neither runs past the
+#: 88-character Markdown limit (PD-10-001).
 BEGIN_MARKER = (
-    "<!-- BEGIN GENERATED SCENARIO TABLE — do not edit; "
-    f"edit the @scenario decorators and run `{WRITE_COMMAND}` -->"
+    "<!-- BEGIN GENERATED SCENARIO TABLE — do not edit; edit the @scenario\n"
+    f"     decorators and run `{WRITE_COMMAND}` -->"
 )
 
 #: Closing marker of a generated table.

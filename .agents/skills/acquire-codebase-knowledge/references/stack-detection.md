@@ -1,6 +1,7 @@
 # Stack Detection Reference
 
-Load this file when the tech stack is ambiguous — e.g., multiple manifest files present, unfamiliar file extensions, or no obvious `package.json` / `go.mod`.
+Load this file when the tech stack is ambiguous — e.g., multiple manifest files present,
+unfamiliar file extensions, or no obvious `package.json` / `go.mod`.
 
 ---
 
@@ -92,15 +93,19 @@ Check these signals in order:
 5. `rush.json` — Rush (Microsoft monorepo manager)
 6. `moon.yml` — Moon
 7. `package.json` with `"workspaces": [...]` — npm/yarn workspaces
-8. Presence of `packages/`, `apps/`, `libs/`, or `services/` directories with their own `package.json`
+8. Presence of `packages/`, `apps/`, `libs/`, or `services/` directories with their own
+   `package.json`
 
-If monorepo is detected: each workspace may have **independent** dependencies and conventions. Map each sub-package separately in `STACK.md` and note the monorepo structure in `STRUCTURE.md`.
+If monorepo is detected: each workspace may have **independent** dependencies and
+conventions. Map each sub-package separately in `STACK.md` and note the monorepo
+structure in `STRUCTURE.md`.
 
 ---
 
 ## TypeScript Path Alias Detection
 
-If `tsconfig.json` has a `paths` key, imports with non-relative prefixes are aliases. Map them before documenting structure.
+If `tsconfig.json` has a `paths` key, imports with non-relative prefixes are aliases.
+Map them before documenting structure.
 
 ```json
 // tsconfig.json example
@@ -111,7 +116,8 @@ If `tsconfig.json` has a `paths` key, imports with non-relative prefixes are ali
 }
 ```
 
-Imports like `import { foo } from '@/utils/bar'` resolve to `src/utils/bar`. Document as `src/utils/bar`, not `@/utils/bar`.
+Imports like `import { foo } from '@/utils/bar'` resolve to `src/utils/bar`. Document as
+`src/utils/bar`, not `@/utils/bar`.
 
 ---
 
