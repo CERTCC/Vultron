@@ -2526,7 +2526,7 @@ groups:
       asserts `Announce(VulnerabilityCase)` precedes every `Announce(CaseLedgerEntry)`
       addressed to the invitee, and `test_accept_invite_backfills_canonical_ledger_from_genesis`
       asserts the invitee receives entries 0, 1, 2, 3 in order;
-      `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_add_participant_fanout`
+      `test/core/behaviors/case/test_accept_invite_tree.py::test_case_announce_and_backfill_precede_the_first_committing_effect`
       pins the effect order in the tree.
     relationships:
     - rel_type: refines
@@ -4202,7 +4202,8 @@ groups:
       and `TestPostCloseWriteBoundary`. `test/core/behaviors/case/test_receive_activity_tree.py::TestPostCloseStage`
       confirms every received tree carries the guard and that the resync tree is
       exempt. Over each demo scenario's exported ledger,
-      `test_invariant_18_no_participant_act_after_case_fully_closed` confirms no
+      `test_invariant_18_no_participant_act_after_case_fully_closed` in
+      `test/ci/invariants/universal_harness.py` confirms no
       participant act follows `case_fully_closed`.
     relationships:
     - rel_type: refines

@@ -112,7 +112,8 @@ Load additional files only when the task touches the relevant area. See the
 
 ## Specification Structure
 
-Specifications are organized by topic with minimal overlap. Cross-references link related requirements across files.
+Specifications are organized by topic with minimal overlap. Cross-references link
+related requirements across files.
 
 ### Core Architecture
 
@@ -209,7 +210,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   pre-definition requirement (core/behaviors/ as structure home), BT idioms over
   procedural code, and fractal composability principle at all depths
   (BTC-01 through BTC-04)
-- **`triggerable-behaviors.yaml`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
+- **`triggerable-behaviors.yaml`** - Trigger API for actor-initiated behaviors (PRIORITY
+  30):
   endpoint format, RM/EM candidate behaviors, request/response schema,
   BT integration, per-actor DataLayer dependency, outbox activity requirement,
   trigger classification (general vs demo-only), `RunMode` StrEnum,
@@ -222,7 +224,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Case and Actor Management
 
-- **`case-management.yaml`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
+- **`case-management.yaml`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state
+  model,
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10), invitation acceptance lifecycle (CM-11), case creation timing
@@ -418,7 +421,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 1. Identify relevant specifications from structure above
 2. Read requirements with verification criteria
 3. Follow cross-references for related requirements
-4. Check [open GitHub Issues](https://github.com/CERTCC/Vultron/issues) for implementation status
+4. Check [open GitHub Issues](https://github.com/CERTCC/Vultron/issues) for
+   implementation status
 
 **For reviewing code**:
 
@@ -521,7 +525,8 @@ Some requirements carry special tags to indicate scope or applicability:
 
 ---
 
-Some specifications consolidate requirements from multiple sources to create a single source of truth:
+Some specifications consolidate requirements from multiple sources to create a single
+source of truth:
 
 - **`actor-knowledge-model.yaml`** consolidates Actor isolation and inline-object
   requirements from `case-management.yaml` (CM-01-001) and

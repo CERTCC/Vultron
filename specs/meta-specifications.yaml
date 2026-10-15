@@ -583,14 +583,66 @@ groups:
       Checked at spec review: for each new or changed `verification:` clause the
       reviewer asks whether the named check would fail if the requirement were violated,
       and reports a FAIL when it would not (`.agents/skills/pr-triage`). The existence
-      of a named path is enforced by MS-15-001; the existence of a named test function
-      is tracked by #4170.
-    tracking_issue: '#4170'
+      of a named path is enforced by MS-15-001, of a named test by MS-10-010, and of
+      a protocol requirement's marker in a named test by MS-10-011.
     relationships:
     - rel_type: refines
       spec_id: MS-10-003
     - rel_type: depends_on
       spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-010
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST report as a hard error each test a `verification:` clause
+      names that does not exist: a pytest node (`<file>.py::<name>`) whose names
+      do not resolve, in order, in that file; and a bare `test_<name>` token that
+      no test file or test directory the clause names defines, or, when the clause
+      names none, that no file under `test/` or `integration_tests/` defines.
+    rationale: >-
+      A named test that does not exist reads exactly like one that does, and
+      MS-15-001 resolves only the file. A name looked up only where the clause
+      points also catches a test that moved to another module (#4170).
+    verification: >-
+      `test/metadata/specs/test_verification_refs.py::TestUnresolvedTestRefs`
+      covers a resolved name, an unresolved name, a name defined only in a module
+      other than the one named, and node paths;
+      `test/metadata/specs/test_real_specs.py::test_real_specs_lint_no_hard_errors`
+      holds the live corpus to none.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-009
+    - rel_type: depends_on
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-011
+    priority: MUST
+    kind: process
+    statement: >-
+      When the `verification:` clause of a `kind: protocol` or `kind: foundation`
+      requirement names test files, at least one of them MUST carry
+      `@pytest.mark.spec("<ID>")` for that requirement. `spec-lint --changed-since
+      <ref>` MUST report each requirement the branch adds or changes that breaks
+      this, and a pull-request growth guard MUST fail on each requirement a pull
+      request adds to the set that breaks it.
+    rationale: >-
+      A clause pointing at a test that does not carry the marker claims a check
+      the coverage report cannot see. The corpus has a backlog, so the rule holds
+      for what a branch touches rather than corpus-wide.
+    verification: >-
+      `test/metadata/specs/test_verification_refs.py::TestNamedTestsLackMarker`,
+      `test/metadata/specs/test_branch_checks.py::TestChangedMarkers` and
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_a_named_test_without_its_marker`.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-009
+    - rel_type: refines
+      spec_id: SR-05-004
     tags:
     - documentation
     - tooling

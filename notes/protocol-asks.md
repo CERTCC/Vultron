@@ -214,7 +214,8 @@ participants. Consequently an ask must carry nothing undisclosable to them
 (ASK-06-002); private rationale goes in a directed `Note`, which CLP-05-001
 already establishes as a delivery shape. Delivering the *fact* of an ask while
 directing its *detail* would need redaction with proofs, which Vultron does not have
-(design: `notes/selective-disclosure.md`); committing a stub instead would break CLP-02-003 and CLP-07-012.
+(design: `notes/selective-disclosure.md`); committing a stub instead would break
+CLP-02-003 and CLP-07-012.
 
 ## Expiry has no clock, and that is deliberate
 

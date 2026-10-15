@@ -73,7 +73,8 @@ skill directly with the same issue number(s)**. All invocation arguments pass
 through unchanged. Several numbers is a **bundle**: the sub-skill implements
 every member in one PR that closes each one
 (`.agents/skills/shared/bundling.md`). The Phase 1 mixed-type gate above is
-what guarantees a bundle is homogeneous by executing skill. The sub-skill's own issue-number-provided shortcuts apply
+what guarantees a bundle is homogeneous by executing skill. The sub-skill's own
+issue-number-provided shortcuts apply
 (e.g. bugfix skips its picker when an issue number is given; build uses the
 explicit issue directly; plan-issue skips Phase 0).
 

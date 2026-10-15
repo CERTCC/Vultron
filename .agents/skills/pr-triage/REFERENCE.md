@@ -66,7 +66,8 @@ confirmed violations.
 - [ ] `SEMANTIC_REGISTRY`: specific patterns ordered before general ones
 - [ ] `rehydrate()` called before pattern matching
 - [ ] Outbound activities use factory functions in `vultron.wire.as2.factories`
-- [ ] `as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — correct prefix in each layer
+- [ ] `as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — correct prefix in
+      each layer
 
 ### Use Cases (if `use_cases/` changed)
 

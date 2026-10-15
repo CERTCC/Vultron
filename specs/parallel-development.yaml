@@ -1552,3 +1552,116 @@ groups:
           `test/metadata/test_claim_scripts.py::TestWorkEpicTasksSkill`:
           `work-epic-tasks` step 4 drops a Bug taken elsewhere and step 6
           reports it.
+
+  - id: PAD-20
+    title: Pre-Push Mechanical PR Checks
+    description: >-
+      About one triage finding in ten is mechanical: a tool could have caught
+      it before the first push, and each one found after the push costs an
+      execute round. These checks run before the push and again in triage, so
+      triage stops finding them and judges only what needs judgment.
+    specs:
+      - id: PAD-20-001
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-body-lint` MUST check, each under a stable rule ID, every rule of
+          `.agents/skills/shared/pr-body-guide.md` that needs no judgment, and
+          the guide MUST list every rule ID the tool checks.
+        rationale: >-
+          One list in two places drifts. Pinning the guide's rule table to the
+          tool's own rule list makes a rule the tool adds, or one the guide
+          drops, fail a test instead of a later triage.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py` has a test class per rule, and
+          `TestGuideListsTheRules` fails when the guide's rule table and
+          `RULES` disagree in either direction.
+        tags:
+          - tooling
+      - id: PAD-20-002
+        priority: MUST
+        kind: process
+        statement: >-
+          Before a Pull Request's first push, `create-pr` MUST run
+          `pr-body-lint` on the composed body and push only when it exits 0.
+          For an implementation Pull Request it MUST also run `spec-backstop
+          --manifest` and push only when that exits 0, and the body's `## Specs`
+          section MUST carry the resolved manifest file verbatim.
+        rationale: >-
+          Build ran the backstop but nothing required it to pass, and one body
+          claimed exit 0 for a run that exited 1. Requiring the exit status, and
+          pasting the file the tool resolved, leaves nothing to retype.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
+          `create-pr`'s pre-push gate runs `pr-body-lint`, `spec-backstop
+          --manifest` and `pr-body-lint --manifest`, and
+          `TestManifestVerbatim` covers the verbatim check.
+        relationships:
+          - rel_type: depends_on
+            spec_id: PAD-20-001
+          - rel_type: depends_on
+            spec_id: SR-12-006
+        tags:
+          - tooling
+      - id: PAD-20-003
+        priority: MUST
+        kind: process
+        statement: >-
+          Before a Pull Request's first push, `create-pr` MUST run `spec-lint
+          --changed-since <base>` and push only when it exits 0, whatever the
+          Pull Request's type.
+        rationale: >-
+          The marker rule for named tests (MS-10-011) and the spec line limit
+          (PD-10-002) have a backlog, so plain `spec-lint` cannot fail on them.
+          Scoped to the branch they can, and a docs Pull Request runs no test
+          suite to catch them otherwise.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins the
+          `create-pr` call; `test/metadata/specs/test_branch_checks.py` covers
+          what the flag reports.
+        relationships:
+          - rel_type: depends_on
+            spec_id: MS-10-011
+          - rel_type: depends_on
+            spec_id: PD-10-003
+        tags:
+          - tooling
+      - id: PAD-20-004
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-triage` MUST run `pr-body-lint --stage final` first in its body
+          phase and report each finding it prints, and MUST judge by hand only
+          the body rules the tool does not check.
+        rationale: >-
+          Triage keeps every check, but a rule a tool checks is not a judgment;
+          reading it out of the guide by hand is how the mechanical findings
+          kept recurring.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
+          `pr-triage` Phase 3 runs `pr-body-lint --stage final`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: PAD-20-001
+        tags:
+          - tooling
+      - id: PAD-20-005
+        priority: MUST
+        kind: process
+        statement: >-
+          Once the `Docs:` line is recorded (PD-03-008), the session that opened
+          the Pull Request MUST run `pr-body-lint --stage final` on its body and
+          fix every finding before it ends.
+        rationale: >-
+          The placeholder `create-pr` writes is legal before the push and a FAIL
+          after it. The final stage is the point where the placeholder must be
+          gone, so that is where the check runs.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins the
+          call in `check-docs-sync`, and `TestDocsLine` covers the
+          final-stage refusal of the placeholder.
+        relationships:
+          - rel_type: refines
+            spec_id: PD-03-008
+        tags:
+          - tooling

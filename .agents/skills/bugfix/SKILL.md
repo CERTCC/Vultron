@@ -262,7 +262,8 @@ Once the plan is confirmed:
    `create-pr` runs it exactly once before the first push (PAD-18-008).
    Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md`. A failing check holds the PR whatever
-   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception: the devcontainer
+   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception:
+   the devcontainer
    `actionlint` hang, `notes/devcontainer-tooling.md`).
 
 6. **Finalize** — in this order. `archive-history` comes *after* `create-pr`

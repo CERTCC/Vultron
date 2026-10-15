@@ -2343,7 +2343,8 @@ groups:
       move EM state for an embargo that is already current; an event type of its
       own gets a replay slot that cannot do that (EP-09-007, ADR-0118).
     verification: >-
-      `test_the_managers_reinvite_is_committed_and_replayed_by_a_replica` drives
+      `test_the_managers_reinvite_is_committed_and_replayed_by_a_replica` in
+      `test/core/use_cases/received/test_embargo_answer_routing.py` drives
       the full path across per-actor stores: the late Accept reaches the
       CASE_MANAGER, the re-invite entry is committed and broadcast, and the
       replica reads the invitee `INVITED` with the manager's deadline and the

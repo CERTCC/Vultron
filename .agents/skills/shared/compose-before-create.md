@@ -33,7 +33,8 @@ grep -rn "<message type or pattern name>" vultron/wire/as2/
 ```
 
 A match in `extractor/_pattern.py` or `extractor/_instances.py` means the
-wire pattern is already registered. Extend an existing entry when semantics overlap; do not create a
+wire pattern is already registered. Extend an existing entry when semantics overlap; do
+not create a
 competing pattern for the same activity structure.
 
 ### Adapters (`vultron/adapters/`)

@@ -426,7 +426,8 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Issue claimed via `claim-issue.sh` (`plan/<N>-<slug>`) — always (Phase 1b)
 - [ ] `orient-agent` invoked
 - [ ] `deepen-context` invoked with focus hints from the issue
-- [ ] Grill-me conversation complete — conclusions confirmed as proposals (scope, ACs, ADR, options)
+- [ ] Grill-me conversation complete — conclusions confirmed as proposals (scope, ACs,
+      ADR, options)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
 - [ ] Planning docs (specs, notes, ADRs, AGENTS.md) updated — optional for all
       types (or consciously skipped with a note). This covers the plan's own
@@ -434,12 +435,15 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Known reader-facing `docs/` impact written into impl-issue ACs (Phase 8)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
-- [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh` (with type, parent epic, and milestone set)
+- [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
+      (with type, parent epic, and milestone set)
 - [ ] Every impl issue body has a `Governing specs:` line (IDs, or `none — <reason>`)
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
 - [ ] Impl issues reference docs PR URL in their body (Ideas/Concerns only — Phase 8)
-- [ ] Docs PR body updated with Implementation Issues section (Ideas/Concerns only — Phase 8b)
-- [ ] Completion step executed per type (archive+close for Ideas/Concerns; annotate for Epics)
+- [ ] Docs PR body updated with Implementation Issues section (Ideas/Concerns only —
+      Phase 8b)
+- [ ] Completion step executed per type (archive+close for Ideas/Concerns; annotate for
+      Epics)
 
 ---
 

@@ -58,7 +58,8 @@ language" are the same rule: the glossary decides which is which.
 
 **SG-05 — Register new terms.** A page that introduces a durable domain term
 adds it to `glossary.md` in the same change, and the page lists it under
-`introduces:` (SG-11). Do not coin a term that nothing checks. For a term that needs discussion rather than a definition, invoke
+`introduces:` (SG-11). Do not coin a term that nothing checks. For a term that needs
+discussion rather than a definition, invoke
 `ubiquitous-language`.
 
 **SG-06 — One name per concept.** Within a page, and across pages covering the

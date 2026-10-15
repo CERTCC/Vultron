@@ -224,7 +224,8 @@ iterations:
 2. Before filing or deferring: assess whether a fix is straightforward and
    context is in hand. If yes, fix it now — a pre-existing failure you can
    resolve is still a failure worth resolving.
-3. Only file a bug issue (`--opened-as separate-defect`) and record `outcome: skipped` if the fix is genuinely
+3. Only file a bug issue (`--opened-as separate-defect`) and record `outcome: skipped`
+   if the fix is genuinely
    non-trivial or requires design work outside this PR's scope. `skipped` does
    not clear the check: the CI stays red, `final_ci_status` is `"failing"`, and
    `pr-verify` returns `GAPS-FOUND`. "Pre-existing" never makes a red check
@@ -305,7 +306,8 @@ git fetch origin <head_ref> && git merge --ff-only FETCH_HEAD
 
 The new merge commit is GitHub's, so the local worktree must fast-forward to it
 before any later commit (REFERENCE.md § "Merge, do not rewrite"). It changes no
-line the PR wrote, so it needs no local gate: go to Step 5, where CI tests it. Record its SHA as `sync_commit_ref`, and record
+line the PR wrote, so it needs no local gate: go to Step 5, where CI tests it. Record
+its SHA as `sync_commit_ref`, and record
 triage's `BEHIND` finding as `outcome: fixed` with that SHA as `commit_ref`. If
 `update-branch` fails, or GitHub reports a conflict, take the
 `"conflicting"` row instead.

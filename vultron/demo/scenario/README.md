@@ -27,7 +27,8 @@ from [`registry.py`](registry.py); the table below is generated from those
 declarations (ADR-0098, DEMOCI-11). To add a scenario, write the module and
 decorate it — then run `uv run demo-scenarios --write`.
 
-<!-- BEGIN GENERATED SCENARIO TABLE — do not edit; edit the @scenario decorators and run `uv run demo-scenarios --write` -->
+<!-- BEGIN GENERATED SCENARIO TABLE — do not edit; edit the @scenario
+     decorators and run `uv run demo-scenarios --write` -->
 
 | Sub-command | Script | Participants | What it demonstrates |
 |---|---|---|---|

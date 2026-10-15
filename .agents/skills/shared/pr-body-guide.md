@@ -4,6 +4,39 @@ All PRs opened by agents MUST use the structured templates below.
 Reference this file from the "Open PR" step of any skill that calls
 `gh pr create`.
 
+## Mechanical Checks (`pr-body-lint`)
+
+The rules below need no judgment, so a tool checks them (PAD-20-001):
+
+```bash
+PYTHONPATH= uv run pr-body-lint --body <file> [--manifest <file>]  # before the push
+PYTHONPATH= uv run pr-body-lint --pr <N> --stage final             # once Docs: is set
+```
+
+`pre-push` (the default stage) accepts the placeholders `create-pr` writes;
+`final` refuses them. Add `--closes-work-item` when a docs PR closes a `Task`,
+`Feature` or `Bug`. Exit 1 lists each finding by rule ID; exit 2 is a setup
+error, never a pass. `create-pr` runs it before the first push (PAD-20-002),
+`pr-triage` runs it first in Phase 3 (PAD-20-004), and the session that opened
+the PR runs the final stage after recording `Docs:` (PAD-20-005). Everything
+else in this guide, such as whether the body's claims match the diff, stays a
+review judgment.
+
+This table and the tool's `RULES` are one list; a test fails when they differ.
+
+| Rule | Name | Checks |
+|---|---|---|
+| PRB-01 | closes-first | No closing reference after the opening block of `- Closes #N` lines |
+| PRB-02 | closes-one-per-line | Each closing reference is its own `- Closes #N` bullet |
+| PRB-03 | required-sections | `## Summary` and `## Changes` exist |
+| PRB-04 | issues-line | Implementation: `## Summary` ends with `Issues: closed N, opened M` |
+| PRB-05 | specs-manifest | Implementation: `## Specs` holds the four manifest lines, no `..` ranges |
+| PRB-06 | manifest-verbatim | With `--manifest`: every manifest line is in `## Specs` unchanged |
+| PRB-07 | verification-section | `## Verification` exists when the diff changes `.py` |
+| PRB-08 | docs-line | A `Docs:` line exists; at `final`, in a final form, not the placeholder |
+| PRB-09 | spec-amended | A `### <ID>` block per amended ID; at `final`, no `<TODO>` |
+| PRB-10 | attribution-last | The `Generated with [...]` line, when present, is the last line |
+
 ---
 
 ## Template: Implementation PRs
@@ -85,7 +118,9 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   descriptions. Do not just echo the commit message.
 - **Specs**: required. Paste the Spec manifest `deepen-context` returned
   (floor, cross-cutting, selected, and considered-but-skipped lines), as
-  resolved against the diff by `spec-backstop --manifest` (exit 0). Exit 0
+  resolved against the diff by `spec-backstop --manifest` (exit 0). Copy the
+  manifest file itself, never a retyped version or a stated exit status:
+  `create-pr` requires the exit 0 and checks the copy (PRB-06). Exit 0
   means nothing derivable from the diff was missed — not that the selection
   is complete, so keep the `Considered, skipped` reasons honest.
   `pr-review` and `pr-triage` use it as their spec floor and flag a PR

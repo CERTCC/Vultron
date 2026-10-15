@@ -93,7 +93,8 @@ found, ending in one specific question.
 - **`ask_user` / `AskUserQuestion`** — for short, discrete choices. Each option
   label and description must make sense by itself. Always recommend one. The
   user comments through the built-in "type something" option (where the tool
-  has one); don't depend on the notes field, since long text there doesn't wrap in the terminal and the
+  has one); don't depend on the notes field, since long text there doesn't wrap in the
+  terminal and the
   user loses what they're typing.
 - **Plain text** — for open-ended questions, or when the user is likely to push
   back, reframe, or write a paragraph. They can reply in the normal prompt,

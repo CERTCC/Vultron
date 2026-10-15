@@ -45,7 +45,8 @@ actor's own outbox. This is appropriate for exchange demos because:
 It holds the embargo helpers that multi-actor scenarios share:
 `demo_propose_and_activate_embargo`, `demo_propose_embargo_revision` and `demo_terminate_embargo`.
 Unlike the demos above, these puppeteer real actors through their trigger endpoints
-(`ActorSession`) and wait for the relayed `Invite(EmbargoEvent)` to arrive in each actor's own DataLayer.
+(`ActorSession`) and wait for the relayed `Invite(EmbargoEvent)` to arrive in each
+actor's own DataLayer.
 
 ## Running exchange demos
 

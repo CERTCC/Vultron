@@ -130,7 +130,8 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   the path through the terminate trigger with `reason=END_TIME_REACHED`. That
   trigger's registry row sets `runs_case_upkeep=False`: it takes the end-time
   path itself once the end time has passed, an `EARLY` request included, so
-  the lazy check never pre-empts the answer it owes. `termination_timing_violations()` refuses an
+  the lazy check never pre-empts the answer it owes. `termination_timing_violations()`
+  refuses an
   `END_TIME_REACHED` claimed before the end time — in the trigger's
   `_prepare`, the lifecycle, the received tree's guard
   (`TerminationIsTimelyNode`, before the commit) and replica replay.

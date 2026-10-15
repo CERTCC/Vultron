@@ -9,7 +9,8 @@ please consider contributing to this document.
 
 ## Run unit tests in a Docker Container
 
-The Vultron package includes a suite of tests. You can run them in a Docker container as follows:
+The Vultron package includes a suite of tests. You can run them in a Docker container as
+follows:
 
 ```shell
 cd docker

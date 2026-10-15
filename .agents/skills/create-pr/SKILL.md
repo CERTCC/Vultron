@@ -26,6 +26,7 @@ missing from `git log origin/main..HEAD` and the current diff.
 | `labels` | Space-separated label names (e.g., `"size:M specs-notes"`) |
 | `issue_number` | Issue to close (parsed from branch name if omitted; optional) |
 | `draft` | `true` to open as draft (default: `false`) |
+| `manifest` | Path of the Spec manifest file `spec-backstop` resolved, e.g. `/tmp/spec-manifest-<issue>.txt` (implementation PRs) |
 
 **Returns**: the PR URL as a string. Callers own `archive-history`, and for
 implementation PRs they own replacing the `Docs:` placeholder (Phase 1c).
@@ -107,9 +108,11 @@ Docs: pending check-docs-sync
 - ruff, mypy, pyright clean
 ```
 
-If the caller supplied no Spec manifest, write `Spec manifest: not provided —
-deepen-context was not run` under `## Specs` rather than omitting the section;
-reviewers flag a missing manifest.
+Under `## Specs`, paste the `manifest` file's contents verbatim: Phase 3b
+checks the copy line by line (PRB-06). If the caller supplied no manifest,
+write `Spec manifest: not provided — deepen-context was not run` rather than
+omitting the section; `pr-body-lint` then fails the body (PRB-05), so an
+implementation PR without one does not reach the push.
 
 For `docs`:
 
@@ -244,6 +247,43 @@ integration suite so demo-layer regressions are caught before the PR opens.
 If any step fails, fix, re-validate, and continue. Do not open a PR with
 failing tests or lint errors.
 
+### 3b — Pre-push body and spec gates (every PR type)
+
+Run these after the suites, on the freshened branch, immediately before the
+push (PAD-20-002, PAD-20-003). Write the composed body to a file first; Phase 4
+opens the PR from that same file.
+
+```bash
+# Spec rules scoped to what the branch changed: a protocol requirement whose
+# verification names unmarked tests (MS-10-011), an added spec line over 88
+# characters (PD-10-002). Every PR type.
+PYTHONPATH= uv run spec-lint --changed-since origin/main
+
+# Implementation PRs: the manifest must resolve against the diff (SR-12-006).
+PYTHONPATH= uv run spec-backstop --manifest <manifest>
+
+# The composed body against pr-body-guide.md's mechanical rules.
+PYTHONPATH= uv run pr-body-lint --body /tmp/pr-body-<issue>.md \
+  --manifest <manifest>   # implementation PRs; add --closes-work-item on a
+                          # docs PR that closes a Task, Feature or Bug (1c)
+```
+
+Each command must exit 0 before the push:
+
+- `spec-lint` exit 1 names each requirement or line; fix it and amend the
+  commit. Exit 2 is an unresolvable base, never a pass.
+- `spec-backstop` exit 1 lists unresolved MUST groups. Resolve each per
+  `deepen-context` § "Backstop": load it and check the diff against it, or
+  dismiss it in `Considered, skipped` with a reason. Then update the manifest
+  file and re-paste it into the body. Never write an exit status by hand.
+- `pr-body-lint` exit 1 lists findings by rule ID
+  (`.agents/skills/shared/pr-body-guide.md` § "Mechanical Checks"); fix the
+  body file and re-run. Exit 2 is a setup error, never a pass.
+
+The placeholders this skill writes (`Docs: pending check-docs-sync`, `<TODO>`
+in `## Spec amended`) pass at this stage; the caller's final-stage run after
+`check-docs-sync` refuses them (PAD-20-005).
+
 ---
 
 ## Phase 4 — Push and Open PR
@@ -257,7 +297,7 @@ gh pr create --repo CERTCC/Vultron \
   --head "$(git branch --show-current)" \
   --base main \
   --title "<title>" \
-  --body "<body>" \
+  --body-file /tmp/pr-body-<issue>.md \
   --label "<labels>"
 ```
 
@@ -284,6 +324,8 @@ template".
 - **Never push before freshening.** The `freshen-branch.sh` step in Phase 2 is
   mandatory and must run immediately before the push in Phase 4.
 - **Never open a non-draft PR with lint failures or failing tests.**
+- **Never push past a failing Phase 3b gate** (`spec-lint --changed-since`,
+  `spec-backstop --manifest`, `pr-body-lint`).
 - **Callers own `archive-history`.** This skill does not call it.
 - **Every implementation PR body gets a `Docs:` line** (Phase 1c). This skill
   writes the placeholder; it never runs `check-docs-sync` itself.

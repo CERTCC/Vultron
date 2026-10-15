@@ -95,19 +95,30 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 
 ### Phase 3 — PR Body Format
 
-Check against `.agents/skills/shared/pr-body-guide.md`:
+Run the mechanical rules first (PAD-20-004), on the PR branch:
 
-- Closing references at the **top**, one per bullet
-- Required sections present (Summary, Changes, Specs, Docs, Verification for
-  impl PRs)
+```bash
+PYTHONPATH= uv run pr-body-lint --pr <number> --stage final
+```
+
+Add `--closes-work-item` when a closed issue is a `Task`, `Feature` or `Bug` and
+the PR changes no `.py`. Each line it prints is a finding named by rule ID
+(`.agents/skills/shared/pr-body-guide.md` § "Mechanical Checks"). A misplaced
+closing reference (PRB-01, PRB-02), a missing or placeholder `Docs:` line
+(PRB-08) and a missing or unfilled `## Spec amended` block (PRB-09) are
+**FAIL**; the rest are **IMPROVE**. Exit 2 is a setup error: report it, never read
+it as a pass. Do not re-check by hand what it checks. Then judge what it cannot:
+
 - Test counts in Verification are real numbers, not placeholders
+- The Changes section describes the diff, and each closed issue maps to a hunk
 - **`## Spec amended`** — run `bash .agents/skills/shared/spec-amendments.sh
   origin/<base_ref>`. Exit `1` lists requirements whose `statement:` or
-  `priority:` the diff changed or removed; the body must carry a `## Spec amended`
-  section naming each (before, after, reason — `pr-body-guide.md` § "Spec
-  amended"). Missing section, omitted ID, or a leftover `<TODO>` → **FAIL**.
-  A change to what a requirement *obliges* with no recorded user approval →
-  **FAIL**. Applies to every PR type, docs-only included.
+  `priority:` the diff changed or removed; `pr-body-lint` already checked that
+  the body carries a `## Spec amended` block for each with no `<TODO>` (PRB-09).
+  Judge each block's Before, After and Reason against the diff
+  (`pr-body-guide.md` § "Spec amended"). A change to what a requirement
+  *obliges* with no recorded user approval → **FAIL**. Applies to every PR
+  type, docs-only included.
 
 The `Docs:` line itself is judged in Phase 9, against the diff.
 
@@ -194,7 +205,8 @@ finding list before the artifact is written.
    - An affected page the PR neither updated nor deferred → **IMPROVE**
      (`fix-now`: execute updates the page and the line).
    - `Docs: deferred to #N` → `#N` must be an existing `type:Concern` issue
-     (open, or closed as planned) whose body lists the affected pages, and the update must be a
+     (open, or closed as planned) whose body lists the affected pages, and the update
+     must be a
      multi-page rewrite PD-03-007 permits deferring. Otherwise **IMPROVE**.
    - `Docs: no docs impact — <reason>` when your determination found an
      affected page → **IMPROVE** (the page is affected but neither updated nor

@@ -43,7 +43,8 @@ than an agent reads end to end, so only a truncated prefix is ever seen. Do
 Read in parallel:
 
 - `AGENTS.md` — agent rules, conventions, and pitfalls
-- `.agents/skills/shared/completeness-doctrine.md` — quality standard; governs what "done" means
+- `.agents/skills/shared/completeness-doctrine.md` — quality standard; governs what
+  "done" means
 
 ### Step 4 — Read the build-observation index
 
