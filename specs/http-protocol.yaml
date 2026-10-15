@@ -14,125 +14,251 @@ groups:
     priority: MUST
     kind: protocol
     statement: Inbox endpoint MUST accept `application/activity+json` Content-Type
-    verification: 'Integration tests confirm that `POST /inbox/` with `Content-Type: application/activity+json` is
-      accepted and returns a 2xx response.'
+    rationale: >-
+      ActivityPub only says a server SHOULD treat `application/activity+json` as
+      equivalent to the JSON-LD media type it names for delivery (HTTP-01-002).
+      Vultron makes that SHOULD a MUST, so the rule is Vultron's own, not inherited.
+    verification: >-
+      `test_inbox_accepts_both_activitystreams_media_types` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
+      activity posted with `Content-Type: application/activity+json` is answered 202.
     stories:
     - story_2022_002
     - story_2022_040
   - id: HTTP-01-002
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: Inbox endpoint MUST accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"` Content-Type
+    rationale: >-
+      This is the media type ActivityPub names for delivery to an inbox. Vultron
+      inherits the rule rather than defining it.
     verification: >-
-      Integration tests confirm that `POST /inbox/` with `Content-Type: application/ld+json;
-      profile="https://www.w3.org/ns/activitystreams"` is accepted and returns a 2xx response.
+      `test_inbox_accepts_both_activitystreams_media_types` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
+      activity posted with `Content-Type: application/ld+json;
+      profile="https://www.w3.org/ns/activitystreams"` is answered 202.
     stories:
     - story_2022_002
     - story_2022_040
+    tags:
+    - activitypub
   - id: HTTP-01-003
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: Inbox endpoint MUST reject requests with invalid Content-Type using HTTP 415
-    verification: Integration tests confirm that `POST /inbox/` with an unrecognized `Content-Type` header returns
-      HTTP 415.
+    rationale: >-
+      HTTP defines 415 Unsupported Media Type as the answer to a request whose content
+      is in a format the target resource does not support.
+    verification: >-
+      No check covers this yet: the inbox does not check `Content-Type`, so a body
+      sent as `text/plain` is answered 422 by the framework's body parsing (#4666).
+      `test_inbox_body_with_a_non_as2_media_type_answers_415` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
+      until it does.
     stories:
     - story_2022_002
     - story_2022_039
+    tags:
+    - http
 - id: HTTP-02
   title: Request Size Limits
   specs:
   - id: HTTP-02-001
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
-    statement: Inbox endpoint MUST reject requests exceeding 1 MB with HTTP 413
+    kind: project
+    statement: The default maximum inbox request body size MUST be 1 MB.
+    rationale: >-
+      An operating limit of this codebase, which other implementations may set
+      differently. The answer to a body over the limit is HTTP 413, which HTTP itself
+      defines (IE-03-003, HTTP-03-007).
+    verification: >-
+      No check covers this yet: the inbox enforces no request body size limit
+      (#4596). `test_oversized_inbox_body_answers_413` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` sends a 2 MB body and
+      is a strict `xfail` until the limit lands.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-03-002
+    - rel_type: constrains
+      spec_id: IE-03-003
+      note: the limit decides when IE-03-003's 413 applies; the HTTP 413 answer to a body over the limit is IE-03-003's, so this spec keeps only the limit (MS-12-010)
     scope:
     - production
 - id: HTTP-03
   title: HTTP Status Codes
+  description: >-
+    The status codes HTTP itself defines for each outcome, which Vultron inherits
+    (`foundation`, `http`). Where HTTP leaves the choice open, as with 422 for a
+    schema failure, the code is this codebase's choice and the spec is `project`.
   specs:
   - id: HTTP-03-001
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 200 OK for successful reads.
     rationale: Standard HTTP success code for GET and other read operations.
+    verification: >-
+      `test_get_actors_list_returns_all_actors` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms a successful
+      read is answered 200.
+    tags:
+    - http
   - id: HTTP-03-002
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 201 Created for successful resource creation.
     rationale: Standard HTTP success code for POST operations that create a new resource.
+    verification: >-
+      `test_first_publish_creates_the_policy_in_the_actors_own_store` in
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` confirms
+      that a request creating a resource is answered 201.
+    tags:
+    - http
   - id: HTTP-03-003
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 202 Accepted for queued processing.
     rationale: Indicates the request was accepted but processing is deferred to a background job.
+    verification: >-
+      `test_post_activity_to_actor_inbox_accepted` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
+      activity queued for background processing is answered 202.
+    tags:
+    - http
   - id: HTTP-03-004
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 400 Bad Request for malformed input.
     rationale: Signals that the client submitted a syntactically invalid request that cannot be parsed.
+    verification: >-
+      `test_parse_activity_raises_400_when_type_missing` in
+      `test/adapters/driving/fastapi/routers/actors/test_inbox.py` confirms that a
+      malformed activity body is answered 400.
+    tags:
+    - http
   - id: HTTP-03-005
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 404 Not Found for missing resources.
     rationale: Indicates the requested resource does not exist in the system.
+    verification: >-
+      `test_get_actor_not_found_returns_404` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` and
+      `test_an_actor_this_node_does_not_host_is_404` in
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` confirm
+      that a request for a missing resource is answered 404.
+    tags:
+    - http
   - id: HTTP-03-006
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 405 Method Not Allowed for unsupported methods.
     rationale: Informs the client that the HTTP method used is not supported on this endpoint.
+    verification: >-
+      `test_non_post_on_inbox_path_returns_405` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that every
+      method the inbox does not support is answered 405.
+    tags:
+    - http
   - id: HTTP-03-007
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 413 Content Too Large for oversized payloads.
     rationale: Rejects requests exceeding the configured payload size limit (see HTTP-02-001).
+    verification: >-
+      No check covers this yet: the inbox enforces no request body size limit
+      (#4596). `test_oversized_inbox_body_answers_413` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
+      until it does.
+    tags:
+    - http
   - id: HTTP-03-008
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 415 Unsupported Media Type for invalid Content-Type.
     rationale: Rejects requests whose Content-Type header is not an accepted media type (see HTTP-01-003).
+    verification: >-
+      No check covers this yet: the inbox does not check `Content-Type` (#4666).
+      `test_inbox_body_with_a_non_as2_media_type_answers_415` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
+      until it does.
+    tags:
+    - http
   - id: HTTP-03-009
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: project
     statement: The API MUST return 422 Unprocessable Entity for schema validation failures.
-    rationale: Indicates the request was well-formed but failed semantic or schema validation.
+    rationale: >-
+      Indicates the request was well-formed but failed semantic or schema validation.
+      HTTP leaves the choice between 400 and 422 open, so the code is this
+      codebase's choice, like the inbox's 422 (IE-07-002).
+    verification: >-
+      `test_a_malformed_body_is_422_not_500` in
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` and
+      `test_a_bad_end_time_is_422` in
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` confirm that a
+      body failing schema validation is answered 422.
   - id: HTTP-03-010
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 429 Too Many Requests for rate-limit violations.
     rationale: Signals that the client has exceeded the permitted request rate and must back off.
+    verification: >-
+      No check covers this yet: the API enforces no rate limit (#4667).
+      `test_a_burst_over_the_rate_limit_answers_429` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
+      until it does.
+    tags:
+    - http
   - id: HTTP-03-011
     priority: MUST
-    kind: architecture
-    verification_debt: '#2569'
+    kind: foundation
     statement: The API MUST return 503 Service Unavailable for transient errors.
     rationale: Indicates a temporary server-side failure; the client should retry after the Retry-After interval.
+    verification: >-
+      `test_readiness_returns_503_when_storage_not_ready` in
+      `test/adapters/driving/fastapi/routers/test_health.py` confirms that a
+      temporarily unavailable dependency is answered 503.
+    tags:
+    - http
 - id: HTTP-04
   title: Response Headers
   specs:
   - id: HTTP-04-001
     priority: MUST
-    kind: protocol
-    statement: 'Endpoints returning ActivityStreams objects MUST use `Content-Type: application/activity+json`. Endpoints
-      returning non-AS2 JSON (e.g., health checks, error bodies) MUST use `Content-Type: application/json`.'
+    kind: foundation
+    statement: 'Endpoints returning ActivityStreams objects MUST use `Content-Type: application/activity+json`.'
     rationale: The ActivityStreams 2.0 specification defines `application/activity+json` as the normative media type for AS2
       documents. Using plain `application/json` is ambiguous for federation clients that discover capabilities via Content-Type.
       The previous requirement (`application/json` for all responses) is superseded by this entry.
-    verification: 'Integration test asserts that `GET /actors/{id}/profile` and `GET /cases/{id}` responses carry `Content-Type:
-      application/activity+json`. Health-check response carries `Content-Type: application/json`.'
+    verification: >-
+      `test_get_actor_profile_is_served_as_activitystreams` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` and
+      `test_returns_the_published_policy_as_as2_json` in
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` confirm
+      that an endpoint returning an ActivityStreams document answers with
+      `Content-Type: application/activity+json`.
     stories:
     - story_2022_040
     - story_2022_028
+    tags:
+    - as2
+  - id: HTTP-04-002
+    priority: MUST
+    kind: project
+    statement: 'Endpoints returning JSON that is not an ActivityStreams document (e.g., health checks, error bodies, the
+      datalayer dump) MUST use `Content-Type: application/json`.'
+    rationale: >-
+      Split from HTTP-04-001 (MS-12-010), which keeps the media type ActivityStreams
+      defines. Which media type this codebase's other JSON responses carry is its own
+      choice.
+    verification: >-
+      `test_datalayer_contents_is_plain_json_not_as2` in
+      `test/adapters/driving/fastapi/routers/test_datalayer_serialization.py`
+      confirms that a response that is not an ActivityStreams document is served as
+      `application/json`, never `application/activity+json`.
+    relationships:
+    - rel_type: extends
+      spec_id: HTTP-04-001
 - id: HTTP-05
   title: Correlation ID Propagation
   specs:

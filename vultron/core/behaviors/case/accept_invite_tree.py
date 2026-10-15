@@ -290,7 +290,7 @@ def create_accept_invite_actor_to_case_tree(
             # the joiner too, so it stays after the backfill for the
             # same #2898 reason.
             RelayOpenProposalsToJoinerNode(
-                case_id=case_id, invitee_id=invitee_id
+                case_id=case_id, invitee_id=invitee_id, answers=invite_id
             ),
         ],
         manager_case_id=case_id,

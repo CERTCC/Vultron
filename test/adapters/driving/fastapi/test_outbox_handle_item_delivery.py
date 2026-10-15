@@ -24,6 +24,7 @@ Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
 
 Spec coverage:
 - OX-03-001: Activities in the outbox are delivered to recipient inboxes.
+- OX-02-002: what is delivered is an ActivityStreams 2.0 activity.
 - VM-08-003: the delivered payload is the sealed blob, unchanged.
 - SYNC-02-005: an Announce(CaseLedgerEntry) keeps its inline entry on the wire.
 """
@@ -39,6 +40,13 @@ from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
     dump_outbound_body,
     sealed_body_id,
+)
+from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.base import ACTIVITY_STREAMS_NS
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
@@ -161,6 +169,32 @@ def test_handle_outbox_item_delivers_the_sealed_body_verbatim():
     mock_emitter.emit.assert_called_once_with(
         sealed.activity_id, sealed.body, [RECIPIENT]
     )
+
+
+@pytest.mark.spec("OX-02-002")
+def test_handle_outbox_item_delivers_an_activitystreams_activity():
+    """The body that reaches the emitter parses as an AS2 activity."""
+    offer = rm_submit_report_activity(
+        as_VulnerabilityReport(name="VU#OX-02-002", content="a report"),
+        to=RECIPIENT,
+        actor=SENDER,
+    )
+    sealed = SealedOutboundBody(
+        id_=sealed_body_id(offer.id_),
+        activity_id=offer.id_,
+        body=dump_outbound_body(offer),
+    )
+    mock_emitter = AsyncMock()
+
+    _deliver("actor-abc", sealed.activity_id, _dl_with(sealed), mock_emitter)
+
+    delivered = json.loads(mock_emitter.emit.call_args.args[1])
+    context = delivered["@context"]
+    assert context == ACTIVITY_STREAMS_NS or ACTIVITY_STREAMS_NS in context
+    assert delivered["type"] == "Offer"
+    parsed = parse_activity(delivered)
+    assert isinstance(parsed, as_Offer)
+    assert parsed.id_ == offer.id_
 
 
 def test_handle_outbox_item_drops_a_row_with_no_sealed_body(caplog):

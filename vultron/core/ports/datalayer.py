@@ -179,3 +179,13 @@ class DataLayer(Protocol):
     def outbox_list(self) -> list[str]: ...
 
     def outbox_pop(self) -> str | None: ...
+
+    def outbox_withdraw(self, activity_id: str) -> bool:
+        """Remove *activity_id* if it is still pending; ``True`` if removed.
+
+        ``False`` means the id is not pending: delivery already took it, or
+        it was never queued.  Only a send whose act turned out not to happen
+        is withdrawn (the create-case trigger's ``Create`` whose genesis
+        entry did not commit, ADR-0119).
+        """
+        ...
