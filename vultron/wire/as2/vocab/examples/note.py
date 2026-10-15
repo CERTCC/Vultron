@@ -13,6 +13,7 @@
 
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
+    create_note_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
@@ -53,16 +54,9 @@ def add_note_to_case() -> as_Add:
     return activity
 
 
-def create_note():
-    _case = case()
-    _note = note()
-    _vendor = vendor()
-    activity = as_Create(
-        actor=_vendor.id_,
-        object_=_note,
-        target=_case.id_,
-    )
-    return activity
+def create_note() -> as_Create:
+    """``Create(Note)``: the note's ``context`` names the case; no ``target``."""
+    return create_note_activity(note(), actor=vendor().id_)
 
 
 def remove_note_from_case() -> as_Remove:

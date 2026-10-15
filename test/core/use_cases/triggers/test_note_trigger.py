@@ -19,13 +19,14 @@ Tests for SvcAddNoteToCaseUseCase.
 Verifies that the add-note-to-case trigger:
 - creates the note in the DataLayer,
 - adds the note ID to the actor's local case.notes list,
-- queues Create(Note) and AddNoteToCase activities in the actor's outbox,
-- addresses the Add(Note) activity only to the Case Actor (PCR-08-001),
+- queues exactly one Create(Note) in the actor's outbox, whose note names the
+  case as its context, with no target and no follow-up Add(Note) (#4549),
+- addresses the Create(Note) only to the Case Actor (PCR-08-001),
 - does NOT address any non-CaseActor participant directly,
 - handles the optional in_reply_to field correctly,
-- records the Add(Note,Case) activity in the pending-assertion store
-  (SYNC-11-002) and that the store entry clears when the matching
-  Announce(CaseLedgerEntry) arrives (SYNC-11-003).
+- records the Create(Note) in the pending-assertion store under
+  ``create_note`` (SYNC-11-002) and that the store entry clears when the
+  matching Announce(CaseLedgerEntry) arrives (SYNC-11-003).
 """
 
 import pytest
@@ -225,7 +226,7 @@ class TestSvcAddNoteToCaseUseCase:
         assert result.note is not None
 
     def test_execute_returns_activity_key(self):
-        """execute() returns a NoteResult carrying the Add activity."""
+        """execute() returns a NoteResult carrying the Create activity."""
         result = self._execute()
         assert result.activity is not None
 
@@ -258,17 +259,36 @@ class TestSvcAddNoteToCaseUseCase:
         assert note_id in note_ids
 
     # ------------------------------------------------------------------
-    # Outbox: two activities queued
+    # Outbox: one Create(Note), no Add (#4549)
     # ------------------------------------------------------------------
 
-    def test_two_activities_queued_in_outbox(self):
-        """Both Create(Note) and AddNoteToCase are added to the outbox."""
+    @pytest.mark.spec("CLP-07-002")
+    @pytest.mark.spec("VAM-07-001")
+    def test_one_create_note_queued_in_outbox(self):
+        """The trigger queues exactly one activity: a Create(Note) whose note
+        names the case as its context, with no target (#4549 AC-1)."""
         before = set(_outbox_activity_ids(self.vendor.id_, self.dl))
-        self._execute()
-        after = set(_outbox_activity_ids(self.vendor.id_, self.dl))
-        new_ids = after - before
-        assert len(new_ids) == 2, (
-            f"Expected 2 new outbox entries, got {len(new_ids)}"
+        result = self._execute()
+        new_ids = set(_outbox_activity_ids(self.vendor.id_, self.dl)) - before
+        assert new_ids == {activity_of(result)["id"]}
+
+        (activity_id,) = new_ids
+        activity = self.dl.read(activity_id)
+        assert getattr(activity, "type_", None) == "Create"
+        assert getattr(activity, "target", None) is None
+        assert activity_of(result).get("target") is None
+        note = activity_of(result)["object"]
+        assert note["id"] == note_of(result)["id"]
+        assert note["context"] == self.case.id_
+
+    def test_create_note_id_is_derived_from_the_note(self):
+        """The Create's id is derived from the actor and the note, so a re-run
+        for the same note names the same activity (ID-04-004, OX-06-002)."""
+        from vultron.core.models.activity_ids import derived_activity_id
+
+        result = self._execute()
+        assert activity_of(result)["id"] == derived_activity_id(
+            "note-created", self.vendor.id_, note_of(result)["id"]
         )
 
     def test_activities_stored_in_datalayer(self):
@@ -283,8 +303,8 @@ class TestSvcAddNoteToCaseUseCase:
     # ``to`` field: must address Case Actor only (PCR-08-001)
     # ------------------------------------------------------------------
 
-    def test_add_note_activity_to_field_addresses_case_actor_only(self):
-        """AddNoteToCase activity has to=[case_actor.id_] (PCR-08-001)."""
+    def test_create_note_activity_to_field_addresses_case_actor_only(self):
+        """The Create(Note) has to=[case_actor.id_] (PCR-08-001)."""
         result = self._execute(actor_id=self.vendor.id_)
         activity_id = activity_of(result)["id"]
         assert activity_id is not None
@@ -302,10 +322,10 @@ class TestSvcAddNoteToCaseUseCase:
             f"got {recipients}"
         )
 
-    def test_add_note_activity_does_not_address_non_case_actor_participants(
+    def test_create_note_activity_does_not_address_non_case_actor_participants(
         self,
     ):
-        """AddNoteToCase must not include finder or vendor in the to field."""
+        """The Create(Note) must not include finder or vendor in the to field."""
         result = self._execute(actor_id=self.vendor.id_)
         activity_id = activity_of(result)["id"]
         act_obj = self.dl.read(activity_id)
@@ -409,20 +429,21 @@ class TestSvcAddNoteToCaseUseCase:
     # ------------------------------------------------------------------
 
     def test_execute_adds_to_pending_assertion_store(self):
-        """After execute(), the Add(Note,Case) activity is pending in the
-        actor's store, suppressing duplicate near-term re-emits (SYNC-11-002).
+        """After execute(), the Create(Note) is pending in the actor's store
+        under ``create_note``, suppressing duplicate near-term re-emits
+        (SYNC-11-002).
         """
         result = self._execute()
-        add_activity_id = activity_of(result)["id"]
-        assert add_activity_id is not None
+        create_activity_id = activity_of(result)["id"]
+        assert create_activity_id is not None
 
         store = get_pending_assertion_store(self.vendor.id_)
         assert store.is_suppressed(
             self.case.id_,
-            MessageSemantics.ADD_NOTE_TO_CASE.value,
-            add_activity_id,
+            MessageSemantics.CREATE_NOTE.value,
+            create_activity_id,
         ), (
-            "Expected pending-assertion store to suppress the Add(Note,Case) "
+            "Expected pending-assertion store to suppress the Create(Note) "
             "activity until the matching Announce(CaseLedgerEntry) arrives"
         )
 
@@ -430,26 +451,26 @@ class TestSvcAddNoteToCaseUseCase:
         """Clearing the pending entry (simulating Announce round-trip) removes
         suppression so future re-emits are no longer blocked (SYNC-11-003)."""
         result = self._execute()
-        add_activity_id = activity_of(result)["id"]
-        assert add_activity_id is not None
+        create_activity_id = activity_of(result)["id"]
+        assert create_activity_id is not None
 
         store = get_pending_assertion_store(self.vendor.id_)
         assert store.is_suppressed(
             self.case.id_,
-            MessageSemantics.ADD_NOTE_TO_CASE.value,
-            add_activity_id,
+            MessageSemantics.CREATE_NOTE.value,
+            create_activity_id,
         )
 
         # Simulate the Announce(CaseLedgerEntry) round-trip clearing the entry
         store.clear(
             self.case.id_,
-            MessageSemantics.ADD_NOTE_TO_CASE.value,
-            add_activity_id,
+            MessageSemantics.CREATE_NOTE.value,
+            create_activity_id,
         )
         assert not store.is_suppressed(
             self.case.id_,
-            MessageSemantics.ADD_NOTE_TO_CASE.value,
-            add_activity_id,
+            MessageSemantics.CREATE_NOTE.value,
+            create_activity_id,
         ), "After clear(), suppression must be lifted"
 
     def test_zero_timeout_store_does_not_suppress(self):
@@ -464,11 +485,11 @@ class TestSvcAddNoteToCaseUseCase:
         _STORES[self.vendor.id_] = zero_store
 
         result = self._execute()
-        add_activity_id = activity_of(result)["id"]
-        assert add_activity_id is not None
+        create_activity_id = activity_of(result)["id"]
+        assert create_activity_id is not None
 
         assert not zero_store.is_suppressed(
             self.case.id_,
-            MessageSemantics.ADD_NOTE_TO_CASE.value,
-            add_activity_id,
+            MessageSemantics.CREATE_NOTE.value,
+            create_activity_id,
         ), "Zero-timeout store must never suppress"

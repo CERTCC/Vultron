@@ -1,18 +1,17 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Create",
-  "id": "urn:uuid:e117082f-31c5-4e9b-aaf7-23b2dc24153e",
-  "name": "https://vultron.example/organizations/vendorco Create Note to urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "id": "urn:uuid:7b1349f2-acb5-4f6c-872a-52f992101405",
+  "name": "https://vultron.example/organizations/vendorco Create Note",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Note",
     "id": "https://vultron.example/notes/1",
     "name": "Note",
-    "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
-    "published": "2026-09-30T16:00:59+00:00",
-    "updated": "2026-09-30T16:00:59+00:00",
+    "context": "urn:uuid:56edab1b-ef3e-4405-85eb-f2a4c8dc1fa0",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
     "content": "This is a note."
   }
 }
