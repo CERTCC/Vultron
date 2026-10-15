@@ -24,7 +24,7 @@ These four terms are ordered deliberately: each builds on the one before it.
 | **Report** | A document describing a specific vulnerability, submitted to initiate coordination. |
 | **Case** | The coordination context around a specific vulnerability: the participants, the shared state, the messages exchanged, and any embargo agreement. The case is the unit of Vultron protocol activity. |
 | **Actor** | An identity in the protocol, named by a Uniform Resource Identifier (URI). An actor may be an organization, a person, or a service. Actors exist independently of any case. |
-| **Participant** | An actor that has joined a specific case. The case holds a `CaseParticipant` record for each participant, associating that actor with the roles it holds and the state it owns. An actor is a participant *in a case*; the same actor may participate in many. |
+| **Participant** | An actor with a `CaseParticipant` record in a specific case, whether or not it has yet joined. The record associates that actor with the roles it holds and the state it owns. An *active participant* is one that has joined and agreed to the case's current embargo. An actor is a participant *in a case*; the same actor may participate in many. |
 
 !!! info "Source of the vulnerability definition"
     The definition of *vulnerability* above is taken unchanged from the

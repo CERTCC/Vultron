@@ -54,6 +54,9 @@ from vultron.core.models.events.report import CloseReportReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.case_participant import (
+    AddCaseParticipantToCaseReceivedUseCase,
+)
 from vultron.core.use_cases.received.report import (
     CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
@@ -293,6 +296,7 @@ def test_add_case_participant_tree_commits():
     ``test_participant_reinstatement.py``.
     """
     tree = create_add_case_participant_received_tree(
+        sender_rule=AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
         participant_id=f"{CASE_ID}/participants/newcomer",
         case_id=CASE_ID,
         sender_id=VENDOR_ID,

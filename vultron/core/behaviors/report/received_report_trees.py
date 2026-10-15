@@ -57,7 +57,7 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_subtree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsActiveParticipantNode,
+    SenderIsParticipantNode,
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import (
@@ -113,7 +113,7 @@ def create_validate_report_received_tree(
 
         ValidateReportReceivedBT (Sequence)
         ├── Intake
-        ├── SenderIsActiveParticipantNode           # HP-01-006
+        ├── SenderIsParticipantNode                 # HP-01-006
         ├── AdjudicateRMDeclarationNode(VALID)      # RSH-06-006
         ├── GuardedCommitCaseLedgerEntryBT          # CLP-10-006
         ├── ValidateReportBT (Selector)
@@ -319,8 +319,7 @@ def _report_verdict_stages(
         # The sender is checked against the case, so the case is resolved
         # first: an activity about a case this store does not hold is refused
         # as such (#2255), not as an unknown sender.
-        SenderIsActiveParticipantNode(
-            status_id="",
+        SenderIsParticipantNode(
             sender_actor_id=sender_actor_id,
             case_id=case_id,
         ),

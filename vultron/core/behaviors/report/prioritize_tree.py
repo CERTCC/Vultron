@@ -33,7 +33,7 @@ Structure:
     ├─ Intake
     ├─ HoldCarriedEmbargoNode                        # Only when the Engage carried a case snapshot
     ├─ StoreEmbeddedParticipantsNode                 # Only when the Engage carried a case snapshot
-    ├─ SenderIsActiveParticipantNode                 # Sender guard (HP-01-006)
+    ├─ SenderIsParticipantNode                       # Sender guard (HP-01-006)
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
     └─ EngageEffectsIfCaseManager                    # CASE_MANAGER only (RSH-08-003, #3814)
@@ -44,7 +44,7 @@ Structure:
 
     DeferCaseBT (Sequence)
     ├─ Intake
-    ├─ SenderIsActiveParticipantNode            # Sender guard (HP-01-006)
+    ├─ SenderIsParticipantNode                  # Sender guard (HP-01-006)
     ├─ AdjudicateRMDeclarationNode(DEFERRED)    # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT           # Record receipt before effects (CLP-10-006)
     └─ DeferEffectsIfCaseManager                # CASE_MANAGER only (RSH-08-003, #3814)
@@ -94,7 +94,7 @@ from vultron.core.behaviors.report.rm_declaration_tree import (
     rm_gap_note,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsActiveParticipantNode,
+    SenderIsParticipantNode,
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import SenderCheckContext
@@ -153,9 +153,7 @@ def create_engage_case_tree(
             *snapshot_steps,
             # After the snapshot steps, not in the factory's sender-guard
             # slot: an Engage may carry the sender's own participant inline.
-            SenderIsActiveParticipantNode(
-                status_id="", sender_actor_id=actor_id, case_id=case_id
-            ),
+            SenderIsParticipantNode(sender_actor_id=actor_id, case_id=case_id),
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
         # RSH-08-003: the sender's RM move is canonical participant state only
