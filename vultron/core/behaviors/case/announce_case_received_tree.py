@@ -75,10 +75,12 @@ def create_announce_vulnerability_case_received_tree(
     by the same tree's guard instead
     (:func:`~vultron.core.behaviors.case.intake_only_received_tree.create_incomplete_activity_received_tree`),
     so either way the delivery runs one tree and is archived (CLP-10-005,
-    CLP-10-018).  The sender check is a precondition guard, not a factory
-    sender guard: the trust anchor it reads is the receiver's own record of
-    the CASE_MANAGER it expects, not a sender rule (PCR-03-001).  No refusal
-    effect: only a participant replica receives this Announce, and it owes
+    CLP-10-018).  The sender check is a precondition guard, not a sender
+    guard composed from a declared rule: it also trusts the CASE_MANAGER
+    address a completed ``ReportCaseLink`` records, which the declared
+    CASE_MANAGER rule does not read, so it stays its own node until the
+    use case declares its rule (#4522).  No refusal effect: only a
+    participant replica receives this Announce, and it owes
     the CASE_MANAGER no answer.
 
     Args:

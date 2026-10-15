@@ -9,7 +9,7 @@ from vultron.core.behaviors.case.announce_case_received_tree import (
 )
 from vultron.core.behaviors.case.nodes.announce import (
     AnnounceSenderTrustedNode,
-    SeedAnnouncedCaseNode,
+    announced_case_id,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
@@ -32,13 +32,11 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    find_node,
     guard_refusal,
     incomplete_activity_refusal,
     verdict_from_bt,
 )
 from vultron.core.use_cases.received.sync import drain_gap_buffer
-from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +69,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        case_obj = getattr(request.activity, "object_", None)
         tree = create_announce_vulnerability_case_received_tree(
-            case_obj=getattr(request.activity, "object_", None),
-            request=request,
+            case_obj=case_obj, request=request
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -105,12 +103,8 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 "%s (activity '%s')", verdict.reason, request.activity_id
             )
             return verdict
-        seed = find_node(tree, SeedAnnouncedCaseNode)
-        if seed is None:
-            raise VultronBTInternalError(
-                "AnnounceVulnerabilityCaseReceivedBT: applied without seeding"
-            )
-        case_id = seed.case_id
+        # Applied, so the Announce named a case (the tree refuses otherwise).
+        case_id = announced_case_id(request, case_obj)
 
         # The case (and therefore its deterministic per-case genesis hash) is
         # now seeded locally.  Any Announce(CaseLedgerEntry) that arrived during

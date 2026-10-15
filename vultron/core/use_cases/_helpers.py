@@ -21,8 +21,8 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import (  # noqa: F401  (re-export)
-    _established_link_actor_id,
-    _find_case_actor_id,
+    case_manager_address as _find_case_actor_id,
+    established_link_case_manager_id as _established_link_actor_id,
     resolve_case_manager_id,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence

@@ -43,7 +43,7 @@ def resolve_case_manager_id(
     return None
 
 
-def _established_link_actor_id(
+def established_link_case_manager_id(
     dl: CasePersistence, case_id: str
 ) -> str | None:
     """Return the ``case_manager_id`` recorded for *case_id*, if any.
@@ -61,7 +61,7 @@ def _established_link_actor_id(
     return None
 
 
-def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
+def case_manager_address(dl: CasePersistence, case_id: str) -> str | None:
     """Return the delivery address of *case_id*'s authority, if resolvable.
 
     **This is address resolution, not authority determination.**  The two are
@@ -99,7 +99,7 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
     This is the authoritative address lookup for PCR-08-007 (invite sender) and
     PCR-08-008 (accept recipient).
     """
-    established = _established_link_actor_id(dl, case_id)
+    established = established_link_case_manager_id(dl, case_id)
     if established is not None:
         return established
 

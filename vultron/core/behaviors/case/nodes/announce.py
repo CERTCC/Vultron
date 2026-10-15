@@ -43,7 +43,7 @@ from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.participants.authority import _find_case_actor_id
+from vultron.core.participants.authority import case_manager_address
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.carried_embargo import store_carried_embargo
 from vultron.core.services.case_replica_seeding import (
@@ -86,7 +86,7 @@ def sender_is_trusted(
 
     Resolution order (PCR-03-001, PCR-03-004):
 
-    1. An established ``_find_case_actor_id`` anchor — the address recorded on a
+    1. An established ``case_manager_address`` anchor — the address recorded on a
        completed ``ReportCaseLink``, or else the ``CVDRole.CASE_MANAGER``
        role-holder on the local replica: trust iff the sender matches.  Both are
        locally derived, which is the property this guard depends on.  ADR-0088
@@ -99,7 +99,7 @@ def sender_is_trusted(
        CASE_MANAGER): trust iff the sender matches.
     3. No anchor of either kind: reject (fail closed, PCR-03-004).
     """
-    case_actor_id = _find_case_actor_id(dl, case_id)
+    case_actor_id = case_manager_address(dl, case_id)
     if case_actor_id is not None:
         return case_actor_id == sender_id
     pending = dl.read(VultronPendingCaseInbox.build_id(case_id))

@@ -885,6 +885,45 @@ class TestSubmitReportDisposition:
         self._run(to=[self.VENDOR_ID], report=report)
         assert len(tree_runs) == 1
 
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.parametrize("report", [True, False], ids=["report", "none"])
+    def test_post_close_refusal_is_refused_on_either_arm(self, report):
+        """The post-close guard's refusal is ``REFUSED``, never raised.
+
+        Read first by the one verdict, so the report-proposing arm reports it
+        the way the report-less arm always did (CM-23-013, ADR-0095).
+        """
+        from unittest.mock import MagicMock
+
+        import py_trees
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTExecutionResult
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+        from vultron.core.use_cases.received.report import (
+            _submit_report_verdict,
+        )
+
+        guard = CaseOpenToExternalWritesNode(case_id=None)
+        guard.status = Status.FAILURE
+        guard.feedback_message = "case is fully closed (CM-23-013)"
+        tree = py_trees.composites.Sequence(
+            name="Root", memory=False, children=[guard]
+        )
+        request = MagicMock(report_id=self.REPORT_ID if report else None)
+
+        verdict = _submit_report_verdict(
+            tree,
+            BTExecutionResult(status=Status.FAILURE),
+            request,
+            self.VENDOR_ID,
+        )
+
+        assert verdict.disposition == HandlerDisposition.REFUSED
+        assert verdict.reason == "case is fully closed (CM-23-013)"
+
     @pytest.mark.spec("HP-01-003")
     def test_proposal_flow_failure_raises(self, monkeypatch):
         """A failed proposal flow is this actor's fault, not the sender's."""
