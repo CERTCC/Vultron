@@ -34,16 +34,16 @@ from vultron.core.use_cases.received._bt_verdict import (
 from vultron.core.use_cases.received._pending_refusal import (
     close_refused_embargo_proposal,
 )
-from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._sender_preflight import rule_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
-    SenderIsInviteeNode,
     SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 logger = logging.getLogger(__name__)
 
@@ -106,12 +106,16 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         # written, closing the pending ask included (EP-09-010, HP-01-006,
         # ADR-0115).
         if (
-            refusal := sender_refusal(
+            refusal := rule_refusal(
                 self._dl,
                 receiving_actor_id,
-                SenderIsInviteeNode(
-                    invite_id=invite_id, sender_actor_id=rejecting_actor_id
+                self.sender_entitlement,
+                SenderCheckContext(
+                    sender_id=rejecting_actor_id,
+                    case_id=case_id,
+                    invite_id=invite_id or "",
                 ),
+                request,
                 label="Reject(Invite(EmbargoEvent))",
                 sync_port=self._sync_port,
             )

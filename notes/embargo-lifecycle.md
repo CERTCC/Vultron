@@ -437,9 +437,9 @@ listed (`PARTICIPANT`). The invitee rows use `SenderIsInviteeNode`.
   embedding a doctored Invite cannot name itself the invitee; an Invite the store
   never recorded names no invitee and is refused.
 - **A handler that writes before its tree runs checks first** through
-  `rule_refusal()`, which composes the same guard from the declared rule (or
-  `sender_refusal()` for the invitee check); the tree carries the guard as well,
-  in the factory's sender stage.
+  `rule_refusal()`, which composes the same guard from the declared rule, the
+  invitee rows included; the tree carries the guard as well, in the factory's
+  sender stage. A handler never builds a sender node of its own (HP-01-007).
 
 The `Remove` row at the CASE_MANAGER is not stated by a spec; it
 follows EP-09-005 (the owner decides) and the ER-never-ET rule above.

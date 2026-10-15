@@ -61,9 +61,9 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
-    SenderIsInviteeNode,
     SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 logger = logging.getLogger(__name__)
 
@@ -389,11 +389,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 self._dl,
                 receiving_actor_id,
                 request,
-                SenderIsInviteeNode(
-                    invite_id=request.invite_id,
-                    sender_actor_id=accepting_actor_id,
+                self.sender_entitlement,
+                SenderCheckContext(
+                    sender_id=accepting_actor_id,
+                    case_id=case_id,
+                    invite_id=invite_id,
                 ),
-                case_id=case_id,
                 label="Accept(Invite(EmbargoEvent))",
                 sync_port=self._sync_port,
             )

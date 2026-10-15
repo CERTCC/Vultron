@@ -35,7 +35,8 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ def create_reject_invite_actor_to_case_received_tree(
     case_id: str,
     invite_id: str,
     invitee_id: str | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for ``Reject(Invite(actor, case))`` on the CaseActor inbox.
 
@@ -55,14 +58,20 @@ def create_reject_invite_actor_to_case_received_tree(
 
     The sender must be the invitee of the stub Invite this store recorded for
     the case, or the Reject is refused before anything is written (CM-11-017,
-    HP-01-006, ADR-0115).
+    HP-01-006, ADR-0115).  The factory composes that guard from the use
+    case's declared rule (HP-01-008); the handler refuses a Reject that names
+    no case before it builds this tree, so the rule needs no side for an
+    activity outside any case.
 
     Args:
-        case_id: ID of the VulnerabilityCase referenced by the invite.
+        case_id: ID of the VulnerabilityCase referenced by the invite; never
+            empty.
         invitee_id: Actor ID of the rejecting invitee (the reply's sender).
             Required for AC-3 effects; omit only when the invitee cannot be
             resolved, in which case the sender guard refuses.
         invite_id: ID of the recorded stub Invite the Reject answers.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root ``RejectInviteActorToCaseReceivedBT`` Sequence node.
@@ -78,12 +87,14 @@ def create_reject_invite_actor_to_case_received_tree(
 
     return create_receive_activity_tree(
         name="RejectInviteActorToCaseReceivedBT",
-        case_id=case_id if case_id else None,
+        case_id=case_id,
         precondition_guards=[],
-        sender_guard=SenderIsInviteeNode(
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=invitee_id or "",
+            case_id=case_id,
             invite_id=invite_id,
-            sender_actor_id=invitee_id or "",
-            case_id=case_id or None,
+            invite_is_case_join=True,
         ),
         manager_effects=manager_effects,
         manager_case_id=case_id if manager_effects else None,

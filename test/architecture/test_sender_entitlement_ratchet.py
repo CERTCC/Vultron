@@ -20,17 +20,21 @@ Enforces:
 2. No ``SenderEntitlementConditionNode`` subclass is defined outside
    ``vultron.core.behaviors.sender_entitlement``.
 3. Old node names no longer live in their former modules.
-4. A received tree builds its own ``sender_guard`` only when it is on the
-   allow-list of trees not yet composing the guard from the declared rule
-   (HP-01-008, #4437).
+4. No sender-entitlement condition node is composed outside the receive-tree
+   factory's composer, except where an allow-list names it (HP-01-007,
+   HP-01-008, #4437): a guard not yet migrated names the open issue that
+   migrates it, and a standing read that decides an effect rather than
+   admission names why it is not a sender guard.
 """
 
 import ast
 import importlib
 import inspect
+import re
 import sys
 from types import ModuleType
 
+import py_trees
 import pytest
 
 from test.architecture import _corpus
@@ -220,87 +224,309 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 
 
 # ---------------------------------------------------------------------------
-# HP-01-008: trees still building their own sender guard (temporary)
+# HP-01-007 / HP-01-008: sender nodes are composed only by the factory
 # ---------------------------------------------------------------------------
 
-_PIECE_4 = "#4437 (piece 4: ratchet, AC-5)"
+_HOME = "vultron/core/behaviors/sender_entitlement.py"
+_COMPOSER = "vultron/core/behaviors/sender_guard.py"
 
-#: Received-tree builders that still pass their own ``sender_guard`` to
-#: ``create_receive_activity_tree`` instead of the declared ``sender_rule``,
-#: keyed by (module path, function), each naming the work that migrates it.
-#: The list only shrinks: a new entry, or a stale one, fails the test.
-SENDER_GUARD_ALLOW_LIST: dict[tuple[str, str], str] = {
-    # The Invite may name no case, which needs an ``outside_case`` side.
-    (
-        "vultron/core/behaviors/case/invite_actor_to_case_received_tree.py",
-        "create_reject_invite_actor_to_case_received_tree",
-    ): _PIECE_4,
-}
+#: The only modules that may call ``compose_sender_guard``: the receive-tree
+#: factory and the pre-flight that runs the same guard ahead of a handler's
+#: first write (``rule_refusal``).
+COMPOSE_CALLERS = frozenset(
+    {
+        "vultron/core/behaviors/case/receive_activity_tree.py",
+        "vultron/core/use_cases/received/_sender_preflight.py",
+    }
+)
+
+#: A place a sender node is named: (module path, enclosing function, node).
+Site = tuple[str, str, str]
 
 
-_FACTORY = "create_receive_activity_tree"
-
-
-def _may_pass_sender_guard(call: ast.Call) -> bool:
-    """*call* passes ``sender_guard=``, or splats keywords into the factory.
-
-    A ``**kwargs`` splat into the factory could carry ``sender_guard`` past a
-    keyword scan, so it counts as passing one.
-    """
-    func = call.func
-    name = (
-        func.attr
-        if isinstance(func, ast.Attribute)
-        else (func.id if isinstance(func, ast.Name) else None)
-    )
-    return any(
-        kw.arg == "sender_guard" or (kw.arg is None and name == _FACTORY)
-        for kw in call.keywords
+def _sender_node_names() -> frozenset[str]:
+    """Every behaviour class defined in the sender-entitlement module."""
+    home = importlib.import_module("vultron.core.behaviors.sender_entitlement")
+    return frozenset(
+        name
+        for name, obj in inspect.getmembers(home, inspect.isclass)
+        if obj.__module__ == home.__name__
+        and issubclass(obj, py_trees.behaviour.Behaviour)
     )
 
 
-def _sender_guard_builders() -> set[tuple[str, str]]:
-    """Every (module path, function) whose body may pass ``sender_guard=``."""
-    found: set[tuple[str, str]] = set()
-    for path, tree in _corpus.files_mentioning(
-        "sender_guard", _FACTORY, under=_corpus.REPO_ROOT / "vultron"
+SENDER_NODES = _sender_node_names()
+
+
+def _annotation_nodes(tree: ast.AST) -> set[int]:
+    """Ids of every AST node inside a type annotation in *tree*."""
+    roots: list[ast.AST] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.returns is not None:
+                roots.append(node.returns)
+            args = node.args
+            roots.extend(
+                a.annotation
+                for a in [
+                    *args.posonlyargs,
+                    *args.args,
+                    *args.kwonlyargs,
+                    *([args.vararg] if args.vararg else []),
+                    *([args.kwarg] if args.kwarg else []),
+                ]
+                if a.annotation is not None
+            )
+        elif isinstance(node, ast.AnnAssign):
+            roots.append(node.annotation)
+    return {id(sub) for root in roots for sub in ast.walk(root)}
+
+
+def _import_aliases(tree: ast.AST) -> dict[str, str]:
+    """Each local name in *tree* bound to a sender node, to the node's name."""
+    aliases = {name: name for name in SENDER_NODES}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in SENDER_NODES and alias.asname:
+                    aliases[alias.asname] = alias.name
+    return aliases
+
+
+def _named_sender_node(
+    node: ast.AST, aliases: dict[str, str], rel: str
+) -> str | None:
+    """The sender node *node* names, or ``compose_sender_guard`` it calls."""
+    if isinstance(node, ast.Name):
+        return aliases.get(node.id)
+    if isinstance(node, ast.Attribute):
+        return node.attr if node.attr in SENDER_NODES else None
+    if (
+        isinstance(node, ast.Call)
+        and _called_name(node) == "compose_sender_guard"
+        and rel not in COMPOSE_CALLERS
     ):
-        rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
-        for func in ast.walk(tree):
-            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            if any(
-                isinstance(call, ast.Call) and _may_pass_sender_guard(call)
-                for call in ast.walk(func)
-            ):
-                found.add((rel, func.name))
+        return "compose_sender_guard"
+    return None
+
+
+def _sender_references(tree: ast.AST, rel: str) -> set[Site]:
+    """Every place in *tree* that names a sender node or composes a guard.
+
+    A name counts wherever it is used, not only where it is called, so a node
+    class bound to another name first, or reached through the module
+    (``sender_entitlement.SenderIsX``), is still seen.  An import alias is
+    followed; a name inside a type annotation composes nothing and is skipped.
+    A call to ``compose_sender_guard`` counts outside :data:`COMPOSE_CALLERS`.
+    """
+    aliases = _import_aliases(tree)
+    skipped = _annotation_nodes(tree)
+    found: set[Site] = set()
+
+    def visit(node: ast.AST, scope: tuple[str, ...]) -> None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            scope = (*scope, node.name)
+        if id(node) not in skipped and (
+            named := _named_sender_node(node, aliases, rel)
+        ):
+            found.add((rel, ".".join(scope) or "<module>", named))
+        for child in ast.iter_child_nodes(node):
+            visit(child, scope)
+
+    visit(tree, ())
     return found
 
 
-def test_the_scan_counts_a_keyword_splat_into_the_factory() -> None:
-    """A ``**kwargs`` splat cannot carry ``sender_guard`` past the ratchet."""
-    # create_receive_activity_tree(**kwargs)
-    call = ast.Call(
-        func=ast.Name(id=_FACTORY),
-        args=[],
-        keywords=[ast.keyword(arg=None, value=ast.Name(id="kwargs"))],
-    )
-    assert _may_pass_sender_guard(call)
+def _called_name(call: ast.Call) -> str | None:
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return func.id if isinstance(func, ast.Name) else None
 
 
+def _live_sites() -> set[Site]:
+    """Every sender-node reference in ``vultron/`` outside its two homes."""
+    found: set[Site] = set()
+    for path, tree in _corpus.files_mentioning(
+        "sender_entitlement",
+        "compose_sender_guard",
+        *SENDER_NODES,
+        under=_corpus.REPO_ROOT / "vultron",
+    ):
+        rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
+        if rel not in {_HOME, _COMPOSER}:
+            found |= _sender_references(tree, rel)
+    return found
+
+
+#: Sender guards a received tree still places itself, each naming the open
+#: issue that moves it into the declared rule the factory composes.  The list
+#: only shrinks: a new entry, or a stale one, fails the test.
+GUARDS_NOT_YET_MIGRATED: dict[Site, str] = {
+    # The guard must follow the Engage's snapshot steps, which store the
+    # sender's own participant record when the Engage carries it inline.
+    (
+        "vultron/core/behaviors/report/prioritize_tree.py",
+        "create_engage_case_tree",
+        "SenderIsParticipantNode",
+    ): "#4696",
+    # The case is resolved from the report at run time (RequireCaseForReport),
+    # so the guard follows that step in the Close/Invalidate(Report) trees.
+    (
+        "vultron/core/behaviors/report/received_report_trees.py",
+        "_report_verdict_stages",
+        "SenderIsParticipantNode",
+    ): "#4696",
+    # The case comes from the announced entry at run time; each role arm
+    # checks CASE_MANAGER standing after its own CASE_MANAGER gate.
+    (
+        "vultron/core/behaviors/sync/announce_tree.py",
+        "create_announce_log_entry_tree",
+        "SenderIsCaseManagerNode",
+    ): "#4696",
+    # The ledger Reject's own standing (SYNC-03-005), read from the case the
+    # ledger activity names; #4615 gives it its own kind.
+    (
+        "vultron/core/behaviors/sync/reject_tree.py",
+        "create_reject_log_entry_tree",
+        "SenderIsActiveLedgerParticipantNode",
+    ): "#4615",
+}
+
+#: Standing reads that choose an effect after the declared rule has admitted
+#: the sender, or that read an actor other than the sender.  They admit no
+#: one, so they are not sender guards and need no migration; each names why.
+STANDING_READS: dict[Site, str] = {
+    (
+        "vultron/core/behaviors/case/suggest_actor_tree.py",
+        "create_recommend_actor_to_case_received_tree",
+        "SenderIsCaseOwnerNode",
+    ): "picks the owner-direct Invite or the Offer to the owner (CM-16)",
+    (
+        "vultron/core/behaviors/case/receive_close_case_tree.py",
+        "create_close_case_received_tree",
+        "SenderIsCaseOwnerNode",
+    ): "picks the owner's or a participant's Leave arm (CM-23-003)",
+    (
+        "vultron/core/behaviors/case/receive_close_case_tree.py",
+        "create_close_case_received_tree._decline_decision_guards",
+        "SenderIsCaseOwnerNode",
+    ): "decides whether the close is declined for a live embargo (CM-23-011)",
+    (
+        "vultron/core/behaviors/status/add_participant_status_tree.py",
+        "add_participant_status_tree",
+        "SenderIsCaseOwnerNode",
+    ): "the owner's status bypasses the adoption call-out (RSH-01-002)",
+    (
+        "vultron/core/behaviors/embargo/response_decision_tree.py",
+        "create_embargo_response_decision_tree",
+        "SenderIsCaseOwnerNode",
+    ): "reads the local deciding actor, not a sender (EMB-15-002)",
+    (
+        "vultron/core/behaviors/embargo/announce_teardown_tree.py",
+        "invite_to_embargo_on_case_tree",
+        "SenderIsCaseOwnerNode",
+    ): "reads the local invitee answering on its replica (EP-09-005)",
+    (
+        "vultron/core/behaviors/report/trigger_report_trees.py",
+        "create_close_case_trigger_tree",
+        "SenderIsCaseOwnerNode",
+    ): "a trigger tree: reads the triggering actor's own standing",
+}
+
+
+@pytest.mark.spec("HP-01-007")
 @pytest.mark.spec("HP-01-008")
-def test_only_allow_listed_trees_build_their_own_sender_guard():
-    """A tree composes its sender guard from the rule unless allow-listed."""
-    found = _sender_guard_builders()
-    new = sorted(found - set(SENDER_GUARD_ALLOW_LIST))
-    stale = sorted(set(SENDER_GUARD_ALLOW_LIST) - found)
+def test_sender_nodes_are_composed_only_by_the_factory() -> None:
+    """A sender node outside the factory's composer is allow-listed (AC-5)."""
+    found = _live_sites()
+    listed = set(GUARDS_NOT_YET_MIGRATED) | set(STANDING_READS)
+    new = sorted(found - listed)
+    stale = sorted(listed - found)
     assert not new, (
-        "These received trees pass their own sender_guard; pass the use"
-        " case's sender_rule and a SenderCheckContext instead (HP-01-008):\n"
-        + "\n".join(f"  - {path}::{func}" for path, func in new)
+        "These modules name a sender-entitlement node or compose a sender"
+        " guard outside the receive-tree factory (HP-01-007, HP-01-008)."
+        " Declare the standing in the use case's SenderRule and pass it with"
+        " a SenderCheckContext; a pre-flight asks rule_refusal():\n"
+        + "\n".join(f"  - {p}::{f} ({n})" for p, f, n in new)
     )
     assert not stale, (
-        "These allow-list entries no longer pass sender_guard; remove them"
+        "These allow-list entries no longer name a sender node; remove them"
         " so the list only shrinks:\n"
-        + "\n".join(f"  - {path}::{func}" for path, func in stale)
+        + "\n".join(f"  - {p}::{f} ({n})" for p, f, n in stale)
     )
+
+
+def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
+    """The remaining migration is a visible list of issues (AC-5)."""
+    malformed = {
+        site: issue
+        for site, issue in GUARDS_NOT_YET_MIGRATED.items()
+        if re.fullmatch(r"#\d+", issue) is None
+    }
+    assert not malformed, f"Entries without a tracking issue: {malformed}"
+    assert set(GUARDS_NOT_YET_MIGRATED).isdisjoint(STANDING_READS)
+
+
+#: Source shapes the scan must see, each composing a sender guard outside
+#: the factory.
+_VIOLATIONS = {
+    "direct-call": (
+        "from vultron.core.behaviors.sender_entitlement import"
+        " SenderIsParticipantNode\n"
+        "def build():\n"
+        "    return SenderIsParticipantNode(sender_actor_id='a', case_id='c')\n"
+    ),
+    "import-alias": (
+        "from vultron.core.behaviors.sender_entitlement import"
+        " SenderIsCaseOwnerNode as Owner\n"
+        "def build():\n"
+        "    return Owner(sender_actor_id='a', case_id='c')\n"
+    ),
+    "module-attribute": (
+        "from vultron.core.behaviors import sender_entitlement\n"
+        "def build():\n"
+        "    return sender_entitlement.SenderIsInviteeNode('i', 'a')\n"
+    ),
+    "bound-before-call": (
+        "from vultron.core.behaviors.sender_entitlement import"
+        " SenderIsCaseManagerNode\n"
+        "def build():\n"
+        "    node = SenderIsCaseManagerNode\n"
+        "    return node()\n"
+    ),
+    "handler-compose": (
+        "from vultron.core.behaviors.sender_guard import"
+        " compose_sender_guard\n"
+        "def execute(rule, ctx):\n"
+        "    return compose_sender_guard(rule, ctx)\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("source", _VIOLATIONS.values(), ids=_VIOLATIONS)
+def test_the_scan_sees_a_sender_guard_composed_outside_the_factory(
+    source: str,
+) -> None:
+    """Each shape is reported, so the ratchet fails on it (AC-5)."""
+    rel = "vultron/core/use_cases/received/example.py"
+    sites = _sender_references(_corpus.parse_inline(source), rel)
+    assert sites
+    assert all(path == rel for path, _func, _node in sites)
+    assert {func for _path, func, _node in sites} <= {"build", "execute"}
+
+
+def test_the_scan_skips_annotations_and_the_sanctioned_callers() -> None:
+    """A type annotation composes nothing; the factory may compose."""
+    annotated = _corpus.parse_inline(
+        "from vultron.core.behaviors.sender_entitlement import"
+        " SenderIsInviteeNode\n"
+        "def find(tree) -> SenderIsInviteeNode | None:\n"
+        "    return None\n"
+    )
+    assert _sender_references(annotated, "vultron/x.py") == set()
+    composed = _corpus.parse_inline(
+        "def stage(rule, ctx):\n    return compose_sender_guard(rule, ctx)\n"
+    )
+    for caller in COMPOSE_CALLERS:
+        assert _sender_references(composed, caller) == set()

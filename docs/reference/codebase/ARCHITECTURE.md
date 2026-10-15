@@ -22,7 +22,7 @@ stakeholder_type: [project-contributor]
   4. Every received-side tree is built by `create_receive_activity_tree()` in the order intake → [sender_guard] → precondition guards → commit → `replica_effects` → `manager_effects` (ADR-0111, ADR-0115, CLP-10-006). `refusal_effects`, when a tree passes them, run inside the guard stage only when a precondition guard refuses, and only at the CASE_MANAGER (CLP-10-022).
      The factory wraps `manager_effects` in the CASE_MANAGER gate and refuses an emit node in `replica_effects` that no named exemption covers (BT-17-008).
      The sender-guard stage is the per-use-case sender-entitlement check declared via `sender_entitlement` on the use-case class (HP-01-006, HP-01-007).
-     The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-008); trees not yet migrated pass their own `sender_guard` and are on the ratchet's allow-list.
+     The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-008); a tree cannot pass a guard of its own, and a sender node a tree still places itself is on the ratchet's allow-list with the issue that migrates it.
 
 ### 2) System Flow
 
