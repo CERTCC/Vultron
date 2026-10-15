@@ -196,14 +196,14 @@ def _stub_embargo(
             embargo_obj = active_embargo
     if not isinstance(embargo_obj, WireEmbargoEvent):
         raise VultronActivityConstructionError(
-            f"_project_case_to_stub: case {case_id!r} has active embargo"
+            f"_stub_embargo: case {case_id!r} has active embargo"
             f" {active_id!r} but no EmbargoEvent object to embed in the stub"
             " — the stub carries the full embargo, not its ID (CM-17-002,"
             " CM-17-011)"
         )
     if embargo_obj.id_ != active_id:
         raise VultronActivityConstructionError(
-            f"_project_case_to_stub: embargo {embargo_obj.id_!r} is not case"
+            f"_stub_embargo: embargo {embargo_obj.id_!r} is not case"
             f" {case_id!r}'s active embargo {active_id!r} (CM-17-011)"
         )
     return embargo_obj

@@ -111,7 +111,7 @@ groups:
       that a MUST on this codebase's own REST routes is this codebase's choice, which
       other Vultron implementations need not share; no peer delivery depends on it.
       Contrast HTTP-01-001, a SHOULD made a MUST on the inbox, which every
-      implementation's deliveries depend on and so is `protocol`.
+      implementation's deliveries depend on and so is `protocol` (ADR-0134).
     verification: >-
       `test_first_publish_creates_the_policy_in_the_actors_own_store` in
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` confirms
@@ -341,8 +341,8 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Transient error responses (HTTP 429, 503) MUST include a `Retry-After` header indicating when the client should
-      retry
+    statement: A response with status 429 Too Many Requests or 503 Service Unavailable MUST include a `Retry-After` header
+      indicating when the client should retry
     scope:
     - production
 - id: HTTP-08
