@@ -21,6 +21,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
@@ -44,6 +45,10 @@ class CreateCaseReceivedUseCase:
     bootstrap already accepted, or a CASE_MANAGER bootstrapping a participant
     directly (ADR-0041 AC-5).  ``execute()`` builds the tree, runs it once, and
     reports the outcome.
+
+    The report receiver that accepts a trusted bootstrap then introduces the
+    CASE_MANAGER to the reporter with its own ``Create(VulnerabilityCase)``
+    (CBT-01-001, ADR-0132), which it builds through *trigger_activity*.
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
@@ -56,8 +61,10 @@ class CreateCaseReceivedUseCase:
         request: CreateCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: CreateCaseReceivedEvent = request
@@ -89,6 +96,7 @@ class CreateCaseReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(

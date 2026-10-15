@@ -34,6 +34,7 @@ cycle.  Hold the carried embargo first —
 """
 
 import logging
+from collections.abc import Collection
 from typing import Any
 
 from vultron.core.models._helpers import _as_id
@@ -134,13 +135,22 @@ def store_embedded_participants(
         )
 
 
+def report_ids_of(case: VulnerabilityCase) -> list[str]:
+    """Return the ids of the reports *case* names, in order.
+
+    The case holds report references, which may be ids or inline reports; a
+    reference with no id is skipped.
+    """
+    return [
+        report_id
+        for ref in case.vulnerability_reports
+        if (report_id := _as_id(ref))
+    ]
+
+
 def link_report_case_links(dl: CasePersistence, case) -> None:
     """Attach any matching ``ReportCaseLink`` records to the announced case."""
-    for report_ref in case.vulnerability_reports:
-        report_id = _as_id(report_ref)
-        if report_id is None:
-            continue
-
+    for report_id in report_ids_of(case):
         link = dl.read(VultronReportCaseLink.build_id(report_id))
         if not isinstance(link, VultronReportCaseLink):
             continue
@@ -156,22 +166,50 @@ def link_report_case_links(dl: CasePersistence, case) -> None:
 
 
 def find_pending_report_case_link(
-    dl: CasePersistence, creator_id: str
+    dl: CasePersistence, creator_id: str, report_ids: Collection[str] = ()
 ) -> VultronReportCaseLink | None:
     """Return a pending ``ReportCaseLink`` expecting a bootstrap from *creator_id*.
 
-    Scans all ``ReportCaseLink`` records and returns the first that has
+    Scans all ``ReportCaseLink`` records for one with
     ``case_creator_id == creator_id`` and ``case_id is None`` (i.e. awaiting
-    bootstrap).  Using the sender identity rather than the case's
-    ``vulnerability_reports`` list makes the lookup independent of whether the
-    case snapshot embeds the report.
+    bootstrap).  A link whose report is among *report_ids* (the reports the
+    bootstrap case names) wins, so a reporter that sent several reports to
+    one actor binds each case to its own report (CBT-01-005); otherwise the
+    first pending link for the sender is returned, and the caller checks the
+    report reference itself.
     """
-    for obj in dl.list_objects("ReportCaseLink"):
-        if isinstance(obj, VultronReportCaseLink) and (
-            obj.case_creator_id == creator_id and obj.case_id is None
-        ):
-            return obj
-    return None
+    pending = [
+        link
+        for link in _pending_links(dl)
+        if link.case_creator_id == creator_id
+    ]
+    for link in pending:
+        if link.report_id in report_ids:
+            return link
+    return pending[0] if pending else None
+
+
+def find_any_pending_report_case_link(
+    dl: CasePersistence,
+) -> VultronReportCaseLink | None:
+    """Return any pending ``ReportCaseLink`` that names an expected sender.
+
+    The receiver wrote it before the case arrived, so it is the receiver's
+    own trust anchor: a bootstrap from any other actor is refused
+    (CBT-01-011, ADR-0132).
+    """
+    return next(iter(_pending_links(dl)), None)
+
+
+def _pending_links(dl: CasePersistence) -> list[VultronReportCaseLink]:
+    """Every ``ReportCaseLink`` awaiting a bootstrap from a named sender."""
+    return [
+        obj
+        for obj in dl.list_objects("ReportCaseLink")
+        if isinstance(obj, VultronReportCaseLink)
+        and obj.case_id is None
+        and obj.case_creator_id is not None
+    ]
 
 
 def is_bootstrap_accepted(
@@ -187,6 +225,25 @@ def is_bootstrap_accepted(
         and obj.case_creator_id == creator_id
         for obj in dl.list_objects("ReportCaseLink")
     )
+
+
+def find_case_create_sent_by(
+    dl: CasePersistence, actor_id: str, case_id: str
+) -> str | None:
+    """Return the id of a stored ``Create`` of *case_id* by *actor_id*, if any.
+
+    The report receiver's introduction of the CASE_MANAGER to the reporter
+    is such a ``Create`` (CBT-01-001, ADR-0132); finding it tells the
+    receiver it already made the introduction.
+    """
+    for obj in dl.list_objects("Create"):
+        if (
+            getattr(obj, "type_", None) == "Create"
+            and _as_id(getattr(obj, "actor", None)) == actor_id
+            and _as_id(getattr(obj, "object_", None)) == case_id
+        ):
+            return _as_id(obj)
+    return None
 
 
 def _project_to_core_participant(

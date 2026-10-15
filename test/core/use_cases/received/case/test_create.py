@@ -98,6 +98,7 @@ def _case_with_case_actor_participant() -> tuple:
         id_=_CASE_ID,
         name="CBT test case",
         case_participants=[participant],
+        vulnerability_reports=[_REPORT_ID],
     )
     return case, participant
 
@@ -214,6 +215,7 @@ class TestBootstrapCreateAccepted:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-05-002")
 class TestBootstrapCreateRejectedBadSender:
     """CBT-05-002 — imposter sender is rejected; case is NOT seeded."""
 
@@ -393,7 +395,10 @@ def _bootstrap_event(
         name="CaseActor",
     )
     case = as_VulnerabilityCase.model_construct(
-        id_=case_id, name="CBT-06 case", case_participants=[participant]
+        id_=case_id,
+        name="CBT-06 case",
+        case_participants=[participant],
+        vulnerability_reports=[_REPORT_ID],
     )
     event = make_payload(create_case_activity(case, actor=creator_id))
     if not isinstance(event, CreateCaseReceivedEvent):
