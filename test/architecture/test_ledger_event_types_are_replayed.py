@@ -200,8 +200,8 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " #3764)"
     ),
     "reject_case_participant_role": (
-        "the CASE_MANAGER's Reject closes the role offer without granting the"
-        " role; it moves no case state a replica holds (ADR-0039, #4588)"
+        "a Reject closes the role offer without granting the role; it moves"
+        " no case state a replica holds (ADR-0039, #4588)"
     ),
 }
 
