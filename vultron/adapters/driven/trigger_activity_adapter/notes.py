@@ -25,8 +25,9 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
-    create_note_activity,
+    create_note_activity as build_create_note_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 from ._base import _addressing, _already_sealed, _seal
@@ -58,6 +59,23 @@ def _note_for_wire(dl: CasePersistence, note_id: str) -> as_Note:
     if isinstance(stored, as_Note):
         return stored
     return as_Note.model_validate(As2WireRenderAdapter().render(stored))
+
+
+def _store_and_seal(
+    dl: CaseOutboxPersistence, activity: as_Activity, method: str
+) -> tuple[str, str]:
+    """Store *activity* (once) and seal its outbound body; return ``(id, body)``.
+
+    An activity already stored under its id is kept as it is and logged, so a
+    re-run of *method* seals the body the first run stored (VM-08-003).
+    """
+    try:
+        dl.create(activity)
+    except VultronAlreadyExistsError:
+        logger.warning(
+            "%s: activity '%s' already exists — skipping", method, activity.id_
+        )
+    return _seal(dl, activity)
 
 
 class _NotesMixin:
@@ -98,7 +116,8 @@ class _NotesMixin:
         """Create and persist a ``Create(Note)`` activity.
 
         The note's ``context`` names the case it belongs to; the ``Create``
-        carries no ``target`` (:func:`create_note_activity`).  The id is
+        carries no ``target``
+        (:func:`vultron.wire.as2.factories.create_note_activity`).  The id is
         derived from *actor* and the note, because one note is created once:
         a re-run hands back the body the first run sealed rather than queuing
         a second ``Create`` (ID-04-004, OX-06-002).
@@ -112,19 +131,11 @@ class _NotesMixin:
         sealed = _already_sealed(self._dl, activity_id)
         if sealed is not None:
             return sealed
-        activity = create_note_activity(
+        activity = build_create_note_activity(
             _note_for_wire(self._dl, note_id),
             **_addressing(actor, to, activity_id),
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "create_note_activity: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _store_and_seal(self._dl, activity, "create_note_activity")
 
     def add_note_to_case(
         self,
@@ -138,11 +149,4 @@ class _NotesMixin:
         activity = add_note_to_case_activity(
             note=note, target=case_id, actor=actor, to=to
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "add_note_to_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _store_and_seal(self._dl, activity, "add_note_to_case")

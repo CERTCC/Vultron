@@ -110,7 +110,7 @@ Modeling it as `as:Undo` would claim that the earlier `Ignore(VulnerabilityCase)
 
 ## Creating an object and attaching it to another
 
-Vultron documents object creation and object attachment as two activities.
+Vultron distinguishes object creation from object attachment.
 `as:Create` mints a new object; `as:Add` attaches an existing object to another object.
 A new note is one `Create(Note)` whose note names the case as its `context`: the Case Manager attaches it from that `context`, so no `Add` follows.
 `Add(Note)[target=VulnerabilityCase]` attaches a note that already exists, and a receiver also accepts it after a `Create` of the same note.

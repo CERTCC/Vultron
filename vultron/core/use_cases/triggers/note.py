@@ -29,7 +29,10 @@ from vultron.core.behaviors.note.add_note_trigger_tree import (
     add_note_to_case_trigger_bt,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.pending_assertion import record_pending_assertion
+from vultron.core.models.pending_assertion import (
+    ASSERTED_ACTIVITY_KEY,
+    record_pending_assertion,
+)
 from vultron.core.models.use_case_result import NoteResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -85,7 +88,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
                 to=[case_manager_id],
             )
             self._captured["activity"] = json.loads(create_body)
-            self._result_out["create_activity_id"] = create_id
+            self._result_out[ASSERTED_ACTIVITY_KEY] = create_id
             return [create_id]
 
         return add_note_to_case_trigger_bt(
@@ -106,7 +109,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
             note_id,
             self._case_id,
         )
-        create_activity_id = self._output_id("create_activity_id")
+        create_activity_id = self._output_id(ASSERTED_ACTIVITY_KEY)
         if create_activity_id is not None:
             record_pending_assertion(
                 self._actor_id,
