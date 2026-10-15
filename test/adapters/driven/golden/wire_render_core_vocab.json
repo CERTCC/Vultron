@@ -59,6 +59,15 @@
     "type": "CaseStatus",
     "updated": "2026-01-02T03:04:05+00:00"
   },
+  "EmbargoConsent": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "embargoId": "urn:test:embargo_id:1",
+    "id": "urn:test:embargoconsent:golden",
+    "published": "2026-01-02T03:04:05+00:00",
+    "state": "UNINVITED",
+    "type": "EmbargoConsent",
+    "updated": "2026-01-02T03:04:05+00:00"
+  },
   "EmbargoEvent": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "context": "urn:test:context:1",

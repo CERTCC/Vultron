@@ -25,6 +25,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `CaseProposal` | Request to a Case Actor Service to initialize a new case |
 | `CaseReference` | Typed external URL reference attached to a case |
 | `CaseStatus` | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
+| `EmbargoConsent` | One participant's consent to one embargo, a row of the consent table |
 | `EmbargoEvent` | Embargo proposal, acceptance, revision, or termination record |
 | `EmbargoPolicy` | Actor-level declaration of embargo preferences |
 | `ParticipantStatus` | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, and roles |
