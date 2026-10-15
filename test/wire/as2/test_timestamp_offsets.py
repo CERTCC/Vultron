@@ -86,6 +86,7 @@ def test_minted_timestamp_serialises_with_a_utc_offset() -> None:
         embargo.model_dump_json(by_alias=True, exclude_none=True)
     )
     for key in ("published", "updated", "startTime", "endTime"):
+        assert RFC3339_DATE_TIME.match(wire[key]), (key, wire[key])
         assert UTC_OFFSET.search(wire[key]), (key, wire[key])
 
 

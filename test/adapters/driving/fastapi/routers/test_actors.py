@@ -190,8 +190,10 @@ def test_inbox_accepts_both_activitystreams_media_types(
 
 
 @pytest.mark.spec("HTTP-03-007")
+@pytest.mark.spec("IE-03-003")
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
         "HTTP-03-007: the inbox enforces no request body size limit, so an "
         "oversized body is not answered 413. Tracked by #4596."
@@ -211,8 +213,10 @@ def test_oversized_inbox_body_answers_413(client_actors, created_actors):
 
 @pytest.mark.spec("HTTP-01-003")
 @pytest.mark.spec("HTTP-03-008")
+@pytest.mark.spec("IE-03-001")
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
         "HTTP-03-008: the inbox does not check Content-Type, so a body sent "
         "with a media type other than ActivityStreams is not answered 415. "
@@ -239,6 +243,7 @@ _RATE_LIMIT_BURST = 100
 @pytest.mark.spec("HTTP-03-010")
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
         "HTTP-03-010: the API enforces no rate limit, so no request is ever "
         "answered 429. Tracked by #4667."
@@ -270,6 +275,19 @@ def test_get_actor_profile_returns_discovery_fields(
         assert "outbox" in data
         assert isinstance(data["inbox"], str), "inbox must be a URL string"
         assert isinstance(data["outbox"], str), "outbox must be a URL string"
+
+
+@pytest.mark.spec("HTTP-04-001")
+def test_get_actor_profile_is_served_as_activitystreams(
+    client_actors, created_actors
+):
+    """An actor profile is an AS2 document, so it is ``application/activity+json``."""
+    for actor in created_actors:
+        resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/profile")
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.headers["content-type"].startswith(
+            "application/activity+json"
+        )
 
 
 @pytest.mark.spec("AR-10-002")

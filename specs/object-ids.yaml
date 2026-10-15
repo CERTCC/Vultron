@@ -17,8 +17,10 @@ groups:
     kind: foundation
     statement: All ActivityStreams object IDs MUST use full URI form
     rationale: >-
-      ActivityStreams 2.0 identifies every object by a globally unique IRI, which a
-      relative or bare identifier is not. Vultron inherits the rule.
+      ActivityPub requires every object it distributes to carry a publicly
+      dereferenceable URI as its identifier, which a relative or bare identifier is
+      not. ActivityStreams 2.0 alone only says relative references SHOULD NOT be
+      used. Vultron inherits the ActivityPub rule.
     verification: Integration tests in `test/demo/` confirm that all `as_id` fields on created objects contain full URI
       strings with a scheme and authority component.
     relationships:
@@ -34,23 +36,23 @@ groups:
     adr:
     - ADR-0010
     tags:
-    - as2
+    - activitypub
   - id: OID-01-002
     priority: MUST
     kind: foundation
     statement: IDs MUST be unique within the issuing actor's deployment; cross-deployment uniqueness is achieved by requiring
       full URI form (OID-01-001) with a deployment-controlled authority component.
     rationale: >-
-      Restates what a globally unique ActivityStreams IRI already means: the
-      authority that mints an identifier keeps it unique, so uniqueness across
-      deployments follows from the full URI form.
+      Restates ActivityPub's identifier rule: an object's URI has an authority
+      belonging to the server that originated it, so that server keeps it unique and
+      uniqueness across deployments follows from the full URI form.
     verification: Inspection of `vultron/core/` confirms that ID generation embeds a UUID in full-URI form, guaranteeing
       uniqueness within the deployment.
     stories:
     - story_2022_029
     - story_2022_030
     tags:
-    - as2
+    - activitypub
   - id: OID-01-003
     priority: MUST
     kind: protocol

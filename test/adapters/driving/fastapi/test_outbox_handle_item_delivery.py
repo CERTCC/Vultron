@@ -43,6 +43,7 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.base import ACTIVITY_STREAMS_NS
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -187,8 +188,11 @@ def test_handle_outbox_item_delivers_an_activitystreams_activity():
 
     _deliver("actor-abc", sealed.activity_id, _dl_with(sealed), mock_emitter)
 
-    delivered = mock_emitter.emit.call_args.args[1]
-    parsed = parse_activity(json.loads(delivered))
+    delivered = json.loads(mock_emitter.emit.call_args.args[1])
+    context = delivered["@context"]
+    assert context == ACTIVITY_STREAMS_NS or ACTIVITY_STREAMS_NS in context
+    assert delivered["type"] == "Offer"
+    parsed = parse_activity(delivered)
     assert isinstance(parsed, as_Offer)
     assert parsed.id_ == offer.id_
 

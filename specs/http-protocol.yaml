@@ -79,9 +79,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IE-03-002
-    - rel_type: depends_on
+    - rel_type: constrains
       spec_id: IE-03-003
-      note: the HTTP 413 answer to a body over the limit is IE-03-003's, so this spec keeps only the limit (MS-12-010)
+      note: the limit decides when IE-03-003's 413 applies; the HTTP 413 answer to a body over the limit is IE-03-003's, so this spec keeps only the limit (MS-12-010)
     scope:
     - production
 - id: HTTP-03
@@ -230,8 +230,13 @@ groups:
     rationale: The ActivityStreams 2.0 specification defines `application/activity+json` as the normative media type for AS2
       documents. Using plain `application/json` is ambiguous for federation clients that discover capabilities via Content-Type.
       The previous requirement (`application/json` for all responses) is superseded by this entry.
-    verification: 'Integration test asserts that `GET /actors/{id}/profile` and `GET /cases/{id}` responses carry `Content-Type:
-      application/activity+json`.'
+    verification: >-
+      `test_get_actor_profile_is_served_as_activitystreams` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` and
+      `test_returns_the_published_policy_as_as2_json` in
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py` confirm
+      that an endpoint returning an ActivityStreams document answers with
+      `Content-Type: application/activity+json`.
     stories:
     - story_2022_040
     - story_2022_028

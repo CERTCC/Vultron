@@ -112,8 +112,9 @@ groups:
     verification: >-
       `test_handle_outbox_item_delivers_an_activitystreams_activity` in
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` confirms
-      that the body the outbox delivers for a factory-built activity parses as an
-      ActivityStreams activity.
+      that the body the outbox delivers for a factory-built activity carries the
+      ActivityStreams `@context` and a `type`, and parses as an ActivityStreams
+      activity.
     tags:
     - as2
   - id: OX-02-003

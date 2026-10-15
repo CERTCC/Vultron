@@ -109,8 +109,10 @@ groups:
     kind: foundation
     statement: The endpoint MUST validate Content-Type header
     verification: >-
-      Integration tests in `test/demo/` confirm that requests missing or carrying
-      an invalid Content-Type header are rejected before the activity is queued.
+      No check covers this yet: the inbox does not check `Content-Type` (#4666).
+      `test_inbox_body_with_a_non_as2_media_type_answers_415` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
+      until it does.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-01-001
@@ -121,8 +123,9 @@ groups:
     kind: project
     statement: The endpoint MUST enforce a configurable maximum request body size.
     verification: >-
-      Inspection of `vultron/adapters/driving/fastapi/` confirms that the
-      body-size limit is read from `AppConfig` rather than hard-coded.
+      No check covers this yet: the inbox enforces no request body size limit
+      (#4596). Once it does, inspection of `vultron/adapters/driving/fastapi/`
+      confirms that the limit is read from `AppConfig` rather than hard-coded.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-02-001
@@ -134,8 +137,10 @@ groups:
       Rejecting oversized payloads with an explicit 413 prevents resource exhaustion
       and signals the limit violation to the sender.
     verification: >-
-      Integration tests in `test/demo/` confirm that a request body exceeding the
-      configured maximum returns HTTP 413.
+      No check covers this yet: the inbox enforces no request body size limit
+      (#4596). `test_oversized_inbox_body_answers_413` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` is a strict `xfail`
+      until it does.
     relationships:
     - rel_type: refines
       spec_id: IE-03-002
@@ -457,7 +462,7 @@ groups:
       question, not the endpoint's.
     verification: >-
       `test/adapters/driving/fastapi/routers/actors/test_inbox.py` asserts that an
-      Activity naming the receiving actor only in `cc`, `bto`, or `bcc` passes the
+      Activity naming the receiving actor only in `to`, `cc`, `bto`, or `bcc` passes the
       addressing check and is accepted rather than refused. No demo scenario can
       exercise this, because Vultron emits no `cc`, `bto` or `bcc`.
     adr:
