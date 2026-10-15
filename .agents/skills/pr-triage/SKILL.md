@@ -99,7 +99,8 @@ review.
 `resolution`, recorded by `build`. Confirm the fix is on the PR head the way
 `pr-verify` spot-checks a claimed fix: the cited file and line now meet the
 finding, not just a commit touching the file. A finding whose fix is absent is
-re-emitted with its pre-push `id`. A `fix-now-file` finding also needs its
+re-emitted with its pre-push `id`; a finding with no `resolution` is checked
+the same way. A `fix-now-file` finding also needs its
 filed issue on the PR's closing list (Phase 2). Findings that check out are
 not re-emitted, so `pr-execute` sees only what still stands.
 
