@@ -65,6 +65,8 @@ from test.architecture._ledger_commit_inventory import (
 from vultron.core.models.events.base import MessageSemantics as MS
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+    UPDATE_CASE_OWNER_EVENT_TYPE,
+    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
 )
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
@@ -85,9 +87,10 @@ _ABANDONED = f"{MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
 REPLAYED: dict[str, dict[str, Any]] = {
     event_type: {"actor": MANAGER, "object": _EMBARGO}
     for event_type in (
-        MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value,
         "accept_case_participant_role",
         CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+        UPDATE_CASE_OWNER_EVENT_TYPE,
+        UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
         MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_CASE.value,
         MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
@@ -177,6 +180,12 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     "accept_actor_recommendation": _RECOMMENDATION,
     "reject_actor_recommendation": _RECOMMENDATION,
+    MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value: (
+        "records the received Accept and closes the ownership-transfer Offer;"
+        " each change it causes follows as the CASE_MANAGER's own entry, the"
+        " update_case_participant entries moving CASE_OWNER and the"
+        " update_case_owner entry naming the new owner (CLP-07-013, #4439)"
+    ),
     MS.REJECT_CASE_OWNERSHIP_TRANSFER.value: (
         "the transferee's decline closes the ownership-transfer Offer and"
         " changes no owner or role; the open state is read from the ledger"

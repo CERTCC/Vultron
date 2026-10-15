@@ -26,6 +26,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
     as_Remove,
+    as_Update,
 )
 from vultron.wire.as2.vocab.base.utils import name_of
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -114,3 +115,21 @@ class _RemoveParticipantFromCaseActivity(as_Remove):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+
+
+class _UpdateParticipantActivity(as_Update):
+    """Update a as_CaseParticipant.
+
+    Reserved as the snapshot shape of a CASE_MANAGER-authored ledger entry
+    recording a change to a participant record, such as a ``CASE_OWNER`` role
+    moving on an ownership transfer (CLP-07-013). It is not a message any
+    actor sends: it has no ``ActivityPattern`` and no ``MessageSemantics``,
+    so an inbox refuses a received one as unrecognized, as it does the case's
+    ``Update`` (#4443). Do not add a received route.
+
+    object_: as_CaseParticipant
+    """
+
+    object_: as_CaseParticipant = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )

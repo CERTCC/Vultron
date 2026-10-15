@@ -442,8 +442,9 @@ def _phase_ownership_handoff(
 
     # The transfer reaches a replica in two hops: Accept → CaseActor inbox →
     # AcceptOwnershipTransferBT commit (CM-21-007), then CaseActor outbox →
-    # Announce(CaseLedgerEntry) → each participant's
-    # ApplyOwnershipTransferFromLedgerNode.  Nothing else updates a replica —
+    # Announce(CaseLedgerEntry) of the CASE_MANAGER's own update_case_participant
+    # and update_case_owner entries that follow the Accept (CLP-07-013) → each
+    # participant copies them.  Nothing else updates a replica —
     # the CaseActor's own node writes only the CaseActor's store (ADR-0073), so
     # Vendor1 learns of its own loss of ownership from the fan-out like anyone
     # else.  Gate on the commit first, read from the CaseActor's own store, so

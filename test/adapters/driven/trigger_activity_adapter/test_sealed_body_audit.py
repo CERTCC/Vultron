@@ -69,12 +69,16 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/actors/case-actor"
+#: The act an ``Update`` record follows (an accepted ownership-transfer Offer).
+_CAUSE_ID = "https://example.org/activities/accepted-offer"
 
 #: Ledger records that carry the case as stored, its participants and reports
 #: by id: each of those has an entry of its own, so a replica copying the
 #: record holds the case as the CASE_MANAGER does (ADR-0124).  A record is no
 #: message, so it seeds no recipient (CBT-01-012 does not apply).
-_CASE_AS_STORED = frozenset({"record_case_created"})
+_CASE_AS_STORED = frozenset(
+    {"record_case_created", "record_case_owner_updated"}
+)
 
 #: Port methods that build a domain *object*, not an outbound activity.
 _NOT_AN_ACTIVITY = frozenset({"create_note", "requeue_embargo_refusal"})
@@ -310,6 +314,17 @@ RECIPES: dict[str, Recipe] = {
         w.adapter.record_case_participant_created(
             participant=w.participant, case_id=w.case_id, actor=_CASE_ACTOR
         )
+    ),
+    "record_case_participant_updated": lambda w: (
+        w.adapter.record_case_participant_updated(
+            participant=w.participant,
+            case_id=w.case_id,
+            actor=_CASE_ACTOR,
+            cause_id=_CAUSE_ID,
+        )
+    ),
+    "record_case_owner_updated": lambda w: w.adapter.record_case_owner_updated(
+        case_id=w.case_id, actor=_CASE_ACTOR, cause_id=_CAUSE_ID
     ),
     "record_case_announced": lambda w: w.adapter.record_case_announced(
         case_id=w.case_id,

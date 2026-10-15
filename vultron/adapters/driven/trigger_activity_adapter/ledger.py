@@ -45,6 +45,8 @@ from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     create_case_activity,
     create_participant_activity,
+    update_case_activity,
+    update_participant_activity,
 )
 from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
@@ -161,6 +163,44 @@ class _LedgerRecordsMixin:
             context=case_id,
             id_=derived_activity_id(
                 "case-participant-created", actor, participant.id_
+            ),
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_case_participant_updated(
+        self,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """Build and seal ``Update(CaseParticipant)``, the record in full."""
+        activity = update_participant_activity(
+            participant=participant,
+            actor=actor,
+            context=case_id,
+            id_=derived_activity_id(
+                "case-participant-updated", actor, cause_id, participant.id_
+            ),
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_case_owner_updated(
+        self,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """Build and seal ``Update(VulnerabilityCase)`` naming the new owner."""
+        # The case as stored, its participants by id: each changed record is
+        # carried in full by its own ``update_case_participant`` entry
+        # (ADR-0124), as for the genesis ``Create``.
+        activity = update_case_activity(
+            case=_stored_case(self._dl, case_id),
+            actor=actor,
+            context=case_id,
+            id_=derived_activity_id(
+                "case-owner-updated", actor, cause_id, case_id
             ),
         )
         return _seal_record(self._dl, activity)

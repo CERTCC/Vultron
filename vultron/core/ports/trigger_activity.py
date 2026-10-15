@@ -574,6 +574,35 @@ class TriggerActivityPort(Protocol):
         """``Create(CaseParticipant)`` (``create_case_participant``), the record as stored."""
         ...
 
+    def record_case_participant_updated(
+        self,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(CaseParticipant)`` (``update_case_participant``), the record as stored.
+
+        *cause_id* names the act the change follows, such as the accepted
+        ownership-transfer Offer; the id is derived from it and the record,
+        so one act's change to one record is one entry.
+        """
+        ...
+
+    def record_case_owner_updated(
+        self,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(VulnerabilityCase)`` (``update_case_owner``), the case as stored.
+
+        Records the case's new ``attributed_to`` after an ownership transfer
+        (CM-21-002).  *cause_id* names the act the change follows, as for
+        :meth:`record_case_participant_updated`.
+        """
+        ...
+
     def record_case_announced(
         self,
         case_id: str,

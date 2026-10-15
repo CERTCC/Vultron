@@ -41,6 +41,9 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.participant_event_types import (
+    UPDATE_CASE_OWNER_EVENT_TYPE,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -102,8 +105,17 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
         case_id=CASE_ID,
         log_index=0,
         object_id="https://example.org/activities/ownership-0",
-        event_type="accept_case_ownership_transfer",
-        payload_snapshot={"actor": NEW_OWNER_ACTOR_ID},
+        # The CASE_MANAGER's own record of the new owner, which follows the
+        # Accept and carries the case (CLP-07-013, #4439).
+        event_type=UPDATE_CASE_OWNER_EVENT_TYPE,
+        payload_snapshot={
+            "type": "Update",
+            "object": {
+                "id": CASE_ID,
+                "type": "VulnerabilityCase",
+                "attributedTo": NEW_OWNER_ACTOR_ID,
+            },
+        },
         prev_log_hash=prev_hash,
     )
 
@@ -149,7 +161,7 @@ def test_report_replicated_to_post_transfer_participant(
     """Report IS present on the replica after processing the replicated stream.
 
     The post-transfer participant replays the canonical ledger stream:
-      1. accept_case_ownership_transfer  (attributed_to -> new owner)
+      1. update_case_owner               (attributed_to -> new owner)
       2. add_report_to_case              (report backfill, #2187)
     After (2), the VulnerabilityReport MUST be readable from the replica's
     DataLayer, otherwise validate-report 404s (#2193).

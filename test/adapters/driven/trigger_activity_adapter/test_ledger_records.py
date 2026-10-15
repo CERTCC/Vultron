@@ -122,6 +122,17 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 participant=participant, case_id=CASE_ID, actor=CASE_ACTOR_ID
             )
         ),
+        "record_case_participant_updated": lambda a: (
+            a.record_case_participant_updated(
+                participant=participant,
+                case_id=CASE_ID,
+                actor=CASE_ACTOR_ID,
+                cause_id=OFFER_ID,
+            )
+        ),
+        "record_case_owner_updated": lambda a: a.record_case_owner_updated(
+            case_id=CASE_ID, actor=CASE_ACTOR_ID, cause_id=OFFER_ID
+        ),
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
@@ -153,6 +164,16 @@ _SHAPES: dict[str, tuple[str, str, str]] = {
         "Create",
         "CaseParticipant",
         "create_case_participant",
+    ),
+    "record_case_participant_updated": (
+        "Update",
+        "CaseParticipant",
+        "update_case_participant",
+    ),
+    "record_case_owner_updated": (
+        "Update",
+        "VulnerabilityCase",
+        "update_case_owner",
     ),
     "record_case_announced": ("Announce", "VulnerabilityCase", "demo_event"),
 }
@@ -223,6 +244,8 @@ def test_a_rerun_hands_back_the_body_first_sealed(adapter, recipes, method):
         "record_report_added_to_case",
         "record_participant_status_added",
         "record_case_status_added",
+        "record_case_participant_updated",
+        "record_case_owner_updated",
     ],
 )
 def test_the_object_revalidates_through_its_wire_class(

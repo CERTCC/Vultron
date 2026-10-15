@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Replica replay of the CASE_MANAGER's creation of a participant record.
+"""Replica replay of the CASE_MANAGER's own participant-record entries.
 
 The ledger holds the wire messages exchanged (ADR-0114).  Creating the inert
 record is the CASE_MANAGER's own act, with no wire message of its own, so it has
@@ -21,7 +21,14 @@ CLP-15-007) and reconstructs nothing: no id, time, status or consent row is
 derived here.  The changes the invitee's reply makes to the record are the
 effect of the reply's own entry (``stub_reply_effect``).
 
-Per CM-11-006, SYNC-02-002, SYNC-12-001, RSH-08-004.
+A change the CASE_MANAGER makes to a record as the consequence of an act, such
+as moving ``CASE_OWNER`` on an ownership transfer, is its own
+``update_case_participant`` entry carrying the changed record in full
+(CLP-07-013).  A replica stores that copy in place of the one it holds
+(CM-23-016): no role, id or time is derived here either.
+
+Per CM-11-006, CM-21-002, CM-21-003, CM-23-016, SYNC-02-002, SYNC-12-001,
+RSH-08-004.
 """
 
 from __future__ import annotations
@@ -112,5 +119,55 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             self.name,
             record.id_,
             entry.case_id,
+        )
+        return Status.SUCCESS
+
+
+class ApplyCaseParticipantUpdateFromLedgerNode(_LedgerEffectNode):
+    """Store the changed record an ``update_case_participant`` entry carries.
+
+    The carried record replaces the replica's copy of it, as the CASE_MANAGER
+    stored it (CM-23-016).  Lenient on a replica that holds no copy of the
+    case (Regime 2, ADR-0087), or none of the record, which it then learns
+    with the roster entry that seats it; both are SUCCESS with nothing
+    written.  An entry whose object is not a valid ``CaseParticipant`` fails
+    with a reason, so it is not persisted (SYNC-12-001).
+    """
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = self._get_entry()
+        record = _carried_participant(self, entry.payload_snapshot)
+        if record is None:
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
+
+        case = self._resolve_case_replica(entry.case_id)
+        if case is None:
+            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
+
+        held = _record_held(self, case, record)
+        if held is None or held.id_ != record.id_:
+            self.logger.warning(
+                "%s: case '%s' holds no record '%s' for '%s' — skipping the"
+                " update (non-fatal)",
+                self.name,
+                entry.case_id,
+                record.id_,
+                record.attributed_to,
+            )
+            return Status.SUCCESS
+
+        self.datalayer.save(record)
+        self.logger.info(
+            "%s: stored participant '%s' of case '%s' as the entry carries it"
+            " (roles %s; CM-23-016)",
+            self.name,
+            record.id_,
+            entry.case_id,
+            [role.value for role in record.case_roles],
         )
         return Status.SUCCESS

@@ -35,6 +35,8 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+    UPDATE_CASE_OWNER_EVENT_TYPE,
+    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
 )
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
@@ -58,7 +60,6 @@ _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _CREATE_NOTE_EVENT = MessageSemantics.CREATE_NOTE.value
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
-_ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
 # The revision relay's event types (EP-09-007, ADR-0113).  The proposal and
 # each relayed Invite share one event type and are told apart by authorship:
 # see :func:`is_relayed_embargo_invite`.
@@ -238,6 +239,20 @@ class IsCreateCaseParticipantEventNode(_SingleEventTypeNode):
     matched_event_type = CREATE_CASE_PARTICIPANT_EVENT_TYPE
 
 
+class IsUpdateCaseParticipantEventNode(_SingleEventTypeNode):
+    """Precondition: SUCCESS when this log entry IS an ``update_case_participant``.
+
+    Precondition of the ``UpdateCaseParticipant`` slot.  The CASE_MANAGER
+    commits it for each participant record an act of its own changes, such
+    as the ``CASE_OWNER`` role moving on an ownership transfer (CM-21-002,
+    CM-21-003, CLP-07-013).
+
+    Per BTND-08-001, CM-23-016, SYNC-12-001, RSH-08-004.
+    """
+
+    matched_event_type = UPDATE_CASE_PARTICIPANT_EVENT_TYPE
+
+
 class IsInviteAcceptEventNode(_SingleEventTypeNode):
     """Precondition: SUCCESS when this log entry IS the invitee's stub Accept.
 
@@ -288,7 +303,12 @@ class IsSubmitReportEventNode(_SingleEventTypeNode):
 
 
 class IsOwnershipTransferEventNode(_SingleEventTypeNode):
-    """Precondition: return SUCCESS when this log entry IS an ownership-transfer event.
+    """Precondition: return SUCCESS when this log entry names a new Case Owner.
+
+    The ``update_case_owner`` entry the CASE_MANAGER commits after the
+    ``Accept`` of an ownership transfer, carrying the case with its new
+    ``attributed_to`` (CM-21-002, CLP-07-013).  The ``Accept`` entry itself
+    moves nothing on a replica: each change it causes is its own entry.
 
     Used as the precondition in the ``OwnershipTransferEffects`` Selector's
     inner Sequence in ``AnnounceLogEntryReceivedBT``::
@@ -308,7 +328,7 @@ class IsOwnershipTransferEventNode(_SingleEventTypeNode):
     Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-002, SYNC-12-001.
     """
 
-    matched_event_type = _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT
+    matched_event_type = UPDATE_CASE_OWNER_EVENT_TYPE
 
 
 def is_relayed_embargo_invite(

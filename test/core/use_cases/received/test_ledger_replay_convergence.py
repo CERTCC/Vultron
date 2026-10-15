@@ -88,23 +88,8 @@ def _send(net: LedgerNetwork, activity: Any) -> None:
 
 
 def _replay(net: LedgerNetwork, replica: str) -> list[str]:
-    """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that.
-
-    Returns the event types delivered, in chain order.
-    """
-    event_types = []
-    for activity in net.queued(MANAGER, to=replica, type_="Announce"):
-        body = read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {}
-        entry = body.get("object") or {}
-        if entry.get("type") != "CaseLedgerEntry":
-            continue
-        verdict = net.receive(replica, body)
-        assert verdict.disposition is HandlerDisposition.APPLIED, (
-            entry.get("eventType"),
-            verdict.reason,
-        )
-        event_types.append(entry["eventType"])
-    return event_types
+    """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that."""
+    return net.replay_ledger(replica)
 
 
 def _ledger(net: LedgerNetwork, actor_id: str) -> list[str]:

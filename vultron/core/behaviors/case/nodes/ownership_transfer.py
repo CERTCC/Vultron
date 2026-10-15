@@ -26,8 +26,9 @@ Provides:
   :class:`EmitWithdrawCaseOwnershipTransferNode` — the replies to an Offer,
   defined in ``ownership_offer_reply_emit.py`` and re-exported here.
 - :class:`AcceptCaseOwnershipTransferNode` — applies the accepted
-  ownership transfer to the DataLayer: updates ``case.attributed_to``
-  and grants ``CVDRole.CASE_OWNER`` to the new owner's participant record.
+  ownership transfer to the DataLayer: updates ``case.attributed_to``,
+  moves ``CVDRole.CASE_OWNER`` to the new owner's participant record, and
+  commits each changed object as its own ledger entry (CLP-07-013).
 - :class:`ForwardOfferToTransfereeNode` — CaseActor-only effect node that
   builds a new ``Offer(VulnerabilityCase)`` addressed to the transferee and
   queues it in the CaseActor's outbox (CM-21-005, ADR-0053).
@@ -39,7 +40,7 @@ BTND-07-003.
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from py_trees.common import Status
 
@@ -54,13 +55,22 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_event_types import (
+    UPDATE_CASE_OWNER_EVENT_TYPE,
+    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.ownership_offer import recorded_ownership_offer
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +232,11 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     2. Applying all role changes in memory.
     3. Committing every mutated object in a single ``save_many`` call so
        no partial state is ever visible to other readers.
+    4. Recording each changed object as its own CASE_MANAGER-authored ledger
+       entry, after the ``Accept`` entry the commit tree wrote (CLP-07-013,
+       ADR-0124): the previous owner's participant record, the new owner's,
+       then the case.  Each entry is an ``Update`` carrying the object in
+       full, so a replica copies it and derives nothing (CM-23-016).
 
     Specifically:
 
@@ -236,13 +251,21 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     ``CaseParticipant.case_roles`` — not ``attributed_to`` — so both fields
     must be kept in sync (CM-21-002).
 
+    The entries are recorded in that order so no replica holds two owners
+    between them (CM-21-001).  A participant record the case does not index
+    is not changed, so it has no entry.
+
     Idempotent: when the case is already owned by the new owner, returns
     ``SUCCESS`` without mutation.
 
     Returns ``FAILURE`` when the DataLayer is unavailable or the case is not
-    found, or when the new owner cannot be named; ``SUCCESS`` otherwise.
+    found, when the new owner cannot be named, or when an entry does not
+    commit; ``SUCCESS`` otherwise.  A missing trigger-activity port raises
+    before anything is written: without it no entry can be built
+    (ARCH-15-001).
 
-    Subclasses name the new owner through :meth:`_new_owner_id`.
+    Subclasses name the new owner through :meth:`_new_owner_id`, and the act
+    the entries follow through :meth:`_cause_id`.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -254,6 +277,14 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
 
         Raises:
             VultronNotFoundError: the new owner cannot be named.
+        """
+        raise NotImplementedError
+
+    def _cause_id(self) -> str:
+        """The act the consequence entries follow; their ids derive from it.
+
+        One transfer's change to one object is one entry, so a re-run names
+        the entry its first run committed (ID-04-004).
         """
         raise NotImplementedError
 
@@ -319,6 +350,10 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.SUCCESS
 
+        # Every change gets an entry, so the port that builds them must be
+        # here before anything is written (CLP-07-013).
+        trigger_activity = self._require_trigger_activity_port()
+
         # --- Read phase: collect every object that must change ---------------
         to_save: list[Any] = []
 
@@ -371,23 +406,84 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             len(to_save),
         )
 
+        # --- Record phase: one entry per changed object (CLP-07-013) ---------
+        try:
+            self._record_consequences(
+                trigger_activity,
+                [p for p in (old_participant, new_participant) if p],
+            )
+        except RuntimeError as exc:
+            self.feedback_message = f"{self.name}: {exc}"
+            self.logger.exception("%s", self.feedback_message)
+            return Status.FAILURE
         return Status.SUCCESS
+
+    def _record_consequences(
+        self,
+        trigger_activity: "TriggerActivityPort",
+        participants: list[CaseParticipant],
+    ) -> None:
+        """Commit each changed participant record, then the case.
+
+        Raises:
+            RuntimeError: an entry did not commit (see
+                :func:`~vultron.core.behaviors.sync.commit_tree.commit_emitted_activity`).
+        """
+        actor_id = cast(str, self.actor_id)
+        cause_id = self._cause_id()
+        for participant in participants:
+            self._commit(
+                UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+                trigger_activity.record_case_participant_updated(
+                    participant=participant,
+                    case_id=self.case_id,
+                    actor=actor_id,
+                    cause_id=cause_id,
+                ),
+            )
+        self._commit(
+            UPDATE_CASE_OWNER_EVENT_TYPE,
+            trigger_activity.record_case_owner_updated(
+                case_id=self.case_id, actor=actor_id, cause_id=cause_id
+            ),
+        )
+
+    def _commit(self, event_type: str, built: tuple[str, str]) -> None:
+        """Commit one built ``(activity_id, sealed_blob)`` as *event_type*."""
+        activity_id, blob = built
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=cast(str, self.actor_id),
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=blob,
+            event_type=event_type,
+        )
 
 
 class AcceptCaseOwnershipTransferNode(_TransferCaseOwnershipNode):
-    """Transfer the case's ownership to a named actor (CM-21-001 – CM-21-004)."""
+    """Transfer the case's ownership to a named actor (CM-21-001 – CM-21-004).
+
+    *cause_id* names the act the transfer answers, from which the
+    consequence entries' ids derive (see :meth:`_cause_id`).
+    """
 
     def __init__(
         self,
         case_id: str,
         new_owner_id: str,
+        cause_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self.new_owner_id = new_owner_id
+        self.cause_id = cause_id
 
     def _new_owner_id(self) -> str:
         return self.new_owner_id
+
+    def _cause_id(self) -> str:
+        return self.cause_id
 
 
 class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
@@ -396,7 +492,8 @@ class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
     The new owner is read from the ownership-transfer Offer the CASE_MANAGER
     recorded, which *offer_id* names directly or through its forward
     (CM-21-005), never from the sender of the Accept (CM-21-011).  Runs only
-    at the CASE_MANAGER, so the executing actor is the Offer's issuer.
+    at the CASE_MANAGER, so the executing actor is the Offer's issuer.  The
+    consequence entries follow the Offer the Accept names.
     """
 
     def __init__(
@@ -417,6 +514,10 @@ class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
         return recorded_ownership_offer(
             self.datalayer, self.case_id, self.offer_id, self.actor_id
         ).transferee_id
+
+    def _cause_id(self) -> str:
+        # _new_owner_id already refused an Accept naming no Offer.
+        return cast(str, self.offer_id)
 
 
 __all__ = [
