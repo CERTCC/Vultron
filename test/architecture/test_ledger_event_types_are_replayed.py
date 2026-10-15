@@ -208,6 +208,10 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " it moves no case state, like Offer(CaseParticipant) (SE-08-003,"
         " #3764)"
     ),
+    "reject_case_participant_role": (
+        "a Reject closes the role offer without granting the role; it moves"
+        " no case state a replica holds (ADR-0039, #4588)"
+    ),
 }
 
 #: Replayed ahead of the commit that will produce them (event type → issue).

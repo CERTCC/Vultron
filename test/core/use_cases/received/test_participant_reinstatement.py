@@ -94,6 +94,12 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
 )
+from vultron.core.use_cases.received.actor.suggest import (
+    OfferActorToCaseReceivedUseCase,
+)
+from vultron.core.use_cases.received.case_participant import (
+    AddCaseParticipantToCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
@@ -342,6 +348,7 @@ def test_failed_fact_write_after_commit_is_an_internal_error(
 @pytest.mark.spec("RSH-08-003")
 def test_every_write_in_the_received_tree_is_case_manager_gated() -> None:
     tree = create_add_case_participant_received_tree(
+        sender_rule=AddCaseParticipantToCaseReceivedUseCase.sender_entitlement,
         participant_id=_participant_id(VENDOR),
         case_id=CASE_ID,
         sender_id=OWNER,
@@ -873,7 +880,10 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
         "case_id": CASE_ID,
     }
     if factory is create_recommend_actor_to_case_received_tree:
-        kwargs["recommended_id"] = VENDOR
+        kwargs |= {
+            "recommended_id": VENDOR,
+            "sender_rule": OfferActorToCaseReceivedUseCase.sender_entitlement,
+        }
     else:
         kwargs |= {
             "invitee_id": VENDOR,

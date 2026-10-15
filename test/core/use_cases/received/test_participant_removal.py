@@ -59,6 +59,9 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received.case_participant import (
+    RemoveCaseParticipantFromCaseReceivedUseCase,
+)
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     reject_log_entry_activity,
@@ -419,6 +422,7 @@ def test_replica_applies_the_removal_from_its_ledger_entry(
 def test_every_write_in_the_received_tree_is_case_manager_gated() -> None:
     """Structurally: the effect node sits under the CASE_MANAGER gate."""
     tree = create_remove_case_participant_received_tree(
+        sender_rule=RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement,
         participant_id=_participant_id(VENDOR),
         case_id=CASE_ID,
         sender_id=OWNER,

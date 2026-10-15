@@ -385,7 +385,7 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     stage = tree.children[2]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
-        "SenderIsActiveParticipantNode",
+        "SenderIsParticipantNode",
         "AdjudicateRMDeclarationNode",
     ]
     assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
@@ -421,7 +421,7 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     # The case must not be fully closed at the CASE_MANAGER (CM-23-013) ...
     assert tree.children[1].name == "CaseOpenToExternalWrites"
     # The sender must be a participant (HP-01-006) ...
-    assert tree.children[2].name == "SenderIsActiveParticipantNode"
+    assert tree.children[2].name == "SenderIsParticipantNode"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage that notes a refused regression
     # (CLP-10-022)

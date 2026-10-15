@@ -58,7 +58,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    any_of,
     exempt,
 )
 
@@ -418,9 +417,8 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     # The transferee is the addressee of the Offer (ADR-0129), checked at the
     # CASE_MANAGER against the Offer it recorded; a replica takes the change
     # from the CASE_MANAGER alone (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR),
-        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -484,9 +482,8 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     """
 
     # The same two-sided transferee rule as the Accept (ADR-0129).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR),
-        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -548,9 +545,8 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     # The offerer, which must still be the Case Owner (CM-21-015), checked at
     # the CASE_MANAGER against the Offer it recorded; a replica takes the
     # withdrawal from the CASE_MANAGER alone (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER),
-        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
