@@ -95,7 +95,11 @@ The [CASE_MANAGER](../../../topics/case_lifecycle/case_manager_and_ledger.md) ro
 |---|---|
 | `Offer(CaseParticipantRole)` | The target holds an `Offer` carrying a `CaseParticipantRole`. |
 | `Accept(Offer(CaseParticipantRole))` | Your `CaseParticipant` record lists the new role. |
-| `Reject(Offer(CaseParticipantRole))` | Your roles are unchanged and the refusal is recorded. |
+| `Reject(Offer(CaseParticipantRole))` | Your roles are unchanged and the offering actor holds your `Reject`. |
+
+Only the Case Manager writes to the case ledger.
+If you hold the Case Manager role on the case, your `Accept` or `Reject` is also a ledger entry.
+If you do not, your answer adds no entry to your copy of the ledger.
 
 ---
 
