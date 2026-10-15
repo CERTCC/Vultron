@@ -29,7 +29,7 @@ The second rule keeps the vocabulary unambiguous: if two activities had the same
 
 These rules have a visible cost.
 Where the formal protocol distinguishes several messages, the wire vocabulary often carries one activity and distinguishes them by payload.
-The `CP`, `CX`, and `CA` messages all ride a single `Add(CaseStatus)[target=VulnerabilityCase]`, discriminated by the `pxa_state` field rather than by the verb (MSM-03-004 through MSM-03-006).
+The `CP`, `CX`, and `CA` messages all ride a single `Add(CaseStatus)[target=VulnerabilityCase]`, discriminated by the `pxaState` field rather than by the verb (MSM-03-004 through MSM-03-006).
 Minting three Vultron-specific activities for those three messages would have added vocabulary where ActivityStreams already supplies an adequate verb.
 
 We accepted that cost deliberately.
@@ -163,7 +163,7 @@ Read against the wire vocabulary, the split is a real distinction that the proto
 
 The two forms are separate messages with separate handlers.
 `Create(Note)` is recognized by its verb and object alone; `Add(Note)` and `Add(CaseStatus)` are recognized by their `target` naming the case.
-The state change of a status — applying the new `pxa_state` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
+The state change of a status — applying the new `pxaState` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
 An activity that tries to be both, such as an `Add(CaseStatus)` that names the case in `context` and has no `target`, matches no pattern.
 It does not collapse two messages into one; it dispatches as unrecognized, and the state change never happens.
 

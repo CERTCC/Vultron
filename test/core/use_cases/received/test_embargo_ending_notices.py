@@ -358,7 +358,7 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
     revision = manager.stage_revision(end_in_days=30)
     case = manager.dl.read(CASE_ID)
     assert isinstance(case, as_VulnerabilityCase)
-    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
     manager.dl.save(case)
     invite = em_propose_embargo_activity(
         revision,

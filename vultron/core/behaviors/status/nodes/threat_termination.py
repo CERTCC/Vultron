@@ -41,6 +41,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import dimension_state
 from vultron.core.models.embargo_termination import (
     ThreatSignal,
     ThreatSignalTermination,
@@ -57,15 +58,10 @@ logger = logging.getLogger(__name__)
 def read_pxa_state(case_status: object) -> object | None:
     """Return the raw PXA state carried by *case_status*, or None.
 
-    Reads ``case_status.pxa.state`` when the object has a ``pxa``
-    attribute (a ``None`` ``pxa`` yields None), else ``pxa_state``.
+    Reads ``case_status.pxa.state``; an object with no ``pxa`` attribute,
+    or a ``None`` ``pxa``, yields None.
     """
-    if case_status is None:
-        return None
-    if hasattr(case_status, "pxa"):
-        pxa = getattr(case_status, "pxa", None)
-        return None if pxa is None else pxa.state
-    return getattr(case_status, "pxa_state", None)
+    return dimension_state(case_status, "pxa")
 
 
 def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
@@ -177,11 +173,7 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         # EmitCaseStatusUpdateNode has already written the post-mutation
         # state), read case.current_status from the DataLayer.
         if self.use_datalayer_fallback and (
-            case_status is None
-            or (
-                not hasattr(case_status, "pxa")
-                and not hasattr(case_status, "pxa_state")
-            )
+            case_status is None or not hasattr(case_status, "pxa")
         ):
             case_status = self._case_status_from_datalayer()
 

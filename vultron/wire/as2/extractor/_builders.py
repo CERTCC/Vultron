@@ -27,6 +27,7 @@ from vultron.core.models.dimensions import (
     PxaDimension,
     RmDimension,
     VfDimension,
+    dimension_state,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VOtype
@@ -614,11 +615,9 @@ def _build_case_status_object(obj: object) -> dict[str, Any]:
                 name=getattr(obj, "name", None),
                 context=case_context,
                 attributed_to=attributed_to,
-                em=EmDimension(
-                    state=_coerce_em(getattr(obj, "em_state", None))
-                ),
+                em=EmDimension(state=_coerce_em(dimension_state(obj, "em"))),
                 pxa=PxaDimension(
-                    state=_coerce_pxa(getattr(obj, "pxa_state", None))
+                    state=_coerce_pxa(dimension_state(obj, "pxa"))
                 ),
                 published=_get_timestamp(obj, "published"),
                 updated=_get_timestamp(obj, "updated"),
@@ -650,12 +649,12 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     attributed_to=cs_attributed_to,
                     em=EmDimension(
                         state=_coerce_em(
-                            getattr(wire_case_status, "em_state", None)
+                            dimension_state(wire_case_status, "em")
                         )
                     ),
                     pxa=PxaDimension(
                         state=_coerce_pxa(
-                            getattr(wire_case_status, "pxa_state", None)
+                            dimension_state(wire_case_status, "pxa")
                         )
                     ),
                     published=_get_timestamp(wire_case_status, "published"),

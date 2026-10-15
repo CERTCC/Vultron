@@ -56,7 +56,7 @@ class ValidateEmbargoRevisionStateNode(DataLayerActionWithPorts):
     require an active embargo; use propose-embargo for initial proposals.
 
     Uses ``ReadEmStateNode`` to read the EM state (AC-1 of issue #1474) rather
-    than reading ``case.current_status.em_state`` inline.
+    than reading ``case.em_state`` inline.
     """
 
     def __init__(

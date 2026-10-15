@@ -679,7 +679,7 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
     )
     case = cast(VulnerabilityCase, dl.read(case_id))
-    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
     dl.save(case)
 
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)

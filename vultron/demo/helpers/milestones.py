@@ -104,10 +104,10 @@ def verify_case_active(
             "verify_case_active: expected a Case Actor participant in addition"
             " to receiver and reporter"
         )
-    if not is_em_embargo_active(case.current_status.em_state):
+    if not is_em_embargo_active(case.em_state):
         raise AssertionError(
             f"verify_case_active receiver: expected EM.ACTIVE, found"
-            f" {case.current_status.em_state}"
+            f" {case.em_state}"
         )
     logger.info(
         "✓ case active (receiver): required participants (receiver,"

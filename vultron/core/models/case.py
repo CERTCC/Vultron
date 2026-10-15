@@ -462,22 +462,34 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         # EM is the register's, never the appended status's (ADR-0122).
         self._stamp_em()
 
-    def append_case_status(self, **kwargs: Any) -> None:
+    def append_case_status(self, **updates: Any) -> None:
         """Append a new CaseStatus derived from the current one with fields overridden.
 
-        Inherits all fields from ``current_status`` then applies ``kwargs``,
-        so passing ``pxa_state=CS_pxa.Pxa`` keeps every other dimension.
-        Timestamps are bumped to ensure the new entry sorts as
-        ``current_status``.  EM is not a status field to set: it is derived
-        from the embargo register (ADR-0122), so ``em_state`` is refused.
+        Inherits all fields from ``current_status`` then assigns each of
+        *updates* by its ``CaseStatus`` field name, so passing
+        ``pxa=CS_pxa.Pxa`` (or a ``PxaDimension``) keeps every other
+        dimension.  Each assignment is validated (ARCH-21-001).  The new
+        entry gets a fresh ``id_`` and a ``name`` derived from its own states
+        unless one is passed.  Timestamps are bumped to ensure the new entry
+        sorts as ``current_status``.  EM is
+        not a status field to set: it is derived from the embargo register
+        (ADR-0122), so ``em`` is refused.
 
         Raises:
-            VultronValidationError: when ``em_state`` is passed.
+            VultronValidationError: when ``em`` is passed, or when a keyword
+                names no ``CaseStatus`` field (the retired flat spellings
+                ``pxa_state`` / ``em_state`` included, SDO-03-003).
         """
-        if "em_state" in kwargs:
+        if "em" in updates:
             raise VultronValidationError(
                 "append_case_status: EM is derived from the embargo register"
                 " (ADR-0122); change the register instead of the status."
+            )
+        unknown = sorted(set(updates) - set(CaseStatus.model_fields))
+        if unknown:
+            raise VultronValidationError(
+                f"append_case_status: {', '.join(unknown)} names no"
+                " CaseStatus field"
             )
         current = self.current_status
         latest = current.updated or current.published
@@ -485,33 +497,22 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         if latest is not None and latest >= now:
             now = latest + timedelta(microseconds=1)
 
-        # Map the flat pxa kwarg to its nested dimension so that model_copy
-        # (which does not re-run validators) applies it correctly.
-        pxa_update: dict = {}
-        passthrough: dict = {}
-        for k, v in kwargs.items():
-            if k == "pxa_state":
-                pxa_update["state"] = v
-            else:
-                passthrough[k] = v
-
-        pxa = (
-            current.pxa.model_copy(update=pxa_update)
-            if pxa_update
-            else current.pxa
-        )
-
-        self.add_case_status(
-            current.model_copy(
-                update={
-                    **passthrough,
-                    "pxa": pxa,
-                    "context": self.id_,
-                    "published": now,
-                    "updated": now,
-                }
-            )
-        )
+        # The new entry is its own status: a fresh ``id_``, and a ``name``
+        # left unset so ``CaseStatus._set_name`` re-derives the label from
+        # the new states on the first assignment below (an explicit ``name``
+        # in *updates* still wins).  ``model_copy`` does not validate its
+        # update, so the overrides are assigned one by one under
+        # ``validate_assignment`` instead, and the case context and bumped
+        # timestamps are assigned last so that they always win.
+        status = current.model_copy(update={"id_": _new_urn(), "name": None})
+        for name, value in {
+            **updates,
+            "context": self.id_,
+            "published": now,
+            "updated": now,
+        }.items():
+            setattr(status, name, value)
+        self.add_case_status(status)
 
     # ------------------------------------------------------------------
     # Embargo register (ADR-0122)
