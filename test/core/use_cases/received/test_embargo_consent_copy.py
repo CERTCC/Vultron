@@ -117,6 +117,21 @@ def _announcements(net: LedgerNetwork, replica: str) -> list[dict[str, Any]]:
     return bodies
 
 
+def _drop_row(net: LedgerNetwork, holder: str, actor_id: str) -> None:
+    """Make *holder*'s copy of *actor_id*'s record lose its consent row.
+
+    A diverged replica: an ``Update`` of that row then has no row to start
+    from, whatever state it carries.
+    """
+    record = _record(net, holder, actor_id)
+    record.embargo_consents = [
+        row
+        for row in record.embargo_consents
+        if row.embargo_id != net.initial_embargo_id
+    ]
+    net.stores[holder].save(record)
+
+
 def _rows(record: CaseParticipant) -> list[dict[str, Any]]:
     return [row.model_dump(mode="json") for row in record.embargo_consents]
 
@@ -239,15 +254,14 @@ class TestReplicaCopies:
     def test_an_entry_that_does_not_apply_is_held_for_gap_handling(self):
         """AC-4: refused into ``LedgerGapBuffer``, never patched over.
 
-        The replica's row has diverged from the CASE_MANAGER's (it already
-        reads ``DECLINED``), so the entry moving ``AGREED`` to ``DECLINED``
-        does not start where this replica's case is.
+        The replica's record has diverged from the CASE_MANAGER's (it lost
+        its row), so the entry updating that row does not start where this
+        replica's case is.
         """
         net = _net("cc-gap")
         replica = net.stores[BYSTANDER]
+        _drop_row(net, BYSTANDER, BYSTANDER)
         diverged = _record(net, BYSTANDER, BYSTANDER)
-        diverged.copy_consent_row(_row_change(net, BYSTANDER, _S.DECLINED).row)
-        replica.save(diverged)
         commit_and_apply_embargo_entries(
             net.stores[MANAGER],
             net.case_id,
@@ -273,10 +287,8 @@ class TestReplicaCopies:
         """
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
-        record = _record(net, BYSTANDER, BYSTANDER)
-        agreed = _rows(record)
-        record.copy_consent_row(_row_change(net, BYSTANDER, _S.DECLINED).row)
-        replica.save(record)
+        agreed = _rows(_record(net, BYSTANDER, BYSTANDER))
+        _drop_row(net, BYSTANDER, BYSTANDER)
         commit_and_apply_embargo_entries(
             net.stores[MANAGER],
             net.case_id,
@@ -306,3 +318,32 @@ class TestReplicaCopies:
             _record(net, MANAGER, BYSTANDER)
         )
         assert get_ledger_gap_buffer(BYSTANDER).depth(net.case_id) == 0
+
+    @pytest.mark.spec("CM-23-016")
+    def test_an_entry_already_in_place_is_an_idempotent_no_op(self):
+        """A re-applied entry is stored, not refused.
+
+        The replica saved the row but stopped before it stored the entry,
+        so the re-delivered entry finds its own result in place.
+        """
+        net = _net("cc-replay")
+        replica = net.stores[BYSTANDER]
+        change = _row_change(net, BYSTANDER, _S.DECLINED)
+        applied = _record(net, BYSTANDER, BYSTANDER)
+        applied.copy_consent_row(change.row)
+        replica.save(applied)
+        commit_and_apply_embargo_entries(
+            net.stores[MANAGER], net.case_id, [_entry(net, change)]
+        )
+        (body,) = _announcements(net, BYSTANDER)
+
+        verdict = net.receive(BYSTANDER, body)
+
+        assert verdict.disposition is HandlerDisposition.APPLIED, (
+            verdict.reason
+        )
+        assert replica.read(body["object"]["id"]) is not None
+        assert get_ledger_gap_buffer(BYSTANDER).depth(net.case_id) == 0
+        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(
+            _record(net, MANAGER, BYSTANDER)
+        )

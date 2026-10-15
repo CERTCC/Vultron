@@ -27,7 +27,11 @@ An entry whose starting state does not match this replica's case is refused,
 never patched over: the frame holds it in the actor-local gap buffer
 (``LedgerGapBuffer``, keyed on its predecessor hash) and fails, so the entry
 is not persisted (SYNC-12-001), and the receive path reports it deferred.
-The drain retries it each time the case's chain advances.
+The entry extends the stored chain, so the gap drain that follows every
+received announce for the case takes it again and retries it; it stays held
+until this replica's case reaches the entry's start.  An entry this replica
+had already applied, but not stored, is in place and passes as a no-op
+(:func:`~vultron.core.models.embargo_apply.change_is_in_place`).
 
 :class:`ApplyEmbargoConsentFromLedgerNode` is the first slot: the
 CASE_MANAGER's ``Create(EmbargoConsent)`` and ``Update(EmbargoConsent)``
@@ -56,6 +60,7 @@ from vultron.core.models.embargo_apply import (
     ConsentRowChange,
     EmbargoChange,
     apply_embargo_change,
+    change_is_in_place,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_event_types import (
@@ -69,8 +74,8 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
     """Copy one embargo entry onto this replica's case file, or refuse it.
 
     Subclasses implement :meth:`_change`.  SUCCESS when the change is applied
-    and saved, or when this replica holds no copy of the case (Regime 2,
-    ADR-0087).  FAILURE when the entry is malformed, or when the apply
+    and saved, when it is already in place (a re-applied entry), or when this
+    replica holds no copy of the case (Regime 2, ADR-0087).  FAILURE when the entry is malformed, or when the apply
     function refuses it; a refused entry is held in the gap buffer and
     :attr:`refused_into_gap` is set.
     """
@@ -128,6 +133,16 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
 
         before = read_embargo_case_file(self.datalayer, entry.case_id)
+        if change_is_in_place(before, change):
+            self.logger.debug(
+                "%s: '%s' entry '%s' is already in place on case '%s' —"
+                " idempotent no-op",
+                self.name,
+                entry.event_type,
+                entry.id_,
+                entry.case_id,
+            )
+            return Status.SUCCESS
         try:
             after = apply_embargo_change(before, change)
         except VultronEntryRefusedError as exc:

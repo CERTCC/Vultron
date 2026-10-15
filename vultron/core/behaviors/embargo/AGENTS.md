@@ -118,9 +118,10 @@ policy), then hands the result to `commit_and_apply_embargo_entries()`
 2. One `consent_row_entry()` per consent row the act changes.
 
 For a received act, also run `trial_apply()` among the tree's guards, before
-the guarded commit, so a refused step refuses the act. The helper trial-applies all of them through `apply_embargo_change()`
-before committing any, so a refused trial (`VultronEntryRefusedError`)
-commits nothing; a failed commit saves only the changes already committed.
+the guarded commit, so a refused step refuses the act. The helper
+trial-applies every planned entry through `apply_embargo_change()` before
+committing any, so a refused trial (`VultronEntryRefusedError`) commits
+nothing; a failed commit saves only the changes already committed.
 Call it from a node's `update()`, never from `execute()`. The replica slot
 for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
 (`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).

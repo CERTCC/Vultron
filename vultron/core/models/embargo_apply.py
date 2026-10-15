@@ -66,6 +66,7 @@ from vultron.core.models.embargo_register import (
     activation_changes,
     proposal_changes,
     rejection_changes,
+    termination_changes,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.embargo_register import (
@@ -106,7 +107,9 @@ class RegisterStep(ValidatedAssignmentMixin, BaseModel):
     """One register step, as the act's activity names it.
 
     ``embargo`` is the embargo the activity names: the ``EmbargoEvent`` a
-    proposal carries inline, or the id of the embargo the step decides on.
+    proposal carries inline (required, so a replica copies the embargo and
+    never has to dereference it), or the id of the embargo the step decides
+    on.
     ``TERMINATE`` ends that embargo and refuses a register whose embargo in
     force is another one, so a replica never ends "whatever is active
     locally".  ``termination`` is required on ``TERMINATE`` and refused
@@ -130,11 +133,13 @@ class RegisterStep(ValidatedAssignmentMixin, BaseModel):
             problems.append(
                 "a termination is required on TERMINATE and refused otherwise"
             )
-        if (
-            isinstance(self.embargo, EmbargoEvent)
-            and self.kind != RegisterStepKind.PROPOSE
+        if isinstance(self.embargo, EmbargoEvent) != (
+            self.kind == RegisterStepKind.PROPOSE
         ):
-            problems.append("only PROPOSE carries the embargo object")
+            problems.append(
+                "PROPOSE carries the embargo object inline, and no other"
+                " kind does"
+            )
         if problems:
             raise ValueError(
                 f"Register step {self.kind} on '{self.embargo_id}': "
@@ -191,19 +196,8 @@ class RegisterStep(ValidatedAssignmentMixin, BaseModel):
                 f" in force on case '{case.id_}' is"
                 f" {case.active_embargo_id!r}."
             )
-        return [
-            RegisterChange(
-                embargo_id=self.embargo_id,
-                trigger=RegisterTrigger.TERMINATE,
-                termination=self.termination,
-            ),
-            *(
-                RegisterChange(
-                    embargo_id=proposed_id, trigger=RegisterTrigger.CANCEL
-                )
-                for proposed_id in case.proposed_embargo_ids
-            ),
-        ]
+        assert self.termination is not None  # required on TERMINATE
+        return termination_changes(case.embargo_register, self.termination)
 
 
 class ConsentRowVerb(StrEnum):
@@ -220,7 +214,10 @@ class ConsentRowChange(ValidatedAssignmentMixin, BaseModel):
     """One consent row, as a ``Create`` or ``Update`` entry carries it.
 
     The row must name the participant actor whose consent it is
-    (``attributed_to``): a row committed on its own is found by it.
+    (``attributed_to``): a row committed on its own is found by it.  Its id
+    must be the one its embargo and actor derive
+    (:meth:`EmbargoConsent.build_id`), so every node holds the row under the
+    same id; a carried row under any other id is refused.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -234,6 +231,15 @@ class ConsentRowChange(ValidatedAssignmentMixin, BaseModel):
             raise ValueError(
                 f"Consent row for embargo '{self.row.embargo_id}' names no"
                 " participant actor (attributedTo), so no entry can carry it"
+            )
+        derived = EmbargoConsent.build_id(
+            self.row.embargo_id, self.row.attributed_to
+        )
+        if self.row.id_ != derived:
+            raise ValueError(
+                f"Consent row for embargo '{self.row.embargo_id}' carries id"
+                f" '{self.row.id_}', not the id its embargo and actor derive"
+                f" ('{derived}')"
             )
         return self
 
@@ -283,7 +289,9 @@ def _apply_register_step(
         )
     except VultronEntryRefusedError:
         raise
-    except VultronInvalidStateTransitionError as exc:
+    except (VultronInvalidStateTransitionError, ValueError) as exc:
+        # ValueError: the register assignment's own validation (a pydantic
+        # ValidationError) refused the result, which is a refusal too.
         raise VultronEntryRefusedError(
             f"{step.kind} of embargo '{step.embargo_id}' does not apply to"
             f" case '{case.id_}': {exc}"
@@ -306,9 +314,8 @@ def _participant_for(
     return participant
 
 
-def _entry_status(
-    case: VulnerabilityCase, embargo_id: str
-) -> EmbargoRegisterStatus:
+def _require_open_entry(case: VulnerabilityCase, embargo_id: str) -> None:
+    """Refuse a row change for an embargo the register lacks or has closed."""
     entry = case.embargo_register_entry(embargo_id)
     if entry is None:
         raise VultronEntryRefusedError(
@@ -320,7 +327,6 @@ def _entry_status(
             f"embargo '{embargo_id}' is {entry.status} on case '{case.id_}',"
             " so its consent rows accept no change (ADR-0122)"
         )
-    return entry.status
 
 
 def _one_move(held: EmbargoConsentState, carried: EmbargoConsentState) -> bool:
@@ -370,7 +376,7 @@ def _apply_consent_row(
 ) -> EmbargoCaseFile:
     participant = _participant_for(case_file, change)
     embargo_id = change.row.embargo_id
-    _entry_status(case_file.case, embargo_id)
+    _require_open_entry(case_file.case, embargo_id)
     held = participant.held_row(embargo_id)
     problem = _row_problem(held, change)
     if problem is not None:
@@ -414,6 +420,52 @@ def apply_embargo_change(
     return _apply_consent_row(case_file, change)
 
 
+#: The status a register step leaves the entry it names in.
+_STEP_RESULT: Mapping[RegisterStepKind, EmbargoRegisterStatus] = (
+    MappingProxyType(
+        {
+            RegisterStepKind.PROPOSE: EmbargoRegisterStatus.PROPOSED,
+            RegisterStepKind.ACTIVATE: EmbargoRegisterStatus.ACTIVE,
+            RegisterStepKind.REJECT: EmbargoRegisterStatus.REJECTED,
+            RegisterStepKind.TERMINATE: EmbargoRegisterStatus.TERMINATED,
+            RegisterStepKind.CANCEL: EmbargoRegisterStatus.CANCELLED,
+        }
+    )
+)
+
+
+def change_is_in_place(
+    case_file: EmbargoCaseFile, change: EmbargoChange
+) -> bool:
+    """True when *case_file* already holds what applying *change* writes.
+
+    For a replica re-applying an entry it had applied but not yet stored
+    (its case saved, the process stopped before the entry was persisted):
+    the entry is then an idempotent no-op, not a refusal, as every other
+    replica slot treats a re-delivered entry.  A register step is in place
+    when the entry it names holds the status the step leaves it in (the
+    step's other moves were saved with it); a consent row is in place when
+    the participant holds exactly the carried row.  Reads only *case_file*.
+
+    The CASE_MANAGER does not use this: its trial apply refuses an entry
+    that would change nothing, so it never commits one.
+    """
+    case = case_file.case
+    if isinstance(change, RegisterStep):
+        entry = case.embargo_register_entry(change.embargo_id)
+        return (
+            entry is not None
+            and entry.status == _STEP_RESULT[change.kind]
+            and entry.termination == change.termination
+        )
+    participant = case_file.participants.get(change.actor_id)
+    if participant is None or (
+        case.actor_participant_index.get(change.actor_id) != participant.id_
+    ):
+        return False
+    return participant.held_row(change.row.embargo_id) == change.row
+
+
 def changed_objects(
     before: EmbargoCaseFile, after: EmbargoCaseFile
 ) -> list[VulnerabilityCase | CaseParticipant]:
@@ -441,5 +493,6 @@ __all__ = [
     "RegisterStep",
     "RegisterStepKind",
     "apply_embargo_change",
+    "change_is_in_place",
     "changed_objects",
 ]

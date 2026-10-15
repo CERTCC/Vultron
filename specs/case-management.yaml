@@ -2784,27 +2784,30 @@ groups:
   - id: CM-18-005
     priority: MUST
     kind: project
-    statement: A participant's consent row MUST be changed by applying a `PEC_Trigger` through
+    statement: A participant's consent row MUST be changed either by applying a `PEC_Trigger` through
       `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`, given the
-      register status of the embargo's entry, and persisting the participant. Code MUST NOT assign
+      register status of the embargo's entry, and persisting the participant, or, when a ledger
+      entry carries the row in full, by writing the row as carried through
+      `CaseParticipant.copy_consent_row()`, called only by the one apply function after it checks the
+      row's starting state (ADR-0124, CM-23-016). Code MUST NOT assign
       `CaseParticipant.embargo_consents` directly as the means of recording a consent change; the
       `UNINVITED` rows that record no answer are written by `CaseParticipant.write_uninvited_rows()`.
-      A row a ledger entry carries in full is written as carried by
-      `CaseParticipant.copy_consent_row()`, called only by the one apply function after it checks the
-      row's starting state (ADR-0124, CM-23-016).
     rationale: '`apply_pec_transition()` validates the trigger against the consent table and the
       register status, and raises `VultronInvalidStateTransitionError` on an illegal transition or a
       frozen row, making consent writes fail-closed regardless of upstream BT guard coverage. Direct assignment to the rows bypasses
       the table, so a row could reach a state no trigger leads to. The legacy `apply_pec_trigger()`
       soft-fail helper was removed (CONCERN-1871); all consent-write sites MUST use
       `CaseParticipant.apply_pec_transition()` (or `apply_pec_transition_if_legal()` where an
-      illegal trigger is a recorded no-op). Per ADR-0048, ADR-0122.'
+      illegal trigger is a recorded no-op), except the copy write, which the apply function keeps
+      fail-closed (CM-23-016). Per ADR-0048, ADR-0122, ADR-0124.'
     verification: Inspection of `vultron/core/` confirms that all consent-write sites call
       `CaseParticipant.apply_pec_transition()` or `apply_pec_transition_if_legal()`, or copy a
       carried row through `apply_embargo_change()` in `vultron/core/models/embargo_apply.py`, and
       that no site assigns `embargo_consents` outside `CaseParticipant`.
       `test/core/models/test_embargo_apply.py` asserts the copy write refuses a row that does not
-      start where its entry implies.
+      start where its entry implies, and
+      `test/architecture/test_consent_copy_write_has_one_caller.py` asserts that only
+      `apply_embargo_change()` calls `CaseParticipant.copy_consent_row()`.
     relationships:
     - rel_type: refines
       spec_id: CM-18-003

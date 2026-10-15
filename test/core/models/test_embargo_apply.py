@@ -35,6 +35,7 @@ from vultron.core.models.embargo_apply import (
     RegisterStep,
     RegisterStepKind,
     apply_embargo_change,
+    change_is_in_place,
     changed_objects,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -270,8 +271,40 @@ class TestRegisterSteps:
             RegisterStep(kind=kind, embargo=E1.id_, termination=termination)
 
     def test_only_a_proposal_carries_the_embargo_object(self):
-        with pytest.raises(ValueError, match="only PROPOSE"):
+        with pytest.raises(ValueError, match="PROPOSE carries the embargo"):
             RegisterStep(kind=_K.ACTIVATE, embargo=E1)
+
+    def test_a_proposal_must_carry_its_embargo_object(self):
+        """A replica copies the proposed embargo; it never dereferences it."""
+        with pytest.raises(ValueError, match="PROPOSE carries the embargo"):
+            RegisterStep(kind=_K.PROPOSE, embargo=E1.id_)
+
+    @pytest.mark.parametrize(
+        "kind", [_K.PROPOSE, _K.ACTIVATE, _K.REJECT, _K.CANCEL]
+    )
+    def test_an_applied_step_is_in_place_and_an_unapplied_one_is_not(
+        self, kind
+    ):
+        proposed = _apply_all(_case_file(), [_step(_K.PROPOSE, E1)])
+        before = proposed if kind != _K.PROPOSE else _case_file()
+        step = _step(kind, E1)
+        assert not change_is_in_place(before, step)
+        assert change_is_in_place(apply_embargo_change(before, step), step)
+
+    def test_a_terminate_is_in_place_only_with_its_own_termination(self):
+        active = _apply_all(
+            _case_file(), [_step(_K.PROPOSE, E1), _step(_K.ACTIVATE, E1)]
+        )
+        step = _step(_K.TERMINATE, E1)
+        assert not change_is_in_place(active, step)
+        ended = apply_embargo_change(active, step)
+        assert change_is_in_place(ended, step)
+        other = RegisterStep(
+            kind=_K.TERMINATE,
+            embargo=E1.id_,
+            termination=EmbargoTermination.end_time_reached(),
+        )
+        assert not change_is_in_place(ended, other)
 
 
 class TestConsentRows:
@@ -348,6 +381,69 @@ class TestConsentRows:
                 row=EmbargoConsent(embargo_id=E1.id_, state=_S.AGREED),
             )
 
+    def test_a_row_change_carries_the_derived_id(self):
+        """Every node holds a row under the id its embargo and actor derive."""
+        with pytest.raises(ValueError, match="not the id its embargo"):
+            ConsentRowChange(
+                verb=ConsentRowVerb.UPDATE,
+                row=EmbargoConsent(
+                    id_="urn:uuid:not-derived",
+                    embargo_id=E1.id_,
+                    state=_S.AGREED,
+                    attributed_to=ALICE,
+                ),
+            )
+
+    def test_a_held_row_equal_to_the_carried_one_is_in_place(self):
+        proposed = self._proposed_file()
+        agree = _update(ALICE, E1, _S.AGREED)
+        assert change_is_in_place(proposed, _create(ALICE, E1))
+        assert not change_is_in_place(proposed, agree)
+        assert change_is_in_place(apply_embargo_change(proposed, agree), agree)
+        assert not change_is_in_place(_case_file(), _create(ALICE, E1))
+
+
+class TestRowAttribution:
+    """A participant record stamps its actor on every row it holds."""
+
+    def _record(self, rows: list[EmbargoConsent]) -> CaseParticipant:
+        return CaseParticipant(
+            id_=f"{CASE_ID}/participants/alice",
+            attributed_to=ALICE,
+            context=CASE_ID,
+            embargo_consents=rows,
+        )
+
+    def test_an_unattributed_row_takes_the_records_actor_and_its_id(self):
+        record = self._record(
+            [EmbargoConsent(embargo_id=E1.id_, state=_S.UNINVITED)]
+        )
+        (row,) = record.embargo_consents
+        assert row.attributed_to == ALICE
+        assert row.id_ == EmbargoConsent.build_id(E1.id_, ALICE)
+
+    def test_a_row_attributed_to_another_actor_is_refused(self):
+        bobs = EmbargoConsent(
+            embargo_id=E1.id_, state=_S.UNINVITED, attributed_to=BOB
+        )
+        with pytest.raises(ValueError, match="attributed to"):
+            self._record([bobs])
+        record = self._record([])
+        with pytest.raises(ValueError, match="attributed to"):
+            record.embargo_consents = [bobs]
+
+    def test_a_carried_id_is_kept(self):
+        """A copy writes the id its entry carries (CM-23-016)."""
+        row = EmbargoConsent(
+            id_="urn:uuid:carried",
+            embargo_id=E1.id_,
+            state=_S.UNINVITED,
+            attributed_to=ALICE,
+        )
+        assert row.id_ == "urn:uuid:carried"
+        (held,) = self._record([row]).embargo_consents
+        assert held.id_ == "urn:uuid:carried"
+
 
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.spec("CLP-07-013")
@@ -377,9 +473,10 @@ def test_applying_an_entry_leaves_its_input_as_it_was():
 def test_a_dropped_entry_refuses_the_next_and_is_never_patched_over():
     """AC-4: a replica missing one entry refuses the one after it.
 
-    Without the owner's ``ACTIVATE`` of E1, the revision's activation finds
-    nothing in force to supersede, and the consent row the activation's
-    successor updates was never created.  Neither is written.
+    Without the owner's ``ACTIVATE`` of E1, no embargo is in force, so the
+    ``TERMINATE`` that names E1 is refused.  Without the proposal's
+    ``Create(EmbargoConsent)`` entries, the row a later ``Update`` changes was
+    never created, so that ``Update`` is refused.  Neither is written.
     """
     ledger = [*_proposed(E1), _step(_K.ACTIVATE, E1), *_proposed(E2)]
     dropped = ledger.index(_step(_K.ACTIVATE, E1))

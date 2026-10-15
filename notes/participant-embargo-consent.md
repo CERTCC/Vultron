@@ -220,8 +220,8 @@ Change consent by applying a `PEC_Trigger` through
 `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`,
 preferably through `EmbargoLifecycle`'s `_apply_where_legal()`, and persist the
 participant. `write_uninvited_rows()` and the copy write below are the only other
-row writes; the first records no answer. Direct assignment bypasses the transition table, so the content gate
-(CM-10-004) can admit an actor the protocol never bound;
+row writes; the first records no answer. Direct assignment bypasses the
+transition table, so the content gate (CM-10-004) can admit an actor the protocol never bound;
 `apply_pec_transition()` raises `VultronInvalidStateTransitionError` instead, so
 consent writes are fail-closed even when an upstream guard is wrong.
 
@@ -268,7 +268,10 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
 - **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
   (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
   `_change()`; a refused entry is held in `LedgerGapBuffer` and the announce is
-  reported deferred, never patched over.
+  reported deferred, never patched over. An entry whose result the replica
+  already holds (saved, but not yet stored, before a stop) is an idempotent
+  no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
+  entry that would change nothing.
 
 ---
 
