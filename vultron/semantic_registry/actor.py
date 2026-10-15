@@ -17,6 +17,7 @@ invite/accept/reject to case, and vulnerability case announcements.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
@@ -129,6 +130,7 @@ ENTRIES: list[SemanticEntry] = [
                     "include"
                 ),
                 anchor="suggest-actor-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Suggest actor to case",
                 description=(
                     "Recommends an actor to the Case Manager for the case "
@@ -157,6 +159,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Owner"
                 ),
                 anchor="offer-case-participant",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Offer case participant",
                 description=(
                     "Forwards the recommendation as a proposed participant "
@@ -183,6 +186,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner approves a suggested actor",
                 anchor="accept-case-participant-offer",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Accept case participant offer",
                 description=(
                     "Accepts the proposed participant record. The Case Manager"
@@ -207,6 +211,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner declines a suggested actor",
                 anchor="reject-case-participant-offer",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject case participant offer",
                 description=(
                     "Rejects the proposed participant record. The Case Manager"
@@ -234,6 +239,7 @@ ENTRIES: list[SemanticEntry] = [
                     "actor"
                 ),
                 anchor="offer-case-participant-role",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Offer case participant role",
                 description=(
                     "Offers one role on the case to the actor named by the "
@@ -257,6 +263,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="an actor accepts a role offered to it on the case",
                 anchor="accept-case-participant-role",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Accept case participant role",
                 description=(
                     "Accepts the offered role. The actor holds the role from "
@@ -280,6 +287,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="an actor declines a role offered to it on the case",
                 anchor="reject-case-participant-role",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Reject case participant role",
                 description=(
                     "Declines the offered role. The roster does not change."
@@ -305,6 +313,7 @@ ENTRIES: list[SemanticEntry] = [
                     "to another actor"
                 ),
                 anchor="offer-case-ownership-transfer",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Offer case ownership transfer",
                 description=(
                     "Offers the case to the actor named by the target, for "
@@ -329,6 +338,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="an actor accepts an offer of case ownership",
                 anchor="accept-case-ownership-transfer",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Accept case ownership transfer",
                 description="Accepts the ownership transfer offer.",
                 example="accept_case_ownership_transfer",
@@ -348,6 +358,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="an actor declines an offer of case ownership",
                 anchor="reject-case-ownership-transfer",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject case ownership transfer",
                 description=(
                     "Declines the ownership transfer offer. The current Case "
@@ -372,6 +383,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Owner withdraws an open offer of case ownership"
                 ),
                 anchor="withdraw-case-ownership-transfer",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Withdraw case ownership transfer",
                 description=(
                     "Withdraws the ownership transfer offer before it is "
@@ -394,6 +406,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Manager invites an actor to join the case",
                 anchor="invite-actor-to-case",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Invite actor to case",
                 description=(
                     "Sends a Stub Invite carrying the case stub and the "
@@ -417,6 +430,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="an invited actor agrees to join the case",
                 anchor="accept-invite-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Accept invite to case",
                 description=(
                     "Accepts the Stub Invite. The actor joins the case at RM "
@@ -440,6 +454,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="an invited actor declines to join the case",
                 anchor="reject-invite-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject invite to case",
                 description=(
                     "Rejects the Stub Invite, which closes the invitee's "
@@ -466,6 +481,7 @@ ENTRIES: list[SemanticEntry] = [
                     "joined Participant"
                 ),
                 anchor="invite-actor-to-full-case",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Send Full-Case Invite",
                 description=(
                     "Sends the Full-Case Invite, which asks the Participant to"
@@ -493,6 +509,7 @@ ENTRIES: list[SemanticEntry] = [
                     " valid"
                 ),
                 anchor="accept-full-case-invite",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Accept Full-Case Invite",
                 description=(
                     "Accepts the Full-Case Invite, which records RM Valid. It "
@@ -520,6 +537,7 @@ ENTRIES: list[SemanticEntry] = [
                     " invalid"
                 ),
                 anchor="tentatively-reject-full-case-invite",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Tentatively reject Full-Case Invite",
                 description=(
                     "Tentatively rejects the Full-Case Invite, which records "
@@ -546,6 +564,7 @@ ENTRIES: list[SemanticEntry] = [
                     "a Participant asked by a Full-Case Invite closes the case"
                 ),
                 anchor="reject-full-case-invite",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject Full-Case Invite",
                 description=(
                     "Rejects the Full-Case Invite, which records RM Closed. It"
@@ -573,6 +592,7 @@ ENTRIES: list[SemanticEntry] = [
                     "case"
                 ),
                 anchor="announce-vulnerability-case",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Announce vulnerability case",
                 description=(
                     "Sends the full case to the newly admitted Participant "

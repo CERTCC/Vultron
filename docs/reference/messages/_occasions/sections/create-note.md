@@ -6,6 +6,7 @@ Creates a note and, when the note's context names the case, posts it to that cas
 
 - **When…** a Participant posts a new note to the case
 - **Send:** `Create(Note)`
+- **Send to:** the case manager
 - **Sent by:** not yet checked
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)

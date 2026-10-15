@@ -6,6 +6,7 @@
 
     - **When…** a report receiver closes the report
     - **Send:** `Reject(Offer(VulnerabilityReport))`
+    - **Send to:** the case manager
     - **Sent by:** a participant (usually: vendor, coordinator)
     - **Reference:** [Close report](../../rm.md#report-closed)
 

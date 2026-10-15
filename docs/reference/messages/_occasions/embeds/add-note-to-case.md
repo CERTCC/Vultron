@@ -6,6 +6,7 @@
 
     - **When…** a Participant attaches a note that already exists to the case
     - **Send:** `Add(Note)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
     - **Sent by:** not yet checked
     - **Reference:** [Add note to case](../../general.md#add-note-to-case)
 

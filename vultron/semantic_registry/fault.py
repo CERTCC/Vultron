@@ -16,6 +16,7 @@ Covers the Create(ProcessingFault) NACK flow (ADR-0080, ASK-07-001).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.use_cases.received.fault import (
@@ -41,6 +42,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant has received a message it cannot process",
                 anchor="create-processing-fault",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Create processing fault",
                 description=(
                     "Tells the sender that its message was received but not "

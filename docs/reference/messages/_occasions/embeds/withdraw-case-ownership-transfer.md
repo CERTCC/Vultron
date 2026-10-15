@@ -6,6 +6,7 @@
 
     - **When…** the Case Owner withdraws an open offer of case ownership
     - **Send:** `Undo(Offer(VulnerabilityCase))`
+    - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Withdraw case ownership transfer](../../case_management.md#withdraw-case-ownership-transfer)
 

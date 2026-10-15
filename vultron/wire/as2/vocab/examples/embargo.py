@@ -34,6 +34,8 @@ from vultron.wire.as2.vocab.examples._base import (
     EXAMPLE_TIMESTAMP,
     _example_stamp,
     case,
+    case_actor,
+    coordinator,
     vendor,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -80,6 +82,28 @@ def propose_embargo() -> as_Invite:
         summary="We propose to embargo case 1 for 90 days.",
     )
     return activity
+
+
+def relay_embargo_proposal() -> as_Invite:
+    """The CASE_MANAGER's Invite asking one participant about a proposal.
+
+    The CASE_MANAGER relays each adjudicated proposal as an ``Invite(Event)``
+    of its own, one per participant other than the proposer, naming the
+    proposer in ``attributedTo`` (EP-09-002, CM-24).  The wire form is the
+    proposer's ``Invite(Event)``; only the sender and addressee differ
+    (MSM-08-009).
+    """
+    embargo = embargo_event()
+    _case = case()
+    return em_propose_embargo_activity(
+        embargo,
+        id_=f"{_case.id_}/embargo_proposals/1/invites/coordinator",
+        actor=case_actor().id_,
+        attributed_to=vendor().id_,
+        to=[coordinator().id_],
+        context=_case.id_,
+        summary="The vendor proposes to embargo case 1 for 90 days.",
+    )
 
 
 def accept_embargo() -> as_Accept:
@@ -194,3 +218,24 @@ def remove_embargo() -> as_Remove:
         reason=TerminationReason.EARLY,
     )
     return activity
+
+
+def notify_embargo_termination() -> as_Remove:
+    """The CASE_MANAGER's ``Remove(Event)`` telling a participant the embargo
+    has ended.
+
+    The CASE_MANAGER addresses its own termination to every other participant
+    (EMB-19-001), naming the Case Owner it acts for in ``attributedTo``
+    (CM-24).  The wire form is the Case Owner's ``Remove(Event)``; only the
+    sender and addressee differ (MSM-08-009).
+    """
+    _case = case()
+    return remove_embargo_from_case_activity(
+        embargo_event(90),
+        actor=case_actor().id_,
+        attributed_to=vendor().id_,
+        to=[coordinator().id_],
+        origin=_case.id_,
+        context=_case.id_,
+        reason=TerminationReason.EARLY,
+    )

@@ -6,6 +6,7 @@
 
     - **When…** an invited actor declines to join the case
     - **Send:** `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
+    - **Send to:** the case manager
     - **Sent by:** the invitee
     - **Reference:** [Reject invite to case](../../case_management.md#reject-invite-to-case)
 

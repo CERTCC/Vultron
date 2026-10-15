@@ -122,8 +122,11 @@ Put a human-readable account in `summary` if you want one; the protocol does not
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination.md" %}
 
 Only the CASE_MANAGER changes the case's EM state (EP-09-008).
-If you are the CASE_MANAGER, address `Remove(Event)` to every other participant and never to yourself (EMB-19-001).
 If you are not the CASE_MANAGER, address `Remove(Event)` to the CASE_MANAGER.
+If you are the CASE_MANAGER, address `Remove(Event)` to every other participant and never to yourself (EMB-19-001).
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination-notice.md" %}
+
 The CASE_MANAGER commits the termination to the case ledger and fans the entry out to every participant.
 Your own copy of the case moves to `EM.EXITED` when the CASE_MANAGER's ledger entry for the termination reaches you, not when you send.
 

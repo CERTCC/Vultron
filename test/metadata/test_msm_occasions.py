@@ -24,6 +24,7 @@ import pytest
 import yaml
 from markdown.extensions import toc  # type: ignore[import-untyped]
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.participant_status import ParticipantStatus
@@ -65,6 +66,7 @@ def _occasion(**overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": "a stub situation arises",
         "anchor": "stub-situation",
+        "addressee": AddresseeSide.CASE_MANAGER,
         "heading": "Stub situation",
         "description": "Stands in for a real occasion.",
         "example": "stub_example",
@@ -130,7 +132,7 @@ def test_committed_yaml_loads_and_equals_a_fresh_derivation(table):
 
 def test_committed_yaml_carries_its_format_version():
     data = yaml.safe_load(OCCASION_TABLE_PATH.read_text(encoding="utf-8"))
-    assert data["format_version"] == 2
+    assert data["format_version"] == 3
 
 
 @pytest.mark.spec("MSM-08-001")
@@ -296,7 +298,7 @@ def test_loader_names_line_and_column_of_a_fault_deep_in_the_table(
 @pytest.mark.spec("MS-17-001")
 def test_loader_names_the_key_line_of_a_schema_error(tmp_path):
     path = tmp_path / "occasions.yaml"
-    path.write_text("# header\nformat_version: 3\ngroups: []\n")
+    path.write_text("# header\nformat_version: 4\ngroups: []\n")
 
     with pytest.raises(MetadataLoadError) as exc:
         load_occasion_table(path, root=tmp_path)
@@ -333,11 +335,11 @@ def test_loader_refuses_a_lifecycle_group_after_the_mechanics(tmp_path, table):
 
 def test_loader_refuses_an_unknown_key(tmp_path, table):
     data = _table_data(table)
-    data["groups"][0]["occasions"][0]["send_to"] = "the case manager"
+    data["groups"][0]["occasions"][0]["send_cc"] = "the case manager"
     path = tmp_path / "occasions.yaml"
     path.write_text(yaml.safe_dump(data, sort_keys=False))
 
-    with pytest.raises(MetadataLoadError, match="send_to"):
+    with pytest.raises(MetadataLoadError, match="send_cc"):
         load_occasion_table(path, root=tmp_path)
 
 
@@ -480,8 +482,8 @@ def test_distinguished_by_is_none_without_a_distinguisher():
 
 def test_slice_has_the_lookup_columns(table):
     lines = gen.render_slice(table.groups[0]).splitlines()
-    assert (
-        lines[0] == "| When… | Send | Sent by | Distinguished by | Details |"
+    assert lines[0] == (
+        "| When… | Send | Send to | Sent by | Distinguished by | Details |"
     )
     assert len(lines) == 2 + len(table.groups[0].occasions)
 
@@ -498,6 +500,7 @@ def test_fix_readiness_row_reads_as_specified(table):
     assert row == (
         "| a Vendor has a fix ready"
         " | `Add(ParticipantStatus)[target=CaseParticipant]`"
+        " | the case manager"
         " | a participant (usually: vendor)"
         " | `vfState` = `VF`"
         " | [Fix Readiness (CF)](../cs.md#fix-readiness) |"

@@ -13,6 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -73,10 +74,33 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner terminates the active embargo",
                 anchor="embargo-termination",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description="Terminates the embargo with immediate effect.",
                 example="remove_embargo",
                 howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.ET,
+            ),
+            Occasion(
+                when=(
+                    "the Case Manager ends the active embargo, on its own "
+                    "decision or on the Case Owner's"
+                ),
+                anchor="embargo-termination-notice",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Tell a participant the embargo has ended",
+                description=(
+                    "Tells one participant that the embargo has ended, with "
+                    "immediate effect. The Case Manager sends one to each "
+                    "participant other than itself, naming the Case Owner in "
+                    "`attributedTo` when the Case Owner asked for the "
+                    "termination."
+                ),
+                example="notify_embargo_termination",
+                howto=HowToGuide.MANAGE_EMBARGO,
+                notes=(
+                    "The wire form is the Embargo Termination (ET) a Case "
+                    "Owner sends; only its sender and addressee differ."
+                ),
             ),
         ),
         page=MessagePage.EM,
@@ -96,6 +120,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Manager states the terms of the embargo in force"
                 ),
                 anchor="announce-embargo",
+                addressee=AddresseeSide.PARTICIPANT,
                 heading="Announce embargo",
                 description=(
                     "Tells participants the terms of the active embargo. It "
@@ -122,6 +147,7 @@ ENTRIES: list[SemanticEntry] = [
                     "active embargo"
                 ),
                 anchor="embargo-proposal",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Proposes embargo terms, such as an end date and time."
                 ),
@@ -142,6 +168,7 @@ ENTRIES: list[SemanticEntry] = [
                     "embargo"
                 ),
                 anchor="embargo-revision-proposal",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Proposes a revision to the terms of the active embargo. "
                     "The wire form is the same as a first proposal; the "
@@ -158,6 +185,29 @@ ENTRIES: list[SemanticEntry] = [
                 howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.EV,
             ),
+            Occasion(
+                when=(
+                    "the Case Manager asks a Participant to answer embargo "
+                    "terms another Participant proposed"
+                ),
+                anchor="relay-embargo-proposal",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Ask a participant about proposed embargo terms",
+                description=(
+                    "Asks one participant to accept or reject proposed "
+                    "embargo terms, or a proposed revision. The Case Manager "
+                    "sends one to each participant other than the proposer, "
+                    "naming the proposer in `attributedTo`, and the "
+                    "participant's answer names this Invite."
+                ),
+                example="relay_embargo_proposal",
+                howto=HowToGuide.ESTABLISH_EMBARGO,
+                notes=(
+                    "The wire form is the Embargo Proposal (EP) or Embargo "
+                    "Revision Proposal (EV) a participant sends; only its "
+                    "sender and addressee differ."
+                ),
+            ),
         ),
         page=MessagePage.EM,
     ),
@@ -173,6 +223,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant agrees to proposed embargo terms",
                 anchor="embargo-proposal-acceptance",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Records the sender's own consent to the proposed terms. "
                     "The embargo becomes active only when the Case Owner sends"
@@ -186,6 +237,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant agrees to a proposed embargo revision",
                 anchor="embargo-revision-acceptance",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Records the sender's own consent to the revision. The "
                     "revision replaces the active embargo only when the Case "
@@ -211,6 +263,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant refuses proposed embargo terms",
                 anchor="embargo-proposal-rejection",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Records the sender's own refusal of the proposed terms. "
                     "The proposal is rejected for the case only when the Case "
@@ -224,6 +277,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant refuses a proposed embargo revision",
                 anchor="embargo-revision-rejection",
+                addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Records the sender's own refusal of the revision. The "
                     "Case Owner keeps the prior terms by sending its decision."
@@ -250,6 +304,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner decides to activate a proposed embargo",
                 anchor="activate-embargo",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Activate embargo",
                 description=(
                     "Activates the proposal for the case. If an embargo is "
@@ -273,6 +328,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner decides to reject a proposed embargo",
                 anchor="reject-embargo-proposal",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject embargo proposal",
                 description=(
                     "Rejects the proposal for the case. An active embargo "

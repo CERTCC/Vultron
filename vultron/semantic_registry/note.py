@@ -13,6 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
@@ -52,6 +53,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant posts a new note to the case",
                 anchor="create-note",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Create note",
                 description=(
                     "Creates a note and, when the note's context names the "
@@ -85,6 +87,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the case"
                 ),
                 anchor="add-note-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Add note to case",
                 description=(
                     "Attaches the note to the case named by the target, and "
@@ -115,6 +118,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the case"
                 ),
                 anchor="remove-note-from-case",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Remove note from case",
                 description=(
                     "Removes the note from the case named by the target."

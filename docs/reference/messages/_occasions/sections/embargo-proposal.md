@@ -6,6 +6,7 @@ Proposes embargo terms, such as an end date and time.
 
 - **When…** a Participant proposes embargo terms for a case with no active embargo
 - **Send:** `Invite(Event)[context=VulnerabilityCase]`
+- **Send to:** the case manager
 - **Sent by:** the case manager or an active participant
 - **Distinguished by:** EM state `NONE` or `PROPOSED`
 - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)

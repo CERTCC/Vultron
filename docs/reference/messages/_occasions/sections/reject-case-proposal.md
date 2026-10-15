@@ -6,6 +6,7 @@ Rejects the case proposal. No case is opened.
 
 - **When…** a Case Actor Service declines to open the proposed case
 - **Send:** `Reject(CaseProposal)`
+- **Send to:** an actor outside any case
 - **Sent by:** the addressee of the case proposal
 - **Mapping status:** [none](../../index.md#mapping-status)
 

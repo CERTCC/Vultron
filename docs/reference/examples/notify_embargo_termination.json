@@ -1,0 +1,27 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Remove",
+  "id": "urn:uuid:beaee4e9-270d-4b2d-81d4-994730f5d420",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Remove Embargo for VendorCo Case #57560606 from urn:uuid:5fd7c957-a5dd-42a5-a0a0-c1a53d35e75d",
+  "context": "urn:uuid:5fd7c957-a5dd-42a5-a0a0-c1a53d35e75d",
+  "content": "EARLY",
+  "summary": "The embargo ended before its end time.",
+  "to": [
+    "https://vultron.example/organizations/coordinator"
+  ],
+  "attributedTo": "https://vultron.example/organizations/vendorco",
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "origin": "urn:uuid:5fd7c957-a5dd-42a5-a0a0-c1a53d35e75d",
+  "object": {
+    "id": "urn:uuid:5fd7c957-a5dd-42a5-a0a0-c1a53d35e75d/embargo_events/2026-08-30T00:00:00+00:00",
+    "type": "EmbargoEvent",
+    "name": "Embargo for VendorCo Case #57560606",
+    "context": "urn:uuid:5fd7c957-a5dd-42a5-a0a0-c1a53d35e75d",
+    "startTime": "2026-06-01T19:12:00+00:00",
+    "endTime": "2026-08-30T00:00:00+00:00",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
+    "content": "We propose to embargo VendorCo Case #57560606 for 90 days.",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}
