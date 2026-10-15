@@ -180,9 +180,10 @@ class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
     decision, found the invitee's deadline passed: the Accept is late, so the
     normal answer path must not record it, whether or not the expiry entry
     could be committed (CLP-10-025).  The handler then routes the late
-    Accept by its compatibility with the case's embargo (EMB-17-001).  SUCCESS otherwise, including on a store that is
-    not the CASE_MANAGER, where the decision does not run and *result_out*
-    stays unset.  Read-only.
+    Accept by its compatibility with the case's embargo (EMB-17-001).
+    SUCCESS otherwise, including on a store that is not the CASE_MANAGER,
+    where the decision does not run and *result_out* stays unset.
+    Read-only.
     """
 
     def __init__(
