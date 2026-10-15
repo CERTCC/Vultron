@@ -117,7 +117,7 @@ and dispatcher routing.
 ### Markdown Formatting
 
 - **Under `docs/`**: SG-38 governs — one sentence per line, **no mid-sentence hard
-  wrap**, and no line-length limit (`markdownlint` MD013 is disabled). Do **not**
+  wrap**, and no line-length limit (MD013 is off in `docs/`). Do **not**
   reflow docs prose to a column width: it destroys the per-sentence diff SG-38
   exists to give, which is how a doubled-list-marker defect reached green CI in
   #3458. See `.claude/skills/shared/docs-style-guide.md`.

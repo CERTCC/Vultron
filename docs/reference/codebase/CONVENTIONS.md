@@ -29,13 +29,14 @@ stakeholder_type: [project-contributor]
 - **Formatter and linter**: ruff (ADR-0094), `line-length = 79`, `target-version = "py312"`.
   Config lives in `pyproject.toml` `[tool.ruff]`, which also declares the scope, so every caller runs it with no path arguments (IMPLTS-07-021).
   `ruff format` excludes `**/*.md`.
+  Comments and docstrings are held to 88 characters (`max-doc-length`); a growth guard in `test/architecture/test_line_length_ratchet.py` fails each overlong line a change adds, and `W505` stays ignored because older lines predate the limit (PD-10-002).
 - **Selected rule families**: `E`, `W`, `F`, `C90`, `I`, `B`, `UP`, `SIM`, `RUF`, `PL`, `TRY`, `DTZ`, `BLE`, `S`, `TC`, `RET`, `G`, `PYI`.
   Every entry in `ignore` carries a comment stating why it is not enforced (IMPLTS-07-019).
   `PLC0415` (import outside top level) is ignored only per file, for `test/**` and `docs/_scripts/render_trigger_api.py`; `G004` is enforced.
 - **Baselined findings**: residual findings are suppressed inline as `# noqa: <RULE>  # ruff-baseline #<issue>`, citing the issue that removes them; `per-file-ignores` is reserved for permanent, justified exemptions (`notes/lint-tooling.md`).
 - **Type checkers**: mypy (`.mypy.ini`, packages `vultron` and `test`) and pyright (`pyrightconfig.json`, `basic` mode, includes `vultron` and `test`); both run in CI and both must pass.
 - **Import ordering**: ruff's `I` rules (CS-02-001) with `combine-as-imports = true`, fixed by `ruff check --fix`
-- **Markdown**: markdownlint-cli2 via `mdlint.sh`; codespell on docs via pre-commit
+- **Markdown**: markdownlint-cli2 via `mdlint.sh`, with `MD013` at 88 characters outside `docs/` and the archives (PD-10-001); codespell on docs via pre-commit
 - **Most relevant enforced rules**: max cyclomatic complexity 10 (C901), unused imports allowed only in `__init__.py` (F401), unused `# noqa` directives are errors (RUF100), timezone-aware datetimes (DTZ, CS-13-001), no blind `except Exception` without a baseline marker (BLE, CS-23-001)
 - **Run commands**:
 
