@@ -276,8 +276,8 @@ class TestBootstrapCreateNoLink:
         assert stored is None, (
             "Case should not be seeded when receiver has no matching ReportCaseLink"
         )
-        # The sender is not this case's CASE_MANAGER either, so nothing
-        # vouches for it: an untrusted sender is REFUSED (HP-01-003).
+        # No anchor this actor wrote names the sender, so nothing vouches
+        # for it: an untrusted sender is REFUSED (HP-01-003, CBT-01-011).
         assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
@@ -492,15 +492,3 @@ class TestCreateRefusesAnUnheldEmbargo:
         stored_link = dl.read(link.id_)
         assert isinstance(stored_link, VultronReportCaseLink)
         assert stored_link.case_id is None
-
-    def test_direct_participant_bootstrap_is_refused(self, dl, make_payload):
-        event = make_payload(
-            create_case_activity(
-                _case_naming_unheld_embargo(), actor=_CASE_ACTOR_ID
-            )
-        )
-
-        result = CreateCaseReceivedUseCase(dl, event).execute()
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert dl.read(_CASE_ID) is None

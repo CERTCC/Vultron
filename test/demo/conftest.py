@@ -40,6 +40,11 @@ from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
+from vultron.wire.as2.factories import parse_submit_report_offer
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 # Eliminate wait delays in all demo tests. The FastAPI TestClient processes
 # background tasks synchronously, so no sleep is needed between inbox posts
@@ -333,6 +338,39 @@ def create_isolated_actor_app(
         actor_id=own_actor_id,
         db_url=db_url,
     )
+
+
+def submit_report_through_reporter(
+    reporter_tc: TestClient,
+    reporter_id: str,
+    recipient_id: str,
+    report_name: str,
+    report_content: str,
+) -> tuple[as_VulnerabilityReport, as_Offer]:
+    """Submit a report from the reporter's own ``submit-report`` trigger.
+
+    The trigger is how the reporter writes its trust anchor: the pending
+    ``ReportCaseLink`` naming *recipient_id* (CBT-01-005).  Posting the Offer
+    straight to the recipient's inbox leaves the reporter nothing to check
+    the recipient's ``Create(VulnerabilityCase)`` against, so it is refused
+    (CBT-01-011, #4472).
+
+    Returns:
+        ``(report, offer)`` parsed from the trigger response.
+    """
+    slug = reporter_id.rstrip("/").rsplit("/", 1)[-1]
+    resp = reporter_tc.post(
+        f"/api/v2/actors/{slug}/trigger/submit-report",
+        json={
+            "report_name": report_name,
+            "report_content": report_content,
+            "recipient_id": recipient_id,
+        },
+    )
+    assert resp.status_code == 202, (
+        f"submit-report failed ({resp.status_code}): {resp.text}"
+    )
+    return parse_submit_report_offer(resp.json()["offer"])
 
 
 def pytest_collection_modifyitems(

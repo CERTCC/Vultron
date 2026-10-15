@@ -93,8 +93,8 @@ class TestUseCaseExecution:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         result = CreateCaseReceivedUseCase(dl, event).execute()
-        # No ReportCaseLink and no CASE_MANAGER in the snapshot: an untrusted
-        # Create is refused (HP-01-003, ADR-0041 AC-5).
+        # No ReportCaseLink names the sender: an untrusted Create is refused
+        # (HP-01-003, CBT-01-011).
         assert result.disposition == HandlerDisposition.REFUSED
 
     def test_use_case_executes_with_real_datalayer(self, make_payload):
