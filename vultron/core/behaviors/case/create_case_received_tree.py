@@ -24,14 +24,16 @@ Structure (after intake, which the shared factory supplies first)::
        ├─ TrustedBootstrap (Sequence)       # CBT-01-005 / CBT-01-006
        │  ├─ BootstrapRouteIs_trusted
        │  ├─ CheckTrustedCreatorNode
+       │  ├─ CheckReportReferenceNode       # CBT-01-005
        │  ├─ CheckInlineParticipantsNode
        │  ├─ HoldCarriedEmbargoNode
        │  ├─ SeedCaseReplicaNode
        │  ├─ BindReportCaseLinkNode
-       │  └─ StoreEmbeddedParticipantsNode
-       ├─ RedeliveredBootstrap (Sequence)   # already accepted: nothing to do
+       │  ├─ StoreEmbeddedParticipantsNode
+       │  └─ IntroduceCaseManagerToReporterNode   # CBT-01-001, ADR-0132
+       ├─ RedeliveredBootstrap (Sequence)   # already accepted
        │  ├─ BootstrapRouteIs_redelivery
-       │  └─ AcceptRedeliveredBootstrap
+       │  └─ IntroduceCaseManagerToReporterNode   # retry a failed introduction
        ├─ DirectParticipantBootstrap (Sequence)   # ADR-0041 AC-5
        │  ├─ BootstrapRouteIs_direct
        │  ├─ CheckSenderIsSnapshotManagerNode
@@ -39,6 +41,14 @@ Structure (after intake, which the shared factory supplies first)::
        │  ├─ SeedCaseReplicaNode
        │  └─ StoreEmbeddedParticipantsNode
        └─ RefuseBootstrapNode               # carries the chosen route's reason
+
+On the trusted route the receiver may be the report receiver, which then
+introduces the CASE_MANAGER to the reporter with its own
+``Create(VulnerabilityCase)`` (ADR-0132); the same node does nothing at the
+reporter, which receives that introduction on the same route.  The
+redelivery route runs the node again: when the first delivery seeded the
+replica but failed to queue the introduction, the CASE_MANAGER's redelivery
+of its ``Create`` is the only later trigger for it.
 
 The route is chosen once by the classifier, not by re-testing a condition on
 each arm, because the trusted arm's own write changes what a re-test would see.
@@ -67,15 +77,23 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     BootstrapRouteIsNode,
     BootstrapRouteName,
     CheckInlineParticipantsNode,
+    CheckReportReferenceNode,
     CheckSenderIsSnapshotManagerNode,
     CheckTrustedCreatorNode,
     ClassifyBootstrapRouteNode,
     RefuseBootstrapNode,
     SeedCaseReplicaNode,
 )
+from vultron.core.behaviors.case.nodes.reporter_introduction import (
+    IntroduceCaseManagerToReporterNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import (
+    REPORTER_INTRODUCTION,
+)
+from vultron.core.services.case_replica_seeding import report_ids_of
 
 
 def create_create_case_received_tree(
@@ -93,17 +111,20 @@ def create_create_case_received_tree(
         :class:`~vultron.core.behaviors.case.nodes.replica_bootstrap.ClassifyBootstrapRouteNode`.
     """
     route = BootstrapRoute()
+    report_ids = report_ids_of(case_obj)
     trusted = py_trees.composites.Sequence(
         name="TrustedBootstrap",
         memory=False,
         children=[
             BootstrapRouteIsNode(route, "trusted"),
             CheckTrustedCreatorNode(route, sender_id, case_id),
+            CheckReportReferenceNode(route, report_ids, case_id),
             CheckInlineParticipantsNode(case_obj, case_id),
             HoldCarriedEmbargoNode(case_obj, case_id),
             SeedCaseReplicaNode(route, case_obj, case_id),
             BindReportCaseLinkNode(route, case_obj, case_id),
             StoreEmbeddedParticipantsNode(case_obj, case_id),
+            IntroduceCaseManagerToReporterNode(case_id),
         ],
     )
     redelivered = py_trees.composites.Sequence(
@@ -111,7 +132,8 @@ def create_create_case_received_tree(
         memory=False,
         children=[
             BootstrapRouteIsNode(route, "redelivery"),
-            py_trees.behaviours.Success(name="AcceptRedeliveredBootstrap"),
+            # Retries an introduction a first delivery failed to queue.
+            IntroduceCaseManagerToReporterNode(case_id, retry=True),
         ],
     )
     direct = py_trees.composites.Sequence(
@@ -145,7 +167,8 @@ def create_create_case_received_tree(
         case_id=None,
         precondition_guards=[],
         replica_effects=[
-            ClassifyBootstrapRouteNode(route, sender_id, case_id),
+            ClassifyBootstrapRouteNode(route, sender_id, case_id, report_ids),
             choose,
         ],
+        replica_emit_exemption=REPORTER_INTRODUCTION,
     )

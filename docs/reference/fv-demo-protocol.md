@@ -60,7 +60,7 @@ sequenceDiagram
     V->>CA: Create(CaseProposal)
     CA->>V: Accept(CaseProposal)
     CA->>V: Create(VulnerabilityCase)
-    CA->>F: Create(VulnerabilityCase)
+    V->>F: Create(VulnerabilityCase) — introduces the Case Actor
     V->>CA: Accept(Offer(VulnerabilityReport)) — Report Valid (RV)
     V->>CA: Join(VulnerabilityCase) — Report/Case Accepted (RA)
     CA-->>V: Announce(CaseLedgerEntry) ×n
@@ -125,7 +125,8 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
 | `Offer(VulnerabilityReport)` | [Report Submission (RS)](messages/rm.md#report-submission) | Finder → Vendor |
 | `Create(CaseProposal)` | [Create case proposal](messages/case_proposal.md#create-case-proposal) | Vendor → Case Actor |
 | `Accept(CaseProposal)` | [Accept case proposal](messages/case_proposal.md#accept-case-proposal) | Case Actor → Vendor |
-| `Create(VulnerabilityCase)` | [Create case](messages/case_management.md#create-case) | Case Actor → Vendor, Finder |
+| `Create(VulnerabilityCase)` | [Create case](messages/case_management.md#create-case) | Case Actor → Vendor |
+| `Create(VulnerabilityCase)` | [Create case](messages/case_management.md#create-case) | Vendor → Finder |
 | `Accept(Offer(VulnerabilityReport))` | [Validate report](messages/rm.md#report-valid) | Vendor → Case Actor |
 | `Join(VulnerabilityCase)` | [Report/Case Accepted (RA)](messages/rm.md#report-accepted) | Vendor → Case Actor |
 
@@ -136,12 +137,10 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
    The Vendor does not create the case itself; case creation is delegated so that the `CASE_MANAGER` authority is established by the actor that will hold it ([ADR-0041](../adr/0041-caseactor-authoritative-case-initialization.md), CP-09-005).
 3. The Case Actor creates the case, seats itself as `CASE_MANAGER`, the Vendor as `CASE_OWNER` at `RM.RECEIVED`, and the Finder as `REPORTER` at `RM.ACCEPTED`, initializes the Vendor's default embargo, and seeds both participants' [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md) as signatories.
    The embargo is therefore `ACTIVE` from the first ledger entry without a proposal round-trip (EP-04-001).
-   It then sends `Accept(CaseProposal)` to the Vendor, followed by `Create(VulnerabilityCase)` to both the Vendor and the Finder.
-   That `Create` carries the case with its participants inline; it is the [trust bootstrap](../topics/case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust) that lets the Finder bind the Case Actor's identity to this case (CBT-01-001).
-
-   !!! note "ADR-0132 changes this step"
-       The specs now have the Case Actor send that `Create` to the Vendor only, and the Vendor send the Finder its own `Create` naming the Case Actor.
-       The demo follows the specs once [#4511](https://github.com/CERTCC/Vultron/issues/4511) lands.
+   It then sends `Accept(CaseProposal)` to the Vendor, followed by `Create(VulnerabilityCase)` to the Vendor only (CBT-01-010).
+   That `Create` carries the case with its participants inline.
+   The Vendor accepts it, then sends the Finder its own `Create(VulnerabilityCase)`, which carries the same case inline, names the Case Actor as `CASE_MANAGER`, and references the Finder's report.
+   That introduction is the [trust bootstrap](../topics/case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust): the Finder trusts it because it comes from the actor the Finder sent its report to, and it then binds the Case Actor's identity to this case (CBT-01-001, CBT-01-005, [ADR-0132](../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
 4. The Vendor's `validate-report` trigger sends Report Valid (RV) to the Case Actor, and the Vendor's participant record advances to `RM.VALID`.
 5. The Vendor's `engage-case` trigger sends Report/Case Accepted (RA), and the record advances to `RM.ACCEPTED`.
 
@@ -181,10 +180,7 @@ The `actor` is the Case Actor, acting as `CASE_MANAGER`, while the case's `attri
   "type": "Create",
   "id": "urn:uuid:ac0e2f61-…",
   "actor": "http://case-actor:7999/api/v2/actors/case-actor",
-  "to": [
-    "http://vendor:7999/api/v2/actors/{vendor_id}",
-    "http://finder:7999/api/v2/actors/{finder_id}"
-  ],
+  "to": ["http://vendor:7999/api/v2/actors/{vendor_id}"],
   "context": "urn:uuid:8eee4e72-…",
   "inReplyTo": "urn:uuid:15f958ea-…",
   "object": {
