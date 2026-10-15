@@ -52,8 +52,9 @@ into :class:`EmbargoLifecycle` in ``service.py``:
   commits through ``staged_persistence.py``'s ``StagedCasePersistence``
 - ``consent.py``    — ``record_participant_consent``,
   ``record_embargo_rejection``, ``record_embargo_withdrawal`` (MSM-07-010),
-  ``detect_and_apply_expiry``,
   ``assert_embargo_eligible``
+- ``expiry.py``     — ``assess_invite_expiry``, ``record_invite_expiry``,
+  ``honour_late_accept``, ``detect_and_apply_expiry`` (EMB-17)
 
 Tracked in: https://github.com/CERTCC/Vultron/issues/538
 Scaffold (#746); full operations (#747)

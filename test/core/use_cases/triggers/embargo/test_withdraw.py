@@ -39,7 +39,10 @@ from vultron.core.use_cases.triggers.requests import (
     WithdrawEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
@@ -251,6 +254,22 @@ def test_the_case_owner_cannot_withdraw(
 
     with pytest.raises(VultronInvalidStateTransitionError, match="case owner"):
         _withdraw(dl, owner.id_, case.id_)
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("EP-09-013")
+def test_an_actor_with_no_participant_record_cannot_withdraw(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Not on the case, as when answering: not found (HTTP 404)."""
+    finder, dl = finder_actor_and_dl
+    case, _manager_id, _participant_id, _embargo_id = _seeded_signatory(
+        dl, finder.id_
+    )
+    stranger = _persist_actor(dl, "Stranger Co")
+
+    with pytest.raises(VultronNotFoundError, match="CaseParticipant"):
+        _withdraw(dl, stranger.id_, case.id_)
     assert dl.outbox_list() == []
 
 

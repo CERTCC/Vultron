@@ -8,14 +8,14 @@ withdrawal and changes no register entry; every replica learns it from the
 ledger (EP-09-007).
 """
 
-import logging
 from typing import TYPE_CHECKING, ClassVar
+
+import py_trees
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.withdrawal_tree import (
     withdraw_from_embargo_on_case_tree,
 )
@@ -26,33 +26,24 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.events.embargo import (
     WithdrawFromEmbargoOnCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
-)
 from vultron.core.use_cases.received._bt_verdict import (
-    not_case_manager_refusal,
-    verdict_from_bt,
+    embargo_withdrawal_redelivery_verdict,
+)
+from vultron.core.use_cases.received.embargo._embargo_event_frame import (
+    _EmbargoEventReceivedUseCase,
 )
 
-logger = logging.getLogger(__name__)
 
-_LABEL = "Leave(EmbargoEvent)"
-
-
-class WithdrawFromEmbargoOnCaseReceivedUseCase:
+class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
     """The received ``Leave(EmbargoEvent)`` (MSM-07-010).
 
-    Shape checks that write nothing, then the door check (HP-01-005,
-    ADR-0118), then the tree.  The sender must be an active participant
-    (CM-10-004), which a signatory to the embargo in force is; the tree's
-    guard then refuses, with the reason, a Leave of an embargo not in force,
-    from a row that is not ``AGREED``, or from the case owner.  Only the
+    The sender must be an active participant (CM-10-004), which a signatory
+    to the embargo in force is; the tree's guard then refuses, with the
+    reason, a Leave of an embargo not in force, from a row that is not
+    ``AGREED``, or from the case owner.  A redelivery of a Leave already
+    ledgered is a benign no-op, reported ``SKIPPED`` (HP-01-003).  Only the
     CASE_MANAGER records the withdrawal, so a receiver whose gate turns it
     away reports a refusal (BT-17-001).
     """
@@ -60,6 +51,8 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
+    _label = "Leave(EmbargoEvent)"
+    _tree_label = "WithdrawFromEmbargoOnCaseBT"
 
     def __init__(
         self,
@@ -68,71 +61,34 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
-        self._dl = dl
-        self._request = request
-        self._sync_port = sync_port
-        self._wire_render_port = wire_render_port
-
-    def execute(self) -> HandlerResult:
-        request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
+        super().__init__(
+            dl,
+            request,
+            sync_port=sync_port,
+            wire_render_port=wire_render_port,
         )
-        embargo_id, case_id = request.embargo_id, request.case_id
-        if embargo_id is None or case_id is None:
-            logger.warning("%s: missing embargo_id or case_id", _LABEL)
-            return HandlerResult.refused(
-                f"{_LABEL} is missing its embargo id or case id"
-            )
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id, request, label=_LABEL
-            )
-        ) is not None:
-            return refusal
 
-        tree = withdraw_from_embargo_on_case_tree(
+    def _build_tree(
+        self, case_id: str, embargo_id: str, sender_actor_id: str
+    ) -> py_trees.behaviour.Behaviour:
+        return withdraw_from_embargo_on_case_tree(
             case_id=case_id,
             embargo_id=embargo_id,
-            withdrawing_actor_id=request.actor_id,
+            withdrawing_actor_id=sender_actor_id,
+            activity_id=self._request.activity_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            wire_render_port=self._wire_render_port,
-            # The commit fans the entry out to every participant replica
-            # (EP-09-007, RSH-08-004); without the port nothing replays it.
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005).
-            actor_id=receiving_actor_id,
-            activity=request,
+
+    def _refine_verdict(
+        self, tree: py_trees.behaviour.Behaviour, verdict: HandlerResult
+    ) -> HandlerResult:
+        return embargo_withdrawal_redelivery_verdict(tree, verdict)
+
+    def _applied_message(self, embargo_id: str, case_id: str) -> str:
+        return (
+            f"'{self._request.actor_id}' withdrew from embargo"
+            f" '{embargo_id}' on case '{case_id}'"
         )
-        verdict = verdict_from_bt(
-            tree, result, label="WithdrawFromEmbargoOnCaseBT"
-        )
-        if verdict.disposition is HandlerDisposition.APPLIED:
-            # Only the CASE_MANAGER records a withdrawal; a replica learns it
-            # from the ledger broadcast (BT-17-001, HP-01-005).
-            refusal = not_case_manager_refusal(tree, self._dl, case_id)
-            if refusal is not None:
-                verdict = refusal
-        if verdict.disposition is HandlerDisposition.APPLIED:
-            logger.info(
-                "'%s' withdrew from embargo '%s' on case '%s'",
-                request.actor_id,
-                embargo_id,
-                case_id,
-            )
-        else:
-            logger.warning(
-                "%s (embargo '%s', case '%s')",
-                verdict.reason,
-                embargo_id,
-                case_id,
-            )
-        return verdict
 
 
 __all__ = ["WithdrawFromEmbargoOnCaseReceivedUseCase"]

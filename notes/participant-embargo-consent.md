@@ -18,6 +18,7 @@ related_specs:
   - specs/message-validation.yaml
   - specs/protocol-asks.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
@@ -412,6 +413,8 @@ The owner's decision and each participant's consent are different messages
   and moves no register entry. Its guard sits ahead of the commit, so a refused
   Leave is never ledgered; the withdrawer's replica still receives the entry,
   because the fan-out runs at the commit, before the effect makes it inactive.
+  A redelivery of a Leave the ledger already records is `SKIPPED`, not
+  refused (HP-01-003); a new Leave after the withdrawal is still refused.
 - `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,
   owner only) activates the proposal (EM derives `ACTIVE`, or `REVISE` while
   another proposal stays open, ADR-0130), marks the owner's row `AGREED` unless it

@@ -233,3 +233,48 @@ def test_a_replica_whose_row_diverges_is_warned_not_blocked(
         ACTIVE_EMBARGO_ID: "INVITED",
         REVISION_ID: "AGREED",
     }
+
+
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("SYNC-12-001")
+def test_a_withdrawal_from_an_embargo_no_longer_in_force_is_a_no_op(
+    datalayer, bridge, revising_replica
+) -> None:
+    """The case here no longer holds the entry's embargo as the one in force.
+
+    A later register change applied first, so there is nothing to withdraw
+    from; the entry replays as a no-op and no row moves.
+    """
+    result, node = _run(bridge, _leave_entry(embargo_id=REVISION_ID))
+
+    assert result.status == Status.SUCCESS
+    assert "already applied" in node.feedback_message
+    assert _rows(datalayer, PARTICIPANT_ACTOR_ID) == {
+        ACTIVE_EMBARGO_ID: "AGREED",
+        REVISION_ID: "AGREED",
+    }
+
+
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("SYNC-12-001")
+def test_a_replica_with_no_row_for_the_embargo_is_warned_not_blocked(
+    datalayer, bridge, revising_replica, caplog
+) -> None:
+    """A missing row is a defect here; logged at WARNING, later entries flow."""
+    case = cast(VulnerabilityCase, datalayer.read(CASE_ID))
+    participant = cast(
+        CaseParticipant,
+        datalayer.read(case.actor_participant_index[PARTICIPANT_ACTOR_ID]),
+    )
+    participant.embargo_consents = [
+        EmbargoConsent(embargo_id=REVISION_ID, state=ECS.AGREED),
+    ]
+    datalayer.save(participant)
+
+    with caplog.at_level("WARNING"):
+        result, node = _run(bridge, _leave_entry())
+
+    assert result.status == Status.SUCCESS
+    assert "replica diverges" in node.feedback_message
+    assert any("replica diverges" in r.getMessage() for r in caplog.records)
+    assert _rows(datalayer, PARTICIPANT_ACTOR_ID) == {REVISION_ID: "AGREED"}

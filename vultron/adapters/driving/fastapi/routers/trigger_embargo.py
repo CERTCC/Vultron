@@ -274,6 +274,8 @@ def trigger_terminate_embargo(
         "Returns HTTP 409 when no embargo is in force, when the actor's "
         "consent to it is not AGREED, or when the actor is the case owner, "
         "which ends an embargo with terminate-embargo instead. "
+        "Returns HTTP 404 when the actor holds no participant record on the "
+        "case. "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_withdraw_embargo",

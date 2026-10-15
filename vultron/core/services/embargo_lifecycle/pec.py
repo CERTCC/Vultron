@@ -97,12 +97,13 @@ def participant_consent_row(
 
     ``None`` means the actor has no participant record in *persistence* (a
     partial replica, or an actor the case does not hold).
+
+    Raises:
+        VultronNotFoundError: the record holds no row for *embargo_id*, a
+            defect (ADR-0122).
     """
-    participant_id = case.actor_participant_index.get(actor_id)
-    participant = persistence.read(participant_id) if participant_id else None
-    if not isinstance(participant, CaseParticipant):
-        return None
-    return participant.consent_for(embargo_id)
+    resolved = find_actor_participant(persistence, case, actor_id)
+    return None if resolved is None else resolved[1].consent_for(embargo_id)
 
 
 def embargo_withdrawal_refusal(

@@ -61,7 +61,18 @@ from vultron.core.services.embargo_lifecycle import (
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronNotFoundError, VultronValidationError
+
+
+def is_ledgered_activity(
+    datalayer: CasePersistence, case_id: str, activity_id: str
+) -> bool:
+    """``True`` when *case_id*'s ledger already records *activity_id*."""
+    return any(
+        entry.log_object_id == activity_id
+        for entry in recorded_entries_for_case(case_id=case_id, dl=datalayer)
+    )
 
 
 class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):
@@ -97,7 +108,12 @@ class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        refusal = self._refusal(self.datalayer, case)
+        try:
+            refusal = self._refusal(self.datalayer, case)
+        except VultronNotFoundError as exc:
+            # A participant holds a row for every register entry (ADR-0122),
+            # so a missing one is a defect in this store; refuse with it.
+            refusal = str(exc)
         if refusal is None:
             return Status.SUCCESS
         self.feedback_message = refusal
@@ -117,7 +133,45 @@ class IsWithdrawableEmbargoNode(_EmbargoRefusalGuardNode):
     Refuses unless *embargo_id* is the embargo in force, the withdrawing
     actor is not the case owner, and its row for that embargo is ``AGREED``
     (MSM-07-010).
+
+    A **redelivery** of a Leave the case's ledger already records (the same
+    *activity_id*) is not a new withdrawal and not a refusal (HP-01-003), but
+    it must change nothing: the guard sets :attr:`is_redelivery` and fails,
+    so nothing downstream runs, and the handler reports the run as
+    ``SKIPPED``.  A new Leave from a row the earlier one already declined is
+    still refused (MSM-07-010).
     """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        withdrawing_actor_id: str,
+        activity_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id, embargo_id, withdrawing_actor_id, name=name)
+        self.activity_id = activity_id
+        self.is_redelivery = False
+        """``True`` when the last run found this Leave already ledgered: a
+        benign no-op, not a refusal."""
+
+    def update(self) -> Status:
+        self.is_redelivery = False
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        if is_ledgered_activity(
+            self.datalayer, self.case_id, self.activity_id
+        ):
+            self.is_redelivery = True
+            self.feedback_message = (
+                f"Leave '{self.activity_id}' is already recorded for case"
+                f" '{self.case_id}' — redelivery, nothing to apply (HP-01-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return super().update()
 
     def _refusal(
         self, datalayer: CasePersistence, case: VulnerabilityCase
@@ -125,15 +179,6 @@ class IsWithdrawableEmbargoNode(_EmbargoRefusalGuardNode):
         return embargo_withdrawal_refusal(
             datalayer, case, self.subject_actor_id, self.embargo_id
         )
-
-    def __init__(
-        self,
-        case_id: str,
-        embargo_id: str,
-        withdrawing_actor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(case_id, embargo_id, withdrawing_actor_id, name=name)
 
 
 class RejectIsNotWithdrawalNode(_EmbargoRefusalGuardNode):
@@ -284,9 +329,19 @@ class ApplyEmbargoWithdrawalFromLedgerNode(_EmbargoRelayEffectNode):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        row = participant_consent_row(
-            self.datalayer, case, actor_id, embargo_id
-        )
+        try:
+            row = participant_consent_row(
+                self.datalayer, case, actor_id, embargo_id
+            )
+        except VultronNotFoundError as exc:
+            # The CASE_MANAGER admitted the Leave from an AGREED row, so a
+            # replica with no row at all diverges from it.  Logged, and not
+            # failed, so later entries are not blocked (as below).
+            self.feedback_message = (
+                f"{exc} — replica diverges from the CASE_MANAGER; not replayed"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
         if row is None:
             self.feedback_message = (
                 f"no participant record for '{actor_id}' on case"

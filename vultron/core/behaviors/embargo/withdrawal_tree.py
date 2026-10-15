@@ -45,6 +45,7 @@ def withdraw_from_embargo_on_case_tree(
     case_id: str,
     embargo_id: str,
     withdrawing_actor_id: str,
+    activity_id: str,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -54,6 +55,7 @@ def withdraw_from_embargo_on_case_tree(
         ├─ IntakeReceivedActivityNode
         ├─ <sender guard>                        # composed from sender_rule
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
+        │                                        # and redelivery (HP-01-003)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ RecordEmbargoWithdrawal (CASE_MANAGER gate)
            └─ RecordParticipantWithdrawalNode    # consent (MSM-07-010)
@@ -71,6 +73,8 @@ def withdraw_from_embargo_on_case_tree(
         withdrawing_actor_id: The Leave's ``actor``: the participant
             withdrawing.  Read from the message, never from the receiving
             store (ADR-0022).
+        activity_id: The Leave's own id; a Leave the ledger already records
+            is a redelivery, reported ``SKIPPED`` (HP-01-003).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
 
@@ -89,6 +93,7 @@ def withdraw_from_embargo_on_case_tree(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 withdrawing_actor_id=withdrawing_actor_id,
+                activity_id=activity_id,
             ),
         ],
         manager_effects=[

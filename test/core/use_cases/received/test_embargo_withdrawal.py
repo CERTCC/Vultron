@@ -133,6 +133,30 @@ def _store(
     return dl
 
 
+def _leave(
+    dl: SqliteDataLayer,
+    *,
+    sender: str = _FINDER,
+    embargo_id: str = _ACTIVE,
+    to: str = _MANAGER,
+):
+    return withdraw_from_embargo_activity(
+        cast(as_EmbargoEvent, dl.read(embargo_id)),
+        context=_CASE_ID,
+        actor=sender,
+        to=[to],
+    )
+
+
+def _run(dl: SqliteDataLayer, event: Any) -> HandlerResult:
+    return WithdrawFromEmbargoOnCaseReceivedUseCase(
+        dl,
+        event,
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
 def _withdraw(
     dl: SqliteDataLayer,
     make_payload: Any,
@@ -140,23 +164,17 @@ def _withdraw(
     sender: str = _FINDER,
     embargo_id: str = _ACTIVE,
     receiver: str = _MANAGER,
+    activity: Any = None,
 ):
-    activity = withdraw_from_embargo_activity(
-        cast(as_EmbargoEvent, dl.read(embargo_id)),
-        context=_CASE_ID,
-        actor=sender,
-        to=[receiver],
-    )
+    if activity is None:
+        activity = _leave(
+            dl, sender=sender, embargo_id=embargo_id, to=receiver
+        )
     event = make_payload(activity, receiving_actor_id=receiver)
     assert (
         event.semantic_type is MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE
     )
-    return WithdrawFromEmbargoOnCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return _run(dl, event)
 
 
 def _case(dl: SqliteDataLayer) -> VulnerabilityCase:
@@ -355,3 +373,102 @@ def test_a_signatorys_reject_of_a_revision_leaves_it_bound(make_payload):
         _INVITED_REVISION: "DECLINED",
     }
     assert _ledger(dl) == [MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE]
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("MSM-07-010")
+def test_a_redelivered_leave_is_skipped_and_changes_nothing(make_payload):
+    """The same Leave again is a duplicate, not a refusal (HP-01-003)."""
+    dl = _store()
+    leave = _leave(dl)
+    assert _withdraw(dl, make_payload, activity=leave).disposition is (
+        HandlerDisposition.APPLIED
+    )
+    rows, ledger = _rows(dl, _FINDER), _ledger(dl)
+
+    result = _withdraw(dl, make_payload, activity=leave)
+
+    assert result.disposition is HandlerDisposition.SKIPPED, result.reason
+    assert "redelivery" in (result.reason or "")
+    assert _rows(dl, _FINDER) == rows
+    assert _ledger(dl) == ledger
+
+
+@pytest.mark.spec("MSM-07-010")
+def test_a_new_leave_after_a_withdrawal_is_still_refused(make_payload):
+    """Only the same activity is a redelivery; a new Leave meets the guard."""
+    dl = _store()
+    assert _withdraw(dl, make_payload).disposition is (
+        HandlerDisposition.APPLIED
+    )
+    second = _leave(dl).model_copy(update={"id_": f"{_CASE_ID}/leaves/again"})
+
+    result = _withdraw(dl, make_payload, activity=second)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "not AGREED" in (result.reason or "")
+    assert _ledger(dl) == [_WITHDRAW]
+
+
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("HP-01-006")
+def test_a_leave_from_an_actor_not_in_the_case_is_refused_uncommitted(
+    make_payload,
+):
+    dl = _store()
+
+    result = _withdraw(
+        dl, make_payload, sender="https://example.org/users/stranger"
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason
+    assert _rows(dl, _FINDER)[_ACTIVE] == "AGREED"
+    assert _ledger(dl) == []
+
+
+@pytest.mark.spec("HP-01-005")
+def test_an_unaddressed_copy_of_a_leave_is_refused_uncommitted(make_payload):
+    """A store the Leave neither came from nor was sent to runs no tree."""
+    dl = _store()
+    leave = _leave(dl, to=_OWNER)
+    event = make_payload(leave, receiving_actor_id=_MANAGER)
+
+    result = _run(dl, event)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "unaddressed copy" in (result.reason or "")
+    assert _rows(dl, _FINDER)[_ACTIVE] == "AGREED"
+    assert _ledger(dl) == []
+
+
+@pytest.mark.spec("MSM-07-010")
+def test_a_leave_naming_no_case_is_refused_uncommitted(make_payload):
+    dl = _store()
+    event = make_payload(_leave(dl), receiving_actor_id=_MANAGER)
+
+    result = _run(dl, event.model_copy(update={"context": None}))
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "missing its embargo id or case id" in (result.reason or "")
+    assert _ledger(dl) == []
+
+
+@pytest.mark.spec("MSM-07-010")
+def test_a_leave_from_a_record_with_no_row_is_refused_uncommitted(
+    make_payload,
+):
+    """A missing row is a defect in the store; the guard refuses with it."""
+    dl = _store()
+    finder = dl.read(_case(dl).actor_participant_index[_FINDER])
+    assert isinstance(finder, CaseParticipant)
+    finder.embargo_consents = [
+        r for r in finder.embargo_consents if r.embargo_id != _ACTIVE
+    ]
+    dl.save(finder)
+
+    result = _withdraw(dl, make_payload)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "EmbargoConsent" in (result.reason or "")
+    assert _ledger(dl) == []

@@ -30,6 +30,9 @@ from vultron.core.services.embargo_lifecycle.consent import (
 from vultron.core.services.embargo_lifecycle.creation import (
     _CreationOperationsMixin,
 )
+from vultron.core.services.embargo_lifecycle.expiry import (
+    _InviteExpiryOperationsMixin,
+)
 from vultron.core.services.embargo_lifecycle.proposals import (
     _ProposalOperationsMixin,
 )
@@ -41,6 +44,7 @@ class EmbargoLifecycle(
     _AnswerOperationsMixin,
     _ActivationOperationsMixin,
     _ConsentOperationsMixin,
+    _InviteExpiryOperationsMixin,
 ):
     """Consolidated embargo register + PEC state management service.
 

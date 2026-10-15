@@ -43,6 +43,9 @@ from vultron.core.predicates.addressing import (
 from vultron.core.services.embargo_lifecycle import (
     embargo_withdrawal_refusal,
 )
+from vultron.core.services.embargo_lifecycle.pec import (
+    find_actor_participant,
+)
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
 )
@@ -287,10 +290,21 @@ def resolve_embargo_to_withdraw(
     The case is read from the actor's own replica.
 
     Raises:
+        VultronNotFoundError: The actor has no participant record on the
+            case, as when resolving an answer (HTTP 404).
         VultronInvalidStateTransitionError: No embargo is in force, the
-            actor's row for it is not ``AGREED``, the actor is the case owner,
-            or the actor has no participant record on the case.
+            actor's row for it is not ``AGREED``, or the actor is the case
+            owner (HTTP 409).
     """
+    # The owner's refusal (CM-02-005) names the reason, so it is decided by
+    # the predicate below whether or not the owner holds a record.
+    if (
+        not is_case_owner(case, actor_id)
+        and find_actor_participant(dl, case, actor_id) is None
+    ):
+        raise VultronNotFoundError(
+            "CaseParticipant", f"{actor_id} on case {case.id_}"
+        )
     refusal = embargo_withdrawal_refusal(dl, case, actor_id, None)
     if refusal is not None:
         raise VultronInvalidStateTransitionError(refusal)

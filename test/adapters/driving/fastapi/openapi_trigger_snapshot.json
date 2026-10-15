@@ -3273,7 +3273,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/withdraw-embargo": {
       "post": {
-        "description": "Triggers the withdraw-embargo behavior for the given actor. A participant whose consent to the active embargo is AGREED leaves it by sending Leave(EmbargoEvent) to the CASE_MANAGER; no Invite is named. The participant's consent to the embargo in force, and to any open revision it agreed to, becomes DECLINED; the embargo stays in force for everyone else and the case's EM state does not move (EP-09-013, MSM-07-010). Returns HTTP 409 when no embargo is in force, when the actor's consent to it is not AGREED, or when the actor is the case owner, which ends an embargo with terminate-embargo instead. Returns the resulting activity in the response body (TRIG-04-001).",
+        "description": "Triggers the withdraw-embargo behavior for the given actor. A participant whose consent to the active embargo is AGREED leaves it by sending Leave(EmbargoEvent) to the CASE_MANAGER; no Invite is named. The participant's consent to the embargo in force, and to any open revision it agreed to, becomes DECLINED; the embargo stays in force for everyone else and the case's EM state does not move (EP-09-013, MSM-07-010). Returns HTTP 409 when no embargo is in force, when the actor's consent to it is not AGREED, or when the actor is the case owner, which ends an embargo with terminate-embargo instead. Returns HTTP 404 when the actor holds no participant record on the case. Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_withdraw_embargo",
         "parameters": [
           {

@@ -28,7 +28,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-from ._base import _seal
+from ._base import (
+    _create_and_seal,
+    _seal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,11 +122,4 @@ class _NotesMixin:
         activity = add_note_to_case_activity(
             note=note, target=case_id, actor=actor, to=to
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "add_note_to_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "add_note_to_case")
