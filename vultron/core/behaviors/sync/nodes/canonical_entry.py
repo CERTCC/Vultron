@@ -131,6 +131,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # CASE_MANAGER-authored change to a participant record, carrying the
     # record (update_case_participant, CM-21-002, CLP-07-013).
     ("Update", "CaseParticipant"),
+    # CASE_MANAGER-authored consent rows, each carried in full
+    # (create_embargo_consent, update_embargo_consent; ADR-0122, CLP-07-013).
+    ("Create", "EmbargoConsent"),
+    ("Update", "EmbargoConsent"),
     # CASE_MANAGER-authored honour decision for a late Accept when the embargo
     # is still active and matching (EMB-17-001, ADR-0118).
     (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
@@ -167,6 +171,9 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Update", "VulnerabilityCase"),
         # CASE_MANAGER-authored participant-record change (CLP-07-013)
         ("Update", "CaseParticipant"),
+        # CASE_MANAGER-authored consent-row changes (ADR-0122, CLP-07-013)
+        ("Create", "EmbargoConsent"),
+        ("Update", "EmbargoConsent"),
         # CASE_MANAGER-authored honour decision (EMB-17-001, ADR-0118)
         (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)

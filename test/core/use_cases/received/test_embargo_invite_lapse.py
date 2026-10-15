@@ -1195,19 +1195,27 @@ class TestInviteeIsTheAddressee:
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consents == [
             EmbargoConsent(
-                embargo_id=active_id, state=EmbargoConsentState.AGREED
+                embargo_id=active_id,
+                state=EmbargoConsentState.AGREED,
+                attributed_to=coord.attributed_to,
             ),
             EmbargoConsent(
-                embargo_id=revision.id_, state=EmbargoConsentState.DECLINED
+                embargo_id=revision.id_,
+                state=EmbargoConsentState.DECLINED,
+                attributed_to=coord.attributed_to,
             ),
         ]
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consents == [
             EmbargoConsent(
-                embargo_id=active_id, state=EmbargoConsentState.AGREED
+                embargo_id=active_id,
+                state=EmbargoConsentState.AGREED,
+                attributed_to=invitee.attributed_to,
             ),
             EmbargoConsent(
-                embargo_id=revision.id_, state=EmbargoConsentState.UNINVITED
+                embargo_id=revision.id_,
+                state=EmbargoConsentState.UNINVITED,
+                attributed_to=invitee.attributed_to,
             ),
         ]
         case_after = cast(VulnerabilityCase, dl.read(case_id))

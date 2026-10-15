@@ -43,22 +43,29 @@ from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
+    _CreateEmbargoConsentActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
     _IgnoreLateEmbargoAcceptActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
+    _UpdateEmbargoConsentActivity,
     _WithdrawFromEmbargoActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
+    as_Create,
     as_Ignore,
     as_Invite,
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Update,
+)
+from vultron.wire.as2.vocab.objects.embargo_consent import (
+    as_EmbargoConsent,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
@@ -503,4 +510,61 @@ def remove_embargo_from_case_activity(
         )
         raise VultronActivityConstructionError(
             "remove_embargo_from_case_activity: invalid arguments"
+        ) from exc
+
+
+def create_embargo_consent_activity(
+    row: as_EmbargoConsent,
+    **kwargs,
+) -> as_Create:
+    """Build a Create(as_EmbargoConsent): the CASE_MANAGER created a row.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    new consent row in full (ADR-0122, CLP-07-013); never sent as a message.
+
+    Args:
+        row: The new consent row; it names its participant actor.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``context``, ``id_``).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _CreateEmbargoConsentActivity(object_=row, **kwargs)
+    except ValidationError as exc:
+        logger.warning(
+            "create_embargo_consent_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "create_embargo_consent_activity: invalid arguments"
+        ) from exc
+
+
+def update_embargo_consent_activity(
+    row: as_EmbargoConsent,
+    **kwargs,
+) -> as_Update:
+    """Build an Update(as_EmbargoConsent): the CASE_MANAGER changed a row.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    changed consent row in full (ADR-0122, CLP-07-013); never sent as a
+    message.
+
+    Args:
+        row: The changed consent row; it names its participant actor.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``context``, ``id_``).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _UpdateEmbargoConsentActivity(object_=row, **kwargs)
+    except ValidationError as exc:
+        logger.warning(
+            "update_embargo_consent_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "update_embargo_consent_activity: invalid arguments"
         ) from exc

@@ -12,7 +12,7 @@ revision: 6
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; Claude Opus 5.5; Issue #4178, Concern #4284, Concern #3884,
-  Issue #4153, Concern #4322, Issue #4597, PR #4002, PR #4267, PR #4372, PR #4601; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
+  Issue #4153, Concern #4322, Issue #4597, Issue #4713, PR #4002, PR #4267, PR #4372, PR #4601; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
   ADR-0113, ADR-0118, ADR-0124, ADR-0130; specs/case-management.yaml CM-10, CM-18;
   specs/message-semantics-mapping.yaml MSM-07; specs/embargo-policy.yaml EP-05,
   EP-08, EP-09; specs/em-behavior.yaml EMB-11, EMB-16, EMB-17
@@ -185,7 +185,8 @@ The retired wire keys (`emConsentState`, `embargoAdherence`, `embargoConsentStat
 ### The protocol messages that cause each change
 
 Each change above is caused by one committed protocol message.
-The CASE_MANAGER works out the changes when it decides on the message, and commits each as its own entry after the message's entry, carrying the changed row or register entry; every replica copies them (ADR-0124).
+The CASE_MANAGER works out the changes when it decides on the message, before it commits anything (ADR-0124).
+How those changes become ledger entries is set out in "How the changes are recorded in the ledger" below.
 
 | Message | Register | Consent rows |
 |---|---|---|
@@ -231,6 +232,59 @@ Both commit the CASE_MANAGER's `Remove(EmbargoEvent, target=Case)` with `content
 A request that arrives after the entry is `TERMINATED` commits nothing and is answered as already done, so it never reaches the register and never breaks invariant 4.
 The termination runs the full cascade: `TERMINATED` with its reason, every open proposal `CANCELLED`, EM `EXITED`, and the teardown announcement.
 
+### How the changes are recorded in the ledger
+
+A ledger entry records one AS2 activity with its object, and whatever that activity carries.
+The number of entries follows the number of activity/object pairs, not the number of stored objects one activity changes.
+
+**The register changes by register steps, and the act's own activity carries the step.**
+Each message in the table above that changes the register is one activity/object pair, so it is one entry, and applying that entry performs the whole step.
+The register's definition says which entries the step moves, so the activity needs to name only the step and its embargo:
+
+| Activity | Register step |
+|---|---|
+| `Invite(EmbargoEvent)` proposing a new embargo | `PROPOSE`; the embargo is carried inline and kept on the new entry |
+| `Accept(EmbargoEvent, target=Case)` | `ACTIVATE`, with `SUPERSEDE` of the embargo in force |
+| `Reject(EmbargoEvent, target=Case)` | `REJECT` |
+| `Remove(EmbargoEvent, target=Case)` | `TERMINATE` of the embargo it names, with `CANCEL` of every `PROPOSED` entry |
+| the CASE_MANAGER's record of a threat signal abandoning a proposal while no embargo is in force | `CANCEL` of that proposal |
+
+No separate entry records a supersede or a cancel: they are part of the step.
+The register invariants and the EM transition check (ADR-0130) hold after every entry, as they do after every step.
+A termination ends the embargo its entry names; one that names an embargo the case does not hold in force does not apply.
+A register entry is therefore never the object of a ledger entry of its own: it appears on the wire only inside a copy of the case, in the case's `embargoRegister`.
+
+**Each changed consent row is its own entry.**
+A row belongs to a participant, which is a different object from the case, so every row the CASE_MANAGER creates or changes as a consequence of an act is its own CASE_MANAGER activity and its own entry, after the act's entry.
+That covers the `UNINVITED` rows a proposal writes, the proposer's and the owner's own `AGREE`, `CARRY_OVER` at activation, the CASE_MANAGER's consent from its own policy, time-outs, and withdrawal declines.
+Where the act's own activity is the participant's answer, such as an `Accept(Invite(EmbargoEvent))`, that entry is the row's entry and no second one records it (ADR-0124).
+
+- `Create(EmbargoConsent)` carries a row the CASE_MANAGER brings into existence.
+- `Update(EmbargoConsent)` carries a row it changed.
+
+A consent row is an AS2 object, so each of these activities carries the row in full and a replica copies it:
+
+| Property | Value |
+|---|---|
+| `type` | `EmbargoConsent` |
+| `id` | derived from the participant actor and the embargo, so the same row has the same id on every node and nothing mints one |
+| `attributedTo` | the participant actor whose consent the row records |
+| `embargoId` | the embargo the row answers |
+| `state` | the row's consent state |
+| `rsvpDeadline` | the invitation's RSVP deadline, on an `INVITED` row only |
+
+A row is built with no `published` or `updated` time, so building or copying one reads no clock.
+Every row a participant record holds has the same shape, attributed to that participant's actor.
+
+**One apply function copies every entry.**
+The CASE_MANAGER and every replica apply each entry through the same function (ADR-0124).
+For a register step it performs the step the activity names; for a consent row it writes the row as carried.
+Before writing, it checks the starting state the entry implies: the step must be legal on the case's register, a created row must be new and start `UNINVITED` or one consent transition from it (when the act that creates it also answers it, as a proposer's own row does), an updated row must be held and reach the carried state by one consent transition (or be an `INVITED` row taking a fresh deadline), and a row for an entry in a final status accepts no change.
+It mints no id, reads no clock or store, and runs no lifecycle logic, and EM is never written: it is derived from the register.
+An entry that does not start where the case is, is refused.
+On the CASE_MANAGER a refusal during the trial apply stops the act before anything is committed; for a received act the trial runs among its guards, before the act's own entry is committed.
+On a replica it means an earlier entry is missing or the replica has diverged, so the entry is held for gap handling and never patched over.
+
 ### Consequences
 
 - Good, because every state is named and written: no machine starts from an absent record, and nothing that is only a read is drawn as a state.
@@ -241,7 +295,7 @@ The termination runs the full cascade: `TERMINATED` with its reason, every open 
 - Good, because a `Reject` never has to be read against the case's state to tell a refusal from a withdrawal: withdrawal is `Leave(EmbargoEvent)`.
 - Good, because an embargo that reaches its end time is recorded as ended, so the content gate stops withholding content under an embargo that has expired.
 - Bad, because rows grow to participants × register entries per case and are never pruned; at the expected scale (up to hundreds of participants, a handful of embargoes per case) this is small.
-- Bad, because the wire format changes: the consent row states, the owner's activation and rejection activities, and the termination `content` value.
+- Bad, because the wire format changes: the consent row states, the consent row as an AS2 object, the owner's activation and rejection activities, and the termination `content` value.
   The prototype owes no compatibility.
 - Bad, because stored `CaseParticipant` and `VulnerabilityCase` records in the old shape no longer load (`extra="forbid"`); the prototype keeps no migration.
 - Bad, because every reader of EM state, the old scalar, `EMAdapter` and the two-audience rule must be revisited.
@@ -308,6 +362,7 @@ Four wire forms were weighed for a signatory leaving the embargo it is bound by.
 ## More Information
 
 Decided in the maintainer's design session of 2026-10-07, recorded in Concern #4284; implementation is tracked under epic #4283.
+The ledger shapes ("How the changes are recorded in the ledger") were recorded in place on 2026-10-15 from the maintainer's decision on Issue #4713: the act's own activity carries the whole register step, and each changed consent row is its own entry.
 Revision 5 (2026-10-09) withdrew revision 3's retirement of the EM transition table: EM stays computed from the register, under the table (ADR-0130).
 Revision 1 (2026-10-06) introduced the per-embargo rows with `INVITED`, `ACCEPTED`, `DECLINED` and `EXPIRED`, and left EM, the case's embargo history and the owner's activation as they were.
 

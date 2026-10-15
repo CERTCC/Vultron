@@ -9,6 +9,7 @@
       "CaseProposal": "vultron:CaseProposal",
       "CaseReference": "vultron:CaseReference",
       "CaseStatus": "vultron:CaseStatus",
+      "EmbargoConsent": "vultron:EmbargoConsent",
       "EmbargoEvent": "vultron:EmbargoEvent",
       "EmbargoPolicy": "vultron:EmbargoPolicy",
       "ParticipantStatus": "vultron:ParticipantStatus",
