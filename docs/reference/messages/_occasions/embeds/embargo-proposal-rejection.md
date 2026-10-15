@@ -6,6 +6,7 @@
 
     - **When…** a Participant refuses proposed embargo terms
     - **Send:** `Reject(Invite(Event)[context=VulnerabilityCase])`
+    - **Send to:** the case manager
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `PROPOSED`
     - **Reference:** [Embargo Proposal Rejection (ER)](../../em.md#embargo-proposal-rejection)

@@ -6,6 +6,7 @@ Ends the sender's own consent to the embargo in force, and to any revision it ha
 
 - **When…** a Participant bound by the active embargo stops complying with it
 - **Send:** `Leave(Event)[context=VulnerabilityCase]`
+- **Send to:** the case manager
 - **Sent by:** a participant
 - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
 - **Mapping status:** [none](../../index.md#mapping-status)

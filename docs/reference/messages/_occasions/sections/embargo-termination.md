@@ -6,6 +6,7 @@ Terminates the embargo with immediate effect.
 
 - **When…** the Case Owner terminates the active embargo
 - **Send:** `Remove(Event)`
+- **Send to:** the case manager
 - **Sent by:** the case manager or the case owner
 - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
 - **Formal definition:** [Embargo Termination (ET)](../../../formal_protocol/messages.md#em-message-types)

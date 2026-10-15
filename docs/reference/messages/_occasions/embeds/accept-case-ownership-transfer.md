@@ -6,7 +6,8 @@
 
     - **When…** an actor accepts an offer of case ownership
     - **Send:** `Accept(Offer(VulnerabilityCase))`
-    - **Sent by:** the addressee of the vulnerability case
+    - **Send to:** the case manager
+    - **Sent by:** the addressee of the vulnerability case offer
     - **Reference:** [Accept case ownership transfer](../../case_management.md#accept-case-ownership-transfer)
 
     ??? example "Example activity"

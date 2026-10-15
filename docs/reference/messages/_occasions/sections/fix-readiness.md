@@ -6,6 +6,7 @@ Announces that the Vendor whose participant record is the target has a fix ready
 
 - **When…** a Vendor has a fix ready
 - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+- **Send to:** the case manager
 - **Sent by:** a participant (usually: vendor)
 - **Distinguished by:** `vfState` = `VF`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)

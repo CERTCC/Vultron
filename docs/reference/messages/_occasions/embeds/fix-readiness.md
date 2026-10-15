@@ -6,6 +6,7 @@
 
     - **When…** a Vendor has a fix ready
     - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send to:** the case manager
     - **Sent by:** a participant (usually: vendor)
     - **Distinguished by:** `vfState` = `VF`
     - **Reference:** [Fix Readiness (CF)](../../cs.md#fix-readiness)

@@ -109,6 +109,7 @@ from vultron.metadata.msm._mapping import (
     load_occasion_table,
     mapping_status,
     section_heading,
+    send_to,
     sent_by,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
@@ -378,6 +379,7 @@ def derive_table(
                 heading=section_heading(occasion, registry),
                 when=occasion.when,
                 send=wire_summary(entry),
+                send_to=send_to(occasion),
                 sent_by=sent_by(entry, occasion),
                 distinguished_by=distinguished_by(occasion),
                 semantics=entry.semantics,
@@ -457,13 +459,14 @@ def details_link(group: OccasionGroup, row: OccasionRow, prefix: str) -> str:
 def render_slice(group: OccasionGroup) -> str:
     """Render one group's table, linking from :data:`FRAGMENT_DIR`."""
     lines = [
-        "| When… | Send | Sent by | Distinguished by | Details |",
-        "|---|---|---|---|---|",
+        "| When… | Send | Send to | Sent by | Distinguished by | Details |",
+        "|---|---|---|---|---|---|",
     ]
     for row in group.occasions:
         cells = (
             row.when,
             _code_cell(row.send),
+            row.send_to,
             row.sent_by,
             row.distinguished_by or "—",
             details_link(group, row, "../"),
@@ -503,6 +506,7 @@ def _send_facts(row: OccasionRow) -> list[str]:
     facts = [
         f"- **When…** {row.when}",
         f"- **Send:** `{row.send}`",
+        f"- **Send to:** {row.send_to}",
         f"- **Sent by:** {row.sent_by}",
     ]
     if row.distinguished_by is not None:

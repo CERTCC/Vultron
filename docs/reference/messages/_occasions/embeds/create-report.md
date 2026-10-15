@@ -6,6 +6,7 @@
 
     - **When…** a Reporter has written up a vulnerability and is about to submit the report
     - **Send:** `Create(VulnerabilityReport)`
+    - **Send to:** an actor outside any case
     - **Sent by:** any actor (usually: finder, reporter)
     - **Reference:** [Create report](../../rm.md#create-report)
 
