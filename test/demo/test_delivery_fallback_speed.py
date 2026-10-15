@@ -30,28 +30,20 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import route_exchange_demo_at_testclient
 from vultron.demo.exchange import receive_report_demo as demo
 
 
 @pytest.fixture(scope="module")
 def demo_env(client: TestClient):
-    """Patch the demo module to route through the TestClient."""
-    import importlib
+    """Route the demo's clients, the runner's included, at the TestClient.
 
-    from _pytest.monkeypatch import MonkeyPatch
-
-    mp = MonkeyPatch()
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    try:
-        mp.setattr(demo, "BASE_URL", base)
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
+    The finder submits through its own trigger (#4675), and ``ActorSession``
+    refuses a client whose base URL does not host the actor (DEMOMA-26-002),
+    so the runner's client must be built at the test server's base too.
+    """
+    with route_exchange_demo_at_testclient(client, demo):
         yield
-    finally:
-        mp.undo()
-        importlib.reload(demo)
 
 
 @pytest.mark.timeout(10)

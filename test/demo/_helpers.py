@@ -15,17 +15,19 @@
 
 import contextlib
 import importlib
+import logging
 from collections.abc import Iterator, Mapping, Sequence
 from types import ModuleType, SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
+import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain, runner
+from vultron.demo.helpers import invite_chain, runner, workflow
 from vultron.demo.utils import DataLayerClient
 
 # Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
@@ -449,3 +451,95 @@ def assert_reset_reseeds_case_actor(
     reset_clients = [c.kwargs["client"] for c in reset_mock.call_args_list]
     assert reset_clients == [*participant_clients.values(), case_actor_client]
     reseed_mock.assert_called_once_with(case_actor_client)
+
+
+def _reporter_links(
+    reporter_id: str, report_id: str
+) -> list[tuple[str | None, str | None]]:
+    """``(case_creator_id, case_id)`` of each of the reporter's links for a report.
+
+    Read from the reporter's own store, where the links are written.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.core.models.report_case_link import VultronReportCaseLink
+
+    return [
+        (link.case_creator_id, link.case_id)
+        for link in get_datalayer(reporter_id).list_objects("ReportCaseLink")
+        if isinstance(link, VultronReportCaseLink)
+        and link.report_id == report_id
+    ]
+
+
+@contextlib.contextmanager
+def expect_trusted_introductions(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[None]:
+    """Assert every reporter took its receiver's case introduction as trusted.
+
+    Wrap a demo run in this.  It records each call the demo makes to
+    ``wait_for_reporter_introduction`` and, while the reporter's store still
+    holds the result (the exchange runner resets it on teardown), reads the
+    reporter's own ``ReportCaseLink`` for the report.  A wait that fails is
+    recorded too, then re-raised for the demo's ``demo_check`` to record.
+    On exit it asserts that at least one introduction was checked, that each
+    link names the receiver as ``case_creator_id`` and is bound to the case
+    the wait found (the case the demo expected, when it passed one;
+    CBT-01-001, CBT-01-005), and that nothing logged a ``CBT-01-011``
+    refusal.  The refusal is logged at WARNING, so the caller's ``caplog``
+    level must let WARNING records through; entering at a higher level fails
+    at once (#4675).
+    """
+    assert caplog.handler.level <= logging.WARNING, (
+        "expect_trusted_introductions needs caplog at WARNING or lower, or a"
+        " CBT-01-011 refusal could not be seen"
+    )
+    checked: list[tuple[str, str | None, list[tuple[str | None, str | None]]]]
+    checked = []
+    real_wait = workflow.wait_for_reporter_introduction
+
+    def _recording_wait(
+        client: DataLayerClient,
+        reporter_id: str,
+        receiver_id: str,
+        report_id: str,
+        **kwargs: Any,
+    ) -> str:
+        try:
+            case_id = real_wait(
+                client, reporter_id, receiver_id, report_id, **kwargs
+            )
+        except AssertionError:
+            checked.append(
+                (receiver_id, None, _reporter_links(reporter_id, report_id))
+            )
+            raise
+        checked.append(
+            (receiver_id, case_id, _reporter_links(reporter_id, report_id))
+        )
+        return case_id
+
+    with patch.object(
+        workflow, "wait_for_reporter_introduction", side_effect=_recording_wait
+    ):
+        yield
+
+    refusals = [
+        record.getMessage()
+        for record in caplog.records
+        if "(CBT-01-011)" in record.getMessage()
+    ]
+    assert not refusals, (
+        "a reporter refused its receiver's case introduction:\n"
+        + "\n".join(refusals)
+    )
+    assert checked, "the demo never checked the reporter's introduction"
+    for receiver_id, case_id, links in checked:
+        assert case_id is not None, (
+            f"the reporter's ReportCaseLink was never bound by {receiver_id!r}'s"
+            f" introduction; it holds {links!r}"
+        )
+        assert links == [(receiver_id, case_id)], (
+            f"the reporter's ReportCaseLink should name {receiver_id!r} and be"
+            f" bound to {case_id!r}; it holds {links!r}"
+        )

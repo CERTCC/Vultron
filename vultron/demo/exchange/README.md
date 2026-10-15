@@ -20,6 +20,17 @@ actor's own outbox. This is appropriate for exchange demos because:
 - They run against a single API server instance, making them easy to run
   locally or in CI.
 
+Two activities are never injected, in any demo: the reporter's report
+submission, `Offer(VulnerabilityReport)`, and the receiver's case
+introduction, `Create(VulnerabilityCase)`. The report goes through the
+reporter's own `submit-report` trigger (`reporter_submits_report` in
+`helpers/workflow.py`). The trigger records which actor the reporter sent the
+report to, and the reporter accepts the receiver's case introduction only
+against that record (CBT-01-005, #4675). The receiver's own behavior sends the
+introduction, and `verify_reporter_trusts_introduction` checks the reporter
+accepted it. `test/architecture/test_demo_reports_submitted_through_trigger.py`
+enforces this.
+
 ## Available exchange demos
 
 | Sub-command              | Script                           | What it demonstrates                            |

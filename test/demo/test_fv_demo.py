@@ -410,6 +410,7 @@ class TestFinderSubmitsReport:
             vendor_client=vendor_client,
             finder=finder,
             vendor=vendor_in_vendor,
+            finder_client=finder_client,
         )
 
         assert report.id_ is not None
@@ -441,6 +442,7 @@ class TestVendorValidatesReport:
             vendor_client=vendor_client,
             finder=finder,
             vendor=vendor_in_vendor,
+            finder_client=finder_client,
         )
 
         result = demo.vendor_validates_report(
@@ -480,6 +482,7 @@ class TestVendorValidatesReport:
             vendor_client=vendor_client,
             finder=finder,
             vendor=vendor_in_vendor,
+            finder_client=finder_client,
         )
         demo.vendor_validates_report(
             vendor_client=vendor_client,
@@ -537,6 +540,7 @@ class TestFinderAsksQuestion:
             vendor_client=vendor_client,
             finder=finder,
             vendor=vendor_in_vendor,
+            finder_client=finder_client,
         )
         demo.vendor_validates_report(
             vendor_client=vendor_client,
@@ -634,6 +638,7 @@ class TestWaitForFinderCase:
             vendor_client=vendor_client,
             finder=finder,
             vendor=vendor_in_vendor,
+            finder_client=finder_client,
         )
         demo.vendor_validates_report(
             vendor_client=vendor_client,
@@ -1714,11 +1719,12 @@ class TestDeliveryIsolation:
             },
         )
 
-        # Finder submits a report offer directly to Vendor's inbox.
+        # Finder submits the report through its own submit-report trigger.
         _report, offer = demo.finder_submits_report(
             vendor_client=vendor_dc,
             finder=finder_actor,
             vendor=vendor_actor,
+            finder_client=finder_dc,
         )
         assert offer.id_ is not None
 
@@ -1877,6 +1883,7 @@ def completed_workflow(
         vendor_client=vendor_client,
         finder=finder,
         vendor=vendor_in_vendor,
+        finder_client=finder_client,
     )
     demo.vendor_validates_report(
         vendor_client=vendor_client,
