@@ -335,7 +335,7 @@ groups:
       confirms that default retry and backoff parameter values are documented.
   - id: SYNC-05-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The per-recipient HTTP POST timeout MUST be a configurable parameter of the
       delivery adapter with a documented default value. The default MUST be set high
@@ -347,6 +347,8 @@ groups:
       demo DataLayerClient (timeout=30s, with comment explaining exactly this scenario).
       A hardcoded timeout that is known to be wrong is a configurable parameter waiting
       to be written. See CONCERN-2302 §2 and SYNC-05-002.
+      The timeout is an operating limit of this codebase's delivery adapter, which
+      other implementations may set differently, so it is `project` (ADR-0134).
     verification: >-
       Inspection of the delivery adapter confirms that the per-recipient HTTP POST
       timeout is exposed as a configurable parameter with a documented default value

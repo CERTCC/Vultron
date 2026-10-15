@@ -24,6 +24,7 @@ Spec coverage:
 """
 
 import json
+from datetime import UTC
 from typing import Any
 
 import pytest
@@ -922,6 +923,136 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     status = stub["caseStatus"]
     assert status["emState"] == EM.ACTIVE.value
     assert set(status) <= {"@context", "id", "type", "context", "emState"}
+
+
+def _embargo_active_case(case_id: str, active_embargo: Any) -> Any:
+    """A case whose EM is ``ACTIVE`` under *active_embargo* (id or object)."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.states.em import EM
+
+    return VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-012",
+        stub_summary="Vulnerability under active embargo",
+        attributed_to=_ACTOR_URI,
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=EM.ACTIVE),
+            )
+        ],
+        embargo_register=register(active=active_embargo),
+    )
+
+
+def _full_embargo(case_id: str) -> Any:
+    """An embargo carrying every term a sender may set, not just its window."""
+    from datetime import datetime
+
+    from vultron.core.models.embargo_event import EmbargoEvent
+
+    return EmbargoEvent(
+        context=case_id,
+        name="Coordinated embargo for widget RCE",
+        summary="Disclose together once the vendor ships the fix",
+        attributed_to=_ACTOR_URI,
+        start_time=datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC),
+        end_time=datetime(2099, 6, 7, 8, 9, 10, tzinfo=UTC),
+    )
+
+
+@pytest.mark.spec("CM-17-011")
+def test_rm_invite_stub_embeds_the_full_active_embargo(sample_actor):
+    """The stub carries the whole embargo, not just its id and end time.
+
+    The prototype builds no way for the invitee to ask the inviter for the
+    embargo by id, so the stub embeds it (CM-17-011).  Every term the stored
+    embargo holds reaches the wire unchanged — its sender-set start, name,
+    summary and author included — rather than a rebuilt copy that keeps only
+    the end time and mints a fresh start.
+    """
+    case_id = "https://example.org/cases/full-embargo-by-id"
+    embargo = _full_embargo(case_id)
+    case = _embargo_active_case(case_id, embargo.id_)
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        target=case,
+        actor=_ACTOR_URI,
+        embargo_obj=embargo,
+    )
+    wire = json.loads(
+        invite.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+
+    expected = json.loads(
+        embargo.model_dump_json(by_alias=True, exclude_none=True)
+    )
+    assert wire["target"]["activeEmbargo"] == expected
+
+
+@pytest.mark.spec("CM-17-011")
+def test_rm_invite_stub_embeds_the_full_inline_embargo(sample_actor):
+    """A case holding its embargo inline embeds that whole object (CM-17-011)."""
+    case_id = "https://example.org/cases/full-embargo-inline"
+    embargo = _full_embargo(case_id)
+    case = _embargo_active_case(case_id, embargo)
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+    wire = json.loads(
+        invite.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+
+    expected = json.loads(
+        embargo.model_dump_json(by_alias=True, exclude_none=True)
+    )
+    assert wire["target"]["activeEmbargo"] == expected
+
+
+@pytest.mark.spec("CM-17-011")
+def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(sample_actor):
+    """An active embargo named only by id, with no object to embed, is refused.
+
+    A bare id would leave the invitee no way to read the terms it would agree
+    to, since the prototype does not build fetching by id (CM-17-002,
+    CM-17-011).  The factory refuses rather than sending an uninformed stub.
+    """
+    case_id = "https://example.org/cases/embargo-not-held"
+    embargo = _full_embargo(case_id)
+    case = _embargo_active_case(case_id, embargo.id_)
+
+    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
+        rm_invite_to_case_activity(
+            invitee=sample_actor, target=case, actor=_ACTOR_URI
+        )
+
+
+@pytest.mark.spec("CM-17-011")
+def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
+    sample_actor,
+):
+    """A supplied embargo whose id is not the case's active embargo is refused."""
+    case_id = "https://example.org/cases/embargo-mismatch"
+    active = _full_embargo(case_id)
+    other = _full_embargo(case_id)
+    case = _embargo_active_case(case_id, active.id_)
+
+    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
+        rm_invite_to_case_activity(
+            invitee=sample_actor,
+            target=case,
+            actor=_ACTOR_URI,
+            embargo_obj=other,
+        )
 
 
 @pytest.mark.spec("CM-11-001")
