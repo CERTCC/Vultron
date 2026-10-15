@@ -38,7 +38,7 @@ An actor may accept or decline directly from no row, with no intervening invitat
 
 ## What starts it
 
-Four different things put an actor on this path.
+Five different things put an actor on this path.
 
 **Case creation.** A case begins embargoed.
 When a case is opened with no explicit proposal on the table, the receiving side applies its published default and the case goes straight to `EM.ACTIVE` — not `EM.PROPOSED` (EP-04-001).
@@ -51,6 +51,10 @@ This is why a normal case trace shows no proposal exchange at all: submitting a 
 These are the two flows the response decision handles, and they resolve at different scopes: answering an EP moves the case's EM state, answering an invitation moves only that Participant's PEC state (EMB-15).
 
 **A deadline passing.** An invitation carries a respond-by instant, and an unanswered invitation eventually becomes a refusal — see [Inaction is an answer](#inaction-is-an-answer) below.
+
+**An end time passing.** An embargo in force does not end by itself when its end time passes.
+The case manager ends it with the reason `END_TIME_REACHED` the next time it handles the case, whether for an incoming message or one of its own triggers, so no scheduler is needed.
+A request to end the embargo early made after its end time is recorded as `END_TIME_REACHED` too — see [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
 
 ---
 

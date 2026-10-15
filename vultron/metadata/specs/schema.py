@@ -194,7 +194,7 @@ class SpecKind(StrEnum):
     - ``foundation``   — Rules Vultron inherits from the standards beneath it:
                          ActivityStreams 2.0, ActivityPub, HTTP. Addressing and
                          delivery, HTTP status codes, and rules that only
-                         restate ActivityStreams (IDs are opaque URIs). A tag
+                         restate ActivityStreams (every ID is an IRI). A tag
                          records the standard (``as2``, ``activitypub``,
                          ``http``; MS-12-009).
     - ``architecture`` — Recommended structure that carries over to other

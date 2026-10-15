@@ -91,7 +91,7 @@ Entries are appended and never removed.
 | `ACTIVATE` | `PROPOSED → ACTIVE` |
 | `REJECT` | `PROPOSED → REJECTED` |
 | `SUPERSEDE` | `ACTIVE → SUPERSEDED`, in the same step as another entry's `ACTIVATE` |
-| `TERMINATE` | `ACTIVE → TERMINATED`, with a reason: `END_TIME_REACHED`, `EARLY` or a threat signal |
+| `TERMINATE` | `ACTIVE → TERMINATED`, with a reason: what ended it (`END_TIME_REACHED` or `EARLY`) and, when known, why (a threat signal) |
 | `CANCEL` | `PROPOSED → CANCELLED`, in the same step as a `TERMINATE`, or on a threat signal while no entry is `ACTIVE` |
 
 `REJECTED`, `SUPERSEDED`, `CANCELLED` and `TERMINATED` are final.
@@ -200,7 +200,7 @@ The CASE_MANAGER works out the changes when it decides on the message, and commi
 | `Accept(EmbargoEvent, target=Case)`, the case owner only | `ACTIVATE`, and `SUPERSEDE` of any `ACTIVE` entry | the owner `AGREE` unless its row is already `AGREED`; `CARRY_OVER` when the revision ends no later than the one it replaces |
 | `Reject(EmbargoEvent, target=Case)`, the case owner only | `REJECT` | — |
 | `Remove(EmbargoEvent, target=Case)`, from the case owner, or from the CASE_MANAGER when delegated (ADR-0118, EMB-03-003) | `TERMINATE`, and `CANCEL` of each `PROPOSED` entry | — |
-| a committed case status entry setting `P`, `X` or `A` | with an `ACTIVE` entry, `TERMINATE` (reason: threat signal) and `CANCEL` of each `PROPOSED` entry; with none, `CANCEL` of each `PROPOSED` entry | — |
+| a committed case status entry setting `P`, `X` or `A` | with an `ACTIVE` entry, `TERMINATE` (reason: `EARLY`, caused by the threat signal) and `CANCEL` of each `PROPOSED` entry; with none, `CANCEL` of each `PROPOSED` entry | — |
 | an invitation's RSVP deadline passing, committed as an entry (CM-28-009) | — | `TIME_OUT` on the invitee's row for that invitation's embargo |
 
 An owner whose row for the proposal is `DECLINED` may still activate it: activating is the owner changing its answer, so its row moves straight to `AGREED`, with no re-invite first.
@@ -213,8 +213,16 @@ It needs no Invite, so it serves every signatory, including the reporter (CM-14-
 The case owner does not leave an embargo; it ends one with `Remove(EmbargoEvent, target=Case)`.
 The direct activation by `Add(EmbargoEvent, target=Case)` is retired, because adding an embargo to the case is what proposing does.
 
-A termination `Remove` carries its reason in `content` as exactly `END_TIME_REACHED` or `EARLY`, checked at the parse edge; anything else is refused.
+A termination's reason has two parts: what ended the embargo, and why.
+The what is `END_TIME_REACHED` or `EARLY`.
+A termination `Remove` carries it in `content` as exactly one of those two values, checked at the parse edge; anything else is refused.
 `summary` carries a human-readable account and is not read by the protocol.
+The why is a structured cause the `TERMINATED` register entry records beside the what.
+A threat-signal termination is `EARLY`, its `Remove` carries `EARLY`, and its cause is `THREAT_SIGNAL` with the signals that ended it: `P` (public awareness), `X` (exploit public) or `A` (attacks observed).
+Other early causes, such as a quorum of vendors ready with a fix, adversary awareness, a leak or a participant's judgment, are left open, so the cause is extensible rather than a closed list; an early termination with no recorded cause records the what alone.
+The `Remove` does not carry the why.
+A replica learns the why only where the register entry itself reaches it, as in a copy of the case, so one that learns a termination from the `Remove` records only the what until it copies whole register entries (ADR-0124).
+Which causes exist, what details each carries, and whether the termination message should ever carry the why are left for future exploration.
 Replay refuses `END_TIME_REACHED` on an entry published before the embargo's end time.
 No new AS2 property is introduced.
 

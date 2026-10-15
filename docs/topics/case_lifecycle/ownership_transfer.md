@@ -63,6 +63,11 @@ Case Actor inbox receives Accept:
   1. Commits CaseLedgerEntry (ownership-transferred).   ← CM-21-007
   2. Announce(CaseLedgerEntry) → all participants.
   3. Applies the CASE_OWNER role change (CM-21-001 through CM-21-004).
+  4. Commits one entry per changed object, each        ← CLP-07-013
+     Announce(CaseLedgerEntry) → all participants:
+       update_case_participant  (previous owner, CASE_OWNER removed)
+       update_case_participant  (new owner, CASE_OWNER added)
+       update_case_owner        (the case, attributed_to = new owner)
 ```
 
 The proposed owner answers the CASE_MANAGER, not the participant who made the offer.
@@ -71,10 +76,24 @@ That offer must also still be open, with no other answer to it recorded.
 It refuses an acceptance from anyone else, or a second acceptance of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
-On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
+On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
 The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008, CM-21-009](../../reference/specs/protocol.md#cm-21)).
-The CASE_MANAGER then records the completed transfer in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
-The new owner's own copy of the case is updated by that same entry; nothing is delivered to it separately.
+The CASE_MANAGER records the acceptance in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
+
+The acceptance entry records what the proposed owner sent, not the changes it causes.
+Each change the CASE_MANAGER makes because of it follows as an entry of its own, in the order the CASE_MANAGER writes them ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)):
+
+1. An `update_case_participant` entry carries the previous owner's participant record, without `CASE_OWNER`.
+2. An `update_case_participant` entry carries the new owner's participant record, with `CASE_OWNER`.
+3. An `update_case_owner` entry carries the case, whose `attributed_to` now names the new owner.
+
+Each entry is an `Update` that the CASE_MANAGER authors, and it carries the changed object in full.
+A participant's copy of the case changes only by copying what these entries carry: it stores each participant record as received and takes `attributed_to` from the carried case ([CM-23-016](../../reference/specs/protocol.md#cm-23-016)).
+It does not decide for itself who the new owner is, and it assigns no ids or times of its own, so every copy holds the same owner and the same roles as the CASE_MANAGER.
+The previous owner's record changes first, so no copy ever shows two owners.
+A copy applies the entries one at a time, so between the first two it briefly shows no participant with `CASE_OWNER`, and until the third its `attributed_to` still names the previous owner.
+The CASE_MANAGER records all three entries before it saves the change, so it never makes a change that has no entry.
+The new owner's own copy is updated by the same entries; nothing is delivered to it separately.
 
 ```text
 Declining actor sends trigger: reject-case-ownership-transfer

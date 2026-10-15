@@ -125,7 +125,7 @@ The normative PEC states and transitions are [§9 Participant Embargo Consent (P
 - [Default Embargoes](defaults.md) — How published defaults and the protocol default start an embargo without a negotiation.
 - [Negotiating Embargoes](negotiating.md) — When an embargo can be proposed, accepted or rejected, and how long it can reasonably last.
 - [Adding Participants](working_with_others.md) — Adding Participants to a case under embargo.
-- [Early Termination](early_termination.md) — The events that end an embargo before its agreed time.
+- [Early Termination](early_termination.md) — The events that end an embargo before its agreed time, how a termination records why it ended, and what happens when the end time passes.
 - [Case Splits and Merges](split_merge.md) — What happens to embargoes when cases are split or merged.
 - [EM Formal Model](formal_model.md) — The EM process as a formal state machine, with its grammar and every possible history.
 

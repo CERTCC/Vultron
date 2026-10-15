@@ -59,7 +59,10 @@ from vultron.core.models.pending_assertion import get_pending_assertion_store
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -97,23 +100,8 @@ def _send(net: LedgerNetwork, activity: Any) -> None:
 
 
 def _replay(net: LedgerNetwork, replica: str) -> list[str]:
-    """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that.
-
-    Returns the event types delivered, in chain order.
-    """
-    event_types = []
-    for activity in net.queued(MANAGER, to=replica, type_="Announce"):
-        body = read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {}
-        entry = body.get("object") or {}
-        if entry.get("type") != "CaseLedgerEntry":
-            continue
-        verdict = net.receive(replica, body)
-        assert verdict.disposition is HandlerDisposition.APPLIED, (
-            entry.get("eventType"),
-            verdict.reason,
-        )
-        event_types.append(entry["eventType"])
-    return event_types
+    """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that."""
+    return net.replay_ledger(replica)
 
 
 def _ledger(net: LedgerNetwork, actor_id: str) -> list[str]:
@@ -441,7 +429,11 @@ def test_a_replica_follows_the_owners_embargo_removal():
     _send(
         net,
         remove_embargo_from_case_activity(
-            _embargo(net), origin=net.case_id, actor=OWNER, to=[MANAGER]
+            _embargo(net),
+            origin=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
+            reason=TerminationReason.EARLY,
         ),
     )
 
@@ -741,7 +733,11 @@ def test_embargo_removal_writes_nothing_at_an_active_replica():
         net,
         BYSTANDER,
         remove_embargo_from_case_activity(
-            _embargo(net), origin=net.case_id, actor=MANAGER, to=[BYSTANDER]
+            _embargo(net),
+            origin=net.case_id,
+            actor=MANAGER,
+            to=[BYSTANDER],
+            reason=TerminationReason.EARLY,
         ),
     )
 

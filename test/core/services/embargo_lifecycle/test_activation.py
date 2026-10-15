@@ -32,12 +32,12 @@ from test.support.embargo_register import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
@@ -128,7 +128,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.terminate_active_embargo(
-        reason=TerminationReason.EARLY,
+        termination=EmbargoTermination.early(),
         case_id=case.id_,
         actor_id=owner.id_,
     )
@@ -155,7 +155,7 @@ def test_terminate_active_embargo_strict_revise_to_exited(
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.terminate_active_embargo(
-        reason=TerminationReason.EARLY,
+        termination=EmbargoTermination.early(),
         case_id=case.id_,
         actor_id=owner.id_,
     )
@@ -173,7 +173,7 @@ def test_terminate_active_embargo_strict_no_active_embargo_raises(
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
         lifecycle.terminate_active_embargo(
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             case_id=case.id_,
             actor_id=owner.id_,
         )
@@ -192,7 +192,7 @@ def test_terminate_active_embargo_strict_proposed_only_raises(
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
         lifecycle.terminate_active_embargo(
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             case_id=case.id_,
             actor_id=owner.id_,
         )
@@ -219,7 +219,7 @@ def test_terminate_active_embargo_observed_with_nothing_in_force_changes_nothing
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.terminate_active_embargo(
-        reason=TerminationReason.EARLY,
+        termination=EmbargoTermination.early(),
         case_id=case.id_,
         actor_id=owner.id_,
         transition_mode=TransitionMode.OBSERVED,
@@ -255,7 +255,9 @@ def test_terminate_clears_every_open_revision_of_the_terminated_embargo(
     dl.save(case)
 
     result = EmbargoLifecycle(persistence=dl).terminate_active_embargo(
-        reason=TerminationReason.EARLY, case_id=case.id_, actor_id=owner.id_
+        termination=EmbargoTermination.early(),
+        case_id=case.id_,
+        actor_id=owner.id_,
     )
 
     assert result.em_after == EM.EXITED
@@ -290,7 +292,7 @@ def test_terminate_in_observed_mode_clears_every_open_revision_too(
     dl.save(case)
 
     result = EmbargoLifecycle(persistence=dl).terminate_active_embargo(
-        reason=TerminationReason.EARLY,
+        termination=EmbargoTermination.early(),
         case_id=case.id_,
         actor_id=owner.id_,
         transition_mode=TransitionMode.OBSERVED,
@@ -674,7 +676,7 @@ def test_a_refused_observed_activation_of_an_unrecorded_embargo_writes_no_row(
     case, (owner_p,) = _make_case(dl, owner.id_)
     ended = _make_embargo(dl, case.id_)
     activate(case, ended.id_)
-    terminate(case, TerminationReason.EARLY)
+    terminate(case)
     dl.save(case)
     write_consent_rows(dl, case)
     unrecorded = _make_embargo(dl, case.id_, days=90)

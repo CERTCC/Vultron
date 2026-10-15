@@ -65,6 +65,7 @@ from vultron.core.models.events.status import (
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.embargo_register import TerminationReason
 
 # Shared required fields for all VultronEvent instances.
 _ACT_ID = "https://example.org/activities/act-1"
@@ -308,7 +309,11 @@ _CASES = [
     (
         RemoveEmbargoEventFromCaseReceivedEvent,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
-        {"object_": _embargo, "origin": _case},
+        {
+            "object_": _embargo,
+            "origin": _case,
+            "termination_reason": TerminationReason.EARLY,
+        },
         [
             ("embargo_id", "object_id"),
             ("embargo", "object_"),

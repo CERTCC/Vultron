@@ -53,7 +53,7 @@ from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
-from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.models.embargo_termination import ThreatSignalTermination
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,7 @@ def _decide_owner_rejection(
                         case_id=case_id,
                         result_out={},
                         requested_by=rejecting_actor_id,
-                        reason=TerminationReason.THREAT_SIGNAL,
+                        termination=ThreatSignalTermination(),
                         actor_config=actor_config,
                     ),
                 ],

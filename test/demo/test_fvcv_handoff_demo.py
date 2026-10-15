@@ -1746,8 +1746,9 @@ class TestFvcvHandoffRmTriageTimeout:
 class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
     """The transfer reaches a replica in two hops, and the phase waits on each.
 
-    Hop 1 is the CaseActor committing ``accept_case_ownership_transfer``; hop 2
-    is the ``Announce(CaseLedgerEntry)`` fan-out applying it on every replica —
+    Hop 1 is the CaseActor committing ``update_case_owner``, the last entry
+    the accepted transfer commits (CLP-07-013); hop 2 is the
+    ``Announce(CaseLedgerEntry)`` fan-out applying it on every replica —
     the *only* thing that updates Vendor1's replica, since the CaseActor's own
     node writes only the CaseActor's store (ADR-0073).  In CI run 35917721682
     the fan-out row to Vendor1 waited 14.4 s in the CaseActor's outbox behind
@@ -1761,7 +1762,7 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
     about the gate (``vultron/demo/AGENTS.md`` rule 8).
     """
 
-    COMMIT_EVENT = "accept_case_ownership_transfer"
+    COMMIT_EVENT = "update_case_owner"
 
     @staticmethod
     def _actor(id_: str):

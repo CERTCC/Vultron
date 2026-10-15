@@ -6,7 +6,7 @@ level: 400
 # Foundation Specifications
 
 Rules Vultron inherits from the standards beneath it: ActivityStreams 2.0, ActivityPub, and HTTP.
-They cover addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams, such as treating object IDs as opaque URIs.
+They cover addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams, such as every object ID being an IRI.
 Each requirement carries a tag that names its standard: `as2`, `activitypub`, or `http`.
 Where Vultron requires one form among several that a standard allows, the rule is a [Protocol](protocol.md) requirement, not a foundation one.
 An implementer reads this page together with the Protocol page.

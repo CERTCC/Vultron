@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -296,6 +297,7 @@ class TestTerminateEmbargo:
             embargo_id=embargo.id_,
             case_id=_CASE_ID,
             actor=_ACTOR,
+            reason=TerminationReason.EARLY,
         )
 
         assert activity_id
@@ -309,6 +311,7 @@ class TestTerminateEmbargo:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_PEER],
+            reason=TerminationReason.EARLY,
         )
 
         assert dl.read(activity_id) is not None

@@ -26,8 +26,11 @@ Provides:
   :class:`EmitWithdrawCaseOwnershipTransferNode` — the replies to an Offer,
   defined in ``ownership_offer_reply_emit.py`` and re-exported here.
 - :class:`AcceptCaseOwnershipTransferNode` — applies the accepted
-  ownership transfer to the DataLayer: updates ``case.attributed_to``
-  and grants ``CVDRole.CASE_OWNER`` to the new owner's participant record.
+  ownership transfer to the DataLayer: updates ``case.attributed_to``,
+  moves ``CVDRole.CASE_OWNER`` to the new owner's participant record, and
+  commits each changed object as its own ledger entry (CLP-07-013); defined
+  in ``ownership_transfer_apply.py`` with
+  :class:`AcceptRecordedOwnershipOfferNode` and re-exported here.
 - :class:`ForwardOfferToTransfereeNode` — CaseActor-only effect node that
   builds a new ``Offer(VulnerabilityCase)`` addressed to the transferee and
   queues it in the CaseActor's outbox (CM-21-005, ADR-0053).
@@ -39,7 +42,6 @@ BTND-07-003.
 
 import logging
 from datetime import datetime
-from typing import Any
 
 from py_trees.common import Status
 
@@ -48,19 +50,14 @@ from vultron.core.behaviors.case.nodes.ownership_offer_reply_emit import (
     EmitRejectCaseOwnershipTransferNode,
     EmitWithdrawCaseOwnershipTransferNode,
 )
-from vultron.core.behaviors.delegated_authorship import delegated_authorship
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
+from vultron.core.behaviors.case.nodes.ownership_transfer_apply import (
+    AcceptCaseOwnershipTransferNode,
+    AcceptRecordedOwnershipOfferNode,
+    _TransferCaseOwnershipNode,
 )
-from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.participants.ownership_offer import recorded_ownership_offer
-from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -210,214 +207,8 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         )
 
 
-class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Apply an ownership-transfer acceptance to the case record.
-
-    Enforces the at-most-one CASE_OWNER invariant atomically (CM-21-001,
-    CM-21-004) by:
-
-    1. Reading all objects that need mutation (case + affected participants).
-    2. Applying all role changes in memory.
-    3. Committing every mutated object in a single ``save_many`` call so
-       no partial state is ever visible to other readers.
-
-    Specifically:
-
-    * Removes ``CVDRole.CASE_OWNER`` from the previous owner's participant
-      record (CM-21-003).
-    * Updates ``VulnerabilityCase.attributed_to`` to the new owner's ID.
-    * Adds ``CVDRole.CASE_OWNER`` to the new owner's participant record
-      (CM-21-002).
-
-    The previous owner retains all other roles and remains a case participant.
-    Role-gated nodes (e.g. ``create_case_manager_gated_tree``) read
-    ``CaseParticipant.case_roles`` — not ``attributed_to`` — so both fields
-    must be kept in sync (CM-21-002).
-
-    Idempotent: when the case is already owned by the new owner, returns
-    ``SUCCESS`` without mutation.
-
-    Returns ``FAILURE`` when the DataLayer is unavailable or the case is not
-    found, or when the new owner cannot be named; ``SUCCESS`` otherwise.
-
-    Subclasses name the new owner through :meth:`_new_owner_id`.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    def _new_owner_id(self) -> str:
-        """The actor that becomes the Case Owner.
-
-        Raises:
-            VultronNotFoundError: the new owner cannot be named.
-        """
-        raise NotImplementedError
-
-    def _read_case(self) -> Any | None:
-        # Regime 1 (ADR-0087): canonical FAILURE feedback+log via the helper;
-        # this method maps the failure to its None → caller-FAILURE contract.
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return None
-        return case
-
-    def _resolve_participant(
-        self, actor_id: str, case: VulnerabilityCase
-    ) -> CaseParticipant | None:
-        """Return the ``CaseParticipant`` for *actor_id*, or ``None``."""
-        assert self.datalayer is not None
-        participant_id = case.actor_participant_index.get(actor_id)
-        if participant_id is None:
-            self.logger.warning(
-                "%s: actor '%s' not found in actor_participant_index for"
-                " case '%s' — CVDRole.CASE_OWNER role update skipped",
-                self.name,
-                actor_id,
-                self.case_id,
-            )
-            return None
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.logger.warning(
-                "%s: actor '%s' has no CaseParticipant record in case '%s'"
-                " — CVDRole.CASE_OWNER role update skipped",
-                self.name,
-                actor_id,
-                self.case_id,
-            )
-            return None
-        return participant
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return f
-        try:
-            new_owner_id = self._new_owner_id()
-        except VultronNotFoundError as exc:
-            self.feedback_message = f"{self.name}: no new owner to name: {exc}"
-            self.logger.warning("%s", self.feedback_message)
-            return Status.FAILURE
-        return self._transfer(new_owner_id)
-
-    def _transfer(self, new_owner_id: str) -> Status:
-        case = self._read_case()
-        if case is None:
-            return Status.FAILURE
-
-        current_owner_id = _as_id(case.attributed_to)
-        if current_owner_id == new_owner_id:
-            self.logger.info(
-                "%s: case '%s' already owned by '%s' — skipping (idempotent)",
-                self.name,
-                self.case_id,
-                new_owner_id,
-            )
-            return Status.SUCCESS
-
-        # --- Read phase: collect every object that must change ---------------
-        to_save: list[Any] = []
-
-        old_participant: CaseParticipant | None = None
-        if current_owner_id is not None:
-            old_participant = self._resolve_participant(current_owner_id, case)
-
-        new_participant = self._resolve_participant(new_owner_id, case)
-
-        # --- Mutate phase: all changes in memory, nothing written yet --------
-
-        # CM-21-003: strip CASE_OWNER from the previous owner.
-        if old_participant is not None:
-            old_participant.remove_role(CVDRole.CASE_OWNER)
-            to_save.append(old_participant)
-            self.logger.info(
-                "%s: will remove CVDRole.CASE_OWNER from participant '%s'"
-                " (case '%s') — CM-21-003",
-                self.name,
-                case.actor_participant_index.get(current_owner_id),
-                self.case_id,
-            )
-
-        # CM-21-002: update attributed_to.
-
-        case.attributed_to = new_owner_id  # type: ignore[assignment]
-        to_save.append(case)
-
-        # CM-21-002: grant CASE_OWNER to the new owner.
-        if new_participant is not None:
-            new_participant.add_role(CVDRole.CASE_OWNER)
-            to_save.append(new_participant)
-            self.logger.info(
-                "%s: will grant CVDRole.CASE_OWNER to participant '%s'"
-                " (case '%s') — CM-21-002",
-                self.name,
-                case.actor_participant_index.get(new_owner_id),
-                self.case_id,
-            )
-
-        # --- Commit phase: single atomic transaction (CM-21-004) -------------
-        self.datalayer.save_many(to_save)  # type: ignore[union-attr]
-        self.logger.info(
-            "%s: atomically transferred ownership of case '%s' from '%s'"
-            " to '%s' (%d object(s) saved) — CM-21-004",
-            self.name,
-            self.case_id,
-            current_owner_id,
-            new_owner_id,
-            len(to_save),
-        )
-
-        return Status.SUCCESS
-
-
-class AcceptCaseOwnershipTransferNode(_TransferCaseOwnershipNode):
-    """Transfer the case's ownership to a named actor (CM-21-001 – CM-21-004)."""
-
-    def __init__(
-        self,
-        case_id: str,
-        new_owner_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(case_id=case_id, name=name)
-        self.new_owner_id = new_owner_id
-
-    def _new_owner_id(self) -> str:
-        return self.new_owner_id
-
-
-class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
-    """Transfer the case's ownership to the transferee of a recorded Offer.
-
-    The new owner is read from the ownership-transfer Offer the CASE_MANAGER
-    recorded, which *offer_id* names directly or through its forward
-    (CM-21-005), never from the sender of the Accept (CM-21-011).  Runs only
-    at the CASE_MANAGER, so the executing actor is the Offer's issuer.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        offer_id: str | None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(case_id=case_id, name=name)
-        self.offer_id = offer_id
-
-    def _new_owner_id(self) -> str:
-        assert self.datalayer is not None
-        if self.offer_id is None or self.actor_id is None:
-            raise VultronNotFoundError(
-                "Ownership-transfer Offer", str(self.offer_id)
-            )
-        return recorded_ownership_offer(
-            self.datalayer, self.case_id, self.offer_id, self.actor_id
-        ).transferee_id
-
-
 __all__ = [
+    "_TransferCaseOwnershipNode",
     "AcceptCaseOwnershipTransferNode",
     "AcceptRecordedOwnershipOfferNode",
     "EmitAcceptCaseOwnershipTransferNode",

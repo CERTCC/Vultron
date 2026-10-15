@@ -56,6 +56,7 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
@@ -64,7 +65,6 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 
@@ -1224,13 +1224,18 @@ def test_ownership_transfer_moves_the_owner_of_a_proposal_created_case(
         context=case.id_,
         case_roles=[CVDRole.COORDINATOR],
     )
+    # A seated participant holds a consent row for every register entry
+    # (ADR-0122); the transfer's entries are announced to it.
+    coordinator.write_uninvited_rows(case.register_embargo_ids)
     dl.create(coordinator)
     case.add_participant(coordinator)
     dl.save(case)
 
     result = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl).run(
         AcceptCaseOwnershipTransferNode(
-            case_id=case.id_, new_owner_id=new_owner
+            case_id=case.id_,
+            new_owner_id=new_owner,
+            cause_id="https://example.org/activities/accepted-offer",
         )
     )
 
@@ -3973,7 +3978,7 @@ class TestEP04SenderProposalAtCaseCreation:
         )
         assert case.current_status.em.state == EM.ACTIVE
         EmbargoLifecycle(persistence=dl).terminate_active_embargo(
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             case_id=case.id_,
             actor_id=_VENDOR_URI,
         )

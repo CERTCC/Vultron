@@ -363,13 +363,17 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
     the one embargo, ``TERMINATED`` for EXITED and ``ACTIVE`` for ACTIVE.
     """
     register_status = {"EXITED": "TERMINATED", "ACTIVE": "ACTIVE"}[em_state]
+    entry: dict = {
+        "embargo": "urn:uuid:pxa-embargo",
+        "status": register_status,
+    }
+    if register_status == "TERMINATED":
+        entry["termination"] = {"reason": "EARLY"}
     return {
         "id": _PXA_CASE_ID,
         "type": "VulnerabilityCase",
         "actorParticipantIndex": {},
-        "embargoRegister": [
-            {"embargo": "urn:uuid:pxa-embargo", "status": register_status}
-        ],
+        "embargoRegister": [entry],
         "caseStatuses": [
             {
                 "id": "urn:uuid:cs-pxa-1",

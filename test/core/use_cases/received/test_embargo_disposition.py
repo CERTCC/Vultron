@@ -33,6 +33,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -227,6 +228,7 @@ class TestFailedTeardownIsRefused:
             origin=as_VulnerabilityCase(id_=case.id_),
             actor=_VENDOR,
             to=[_COORD],
+            reason=TerminationReason.EARLY,
         )
         event = make_payload(activity, receiving_actor_id=_COORD)
 

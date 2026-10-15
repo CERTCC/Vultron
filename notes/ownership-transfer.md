@@ -127,6 +127,12 @@ replica is not updating, the routing is wrong; never hand-deliver
 ([demo-scenario-authoring](demo-scenario-authoring.md)). The invariant: the accepting
 actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
 
+- **The `Accept` entry moves nothing on a replica.** Each change it causes follows as
+  the CASE_MANAGER's own `Update` entry, old owner's record, new owner's record, then
+  the case (`update_case_participant` ×2, `update_case_owner`), and a replica copies
+  each one; it never derives the owner from the `Accept`'s sender (CLP-07-013,
+  CM-23-016, #4439).
+
 ---
 
 ## What Each Component Must Preserve
