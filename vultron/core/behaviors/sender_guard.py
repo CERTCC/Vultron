@@ -179,9 +179,8 @@ def embargo_sender_context(
     Embargo state is the case's, so the sender's standing is established
     against the case this store holds: a case it does not hold, or one that
     names no CASE_MANAGER, refuses the sender rather than passing it through
-    (Regime 1, ADR-0087).  ``Invite``, ``Remove``, ``Create`` and
-    ``Announce`` of an ``EmbargoEvent`` share it (EP-09-003, PCR-03-001,
-    PCR-08).
+    (Regime 1, ADR-0087).  ``Invite``, ``Remove`` and ``Announce`` of an
+    ``EmbargoEvent`` share it (EP-09-003, PCR-03-001, PCR-08).
     """
     return SenderCheckContext(
         sender_id=sender_id, case_id=case_id, case_manager_required=True

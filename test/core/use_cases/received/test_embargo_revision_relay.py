@@ -48,7 +48,10 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -662,8 +665,8 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
     """P/X/A set: the manager rejects the revision and the case stays ACTIVE.
 
     The EMB-03-003 marker attests a *refusal*, not the ET its text names:
-    ADR-0113 step 2 maps EMB-03-003 (with EMB-01-002) onto the CASE_MANAGER
-    refusing a proposal on a public, exploited or attacked case — the embargo
+    EMB-03-003 (with EMB-01-002) maps onto the CASE_MANAGER refusing a
+    proposal on a public, exploited or attacked case (ADR-0113) — the embargo
     termination the requirement calls "emit ET" is the CS public-event
     cascade's job (``ThreatTerminationBranchNode``), which has already run or
     will run regardless of this proposal.  The received proposal itself is
@@ -986,7 +989,8 @@ class _AdapterFailingOnSecondInvite(TriggerActivityAdapter):
 
 @pytest.mark.spec("ID-04-005")
 @pytest.mark.spec("BT-14-001")
-def test_a_redelivery_after_a_mid_relay_fault_relays_to_everyone_again(
+@pytest.mark.spec("OX-06-002")
+def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
     make_payload,
 ):
     """A fault mid-fan-out leaves the latch unwritten; the retry re-relays.
@@ -995,9 +999,11 @@ def test_a_redelivery_after_a_mid_relay_fault_relays_to_everyone_again(
     first delivery raises after one Invite went out, writes no
     ``pending_embargo_proposal_index`` latch (ID-04-005), and the redelivery
     therefore passes the idempotency guard and relays to *every* recipient
-    again — the received proposal's own entry is reused, the recipient already
-    invited receives a second Invite and stays INVITED, and the one the fault
-    skipped is invited now.
+    again.  Each Invite's id is derived from the proposal it relays, so the
+    recipient already invited is not sent a second one: its Invite, still
+    pending, is not queued again (OX-06-002) and its entry is not committed
+    twice.  The received proposal's own entry is reused, and the one the
+    fault skipped is invited now.
     """
     case_id = "https://example.org/cases/relay-partial"
     dl, revision = _active_case_with_revision(
@@ -1045,15 +1051,77 @@ def test_a_redelivery_after_a_mid_relay_fault_relays_to_everyone_again(
 
     assert second.disposition is HandlerDisposition.APPLIED
     recipients = sorted(r for a in _relayed_invites(dl) for r in (a.to or []))
-    assert recipients == sorted([invited_first, invited_first, not_yet])
+    assert recipients == sorted([invited_first, not_yet])
+    assert _relayed_invites(dl)[0].id_ == first_round[0].id_
     assert _consent_of(dl, case_id, invited_first, revision.id_) == invited
     assert _consent_of(dl, case_id, not_yet, revision.id_) == invited
     # One entry for the proposal (reused, not duplicated) and one per Invite.
     assert [e.event_type for e in _ledger_entries(dl, case_id)] == [
         "invite_to_embargo_on_case"
-    ] * 4
+    ] * 3
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.pending_embargo_proposal_index[revision.id_] == proposal.id_
+
+
+@pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("OX-06-002")
+def test_a_relay_whose_commit_failed_after_the_send_is_recorded_once_on_retry(
+    make_payload,
+):
+    """Each relayed Invite is queued, then committed (ADR-0119).
+
+    The first delivery queues the first Invite and its commit fails.  The
+    redelivery rebuilds that Invite under the same id, so the outbox does not
+    queue it again (OX-06-002); the commit records it once, and the other
+    recipient is invited once.
+    """
+    from test.support.ledger import fail_commits
+    from vultron.core.behaviors.sync import commit_tree
+
+    case_id = "https://example.org/cases/relay-commit-retry"
+    dl, revision = _active_case_with_revision(
+        case_id,
+        store_actor=MANAGER,
+        participants=[PROPOSER, OTHER_A, OTHER_B],
+    )
+    proposal = _proposal(revision, case_id)
+    dl.create(proposal)
+    event = make_payload(proposal, receiving_actor_id=MANAGER)
+
+    def _deliver() -> HandlerResult:
+        return InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+    with pytest.MonkeyPatch.context() as mp:
+        failed = fail_commits(
+            mp,
+            commit_tree,
+            when=lambda kw: kw["event_type"] == "invite_to_embargo_on_case",
+        )
+        with pytest.raises(VultronBTInternalError):
+            _deliver()
+    (first_invite,) = failed
+    assert [a.id_ for a in _relayed_invites(dl)] == [first_invite]
+    assert first_invite not in {
+        e.log_object_id for e in _ledger_entries(dl, case_id)
+    }
+
+    second = _deliver()
+
+    assert second.disposition is HandlerDisposition.APPLIED
+    invites = _relayed_invites(dl)
+    assert sorted(r for a in invites for r in (a.to or [])) == sorted(
+        [OTHER_A, OTHER_B]
+    )
+    assert invites[0].id_ == first_invite
+    recorded = [e.log_object_id for e in _ledger_entries(dl, case_id)]
+    for invite in invites:
+        assert recorded.count(invite.id_) == 1
 
 
 @pytest.mark.spec("CM-24-002")

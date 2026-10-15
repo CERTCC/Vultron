@@ -35,14 +35,12 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
-    CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
-    CreateEmbargoEventReceivedEvent,
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
@@ -63,8 +61,6 @@ from vultron.core.models.events.report import (
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
-    CreateCaseStatusReceivedEvent,
-    CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import ParticipantStatus
@@ -265,12 +261,6 @@ _CASES = [
     ),
     # ── case_participant.py ───────────────────────────────────────────────────
     (
-        CreateCaseParticipantReceivedEvent,
-        MessageSemantics.CREATE_CASE_PARTICIPANT,
-        {"object_": _participant},
-        [("participant_id", "object_id"), ("participant", "object_")],
-    ),
-    (
         AddCaseParticipantToCaseReceivedEvent,
         MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
         {"object_": _participant, "target": _case},
@@ -293,12 +283,6 @@ _CASES = [
         ],
     ),
     # ── embargo.py ────────────────────────────────────────────────────────────
-    (
-        CreateEmbargoEventReceivedEvent,
-        MessageSemantics.CREATE_EMBARGO_EVENT,
-        {"object_": _embargo},
-        [("embargo_id", "object_id"), ("embargo", "object_")],
-    ),
     (
         ActivateEmbargoOnCaseReceivedEvent,
         MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
@@ -392,12 +376,6 @@ _CASES = [
     ),
     # ── status.py ─────────────────────────────────────────────────────────────
     (
-        CreateCaseStatusReceivedEvent,
-        MessageSemantics.CREATE_CASE_STATUS,
-        {"object_": _case_status},
-        [("status_id", "object_id"), ("status", "object_")],
-    ),
-    (
         AddCaseStatusToCaseReceivedEvent,
         MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         {"object_": _case_status, "target": _case},
@@ -407,12 +385,6 @@ _CASES = [
             ("case_id", "target_id"),
             ("case", "target"),
         ],
-    ),
-    (
-        CreateParticipantStatusReceivedEvent,
-        MessageSemantics.CREATE_PARTICIPANT_STATUS,
-        {"object_": _participant_status},
-        [("status_id", "object_id"), ("status", "object_")],
     ),
     (
         AddParticipantStatusToParticipantReceivedEvent,
@@ -464,16 +436,6 @@ def test_named_aliases_resolve_to_correct_base_fields(
             CreateNoteReceivedEvent,
             MessageSemantics.CREATE_NOTE,
             ["note_id", "note"],
-        ),
-        (
-            CreateEmbargoEventReceivedEvent,
-            MessageSemantics.CREATE_EMBARGO_EVENT,
-            ["embargo_id", "embargo"],
-        ),
-        (
-            CreateCaseParticipantReceivedEvent,
-            MessageSemantics.CREATE_CASE_PARTICIPANT,
-            ["participant_id", "participant"],
         ),
     ],
     ids=lambda x: x.__name__ if hasattr(x, "__name__") else str(x),

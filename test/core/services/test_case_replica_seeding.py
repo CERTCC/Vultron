@@ -82,7 +82,7 @@ class TestParticipantRmStateShapeGuard:
         """An ``as_CaseParticipant`` now carries a readable RM dimension.
 
         This asserted the opposite: that the wire class's nested status had no
-        ``rm`` at all, and that reading it raised. ADR-0099 detail 3 collapses the
+        ``rm`` at all, and that reading it raised. ARCH-25-003 (ADR-0099) collapses the
         pair, so ``as_CaseParticipant`` *is* ``CaseParticipant`` and its seeded
         status carries a real dimension — there is no wire shape left to refuse.
 
@@ -159,8 +159,8 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
             ],
         )
         # The nested status now carries a real dimension: as_ParticipantStatus is
-        # ParticipantStatus (ADR-0099 detail 3), and the flat ``rm_state`` kwarg is
-        # an alias of it (detail 5).  This previously asserted ``rm`` was absent,
+        # ParticipantStatus (ARCH-25-003, ADR-0099), and the flat ``rm_state`` kwarg is
+        # an alias of it (ARCH-25-005).  This previously asserted ``rm`` was absent,
         # which was the whole reason ingress needed projecting.
         assert wire_participant.participant_statuses[-1].rm.state == rm_state
         return as_VulnerabilityCase.model_construct(
@@ -208,7 +208,7 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
         assert latest.rm.state == RM.RECEIVED
         # ``not hasattr(latest, "rm_state")`` used to stand in for "this is the
         # core shape, not the wire one". That proxy is retired: ``rm_state`` is now
-        # a deliberate read/write view onto the dimension (ADR-0099 detail 5), so
+        # a deliberate read/write view onto the dimension (ARCH-25-005, ADR-0099), so
         # its presence says nothing about shape. The shape itself is asserted
         # directly by the isinstance check above; what is worth adding is that the
         # view and the dimension cannot disagree.

@@ -158,7 +158,7 @@ def _core_registered_vultron_terms() -> set[str]:
 
 
 def test_core_registered_types_resolve_through_context() -> None:
-    """Collapsed ``as_*`` aliases keep their context terms (ADR-0099 detail 3).
+    """Collapsed ``as_*`` aliases keep their context terms (ARCH-25-003, ADR-0099).
 
     A paired wire class is now an alias of its core class, which is not an
     ``as_Object`` subclass and carries no ``_vocab_ns``.  Enumerating only

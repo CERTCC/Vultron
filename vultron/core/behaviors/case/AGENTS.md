@@ -86,38 +86,6 @@ factory may be shared across trigger-side and received-side paths.
 
 ---
 
-## Ledger Commit Must Precede Outbox Write
-
-(ISSUE-1325, 2026-07-13)
-
-> **Under review.** Proposed ADR-0119 (#4158) reverses this order: a
-> ledger entry records a completed act, so a sent activity is committed after
-> it is delivered to the outbox. The replacement duplicate-send protection is
-> already in place: `outbox_append` does not queue an id already pending
-> (OX-06-002), so a retry that rebuilds its activity under the first attempt's
-> id — derived from what it answers (`derived_activity_id`) — sends it once.
-> Until the order is reversed, new code follows the current specs
-> (SYNC-09-002, SBT-04-004): commit before send.
-
-When a BT subtree both commits a ledger correlation marker and records an
-outbox item, the ledger commit MUST happen first.
-
-If the outbox write happens first and the ledger commit subsequently fails,
-the outbox item is orphaned: an activity queued for delivery with no
-corresponding ledger entry. On the next invocation, the duplicate-detection
-guard finds no pending entry and takes the "fresh" path, triggering a
-duplicate offer or invite.
-
-Correct ordering:
-
-1. Build activity via factory (creates the object in the DataLayer)
-2. Commit ledger correlation marker (fail-fast if anything is wrong)
-3. Record outbox item (reached only if ledger commit succeeded)
-
-This invariant is enforced by CLP-10-006 in `specs/case-ledger-processing.yaml`.
-
----
-
 ## Idempotency Guards Must Be Silent — No Ledger Write on Duplicate
 
 (CONCERN-1754, 2026-08-05)

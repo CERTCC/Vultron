@@ -49,7 +49,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.core.use_cases.received.embargo.create_add_remove import (
+from vultron.core.use_cases.received.embargo.remove import (
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401

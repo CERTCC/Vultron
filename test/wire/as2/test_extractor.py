@@ -157,11 +157,11 @@ def test_extract_intent_case_pass_through_fields():
     assert c.updated == now
 
 
-@pytest.mark.spec("VAM-05-001")
+@pytest.mark.spec("VAM-05-005")
 def test_extract_intent_embargo_pass_through_fields():
     """New EmbargoEvent fields (published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
+        as_Invite,
     )
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -172,15 +172,16 @@ def test_extract_intent_embargo_pass_through_fields():
         updated=now,
         end_time=days_from_now_utc(45),
     )
-    # CreateEmbargoEvent pattern: Create + EVENT + context=VULNERABILITY_CASE
-    activity = as_Create(
+    # InviteToEmbargoOnCase pattern: Invite + EVENT + context=VULNERABILITY_CASE
+    activity = as_Invite(
         actor="https://example.org/alice",
         object_=embargo,
         context="https://example.org/cases/1",
     )
     event = extract_event(activity)
 
-    e = cast(Any, event).embargo
+    assert event.semantic_type is MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    e = cast(Any, event.object_)
     assert e is not None
     assert e.published == now
     assert e.updated == now
@@ -264,12 +265,12 @@ def test_extract_intent_preserves_sender_published_timestamp():
     assert event.activity.published == claimed
 
 
-@pytest.mark.spec("VAM-06-001")
+@pytest.mark.spec("VAM-06-002")
 def test_extract_intent_participant_case_roles():
     """CaseParticipant.case_roles is populated from the wire as_CaseParticipant."""
     from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
+        as_Add,
     )
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
@@ -280,11 +281,11 @@ def test_extract_intent_participant_case_roles():
         context="https://example.org/cases/1",
     )
     object.__setattr__(participant, "case_roles", [CVDRole.VENDOR])
-    # CreateCaseParticipant pattern: Create + CASE_PARTICIPANT + context=VULNERABILITY_CASE
-    activity = as_Create(
+    # AddCaseParticipantToCase pattern: Add + CASE_PARTICIPANT + target=VULNERABILITY_CASE
+    activity = as_Add(
         actor="https://example.org/alice",
         object_=participant,
-        context="https://example.org/cases/1",
+        target="https://example.org/cases/1",
     )
     event = extract_event(activity)
 
@@ -293,20 +294,20 @@ def test_extract_intent_participant_case_roles():
     assert CVDRole.VENDOR in p.case_roles
 
 
-@pytest.mark.spec("VAM-08-001")
+@pytest.mark.spec("VAM-08-002")
 def test_extract_intent_case_status_name():
     """as_CaseStatus.name is populated from the wire as_CaseStatus."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
+        as_Add,
     )
     from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
     cs = as_CaseStatus(context="https://example.org/cases/1")
-    # CreateCaseStatusActivity pattern: Create + CASE_STATUS + context=VULNERABILITY_CASE
-    activity = as_Create(
+    # AddCaseStatusToCase pattern: Add + CASE_STATUS + target=VULNERABILITY_CASE
+    activity = as_Add(
         actor="https://example.org/alice",
         object_=cs,
-        context="https://example.org/cases/1",
+        target="https://example.org/cases/1",
     )
     event = extract_event(activity)
 
@@ -315,12 +316,12 @@ def test_extract_intent_case_status_name():
     assert s.name == cs.name
 
 
-@pytest.mark.spec("VAM-08-003")
+@pytest.mark.spec("VAM-08-004")
 def test_extract_intent_participant_status_vf_state():
     """vf_state is extracted and populated on the core ParticipantStatus (ADR-0075)."""
     from vultron.core.states.cs import CS_vf
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
+        as_Add,
     )
     from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
@@ -328,9 +329,10 @@ def test_extract_intent_participant_status_vf_state():
         context="https://example.org/cases/1",
         vf=VfDimension(state=CS_vf.Vf),
     )
-    activity = as_Create(
+    activity = as_Add(
         actor="https://example.org/alice",
         object_=ps,
+        target="https://example.org/cases/1/participants/alice",
     )
     event = extract_event(activity)
 

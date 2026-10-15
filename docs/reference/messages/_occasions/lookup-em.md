@@ -2,7 +2,6 @@
 
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
-| a Participant has drafted embargo terms it is about to propose | <code>Create(Event)&#91;context=VulnerabilityCase&#124;VulnerabilityReport&#93;</code> | the case manager or the case owner | — | [Create embargo event](../em.md#create-embargo-event) |
 | the Case Owner terminates the active embargo | `Remove(Event)` | the case manager or the case owner | — | [Embargo Termination (ET)](../em.md#embargo-termination) |
 | the Case Manager states the terms of the embargo in force | `Announce(Event)[context=VulnerabilityCase]` | the case manager | — | [Announce embargo](../em.md#announce-embargo) |
 | a Participant proposes embargo terms for a case with no active embargo | `Invite(Event)[context=VulnerabilityCase]` | the case manager or an active participant | EM state `NONE` or `PROPOSED` | [Embargo Proposal (EP)](../em.md#embargo-proposal) |

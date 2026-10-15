@@ -30,7 +30,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     reference_edit_verdict,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._store_only import refuse_after_intake
+from vultron.core.use_cases.received._intake_only import refuse_after_intake
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort

@@ -79,7 +79,7 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         self.assertEqual(
             case_from_activity.vulnerability_reports[0], report.id_
         )
-        # Inline participants, not bare URIs: CBT-01-007 says a bare URI "MUST
+        # Inline participants, not bare URIs: CBT-01-012 says a bare URI "MUST
         # NOT be used" here, and use_cases/received/case/create.py refuses one.
         # The as-delivered change asserted ``str`` to match an example that had
         # been switched to IDs in order to dodge a validation failure.
@@ -340,20 +340,6 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
         self.assertIsInstance(obj, as_CaseStatus)
         self.assertIn(obj.em_state, EM)
         self.assertIn(obj.pxa_state, CS_pxa)
-
-    def test_create_case_status(self):
-        activity = examples.create_case_status()
-        self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
-        case = examples.case()
-        status = examples.case_status()
-
-        self.assertIsInstance(activity, as_Create)
-        self.assertEqual(activity.type_, "Create")
-
-        self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.context, case.id_)
-        self.assertEqual(activity.object_, status)
 
     def test_add_case_status_to_case(self):
         activity = examples.add_status_to_case()

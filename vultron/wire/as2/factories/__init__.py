@@ -41,7 +41,6 @@ from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
     bootstrap_replay_question_activity,
     create_case_activity,
-    create_case_status_activity,
     ledger_position_content,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
@@ -66,7 +65,6 @@ from vultron.wire.as2.factories.case_participant import (
     add_participant_to_case_activity,
     add_status_to_participant_activity,
     create_participant_activity,
-    create_status_for_participant_activity,
     remove_participant_from_case_activity,
 )
 from vultron.wire.as2.factories.embargo import (
@@ -117,7 +115,6 @@ __all__ = [
     "announce_vulnerability_case_activity",
     "bootstrap_replay_question_activity",
     "create_case_activity",
-    "create_case_status_activity",
     "offer_case_participant_role_activity",
     "offer_case_ownership_transfer_activity",
     "reject_case_participant_role_activity",
@@ -141,7 +138,6 @@ __all__ = [
     "add_participant_to_case_activity",
     "add_status_to_participant_activity",
     "create_participant_activity",
-    "create_status_for_participant_activity",
     "remove_participant_from_case_activity",
     # embargo
     "activate_embargo_activity",

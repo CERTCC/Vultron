@@ -82,9 +82,9 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     and the node returns FAILURE.  The records those entries carry were
     written before this node ran, so the failure is surfaced, not prevented.
     The one case that can be undone is a failed genesis on the create-case
-    trigger path, where nothing is committed and the ``Create`` is not yet
-    queued: that tree withdraws the case after this node fails
-    (``WithdrawUncommittedCaseNode``).
+    trigger path, where nothing is committed and the queued ``Create`` can
+    still be taken back out of the outbox: that tree withdraws the case
+    after this node fails (``WithdrawUncommittedCaseNode``).
 
     On the proposal path it runs *after* the accept flow has queued its
     ``Create(VulnerabilityCase)`` (``EmitCreateVulnerabilityCaseNode``):
@@ -93,10 +93,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011, CP-09-009).
     Committed ahead of the Create, the fan-out put ten entries in front of it
     and every recipient took the SYNC-15 pre-genesis path on the normal
-    case-creation route (#3033, #2898).  On the create-case trigger path the
-    creator is the case's only participant, so the entries fan out to nobody
-    and the node runs *before* ``UpdateActorOutbox``: a case whose genesis
-    does not commit is withdrawn before its ``Create`` is sent.
+    case-creation route (#3033, #2898).  On the create-case trigger path it
+    runs after ``UpdateActorOutbox`` too, so on both paths the entries record
+    a case whose creation was sent (ADR-0119); the creator is that case's
+    only participant, so there the entries fan out to nobody.
 
     Reads ``case_id`` from the blackboard.
     """

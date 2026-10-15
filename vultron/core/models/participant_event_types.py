@@ -28,12 +28,10 @@ of its own, so it is the one new entry on the stub path:
   ``add_participant_status_to_participant`` entry.
 """
 
-from vultron.core.models.events.base import MessageSemantics
-
 #: ``Create(CaseParticipant)`` -- the CASE_MANAGER created a participant record.
-CREATE_CASE_PARTICIPANT_EVENT_TYPE = (
-    MessageSemantics.CREATE_CASE_PARTICIPANT.value
-)
+#: A ledger event type only: this implementation does not support a received
+#: ``Create(CaseParticipant)`` message, so no ``MessageSemantics`` member names it.
+CREATE_CASE_PARTICIPANT_EVENT_TYPE = "create_case_participant"
 
 __all__ = [
     "CREATE_CASE_PARTICIPANT_EVENT_TYPE",

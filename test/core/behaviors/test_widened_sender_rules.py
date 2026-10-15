@@ -68,12 +68,11 @@ from vultron.core.use_cases.received.case_participant import (
 from vultron.core.use_cases.received.embargo.announce import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
 )
-from vultron.core.use_cases.received.embargo.create_add_remove import (
-    CreateEmbargoEventReceivedUseCase,
-    RemoveEmbargoEventFromCaseReceivedUseCase,
-)
 from vultron.core.use_cases.received.embargo.invite import (
     InviteToEmbargoOnCaseReceivedUseCase,
+)
+from vultron.core.use_cases.received.embargo.remove import (
+    RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
@@ -283,14 +282,6 @@ CASES = [
         label="embargo-remove-delegated",
     ),
     *_cases(
-        CreateEmbargoEventReceivedUseCase.sender_entitlement,
-        _embargo,
-        at_manager=(OWNER, VENDOR),
-        at_participant=(MANAGER, OWNER),
-        marks=("HP-01-008", "EP-09-005", "PCR-03-001"),
-        label="embargo-create",
-    ),
-    *_cases(
         AnnounceEmbargoEventToCaseReceivedUseCase.sender_entitlement,
         _embargo,
         at_manager=(MANAGER, OWNER),
@@ -435,10 +426,9 @@ def test_hand_placed_guard_checks_the_declared_kind(label: str) -> None:
     [
         InviteToEmbargoOnCaseReceivedUseCase.sender_entitlement,
         RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
-        CreateEmbargoEventReceivedUseCase.sender_entitlement,
         AnnounceEmbargoEventToCaseReceivedUseCase.sender_entitlement,
     ],
-    ids=["invite", "remove", "create", "announce"],
+    ids=["invite", "remove", "announce"],
 )
 def test_embargo_rule_refuses_the_case_manager_where_the_case_is_unheld(
     rule: SenderRule,
@@ -490,9 +480,6 @@ _EMBARGO_RULES = [
     pytest.param(
         RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
         id="remove",
-    ),
-    pytest.param(
-        CreateEmbargoEventReceivedUseCase.sender_entitlement, id="create"
     ),
     pytest.param(
         AnnounceEmbargoEventToCaseReceivedUseCase.sender_entitlement,

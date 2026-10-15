@@ -15,7 +15,7 @@ groups:
   specs:
   - id: RF-01-001
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: Response activities MUST conform to ActivityStreams 2.0
     verification: Integration tests in `test/demo/` confirm that response activities produced by handlers are valid AS2
       objects, and unit tests in `test/wire/as2/vocab/test_actvitities/test_activities.py` confirm they inherit from the
@@ -25,6 +25,8 @@ groups:
     - story_2022_039
     - story_2022_058
     - story_2022_060
+    tags:
+    - as2
 - id: RF-02
   title: Accept Response
   specs:
@@ -237,13 +239,18 @@ groups:
   specs:
   - id: RF-06-001
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: Response activities MUST be delivered to the relevant actors' inboxes
+    rationale: >-
+      ActivityPub delivers every activity to the inboxes of its addressees; a response
+      is no exception. Which actor a response goes to is Vultron's rule (RF-06-002).
     verification: Integration tests in `test/demo/` confirm that response activities (Accept, Reject, etc.) appear in the
       intended recipients' inboxes after processing the original inbound activity.
     stories:
     - story_2022_039
     - story_2022_040
+    tags:
+    - activitypub
   - id: RF-06-002
     priority: MUST
     kind: protocol

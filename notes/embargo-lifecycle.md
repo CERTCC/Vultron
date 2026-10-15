@@ -423,15 +423,15 @@ on the receiver (PCR-03-001, PCR-08-001):
 |---|---|---|
 | `Invite(EmbargoEvent)` | an active participant (CM-10-004), or the CASE_MANAGER itself | the CASE_MANAGER (EP-09-003) |
 | `Accept` / `Reject(Invite)` | the recorded Invite's sole `to` recipient (EP-09-010) | the same; the answer is then refused by the role gate |
-| `Create` / `Add` / `Remove(EmbargoEvent)` | the Case Owner, or the CASE_MANAGER itself | the CASE_MANAGER |
+| `Remove(EmbargoEvent)` | the Case Owner, or the CASE_MANAGER itself | the CASE_MANAGER |
 | `Announce(EmbargoEvent)` | the CASE_MANAGER | the CASE_MANAGER |
 
 Each row is the use case's declared `SenderRule`, and the receive-tree factory
 composes the guard from it (HP-01-008, `vultron/core/behaviors/sender_guard.py`).
 The embargo rows are checked in `embargo_sender_context()`: a store that holds no
 case, or a case that names no CASE_MANAGER, refuses the sender rather than
-passing it through, and a proposer must be active rather than only listed. The
-invitee rows use `SenderIsInviteeNode`.
+passing it through. A proposer must be active (`ACTIVE_PARTICIPANT`), not only
+listed (`PARTICIPANT`). The invitee rows use `SenderIsInviteeNode`.
 
 - **The invitee comes from the store, never from the reply**, so a reply
   embedding a doctored Invite cannot name itself the invitee; an Invite the store
@@ -441,5 +441,5 @@ invitee rows use `SenderIsInviteeNode`.
   `sender_refusal()` for the invitee check); the tree carries the guard as well,
   in the factory's sender stage.
 
-The `Create`/`Add`/`Remove` row at the CASE_MANAGER is not stated by a spec; it
+The `Remove` row at the CASE_MANAGER is not stated by a spec; it
 follows EP-09-005 (the owner decides) and the ER-never-ET rule above.

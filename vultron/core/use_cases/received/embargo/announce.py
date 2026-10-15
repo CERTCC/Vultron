@@ -40,8 +40,8 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     verdict_from_bt,
 )
+from vultron.core.use_cases.received._intake_only import run_intake_only
 from vultron.core.use_cases.received._sender_preflight import rule_refusal
-from vultron.core.use_cases.received._store_only import run_store_only
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             return refusal
         # The announcement is canonical case state, so only the CASE_MANAGER
         # makes it, at every replica (EP-09-003, PCR-03-001, ADR-0115).  The
-        # guard runs ahead of the store-only tree, so a refused sender leaves
+        # guard runs ahead of the intake-only tree, so a refused sender leaves
         # nothing behind.
         if (
             refusal := rule_refusal(
@@ -94,7 +94,7 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             return refusal
         case_id, embargo_id = request.case_id, request.embargo_id
         if case_id is None or embargo_id is None:
-            tree, result = run_store_only(
+            tree, result = run_intake_only(
                 self._dl,
                 request,
                 name="AnnounceEmbargoEventToCaseReceivedBT",

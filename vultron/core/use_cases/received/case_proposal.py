@@ -57,6 +57,7 @@ from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
 )
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckDeclineRecordExistsNode,
+    CheckProposalCaseFullyClosedNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     CheckMarkerExistsNode,
@@ -89,10 +90,10 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_succeeded,
     verdict_from_bt,
 )
+from vultron.core.use_cases.received._intake_only import refuse_after_intake
 from vultron.core.use_cases.received._sender_embargo_proposal import (
     sender_embargo_proposal_inputs,
 )
-from vultron.core.use_cases.received._store_only import refuse_after_intake
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,11 @@ class CreateCaseProposalReceivedUseCase:
     BT-15-001 audit: all DataLayer mutations and outbox enqueues are
     delegated to leaf nodes of the BT tree.
 
-    Spec: CP-05-001 through CP-05-004.
+    A proposal that resolves to a fully closed case is declined with
+    ``Reject(as_CaseProposal)`` and reported ``REFUSED`` (CP-05-006,
+    CP-05-008, CM-23-013).
+
+    Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008.
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
@@ -180,7 +185,7 @@ class CreateCaseProposalReceivedUseCase:
     ) -> VulnerabilityReport | None:
         """Return the proposal's inline report, if the proposal carries one.
 
-        Under ADR-0099 detail 3 the report the wire parser validated *is* the
+        Under ARCH-25-003 (ADR-0099) the report the wire parser validated *is* the
         core ``VulnerabilityReport`` — ``as_VulnerabilityReport`` is an alias
         of that class — so there is no projection step and none is duck-typed
         (ARCH-20-008).  Anything else in the slot (a bare IRI the parser could
@@ -237,7 +242,7 @@ class CreateCaseProposalReceivedUseCase:
         )
 
         # Render the proposal as a plain AS2 dict so the Accept can carry it
-        # inline (CP-05-003, AKM-03-001).  The subject handed to the port is the
+        # inline (CP-05-003, CP-05-009).  The subject handed to the port is the
         # core-branch ``VultronActivity`` the extractor built; its ``object`` is
         # the as_CaseProposal as it arrived.  Core renders nothing itself
         # (ARCH-20-001): the port is the only route to the AS2 shape, so a
@@ -313,7 +318,7 @@ class CreateCaseProposalReceivedUseCase:
     def _classify_success(tree: Any, proposal_id: str) -> HandlerResult:
         """Say which arm of the idempotency Selector answered (#2255).
 
-        The tree succeeds on all four arms, but only the accept arm applied
+        The tree succeeds on all five arms, but only the accept arm applied
         the proposal.  A Selector leaves the arms it tried ahead of the winner
         FAILED and the ones after it INVALID, so the first guard that
         succeeded names the arm.
@@ -329,6 +334,15 @@ class CreateCaseProposalReceivedUseCase:
             # benign no-op, not a new refusal.
             return HandlerResult.skipped(
                 f"proposal '{proposal_id}' was previously declined"
+            )
+        closed = find_node(tree, CheckProposalCaseFullyClosedNode)
+        if closed is not None and closed.closed_case_id is not None:
+            # CP-05-006, CP-05-008: the proposal's case is fully closed, so the
+            # CASE_MANAGER declined it and wrote nothing for the case
+            # (CM-23-013).
+            return HandlerResult.refused(
+                f"proposal '{proposal_id}' resolves to case"
+                f" '{closed.closed_case_id}', which is fully closed (CM-23-013)"
             )
         if node_succeeded(tree, RecordProposalDeclineNode):
             # CP-05-002, CP-05-004: the admission policy said no.

@@ -21,6 +21,7 @@ verifying state mutation, outbox effect, and error handling.
 Spec: specs/triggerable-behaviors.yaml TRIG-09.
 """
 
+import py_trees
 import pytest
 
 from test.support.ledger import (
@@ -568,10 +569,12 @@ class TestCreateCaseTriggerLedger:
     def test_a_failed_genesis_commit_withdraws_the_case(self, monkeypatch):
         """AC-3: a case whose genesis does not commit is not kept (#4442).
 
-        The trigger commits before it queues the ``Create``, so nothing about
-        the case was committed or sent: the case, the creator's participant
-        record and the unsent ``Create`` are removed and the trigger raises.  The report
-        it was created from was not the creation's write and stays.
+        The trigger queues the ``Create`` before it commits (ADR-0119), so a
+        failed genesis withdraws the still-pending ``Create`` from the outbox:
+        nothing about the case was committed or sent, the case, the creator's
+        participant record and the unsent ``Create`` are removed and the
+        trigger raises.  The report it was created from was not the
+        creation's write and stays.
         """
         from vultron.core.behaviors.case.nodes import proposal_ledger
 
@@ -591,14 +594,98 @@ class TestCreateCaseTriggerLedger:
         assert self.dl.list_objects("Create") == [], "the unsent Create too"
         assert self.dl.read(self.report.id_) is not None
 
+    @pytest.mark.spec("SYNC-09-002")
+    @pytest.mark.spec("CP-09-009")
+    def test_the_create_is_queued_before_the_creation_entries(
+        self, monkeypatch
+    ):
+        """The entries record a case whose creation was sent (ADR-0119)."""
+        from test.support.ledger import record_sends_and_commits
+        from vultron.core.models.activity_ids import derived_activity_id
+        from vultron.core.use_cases.triggers.case.create import (
+            CREATE_CASE_ID_KIND,
+        )
+
+        events = record_sends_and_commits(monkeypatch, self.actor.id_)
+
+        case = self._create(to=[_RECIPIENT])
+
+        create_id = derived_activity_id(
+            CREATE_CASE_ID_KIND, self.actor.id_, case.id_
+        )
+        assert events[0] == ("queued", create_id)
+        assert [kind for kind, _ in events[1:]] == [
+            "create_case",
+            "add_report_to_case",
+            "add_participant_status_to_participant",
+            "add_case_status_to_case",
+        ]
+
     @pytest.mark.spec("CLP-07-013")
-    def test_a_failed_later_entry_fails_before_the_create_is_queued(
+    def test_a_create_the_outbox_cannot_take_withdraws_the_case(
+        self, monkeypatch
+    ):
+        """A failed outbox write leaves nothing committed or sent.
+
+        The ``Create`` is queued before the creation entries (ADR-0119), so
+        when the queue write fails the case has no entry and was sent to
+        no one: it is withdrawn, as for a failed genesis.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        def _refuse(_self, _activity_id):
+            raise RuntimeError("outbox unavailable")
+
+        monkeypatch.setattr(SqliteDataLayer, "outbox_append", _refuse)
+        with pytest.raises(
+            VultronValidationError, match="could not be queued"
+        ):
+            self._create(to=[_RECIPIENT])
+
+        assert self.dl.list_objects("VulnerabilityCase") == []
+        assert self.dl.list_objects("CaseParticipant") == []
+        assert self.dl.list_objects("Create") == []
+        assert self.dl.list_objects("CaseLedgerEntry") == []
+        assert self.dl.read(self.report.id_) is not None
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_create_already_taken_for_delivery_keeps_the_case(
+        self, monkeypatch
+    ):
+        """A failed genesis cannot withdraw a ``Create`` already being sent.
+
+        Delivery popped the ``Create`` before the commit ran, so its
+        recipient may hold the case: the case is kept and the failure is
+        surfaced, as on the proposal path (CP-09-009).
+        """
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        def _taken_then_failed(*args, **kwargs):
+            self.dl.outbox_pop()  # the outbox monitor took the Create
+            return py_trees.behaviours.Failure(name="ForcedCommitFailure")
+
+        monkeypatch.setattr(
+            proposal_ledger, "create_commit_log_entry_tree", _taken_then_failed
+        )
+        with pytest.raises(
+            VultronValidationError, match="already taken for delivery"
+        ):
+            self._create(to=[_RECIPIENT])
+
+        (case,) = self.dl.list_objects("VulnerabilityCase")
+        assert ledger_entries(self.dl, case.id_) == []
+        assert self.dl.outbox_list() == []
+        assert len(self.dl.list_objects("Create")) == 1
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_failed_later_entry_fails_with_the_create_queued(
         self, monkeypatch
     ):
         """After genesis the first failed entry stops the trigger (#4442).
 
-        No later entry is committed out of order, and the ``Create`` is not
-        sent for a case whose ledger is incomplete.
+        No later entry is committed out of order.  The ``Create`` was queued
+        before the commits (ADR-0119): the case's creation was sent, and its
+        genesis entry records it.
         """
         from vultron.core.behaviors.case.nodes import proposal_ledger
 
@@ -614,7 +701,8 @@ class TestCreateCaseTriggerLedger:
         assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
             "create_case"
         ]
-        assert self.dl.outbox_list() == []
+        (queued,) = self.dl.outbox_list()
+        assert getattr(self.dl.read(queued), "type_", None) == "Create"
 
 
 @pytest.mark.spec("CLP-07-013")

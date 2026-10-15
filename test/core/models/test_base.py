@@ -86,7 +86,7 @@ def test_has_as_type(cls):
 
 #: Classes that derive a display ``name`` from their own state when the caller
 #: supplies none, so ``name`` is legitimately non-None on a bare instance.
-#: ADR-0099 detail 5 moved that derivation from the wire class onto the core
+#: ARCH-25-005 (ADR-0099) moved that derivation from the wire class onto the core
 #: class, which is what makes these the exception — the label is a function of
 #: the object's state, and the class that holds the state owns it.
 DERIVES_ITS_OWN_NAME = frozenset({CaseStatus, EmbargoEvent})

@@ -35,6 +35,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -42,9 +43,16 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
     ledger_tail_position,
+    recorded_entries_for_case,
 )
 
 logger = logging.getLogger(__name__)
+
+#: Kind label of the full-case Invite's derived id (see ``derived_activity_id``).
+FULL_CASE_INVITE_ID_KIND = "invite-actor-to-full-case"
+
+#: Ledger ``event_type`` of the full-case Invite's entry.
+FULL_CASE_INVITE_EVENT_TYPE = "invite_actor_to_full_case"
 
 
 def stored_invite_floor(invite: object) -> LedgerPosition | None:
@@ -187,14 +195,21 @@ class CheckFullCaseReplyNode(DataLayerCondition):
 
 
 class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
-    """Create the full-case Invite, commit it, and queue it in the outbox.
+    """Create the full-case Invite, queue it in the outbox, and commit it.
 
     Runs in the CASE_MANAGER-gated accept tree after ``Announce(VulnerabilityCase)``
     and the ledger replay, so it is queued after the last replayed entry and
     delivery to the invitee is ordered behind them (CM-11-010, ADR-0112).  The
     Invite carries the CASE_MANAGER's ledger tail *before* the Invite's own
     entry is committed: the floor the invitee's reply must reach.  Build →
-    commit → outbox append, as :class:`EmitInviteActorToCaseNode` does.
+    outbox append → commit, as :class:`EmitInviteActorToCaseNode` does
+    (ADR-0119).
+
+    The participant is asked once per case, so the Invite's id is derived
+    from the CASE_MANAGER, the case and the invitee.  A resumed join whose
+    Invite is already in the ledger sends nothing; one whose earlier attempt
+    queued the Invite but did not commit it rebuilds the same Invite, which
+    the outbox does not queue twice (OX-06-002), and commits it.
     """
 
     def __init__(
@@ -208,20 +223,32 @@ class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
         self.case_id = case_id
         self.invitee_id = invitee_id
 
+    def _invite_id(self) -> str:
+        """The Invite's id: one per CASE_MANAGER, case and invitee."""
+        assert self.actor_id is not None
+        return derived_activity_id(
+            FULL_CASE_INVITE_ID_KIND,
+            self.actor_id,
+            self.case_id,
+            self.invitee_id,
+        )
+
     def _already_invited(self) -> bool:
-        """Whether this CASE_MANAGER already asked *invitee_id* to judge the case.
+        """Whether the ledger records this CASE_MANAGER's Invite to *invitee_id*.
 
         A resumed join re-runs the accept tree; the participant is asked once.
+        The ledger, not the store, answers: an Invite the store holds but the
+        ledger does not was queued by an attempt whose commit failed, and is
+        sent and recorded now (ADR-0119).
         """
         assert self.datalayer is not None
-        for obj in self.datalayer.list_objects("Invite"):
-            if (
-                _as_id(getattr(obj, "target", None)) == self.case_id
-                and stored_invite_floor(obj) is not None
-                and _as_id(getattr(obj, "object_", None)) == self.invitee_id
-            ):
-                return True
-        return False
+        invite_id = self._invite_id()
+        return any(
+            entry.log_object_id == invite_id
+            for entry in recorded_entries_for_case(
+                case_id=self.case_id, dl=self.datalayer
+            )
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -251,25 +278,26 @@ class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
         assert self.datalayer is not None and self.actor_id is not None
         assert self.trigger_activity_factory is not None
         tail = ledger_tail_position(self.case_id, self.datalayer)
-        activity_id, activity_blob = (
-            self.trigger_activity_factory.invite_actor_to_full_case(
-                invitee_id=self.invitee_id,
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=[self.invitee_id],
-                ledger_log_index=tail.log_index,
-                ledger_entry_hash=tail.entry_hash,
-            )
+        return self.trigger_activity_factory.invite_actor_to_full_case(
+            invitee_id=self.invitee_id,
+            case_id=self.case_id,
+            actor=self.actor_id,
+            to=[self.invitee_id],
+            ledger_log_index=tail.log_index,
+            ledger_entry_hash=tail.entry_hash,
+            id_=self._invite_id(),
         )
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        assert self.datalayer is not None and self.actor_id is not None
         commit_emitted_activity(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
             actor_id=self.actor_id,
             case_id=self.case_id,
             activity_id=activity_id,
             activity_blob=activity_blob,
-            event_type="invite_actor_to_full_case",
+            event_type=FULL_CASE_INVITE_EVENT_TYPE,
         )
-        return activity_id, activity_blob
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(

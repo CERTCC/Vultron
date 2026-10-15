@@ -384,17 +384,6 @@ groups:
     - path: howto/activitypub/activities/manage_case.md
       title: How to Advance a Case Through Report Management
     example: close_case
-  - anchor: create-case-participant
-    heading: Create case participant
-    when: a Participant is about to add an actor's participant record to the case
-    send: Create(CaseParticipant)[context=VulnerabilityCase]
-    sent_by: not yet checked
-    semantics: create_case_participant
-    status: none
-    description: Mints a participant record that pairs an actor with its roles in the case.
-      It precedes the Add.
-    seen_in: []
-    example: create_participant
   - anchor: add-case-participant-to-case
     heading: Add case participant to case
     when: the Case Owner reinstates a removed Participant
@@ -425,19 +414,6 @@ groups:
   title: Embargo
   mechanics: false
   occasions:
-  - anchor: create-embargo-event
-    heading: Create embargo event
-    when: a Participant has drafted embargo terms it is about to propose
-    send: Create(Event)[context=VulnerabilityCase|VulnerabilityReport]
-    sent_by: the case manager or the case owner
-    semantics: create_embargo_event
-    status: none
-    description: Mints the embargo event that carries the proposed terms. It precedes the
-      Invite that proposes them.
-    seen_in:
-    - path: howto/activitypub/activities/establish_embargo.md
-      title: How to Establish an Embargo
-    example: create_embargo_event
   - anchor: embargo-termination
     heading: Embargo Termination (ET)
     when: the Case Owner terminates the active embargo
@@ -588,19 +564,6 @@ groups:
   title: Case status
   mechanics: false
   occasions:
-  - anchor: create-case-status
-    heading: Create case status
-    when: a Participant is about to announce a change to the public state of the case
-    send: Create(CaseStatus)[context=VulnerabilityCase]
-    sent_by: not yet checked
-    semantics: create_case_status
-    status: none
-    description: Mints a case status object carrying `em_state` and `pxa_state`. It precedes
-      the Add.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
-    example: create_case_status
   - anchor: public-awareness
     heading: Public Awareness (CP)
     when: a Participant learns that the public knows of the vulnerability
@@ -643,19 +606,6 @@ groups:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_attacks_observed_to_case
-  - anchor: create-participant-status
-    heading: Create participant status
-    when: a Participant is about to announce a change to its own state in the case
-    send: Create(ParticipantStatus)
-    sent_by: not yet checked
-    semantics: create_participant_status
-    status: none
-    description: Mints a participant status object carrying `rm_state`, `vf_state` and `d_state`.
-      It precedes the Add.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
-    example: create_participant_status
   - anchor: vendor-awareness
     heading: Vendor Awareness (CV)
     when: a Vendor becomes aware of the vulnerability

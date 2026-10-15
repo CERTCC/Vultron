@@ -253,7 +253,7 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
 
 
 class TestVultronActorAliasesAreCore(unittest.TestCase):
-    """After ADR-0099 detail 3, as_* names are direct aliases for core classes."""
+    """After ARCH-25-003 (ADR-0099), as_* names are direct aliases for core classes."""
 
     def test_person_alias_is_core(self):
         self.assertIs(as_VultronPerson, CoreVultronPerson)

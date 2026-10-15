@@ -52,6 +52,7 @@ def test_parse_activity_returns_typed_activity_for_valid_body():
 
 
 @pytest.mark.spec("IE-07-001")
+@pytest.mark.spec("HTTP-03-004")
 def test_parse_activity_raises_400_when_type_missing():
     with pytest.raises(HTTPException) as exc_info:
         parse_activity({"actor": _ACTOR_URI, "object": {}})
@@ -136,6 +137,7 @@ def test_activity_addressed_to_returns_true_when_absent_addressing():
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
+@pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_to():
     """AC-2: actor named in to → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
@@ -143,6 +145,7 @@ def test_activity_addressed_to_returns_true_when_in_to():
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
+@pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_cc():
     """AC-2: actor named in cc → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
@@ -150,6 +153,7 @@ def test_activity_addressed_to_returns_true_when_in_cc():
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
+@pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_bto():
     """AC-2: actor named in bto → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
@@ -157,6 +161,7 @@ def test_activity_addressed_to_returns_true_when_in_bto():
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
+@pytest.mark.spec("IE-11-003")
 def test_activity_addressed_to_returns_true_when_in_bcc():
     """AC-2: actor named in bcc → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))

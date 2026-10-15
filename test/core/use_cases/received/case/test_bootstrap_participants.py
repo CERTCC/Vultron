@@ -119,6 +119,7 @@ def case_with_two_participants():
     case = as_VulnerabilityCase.model_construct(
         id_=_CASE_ID,
         name="CBT-05-005/006 participant storage case",
+        vulnerability_reports=[_REPORT_ID],
         attributed_to=_CASE_ACTOR_ID,
         case_participants=[case_actor_p, vendor_p],
         actor_participant_index={

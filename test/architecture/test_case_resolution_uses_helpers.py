@@ -174,7 +174,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             "SeedReporterSignatoryNode._resolve_participant",
         ),
         # R3 — optional addressing / stub enrichment; factory tolerates None.
-        (f"{_NODES}/invite_actor_emit.py", "emit_stub_invite"),
+        (f"{_NODES}/invite_actor_emit.py", "build_stub_invite"),
         (
             f"{_NODES}/ownership_transfer.py",
             "EmitOfferCaseOwnershipTransferNode._call_factory",

@@ -205,7 +205,7 @@ class TestDynamicDiscovery:
         assert WIRE_TYPE_MAP["VulnerabilityReport"] is as_VulnerabilityReport
         assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
 
-        # After ADR-0099 detail 3 deletion (issue #3487), the core class IS the
+        # After ARCH-25-003 (ADR-0099) deletion (issue #3487), the core class IS the
         # wire class — these are no longer registered under "as_*" in VOCABULARY
         # but are accessible via WIRE_TYPE_MAP (checked above).
         assert "as_VulnerabilityReport" not in VOCABULARY
@@ -386,7 +386,7 @@ class TestCoreTypeMapFallback:
     def test_default_lookup_admits_core_class_registered_as_wire_type(self):
         """Registry membership, not branch ancestry, is the discriminator.
 
-        ADR-0099 detail 3 registers ``VulnerabilityCase`` in ``WIRE_TYPE_MAP``
+        ARCH-25-003 (ADR-0099) registers ``VulnerabilityCase`` in ``WIRE_TYPE_MAP``
         as its own wire form, so an ``as_Base``-only rule would refuse the
         canonical case type.
         """

@@ -72,7 +72,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Vendors SHOULD have a clearly defined and publicly available policy — intake discovery.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[IE-02-001](../specs/protocol.md#ie-02-001)</td>
+<td markdown="span">[IE-02-001](../specs/foundation.md#ie-02-001)</td>
 <td markdown="span">The endpoint URL MUST be discoverable from actor profile — system support for finding intake.</td>
 </tr>
 <tr markdown="1">
@@ -90,7 +90,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Vendor Recipients receiving a new Report Submission MUST process it — receiving obligation.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[IE-02-002](../specs/protocol.md#ie-02-002)</td>
+<td markdown="span">[IE-02-002](../specs/foundation.md#ie-02-002)</td>
 <td markdown="span">The endpoint MUST accept POST requests only — HTTP intake for report submission.</td>
 </tr>
 <tr markdown="1">
@@ -108,7 +108,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Participants MUST be in RM Accepted to send a Report Submission — submission precondition.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[MV-01-001](../specs/protocol.md#mv-01-001)</td>
+<td markdown="span">[MV-01-001](../specs/foundation.md#mv-01-001)</td>
 <td markdown="span">Incoming payloads MUST conform to ActivityStreams 2.0 structure — message format for report submission.</td>
 </tr>
 <tr markdown="1">
@@ -120,7 +120,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">`VALIDATE_REPORT` MUST be represented as `Accept(Offer(VulnerabilityReport))` — validation result.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[IE-02-002](../specs/protocol.md#ie-02-002)</td>
+<td markdown="span">[IE-02-002](../specs/foundation.md#ie-02-002)</td>
 <td markdown="span">The endpoint MUST accept POST requests only — HTTP entry point for report.</td>
 </tr>
 <tr markdown="1">
@@ -130,11 +130,11 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Vendor Recipients receiving a new Report Submission MUST process it — receiving obligation.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[IE-02-002](../specs/protocol.md#ie-02-002)</td>
+<td markdown="span">[IE-02-002](../specs/foundation.md#ie-02-002)</td>
 <td markdown="span">The endpoint MUST accept POST requests only — HTTP intake.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[MV-01-001](../specs/protocol.md#mv-01-001)</td>
+<td markdown="span">[MV-01-001](../specs/foundation.md#mv-01-001)</td>
 <td markdown="span">Incoming payloads MUST conform to ActivityStreams 2.0 structure — validation on receipt.</td>
 </tr>
 <tr markdown="1">
@@ -605,17 +605,17 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Third-party Coordinators MAY be included as Participants — multi-party inclusion.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[ID-01-001](../specs/architecture.md#id-01-001)</td>
+<td markdown="span">[ID-01-001](../specs/foundation.md#id-01-001)</td>
 <td markdown="span">All activities MUST have globally unique `id` fields — de-duplication via unique IDs.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="4" markdown="span">[story_2022_029](story_2022_029.md)</td>
 <td rowspan="4" markdown="span">As a Vendor/Deployer/Other, assign own ID to a case</td>
-<td markdown="span">[OID-01-001](../specs/protocol.md#oid-01-001)</td>
+<td markdown="span">[OID-01-001](../specs/foundation.md#oid-01-001)</td>
 <td markdown="span">All ActivityStreams object IDs MUST use full URI form — ID format requirement.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OID-01-002](../specs/protocol.md#oid-01-002)</td>
+<td markdown="span">[OID-01-002](../specs/foundation.md#oid-01-002)</td>
 <td markdown="span">IDs MUST be globally unique within the system — uniqueness enforcement.</td>
 </tr>
 <tr markdown="1">
@@ -629,11 +629,11 @@ Source specifications: `specs/*.yaml`
 <tr markdown="1">
 <td rowspan="4" markdown="span">[story_2022_030](story_2022_030.md)</td>
 <td rowspan="4" markdown="span">As a Participant, discover and map to global/shared case ID</td>
-<td markdown="span">[OID-01-001](../specs/protocol.md#oid-01-001)</td>
+<td markdown="span">[OID-01-001](../specs/foundation.md#oid-01-001)</td>
 <td markdown="span">All ActivityStreams object IDs MUST use full URI form — global ID format.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OID-01-002](../specs/protocol.md#oid-01-002)</td>
+<td markdown="span">[OID-01-002](../specs/foundation.md#oid-01-002)</td>
 <td markdown="span">IDs MUST be globally unique within the system — global uniqueness.</td>
 </tr>
 <tr markdown="1">
@@ -689,7 +689,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">A case or vulnerability identifier SHOULD appear in embargo representation — shared case ID.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OID-01-001](../specs/protocol.md#oid-01-001)</td>
+<td markdown="span">[OID-01-001](../specs/foundation.md#oid-01-001)</td>
 <td markdown="span">All object IDs MUST use full URI form — stable record identifiers.</td>
 </tr>
 <tr markdown="1">
@@ -810,7 +810,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[AKM-03-001](../specs/protocol.md#akm-03-001)</td>
-<td markdown="span">Outbound initiating activities MUST carry the `object` field as a fully inline typed domain object — invite proposal payload integrity.</td>
+<td markdown="span">Outbound initiating activities MUST carry, as their `object`, the domain object they act on, inline or by reference — invite proposal payload integrity.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_054](story_2022_054.md)</td>
@@ -1030,7 +1030,7 @@ Source specifications: `specs/*.yaml`
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_034](story_2022_034.md)</td>
 <td rowspan="3" markdown="span">As a Participant, use global/federated user ID</td>
-<td markdown="span">[OID-01-001](../specs/protocol.md#oid-01-001)</td>
+<td markdown="span">[OID-01-001](../specs/foundation.md#oid-01-001)</td>
 <td markdown="span">All ActivityStreams object IDs MUST use full URI form — global ID format.</td>
 </tr>
 <tr markdown="1">
@@ -1251,7 +1251,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Coordinators MUST have a clearly defined and publicly available policy — discoverability.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[IE-02-001](../specs/protocol.md#ie-02-001)</td>
+<td markdown="span">[IE-02-001](../specs/foundation.md#ie-02-001)</td>
 <td markdown="span">The endpoint URL MUST be discoverable from actor profile — inbox discoverability.</td>
 </tr>
 <tr markdown="1">
@@ -1265,7 +1265,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Participants whose state changes SHOULD announce to other Participants.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[RF-01-001](../specs/protocol.md#rf-01-001)</td>
+<td markdown="span">[RF-01-001](../specs/foundation.md#rf-01-001)</td>
 <td markdown="span">Response activities MUST conform to ActivityStreams 2.0 — message format.</td>
 </tr>
 <tr markdown="1">
@@ -1293,7 +1293,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Participants whose state changes SHOULD announce to all Participants — broadcast state changes.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OX-03-001](../specs/protocol.md#ox-03-001)</td>
+<td markdown="span">[OX-03-001](../specs/foundation.md#ox-03-001)</td>
 <td markdown="span">Activities in an actor's outbox MUST be delivered to recipient inboxes — outbox-based broadcast.</td>
 </tr>
 <tr markdown="1">
@@ -1303,7 +1303,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Embargo participation SHOULD be limited to the smallest possible set — subset communication.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OX-03-001](../specs/protocol.md#ox-03-001)</td>
+<td markdown="span">[OX-03-001](../specs/foundation.md#ox-03-001)</td>
 <td markdown="span">Activities in an actor's outbox MUST be delivered to recipient inboxes — selective delivery.</td>
 </tr>
 <tr markdown="1">
@@ -1313,13 +1313,13 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">When the CASE_MANAGER updates canonical case state, it MUST broadcast to all Participants.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OX-03-001](../specs/protocol.md#ox-03-001)</td>
+<td markdown="span">[OX-03-001](../specs/foundation.md#ox-03-001)</td>
 <td markdown="span">Activities in an actor's outbox MUST be delivered to recipient inboxes — channel delivery.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="2" markdown="span">[story_2022_044](story_2022_044.md)</td>
 <td rowspan="2" markdown="span">As a Participant, communicate with selected case Participants</td>
-<td markdown="span">[OX-03-001](../specs/protocol.md#ox-03-001)</td>
+<td markdown="span">[OX-03-001](../specs/foundation.md#ox-03-001)</td>
 <td markdown="span">Activities in an actor's outbox MUST be delivered to recipient inboxes — selective delivery.</td>
 </tr>
 <tr markdown="1">
@@ -1337,7 +1337,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Each actor MUST have an outbox collection — delivery of draft advisory.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[RF-01-001](../specs/protocol.md#rf-01-001)</td>
+<td markdown="span">[RF-01-001](../specs/foundation.md#rf-01-001)</td>
 <td markdown="span">Response activities MUST conform to ActivityStreams 2.0 — message format for draft sharing.</td>
 </tr>
 <tr markdown="1">
@@ -1365,7 +1365,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Participants whose state changes SHOULD announce to others — draft availability announcement.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[RF-01-001](../specs/protocol.md#rf-01-001)</td>
+<td markdown="span">[RF-01-001](../specs/foundation.md#rf-01-001)</td>
 <td markdown="span">Response activities MUST conform to ActivityStreams 2.0 — request/response format.</td>
 </tr>
 <tr markdown="1">
@@ -1429,7 +1429,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">When CASE_MANAGER updates state, MUST broadcast to all Participants — case-level broadcast.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OX-03-001](../specs/protocol.md#ox-03-001)</td>
+<td markdown="span">[OX-03-001](../specs/foundation.md#ox-03-001)</td>
 <td markdown="span">Activities in an actor's outbox MUST be delivered to recipient inboxes — delivery to all.</td>
 </tr>
 <tr markdown="1">
@@ -1439,7 +1439,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Other parties MAY be included as Participants when necessary — non-vendor inclusion.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OX-03-001](../specs/protocol.md#ox-03-001)</td>
+<td markdown="span">[OX-03-001](../specs/foundation.md#ox-03-001)</td>
 <td markdown="span">Activities in an actor's outbox MUST be delivered to recipient inboxes — delivery mechanism.</td>
 </tr>
 <tr markdown="1">
@@ -1449,7 +1449,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Vendor Awareness messages SHOULD be sent only by Vendors who become aware — awareness notifications.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OX-03-001](../specs/protocol.md#ox-03-001)</td>
+<td markdown="span">[OX-03-001](../specs/foundation.md#ox-03-001)</td>
 <td markdown="span">Activities in an actor's outbox MUST be delivered to recipient inboxes — subscription/distribution mechanism.</td>
 </tr>
 <tr markdown="1">
@@ -1492,7 +1492,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Embargo Participants SHOULD NOT knowingly release information — draft shared within embargo.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[RF-01-001](../specs/protocol.md#rf-01-001)</td>
+<td markdown="span">[RF-01-001](../specs/foundation.md#rf-01-001)</td>
 <td markdown="span">Response activities MUST conform to ActivityStreams 2.0 — format for sharing draft.</td>
 </tr>
 <tr markdown="1">

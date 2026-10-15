@@ -20,7 +20,7 @@ local store and recording it as a canonical ``CaseLedgerEntry`` are different
 concerns — and conflating them is what let ISSUE-2505 happen: the advance
 existed, the record did not.
 
-Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, ADR-0051.
+Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005; ADR-0051.
 """
 
 import json
@@ -123,7 +123,7 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
     commit does: a gapped local prefix fails that check by design
     (SYNC-10-001/002), and it must not block case closure (CM-23-002).
 
-    Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, CLP-07-013,
+    Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, CLP-07-013;
     ADR-0051.
     """
 

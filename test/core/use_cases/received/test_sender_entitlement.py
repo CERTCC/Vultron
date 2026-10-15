@@ -106,7 +106,6 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
     AnnounceEmbargoEventToCaseReceivedUseCase,
-    CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
@@ -140,7 +139,6 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Create,
     as_Reject,
     as_Remove,
 )
@@ -1205,40 +1203,6 @@ def test_embargo_reject_from_a_non_invitee_is_refused(
         embargo_id=embargo.id_,
         active=False,
     )
-
-
-@pytest.mark.spec("EP-09-005")
-@pytest.mark.spec("HP-01-006")
-def test_embargo_create_from_a_non_owner_is_refused(
-    cm_store, owned_case, make_payload
-):
-    """A participant that is not the Case Owner stores no EmbargoEvent."""
-    embargo = as_EmbargoEvent(
-        id_=f"{owned_case.id_}/embargo_events/created",
-        context=owned_case.id_,
-        end_time=days_from_now_utc(45),
-    )
-    seed_case_participant(
-        cm_store, owned_case, _BYSTANDER_ID, [CVDRole.VENDOR]
-    )
-    cm_store.create(owned_case)
-    event = make_payload(
-        as_Create(
-            actor=_BYSTANDER_ID,
-            object_=embargo,
-            context=owned_case,
-            to=[_CASE_MANAGER_ID],
-        ),
-        receiving_actor_id=_CASE_MANAGER_ID,
-    )
-
-    result = CreateEmbargoEventReceivedUseCase(
-        cm_store, event, **_embargo_ports(cm_store)
-    ).execute()
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert "CASE_OWNER" in (result.reason or "")
-    assert cm_store.get(embargo.type_, embargo.id_) is None
 
 
 @pytest.mark.spec("EP-09-005")

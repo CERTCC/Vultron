@@ -1925,9 +1925,10 @@ groups:
     priority: MUST
     kind: project
     statement: 'ActorConfig MUST expose an `auto_create_case` boolean field with a default value of `True`.'
-    rationale: Receivers that follow the Option 3 protocol path (send Read(Offer(Report)) before deciding to accept or reject)
-      require the ability to delay case creation. The default (True) preserves the original ADR-0015 Option 4 "always create
-      at RM.RECEIVED" behavior for all existing actors and demos.
+    rationale: Receivers that acknowledge a report (send Read(Offer(Report)), VAM-02-003) before deciding to accept or reject
+      it require the ability to delay case creation. The default (True) starts a case at every `Offer(Report)` receipt
+      (RM.RECEIVED) for all existing actors and demos; the receiver proposes it and the CASE_MANAGER creates it
+      (CM-22-001), or the receiver creates it itself when it is the CASE_MANAGER (CM-12-001).
     verification: Inspection of `vultron/core/` confirms that `ActorConfig` declares an
       `auto_create_case` boolean field defaulting to `True`.
     relationships:
@@ -2191,10 +2192,18 @@ groups:
     statement: In every step of the actor suggestion flow, the CASE_MANAGER MUST commit the ledger entry for a protocol event
       AFTER the corresponding message has been sent or received, never before.
     rationale: Pre-announcing a decision in the ledger before communicating the decision creates a window where the ledger
-      shows an effect without its cause.
-    verification: Integration tests in `test/demo/` confirm that ledger entries in the actor
-      suggestion flow are committed only after the corresponding message has been sent or
-      received, never before.
+      shows an effect without its cause. A sent message is sent once it is in the CASE_MANAGER's outbox (SYNC-09-002).
+    verification: >-
+      `test/core/use_cases/received/actor/test_offer_case_participant.py::TestActorSuggestionFlowRecordsEachMessageAfterItIsSent`
+      records the CASE_MANAGER's outbox writes and commits at each step — the
+      forwarded `Offer(CaseParticipant)`, the Case Owner's `Accept` with the
+      Invite and `AcceptActorRecommendation` it sends, and the owner's `Reject`
+      with the `RejectActorRecommendation` — and asserts the received message is
+      recorded first and each sent one is queued before its entry;
+      `TestActorSuggestionAnswersAreSentOnceOnRetry` in the same file asserts a
+      retry after a failed commit queues each answer once and records it once.
+    adr:
+    - ADR-0119
     stories:
     - story_2022_053
     - story_2022_045
@@ -2403,25 +2412,28 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER MUST commit exactly one `CaseLedgerEntry` for an emitted `Invite`
-      activity, in the tree that emits it, after the Invite activity has been constructed and
-      before it is appended to the outbox. The Invite MUST NOT be addressed to the CASE_MANAGER
+      activity, in the tree that emits it: the Invite is constructed, appended to the outbox,
+      and then its entry is committed. The Invite MUST NOT be addressed to the CASE_MANAGER
       itself, and no received-side path MUST commit a second entry for it.
     rationale: >-
-      Build, commit, then enqueue is the order `vultron/core/behaviors/case/AGENTS.md` enforces
-      for every emit that also commits: a commit that fails after the outbox write orphans an
-      activity queued for delivery with no ledger entry, and the next duplicate check then takes
-      the fresh path (ISSUE-1325). An earlier wording required the commit to follow the queueing;
-      the code never did that, and the loopback copy that wording assumed committed the same
-      Invite a second time (#2996, ADR-0109).
+      The entry records an Invite already sent (SYNC-09-002, ADR-0119). The emitting tree's
+      commit is the Invite's only one: the loopback copy an earlier design assumed committed
+      the same Invite a second time (#2996, ADR-0109). A retry after a send whose commit failed
+      rebuilds the Invite under its first id, so the outbox does not queue it twice while it is
+      pending (OX-06-002), a delivered one reaches its receiver again under the same id and is
+      dropped (ID-02-001), and the commit records it once.
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py` asserts the emit node
-      commits before it appends to the outbox and sets no `cc`; the case-ledger invariant harness
-      asserts a single entry per Invite activity id (CLP-07-002).
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      asserts the emit node appends to the outbox before it commits and sets no `cc`;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` asserts a
+      retry queues and commits the Invite once; the case-ledger invariant harness asserts a
+      single entry per Invite activity id (CLP-07-002).
     relationships:
     - rel_type: implements
       spec_id: CLP-10-006
     adr:
     - ADR-0109
+    - ADR-0119
   - id: CM-17-007
     priority: MUST
     kind: project
@@ -4237,6 +4249,12 @@ groups:
       (CM-23-011) and cannot be misread. Dropping is the default because it is what an
       exited process does, and CM-23-013 already tells participants not to rely on a
       reply.
+    note: >-
+      A late activity here is one for the case, as in CM-23-013. A
+      `Create(CaseProposal)` names a report, not a case, so it is not one: its answer
+      after close is set by CP-05-006 and CP-05-008, which decline it with
+      `Reject(CaseProposal)` under both settings (ADR-0131). That `Reject` is a
+      decision on the proposal, so it cannot be misread.
     verification: >-
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseWriteBoundary`
       drives a late Leave under both settings (one Reject under `reject`, none under
@@ -4785,8 +4803,8 @@ groups:
       A participant that did not answer made no decision, and code, logs, demos and replicas read
       the consent row, not ledger provenance (ADR-0118). An expired participant is re-invitable
       (CM-18-003), excluded from embargoed content like any non-signatory (CM-10-004), and made a
-      signatory by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065
-      part 5, which chose `DECLINED`.
+      signatory by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065's
+      choice to record a lapsed invitation as `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
       (`Invite(Actor, VulnerabilityCaseStub)`) carries embargo terms but changes
@@ -5059,6 +5077,50 @@ groups:
     adr:
     - ADR-0118
     - ADR-0113
+    stories:
+    - story_2022_014
+    - story_2022_027
+  - id: CM-28-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST expire every `INVITED` consent row whose RSVP deadline has passed and
+      whose embargo register entry is an open proposal or the embargo in force, each through the
+      CM-28-009 expiry entry and its `TIME_OUT` effect, before it commits the case owner's
+      decision on an embargo proposal (MSM-07-008, MSM-07-009) and whenever it processes any other
+      received embargo activity for the case. A row of a replaced, rejected, cancelled or ended
+      embargo is frozen and MUST NOT be swept. The sweep MUST run only after every refusal check
+      of the activity admits it: its sender gate (HP-01-006) and its own refusals, such as an
+      embargo that is not an open proposal or a public, exploited or attacked CS (MSM-07-008), so
+      a refused activity writes nothing. It applies equally when the owner's own trigger runs on
+      the actor that holds `CVDRole.CASE_MANAGER` (EP-09-008).
+    rationale: >-
+      Expiry evaluated only on a late `Accept` and at owner close (CM-23-014) never records an
+      invitee that does not answer: its row stays `INVITED` until the case closes, so the case
+      owner, who learns of a timeout from the expiry entry's fan-out (MSM-07-007), decides on
+      the embargo without knowing about it (EP-09-006). The owner's decision is the moment the
+      timeout matters, and embargo activities are the acts that read the consent rows (CM-28-007),
+      so sweeping there keeps expiry lazy and needs no scheduler (CM-28-008).
+    verification: >-
+      Tests let an invitation pass its deadline unanswered, then deliver to the CASE_MANAGER, in
+      turn, the owner's `Accept(EmbargoEvent, target=Case)`, the owner's
+      `Reject(EmbargoEvent, target=Case)` and one other received embargo activity, and assert
+      for each that the `invite_to_embargo_on_case_expired` entry is committed before the
+      activity's own entry and the invitee's row reads `TIMED_OUT`; a test runs the owner's
+      embargo-decision trigger on the actor holding `CVDRole.CASE_MANAGER` and asserts the same.
+      Tests deliver the owner's decision from a non-owner, and from the owner naming an embargo
+      that is not an open proposal, and assert each is `REFUSED` with no expiry entry committed.
+      Tests assert a row whose deadline has not passed stays `INVITED`, an overdue `INVITED` row
+      of a replaced embargo is left unchanged, and a repeat sweep commits no second expiry entry.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-007
+    - rel_type: depends_on
+      spec_id: CM-28-009
+    - rel_type: depends_on
+      spec_id: CM-28-014
+    adr:
+    - ADR-0118
     stories:
     - story_2022_014
     - story_2022_027
@@ -5931,7 +5993,7 @@ groups:
       that case's ID, its new end time or the fact of termination, and the rationale.
     rationale: >-
       A notice informs and proposes nothing: a case's embargo changes only through its own
-      negotiation (ADR-0125, decision part 7). Committing it to the receiving ledger delivers
+      negotiation (ADR-0125). Committing it to the receiving ledger delivers
       it through the shared recipient selection, so the participants of one case learn of
       another's change without ever being addressed by it, and learn nothing else of that
       case.

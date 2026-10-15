@@ -93,6 +93,7 @@ def test_readiness_response_body(client_health):
     assert data["status"] == "ok"
 
 
+@pytest.mark.spec("HTTP-03-011")
 def test_readiness_returns_503_when_storage_not_ready(client_health_unready):
     """OB-05-002: /health/ready MUST return 503 when dependencies unavailable."""
     resp = client_health_unready.get("/health/ready")
