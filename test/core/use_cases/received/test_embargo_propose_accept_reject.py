@@ -534,7 +534,7 @@ def _make_pxa_case(
         name="PXA Guard Test",
         attributed_to=coordinator_id,
     )
-    case.append_case_status(pxa_state=CS_pxa[pxa_state_name])
+    case.append_case_status(pxa=CS_pxa[pxa_state_name])
     embargo = as_EmbargoEvent(
         id_=embargo_id,
         content="PXA test embargo",

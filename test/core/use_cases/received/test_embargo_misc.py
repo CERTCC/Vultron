@@ -312,7 +312,7 @@ class TestPxaEmbargoIneligible:
             name="PXA Test",
             attributed_to="https://example.org/users/finder",
         )
-        case.append_case_status(pxa_state=pxa_state)
+        case.append_case_status(pxa=pxa_state)
         dl.create(case)
         return dl
 

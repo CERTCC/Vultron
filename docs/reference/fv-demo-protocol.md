@@ -313,7 +313,7 @@ POST /api/v2/actors/{finder_id}/demo/notify-published
 | `Remove(Event)` | [Embargo Termination (ET)](messages/em.md#embargo-termination) | Case Actor → Vendor, Finder |
 
 !!! note "Public awareness inside a participant status"
-    The demo reports public awareness as a participant status whose embedded case status carries `pxa_state` `Pxa`.
+    The demo reports public awareness as a participant status whose embedded case status carries `pxaState` `Pxa`.
     The occasion table has no row for that form yet ([#4569](https://github.com/CERTCC/Vultron/issues/4569)): its [Public Awareness (CP)](messages/cs.md#public-awareness) occasion is `Add(CaseStatus)[target=VulnerabilityCase]`.
 
 ### What happens

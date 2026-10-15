@@ -812,12 +812,14 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
         Ephemerally reconstructs the original Offer before building the
         Reject so that ``Reject.object_`` is a typed
         ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
+        ``id_`` allows callers to supply a deterministic id for idempotency.
 
         Returns ``(activity_id, activity_json)``.
         """

@@ -492,7 +492,7 @@ class TestFilterCsPxaDimensionNodeBug2706:
             attributed_to=CASE_MANAGER_ID_2706,
         )
         case.add_participant(cm_participant)
-        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        case.append_case_status(pxa=CS_pxa.Pxa)
         dl.create(case)
         dl.create(cm_participant)
         # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
@@ -701,7 +701,7 @@ class TestAddCaseStatusTree:
         )
         # Auto-seeded baseline is pxa; advance to pXa (X exploit published,
         # P still false — the ephemeral state that requires P next).
-        case.append_case_status(pxa_state=CS_pxa.pXa)
+        case.append_case_status(pxa=CS_pxa.pXa)
         dl.create(case)
 
         # Asserted status fires A-event only (pXa → pXA); P is NOT advanced.
@@ -861,7 +861,7 @@ class TestAddCaseStatusTree:
         case = VulnerabilityCase(
             id_=CASE_ID, name="PXA Refusal Log", attributed_to=ACTOR_ID
         )
-        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        case.append_case_status(pxa=CS_pxa.Pxa)
         dl.create(case)
 
         # The case's own EM + PXA regression → PXA dimension refused and
@@ -921,7 +921,7 @@ class TestAddCaseStatusTree:
         case = VulnerabilityCase(
             id_=CASE_ID, name="EM Refusal Log", attributed_to=ACTOR_ID
         )
-        case.append_case_status(pxa_state=CS_pxa.pxa)
+        case.append_case_status(pxa=CS_pxa.pxa)
         dl.create(case)
 
         # EM other than the case's (NONE → ACTIVE) + valid PXA advance → EM
@@ -1220,9 +1220,9 @@ class TestThreatTerminationBranchNode:
     """RSH-03-001: fires teardown on P/X/A; RSH-03-002: no sender-role gate."""
 
     def _make_status_with_pxa(self, pxa_state: CS_pxa) -> as_CaseStatus:
-        s = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        object.__setattr__(s, "pxa_state", pxa_state)
-        return s
+        return as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=pxa_state)
+        )
 
     def _setup_dl_with_embargo(
         self, dl, pxa_state: CS_pxa, manager_id: str = ACTOR_ID
@@ -1592,8 +1592,9 @@ class TestThreatTerminationBranchNodeProposedEm:
         case.add_participant(cm_participant)
         propose(case, embargo.id_)
         case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        object.__setattr__(status_obj, "pxa_state", CS_pxa.Pxa)
+        status_obj = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        )
         for obj in (embargo, invite, cm_participant, case, status_obj):
             dl.create(obj)
 

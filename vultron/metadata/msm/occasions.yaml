@@ -569,7 +569,7 @@ groups:
     when: a Participant learns that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     sent_by: not yet checked
-    distinguished_by: '`pxa_state` = `Pxa`'
+    distinguished_by: '`pxaState` = `Pxa`'
     semantics: add_case_status_to_case
     shorthand: CP
     status: collapse
@@ -583,7 +583,7 @@ groups:
     when: a Participant learns that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
     sent_by: not yet checked
-    distinguished_by: '`pxa_state` = `PXa`'
+    distinguished_by: '`pxaState` = `PXa`'
     semantics: add_case_status_to_case
     shorthand: CX
     status: collapse
@@ -597,7 +597,7 @@ groups:
     when: a Participant observes attacks that exploit the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     sent_by: not yet checked
-    distinguished_by: '`pxa_state` = `pxA`'
+    distinguished_by: '`pxaState` = `pxA`'
     semantics: add_case_status_to_case
     shorthand: CA
     status: collapse
@@ -611,7 +611,7 @@ groups:
     when: a Vendor becomes aware of the vulnerability
     send: Add(ParticipantStatus)[target=CaseParticipant]
     sent_by: 'an active participant (usually: vendor)'
-    distinguished_by: '`vf_state` = `Vf`'
+    distinguished_by: '`vfState` = `Vf`'
     semantics: add_participant_status_to_participant
     shorthand: CV
     status: collapse
@@ -626,7 +626,7 @@ groups:
     when: a Vendor has a fix ready
     send: Add(ParticipantStatus)[target=CaseParticipant]
     sent_by: 'an active participant (usually: vendor)'
-    distinguished_by: '`vf_state` = `VF`'
+    distinguished_by: '`vfState` = `VF`'
     semantics: add_participant_status_to_participant
     shorthand: CF
     status: collapse
@@ -641,7 +641,7 @@ groups:
     when: a Deployer has deployed the fix
     send: Add(ParticipantStatus)[target=CaseParticipant]
     sent_by: 'an active participant (usually: deployer)'
-    distinguished_by: '`d_state` = `D`'
+    distinguished_by: '`dState` = `D`'
     semantics: add_participant_status_to_participant
     shorthand: CD
     status: collapse

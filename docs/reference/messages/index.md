@@ -64,7 +64,7 @@ Each occasion section states its entry's **mapping status**, the relationship be
 
 Two examples show the many-to-many relationship:
 
-- `CP`, `CX` and `CA` are a collapse: all three ride `Add(CaseStatus)`, distinguished by `pxa_state`.
+- `CP`, `CX` and `CA` are a collapse: all three ride `Add(CaseStatus)`, distinguished by `pxaState`.
 - `GI` is an expansion: it spans the note lifecycle and the actor-suggestion exchange.
 
 The shorthands `RE`, `EE`, `CE`, `GE`, `EK`, `CK` and `GK` have no dedicated wire activity.
