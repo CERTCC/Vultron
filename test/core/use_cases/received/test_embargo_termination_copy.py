@@ -210,6 +210,7 @@ class TestCaseManagerCommitsFirst:
 
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("EP-08-004")
+    @pytest.mark.spec("MSM-07-006")
     @pytest.mark.parametrize("path", ["trigger", "cascade"])
     def test_the_remove_is_committed_before_the_case_changes(
         self, monkeypatch, path

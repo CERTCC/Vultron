@@ -167,9 +167,10 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     ) -> None:
         """Take a decision whose commit failed back out of the outbox.
 
-        Nothing has changed the case yet: an act committed before it is
-        applied (ADR-0124) writes only once its entry commits, so a retry
-        decides again and builds a new activity.  Left queued, this one would
+        An act on the copy model (ADR-0124) has not changed the case yet: it
+        writes only once its entry commits, so a retry decides again and
+        builds a new activity.  An arm not yet converted wrote first, and its
+        own write stops a rerun.  Either way, left queued, the activity would
         reach participants with no entry that records it, so it is withdrawn,
         as the create-case trigger withdraws its ``Create`` (CLP-07-013).
         One delivery already took cannot be withdrawn, and is reported.

@@ -175,9 +175,10 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 - **P/X/A guards** (EMB-01-002, EMB-02-002, EMB-04-002): `propose_embargo()` and
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
   never blocked. `reject_embargo_proposal()` raises when it would return a
-  `REVISE` case to the prior terms with P/X/A set — the correct path is
-  `terminate_active_embargo()`. That guard holds in `OBSERVED` too, so manager
-  and replicas both end with the revision `CANCELLED` (#4364).
+  `REVISE` case to the prior terms with P/X/A set — the correct path is to
+  terminate the embargo (ET, `terminate_embargo_bt`). That guard holds in
+  `OBSERVED` too, so manager and replicas both end with the revision
+  `CANCELLED` (#4364).
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
