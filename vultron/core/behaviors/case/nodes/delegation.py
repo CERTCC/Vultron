@@ -23,11 +23,11 @@ See SE-08-003, ADR-0039.
 """
 
 import logging
-from typing import cast
+from collections.abc import Callable
+from typing import ClassVar, cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     _EmitSingleActivityBase,
@@ -39,29 +39,42 @@ from vultron.core.behaviors.sync.nodes.role_grant_effect import (
 )
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
-#: Ledger ``event_type`` of the auto-accept, and the kind label of its id.
-_ACCEPT_EVENT_TYPE = "accept_case_participant_role"
 
+class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
+    """Send this actor's answer to an ``Offer(CaseParticipantRole)`` (ADR-0039).
 
-class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
-    """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
+    The one shape both arms of the ``AcceptOrReject`` Selector share.  The
+    answer's id derives from the Offer it answers (OX-06-002), so a retry
+    after a send whose commit failed rebuilds the same answer, which the
+    outbox does not queue twice and the commit records once.
 
-    When the local actor receives an ``Offer(CaseParticipantRole)`` it MUST
-    auto-accept so the offering Vendor receives confirmation.  This node
-    creates the ``Accept`` activity via ``trigger_activity_factory``, queues
-    it in the local actor's outbox, and then commits it (ADR-0119).  The
-    Accept's id is derived from the Offer it answers, so a redelivery after
-    a send whose commit failed rebuilds the same Accept, which the outbox
-    does not queue twice (OX-06-002) and the commit records once.
+    Sent, then recorded (ADR-0119): the answer is queued first, and the
+    commit follows **only when the executing actor holds**
+    ``CVDRole.CASE_MANAGER`` **for the case**.  The actor a role is offered to
+    is usually an ordinary participant, and a participant never commits
+    (CLP-09-001): its answer goes out with no entry in its own ledger.  The
+    CASE_MANAGER commits it on receipt (CM-33-006), which #4703 builds.
 
-    See SE-08-003, ADR-0039.
+    Neither the outbox write nor the commit is caught: once the answer is
+    queued a FAILURE would let the Selector send the contradictory answer
+    after it, so a fault escapes to ``BTBridge`` as an internal error
+    (BT-14-001, ARCH-15-001).  Only a missing input, a case this store does not
+    hold, or a factory error returns FAILURE, before anything is written.
+
+    Subclasses set ``_EVENT_TYPE`` (the ledger ``event_type`` and the kind
+    label of the derived id) and ``_ANSWER`` (for logs), and implement
+    :meth:`_factory_method`.
     """
+
+    _EVENT_TYPE: ClassVar[str]
+    _ANSWER: ClassVar[str]
 
     def __init__(
         self,
@@ -72,17 +85,21 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
         vendor_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(name=name)
         self.offer_id = offer_id
         self.case_id = case_id
         self.role = role
         self.target_actor_id = target_actor_id
         self.vendor_id = vendor_id
+        self._case: VulnerabilityCase | None = None
+
+    def _factory_method(self) -> Callable[..., tuple[str, str]]:
+        """The ``TriggerActivityPort`` method that builds this answer."""
+        raise NotImplementedError
 
     def _call_factory(self) -> tuple[str, str]:
-        assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
-        return self.trigger_activity_factory.accept_case_participant_role(
+        return self._factory_method()(
             offer_id=self.offer_id,
             case_id=self.case_id,
             role=self.role,
@@ -91,18 +108,8 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
             actor=self.actor_id,
             to=[self.vendor_id],
             id_=derived_activity_id(
-                _ACCEPT_EVENT_TYPE, self.actor_id, self.case_id, self.offer_id
+                self._EVENT_TYPE, self.actor_id, self.case_id, self.offer_id
             ),
-        )
-
-    def _enqueue_accept(self, accept_id: str) -> None:
-        # The Accept is now persisted.  Outbox enqueue MUST NOT return FAILURE
-        # here — the AcceptOrReject Selector would fall through to
-        # EmitRejectCaseParticipantRoleNode, producing contradictory protocol
-        # state (Accept stored, Reject sent).  Let the exception propagate
-        # instead.
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(  # type: ignore[union-attr]
-            accept_id
         )
 
     def _validate_context(self) -> Status | None:
@@ -113,7 +120,7 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
             return f
         if (f := self._require_factory()) is not None:
             self.logger.warning(
-                "%s: factory unavailable — cannot auto-accept offer '%s'",
+                "%s: factory unavailable — cannot answer offer '%s'",
                 self.name,
                 self.offer_id,
             )
@@ -125,60 +132,99 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
                 self.offer_id,
             )
             return Status.FAILURE
-        # The Accept is queued before it is committed (ADR-0119), so a case
-        # the commit cannot find is checked for first: the Selector then
-        # answers with the Reject, as it did when the commit came first.
-        _, failure = self._require_case(self.case_id)
+        # Resolved before anything is written (Regime 1, ADR-0087): an Accept
+        # that cannot find the case fails, so the Selector answers with the
+        # Reject, and the commit gate below reads the same case.
+        self._case, failure = self._require_case(self.case_id)
         return failure
 
-    def _commit_accept_to_ledger(
-        self, accept_id: str, payload_snapshot: str
-    ) -> None:
-        """Commit the queued Accept; raise when the commit fails.
+    def _executing_actor_is_case_manager(self) -> bool:
+        """Whether the executing actor holds ``CVDRole.CASE_MANAGER`` here.
 
-        Exact blob as snapshot (VM-08-003): the factory sets ``context`` to
-        the case URI from the offer it embeds, so nothing is patched here.
-        The Accept is already queued, so a failed commit MUST NOT return
-        FAILURE either: the Selector would send a Reject after it.
+        The same answer :class:`CheckIsCaseManagerNode` gives (ADR-0088,
+        ARCH-24-003): the canonical resolver names the CASE_MANAGER.
         """
+        assert self._case is not None  # resolved by _validate_context
+        return (
+            resolve_case_manager_id(
+                self._case, cast(CasePersistence, self.datalayer)
+            )
+            == self.actor_id
+        )
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        """Commit the queued answer when this actor is the CASE_MANAGER.
+
+        Exact blob as snapshot (VM-08-003).  Raises when the commit fails.
+        """
+        assert self.datalayer is not None
         assert self.actor_id is not None
+        if not self._executing_actor_is_case_manager():
+            self.logger.info(
+                "%s: '%s' does not hold CASE_MANAGER for case '%s' — %s '%s'"
+                " sent with no ledger entry (CLP-09-001)",
+                self.name,
+                self.actor_id,
+                self.case_id,
+                self._ANSWER,
+                activity_id,
+            )
+            return
         commit_emitted_activity(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
             actor_id=self.actor_id,
             case_id=self.case_id,
-            activity_id=accept_id,
-            activity_blob=payload_snapshot,
-            event_type=_ACCEPT_EVENT_TYPE,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+            event_type=self._EVENT_TYPE,
+        )
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "%s: '%s' answered offer '%s' with %s '%s' to vendor '%s'",
+            self.name,
+            self.actor_id,
+            self.offer_id,
+            self._ANSWER,
+            activity_id,
+            self.vendor_id,
         )
 
     def update(self) -> Status:
         if (f := self._validate_context()) is not None:
             return f
         try:
-            accept_id, payload_snapshot = self._call_factory()
+            activity_id, activity_blob = self._call_factory()
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "%s: error creating Accept for offer '%s': %s",
-                self.name,
-                self.offer_id,
-                exc,
+            self.feedback_message = (
+                f"error creating {self._ANSWER} for offer"
+                f" '{self.offer_id}': {exc}"
             )
+            self.logger.error("%s: %s", self.name, self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
-        # Sent, then recorded (ADR-0119).  Neither write is caught: once the
-        # Accept is stored a FAILURE would send a Reject after it, so a fault
-        # escapes to BTBridge as an internal error, as in the relay node and
-        # ``_CommitCaseManagerActivityBase`` (BT-14-001, ARCH-15-001).
-        self._enqueue_accept(accept_id)
-        self._commit_accept_to_ledger(accept_id, payload_snapshot)
-        self.logger.info(
-            "%s: auto-accepted offer '%s' as '%s'; queued and ledgered"
-            " Accept '%s'",
-            self.name,
-            self.offer_id,
-            self.actor_id,
-            accept_id,
-        )
+        self._emit_through_seam(activity_id, activity_blob)
+        self._record_sent(activity_id, activity_blob)
+        self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
+
+
+class AutoAcceptCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
+    """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
+
+    When the local actor receives an ``Offer(CaseParticipantRole)`` it MUST
+    auto-accept so the offering Vendor receives confirmation.  The send and
+    the CASE_MANAGER-only commit are
+    :class:`_AnswerCaseParticipantRoleOfferBase`'s.
+
+    See SE-08-003, ADR-0039.
+    """
+
+    _EVENT_TYPE = "accept_case_participant_role"
+    _ANSWER = "Accept"
+
+    def _factory_method(self) -> Callable[..., tuple[str, str]]:
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.accept_case_participant_role
 
 
 class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
@@ -241,58 +287,22 @@ class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
         return Status.SUCCESS
 
 
-class EmitRejectCaseParticipantRoleNode(_EmitSingleActivityBase):
+class EmitRejectCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     """Emit a Reject(Offer(CaseParticipantRole)) to the offering Vendor (ADR-0039).
 
     Fallback branch of the ``AcceptOrReject`` Selector after
     :class:`AutoAcceptCaseParticipantRoleNode`.  When the local actor cannot
     auto-accept the role delegation offer, this node sends an explicit
-    ``Reject`` so the offering Vendor is notified rather than receiving silence.
-
-    Returns ``FAILURE`` on any error so callers can observe the failure.
+    ``Reject`` so the offering Vendor is notified rather than receiving
+    silence.  The send and the CASE_MANAGER-only commit are
+    :class:`_AnswerCaseParticipantRoleOfferBase`'s.
 
     See SE-08-003, ADR-0039.
     """
 
-    def __init__(
-        self,
-        offer_id: str,
-        case_id: str,
-        role: CVDRole,
-        target_actor_id: str,
-        vendor_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name)
-        self.offer_id = offer_id
-        self.case_id = case_id
-        self.role = role
-        self.target_actor_id = target_actor_id
-        self.vendor_id = vendor_id
+    _EVENT_TYPE = "reject_case_participant_role"
+    _ANSWER = "Reject"
 
-    def _call_factory(self) -> tuple[str, str]:
-        if not self.case_id or not self.target_actor_id:
-            raise ValueError(
-                f"missing case_id or target_actor_id for offer '{self.offer_id}'"
-                " — cannot emit Reject"
-            )
+    def _factory_method(self) -> Callable[..., tuple[str, str]]:
         assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        return self.trigger_activity_factory.reject_case_participant_role(
-            offer_id=self.offer_id,
-            case_id=self.case_id,
-            role=self.role,
-            target_actor_id=self.target_actor_id,
-            vendor_id=self.vendor_id,
-            actor=self.actor_id,
-            to=[self.vendor_id],
-        )
-
-    def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        self.logger.info(
-            "%s: emitted Reject '%s' to vendor '%s' for offer '%s'",
-            self.name,
-            activity_id,
-            self.vendor_id,
-            self.offer_id,
-        )
+        return self.trigger_activity_factory.reject_case_participant_role

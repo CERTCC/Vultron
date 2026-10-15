@@ -43,16 +43,14 @@ from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
     case_manager_admits_reinstatement_guard,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_role_scoped_sender_guard,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
@@ -66,6 +64,8 @@ def create_add_case_participant_received_tree(
     sender_id: str,
     claimed_actor_id: str | None = None,
     activity_id: str | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Create the BT for ``AddCaseParticipantToCaseReceivedUseCase``.
 
@@ -75,7 +75,7 @@ def create_add_case_participant_received_tree(
 
         AddCaseParticipantReceivedBT (Sequence)
         ├── IntakeReceivedActivityNode                       # intake
-        ├── AddParticipantSenderGuard (Selector)             # sender guard
+        ├── SenderRuleGuard (Sequence)                       # sender guard
         ├── ReinstatementAdmissibleIfCaseManager (Selector)  # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode
         │   ├── ParticipantHasJoinedNode
@@ -87,7 +87,7 @@ def create_add_case_participant_received_tree(
             ├── EmitParticipantReinstatementNoticeNode
             └── InviteReinstatedParticipantToEmbargoNode
 
-    The sender guard admits the Case Owner at the CASE_MANAGER and only the
+    The declared rule admits the Case Owner at the CASE_MANAGER and only the
     CASE_MANAGER at any other replica (ADR-0115, PCR-03-001), which is how
     the reinstated participant's own replica accepts the direct notice.  The
     commit runs before the effect, so the entry's fan-out withholds it from
@@ -110,6 +110,8 @@ def create_add_case_participant_received_tree(
             notice and any embargo Invite go to the stored record's actor.
         activity_id: The ``Add``'s id; the embargo Invite's id is derived
             from it, so a redelivery rebuilds the same Invite (OX-06-002).
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
@@ -117,12 +119,9 @@ def create_add_case_participant_received_tree(
     root = create_receive_activity_tree(
         name="AddCaseParticipantReceivedBT",
         case_id=case_id,
-        sender_guard=create_role_scoped_sender_guard(
-            name="AddParticipantSenderGuard",
-            case_id=case_id,
-            at_case_manager=SenderIsCaseOwnerNode(
-                sender_actor_id=sender_id, case_id=case_id
-            ),
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
         ),
         precondition_guards=[
             case_manager_admits_reinstatement_guard(
@@ -164,6 +163,8 @@ def create_remove_case_participant_received_tree(
     sender_id: str,
     removal_activity_id: str,
     claimed_actor_id: str | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Create the BT for ``RemoveCaseParticipantFromCaseReceivedUseCase``.
 
@@ -171,7 +172,7 @@ def create_remove_case_participant_received_tree(
 
         RemoveCaseParticipantReceivedBT (Sequence)
         ├── IntakeReceivedActivityNode                  # intake
-        ├── RemoveParticipantSenderGuard (Selector)     # sender guard
+        ├── SenderRuleGuard (Sequence)                  # sender guard
         ├── RemovalAdmissibleIfCaseManager (Selector)   # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode
         │   ├── RemovalTargetIsRemovableNode
@@ -181,7 +182,7 @@ def create_remove_case_participant_received_tree(
             ├── RemoveCaseParticipantFromCaseReceivedNode
             └── EmitParticipantRemovalNoticeNode
 
-    The sender guard admits the Case Owner at the CASE_MANAGER and only the
+    The declared rule admits the Case Owner at the CASE_MANAGER and only the
     CASE_MANAGER at any other replica (ADR-0115, PCR-03-001), which is how
     the removed participant's own replica accepts the direct notice.  The
     commit runs before the effect, so the entry's fan-out selects its
@@ -198,6 +199,8 @@ def create_remove_case_participant_received_tree(
         claimed_actor_id: The actor the inline participant is attributed to,
             when it names one; it must match the stored record's actor
             (CM-31-004), because a replica resolves the record by it.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
@@ -205,12 +208,9 @@ def create_remove_case_participant_received_tree(
     root = create_receive_activity_tree(
         name="RemoveCaseParticipantReceivedBT",
         case_id=case_id,
-        sender_guard=create_role_scoped_sender_guard(
-            name="RemoveParticipantSenderGuard",
-            case_id=case_id,
-            at_case_manager=SenderIsCaseOwnerNode(
-                sender_actor_id=sender_id, case_id=case_id
-            ),
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
         ),
         precondition_guards=[
             case_manager_admits_removal_guard(

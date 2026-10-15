@@ -64,8 +64,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsInviteeNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
+    SenderIsOfferingCaseOwnerNode,
     SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
+    SenderIsParticipantNode,
     SenderIsProposalAddresseeNode,
     SenderIsRequestAddresseeNode,
     SenderRule,
@@ -80,6 +82,7 @@ __all__ = [
     "ReportOfferRequest",
     "SenderCheckContext",
     "compose_sender_guard",
+    "embargo_sender_context",
 ]
 
 
@@ -157,6 +160,10 @@ class SenderCheckContext:
             the Case Owner that made the Offer.
         authored_object_id: The object an ``AUTHOR`` sender must have
             written: the note being removed (CM-30-001).
+        offered_ownership_id: A new ownership-transfer Offer's own id: a
+            ``CASE_OWNER`` sender must hold the role, unless it redelivers
+            an Offer the CASE_MANAGER recorded from it (CM-21-019,
+            HP-01-003).
     """
 
     sender_id: str
@@ -167,6 +174,23 @@ class SenderCheckContext:
     case_manager_required: bool = False
     request: AddresseeRequest | None = None
     authored_object_id: str | None = None
+    offered_ownership_id: str | None = None
+
+
+def embargo_sender_context(
+    sender_id: str, case_id: str | None
+) -> SenderCheckContext:
+    """The context an embargo activity's sender is checked in.
+
+    Embargo state is the case's, so the sender's standing is established
+    against the case this store holds: a case it does not hold, or one that
+    names no CASE_MANAGER, refuses the sender rather than passing it through
+    (Regime 1, ADR-0087).  ``Invite``, ``Remove`` and ``Announce`` of an
+    ``EmbargoEvent`` share it (EP-09-003, PCR-03-001, PCR-08).
+    """
+    return SenderCheckContext(
+        sender_id=sender_id, case_id=case_id, case_manager_required=True
+    )
 
 
 def _addressee_node(
@@ -204,31 +228,57 @@ def _case_of(ctx: SenderCheckContext, what: str) -> str:
     return ctx.case_id
 
 
+#: The two participant-record kinds: any record on the case, or an active one
+#: (CM-10-004).  Each reads only the sender and the case.
+_MEMBERSHIP_NODES: dict[
+    SenderEntitlementKind,
+    type[SenderIsParticipantNode] | type[SenderIsActiveParticipantNode],
+] = {
+    SenderEntitlementKind.PARTICIPANT: SenderIsParticipantNode,
+    SenderEntitlementKind.ACTIVE_PARTICIPANT: SenderIsActiveParticipantNode,
+}
+
+
+def _case_owner_node(ctx: SenderCheckContext) -> py_trees.behaviour.Behaviour:
+    """The ``CASE_OWNER`` check for the activity in *ctx*.
+
+    The withdrawal of a recorded ownership-transfer Offer checks the Owner
+    that made it (CM-21-015); a new Offer checks the Owner making it
+    (CM-21-019); anything else checks the role alone.
+    """
+    if isinstance(ctx.request, OwnershipOfferRequest):
+        return SenderIsOwnershipOffererNode(
+            case_id=_case_of(ctx, "an ownership-transfer Offer"),
+            offer_id=ctx.request.offer_id,
+            sender_actor_id=ctx.sender_id,
+            reply_id=ctx.request.reply_id,
+        )
+    if ctx.offered_ownership_id is not None:
+        return SenderIsOfferingCaseOwnerNode(
+            case_id=_case_of(ctx, "an ownership-transfer Offer"),
+            offer_id=ctx.offered_ownership_id,
+            sender_actor_id=ctx.sender_id,
+        )
+    return SenderIsCaseOwnerNode(
+        sender_actor_id=ctx.sender_id, case_id=ctx.case_id
+    )
+
+
 def _kind_node(
     kind: SenderEntitlementKind, ctx: SenderCheckContext
 ) -> py_trees.behaviour.Behaviour:
     """The condition node that checks *kind* for the activity in *ctx*."""
-    if kind is SenderEntitlementKind.ACTIVE_PARTICIPANT:
-        return SenderIsActiveParticipantNode(
-            status_id="", sender_actor_id=ctx.sender_id, case_id=ctx.case_id
-        )
+    if (membership := _MEMBERSHIP_NODES.get(kind)) is not None:
+        return membership(sender_actor_id=ctx.sender_id, case_id=ctx.case_id)
     if kind is SenderEntitlementKind.CASE_MANAGER:
         return SenderIsCaseManagerNode(
             case_id=ctx.case_id,
             anchored=ctx.case_manager_anchored,
             required=ctx.case_manager_required,
+            sender_actor_id=ctx.sender_id,
         )
     if kind is SenderEntitlementKind.CASE_OWNER:
-        if isinstance(ctx.request, OwnershipOfferRequest):
-            return SenderIsOwnershipOffererNode(
-                case_id=_case_of(ctx, "an ownership-transfer Offer"),
-                offer_id=ctx.request.offer_id,
-                sender_actor_id=ctx.sender_id,
-                reply_id=ctx.request.reply_id,
-            )
-        return SenderIsCaseOwnerNode(
-            sender_actor_id=ctx.sender_id, case_id=ctx.case_id
-        )
+        return _case_owner_node(ctx)
     if kind is SenderEntitlementKind.NAMED_ACTOR:
         return _addressee_node(ctx)
     if kind is SenderEntitlementKind.AUTHOR:

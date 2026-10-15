@@ -6,8 +6,9 @@
 
     - **When…** a Vendor becomes aware of the vulnerability
     - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
-    - **Sent by:** an active participant (usually: vendor)
-    - **Distinguished by:** `vf_state` = `Vf`
+    - **Send to:** the case manager
+    - **Sent by:** a participant (usually: vendor)
+    - **Distinguished by:** `vfState` = `Vf`
     - **Reference:** [Vendor Awareness (CV)](../../cs.md#vendor-awareness)
 
     ??? example "Example activity"

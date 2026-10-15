@@ -6,8 +6,9 @@
 
     - **When…** a Participant learns that the public knows of the vulnerability
     - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
     - **Sent by:** not yet checked
-    - **Distinguished by:** `pxa_state` = `Pxa`
+    - **Distinguished by:** `pxaState` = `Pxa`
     - **Reference:** [Public Awareness (CP)](../../cs.md#public-awareness)
 
     ??? example "Example activity"

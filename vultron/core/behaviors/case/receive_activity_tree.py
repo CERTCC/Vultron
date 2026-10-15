@@ -27,10 +27,13 @@ A tree that owes the sender feedback when its guards refuse passes
 CASE_MANAGER, once per received activity, and the tree still fails before
 the commit (CLP-10-022).
 
-When ``sender_guard`` is provided, the factory places it immediately after
-intake and before the caller's ``precondition_guards``.
+When ``sender_rule`` is provided, the factory composes the sender guard from
+it and places it immediately after the post-close guard and before the
+caller's ``precondition_guards``.
 A failed sender guard ends the tree with ``REFUSED`` and nothing is written
-or sent (HP-01-006, ADR-0115).
+or sent (HP-01-006, HP-01-008, ADR-0115).  A tree cannot pass a guard of its
+own: the factory and the embargo pre-flight are the only places a sender
+guard is composed (HP-01-007, #4437).
 
 The factory is also the one place a received tree acquires the CASE_MANAGER
 gate (BT-17-008): it wraps ``manager_effects`` in
@@ -352,21 +355,16 @@ def _post_close_stage(
 def _sender_guard_stage(
     name: str,
     case_id: str | None,
-    sender_guard: py_trees.behaviour.Behaviour | None,
     sender_rule: SenderRule | None,
     sender_context: SenderCheckContext | None,
 ) -> py_trees.behaviour.Behaviour | None:
-    """The tree's sender guard: composed from the rule, or the tree's own."""
+    """The tree's sender guard, composed from the declared rule (HP-01-008)."""
     if sender_rule is None:
         if sender_context is not None:
             raise VultronWiringError(
                 f"{name}: sender_context is given without a sender_rule"
             )
-        return sender_guard
-    if sender_guard is not None:
-        raise VultronWiringError(
-            f"{name}: pass sender_rule or sender_guard, not both (HP-01-008)"
-        )
+        return None
     if sender_context is None:
         raise VultronWiringError(
             f"{name}: sender_rule needs a sender_context (HP-01-008)"
@@ -385,7 +383,6 @@ def create_receive_activity_tree(
     precondition_guards: list[py_trees.behaviour.Behaviour],
     case_may_be_absent: bool = False,
     *,
-    sender_guard: "py_trees.behaviour.Behaviour | None" = None,
     sender_rule: SenderRule | None = None,
     sender_context: SenderCheckContext | None = None,
     replica_effects: list[py_trees.behaviour.Behaviour] | None = None,
@@ -404,7 +401,7 @@ def create_receive_activity_tree(
     Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
     BT-17-008, CM-23-013)::
 
-        Intake → CaseOpenToExternalWrites → [sender_guard]
+        Intake → CaseOpenToExternalWrites → [sender guard]
             → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
 
@@ -424,7 +421,7 @@ def create_receive_activity_tree(
     :class:`~vultron.core.behaviors.case.nodes.refusal_stage.PreconditionGuardStage`
     (CLP-10-022)::
 
-        Intake → [sender_guard]
+        Intake → [sender guard]
             → PreconditionGuardStage
                 ├─ PreconditionGuards[*precondition_guards]
                 └─ RefusalEffects → CaseManagerGate[*refusal_effects]
@@ -446,9 +443,10 @@ def create_receive_activity_tree(
     With ``sender_rule`` the factory composes the guard from the declared
     rule and ``sender_context``, for the receiver's addressee side
     (:func:`~vultron.core.behaviors.sender_guard.compose_sender_guard`,
-    HP-01-008).  A tree not yet migrated passes its own ``sender_guard``
-    instead; those trees are on the allow-list in
-    ``test/architecture/test_sender_entitlement_ratchet.py`` (#4437).
+    HP-01-008).  A tree has no way to pass a guard of its own; a sender
+    check a tree places elsewhere must be on the allow-list in
+    ``test/architecture/test_sender_entitlement_ratchet.py`` (HP-01-007,
+    #4437).
 
     Precondition guards are read-only checks that may return FAILURE to abort
     the tree before any protocol effect.
@@ -505,9 +503,6 @@ def create_receive_activity_tree(
         precondition_guards: Read-only guard nodes after the sender guard.
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
-        sender_guard: Optional sender-entitlement condition node, placed
-            immediately after intake (HP-01-006, ADR-0115).  Allow-listed
-            trees only; others pass ``sender_rule``.
         sender_rule: The use case's declared sender rule; the factory
             composes the guard from it (HP-01-008).
         sender_context: The sender and the records the rule's kinds are
@@ -539,9 +534,10 @@ def create_receive_activity_tree(
             without one (BT-17-008), or a refusal effect is not emit-capable or
             holds a state writer (CLP-10-022), or an exempt tree passes a
             ``post_close_reply`` (CM-23-013), or the sender arguments are
-            inconsistent: ``sender_rule`` without ``sender_context`` or with
-            ``sender_guard``, or a ``sender_context`` naming another case than
-            ``case_id`` (HP-01-008).
+            inconsistent: ``sender_rule`` without ``sender_context``, a
+            ``sender_context`` without ``sender_rule``, or a
+            ``sender_context`` naming another case than ``case_id``
+            (HP-01-008).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, ``specs/behavior-tree-integration.yaml``
@@ -572,9 +568,7 @@ def create_receive_activity_tree(
             post_close_reply or [],
         )
     )
-    guard = _sender_guard_stage(
-        name, case_id, sender_guard, sender_rule, sender_context
-    )
+    guard = _sender_guard_stage(name, case_id, sender_rule, sender_context)
     if guard is not None:
         children.append(guard)
     if refusal_effects:

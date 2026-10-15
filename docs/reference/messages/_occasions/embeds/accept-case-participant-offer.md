@@ -6,6 +6,7 @@
 
     - **When…** the Case Owner approves a suggested actor
     - **Send:** `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`
+    - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Accept case participant offer](../../general.md#accept-case-participant-offer)
 

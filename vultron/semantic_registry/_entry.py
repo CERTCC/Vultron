@@ -15,6 +15,7 @@
 
 from dataclasses import dataclass, field
 
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.semantic_registry._occasion import MessagePage, Occasion
 from vultron.wire.as2.extractor import ActivityPattern
@@ -61,7 +62,9 @@ class SemanticEntry:
         TypeError: At construction, when ``occasions`` is not a tuple or
             ``page`` is not a ``MessagePage``.
         ValueError: At construction, when a non-fallback entry declares no
-            occasion or no page, or a fallback declares either.
+            occasion or no page, or a fallback declares either, or an
+            occasion's addressee is a side the use case's declared sender
+            rule states no kinds for (MSM-08-009).
     """
 
     semantics: MessageSemantics
@@ -101,4 +104,27 @@ class SemanticEntry:
         if self.page is None:
             raise ValueError(
                 f"{self.semantics.name} names no message page (MSM-06-002)"
+            )
+        self._addressees_are_sides_of_the_rule()
+
+    def _addressees_are_sides_of_the_rule(self) -> None:
+        """Refuse an occasion sent to a side the declared rule leaves empty.
+
+        Only a declared :class:`SenderRule` has sides: an exemption is not
+        yet checked, and a missing declaration is the HP-01-007 ratchet's to
+        report.
+        """
+        rule: object = getattr(self.use_case_class, "sender_entitlement", None)
+        if not isinstance(rule, SenderRule):
+            return
+        unmatched = [
+            f"{o.anchor!r} ({o.addressee.name})"
+            for o in self.occasions
+            if not rule.side(o.addressee)
+        ]
+        if unmatched:
+            raise ValueError(
+                f"{self.semantics.name}: {self.use_case_class.__name__}'s"
+                " sender rule states no side for the addressee of occasion"
+                f" {', '.join(unmatched)} (MSM-08-009)"
             )

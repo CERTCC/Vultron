@@ -6,6 +6,7 @@ Forwards the recommendation as a proposed participant record, carrying the origi
 
 - **When…** the Case Manager presents a suggested actor to the Case Owner
 - **Send:** `Offer(CaseParticipant)[target=VulnerabilityCase]`
+- **Send to:** a participant
 - **Sent by:** the case manager
 - **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)

@@ -231,9 +231,13 @@ groups:
       operation so no caller can omit it. A delivered id is queued again and the receiver drops it
       by id (ID-02-001), as for a re-sent response (CP-05-006).
     verification: >-
-      `test/adapters/driven/test_sqlite_inbox_outbox.py` asserts a pending id is not queued again,
-      also by concurrent writers on a file-backed store, that a popped id is, and that the enqueue
-      callback fires only for a new row;
+      `test/adapters/driven/test_sqlite_inbox_outbox.py::test_the_store_refuses_a_second_pending_outbox_row`
+      inserts a raw duplicate outbox row and asserts the store's partial UNIQUE index rejects it;
+      `test/adapters/driven/test_sqlite_inbox_outbox.py::test_a_store_without_the_outbox_index_is_refused_at_open`
+      asserts a store lacking that index is refused when opened;
+      the remainder of `test/adapters/driven/test_sqlite_inbox_outbox.py` asserts a pending id is
+      not queued again, also by concurrent writers on a file-backed store, that a popped id is, and
+      that the enqueue callback fires only for a new row;
       `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` retries
       the owner-direct invite after an attempt that queued its Invite without committing it and
       asserts one outbox entry and one ledger entry;

@@ -48,8 +48,12 @@ logger = logging.getLogger(__name__)
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.CASE_OWNER
+    # The Case Owner decides the embargo (EP-09-005) and asks the
+    # CASE_MANAGER, which also acts on its own Remove (a delegated
+    # termination); a participant takes the change from the CASE_MANAGER
+    # alone (PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.CASE_MANAGER, SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -105,7 +109,14 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             case_id=case_id,
             embargo_id=embargo_id,
             sender_actor_id=request.actor_id,
+            termination_reason=request.termination_reason,
+            terminated_at=(
+                request.activity.published
+                if request.activity is not None
+                else None
+            ),
             actor_config=self._actor_config,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,

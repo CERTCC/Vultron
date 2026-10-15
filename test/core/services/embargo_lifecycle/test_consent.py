@@ -13,8 +13,10 @@
 
 
 """record_participant_consent — PEC-only operations that leave EM state alone
-(consent.py)."""
+(consent.py), including the Reject that never withdraws (MSM-07-004) and the
+withdrawal that ``Leave(EmbargoEvent)`` records (MSM-07-010)."""
 
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import cast
 
@@ -190,33 +192,27 @@ def _active_with_revision(dl: SqliteDataLayer, owner: as_Service):
 
 @pytest.mark.spec("MSM-07-004")
 @pytest.mark.spec("CM-18-003")
-def test_record_embargo_rejection_of_the_active_embargo_is_withdrawal(
+def test_record_embargo_rejection_of_the_active_embargo_is_not_withdrawal(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Withdrawal declines the active row and every agreed open proposal."""
+    """A signatory's Reject of the embargo in force is refused, writing nothing.
+
+    Withdrawal is ``record_embargo_withdrawal`` (``Leave(EmbargoEvent)``,
+    MSM-07-010).
+    """
     owner, dl = owner_and_dl
-    case, finder, _owner_p, finder_p, active_id, rev = _active_with_revision(
+    case, finder, _owner_p, finder_p, active_id, _rev = _active_with_revision(
         dl, owner
     )
+    before = _consents_of(dl, finder_p)
 
-    result = EmbargoLifecycle(persistence=dl).record_embargo_rejection(
-        case_id=case.id_, actor_id=finder.id_, embargo_id=active_id
-    )
+    with pytest.raises(VultronValidationError, match="Leave"):
+        EmbargoLifecycle(persistence=dl).record_embargo_rejection(
+            case_id=case.id_, actor_id=finder.id_, embargo_id=active_id
+        )
 
-    assert result.em_before == result.em_after == EM.REVISE
-    assert result.case_changed is False
-    assert {
-        (c.embargo_id, c.consent_before, c.consent_after)
-        for c in result.participant_changes
-    } == {
-        (active_id, "AGREED", "DECLINED"),
-        (rev, "AGREED", "DECLINED"),
-    }
-    assert _consents_of(dl, finder_p) == {
-        active_id: "DECLINED",
-        rev: "DECLINED",
-    }
-    assert not _is_signatory(dl, case.id_, finder_p)
+    assert _consents_of(dl, finder_p) == before
+    assert _is_signatory(dl, case.id_, finder_p)
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -782,3 +778,234 @@ def test_an_invitation_to_a_final_entry_is_closed_before_its_deadline(
         now=now_utc(),
     ) == (True, False)
     assert _consent_of(dl, pid, rev_id) == "INVITED"
+
+
+# ---------------------------------------------------------------------------
+# record_embargo_withdrawal — Leave(EmbargoEvent) (MSM-07-010), and the Reject
+# that never withdraws (MSM-07-004)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _Revising:
+    """A case at EM.REVISE: embargo *active* in force, revisions open."""
+
+    dl: SqliteDataLayer
+    case_id: str
+    owner_id: str
+    owner_pid: str
+    finder_id: str
+    finder_pid: str
+    active: str
+    agreed_revision: str
+    invited_revision: str
+
+
+@pytest.fixture
+def revising(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> _Revising:
+    """The finder is AGREED on the active embargo and on one open revision.
+
+    It is only INVITED to the other open revision.
+    """
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, (owner_p, _) = _make_case(
+        dl, owner.id_, extra_participant_ids=[finder.id_]
+    )
+    active = _make_embargo(dl, case.id_).id_
+    agreed_revision = _make_embargo(dl, case.id_, days=90).id_
+    invited_revision = _make_embargo(dl, case.id_, days=120).id_
+    activate(case, active)
+    propose(case, agreed_revision, invited_revision)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    finder_pid = case.actor_participant_index[finder.id_]
+    _seed_consent(dl, finder_pid, active, ECS.AGREED)
+    _seed_consent(dl, finder_pid, agreed_revision, ECS.AGREED)
+    _seed_consent(dl, finder_pid, invited_revision, ECS.INVITED)
+    _seed_consent(dl, owner_p.id_, active, ECS.AGREED)
+    assert case.em_state is EM.REVISE
+    return _Revising(
+        dl=dl,
+        case_id=case.id_,
+        owner_id=owner.id_,
+        owner_pid=owner_p.id_,
+        finder_id=finder.id_,
+        finder_pid=finder_pid,
+        active=active,
+        agreed_revision=agreed_revision,
+        invited_revision=invited_revision,
+    )
+
+
+def _register(dl: SqliteDataLayer, case_id: str) -> list[tuple[str, str]]:
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    return [(e.embargo_id, e.status.value) for e in case.embargo_register]
+
+
+@pytest.mark.spec("MSM-07-010", "VP-13-017")
+def test_withdrawal_declines_the_active_row_and_every_agreed_revision(
+    revising: _Revising,
+) -> None:
+    """The active row and the agreed revision decline; the invited one stays."""
+    dl = revising.dl
+    register_before = _register(dl, revising.case_id)
+
+    result = EmbargoLifecycle(persistence=dl).record_embargo_withdrawal(
+        case_id=revising.case_id,
+        actor_id=revising.finder_id,
+        embargo_id=revising.active,
+    )
+
+    assert _consents_of(dl, revising.finder_pid) == {
+        revising.active: "DECLINED",
+        revising.agreed_revision: "DECLINED",
+        revising.invited_revision: "INVITED",
+    }
+    assert {c.embargo_id for c in result.participant_changes} == {
+        revising.active,
+        revising.agreed_revision,
+    }
+    # No register entry moves, so EM and the embargo in force are unchanged.
+    assert result.em_before == result.em_after == EM.REVISE
+    assert result.case_changed is False
+    assert _register(dl, revising.case_id) == register_before
+    case = cast(VulnerabilityCase, dl.read(revising.case_id))
+    assert case.active_embargo_id == revising.active
+    # The owner's consent is untouched: the embargo stays in force for it.
+    assert _consents_of(dl, revising.owner_pid)[revising.active] == "AGREED"
+
+
+@pytest.mark.spec("MSM-07-010")
+def test_withdrawal_of_an_embargo_not_in_force_is_refused(
+    revising: _Revising,
+) -> None:
+    with pytest.raises(VultronValidationError, match="not the embargo in"):
+        EmbargoLifecycle(persistence=revising.dl).record_embargo_withdrawal(
+            case_id=revising.case_id,
+            actor_id=revising.finder_id,
+            embargo_id=revising.agreed_revision,
+        )
+    assert (
+        _consents_of(revising.dl, revising.finder_pid)[
+            revising.agreed_revision
+        ]
+        == "AGREED"
+    )
+
+
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.parametrize(
+    "row", [ECS.INVITED, ECS.TIMED_OUT, ECS.DECLINED, ECS.UNINVITED]
+)
+def test_withdrawal_from_a_row_that_never_agreed_is_refused(
+    revising: _Revising, row: ECS
+) -> None:
+    _seed_consent(revising.dl, revising.finder_pid, revising.active, row)
+
+    with pytest.raises(VultronValidationError, match="not AGREED"):
+        EmbargoLifecycle(persistence=revising.dl).record_embargo_withdrawal(
+            case_id=revising.case_id,
+            actor_id=revising.finder_id,
+            embargo_id=revising.active,
+        )
+    assert (
+        _consents_of(revising.dl, revising.finder_pid)[
+            revising.agreed_revision
+        ]
+        == "AGREED"
+    )
+
+
+@pytest.mark.spec("MSM-07-010", "CM-02-005")
+def test_the_case_owner_cannot_withdraw(revising: _Revising) -> None:
+    """The owner ends an embargo by terminating it, not by leaving it."""
+    with pytest.raises(VultronValidationError, match="case owner"):
+        EmbargoLifecycle(persistence=revising.dl).record_embargo_withdrawal(
+            case_id=revising.case_id,
+            actor_id=revising.owner_id,
+            embargo_id=revising.active,
+        )
+    assert _consents_of(revising.dl, revising.owner_pid)[revising.active] == (
+        "AGREED"
+    )
+
+
+@pytest.mark.spec("MSM-07-010")
+def test_withdrawal_with_no_embargo_in_force_is_refused(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, _ = _make_case(dl, owner.id_, extra_participant_ids=[finder.id_])
+    proposal = _make_embargo(dl, case.id_).id_
+    propose(case, proposal)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    _seed_consent(
+        dl, case.actor_participant_index[finder.id_], proposal, ECS.AGREED
+    )
+
+    with pytest.raises(VultronValidationError, match="No embargo is in force"):
+        EmbargoLifecycle(persistence=dl).record_embargo_withdrawal(
+            case_id=case.id_, actor_id=finder.id_, embargo_id=proposal
+        )
+
+
+@pytest.mark.spec("MSM-07-004")
+def test_a_reject_of_the_active_embargo_from_an_agreed_row_is_refused(
+    revising: _Revising,
+) -> None:
+    """A Reject never withdraws: withdrawal is ``Leave(EmbargoEvent)``."""
+    with pytest.raises(VultronValidationError, match="Leave"):
+        EmbargoLifecycle(persistence=revising.dl).record_embargo_rejection(
+            case_id=revising.case_id,
+            actor_id=revising.finder_id,
+            embargo_id=revising.active,
+        )
+    assert _consents_of(revising.dl, revising.finder_pid) == {
+        revising.active: "AGREED",
+        revising.agreed_revision: "AGREED",
+        revising.invited_revision: "INVITED",
+    }
+
+
+@pytest.mark.spec("MSM-07-004")
+@pytest.mark.parametrize("row", [ECS.INVITED, ECS.TIMED_OUT])
+def test_a_reject_of_the_active_embargo_from_another_row_declines_it_only(
+    revising: _Revising, row: ECS
+) -> None:
+    """Refusing the terms in force declines that row; no revision follows."""
+    _seed_consent(revising.dl, revising.finder_pid, revising.active, row)
+
+    EmbargoLifecycle(persistence=revising.dl).record_embargo_rejection(
+        case_id=revising.case_id,
+        actor_id=revising.finder_id,
+        embargo_id=revising.active,
+    )
+
+    assert _consents_of(revising.dl, revising.finder_pid) == {
+        revising.active: "DECLINED",
+        revising.agreed_revision: "AGREED",
+        revising.invited_revision: "INVITED",
+    }
+
+
+@pytest.mark.spec("MSM-07-004")
+def test_a_signatorys_reject_of_a_revision_keeps_it_bound(
+    revising: _Revising,
+) -> None:
+    """Refusing proposed terms is not withdrawal from the embargo in force."""
+    EmbargoLifecycle(persistence=revising.dl).record_embargo_rejection(
+        case_id=revising.case_id,
+        actor_id=revising.finder_id,
+        embargo_id=revising.invited_revision,
+    )
+
+    assert _consents_of(revising.dl, revising.finder_pid) == {
+        revising.active: "AGREED",
+        revising.agreed_revision: "AGREED",
+        revising.invited_revision: "DECLINED",
+    }

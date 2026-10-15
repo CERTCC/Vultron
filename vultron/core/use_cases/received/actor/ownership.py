@@ -22,6 +22,7 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_offer_ownership_transfer_tree,
     create_reject_ownership_transfer_tree,
     create_undo_ownership_transfer_tree,
+    offer_sender_context,
 )
 from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.events.actor import (
@@ -55,12 +56,10 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    any_of,
-    exempt,
 )
+from vultron.core.use_cases.received._sender_preflight import rule_refusal
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +90,8 @@ def _expire_overdue_offer(
     A reply (*prompt*) prompts the expiry only when it names the open Offer
     and comes from its party, so a sender with no standing never makes the
     CASE_MANAGER write (HP-01-006) — as the embargo Invite expiry checks the
-    invitee before it runs.  A new Offer passes no prompt: its sender is not
-    checked yet (#4540).
+    invitee before it runs.  A new Offer passes no prompt: its handler has
+    already checked that its sender is the Case Owner (CM-21-019).
 
     A commit the expiry tree could not make is logged and leaves the Offer
     open; the received tree still refuses a reply after the deadline
@@ -125,8 +124,21 @@ def _expire_overdue_offer(
 
 
 class OfferCaseOwnershipTransferReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4540", "no sender check for ownership offer"
+    """The CASE_MANAGER records and forwards an ownership-transfer Offer.
+
+    At the CASE_MANAGER the sender must hold ``CVDRole.CASE_OWNER`` on the
+    case; at any other replica, the transferee's, it must be the CASE_MANAGER
+    forwarding it (CM-21-019, PCR-03-001).  Anyone else is ``REFUSED`` before
+    anything is written: no expiry, no ledger entry, no forward, the Offer
+    not stored and the owner unchanged.  A redelivery of an Offer the
+    CASE_MANAGER recorded from its sender is ``SKIPPED`` (HP-01-003).
+    """
+
+    # Only the Case Owner offers the case; the CASE_MANAGER never sends itself
+    # one, and a replica takes the forward from the CASE_MANAGER alone
+    # (CM-21-019, PCR-03-001, ADR-0129).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -146,11 +158,14 @@ class OfferCaseOwnershipTransferReceivedUseCase:
     def _resolve_offering_actor_id(self, case_id: str) -> str | None:
         """Return the actor whose intent the forwarded Offer should carry.
 
-        The inbound Offer is normally a *delegated* message: the CaseActor is its
-        `actor` and the participant who asked for the transfer is in
-        `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone would
-        make the CaseActor forward an Offer attributing that participant's intent
-        to itself, leaving no receiver able to recover who offered.
+        Two shapes arrive.  At the CASE_MANAGER, the Offer is the Case Owner's
+        own: the owner is its `actor` and it carries no `attributed_to`
+        (CM-21-005, CM-24-004), so the sender is the offerer.  At the
+        transferee, it is the CASE_MANAGER's forward, a *delegated* message:
+        the CaseActor is its `actor` and the owner who asked for the transfer
+        is in `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone
+        there would attribute the owner's intent to the CaseActor, leaving no
+        receiver able to recover who offered.
 
         `attributed_to` is honoured **only** in that delegated shape — when the
         sender is this case's CaseActor.  A peer that sets `attributed_to` on an
@@ -219,6 +234,31 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         )
 
         if case_id is not None:
+            # The sender's standing is checked before the expiry below, the
+            # first write: a sender with none never makes the CASE_MANAGER
+            # write (CM-21-019, HP-01-006).
+            if (
+                refusal := rule_refusal(
+                    self._dl,
+                    receiving_actor_id,
+                    self.sender_entitlement,
+                    offer_sender_context(
+                        request.actor_id, case_id, request.activity_id
+                    ),
+                    request,
+                    label="OfferOwnershipTransferSender",
+                    sync_port=self._sync_port,
+                )
+            ) is not None:
+                logger.warning(
+                    "OfferCaseOwnershipTransferReceived: refused '%s' from"
+                    " '%s' for case '%s': %s",
+                    request.activity_id,
+                    request.actor_id,
+                    case_id,
+                    refusal.reason,
+                )
+                return refusal
             # A new Offer for the case is one of the moments the CASE_MANAGER
             # checks the open Offer's deadline (CM-21-017): an expired one is
             # closed before this Offer is judged against it (CM-21-014).
@@ -241,14 +281,23 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             transferee_id=transferee_id,
             original_actor_id=original_actor_id,
             answer_deadline=request.answer_deadline,
-            store_offer=StoreReceivedObjectNode(
-                request.activity_type,
-                request.activity_id,
-                request.activity,
-                "OfferCaseOwnershipTransfer",
-                request.activity_id,
+            # An Offer naming no case is refused below, so only intake's
+            # archive keeps it (CLP-10-018); storing it would let any sender
+            # leave an Offer behind (#4737).
+            store_offer=(
+                StoreReceivedObjectNode(
+                    request.activity_type,
+                    request.activity_id,
+                    request.activity,
+                    "OfferCaseOwnershipTransfer",
+                    request.activity_id,
+                )
+                if case_id is not None
+                else None
             ),
             offer_id=request.activity_id,
+            sender_rule=self.sender_entitlement,
+            sender_id=request.actor_id,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -262,8 +311,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             activity=request,
         )
         if case_id is None:
-            # The tree kept the Offer (intake and the store node); there is
-            # no case to act on.
+            # Intake archived the Offer; there is no case to act on.
             applied_or_raise(tree, result, label="OfferOwnershipTransferBT")
             logger.warning(
                 "OfferCaseOwnershipTransferReceived: missing case_id"
@@ -334,6 +382,7 @@ def _run_ownership_answer(
     now: datetime,
     party: OfferParty,
     applied_note: str | None = None,
+    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> HandlerResult:
     """Run the receive tree of a reply to an Offer and read its verdict.
 
@@ -348,7 +397,8 @@ def _run_ownership_answer(
     *now* is the instant the deadline is compared against, by the expiry and
     by the reply's sender guard alike; *tree* was built with it.  *party* is
     the party to the Offer the reply's sender must be for the reply to
-    prompt the expiry (HP-01-006).
+    prompt the expiry (HP-01-006).  *trigger_activity* builds the entries
+    the CASE_MANAGER records for the changes an applied reply causes.
     """
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
@@ -369,6 +419,7 @@ def _run_ownership_answer(
     )
     bridge = BTBridge(
         datalayer=dl,
+        trigger_activity=trigger_activity,
         wire_render_port=wire_render_port,
         sync_port=sync_port,
     )
@@ -415,9 +466,8 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     # The transferee is the addressee of the Offer (ADR-0129), checked at the
     # CASE_MANAGER against the Offer it recorded; a replica takes the change
     # from the CASE_MANAGER alone (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR),
-        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -432,6 +482,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         self._wire_render_port = wire_render_port
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
+        # Builds the CASE_MANAGER's own entries for the changes the Accept
+        # causes (CLP-07-013).
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -453,6 +506,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             tree=tree,
             label="AcceptOwnershipTransferBT",
             sync_port=self._sync_port,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             case_id=case_id,
             now=now,
@@ -477,9 +531,8 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     """
 
     # The same two-sided transferee rule as the Accept (ADR-0129).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.NAMED_ACTOR),
-        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -541,9 +594,8 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     # The offerer, which must still be the Case Owner (CM-21-015), checked at
     # the CASE_MANAGER against the Offer it recorded; a replica takes the
     # withdrawal from the CASE_MANAGER alone (PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule(
-        at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER),
-        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(

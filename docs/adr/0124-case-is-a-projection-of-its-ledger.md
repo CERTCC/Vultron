@@ -82,7 +82,7 @@ Each other change the act causes follows as its own CASE_MANAGER-authored entry,
 The CASE_MANAGER's records of clock-driven acts, such as an expired invitation (CM-28-009), and its decisions from local policy, such as agreeing to a proposal by its own embargo policy, are entries too: attributed to the CASE_MANAGER and committed like any other message.
 
 An object the case file holds must therefore have a wire form.
-`EmbargoConsent` and `EmbargoRegisterEntry` become AS2 objects for this reason; their shapes are part of the embargo work under epic #4283.
+`EmbargoConsent` becomes an AS2 object for this reason; a register entry changes only by a register step, which the act's own activity carries, so it needs no ledger form of its own (ADR-0122, epic #4283).
 
 A message the CASE_MANAGER has no use for receiving is not part of the protocol just because the vocabulary defines it.
 Nobody sends `Update(VulnerabilityCase)` to the CASE_MANAGER, so its received path is removed (#4443); the class stays, as the form of the CASE_MANAGER's own entry if it ever changes a case field.

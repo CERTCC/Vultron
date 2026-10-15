@@ -29,7 +29,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
 
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
-    ├─ SenderIsActiveParticipantNode          # Sender guard: must be known participant (ADR-0115)
+    ├─ SenderIsParticipantNode                # Sender guard from the declared rule (HP-01-008)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
@@ -50,7 +50,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
             │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
             └─ EmitRMGapNoteNode               # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
 
-    A replica cc'd on the ``Add(ParticipantStatus)`` writes nothing: the whole
+    A replica holding a copy of the ``Add(ParticipantStatus)`` writes nothing: the whole
     adoption body runs only at the CASE_MANAGER, and the replica takes the move
     from the committed ``add_participant_status_to_participant`` ledger entry
     (RSH-08-003, PCR-03-001).
@@ -86,9 +86,10 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsActiveParticipantNode,
     SenderIsCaseOwnerNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
@@ -110,6 +111,8 @@ def add_participant_status_tree(
     request: AddParticipantStatusToParticipantReceivedEvent,
     case_id: str | None = None,
     call_out: StatusAuthorizationCallOutBundle = STATUS_AUTHORIZATION_DETERMINISTIC,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
@@ -126,9 +129,10 @@ def add_participant_status_tree(
     the receiving actor holds ``CVDRole.CASE_MANAGER``.
 
     The *case_id* for the commit and all children is derived from the inline
-    ``request.status.context`` field when not supplied explicitly.  If it
-    is not available in the inline object, the
-    ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
+    ``request.status.context`` field when not supplied explicitly.  The use
+    case also resolves it from the stored status before building the tree;
+    with no case known, the sender guard refuses, because the declared rule
+    states no side for an activity outside any case (HP-01-008).
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
@@ -159,6 +163,8 @@ def add_participant_status_tree(
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all non-CASE_OWNER updates (historical behavior).
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
@@ -169,7 +175,6 @@ def add_participant_status_tree(
     status_obj = request.status
 
     # Derive case_id from the inline status object when not supplied explicitly.
-    # VerifySenderIsParticipantNode falls back to a DataLayer lookup when None.
     tree_case_id: str | None = case_id
     if tree_case_id is None and status_obj is not None:
         context_field = getattr(status_obj, "context", None)
@@ -196,10 +201,9 @@ def add_participant_status_tree(
     root = create_receive_activity_tree(
         name="AddParticipantStatusBT",
         case_id=tree_case_id,
-        sender_guard=SenderIsActiveParticipantNode(
-            status_id=status_id,
-            sender_actor_id=actor_id,
-            case_id=tree_case_id,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=actor_id, case_id=tree_case_id
         ),
         precondition_guards=[
             FilterParticipantStatusDimensionsNode(
@@ -212,8 +216,8 @@ def add_participant_status_tree(
         # status, decide adoption, write the canonical ``CaseStatus``, run the
         # teardown side-effects, and post the RSH-06-004 gap note — is all the
         # CASE_MANAGER's work.  ``add_participant_status_to_participant`` is
-        # committed and replayed (ParticipantStatus slot), so a replica cc'd on
-        # the ``Add(ParticipantStatus)`` writes nothing and takes the move from
+        # committed and replayed (ParticipantStatus slot), so a replica holding a
+        # copy of the ``Add(ParticipantStatus)`` writes nothing and takes the move from
         # the ledger fan-out (#3814).  The pipeline is ordered (adoption gates
         # the emit, teardown reads the emitted status), so it moves under the
         # gate as one unit.

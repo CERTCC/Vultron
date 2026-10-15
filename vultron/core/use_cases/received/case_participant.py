@@ -81,10 +81,10 @@ class _CaseOwnerParticipantMoveUseCase[
     anyone else is ``REFUSED`` by the sender guard.
     """
 
-    # The declared kind names the floor; the tree's role-scoped sender guard
-    # (the Case Owner at the manager, the CASE_MANAGER at a replica) is the
-    # full rule, and the only place it is defined (HP-01-006/007).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The Case Owner asks the CASE_MANAGER; a participant takes the move
+    # from the CASE_MANAGER alone, which is how the moved participant's own
+    # replica accepts the direct notice (ADR-0116, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.CASE_OWNER
     )
 
@@ -268,6 +268,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
             sender_id=self._request.actor_id,
             claimed_actor_id=self._claimed_actor_id(),
             activity_id=self._request.activity_id,
+            sender_rule=self.sender_entitlement,
         )
 
 
@@ -324,4 +325,5 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
             sender_id=self._request.actor_id,
             removal_activity_id=self._request.activity_id,
             claimed_actor_id=self._claimed_actor_id(),
+            sender_rule=self.sender_entitlement,
         )

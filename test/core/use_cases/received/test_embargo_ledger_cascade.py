@@ -26,6 +26,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -121,7 +122,10 @@ class TestEmbargoLogEntryCascade:
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
-            embargo, origin=case.id_, actor=author_id
+            embargo,
+            origin=case.id_,
+            actor=author_id,
+            reason=TerminationReason.EARLY,
         )
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
@@ -167,7 +171,10 @@ class TestEmbargoLogEntryCascade:
         assert case.em_state == EM.NONE
 
         activity = remove_embargo_from_case_activity(
-            embargo, origin=case.id_, actor=author_id
+            embargo,
+            origin=case.id_,
+            actor=author_id,
+            reason=TerminationReason.EARLY,
         )
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)

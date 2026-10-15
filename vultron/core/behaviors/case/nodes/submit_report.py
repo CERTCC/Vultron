@@ -92,9 +92,13 @@ class StoreSubmitReportOfferRecordNode(DataLayerActionWithPorts):
 class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
     """Only a ``to`` recipient acts on an ``Offer(Report)`` (HP-09-001/002).
 
-    ``FAILURE`` with the reason as feedback when the executing actor is only
-    in ``cc`` or in neither list: the sender addressed the wrong party, which
-    the receiver refuses (HP-01-005) rather than reporting a processed no-op.
+    ``FAILURE`` with the reason as feedback when the executing actor is not in
+    ``to``: the sender addressed the wrong party, which the receiver refuses
+    (HP-01-005) rather than reporting a processed no-op.  A receiver the
+    sender named only in ``cc`` lands here too, and the WARNING and reason say
+    that ``cc`` addressing is not supported (HP-10-001).  Core does not carry
+    ``cc`` (ADR-0109), so the node cannot tell a ``cc`` copy from any other
+    misaddressed one, and does not need to: both are discarded unprocessed.
     :attr:`misaddressed` tells the handler that was the reason, as opposed to a
     wiring fault (a missing DataLayer or actor), which it raises on.
     """
@@ -102,13 +106,11 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
     def __init__(
         self,
         to: list[str],
-        cc: list[str],
         report_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._to = to
-        self._cc = cc
         self._report_id = report_id
         self.misaddressed = False
 
@@ -120,24 +122,16 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
         if is_addressed_to(self.actor_id, self._to):
             return Status.SUCCESS
         self.misaddressed = True
-        if is_addressed_to(self.actor_id, self._cc):
-            self.logger.warning(
-                "cc addressing not supported for Offer(Report) — discarding"
-                " activity for report '%s'",
-                self._report_id,
-            )
-            self.feedback_message = (
-                "receiving actor is only in cc; cc addressing not supported"
-            )
-            return Status.FAILURE
         self.logger.warning(
-            "receiving actor '%s' in neither to nor cc — discarding activity"
-            " for report '%s'",
+            "receiving actor '%s' is not in the Offer(Report)'s to; cc"
+            " addressing not supported (HP-10-001) — discarding activity for"
+            " report '%s'",
             self.actor_id,
             self._report_id,
         )
         self.feedback_message = (
-            "receiving actor is not a recipient of the Offer"
+            "receiving actor is not a to recipient of the Offer; cc"
+            " addressing not supported"
         )
         return Status.FAILURE
 
@@ -190,7 +184,6 @@ def submit_report_received_effects(
     nodes.append(
         CheckOfferAddressedToReceiverNode(
             to=list(activity.to or []) if activity else [],
-            cc=list(activity.cc or []) if activity else [],
             report_id=report_id,
         )
     )

@@ -31,6 +31,7 @@ import pkgutil
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from enum import Enum
 from typing import Any
 
 from vultron.core.models.base import CoreObject
@@ -82,7 +83,12 @@ def minimal_kwargs(cls: type[CoreObject]) -> dict[str, Any]:
         if not field_info.is_required():
             continue
         ann = str(field_info.annotation)
-        if "timedelta" in ann:
+        annotation = field_info.annotation
+        if isinstance(annotation, type) and issubclass(annotation, Enum):
+            # A required state (``EmbargoConsent.state``) takes its first
+            # member, so the instance is valid and deterministic.
+            kwargs[field_name] = next(iter(annotation))
+        elif "timedelta" in ann:
             kwargs[field_name] = timedelta(days=90)
         elif "datetime" in ann:
             # A required instant (``EmbargoEvent.end_time``, #3404) is pinned

@@ -72,6 +72,11 @@ Before running any phase, check for existing artifacts:
 
 When resuming, print which phase is being skipped and why.
 
+A pre-push artifact (named for the branch, written by `build`'s fresh-agent
+review) is not a `pr-{N}-triage.json` and skips nothing:
+triage still runs, in delta mode, and the PR still enters `Triage`
+(PAD-17-002).
+
 **Resume caveat**: an execute artifact can be stale about merge state even when
 it is complete — the base branch may have moved since. That is fine and needs no
 special handling here: verify re-checks mergeability live in its Phase 2, so a
@@ -106,8 +111,9 @@ Print the base branch and merge state alongside the PR title. Do **not** stop on
 a conflicting or draft PR — resolving conflicts is exactly what the pipeline is
 for. `pr-execute` Phase 5 (CI Loop) syncs and resolves; `pr-verify` Phase 2 gates the
 verdict. A conflicted PR at this point is a normal input, not an error. Neither
-is a PR that is merely behind its base: the pipeline merges the base only on
-conflict, GitHub's `BEHIND`, or file overlap (PAD-18-004).
+is a PR that is merely behind its base: the pipeline merges the base locally
+only on conflict, and clears GitHub's `BEHIND` with `gh pr update-branch`
+(PAD-18-004). File overlap is left to the merger (PAD-18-009).
 
 If the PR is a draft carrying the `needs-rebase` label, note that `create-pr`
 opened it that way because it could not freshen the branch, and that execute will
@@ -248,6 +254,29 @@ If any step fails (unexpected error, not a structured stop):
 
 Artifacts are only cleaned up by `pr-verify` on a `READY-TO-MERGE` verdict.
 
+## Where Triage Phases Run
+
+A PR opened by `build` was already reviewed once, before its first push, by a
+fresh subagent running `pr-triage --pre-push` (PAD-07-001, ADR-0139). Step 4
+then picks its mode (`pr-triage` § "Modes"):
+
+| Phase | Pre-push (`build` Phase 7) | Step 4, delta mode | Step 4, full mode |
+|---|---|---|---|
+| 1 Orient | orient only | yes | yes |
+| 2 Issue linkage | scope against the issues | closing refs as posted; scope on the delta | yes |
+| 3 PR body format | — | yes | yes |
+| 4–8 Domain context, spec conformance, ADR check, AGENTS.md, code review | yes | delta files only | yes |
+| 9 Notes and docs currency | steps 1–4, docs-page determination | `Docs:` comparison; steps 1–4 on the delta | yes |
+| 10 Test coverage | yes | delta files only | yes |
+| 11 CI status, 12 merge state | — | yes | yes |
+| Carry-forward check of pre-push findings | — | yes | — |
+
+Full mode runs on the causes PAD-07-008 lists, as `pr-triage` § "Modes"
+detects them; the common one is a PR with no pre-push artifact (not from
+`build`, or shipped from another machine).
+`pr-execute` and `pr-verify` are the same in every mode: they read
+`pr-{N}-triage.json`, which lists only the findings that still stand.
+
 ## Where Merge Conflicts Are Handled
 
 Conflicts are checked three times, deliberately, because the answer changes as
@@ -256,7 +285,7 @@ the pipeline runs:
 | Phase | Check | Role |
 |---|---|---|
 | `pr-triage` Phase 12 | Read merge state, emit a FAIL finding | Early warning; recorded in `pr_metadata` |
-| `pr-execute` Phase 5 (CI Loop) | Merge the base **only** when GitHub reports `CONFLICTING` or `BEHIND`, or `targeted-tests --overlap` finds shared files (PAD-18-004); resolve conflicts; gate with the targeted set from the post-merge diff | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included, and before the local gate so the targeted set is derived from the merged tree |
+| `pr-execute` Phase 5 (CI Loop) | Merge the base locally **only** on conflict (`CONFLICTING`, `DIRTY`, or `git merge-tree` finds one), resolve, and gate with the tests for the conflicted files (`targeted-tests --paths`); clear GitHub's `BEHIND` with `gh pr update-branch`; record an overlap as `deferred`, never merge for it (PAD-18-004, ADR-0138) | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included. Does not loop back when the base moves during the CI wait |
 | `pr-verify` Phase 2 | Live re-check as a hard gate | The **authoritative** answer. Blocks `READY-TO-MERGE` on `CONFLICTING`, `DIRTY`, or GitHub's `BEHIND` — never on its own base-tip comparison (PAD-18-005) |
 
 Execute resolves rather than verify because verify is a read-only reporter by

@@ -90,6 +90,18 @@ RejectEmbargoProposalOnCasePattern = ActivityPattern(
     # Not strict, for the same reason as the activation pattern above.
 )
 
+WithdrawFromEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "A signatory withdraws from the embargo in force on a vulnerability "
+        "case: a LEAVE whose object is the EmbargoEvent and whose context is "
+        "the VulnerabilityCase (MSM-07-010, ADR-0122).  Distinct from "
+        "Leave(VulnerabilityCase), which leaves the case."
+    ),
+    activity_=TAtype.LEAVE,
+    object_=AOtype.EVENT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+
 # ---------------------------------------------------------------------------
 # Report patterns
 # ---------------------------------------------------------------------------

@@ -938,7 +938,7 @@ groups:
       none of the three.
     rationale: >-
       Addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams
-      (IDs are opaque URIs) bind every implementation, but Vultron does not own them. Filing them
+      (every `id` is an IRI) bind every implementation, but Vultron does not own them. Filing them
       as `protocol` inflates what Vultron defines; filing them as `project` hides them from
       implementers, who read `protocol` and `foundation` together. Where Vultron requires one
       form among several the standard allows, the rule is Vultron's own and is `protocol`. The
@@ -1764,3 +1764,53 @@ groups:
       note: fixes the concrete exception type that satisfies the ValueError requirement
     tags:
     - tooling
+- id: MS-18
+  title: One Wire Form per Protocol Act
+  description: >-
+    How a requirement handles an act that ActivityStreams lets a sender express in more
+    than one wire form, so that the reference implementation's habit never reads as a
+    protocol rule and a receiver never pays for forms no sender needs.
+  specs:
+  - id: MS-18-001
+    priority: MUST
+    kind: process
+    adr:
+    - ADR-0137
+    statement: >-
+      When ActivityStreams allows more than one wire form for one protocol act, the
+      `protocol` requirement for that act MUST name exactly one form. Each other form that
+      was considered MUST be recorded as a deferred alternative in an open question on the
+      Open Questions page (`docs/topics/future_work/open_questions.md`), and a form the
+      protocol does not name is not a protocol message.
+    rationale: >-
+      A receiver that must accept every allowed form pays for each form any sender picks,
+      and when several forms are allowed the reference implementation's choice is all a
+      reader sees, so its habit reads as a protocol rule (the `create_note` occasion said
+      the `Create` "precedes the Add", #4550). Deferring the other forms keeps them open for
+      later design without binding any receiver now.
+    verification: >-
+      Inspection: no two `protocol` requirements name different wire forms for the same
+      act (for the case records, VAM-01-011 names the one attaching message), and
+      `docs/topics/future_work/_oq-create-then-add.md` lists the forms not named.
+    tags:
+    - documentation
+  - id: MS-18-002
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A requirement, a semantic registry occasion or a reader-facing page MUST NOT allow
+      several wire forms for one protocol act and then record which of them this codebase
+      sends; the choice is made once, in the `protocol` requirement (MS-18-001).
+    rationale: >-
+      A per-message "allowed versus sent" marker was weighed and rejected (#4550): it keeps
+      every receiver accepting forms that no implementation needs to send, and it is one
+      more hand-kept fact that drifts from the emitters (MS-16-002).
+    verification: >-
+      Inspection: `Occasion` in `vultron/semantic_registry/_occasion.py` has no field
+      recording whether this codebase sends the occasion.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-18-001
+      note: rules out the allow-several-then-mark-one alternative
+    tags:
+    - documentation

@@ -41,6 +41,7 @@ import {
   isLegalTransition,
   legalTriggers,
   nextState,
+  nextStates,
   machineStates,
   canStartEmbargo,
   embargoViable,
@@ -130,13 +131,15 @@ function triggerPath(machine: MachineName, prev: string, next: string): string[]
   while (queue.length > 0) {
     const { state, path } = queue.shift()!
     for (const trigger of legalTriggers(machine, state)) {
-      const dest = nextState(machine, state, trigger)
-      if (dest === null) continue
-      const nextPath = [...path, trigger]
-      if (dest === next) return nextPath
-      if (!visited.has(dest)) {
-        visited.add(dest)
-        queue.push({ state: dest, path: nextPath })
+      // Follow every dest: a trigger may have several (EM accept/reject,
+      // ADR-0130), and a real ledger may take any of them.
+      for (const dest of nextStates(machine, state, trigger)) {
+        const nextPath = [...path, trigger]
+        if (dest === next) return nextPath
+        if (!visited.has(dest)) {
+          visited.add(dest)
+          queue.push({ state: dest, path: nextPath })
+        }
       }
     }
   }
@@ -478,14 +481,10 @@ function applyCaseLevelForward(
     }
   }
 
-  // Apply the (usually single-step) forward path.
-  let from = current
-  let lastTrigger = path[0]
-  for (const trigger of path) {
-    const dest = nextState(machine, from, trigger)!
-    from = dest
-    lastTrigger = trigger
-  }
+  // Apply the (usually single-step) forward path. `triggerPath` found it over
+  // the legal moves, so the shadow lands on the snapshot; only the last
+  // trigger is reported.
+  const lastTrigger = path[path.length - 1]
   if (machine === 'em') shadow.emState = snapshot
   else shadow.pxaState = snapshot
   const inferredNote = path.length > 1
@@ -629,6 +628,10 @@ function handleEntry(
       return handleCreateCase(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
       return handleValidateReport(entry, participants, shadow, x, laneIndex)
+    // A note reaches the case either as a `Create(Note)` whose note names the
+    // case as its `context` (`create_note`) or as an `Add(Note, target=Case)`
+    // of an existing note (`add_note_to_case`); both render the same way.
+    case 'create_note':
     case 'add_note_to_case':
       return handleNote(entry, participants, shadow, x, laneIndex)
     case 'add_participant_status_to_participant':
@@ -1242,7 +1245,12 @@ function handleValidateReport(
   return { nodes, logLines }
 }
 
-// --- add_note_to_case → question / answer (demo-kind, no machine slot) ------
+// --- create_note / add_note_to_case → question / answer (demo-kind, no machine slot) ------
+
+/** The wire form that carried the note: `Create(Note)` or `Add(Note, target=Case)`. */
+function noteActivityLabel(entry: CaseLedgerEntry): string {
+  return entry.payloadSnapshot?.type === 'Create' ? 'Create(Note)' : 'Add(Note, target=Case)'
+}
 
 function handleNote(
   entry: CaseLedgerEntry,
@@ -1277,7 +1285,7 @@ function handleNote(
   } else {
     label = 'Ask Question'
     consequenceLabel = 'Note Received'
-    decisionBullets = [`Note: "${noteName}"`, snippet || '(question)', 'Add(Note, target=Case)']
+    decisionBullets = [`Note: "${noteName}"`, snippet || '(question)', noteActivityLabel(entry)]
     shadow.pendingQuestionBy = laneId
   }
 

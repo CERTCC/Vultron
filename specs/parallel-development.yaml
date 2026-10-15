@@ -471,59 +471,165 @@ groups:
           `test/metadata/test_size_bands.py::TestBandForAcs::test_no_ac_count_can_reach_a_measured_only_band`
 
   - id: PAD-07
-    title: Pre-PR Code Review Protocol
+    title: Pre-PR Review Protocol
+    description: >-
+      Who reviews a branch before its first push, and how the post-push
+      triage reuses that review. The author runs a four-item self-check; a
+      fresh agent then runs the `pr-triage` phases that need no Pull Request,
+      and the post-push triage runs only the phases that do, plus the delta.
     specs:
       - id: PAD-07-001
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The `build` skill MUST invoke the `code-review` agent before
-          opening a PR.
+          Before invoking `create-pr`, the `build` skill MUST have the
+          PR-independent phases of `pr-triage` (its pre-push mode) run on the
+          branch by a subagent that did not write the change. Those phases
+          include the code-review subagent.
+        rationale: >-
+          An author reviewing its own change misses what it overlooked while
+          writing it; the post-push fresh-agent triage still found a median of
+          six problems per PR, each fixed after the push at the cost of a fix
+          commit and a CI run.
       - id: PAD-07-005
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The `code-review` agent MUST run against the current branch diff
-          relative to `main`.
+          The pre-push review MUST run against the branch diff relative to
+          `origin/main` with every change committed, and MUST be given the
+          draft PR body so it can check the author's `Self-check:` record
+          (PAD-07-009).
         relationships:
         - rel_type: refines
           spec_id: PAD-07-001
       - id: PAD-07-002
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          Every finding produced by the `code-review` agent MUST be tagged
-          either `[BLOCKING]` or `[ADVISORY]`. `[BLOCKING]` findings are bugs
-          and security issues that MUST be resolved before the PR is opened.
-          `[ADVISORY]` findings are style and quality observations that do not
-          block PR creation.
+          Every pre-push review finding MUST carry a `pr-triage` severity
+          (`FAIL`, `IMPROVE`, or `NEW-ISSUE`) and a `pr-triage` decision
+          outcome (`fix-now`, `fix-now-file`, `defer-ask`, or
+          `inversion-halt`).
+        rationale: >-
+          One taxonomy across the pre-push and post-push reviews lets the
+          post-push triage carry a pre-push finding forward unchanged.
       - id: PAD-07-003
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The `build` skill MUST resolve all `[BLOCKING]` findings before
-          opening a PR.
+          The `build` skill MUST resolve every pre-push review finding by its
+          decision outcome before invoking `create-pr`, and MUST record each
+          finding's resolution in the pre-push artifact.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-001
       - id: PAD-07-006
-        priority: MUST
+        adr:
+        - ADR-0139
+        priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-
-          After resolving `[BLOCKING]` findings, the `build` skill MUST re-run
-          the code review to confirm no new `[BLOCKING]` findings were
-          introduced.
+          The `build` skill MUST NOT re-run the pre-push review after
+          resolving its findings. The post-push triage reviews those fixes as
+          part of its delta (PAD-07-007).
+        rationale: >-
+          A second full review before the push would repeat every phase on a
+          diff that changed only where the fixes landed; the delta review
+          covers exactly those lines, once.
         relationships:
         - rel_type: refines
           spec_id: PAD-07-003
       - id: PAD-07-004
+        adr:
+        - ADR-0139
         priority: SHOULD
         kind: process
         statement: >-
-          After a PR is opened, `[ADVISORY]` findings SHOULD be posted as a
-          comment on the PR for human review.
+          After a PR is opened, the pre-push review's findings and their
+          resolutions SHOULD be posted as a comment on the PR for human
+          review.
+      - id: PAD-07-007
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          When a pre-push artifact exists for a PR's branch and PAD-07-008
+          does not call for a full triage, `pr-triage` MUST run the phases
+          that need the PR (issue linkage as posted, PR body format, the
+          `Docs:` line comparison, CI status, and merge state), MUST re-run
+          the PR-independent phases on the delta alone, and MUST confirm each
+          pre-push finding's recorded resolution on the PR head, re-emitting
+          any finding whose fix is absent. The delta is the change to the
+          branch's own added and removed lines between the reviewed head and
+          the PR head.
+        rationale: >-
+          Every phase still runs, once per change. Defining the delta on the
+          branch's own lines keeps `create-pr`'s cherry-pick onto a newer
+          base out of it.
+        verification: >-
+          Inspection: `pr-triage` § "Modes" assigns each phase to the
+          pre-push or the delta run, and `prepush-delta.sh` compares only the
+          added and removed lines of the reviewed and current branch diffs.
+      - id: PAD-07-008
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-triage` MUST run the full triage when the PR carries the
+          `needs-rebase` label, when the PR's branch has no usable pre-push
+          artifact (none exists, it is not a JSON object, it lacks a reviewed
+          SHA, it names another branch, or a reviewed commit is not in the
+          object store), when the reviewed diff is empty, or when the delta's
+          changed lines exceed half of the reviewed diff's changed lines.
+        rationale: >-
+          A PR not opened by `build`, a conflict resolved by hand, or a
+          delta most of the size of the change gives the pre-push review too
+          little claim on the tree that will merge.
+        verification: >-
+          Inspection: `prepush-delta.sh` exits 3 (full triage) for each
+          artifact, empty-diff and delta-size cause this requirement lists,
+          and `pr-triage` § "Modes" runs the full triage on exit 3 or on a
+          `needs-rebase` PR.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-007
+      - id: PAD-07-009
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          The `build` and `bugfix` skills MUST run the four-item pre-review
+          self-check (affected-text sweep, failure-path pass, branch
+          coverage, and reuse check) on the finished diff and record its four
+          results under `Self-check:` in the PR body's `## Verification`
+          section. The code-review subagent of `pr-triage` MUST be given the
+          same four items as review prompts.
+        rationale: >-
+          About 45% of post-push triage findings fall into these four
+          oversights. A written result per item shows the reviewer the check
+          ran, and the reviewer checking the same four items against the
+          diff catches what the author missed.
+        verification: >-
+          Inspection: `build` Phase 5 and `bugfix` Phase 4 run
+          `shared/pre-review-self-check.md`, `pr-body-guide.md` carries the
+          `Self-check:` lines, and `pr-triage` Phase 8 passes that file to the
+          code-review subagent.
 
   - id: PAD-08
     title: Build Skill — Issue-Based Task Selection
@@ -1127,13 +1233,18 @@ groups:
           Inspection: every open non-draft PR is on Project #24 with a
           `Ship stage` value.
       - id: PAD-17-002
+        adr:
+        - ADR-0139
         priority: MUST
         kind: process
         statement: >-
           `pr-ship` MUST set a Pull Request's `Ship stage` to `Triage`,
           `Execute`, or `Verify` on entering that phase, including when it
-          resumes into it; to `Needs you` while paused at a gate awaiting a
-          human; and to `Ready to merge` when verification completes.
+          resumes into it and when its triage reviews only the delta over a
+          pre-push review (PAD-07-007); to `Needs you` while paused at a gate
+          awaiting a human; and to `Ready to merge` when verification
+          completes. The pre-push review sets no `Ship stage`, because no
+          Pull Request exists yet.
         rationale: >-
           The one skill that knows its own phase writes the value, so the
           field is a mirror of pipeline progress that needs no manual upkeep.
@@ -1213,7 +1324,8 @@ groups:
           every changed module, every changed test file itself, and
           `test/architecture/`. The run MUST select those files with the
           integration marker enabled, so that marker-bearing tests among them
-          are not deselected.
+          are not deselected. A conflict merge with no fix in it is not a fix
+          commit; PAD-18-004 sets its gate.
         rationale: >-
           A full local run after a one-line fix costs about seven minutes on a
           2-CPU slot; CI then runs the full suite again in about five. The
@@ -1231,8 +1343,9 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The local gate MUST escalate from the targeted set to the full unit
-          and integration suites when the branch diff touches shared test
+          The fix-commit gate of PAD-18-002 MUST escalate from the targeted
+          set to the full unit and integration suites when the branch diff
+          touches shared test
           infrastructure (`conftest.py`, test fixtures or factories,
           `pyproject.toml`, `uv.lock`), or any of the integration-bearing
           paths (`vultron/demo/`, `integration_tests/`, `vultron/adapters/`,
@@ -1247,7 +1360,10 @@ groups:
           already escalates on; carrying them forward keeps PAD-18 from
           dropping local integration coverage. Keying on the branch diff, not
           the fix commit, means a fix landing on top of a `conftest.py` change
-          still escalates.
+          still escalates. The list does not govern the gate after a conflict
+          merge (PAD-18-004): applied to the post-merge branch diff it sent
+          most conflict merges to the full suite for paths the merge never
+          touched (ADR-0138).
         verification: >-
           Inspection: the targeted-test command reports `full` for a branch
           diff that touches any listed path.
@@ -1257,38 +1373,51 @@ groups:
       - id: PAD-18-004
         adr:
         - ADR-0126
+        - ADR-0138
         priority: MUST
         kind: process
         statement: >-
           After a Pull Request's first push, an agent MUST merge the base
-          branch into it only when GitHub reports the PR `CONFLICTING` or
-          `BEHIND`, or when files the base changed since the merge base overlap
-          files the PR changes. After such a merge it MUST run the targeted set
-          of PAD-18-002, derived from the post-merge branch diff, which then
-          covers the PR's own changes to the overlapping and conflicted files.
+          branch into it locally only when the Pull Request conflicts with
+          the base: GitHub reports it `CONFLICTING` or `DIRTY`, or a trial
+          merge (`git merge-tree`) conflicts. A Pull Request GitHub reports
+          `BEHIND` without a conflict MUST be updated on GitHub
+          (`gh pr update-branch`), with no local merge and no local suite run.
+          Files changed on both sides without a conflict MUST NOT cause a
+          merge. After resolving a conflict, the agent MUST gate the merge
+          with the linters plus the targeted set for the conflicted files
+          alone, each treated as wholly changed, plus `test/architecture/`,
+          escalating to the full suite only when a conflicted file is a
+          `conftest.py`, `pyproject.toml`, `uv.lock`, or
+          `vultron/__init__.py`.
         rationale: >-
           CI already tests the merge of the PR into its base as of each push,
-          and no repository rule requires branches to be up to date. Merging
-          on every base movement restarted the test-push-wait loop several
-          times an hour during fan-out without adding coverage. The residual
-          risk, a semantic conflict between files neither side shares, is
-          caught by CI on `main` after the merge; closing it entirely is a
-          merge queue's job (#1863). Keying the gate on the post-merge diff
-          lets one derivation serve both cases. `BEHIND` is a trigger because
-          it is the one state in which GitHub itself refuses the merge until
-          the branch contains the base; no ruleset produces it today.
+          and no repository rule requires branches to be up to date. A
+          conflict is the only sync that needs an agent, because someone has
+          to resolve it; every clean merge can be made by GitHub and tested by
+          CI. Merging on file overlap, and deriving the post-merge gate from
+          the whole branch diff, sent most merges to a full local suite run
+          for paths the merge never touched. A conflicted file is gated as
+          wholly changed because both sides edited it; the rest of the merge
+          changed no line the PR wrote, and CI runs the full suite on the
+          push. `BEHIND` is cleared on GitHub because it is the one state in
+          which GitHub itself refuses the merge until the branch contains the
+          base, and `gh pr update-branch` produces the same merge commit a
+          local merge would; no ruleset produces it today.
         verification: >-
-          Inspection: `pr-execute` Phase 5 Step 2 and `work-epic-tasks`
-          consult the overlap check and GitHub's merge state before merging
-          the base, merge on `CONFLICTING`, `BEHIND`, or overlap, and skip the
-          merge when none of the three holds.
+          Inspection: `pr-execute` Phase 5 Step 2 merges the base locally on
+          `CONFLICTING`, `DIRTY`, or a `git merge-tree` conflict only, runs
+          `gh pr update-branch` on a conflict-free `BEHIND`, and records an
+          overlap as `merge_reason: "deferred"` without merging; Step 3 gates
+          a conflict merge with `targeted-tests --paths`, which reports `full`
+          only for the listed configuration files.
         relationships:
         - rel_type: extends
           spec_id: PAD-11-001
           note: >-
             PAD-11-001 says how a conflicted PR is synced (merge, never
             rebase); this adds when a pushed PR is synced at all (on
-            conflict, GitHub's `BEHIND`, or file overlap only).
+            conflict only, or on GitHub for `BEHIND`).
       - id: PAD-18-005
         adr:
         - ADR-0126
@@ -1382,6 +1511,40 @@ groups:
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001
+      - id: PAD-18-009
+        adr:
+        - ADR-0138
+        priority: MUST
+        kind: process
+        statement: >-
+          Immediately before merging a Pull Request, the agent merging it
+          MUST check that Pull Request alone against the current base. On a
+          conflict it MUST send the Pull Request back through the review
+          pipeline instead of merging. When the Pull Request is `BEHIND`, or
+          the base changed files it also changes, the agent MUST update it on
+          GitHub (`gh pr update-branch`) and merge only after CI passes on the
+          updated head, updating at most once per merge. The agent MUST NOT
+          re-check or re-sync other open Pull Requests because a merge moved
+          the base.
+        rationale: >-
+          Overlapping files are where a clean merge is most likely to hide a
+          behavior conflict, and the moment of merging is the only time the
+          base the Pull Request lands on is known. A GitHub-side update tests
+          that exact combination in CI with no agent, no local merge, and no
+          local suite run. Sweeping every open Pull Request after each merge,
+          or updating again whenever the base moves during the CI wait,
+          re-creates the loop ADR-0138 removed; a semantic conflict between
+          files neither side shares is caught by CI on `main` (ADR-0126).
+        verification: >-
+          Inspection: `work-epic-tasks` step 4 runs the merge-state,
+          `git merge-tree`, and `targeted-tests --overlap` checks on the Pull
+          Request about to merge, re-runs `pr-ship` only on a conflict, runs
+          `gh pr update-branch` and `wait-for-ci.sh` before merging a `BEHIND`
+          or overlapping Pull Request, and has no post-merge sweep of other
+          Pull Requests.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-004
 
   - id: PAD-19
     title: Epic Claim for an Epic Run

@@ -121,7 +121,7 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
 
         # Regime 1 (ADR-0087, #3101): fan-out runs after the local commit
         # persisted this entry to the case (DeclineForeignLedgerCommitNode
-        # already handled the not-my-case branch upstream), so a missing case
+        # already refused a store that does not hold the log), so a missing case
         # is an anomaly. Previously this warned, emitted zero recipients, and
         # returned SUCCESS — silently dropping replication of a committed entry
         # even though the commit tree treats non-SUCCESS as a real failure

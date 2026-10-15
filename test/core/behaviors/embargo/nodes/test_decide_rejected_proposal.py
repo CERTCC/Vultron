@@ -179,7 +179,7 @@ def test_strict_ej_with_pxa_set_fails_and_writes_nothing(
     dl: SqliteDataLayer,
 ) -> None:
     case, _, revision_id = _revising_case(dl, "pxa")
-    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
     dl.save(case)
     setup_blackboard(dl, actor_id=OWNER)
 
@@ -202,7 +202,7 @@ def test_observed_ej_with_pxa_set_succeeds_and_writes_nothing(
 ) -> None:
     """On replay the termination entry that follows ends it (ADR-0124)."""
     case, active_id, revision_id = _revising_case(dl, "pxa-replay")
-    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
     dl.save(case)
     setup_blackboard(dl, actor_id=OWNER)
 

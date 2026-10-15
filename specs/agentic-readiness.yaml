@@ -110,9 +110,14 @@ groups:
   specs:
   - id: AR-10-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The API MUST expose `GET /actors/{actor_id}/profile` returning an ActivityStreams actor profile document for
       actor discovery and federation
+    rationale: >-
+      The route path is this server's REST choice. A peer finds an actor from its
+      `id` and the endpoints its actor document names (IE-02-001), never from a path
+      convention, so another implementation may serve the document anywhere. Only
+      this codebase must obey the path, so it is `project` (ADR-0134).
     verification: 'Integration tests confirm that `GET /actors/{actor_id}/profile` returns an ActivityStreams actor profile
       with `Content-Type: application/activity+json`.'
     stories:
@@ -133,9 +138,13 @@ groups:
     - http
   - id: AR-10-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The profile endpoint MUST support both full actor URI and short actor ID (e.g., `vendorco`) as the `actor_id`
       path parameter
+    rationale: >-
+      Accepting a short ID in the path is a convenience of this server's REST routes
+      (AR-10-001); on the wire an actor is named by its full `id` (MV-05-001). Only
+      this codebase must obey it, so it is `project` (ADR-0134).
     verification: Integration tests confirm that both a short actor ID (e.g., `vendorco`) and a full actor URI resolve
       to the same actor profile document via `GET /actors/{actor_id}/profile`.
     stories:

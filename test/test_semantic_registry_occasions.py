@@ -28,7 +28,9 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
@@ -50,6 +52,7 @@ from vultron.semantic_registry._occasion import (
     Occasion,
     ProtocolShorthand,
     StateContext,
+    wire_spelling,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.examples import vocab_examples
@@ -61,6 +64,7 @@ def _occasion(**overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": "a stub situation arises",
         "anchor": "stub-situation",
+        "addressee": AddresseeSide.CASE_MANAGER,
         "heading": "Stub situation",
         "description": "Stands in for a real occasion.",
         "example": "stub_example",
@@ -203,8 +207,8 @@ def test_evolved_occasion_carries_no_shorthand():
         (ParticipantStatus, "vf_state", CS_vf.VF),
         (ParticipantStatus, "d_state", CS_d.D),
         (ParticipantStatus, "rm_state", RM.ACCEPTED),
-        (CaseStatus, "pxa_state", CS_pxa.PXa),
-        (CaseStatus, "em_state", EM.ACTIVE),
+        (CaseStatus, "pxa", CS_pxa.PXa),
+        (CaseStatus, "em", EM.ACTIVE),
     ],
 )
 def test_field_value_accepts_a_member_of_the_field_enum(
@@ -214,6 +218,32 @@ def test_field_value_accepts_a_member_of_the_field_enum(
         object_type=object_type, field=field_name, value=value
     )
     assert distinguisher.value is value
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_reads_a_dimension_field_as_its_state():
+    """A dimension field travels as its bare state (ARCH-25-005, ADR-0099)."""
+    distinguisher = FieldValue(
+        object_type=CaseStatus, field="pxa", value=CS_pxa.PXa
+    )
+    status = CaseStatus(
+        context="urn:uuid:case", pxa=PxaDimension(state=CS_pxa.PXa)
+    )
+    assert distinguisher.read(status) is CS_pxa.PXa
+
+
+@pytest.mark.parametrize(
+    ("object_type", "field_name", "spelling"),
+    [
+        (CaseStatus, "pxa", "pxaState"),
+        (CaseStatus, "em", "emState"),
+        (ParticipantStatus, "vf_state", "vfState"),
+    ],
+)
+def test_wire_spelling_names_a_field_by_its_as2_spelling(
+    object_type: type, field_name: str, spelling: str
+):
+    assert wire_spelling(object_type, field_name) == spelling
 
 
 @pytest.mark.spec("MSM-08-002")
@@ -396,7 +426,7 @@ def test_occasion_example_dispatches_to_its_own_entry(
     if isinstance(distinguisher, FieldValue):
         carrier = getattr(activity, "object_", None)
         assert isinstance(carrier, distinguisher.object_type)
-        assert getattr(carrier, distinguisher.field) == distinguisher.value
+        assert distinguisher.read(carrier) == distinguisher.value
 
 
 @pytest.mark.spec("MSM-08-003")

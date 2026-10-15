@@ -265,7 +265,14 @@ Once the plan is confirmed:
    its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception: the devcontainer
    `actionlint` hang, `notes/devcontainer-tooling.md`).
 
-6. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
+6. **Pre-review self-check** — once the fix is finished, run the four items in
+   `.agents/skills/shared/pre-review-self-check.md` (affected-text sweep,
+   failure-path pass, branch coverage, reuse check) on the diff, fix what they
+   turn up, and write the four results under `Self-check:` in the PR body's
+   `## Verification` section. The post-push triage checks the same four items
+   against the diff.
+
+7. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
    because its entry body carries the PR URL, which does not exist until the PR
    is open (see that skill's "Always invoke AFTER the PR is opened").
    - Do **not** set a `size:` label: the `pr-size-label` workflow measures the

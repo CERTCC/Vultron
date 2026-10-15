@@ -189,7 +189,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -233,6 +233,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         tree = add_participant_status_tree(
             request=request,
             case_id=case_id,
+            sender_rule=self.sender_entitlement,
             **call_out_kwargs,
         )
         bridge = BTBridge(

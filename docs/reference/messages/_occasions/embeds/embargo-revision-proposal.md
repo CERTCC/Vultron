@@ -6,7 +6,8 @@
 
     - **When…** a Participant proposes revised terms for the active embargo
     - **Send:** `Invite(Event)[context=VulnerabilityCase]`
-    - **Sent by:** an active participant
+    - **Send to:** the case manager
+    - **Sent by:** the case manager or an active participant
     - **Distinguished by:** EM state `ACTIVE` or `REVISE`
     - **Reference:** [Embargo Revision Proposal (EV)](../../em.md#embargo-revision-proposal)
 

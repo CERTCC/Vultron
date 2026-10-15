@@ -6,6 +6,7 @@
 
     - **When…** the Case Manager has replayed the case ledger to a newly joined Participant
     - **Send:** `Invite(Actor)[target=VulnerabilityCase]`
+    - **Send to:** a participant
     - **Sent by:** the case manager
     - **Reference:** [Send Full-Case Invite](../../case_management.md#invite-actor-to-full-case)
 

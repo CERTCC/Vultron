@@ -29,7 +29,7 @@ The second rule keeps the vocabulary unambiguous: if two activities had the same
 
 These rules have a visible cost.
 Where the formal protocol distinguishes several messages, the wire vocabulary often carries one activity and distinguishes them by payload.
-The `CP`, `CX`, and `CA` messages all ride a single `Add(CaseStatus)[target=VulnerabilityCase]`, discriminated by the `pxa_state` field rather than by the verb (MSM-03-004 through MSM-03-006).
+The `CP`, `CX`, and `CA` messages all ride a single `Add(CaseStatus)[target=VulnerabilityCase]`, discriminated by the `pxaState` field rather than by the verb (MSM-03-004 through MSM-03-006).
 Minting three Vultron-specific activities for those three messages would have added vocabulary where ActivityStreams already supplies an adequate verb.
 
 We accepted that cost deliberately.
@@ -110,35 +110,38 @@ Modeling it as `as:Undo` would claim that the earlier `Ignore(VulnerabilityCase)
 
 ## Creating an object and attaching it to another
 
-Vultron documents object creation and object attachment as two activities.
+Vultron distinguishes object creation from object attachment.
 `as:Create` mints a new object; `as:Add` attaches an existing object to another object.
-A new note therefore appears as `Create(Note)` followed by `Add(Note)[target=VulnerabilityCase]`.
+A new note is one `Create(Note)` whose note names the case as its `context`: the Case Manager attaches it from that `context`, so no `Add` follows.
+`Add(Note)[target=VulnerabilityCase]` attaches a note that already exists, and a receiver also accepts it after a `Create` of the same note.
 A new status is different in this implementation: it travels inline on the `Add(CaseStatus)[target=VulnerabilityCase]` that attaches it, with no `Create` before it.
 
 ```mermaid
 ---
-title: Create then Add for notes; Add alone for statuses
+title: Create alone for a new note; Add alone for statuses
 ---
 flowchart TB
     subgraph as:Add
-        AddNoteToCase["Post a note to the case<br/>Add(Note)"]
+        AddNoteToCase["Attach an existing note<br/>Add(Note)"]
         AddStatusToCase["Public Awareness (CP) / Exploit Public (CX) / Attacks Observed (CA)<br/>Add(CaseStatus)"]
         AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
     end
     subgraph as:Create
-        CreateNote["Draft a note<br/>Create(Note)"]
+        CreateNote["Post a new note to the case<br/>Create(Note)"]
     end
     start([Start])
     start -.-> AddStatusToCase
     start -.-> AddStatusToParticipant
     start -.-> CreateNote
-    CreateNote --> AddNoteToCase
+    start -.-> AddNoteToCase
     AddStatusToParticipant -.-> AddStatusToCase
+    CreateNote -.-> AddStatusToParticipant
+    CreateNote -.-> AddStatusToCase
     AddNoteToCase -.-> AddStatusToParticipant
     AddNoteToCase -.-> AddStatusToCase
 ```
 
-The diagram shows a note being created and then attached, and each status being attached with the status inline.
+The diagram shows a new note being created in the case, an existing note being attached, and each status being attached with the status inline.
 The dotted arrows show attachments that can follow from one another: a participant status update can lead to a case status update, and a note can lead to either.
 
 ### ActivityStreams does not force the split
@@ -154,7 +157,7 @@ The rule we settled on is `as:Create` when an object is being brought into exist
 ### The split has no formal counterpart, and is still load-bearing on the wire
 
 The `Create(X)` plus `Add(X → Y)` pair is a wire-layer expansion, and the formal protocol models neither activity ([ADR-0083](../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
-Every object gains two activities on the wire: one to mint it, one to attach it.
+An object sent this way gains two activities on the wire: one to mint it, one to attach it.
 No shorthand in the 28-symbol formal message set names either step, because object lifecycle is a serialization concern rather than a protocol state change.
 
 This is the asymmetry ADR-0083 predicts, and it cuts both ways.
@@ -163,16 +166,15 @@ Read against the wire vocabulary, the split is a real distinction that the proto
 
 The two forms are separate messages with separate handlers.
 `Create(Note)` is recognized by its verb and object alone; `Add(Note)` and `Add(CaseStatus)` are recognized by their `target` naming the case.
-The state change of a status — applying the new `pxa_state` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
+The state change of a status — applying the new `pxaState` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
 An activity that tries to be both, such as an `Add(CaseStatus)` that names the case in `context` and has no `target`, matches no pattern.
 It does not collapse two messages into one; it dispatches as unrecognized, and the state change never happens.
 
 So the conclusion is narrower than "either verb will do".
-An implementation is free to decide that a given object needs no separate minting step, and to send only the `Add` that attaches it, with the object inline.
-This implementation makes that choice for every status: it does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)`.
-An inbox refuses either one as an unrecognized activity.
-It makes the same choice for an embargo proposal, which carries its `EmbargoEvent` inline on the `Invite`.
-That is a choice the prototype made, not a requirement of the protocol.
+The protocol names one attaching message for each case record, with no separate minting step ([ADR-0137](../adr/0137-case-records-are-attached-by-one-message-never-created-first.md)).
+A case status is attached by `Add(CaseStatus)`, a participant status by `Add(ParticipantStatus)`, and an embargo proposal carries its `EmbargoEvent` on the `Invite`.
+A received `Create(CaseStatus)` or `Create(ParticipantStatus)` is not a protocol message.
+This implementation carries each record inline on the message that attaches it, and its inbox refuses such a `Create` as an unrecognized activity.
 What no implementation can do is merge the two verbs into one activity and expect a Vultron peer to understand it.
 
 {% include-markdown "./future_work/_oq-create-then-add.md" %}

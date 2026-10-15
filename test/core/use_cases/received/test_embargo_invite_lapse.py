@@ -1003,12 +1003,14 @@ class TestInviteeIsTheAddressee:
 
     @pytest.mark.spec("MSM-07-004")
     @pytest.mark.spec("CM-18-003")
-    def test_reject_from_signatory_transitions_to_declined(self, make_payload):
-        """A signatory rejecting the *active* embargo withdraws → DECLINED (ADR-0093).
+    def test_reject_from_signatory_of_the_embargo_in_force_is_refused(
+        self, make_payload
+    ):
+        """A signatory's Reject of the *active* embargo does not withdraw it.
 
-        ``DECLINE`` is valid from ``AGREED``; the received side applies it
-        when the Reject names the embargo in force.  The case-level EM state
-        is not changed (VP-13-009); only the invitee's own consent record is.
+        Withdrawal is ``Leave(EmbargoEvent)`` (MSM-07-010), so the Reject is
+        refused before the commit and nothing moves: the invitee stays a
+        signatory and the case-level EM state is unchanged.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee8"
@@ -1041,12 +1043,12 @@ class TestInviteeIsTheAddressee:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        assert result.disposition is HandlerDisposition.APPLIED
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "Leave(EmbargoEvent)" in (result.reason or "")
 
-        # Invitee's consent withdrawal is recorded as DECLINED.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.consent_for(embargo_id) == EmbargoConsentState.DECLINED
-        assert not invitee.is_signatory(embargo_id)
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.AGREED
+        assert invitee.is_signatory(embargo_id)
         # CASE_MANAGER's own consent is unaffected.
         coord = self._read_participant(dl, coord_p_id)
         assert coord.consent_for(embargo_id) == EmbargoConsentState.UNINVITED
@@ -1193,19 +1195,27 @@ class TestInviteeIsTheAddressee:
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consents == [
             EmbargoConsent(
-                embargo_id=active_id, state=EmbargoConsentState.AGREED
+                embargo_id=active_id,
+                state=EmbargoConsentState.AGREED,
+                attributed_to=coord.attributed_to,
             ),
             EmbargoConsent(
-                embargo_id=revision.id_, state=EmbargoConsentState.DECLINED
+                embargo_id=revision.id_,
+                state=EmbargoConsentState.DECLINED,
+                attributed_to=coord.attributed_to,
             ),
         ]
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consents == [
             EmbargoConsent(
-                embargo_id=active_id, state=EmbargoConsentState.AGREED
+                embargo_id=active_id,
+                state=EmbargoConsentState.AGREED,
+                attributed_to=invitee.attributed_to,
             ),
             EmbargoConsent(
-                embargo_id=revision.id_, state=EmbargoConsentState.UNINVITED
+                embargo_id=revision.id_,
+                state=EmbargoConsentState.UNINVITED,
+                attributed_to=invitee.attributed_to,
             ),
         ]
         case_after = cast(VulnerabilityCase, dl.read(case_id))

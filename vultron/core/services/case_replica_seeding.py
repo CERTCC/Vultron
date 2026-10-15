@@ -86,7 +86,7 @@ def store_embedded_participants(
     When a bootstrapped or announced ``VulnerabilityCase`` carries fully
     materialised participant objects (not just ID strings), each is stored
     as an independent DataLayer record.  This ensures BT nodes such as
-    ``SenderIsActiveParticipantNode`` (#561) and ``AppendParticipantStatusNode``
+    ``SenderIsParticipantNode`` (#561) and ``AppendParticipantStatusNode``
     (#562, #566) can retrieve them by their UUID.
 
     Called from:
@@ -187,18 +187,6 @@ def find_pending_report_case_link(
         if link.report_id in report_ids:
             return link
     return pending[0] if pending else None
-
-
-def find_any_pending_report_case_link(
-    dl: CasePersistence,
-) -> VultronReportCaseLink | None:
-    """Return any pending ``ReportCaseLink`` that names an expected sender.
-
-    The receiver wrote it before the case arrived, so it is the receiver's
-    own trust anchor: a bootstrap from any other actor is refused
-    (CBT-01-011, ADR-0132).
-    """
-    return next(iter(_pending_links(dl)), None)
 
 
 def _pending_links(dl: CasePersistence) -> list[VultronReportCaseLink]:

@@ -71,10 +71,10 @@ sequenceDiagram
     note over F,CA: ✓ M2 — Finder replica matches the Vendor replica
 
     note over F,CA: Phase 3 — Notes exchange
-    F->>CA: Create(Note), Add(Note, target=VulnerabilityCase) — General Inquiry (GI)
+    F->>CA: Create(Note) — General Inquiry (GI)
     CA-->>V: Announce(CaseLedgerEntry)
     CA-->>F: Announce(CaseLedgerEntry)
-    V->>CA: Create(Note), Add(Note, target=VulnerabilityCase) — reply
+    V->>CA: Create(Note) — reply
     CA-->>V: Announce(CaseLedgerEntry)
     CA-->>F: Announce(CaseLedgerEntry)
     note over F,CA: ✅ M3 — Vendor holds the authoritative final case state
@@ -245,14 +245,14 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
 | `Create(Note)` | [Create note](messages/general.md#create-note) | Participant → Case Actor |
-| `Add(Note)[target=VulnerabilityCase]` | [Add note to case](messages/general.md#add-note-to-case) | Participant → Case Actor |
 | `Announce(CaseLedgerEntry)` | [Announce case ledger entry](messages/ledger_replication.md#announce-case-ledger-entry) | Case Actor → every other participant |
 
 ### What happens
 
-1. The Finder's trigger sends `Create(Note)` and then `Add(Note, target=VulnerabilityCase)` to the Case Actor.
+1. The Finder's trigger sends one `Create(Note)` to the Case Actor.
+   The note's `context` names the case, and the `Create` has no `target`.
 2. The Case Actor commits the `Create(Note)` as a `create_note` ledger entry and attaches the note to the case, because the note's `context` names the case.
-   It then commits the `Add(Note)` as an `add_note_to_case` entry, which changes nothing more, and fans both entries out.
+   It fans the entry out, and each replica attaches the note when it applies the entry.
 3. The Vendor replies the same way, with the reply note's `inReplyTo` naming the question.
 4. Both replicas end up holding both notes.
 
@@ -310,10 +310,10 @@ POST /api/v2/actors/{finder_id}/demo/notify-published
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
 | `Add(ParticipantStatus)[target=CaseParticipant]`, its case status at `Pxa` | none yet; see the note below | Vendor → Case Actor; Finder → Case Actor |
-| `Remove(Event)` | [Embargo Termination (ET)](messages/em.md#embargo-termination) | Case Actor → Vendor, Finder |
+| `Remove(Event)` | [Tell a participant the embargo has ended](messages/em.md#embargo-termination-notice) | Case Actor → Vendor, Finder |
 
 !!! note "Public awareness inside a participant status"
-    The demo reports public awareness as a participant status whose embedded case status carries `pxa_state` `Pxa`.
+    The demo reports public awareness as a participant status whose embedded case status carries `pxaState` `Pxa`.
     The occasion table has no row for that form yet ([#4569](https://github.com/CERTCC/Vultron/issues/4569)): its [Public Awareness (CP)](messages/cs.md#public-awareness) occasion is `Add(CaseStatus)[target=VulnerabilityCase]`.
 
 ### What happens
@@ -418,18 +418,18 @@ The exact count of `add_participant_status_to_participant` and `add_case_status_
 | 7 | `add_case_status_to_case` | Vendor (initial case status, `EM.ACTIVE`) | 1 |
 | 8 | `validate_report` | Vendor | 1 |
 | 9 | `engage_case` | Vendor | 1 |
-| 10–11 | `create_note`, `add_note_to_case` | Finder | 3 |
-| 12–13 | `create_note`, `add_note_to_case` | Vendor | 3 |
-| 14–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
-| 18–19 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
-| 20–21 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
-| 22–23 | `add_participant_status_to_participant`, `add_case_status_to_case` | Finder's `Pxa` status and the case status that follows it | 5 |
-| 24 | `close_case` | Finder | 6 |
-| 25 | `add_participant_status_to_participant` | Case Actor (the Finder's `ACCEPTED → CLOSED`) | 6 |
-| 26 | `close_case` | Vendor | 6 |
-| 27 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
-| 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
-| 29 | `case_fully_closed` | Case Actor (its own `Update(VulnerabilityCase)` closing the case on the Vendor's departure) | 6 |
+| 10 | `create_note` | Finder | 3 |
+| 11 | `create_note` | Vendor | 3 |
+| 12–15 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
+| 16–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
+| 18–19 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
+| 20–21 | `add_participant_status_to_participant`, `add_case_status_to_case` | Finder's `Pxa` status and the case status that follows it | 5 |
+| 22 | `close_case` | Finder | 6 |
+| 23 | `add_participant_status_to_participant` | Case Actor (the Finder's `ACCEPTED → CLOSED`) | 6 |
+| 24 | `close_case` | Vendor | 6 |
+| 25 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
+| 26 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
+| 27 | `case_fully_closed` | Case Actor (its own `Update(VulnerabilityCase)` closing the case on the Vendor's departure) | 6 |
 
 The ledger ends at `case_fully_closed`: the Finder left first, so no participant act follows the owner closure.
 

@@ -8,8 +8,9 @@ Public API for the ``vultron.metadata.msm`` package:
 - :data:`ROW_SPECS` — one mapping row per entry, derived from the occasions on
   ``SEMANTIC_REGISTRY`` (ADR-0128); nothing in it is typed by hand.
 - :data:`SEMANTICS_TO_ROW` — O(1) lookup from ``MessageSemantics`` → ``RowSpec``.
-- :func:`mapping_status`, :func:`sent_by`, :func:`section_heading` — the
-  derivations (MSM-08-005, MSM-08-006, MSM-08-008).
+- :func:`mapping_status`, :func:`sent_by`, :func:`send_to`,
+  :func:`section_heading` — the derivations (MSM-08-005, MSM-08-006,
+  MSM-08-008, MSM-08-009).
 - :class:`OccasionTable`, :func:`load_occasion_table` — the committed occasion
   table YAML and its loader.  The generator is
   :mod:`vultron.metadata.msm.occasions`; run it as ``uv run msm-occasions``,
@@ -40,6 +41,7 @@ from vultron.metadata.msm._mapping import (
     load_occasion_table,
     mapping_status,
     section_heading,
+    send_to,
     sent_by,
 )
 
@@ -52,6 +54,7 @@ __all__ = [
     "EXEMPTED_SEMANTICS",
     "mapping_status",
     "sent_by",
+    "send_to",
     "section_heading",
     "OccasionTable",
     "load_occasion_table",

@@ -138,7 +138,8 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
     :class:`ExpiryPrompt` names: the sender's standing is established before
     the CASE_MANAGER writes anything (HP-01-006), as the embargo Invite
     expiry checks the invitee first.  A new Offer prompts with no *prompt*:
-    its sender is not checked yet (#4540).
+    its handler has already refused a sender that is not the Case Owner
+    (CM-21-019).
 
     SUCCESS when there is nothing to expire (no open Offer, no deadline, one
     not yet passed, or a reply that does not prompt it) and when the expiry

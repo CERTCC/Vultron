@@ -34,6 +34,7 @@ from vultron.core.models.rsvp_deadline import (
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
@@ -42,20 +43,29 @@ from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
+    _CreateEmbargoConsentActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
     _IgnoreLateEmbargoAcceptActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
+    _UpdateEmbargoConsentActivity,
+    _WithdrawFromEmbargoActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
+    as_Create,
     as_Ignore,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
+    as_Update,
+)
+from vultron.wire.as2.vocab.objects.embargo_consent import (
+    as_EmbargoConsent,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
@@ -124,8 +134,16 @@ def em_propose_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, or
             if *rsvp_deadline* is naive, below the applicable minimum, or
-            after the embargo's end.
+            after the embargo's end, or if *embargo* is not an
+            ``as_EmbargoEvent``.
     """
+    # The wire class takes the terms by URI for a received Invite (ADR-0123);
+    # this codebase always sends them inline (VAM-01-010).
+    if not isinstance(embargo, as_EmbargoEvent):
+        raise VultronActivityConstructionError(
+            "em_propose_embargo_activity: embargo must be an inline"
+            f" as_EmbargoEvent, got {type(embargo).__name__} (VAM-01-010)"
+        )
     if rsvp_deadline is not None:
         if rsvp_deadline.tzinfo is None:
             raise VultronActivityConstructionError(
@@ -365,6 +383,46 @@ def reject_embargo_proposal_activity(
         ) from exc
 
 
+def withdraw_from_embargo_activity(
+    embargo: as_EmbargoEvent,
+    context: as_VulnerabilityCaseRef | None = None,
+    **kwargs,
+) -> as_Leave:
+    """Build a Leave(as_EmbargoEvent)[context=VulnerabilityCase].
+
+    A signatory's withdrawal from the embargo in force (MSM-07-010,
+    ADR-0122): the receiver declines the sender's ``AGREED`` row for the
+    active embargo, and every open proposal's row it had agreed to, and
+    changes no register entry.  Distinct from
+    :func:`em_reject_embargo_activity`, which answers an Invite and never
+    withdraws, and from ``Leave(VulnerabilityCase)``, which leaves the case.
+    The case owner does not send it.
+
+    Args:
+        embargo: The ``as_EmbargoEvent`` in force, carried inline.
+        context: The ``VulnerabilityCase`` (or its URI) the embargo is on.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``).
+
+    Returns:
+        An ``as_Leave`` whose ``object_`` is the embargo event.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _WithdrawFromEmbargoActivity(
+            object_=embargo, context=context, **kwargs
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "withdraw_from_embargo_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "withdraw_from_embargo_activity: invalid arguments"
+        ) from exc
+
+
 def announce_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
@@ -396,9 +454,19 @@ def announce_embargo_activity(
         ) from exc
 
 
+#: The human-readable ``summary`` of a termination ``Remove``, by reason.
+#: The protocol reads ``content``, never this (ADR-0122).
+_TERMINATION_SUMMARY: dict[TerminationReason, str] = {
+    TerminationReason.END_TIME_REACHED: "The embargo reached its end time.",
+    TerminationReason.EARLY: "The embargo ended before its end time.",
+}
+
+
 def remove_embargo_from_case_activity(
     embargo: as_EmbargoEvent,
     origin: as_VulnerabilityCaseRef | None = None,
+    *,
+    reason: TerminationReason,
     **kwargs,
 ) -> as_Remove:
     """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
@@ -406,7 +474,12 @@ def remove_embargo_from_case_activity(
     Ends the embargo in force on a case (ET): the receiver terminates the
     case's ``ACTIVE`` embargo register entry and cancels every open proposal
     with it (MSM-07-006, ADR-0122).  This MUST only be performed by the case
-    owner.
+    owner, or by the CASE_MANAGER.
+
+    *reason* is the termination's what, carried as ``content``: exactly
+    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).  ``summary`` defaults to a
+    human-readable account the protocol does not read; pass ``summary`` to
+    override it.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.
@@ -415,6 +488,7 @@ def remove_embargo_from_case_activity(
         embargo: The ``as_EmbargoEvent`` to remove.
         origin: The ``VulnerabilityCase`` (or its URI) from which
             the embargo is removed.
+        reason: What ended the embargo; required.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -426,8 +500,9 @@ def remove_embargo_from_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
+        kwargs.setdefault("summary", _TERMINATION_SUMMARY[reason])
         return _RemoveEmbargoFromCaseActivity(
-            object_=embargo, origin=origin, **kwargs
+            object_=embargo, origin=origin, content=reason.value, **kwargs
         )
     except ValidationError as exc:
         logger.warning(
@@ -435,4 +510,61 @@ def remove_embargo_from_case_activity(
         )
         raise VultronActivityConstructionError(
             "remove_embargo_from_case_activity: invalid arguments"
+        ) from exc
+
+
+def create_embargo_consent_activity(
+    row: as_EmbargoConsent,
+    **kwargs,
+) -> as_Create:
+    """Build a Create(as_EmbargoConsent): the CASE_MANAGER created a row.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    new consent row in full (ADR-0122, CLP-07-013); never sent as a message.
+
+    Args:
+        row: The new consent row; it names its participant actor.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``context``, ``id_``).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _CreateEmbargoConsentActivity(object_=row, **kwargs)
+    except ValidationError as exc:
+        logger.warning(
+            "create_embargo_consent_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "create_embargo_consent_activity: invalid arguments"
+        ) from exc
+
+
+def update_embargo_consent_activity(
+    row: as_EmbargoConsent,
+    **kwargs,
+) -> as_Update:
+    """Build an Update(as_EmbargoConsent): the CASE_MANAGER changed a row.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    changed consent row in full (ADR-0122, CLP-07-013); never sent as a
+    message.
+
+    Args:
+        row: The changed consent row; it names its participant actor.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``context``, ``id_``).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _UpdateEmbargoConsentActivity(object_=row, **kwargs)
+    except ValidationError as exc:
+        logger.warning(
+            "update_embargo_consent_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "update_embargo_consent_activity: invalid arguments"
         ) from exc

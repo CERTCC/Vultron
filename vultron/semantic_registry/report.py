@@ -13,6 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -71,6 +72,7 @@ ENTRIES: list[SemanticEntry] = [
                     " submit the report"
                 ),
                 anchor="create-report",
+                addressee=AddresseeSide.OUTSIDE_CASE,
                 heading="Create report",
                 description=(
                     "Mints the vulnerability report object. It precedes the "
@@ -101,6 +103,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Coordinator"
                 ),
                 anchor="report-submission",
+                addressee=AddresseeSide.OUTSIDE_CASE,
                 description=(
                     "Offers the report to a new Participant. The Offer may "
                     "carry proposed embargo terms."
@@ -125,6 +128,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a report receiver has read a submitted report",
                 anchor="report-acknowledgment",
+                addressee=AddresseeSide.OUTSIDE_CASE,
                 description=(
                     "Acknowledges receipt of the submitted report. Report "
                     "submission is not replicated through the case ledger, so "
@@ -153,6 +157,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a report receiver judges the report valid",
                 anchor="report-valid",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Validate report",
                 description=(
                     "Designates the report as valid, moving the sender's RM "
@@ -181,6 +186,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a report receiver judges the report invalid",
                 anchor="report-invalid",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Invalidate report",
                 description=(
                     "Designates the report as invalid, moving the sender's RM "
@@ -209,6 +215,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a report receiver closes the report",
                 anchor="report-closed",
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Close report",
                 description=(
                     "Closes the report, moving the sender's RM state to "

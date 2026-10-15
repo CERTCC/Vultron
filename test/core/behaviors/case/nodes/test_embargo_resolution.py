@@ -51,6 +51,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.embargo_register import RegisterChange
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.pending_creation_time_revision_relay import (
     PendingCreationTimeRevisionRelay,
 )
@@ -60,7 +61,6 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     RegisterTrigger,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -137,7 +137,7 @@ def _store_policy_record(
 
 def _set_pxa(bt_scenario: BTTestScenario) -> None:
     case = cast(Any, bt_scenario.dl.read(CASE_ID))
-    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
     bt_scenario.dl.save(case)
 
 
@@ -790,7 +790,9 @@ def test_a_rerun_after_the_embargo_exited_initializes_nothing(
     assert _em_state(bt_scenario) == EM.ACTIVE
 
     EmbargoLifecycle(persistence=bt_scenario.dl).terminate_active_embargo(
-        case_id=CASE_ID, actor_id=ACTOR_ID, reason=TerminationReason.EARLY
+        case_id=CASE_ID,
+        actor_id=ACTOR_ID,
+        termination=EmbargoTermination.early(),
     )
     assert _em_state(bt_scenario) == EM.EXITED
     events_before = len(list(bt_scenario.dl.list_objects("EmbargoEvent")))

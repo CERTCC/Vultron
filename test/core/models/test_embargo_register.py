@@ -23,7 +23,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
     EmbargoRegisterEntry,
@@ -32,11 +32,15 @@ from vultron.core.models.embargo_register import (
     carry_embargo_inline,
     register_step_is_legal,
 )
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignal,
+)
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -53,7 +57,9 @@ CASE_ID = "https://example.org/cases/c1"
 A, B, C = (f"https://example.org/embargoes/{n}" for n in "abc")
 
 
-def _entry(embargo_id: str, status: S, **kw: str) -> EmbargoRegisterEntry:
+def _entry(embargo_id: str, status: S, **kw: Any) -> EmbargoRegisterEntry:
+    if status == S.TERMINATED:
+        kw.setdefault("termination", EmbargoTermination.early())
     return EmbargoRegisterEntry(embargo=embargo_id, status=status, **kw)
 
 
@@ -62,7 +68,9 @@ def _change(embargo_id: str, trigger: T, **kw: Any) -> RegisterChange:
 
 
 def _terminate(embargo_id: str) -> RegisterChange:
-    return _change(embargo_id, T.TERMINATE, reason=TerminationReason.EARLY)
+    return _change(
+        embargo_id, T.TERMINATE, termination=EmbargoTermination.early()
+    )
 
 
 def _statuses(entries: list[EmbargoRegisterEntry]) -> dict[str, S]:
@@ -242,11 +250,11 @@ def test_a_refusal_names_every_rule_the_step_breaks() -> None:
     "kw",
     [
         {"trigger": T.TERMINATE},
-        {"trigger": T.CANCEL, "reason": TerminationReason.EARLY},
+        {"trigger": T.CANCEL, "termination": EmbargoTermination.early()},
     ],
 )
-def test_a_reason_belongs_to_terminate_alone(kw: dict) -> None:
-    with pytest.raises(ValueError, match="reason"):
+def test_a_termination_belongs_to_terminate_alone(kw: dict) -> None:
+    with pytest.raises(ValueError, match="termination"):
         RegisterChange(embargo_id=A, **kw)
 
 
@@ -330,7 +338,7 @@ def test_threat_signal_with_an_embargo_in_force_terminates_it() -> None:
     propose(case, A)
     activate(case, A)
     propose(case, B)
-    terminate(case, TerminationReason.THREAT_SIGNAL)
+    terminate(case, EmbargoTermination.threat([ThreatSignal.P]))
     assert _statuses(case.embargo_register) == {
         A: S.TERMINATED,
         B: S.CANCELLED,
@@ -423,10 +431,74 @@ def test_an_appended_status_cannot_carry_another_em() -> None:
     assert case.current_status.em.state is EM.PROPOSED
 
 
-def test_append_case_status_refuses_an_em_state() -> None:
+def test_append_case_status_refuses_an_em() -> None:
     case = _case()
     with pytest.raises(VultronValidationError, match="register"):
-        case.append_case_status(em_state=EM.ACTIVE)
+        case.append_case_status(em=EmDimension(state=EM.ACTIVE))
+
+
+@pytest.mark.parametrize("keyword", ["pxa_state", "em_state", "no_such_field"])
+def test_append_case_status_refuses_an_unknown_keyword(keyword: str) -> None:
+    """The retired flat spellings are unknown keywords, not translated (SDO-03-003)."""
+    case = _case()
+    with pytest.raises(VultronValidationError, match=keyword):
+        case.append_case_status(**{keyword: CS_pxa.Pxa})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [CS_pxa.Pxa, PxaDimension(state=CS_pxa.Pxa)],
+    ids=["bare", "dimension"],
+)
+def test_append_case_status_sets_the_pxa_dimension(
+    value: CS_pxa | PxaDimension,
+) -> None:
+    case = _case()
+    before = case.current_status
+    case.append_case_status(pxa=value)
+    assert case.current_status is not before
+    assert case.current_status.pxa.state is CS_pxa.Pxa
+    assert case.current_status.em.state is before.em.state
+
+
+def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
+    """The case context and bumped timestamps are assigned last."""
+    case = _case()
+    before = case.current_status
+    stale = now_utc() - timedelta(days=1)
+    case.append_case_status(published=stale, updated=stale, pxa=CS_pxa.Pxa)
+    after = case.current_status
+    assert after is not before
+    assert after.context == case.id_
+    assert after.published is not None and after.published > stale
+    assert after.updated == after.published
+
+
+def test_append_case_status_mints_a_fresh_id() -> None:
+    """The appended status is its own entry, not a second copy (#4637)."""
+    case = _case()
+    before = case.current_status
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    ids = [
+        status.id_ if isinstance(status, CaseStatus) else status
+        for status in case.case_statuses
+    ]
+    assert case.current_status.id_ != before.id_
+    assert len(ids) == len(set(ids))
+
+
+def test_append_case_status_rederives_the_name() -> None:
+    """The label names the appended status's own states (#4637)."""
+    case = _case()
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    status = case.current_status
+    assert status.name == f"{status.em.state.name} {CS_pxa.Pxa.name}"
+
+
+def test_append_case_status_keeps_an_explicit_name() -> None:
+    case = _case()
+    case.append_case_status(name="chosen", pxa=CS_pxa.Pxa)
+    assert case.current_status.name == "chosen"
 
 
 def test_construction_stamps_the_register_em_onto_the_status() -> None:
@@ -512,6 +584,7 @@ def test_the_register_round_trips_through_its_wire_spelling() -> None:
         "embargo": B,
         "status": "ACTIVE",
         "replaces": A,
+        "termination": None,
     }
     restored = VulnerabilityCase.model_validate(dumped)
     assert restored.embargo_register == case.embargo_register

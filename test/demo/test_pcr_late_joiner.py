@@ -27,7 +27,8 @@ Coverage approach
 Both test methods in ``TestLateJoinerSequence`` run the complete
 ``_run_late_joiner_sequence`` helper:
 
-1. A reporter submits a ``SubmitReport`` offer to the owner's inbox
+1. A reporter submits a report through its own ``submit-report`` trigger,
+   which records its trust anchor and delivers the Offer to the owner's inbox
    (``create_receive_report_case_tree`` BT creates the case and the
    CaseActor).
 2. The owner validates the report (``trigger/validate-report``), which
@@ -58,14 +59,14 @@ import asyncio
 
 import pytest
 
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.demo.conftest import (
+    _TestClientRouter,
+    create_isolated_actor_app,
+    submit_report_through_reporter,
+)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.demo.utils import case_actor_id_for_report
-from vultron.wire.as2.factories import rm_submit_report_activity
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 # ---------------------------------------------------------------------------
 # Constants — all IDs use HTTP-routable URIs
@@ -233,8 +234,9 @@ def _bootstrap_case(
 
     Exercises the full bootstrap sequence for PCR-07-007 prerequisites:
 
-    1. Reporter submits a ``SubmitReport`` offer to owner's inbox, which
-       triggers ``create_receive_report_case_tree`` and creates the
+    1. Reporter submits a report through its own ``submit-report`` trigger,
+       which records its trust anchor and delivers the Offer to owner's
+       inbox; ``create_receive_report_case_tree`` there creates the
        preliminary ``VulnerabilityCase`` with CaseActor.
     2. Owner validates the report (``trigger/validate-report``), which
        triggers ``create_validate_report_tree`` and causes the CaseActor to
@@ -265,32 +267,32 @@ def _bootstrap_case(
     # Register reporter as peer on owner's app so the router can deliver there (ADR-0081).
     _register_peer(owner_tc, owner_slug, reporter_actor_id, "Reporter")
 
-    report = as_VulnerabilityReport(
-        attributed_to=reporter_actor_id,
-        name="PCR-07-007 late-joiner test report",
-        content=(
+    _register_peer(reporter_tc, reporter_slug, owner_actor_id, "Owner")
+
+    # Provision the CaseActor the case-creation flow will address.  The owner
+    # is the case-actor service in this setup, so the owner's node must host
+    # it or the Announce/Invite deliveries to it answer 404.  Its id does not
+    # depend on the report (one CaseActor per container, #1872), so it is
+    # provisioned before the report exists.
+    _create_actor(
+        owner_tc,
+        owner_base_api,
+        _actor_slug(case_actor_id_for_report("")),
+        "Case Actor",
+    )
+    # The reporter submits through its own trigger, which writes its trust
+    # anchor (the pending ReportCaseLink naming the owner, CBT-01-005) and
+    # delivers the Offer to the owner's inbox.
+    report, offer = submit_report_through_reporter(
+        reporter_tc,
+        reporter_actor_id,
+        owner_actor_id,
+        report_name="PCR-07-007 late-joiner test report",
+        report_content=(
             "A critical remote code execution vulnerability was discovered "
             "during integration testing for PCR-07-007."
         ),
     )
-    offer = rm_submit_report_activity(
-        report,
-        actor=reporter_actor_id,
-        target=owner_actor_id,
-        to=owner_actor_id,
-    )
-    # Provision the CaseActor the case-creation flow will address.  Its id is
-    # *derived* from the report (ResolveCaseActorUrlsNode) and the owner is the
-    # case-actor service in this setup, so the owner's node must host it or the
-    # Announce/Invite deliveries to it answer 404.  Spawning one on demand for an
-    # as-yet-unknown case is #2469 / #1700.
-    _create_actor(
-        owner_tc,
-        owner_base_api,
-        _actor_slug(case_actor_id_for_report(str(report.id_))),
-        "Case Actor",
-    )
-    _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
     # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
     # sends Create(as_CaseProposal) — no VulnerabilityCase yet.

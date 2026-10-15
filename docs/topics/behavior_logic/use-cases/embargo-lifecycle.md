@@ -38,7 +38,7 @@ An actor may accept or decline directly from no row, with no intervening invitat
 
 ## What starts it
 
-Four different things put an actor on this path.
+Five different things put an actor on this path.
 
 **Case creation.** A case begins embargoed.
 When a case is opened with no explicit proposal on the table, the receiving side applies its published default and the case goes straight to `EM.ACTIVE` — not `EM.PROPOSED` (EP-04-001).
@@ -51,6 +51,10 @@ This is why a normal case trace shows no proposal exchange at all: submitting a 
 These are the two flows the response decision handles, and they resolve at different scopes: answering an EP moves the case's EM state, answering an invitation moves only that Participant's PEC state (EMB-15).
 
 **A deadline passing.** An invitation carries a respond-by instant, and an unanswered invitation eventually becomes a refusal — see [Inaction is an answer](#inaction-is-an-answer) below.
+
+**An end time passing.** An embargo in force does not end by itself when its end time passes.
+The case manager ends it with the reason `END_TIME_REACHED` the next time it handles the case, whether for an incoming message or one of its own triggers, so no scheduler is needed.
+A request to end the embargo early made after its end time is recorded as `END_TIME_REACHED` too — see [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
 
 ---
 
@@ -102,13 +106,14 @@ Every Participant Embargo Consent change is a side effect of an EM activity or a
 | Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` once no other proposal is open; while another is, the case stays `PROPOSED` (EP-08-001, EP-08-003) | the rejecting Participant's row for the rejected terms becomes `DECLINED` (MSM-07-004) |
 | Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE` once no other revision is open, and the prior terms stand; once public disclosure, a public exploit or an attack is known, the owner's rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none for the owner; a signatory that refuses proposed terms declines only the revision's row and remains a signatory to the terms in force (MSM-07-004) |
 | Embargo Revision (EV) | `ACTIVE` to `REVISE` | none to the terms in force; the proposer's row for the revision becomes `ACCEPTED`, because proposing terms is consenting to them (MSM-07-005, EP-05-002) |
+| Withdrawal, `Leave(Event)` of the embargo in force | none | the withdrawing Participant's `AGREED` row for the embargo in force becomes `DECLINED`, as does every row it had marked `AGREED` for an open revision; the embargo stays in force for everyone else (MSM-07-010) |
 | Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | none is written: with the active embargo cleared nobody is a signatory, and no further message is sent (MSM-07-006) |
 | Invitation deadline passes | none | each `INVITED` row moves to `EXPIRED`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
 
 Only the case manager records an answer; a Participant handed an Accept or Reject meant for the case manager refuses it, and a Reject of terms that are neither in force nor still proposed is refused rather than recorded.
-A signatory that rejects the *active* embargo is withdrawing its own consent: its row for that embargo becomes `DECLINED`, as do its accepted rows for any open revision.
+A signatory leaves the embargo in force with `Leave(Event)`, not with a Reject: the case manager refuses a signatory's Reject of the active embargo (MSM-07-004, MSM-07-010).
 A signatory that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
 In neither case does the case's embargo change, because only the case owner's reject moves EM (MSM-07-004).
 The protocol-level view of consent is in [§9.2 Transitions and Guards in the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
@@ -227,7 +232,7 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 
 A `CaseStatus` carries one EM copy — a stamped read of the case's embargo register.
 That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` is a frozen model (SDO-03-006, EMB-18-001).
-Every in-place write path raises at runtime: `status.em = …` and `status.em.state = …` raise a `ValidationError`, and the flat `status.em_state = …` raises an `AttributeError`, because `em_state` has no setter.
+Every in-place write path raises a `ValidationError` at runtime: `status.em = …`, `status.em.state = …`, and the retired flat spelling `status.em_state = …`, which `CaseStatus` no longer defines (SDO-03-003).
 
 The only writer is the case itself.
 When its embargo register changes — through any `EmbargoLifecycle` operation — the case replaces its current status with a `model_copy` carrying the new `EmDimension`.

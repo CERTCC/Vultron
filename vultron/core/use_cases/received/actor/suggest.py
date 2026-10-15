@@ -58,7 +58,7 @@ class OfferActorToCaseReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -125,6 +125,7 @@ class OfferActorToCaseReceivedUseCase:
             offer_content=offer_content,
             suggested_roles=suggested_roles,
             actor_config=self._actor_config,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,

@@ -57,10 +57,6 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         "VultronActivity.to",
         lambda v: VultronActivity(type_="Offer", actor=ACTOR, to=[v]),
     ),
-    (
-        "VultronActivity.cc",
-        lambda v: VultronActivity(type_="Offer", actor=ACTOR, cc=[URI, v]),
-    ),
     ("VultronAccept.result", lambda v: VultronAccept(actor=ACTOR, result=v)),
     (
         "VultronCreateCaseActivity.context",

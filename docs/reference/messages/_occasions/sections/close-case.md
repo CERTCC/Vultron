@@ -6,6 +6,7 @@ Leaves the case, moving the sender's RM state to Closed.
 
 - **When…** a Participant ends its participation in the case
 - **Send:** `Leave(VulnerabilityCase)`
+- **Send to:** the case manager
 - **Sent by:** not yet checked
 - **Seen in:** [How to Advance a Case Through Report Management](../../../../howto/activitypub/activities/manage_case.md)
 - **Mapping status:** [none](../../index.md#mapping-status)

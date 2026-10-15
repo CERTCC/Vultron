@@ -13,6 +13,7 @@
 
 from datetime import timedelta
 
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     announce_embargo_activity,
@@ -21,11 +22,13 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -33,6 +36,9 @@ from vultron.wire.as2.vocab.examples._base import (
     EXAMPLE_TIMESTAMP,
     _example_stamp,
     case,
+    case_actor,
+    coordinator,
+    finder,
     vendor,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -79,6 +85,33 @@ def propose_embargo() -> as_Invite:
         summary="We propose to embargo case 1 for 90 days.",
     )
     return activity
+
+
+def relay_embargo_proposal() -> as_Invite:
+    """The CASE_MANAGER's Invite asking one participant about a proposal.
+
+    The CASE_MANAGER relays each adjudicated proposal as an ``Invite(Event)``
+    of its own, one per participant other than the proposer, naming the
+    proposer in ``attributedTo`` (EP-09-002, CM-24).  The wire form is the
+    proposer's ``Invite(Event)``; only the sender and addressee differ
+    (MSM-08-009).  The CASE_MANAGER stamps every relayed Invite with the
+    RSVP deadline it alone evaluates, carried as the activity's ``endTime``
+    and measured from its ``published`` time (CM-28-012, EP-07-002); here a
+    week after publication, well inside the embargo.
+    """
+    embargo = embargo_event()
+    _case = case()
+    return em_propose_embargo_activity(
+        embargo,
+        id_=f"{_case.id_}/embargo_proposals/1/invites/coordinator",
+        actor=case_actor().id_,
+        attributed_to=vendor().id_,
+        to=[coordinator().id_],
+        context=_case.id_,
+        published=EXAMPLE_TIMESTAMP,
+        rsvp_deadline=EXAMPLE_TIMESTAMP + timedelta(days=7),
+        summary="The vendor proposes to embargo case 1 for 90 days.",
+    )
 
 
 def accept_embargo() -> as_Accept:
@@ -170,6 +203,21 @@ def reject_embargo_proposal() -> as_Reject:
     return activity
 
 
+def withdraw_from_embargo() -> as_Leave:
+    """A signatory withdraws from the embargo in force (MSM-07-010).
+
+    The finder, a signatory with no ``Invite(EmbargoEvent)`` of its own,
+    sends the ``Leave`` to the CASE_MANAGER (EP-09-013, PCR-08).
+    """
+    _case = case()
+    return withdraw_from_embargo_activity(
+        embargo_event(),
+        actor=finder().id_,
+        context=_case.id_,
+        to=case_actor().id_,
+    )
+
+
 def announce_embargo() -> as_Announce:
     _vendor = vendor()
     _case = case()
@@ -187,6 +235,30 @@ def remove_embargo() -> as_Remove:
     _vendor = vendor()
     _case = case()
     activity = remove_embargo_from_case_activity(
-        embargo_event(90), actor=_vendor.id_, origin=_case.id_
+        embargo_event(90),
+        actor=_vendor.id_,
+        origin=_case.id_,
+        reason=TerminationReason.EARLY,
     )
     return activity
+
+
+def notify_embargo_termination() -> as_Remove:
+    """The CASE_MANAGER's ``Remove(Event)`` telling a participant the embargo
+    has ended.
+
+    The CASE_MANAGER addresses its own termination to every other participant
+    (EMB-19-001), naming the Case Owner it acts for in ``attributedTo``
+    (CM-24).  The wire form is the Case Owner's ``Remove(Event)``; only the
+    sender and addressee differ (MSM-08-009).
+    """
+    _case = case()
+    return remove_embargo_from_case_activity(
+        embargo_event(90),
+        actor=case_actor().id_,
+        attributed_to=vendor().id_,
+        to=[coordinator().id_],
+        origin=_case.id_,
+        context=_case.id_,
+        reason=TerminationReason.EARLY,
+    )

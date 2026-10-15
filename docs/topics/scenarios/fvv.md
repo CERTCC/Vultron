@@ -38,7 +38,7 @@ causal_edges:
       closes the case, and a departure sent after it is not recorded
       (CM-23-013).
   - antecedent: engage_case
-    consequent: add_note_to_case
+    consequent: create_note
     consequent_actor: finder
     note: >
       Notes are substantive protocol communications within an active case.
@@ -111,7 +111,7 @@ acceptance is recorded as an `accept_invite_actor_to_case` entry.
 ### 6. Participants exchange notes
 
 Finder, Vendor1, and Vendor2 communicate via case notes.
-Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
+Each note is recorded as a `create_note` entry, which attaches it to the case.
 
 *Antecedent:* `engage_case` is present in the ledger.
 

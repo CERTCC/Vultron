@@ -28,6 +28,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     activate_embargo_activity,
@@ -38,12 +39,14 @@ from vultron.wire.as2.factories import (
     ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Ignore,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -96,12 +99,23 @@ def test_em_propose_embargo_context_is_set(sample_embargo):
 
 
 @pytest.mark.spec("AF-04-001")
-def test_em_propose_embargo_invalid_raises():
+def test_em_propose_embargo_invalid_raises(sample_embargo):
+    # No actor: the wire class's ValidationError is wrapped.
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_propose_embargo_activity(embargo=sample_embargo)
+    assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.spec("VAM-01-010")
+def test_em_propose_embargo_refuses_terms_by_uri():
+    """This codebase sends the terms inline, though a received Invite may
+    name them by URI (ADR-0123)."""
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         em_propose_embargo_activity(
-            embargo="not-an-embargo"  # type: ignore[arg-type]
+            embargo="https://example.org/embargoes/1",  # type: ignore[arg-type]
+            actor=_ACTOR_URI,
         )
-    assert exc_info.value.__cause__ is not None
+    assert "as_EmbargoEvent" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +440,30 @@ def test_owner_decision_invalid_raises(factory, verb):
 
 
 # ---------------------------------------------------------------------------
+# withdraw_from_embargo_activity — a signatory's withdrawal from the embargo
+# in force, Leave(EmbargoEvent)[context=Case] (MSM-07-010)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("MSM-07-010")
+def test_withdraw_from_embargo_is_a_leave_of_the_embargo(sample_embargo):
+    result = withdraw_from_embargo_activity(
+        embargo=sample_embargo, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Leave)
+    assert result.object_ == sample_embargo
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_withdraw_from_embargo_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        withdraw_from_embargo_activity(embargo="not-an-embargo")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
 # announce_embargo_activity
 # ---------------------------------------------------------------------------
 
@@ -472,14 +510,18 @@ def test_announce_embargo_invalid_raises():
 @pytest.mark.spec("MSM-02-007")
 def test_remove_embargo_from_case_returns_remove(sample_embargo):
     result = remove_embargo_from_case_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
     )
     assert isinstance(result, as_Remove)
 
 
 def test_remove_embargo_from_case_object_is_embargo(sample_embargo):
     result = remove_embargo_from_case_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
     )
     assert result.object_ == sample_embargo
 
@@ -487,7 +529,10 @@ def test_remove_embargo_from_case_object_is_embargo(sample_embargo):
 def test_remove_embargo_from_case_origin_is_set(sample_embargo):
     """Uses ``origin`` (not ``target``) for the case reference."""
     result = remove_embargo_from_case_activity(
-        embargo=sample_embargo, origin=_CASE_URI, actor=_ACTOR_URI
+        embargo=sample_embargo,
+        origin=_CASE_URI,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
     )
     assert result.origin == _CASE_URI
 
@@ -495,7 +540,10 @@ def test_remove_embargo_from_case_origin_is_set(sample_embargo):
 def test_remove_embargo_from_case_target_not_used(sample_embargo):
     """Confirm target is NOT set (origin is the correct field)."""
     result = remove_embargo_from_case_activity(
-        embargo=sample_embargo, origin=_CASE_URI, actor=_ACTOR_URI
+        embargo=sample_embargo,
+        origin=_CASE_URI,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
     )
     assert result.target is None
 
@@ -504,7 +552,8 @@ def test_remove_embargo_from_case_target_not_used(sample_embargo):
 def test_remove_embargo_from_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         remove_embargo_from_case_activity(
-            embargo="not-an-embargo"  # type: ignore[arg-type]
+            embargo="not-an-embargo",  # type: ignore[arg-type]
+            reason=TerminationReason.EARLY,
         )
     assert exc_info.value.__cause__ is not None
 

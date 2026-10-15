@@ -122,6 +122,18 @@ class VultronInvalidStateTransitionError(VultronError):
         super().__init__(message)
 
 
+class VultronEntryRefusedError(VultronInvalidStateTransitionError):
+    """Raised when a ledger entry does not apply to the case it is applied to.
+
+    The one apply function checks the starting state an entry implies before
+    it writes what the entry carries (ADR-0124, CM-23-016).  On a replica a
+    refusal means an earlier entry is missing or the replica's case has
+    diverged, so the entry goes to gap handling (``LedgerGapBuffer``) and is
+    never patched over.  On the CASE_MANAGER a refused trial apply stops the
+    act before anything is committed.
+    """
+
+
 # Deprecated alias — use VultronInvalidStateTransitionError instead.
 VultronConflictError = VultronInvalidStateTransitionError
 
@@ -391,6 +403,28 @@ class VultronWiringError(VultronError):
     ``BTBridge`` flags it as ``internal_error`` even though it is a
     ``VultronError`` — and a received handler therefore raises rather than
     reporting the message as ``REFUSED`` (#2255, ADR-0095).
+    """
+
+
+class VultronUnhostedActorError(VultronWiringError):
+    """Raised when execution is scoped to an actor this container does not host.
+
+    A store can be opened only for an actor under the authority of the store
+    in hand: ``clone_for_actor`` on another authority's actor would mint an
+    empty local store in its name.  No sanctioned path executes a tree, or
+    enqueues an activity, as an actor the running container does not host
+    (BT-05-005, CM-24-004, CLP-10-014, ADR-0109), so reaching one is a
+    composition fault, not a protocol outcome.
+    """
+
+
+class VultronStaleStoreError(VultronError):
+    """Raised when a persisted store predates a change to its stored shape.
+
+    Stored data carries no backwards compatibility and no migration: a store
+    written before a shape change is refused when it is opened, with a message
+    saying it must be reset, rather than run without the guarantee the new
+    shape provides (``notes/datalayer-design.md`` § "Changing a Table's Shape").
     """
 
 

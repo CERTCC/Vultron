@@ -8,10 +8,10 @@ occasions: three situations — vendor awareness, fix ready, fix deployed — sh
 
 This module holds the value objects only.  An occasion records what only a
 human can supply; everything derivable from it (the mapping status, the
-"Sent by" wording) is derived by ``vultron.metadata.msm`` (MSM-08-005,
-MSM-08-006).
+"Sent by" and "Send to" wording) is derived by ``vultron.metadata.msm``
+(MSM-08-005, MSM-08-006, MSM-08-009).
 
-Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007.
+Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007, MSM-08-009.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -34,6 +34,12 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
+from vultron.core.models.dimensions import (
+    DIMENSION_STATE_FIELD,
+    is_dimension_model,
+)
+from vultron.core.models.wire_keys import wire_key
 from vultron.enums.roles import CVDRole
 from vultron.primitives import NonEmptyString
 
@@ -186,9 +192,10 @@ def _enum_classes(annotation: object) -> list[type[Enum]]:
 def _field_annotation(object_type: type, field_name: str) -> object:
     """Return the annotation of *field_name* on *object_type*, or raise.
 
-    A field may be a declared Pydantic field or a read property; the flat
-    status views (``vf_state``, ``pxa_state``) are properties over their
-    dimension objects (ARCH-25-005, ADR-0099).
+    A field may be a declared Pydantic field or a read property.  A status
+    dimension field (``CaseStatus.pxa``) is typed by its dimension object,
+    which travels as its bare state value (ARCH-25-005, ADR-0099), so it
+    resolves to the annotation of the dimension's ``state``.
     """
     attribute = getattr(object_type, field_name, None)
     if isinstance(attribute, property) and attribute.fget is not None:
@@ -197,10 +204,25 @@ def _field_annotation(object_type: type, field_name: str) -> object:
             return hints["return"]
     model_fields = getattr(object_type, "model_fields", {})
     if field_name in model_fields:
-        return model_fields[field_name].annotation
+        annotation = model_fields[field_name].annotation
+        if is_dimension_model(annotation):
+            return annotation.model_fields[DIMENSION_STATE_FIELD].annotation
+        return annotation
     raise ValueError(
         f"{object_type.__name__} has no typed field {field_name!r}"
     )
+
+
+def wire_spelling(object_type: type[BaseModel], field_name: str) -> str:
+    """Return how *field_name* on *object_type* is spelled on the wire.
+
+    A declared field travels under its own AS2 spelling (``CaseStatus.pxa``
+    as ``pxaState``); a read property under its name camel-cased
+    (``ParticipantStatus.vf_state`` as ``vfState``), the same rule
+    :func:`~vultron.core.models.wire_keys.wire_key` applies.
+    """
+    declared = field_name in object_type.model_fields
+    return wire_key(field_name, object_type if declared else None)
 
 
 _FROZEN = ConfigDict(frozen=True, strict=True, arbitrary_types_allowed=True)
@@ -240,6 +262,18 @@ class FieldValue(BaseModel):
                 f" {self.object_type.__name__}.{self.field} (MSM-08-002)"
             )
         return self
+
+    def read(self, carrier: object) -> object:
+        """Return the value *carrier* holds in this distinguisher's field.
+
+        A status dimension field is read as its ``state``, the value it
+        travels as (ARCH-25-005, ADR-0099), so it compares to
+        :attr:`value`.
+        """
+        held = getattr(carrier, self.field)
+        if is_dimension_model(type(held)):
+            return getattr(held, DIMENSION_STATE_FIELD)
+        return held
 
 
 class StateContext(BaseModel):
@@ -284,6 +318,11 @@ class Occasion(BaseModel):
         when: The sender's situation, worded to complete "When…", e.g.
             "a Vendor has a fix ready".
         anchor: Stable section anchor, lowercase words joined by hyphens.
+        addressee: Whom the activity is sent to, as a side of a sender rule:
+            the CASE_MANAGER, a participant, or an actor outside any case.
+            It picks the side of the use case's declared rule that gives
+            "Sent by", and renders as "Send to"; ``SemanticEntry`` refuses an
+            addressee its use case's rule states no side for (MSM-08-009).
         heading: The plain-English heading of the occasion's section, in
             sentence case, e.g. "Add note to case".  Required when the
             occasion has no shorthand.  An occasion whose shorthand is
@@ -315,6 +354,7 @@ class Occasion(BaseModel):
 
     when: NonEmptyString
     anchor: Annotated[str, Field(pattern=ANCHOR_PATTERN)]
+    addressee: AddresseeSide
     description: NonEmptyString
     heading: NonEmptyString | None = None
     example: Annotated[str, Field(pattern=_EXAMPLE_NAME_PATTERN)]
@@ -352,4 +392,5 @@ __all__ = [
     "Occasion",
     "ProtocolShorthand",
     "StateContext",
+    "wire_spelling",
 ]

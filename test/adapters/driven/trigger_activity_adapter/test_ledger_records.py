@@ -41,9 +41,23 @@ from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 
 VENDOR_ID = "https://example.org/actors/vendor"
+EMBARGO_ID = "https://example.org/embargoes/urn:uuid:embargo-1"
+
+
+def _consent_row(state: EmbargoConsentState) -> EmbargoConsent:
+    """The vendor's consent row, as a consent-row entry carries it."""
+    return EmbargoConsent(
+        embargo_id=EMBARGO_ID, state=state, attributed_to=VENDOR_ID
+    )
+
+
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 CASE_ID = "https://example.org/cases/urn:uuid:snapshot-test"
 REPORT_ID = "https://example.org/reports/urn:uuid:report-1"
@@ -122,6 +136,32 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 participant=participant, case_id=CASE_ID, actor=CASE_ACTOR_ID
             )
         ),
+        "record_case_participant_updated": lambda a: (
+            a.record_case_participant_updated(
+                participant=participant,
+                case_id=CASE_ID,
+                actor=CASE_ACTOR_ID,
+                cause_id=OFFER_ID,
+            )
+        ),
+        "record_embargo_consent_created": lambda a: (
+            a.record_embargo_consent_created(
+                row=_consent_row(EmbargoConsentState.UNINVITED),
+                case_id=CASE_ID,
+                actor=CASE_ACTOR_ID,
+            )
+        ),
+        "record_embargo_consent_updated": lambda a: (
+            a.record_embargo_consent_updated(
+                row=_consent_row(EmbargoConsentState.AGREED),
+                case_id=CASE_ID,
+                actor=CASE_ACTOR_ID,
+                cause_id=OFFER_ID,
+            )
+        ),
+        "record_case_owner_updated": lambda a: a.record_case_owner_updated(
+            case=case, actor=CASE_ACTOR_ID, cause_id=OFFER_ID
+        ),
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
@@ -153,6 +193,26 @@ _SHAPES: dict[str, tuple[str, str, str]] = {
         "Create",
         "CaseParticipant",
         "create_case_participant",
+    ),
+    "record_case_participant_updated": (
+        "Update",
+        "CaseParticipant",
+        "update_case_participant",
+    ),
+    "record_embargo_consent_created": (
+        "Create",
+        "EmbargoConsent",
+        "create_embargo_consent",
+    ),
+    "record_embargo_consent_updated": (
+        "Update",
+        "EmbargoConsent",
+        "update_embargo_consent",
+    ),
+    "record_case_owner_updated": (
+        "Update",
+        "VulnerabilityCase",
+        "update_case_owner",
     ),
     "record_case_announced": ("Announce", "VulnerabilityCase", "demo_event"),
 }
@@ -223,6 +283,10 @@ def test_a_rerun_hands_back_the_body_first_sealed(adapter, recipes, method):
         "record_report_added_to_case",
         "record_participant_status_added",
         "record_case_status_added",
+        "record_case_participant_updated",
+        "record_case_owner_updated",
+        "record_embargo_consent_created",
+        "record_embargo_consent_updated",
     ],
 )
 def test_the_object_revalidates_through_its_wire_class(

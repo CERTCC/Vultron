@@ -141,6 +141,9 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (f"{_E}/expiry_tree.py", "create_invite_expiry_tree"),
         (f"{_E}/expiry_tree.py", "create_noop_ledger_entry_tree"),
         (f"{_E}/expiry_tree.py", "create_reinvite_stale_accepter_tree"),
+        # The CASE_MANAGER's lazy end-time check (ADR-0122): its own act,
+        # run by the dispatcher before the received tree, like the expiries.
+        (f"{_E}/end_time_tree.py", "end_embargo_if_end_time_passed_tree"),
         # The ownership-transfer Offer's lazy expiry (CM-21-017): the
         # CASE_MANAGER's own act, run before the received tree, like the
         # embargo Invite expiry above.
@@ -292,19 +295,11 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
 )
 
 
-def _call_name(func: ast.expr) -> str | None:
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return None
-
-
 def _calls(node: ast.AST) -> Iterator[tuple[ast.Call, str]]:
     for sub in ast.walk(node):
         if (
             isinstance(sub, ast.Call)
-            and (name := _call_name(sub.func)) is not None
+            and (name := _corpus.callee_name(sub.func)) is not None
         ):
             yield sub, name
 

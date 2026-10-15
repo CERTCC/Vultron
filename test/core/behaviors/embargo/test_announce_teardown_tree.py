@@ -46,12 +46,19 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
+)
+from vultron.core.use_cases.received.embargo.remove import (
+    RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+
+#: The declared rule the tree's sender guard is composed from (HP-01-008).
+_REMOVE_RULE = RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement
 
 # Kept for objects that reference the vendor; the trees below execute as the
 # CASE_MANAGER, which is who the ledger commit is gated on.
@@ -71,10 +78,13 @@ def _make_remove_event(
     embargo,
     activity_id: str,
     *,
-    sender: str = ACTOR_ID,
+    sender: str = CASE_MANAGER_ACTOR,
     receiver: str = CASE_MANAGER_ACTOR,
 ) -> RemoveEmbargoEventFromCaseReceivedEvent:
     """A Remove(EmbargoEvent) received event that carries its own activity.
+
+    Its sender is the tree's: the sender guard reads a CASE_MANAGER sender
+    from the activity (HP-01-008), so the two must agree.
 
     The tree's ledger commit builds ``payloadSnapshot`` from
     ``event.activity`` when present, and CLP-07 requires that snapshot to have a
@@ -93,6 +103,7 @@ def _make_remove_event(
         object_=CoreObject(id_=embargo.id_),
         origin=CoreObject(id_=case.id_),
         receiving_actor_id=receiver,
+        termination_reason=TerminationReason.EARLY,
         activity=VultronActivity(
             id_=activity_id,
             type_="Remove",
@@ -100,6 +111,7 @@ def _make_remove_event(
             object_=embargo.id_,
             origin=case.id_,
             context=case.id_,
+            content=TerminationReason.EARLY.value,
         ),
     )
 
@@ -117,9 +129,12 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -157,9 +172,12 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         embargo_id = cast(str, case.active_embargo_id)
         dl.create(make_case_and_embargo("atrt1c")[1])
         tree = remove_embargo_from_case_tree(
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo_id,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -200,9 +218,12 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -236,9 +257,12 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         dl.create(embargo)
 
         tree = remove_embargo_from_case_tree(
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -281,9 +305,12 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
             sync_port=SyncActivityAdapter(dl),
         ).execute_with_setup(
             tree=remove_embargo_from_case_tree(
+                sender_rule=_REMOVE_RULE,
                 case_id=case.id_,
                 embargo_id=embargo.id_,
                 sender_actor_id=CASE_MANAGER_ACTOR,
+                termination_reason=TerminationReason.EARLY,
+                terminated_at=None,
             ),
             actor_id=executing_actor,
             activity=_make_remove_event(
@@ -361,9 +388,12 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -393,9 +423,12 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
+            sender_rule=_REMOVE_RULE,
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,

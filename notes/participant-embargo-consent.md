@@ -18,6 +18,7 @@ related_specs:
   - specs/message-validation.yaml
   - specs/protocol-asks.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/stub-objects.md
   - notes/embargo-lifecycle.md
@@ -35,6 +36,8 @@ relevant_packages:
   - vultron/bt/embargo_management
   - vultron/core/behaviors/embargo
   - vultron/core/models/case_participant.py
+  - vultron/core/models/embargo_apply.py
+  - vultron/core/behaviors/sync/nodes
   - vultron/core/use_cases
 ---
 
@@ -151,12 +154,15 @@ agreed to.**
 | Termination | nothing — no entry is `ACTIVE`, and answers to the ended embargo can no longer change |
 
 **Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-004, MSM-07-010).
-A Reject of the active embargo from an `AGREED` row must be refused. The code
-still treats that Reject as withdrawal (`_assert_rejectable` in
-`vultron/core/services/embargo_lifecycle/pec.py`) until #4388 adds `Leave`; do
-not build on it. Answering the embargo in force names its relayed
-`Invite(EmbargoEvent)`, never the full-case Invite, and never falls back to it
-when no Invite is named (EP-09-012, #4373; see § "Answering the Embargo in Force").
+A Reject of the active embargo from an `AGREED` row is refused; from any other
+row it declines that row only and cascades to no revision. One predicate in
+`vultron/core/services/embargo_lifecycle/pec.py` decides each refusal, and the
+received guard, the trigger and the lifecycle write all call it, so they cannot
+drift: `reject_is_withdrawal_refusal` for the Reject, `embargo_withdrawal_refusal`
+for the Leave (not in force, not `AGREED`, or the case owner). Answering the
+embargo in force names its relayed `Invite(EmbargoEvent)`, never the full-case
+Invite, and never falls back to it when no Invite is named (EP-09-012, #4373;
+see § "Answering the Embargo in Force").
 
 Only the owner's decision changes the embargo on the case, through
 `Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009). Every
@@ -202,8 +208,9 @@ partition of its own.
 ADR-0118). A participant that is neither owner nor CASE_MANAGER answers a
 revision Invite with ER to the CASE_MANAGER and does not move its own EM state;
 termination is the owner's (or delegated CASE_MANAGER's) decision. A store that
-is not the sender and not in `to`/`cc` refuses the copy at the door
-(`unaddressed_copy_refusal()`) and answers nothing.
+is not the sender and not in `to` refuses the copy at the door
+(`unaddressed_copy_refusal()`) and answers nothing; `cc` addresses nobody
+(ADR-0109).
 
 ---
 
@@ -212,23 +219,59 @@ is not the sender and not in `to`/`cc` refuses the copy at the door
 Change consent by applying a `PEC_Trigger` through
 `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`,
 preferably through `EmbargoLifecycle`'s `_apply_where_legal()`, and persist the
-participant. `write_uninvited_rows()` is the only other row write, and it records
-no answer. Direct assignment bypasses the transition table, so the content gate
-(CM-10-004) can admit an actor the protocol never bound;
+participant. `write_uninvited_rows()` and the copy write below are the only other
+row writes; the first records no answer. Direct assignment bypasses the
+transition table, so the content gate (CM-10-004) can admit an actor the protocol never bound;
 `apply_pec_transition()` raises `VultronInvalidStateTransitionError` instead, so
 consent writes are fail-closed even when an upstream guard is wrong.
 
-Keep the MSM-07-004 classification in the service (`_assert_rejectable`), not in
-a node: the received `Reject(Invite)` tree writes through
-`RecordParticipantRejectionNode` → `record_embargo_rejection()`.
+Keep the MSM-07-004 classification in the service (`_assert_rejectable`,
+`reject_is_withdrawal_refusal`), not in a node: the received `Reject(Invite)`
+tree writes through `RecordParticipantRejectionNode` →
+`record_embargo_rejection()`, and its read-only guard `RejectIsNotWithdrawalNode`
+calls the service's predicate rather than restating it.
 
 - **A `DECLINED` row holds no agreement.** `_record_actor_acceptance` records
   nothing for it; writing `AGREED` would admit through the gate an actor whose
   row says declined. Only `CARRY_OVER` lifts it.
-- **Withdrawal leaves the revisions too.** A `DECLINE` that names the active
-  embargo also declines every open proposal's row the actor had accepted (every
-  open proposal revises the active embargo, ADR-0113). With no embargo in force,
-  a Reject of a proposal declines that row only.
+- **Withdrawal leaves the revisions too.** `record_embargo_withdrawal` (the
+  `Leave`) declines the active row and every open proposal's row the actor had
+  agreed to (every open proposal revises the active embargo, EP-08-004). A
+  Reject never cascades: it declines the named row only.
+
+### The copy write: one apply function (ADR-0124, #4713)
+
+`CaseParticipant.copy_consent_row()` is the third row write, and the only one
+a replica may use: it stores a row exactly as a ledger entry carries it. It is
+called only from `apply_embargo_change()` (`vultron/core/models/embargo_apply.py`),
+the one apply function the CASE_MANAGER's trial apply and every replica share.
+That function checks the starting state first (a `Create` row is new; an
+`Update` row is held and one consent transition, or a fresh `INVITED`
+deadline, reaches the carried state; a final entry's rows are frozen) and
+raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition`.
+
+- **Entries follow activity/object pairs.** A register step rides on the
+  act's own activity (`RegisterStep`: the `Accept(EmbargoEvent, target=Case)`
+  is `ACTIVATE` with its supersede, the `Remove` is `TERMINATE` with its
+  cancels); each changed consent row is its own CASE_MANAGER
+  `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, event types in
+  `embargo_consent_event_types.py`).
+- **A row is an AS2 object.** `EmbargoConsent` has `type`, a derived `id`
+  (`EmbargoConsent.build_id(embargo_id, actor_id)`) and `attributedTo`, the
+  participant's actor. A participant record stamps its actor on every row it
+  holds, so compare rows with `attributed_to` set, or compare states.
+- **The CASE_MANAGER side** is `commit_and_apply_embargo_entries()`
+  (`vultron/core/behaviors/embargo/copy_commit.py`): it trial-applies every
+  planned entry, commits them in order, then saves the result; a refused trial
+  commits nothing, and a failed commit saves only the changes whose entries
+  committed. `consent_row_entry()` builds the planned entry for one row.
+- **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
+  (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
+  `_change()`; a refused entry is held in `LedgerGapBuffer` and the announce is
+  reported deferred, never patched over. An entry whose result the replica
+  already holds (saved, but not yet stored, before a stop) is an idempotent
+  no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
+  entry that would change nothing.
 
 ---
 
@@ -387,8 +430,11 @@ is `INVITED` or `TIMED_OUT`. Anything else raises `VultronNotFoundError`.
 - Do not re-add the active embargo to the open-proposal index to make the
   trigger find it; that breaks EP-08-003 and EP-08-002's selection.
 - **Withdrawing is not answering.** A signatory leaves through
-  `Leave(EmbargoEvent)` (EP-09-013, MSM-07-010, #4388), which needs no Invite.
-  The reject trigger never withdraws (MSM-07-004; ADR-0122).
+  `Leave(EmbargoEvent)` (EP-09-013, MSM-07-010), which needs no Invite: the
+  withdraw-embargo trigger resolves the embargo from the case's active embargo
+  (`resolve_embargo_to_withdraw`, beside `_resolve_embargo_proposal` in the
+  same module), so a signatory made by seeding or joining can leave too. The
+  reject trigger never withdraws (MSM-07-004; ADR-0122).
 
 ---
 
@@ -399,6 +445,13 @@ The owner's decision and each participant's consent are different messages
 
 - `AcceptInviteToEmbargoOnCaseReceivedUseCase` (`Accept(Invite(EmbargoEvent))`)
   marks the sender's row for that embargo `AGREED` and moves no register entry.
+- `WithdrawFromEmbargoOnCaseReceivedUseCase` (`Leave(EmbargoEvent)`) declines
+  the sender's `AGREED` row for the embargo in force and its agreed revisions,
+  and moves no register entry. Its guard sits ahead of the commit, so a refused
+  Leave is never ledgered; the withdrawer's replica still receives the entry,
+  because the fan-out runs at the commit, before the effect makes it inactive.
+  A redelivery of a Leave the ledger already records is `SKIPPED`, not
+  refused (HP-01-003); a new Leave after the withdrawal is still refused.
 - `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,
   owner only) activates the proposal (EM derives `ACTIVE`, or `REVISE` while
   another proposal stays open, ADR-0130), marks the owner's row `AGREED` unless it

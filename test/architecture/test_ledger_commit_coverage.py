@@ -69,16 +69,14 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "unknown_unresolvable_object": NotACaseEvent.UNMATCHED,
     # Received only by a participant, which never commits (CLP-09-001).
     "create_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
-    # Only the CASE_MANAGER is meant to answer a role-delegation offer
-    # (ADR-0039), but the receipt has no sender check yet: until #4522
-    # declares a CASE_MANAGER sender rule, an Accept from a target that does
-    # not hold CASE_MANAGER is stored here with no entry.
-    "accept_case_participant_role": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    # The offered actor, usually an ordinary participant, answers a role
+    # offer and never commits (CLP-09-001). CM-33-006 has the CASE_MANAGER
+    # commit the answer on receipt (CLP-02-012); #4703 builds that and
+    # removes these two rows.
+    "accept_case_participant_role": "#4703",
     "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
-    # The CASE_MANAGER's Reject of a role offer is not yet ledgered, which
-    # CLP-02-012 requires.
-    "reject_case_participant_role": "#4588",
+    "reject_case_participant_role": "#4703",
 }
 
 

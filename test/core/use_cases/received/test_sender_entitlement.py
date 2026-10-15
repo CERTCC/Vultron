@@ -80,6 +80,7 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
@@ -202,8 +203,11 @@ _TRANSFEREE_ID = "https://example.org/actors/transferee"
 def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
     """The CASE_MANAGER records (ledgers) an Offer naming ``_TRANSFEREE_ID``.
 
-    Its forward to the transferee is not what these tests are about.
+    Its forward to the transferee is not what these tests are about.  The
+    owner holds ``CASE_OWNER`` on the roster, since only it may offer the
+    case (CM-21-019).
     """
+    seed_case_owner_participant(cm_store, owned_case, _OWNER_ID)
     cm_store.create(owned_case)
     offer = offer_case_ownership_transfer_activity(
         owned_case,
@@ -1025,7 +1029,7 @@ def test_embargo_invite_from_a_stranger_is_refused(
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "active participant" in (result.reason or "")
+    assert "ACTIVE_PARTICIPANT" in (result.reason or "")
     case = _reload_case(cm_store, owned_case.id_)
     assert case.current_status.em.state == EM.NONE
     assert case.pending_embargo_proposal_index == {}
@@ -1262,6 +1266,7 @@ def test_embargo_remove_from_a_non_owner_is_refused(
             origin=owned_case.id_,
             actor=_BYSTANDER_ID,
             to=[_CASE_MANAGER_ID],
+            reason=TerminationReason.EARLY,
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )
@@ -1271,7 +1276,7 @@ def test_embargo_remove_from_a_non_owner_is_refused(
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "Case Owner" in (result.reason or "")
+    assert "CASE_OWNER" in (result.reason or "")
     _assert_embargo_untouched(
         cm_store,
         owned_case.id_,
@@ -1297,6 +1302,7 @@ def test_embargo_remove_from_the_owner_is_applied(
             context=owned_case.id_,
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
+            reason=TerminationReason.EARLY,
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )
@@ -1354,6 +1360,7 @@ def test_embargo_remove_from_the_owner_with_trailing_slash_is_applied(
             context=owned_case.id_,
             actor=f"{_OWNER_ID}/",
             to=[_CASE_MANAGER_ID],
+            reason=TerminationReason.EARLY,
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )

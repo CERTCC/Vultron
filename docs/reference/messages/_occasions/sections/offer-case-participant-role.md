@@ -6,6 +6,7 @@ Offers one role on the case to the actor named by the target.
 
 - **When…** a Participant offers a CVD role on the case to another actor
 - **Send:** `Offer(CaseParticipantRole)[context=VulnerabilityCase]`
+- **Send to:** a participant
 - **Sent by:** not yet checked
 - **Seen in:** [How to Delegate a Role to Another Participant](../../../../howto/activitypub/activities/role_delegation.md)
 - **Mapping status:** [none](../../index.md#mapping-status)

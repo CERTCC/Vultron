@@ -69,6 +69,7 @@ Per specs/behavior-tree-integration.yaml BT-06-001.
 """
 
 import logging
+from datetime import datetime
 
 import py_trees
 
@@ -106,6 +107,7 @@ from vultron.core.behaviors.embargo.nodes import (
     SendAnnounceEmbargoEventNode,
     SendEmbargoInviteAnswerNode,
     SendOwnerEmbargoDecisionNode,
+    TerminationIsTimelyNode,
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
     embargo_ending_notice_nodes,
@@ -120,11 +122,13 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_ANSWER,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlementKind,
     SenderIsCaseOwnerNode,
-    SenderMayAssertEmbargoNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import embargo_sender_context
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +136,8 @@ logger = logging.getLogger(__name__)
 def _teardown_if_active(
     case_id: str,
     embargo_id: str,
+    termination: EmbargoTermination,
+    terminated_at: datetime | None,
     *after_teardown: py_trees.behaviour.Behaviour,
     prefix: str = "",
     before_teardown: tuple[py_trees.behaviour.Behaviour, ...] = (),
@@ -167,7 +173,11 @@ def _teardown_if_active(
                 memory=False,
                 children=[
                     *before_teardown,
-                    ClearActiveEmbargoNode(case_id=case_id),
+                    ClearActiveEmbargoNode(
+                        case_id=case_id,
+                        termination=termination,
+                        terminated_at=terminated_at,
+                    ),
                     *after_teardown,
                 ],
             ),
@@ -179,7 +189,11 @@ def remove_embargo_from_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    termination_reason: TerminationReason,
+    terminated_at: datetime | None,
     actor_config: ActorConfig | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -214,9 +228,16 @@ def remove_embargo_from_case_tree(
         sender_actor_id: Sender of the ``Remove``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
+        termination_reason: The what the ``Remove`` carries in ``content``,
+            recorded on the ``TERMINATED`` entry (ADR-0122).
+        terminated_at: The ``Remove``'s ``published`` time.  An
+            ``END_TIME_REACHED`` claimed before the embargo's end time is
+            refused before the commit (``TerminationIsTimelyNode``).
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a re-issued stub Invite.  ``None`` applies the
             ``ActorConfig`` defaults.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
@@ -227,15 +248,21 @@ def remove_embargo_from_case_tree(
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=sender_actor_id
     )
+    # The Remove carries only the what; its sender keeps the why (ADR-0122).
+    termination = EmbargoTermination.from_reason(termination_reason)
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
-        sender_guard=SenderMayAssertEmbargoNode(
-            case_id=case_id,
-            sender_actor_id=sender_actor_id,
-            manager_arm=SenderEntitlementKind.CASE_OWNER,
-        ),
-        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
+        sender_rule=sender_rule,
+        sender_context=embargo_sender_context(sender_actor_id, case_id),
+        precondition_guards=[
+            ValidateCaseExistsNode(case_id=case_id),
+            TerminationIsTimelyNode(
+                case_id=case_id,
+                termination=termination,
+                terminated_at=terminated_at,
+            ),
+        ],
         # RSH-08-003/CM-31-010: an active replica takes the teardown from the
         # ledger (EmbargoTeardown slot), so it writes nothing here (#3814).
         # The one exception is a signatory the ledger no longer reaches — a
@@ -261,7 +288,11 @@ def remove_embargo_from_case_tree(
                                 ),
                             ),
                             _teardown_if_active(
-                                case_id, embargo_id, prefix="Replica"
+                                case_id,
+                                embargo_id,
+                                termination,
+                                terminated_at,
+                                prefix="Replica",
                             ),
                         ],
                     ),
@@ -276,6 +307,8 @@ def remove_embargo_from_case_tree(
             _teardown_if_active(
                 case_id,
                 embargo_id,
+                termination,
+                terminated_at,
                 SendAnnounceEmbargoEventNode(
                     case_id=case_id, embargo_id=embargo_id
                 ),
@@ -318,6 +351,7 @@ def invite_to_embargo_on_case_tree(
     embargo_id: str,
     proposer_id: str,
     sender_actor_id: str,
+    sender_rule: SenderRule,
     embargo: EmbargoEvent | None = None,
     actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -384,6 +418,8 @@ def invite_to_embargo_on_case_tree(
             CASE_MANAGER (CM-10-004), the CASE_MANAGER at a participant
             replica (EP-09-003, PCR-08; ADR-0115).  Not ``proposer_id``, which
             a relay's ``attributedTo`` may name.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
             by the intake in whichever store receives the Invite (CLP-10-017);
             ``None`` when the message named its object by bare URI.
@@ -429,11 +465,8 @@ def invite_to_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=case_id,
-        sender_guard=SenderMayAssertEmbargoNode(
-            case_id=case_id,
-            sender_actor_id=sender_actor_id,
-            manager_arm=SenderEntitlementKind.ACTIVE_PARTICIPANT,
-        ),
+        sender_rule=sender_rule,
+        sender_context=embargo_sender_context(sender_actor_id, case_id),
         precondition_guards=[
             EmbargoProposalNotYetRecordedNode(
                 case_id=case_id, embargo_id=embargo_id, invite_id=invite_id

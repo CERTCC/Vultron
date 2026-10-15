@@ -40,15 +40,15 @@ import asyncio
 
 import pytest
 
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.demo.conftest import (
+    _TestClientRouter,
+    create_isolated_actor_app,
+    submit_report_through_reporter,
+)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.demo.utils import case_actor_id_for_report
-from vultron.wire.as2.factories import rm_submit_report_activity
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 # ---------------------------------------------------------------------------
 # Constants — all IDs use HTTP-routable URIs
@@ -205,7 +205,9 @@ def _bootstrap_and_engage(
     """Run the full bootstrap + engage-case sequence.
 
     Steps:
-      1. Reporter submits ``SubmitReport`` offer to owner's inbox.
+      1. Reporter submits a report through its own ``submit-report``
+         trigger, which records its trust anchor and delivers the Offer to
+         owner's inbox.
       2. Owner validates the report (``trigger/validate-report``).
       3. CaseActor's outbox is drained so ``Create(VulnerabilityCase)``
          is delivered to reporter's inbox.
@@ -232,32 +234,32 @@ def _bootstrap_and_engage(
     # Register reporter as peer on owner's app so outbound Create is routable (ADR-0081).
     _register_peer(owner_tc, owner_slug, reporter_actor_id, "Reporter")
 
-    report = as_VulnerabilityReport(
-        attributed_to=reporter_actor_id,
-        name="PCR engage-case integration test report",
-        content=(
+    _register_peer(reporter_tc, reporter_slug, owner_actor_id, "Owner")
+
+    # Provision the CaseActor the case-creation flow will address.  The owner
+    # is the case-actor service in this setup, so the owner's node must host
+    # it or the Announce/Invite deliveries to it answer 404.  Its id does not
+    # depend on the report (one CaseActor per container, #1872), so it is
+    # provisioned before the report exists.
+    _create_actor(
+        owner_tc,
+        owner_base_api,
+        _actor_slug(case_actor_id_for_report("")),
+        "Case Actor",
+    )
+    # The reporter submits through its own trigger, which writes its trust
+    # anchor (the pending ReportCaseLink naming the owner, CBT-01-005) and
+    # delivers the Offer to the owner's inbox.
+    report, offer = submit_report_through_reporter(
+        reporter_tc,
+        reporter_actor_id,
+        owner_actor_id,
+        report_name="PCR engage-case integration test report",
+        report_content=(
             "Integration test vulnerability report for #572/#573/#574 "
             "regression coverage."
         ),
     )
-    offer = rm_submit_report_activity(
-        report,
-        actor=reporter_actor_id,
-        target=owner_actor_id,
-        to=owner_actor_id,
-    )
-    # Provision the CaseActor the case-creation flow will address.  Its id is
-    # *derived* from the report (ResolveCaseActorUrlsNode) and the owner is the
-    # case-actor service in this setup, so the owner's node must host it or the
-    # Announce/Invite deliveries to it answer 404.  Spawning one on demand for an
-    # as-yet-unknown case is #2469 / #1700.
-    _create_actor(
-        owner_tc,
-        owner_base_api,
-        _actor_slug(case_actor_id_for_report(str(report.id_))),
-        "Case Actor",
-    )
-    _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
     # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
     # sends Create(as_CaseProposal) — no VulnerabilityCase yet.

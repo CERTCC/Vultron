@@ -36,6 +36,7 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronNotFoundError
@@ -44,7 +45,11 @@ from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
     create_case_activity,
+    create_embargo_consent_activity,
     create_participant_activity,
+    update_case_activity,
+    update_embargo_consent_activity,
+    update_participant_activity,
 )
 from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
@@ -161,6 +166,79 @@ class _LedgerRecordsMixin:
             context=case_id,
             id_=derived_activity_id(
                 "case-participant-created", actor, participant.id_
+            ),
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_case_participant_updated(
+        self,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """Build and seal ``Update(CaseParticipant)``, the record in full."""
+        activity = update_participant_activity(
+            participant=participant,
+            actor=actor,
+            context=case_id,
+            id_=derived_activity_id(
+                "case-participant-updated", actor, cause_id, participant.id_
+            ),
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_case_owner_updated(
+        self,
+        case: VulnerabilityCase,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """Build and seal ``Update(VulnerabilityCase)`` naming the new owner."""
+        # The case as it will be stored, its participants by id: each changed
+        # record is carried in full by its own ``update_case_participant``
+        # entry (ADR-0124), as for the genesis ``Create``.  The caller passes
+        # the changed case because the entry commits before the change is
+        # saved (CLP-07-013).
+        activity = update_case_activity(
+            case=case,
+            actor=actor,
+            context=case.id_,
+            id_=derived_activity_id(
+                "case-owner-updated", actor, cause_id, case.id_
+            ),
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_embargo_consent_created(
+        self,
+        row: EmbargoConsent,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """Build and seal ``Create(EmbargoConsent)``, the new row in full."""
+        activity = create_embargo_consent_activity(
+            row=row,
+            actor=actor,
+            context=case_id,
+            id_=derived_activity_id("embargo-consent-created", actor, row.id_),
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_embargo_consent_updated(
+        self,
+        row: EmbargoConsent,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """Build and seal ``Update(EmbargoConsent)``, the changed row in full."""
+        activity = update_embargo_consent_activity(
+            row=row,
+            actor=actor,
+            context=case_id,
+            id_=derived_activity_id(
+                "embargo-consent-updated", actor, cause_id, row.id_
             ),
         )
         return _seal_record(self._dl, activity)

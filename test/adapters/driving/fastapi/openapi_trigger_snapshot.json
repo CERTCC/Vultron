@@ -986,11 +986,15 @@
         "type": "object"
       },
       "TerminateEmbargoRequest": {
-        "description": "Request body for the terminate-embargo trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the terminate-embargo trigger endpoint.\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\n\n``reason`` is what ends the embargo (ADR-0122).  ``EARLY``, the default,\nis the actor's own decision to end it before its end time.\n``END_TIME_REACHED`` is a request to end it at its end time, such as a\nSentinel monitoring embargo timers sends: refused before the end time,\nand answered as already done, with no activity, once the embargo has\nended.",
         "properties": {
           "case_id": {
             "title": "Case Id",
             "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/TerminationReason",
+            "default": "EARLY"
           }
         },
         "required": [
@@ -998,6 +1002,15 @@
         ],
         "title": "TerminateEmbargoRequest",
         "type": "object"
+      },
+      "TerminationReason": {
+        "description": "What ended an ``ACTIVE`` entry: its end time, or an early end (ADR-0122).\n\nThe *what* of a termination, and the only part that travels on the wire:\na termination ``Remove`` carries it as ``content``, checked at the parse\nedge.  The *why* \u2014 a threat signal, for one \u2014 is a structured cause the\nregister entry records beside it\n(:mod:`vultron.core.models.embargo_termination`).",
+        "enum": [
+          "END_TIME_REACHED",
+          "EARLY"
+        ],
+        "title": "TerminationReason",
+        "type": "string"
       },
       "ValidateReportRequest": {
         "description": "Request body for the validate-report trigger endpoint.",
@@ -1077,13 +1090,27 @@
         ],
         "title": "WithdrawCaseOwnershipTransferRequest",
         "type": "object"
+      },
+      "WithdrawEmbargoRequest": {
+        "description": "Request body for the withdraw-embargo trigger endpoint (EP-09-013).\n\nTRIG-03-001: Must include case_id to identify the target case.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nNames no Invite: the embargo withdrawn from is the case's embargo in\nforce, which the actor must have agreed to (MSM-07-010).",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id"
+        ],
+        "title": "WithdrawEmbargoRequest",
+        "type": "object"
       }
     }
   },
   "paths": {
     "/api/v2/actors/{actor_id}/demo/add-note-to-case": {
       "post": {
-        "description": "Demo-only convenience wrapper. Creates a Note object, adds it to the actor's local copy of the case, and queues Create(Note) and AddNoteToCase(Note, Case) activities in the actor's outbox for delivery to case participants. In a production deployment the actor's own BT would handle this step autonomously. Use the general ``add-object-to-case`` trigger at ``/trigger/`` when the Note already exists. Only available in ``RunMode.PROTOTYPE``. Spec: TRIG-09-001, TRIG-10-003.",
+        "description": "Demo-only convenience wrapper. Creates a Note object, adds it to the actor's local copy of the case, and queues one Create(Note), whose note names the case as its context, in the actor's outbox for delivery to the case's CASE_MANAGER. In a production deployment the actor's own BT would handle this step autonomously. Use the general ``add-object-to-case`` trigger at ``/trigger/`` when the Note already exists. Only available in ``RunMode.PROTOTYPE``. Spec: TRIG-09-001, TRIG-10-003.",
         "operationId": "actors_demo_add_note_to_case",
         "parameters": [
           {
@@ -3252,6 +3279,59 @@
           }
         },
         "summary": "Withdraw an open case ownership transfer offer.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/withdraw-embargo": {
+      "post": {
+        "description": "Triggers the withdraw-embargo behavior for the given actor. A participant whose consent to the active embargo is AGREED leaves it by sending Leave(EmbargoEvent) to the CASE_MANAGER; no Invite is named. The participant's consent to the embargo in force, and to any open revision it agreed to, becomes DECLINED; the embargo stays in force for everyone else and the case's EM state does not move (EP-09-013, MSM-07-010). Returns HTTP 409 when no embargo is in force, when the actor's consent to it is not AGREED, or when the actor is the case owner, which ends an embargo with terminate-embargo instead. Returns HTTP 404 when the actor holds no participant record on the case. Returns the resulting activity in the response body (TRIG-04-001).",
+        "operationId": "actors_trigger_withdraw_embargo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawEmbargoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger withdrawal from the embargo in force.",
         "tags": [
           "Triggers"
         ]

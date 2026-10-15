@@ -105,8 +105,43 @@ def bridge(dl):
 # ---------------------------------------------------------------------------
 
 
+CAUSE_ID = "https://example.org/activities/ot-accepted-offer"
+
+
 class TestAcceptCaseOwnershipTransferNode:
-    """Unit tests for AcceptCaseOwnershipTransferNode."""
+    """Unit tests for AcceptCaseOwnershipTransferNode.
+
+    These run the node alone, as an actor that is not the case's
+    CASE_MANAGER, to pin the role changes it writes; the ledger entries it
+    commits for them are stubbed here and covered at the CASE_MANAGER by
+    ``test/core/use_cases/received/test_ownership_transfer_replay.py``.
+    """
+
+    @pytest.fixture
+    def bridge(self, dl):
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=MagicMock(spec=TriggerActivityAdapter),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+
+    @pytest.fixture(autouse=True)
+    def _entries_stubbed(self):
+        from unittest.mock import patch
+
+        from vultron.core.behaviors.case.nodes.ownership_transfer import (
+            _TransferCaseOwnershipNode,
+        )
+
+        with patch.object(_TransferCaseOwnershipNode, "_record_consequences"):
+            yield
 
     @pytest.mark.spec("CM-21-002")
     def test_transfers_ownership(self, bridge, dl) -> None:
@@ -118,7 +153,7 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(case)
         tree = AcceptCaseOwnershipTransferNode(
-            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
@@ -141,7 +176,7 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(case)
         tree = AcceptCaseOwnershipTransferNode(
-            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
@@ -151,6 +186,7 @@ class TestAcceptCaseOwnershipTransferNode:
         tree = AcceptCaseOwnershipTransferNode(
             case_id="https://example.org/cases/missing",
             new_owner_id=NEW_OWNER_ID,
+            cause_id=CAUSE_ID,
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.FAILURE
@@ -193,7 +229,7 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(case)
         tree = AcceptCaseOwnershipTransferNode(
-            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
@@ -232,7 +268,7 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(case)
         tree = AcceptCaseOwnershipTransferNode(
-            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
@@ -270,7 +306,7 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(case)
         tree = AcceptCaseOwnershipTransferNode(
-            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
@@ -320,7 +356,7 @@ class TestAcceptCaseOwnershipTransferNode:
             dl, "save_many", side_effect=RuntimeError("db down")
         ):
             tree = AcceptCaseOwnershipTransferNode(
-                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
             )
             bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
 
@@ -334,6 +370,126 @@ class TestAcceptCaseOwnershipTransferNode:
         assert CVDRole.CASE_OWNER not in new_refreshed.case_roles, (
             "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
         )
+
+
+def _owned_case(dl) -> tuple[CaseParticipant, CaseParticipant]:
+    """A case ACTOR_ID owns, with NEW_OWNER_ID as a plain participant."""
+    old = CaseParticipant(
+        id_="https://example.org/participants/p-old-owner",
+        attributed_to=ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    new = CaseParticipant(
+        id_="https://example.org/participants/p-new-owner",
+        attributed_to=NEW_OWNER_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.COORDINATOR],
+    )
+    dl.create(old)
+    dl.create(new)
+    dl.create(
+        as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Entries Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={ACTOR_ID: old.id_, NEW_OWNER_ID: new.id_},
+        )
+    )
+    return old, new
+
+
+class TestTransferRecordsEachChange:
+    """Every change has a committed entry, or none is made (CLP-07-013)."""
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_without_the_trigger_port_nothing_is_written(
+        self, bridge, dl
+    ) -> None:
+        """No entry can be built, so the transfer writes nothing (ARCH-15-001)."""
+        old, new = _owned_case(dl)
+
+        result = bridge.execute_with_setup(
+            tree=AcceptCaseOwnershipTransferNode(
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+            ),
+            actor_id=NEW_OWNER_ID,
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_entry_that_does_not_commit_fails_the_transfer(
+        self, dl
+    ) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        old, new = _owned_case(dl)
+        port = MagicMock(spec=TriggerActivityAdapter)
+        port.record_case_participant_updated.return_value = ("urn:x", "{}")
+        bridge = BTBridge(datalayer=dl, trigger_activity=port)
+
+        with patch(
+            "vultron.core.behaviors.case.nodes.ownership_transfer_apply"
+            ".commit_emitted_activity",
+            side_effect=RuntimeError("ledger commit failed"),
+        ):
+            result = bridge.execute_with_setup(
+                tree=AcceptCaseOwnershipTransferNode(
+                    case_id=CASE_ID,
+                    new_owner_id=NEW_OWNER_ID,
+                    cause_id=CAUSE_ID,
+                ),
+                actor_id=NEW_OWNER_ID,
+            )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        # The entries commit before the change is saved: no change without
+        # its entry (CLP-07-013).
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_entry_that_cannot_be_built_fails_the_transfer(
+        self, dl
+    ) -> None:
+        """A port error is a FAILURE with nothing changed, not a crash."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.errors import VultronActivityConstructionError
+
+        old, new = _owned_case(dl)
+        port = MagicMock(spec=TriggerActivityAdapter)
+        port.record_case_participant_updated.side_effect = (
+            VultronActivityConstructionError("invalid arguments")
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=port)
+
+        result = bridge.execute_with_setup(
+            tree=AcceptCaseOwnershipTransferNode(
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+            ),
+            actor_id=NEW_OWNER_ID,
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
 
 
 # ---------------------------------------------------------------------------
@@ -756,7 +912,6 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
 _OT_OWNER_ID = "https://example.org/actors/ot-owner"
 _OT_CASE_ACTOR_ID = "https://example.org/actors/ot-case-actor"
 _OT_TRANSFEREE_ID = "https://example.org/actors/ot-transferee"
-_OT_REQUESTER_ID = "https://example.org/actors/ot-requester"
 _OT_CASE_ID = "https://example.org/cases/ot-emit-test-01"
 
 
@@ -821,7 +976,6 @@ class TestEmitOwnershipTransferNodes:
         node = EmitOfferCaseOwnershipTransferNode(
             case_id=_OT_CASE_ID,
             transferee_id=_OT_TRANSFEREE_ID,
-            requesting_actor_id=_OT_REQUESTER_ID,
             captured=captured,
         )
         bridge = BTBridge(
@@ -841,9 +995,12 @@ class TestEmitOwnershipTransferNodes:
             f"Offer must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
             f"got to={activity.get('to')!r}"
         )
-        # CM-24-001, CM-24-002, CM-24-005: executing actor authors, requester asked.
+        # CM-24-004, ADR-0109: the owner sends its own Offer, naming no one
+        # else as its author; the CASE_MANAGER's forward is the delegated emit.
         assert activity.get("actor") == _OT_OWNER_ID
-        assert activity.get("attributedTo") == _OT_REQUESTER_ID
+        assert "attributedTo" not in activity
+        # Queued in the owner's own outbox, not the CASE_MANAGER's.
+        assert activity["id"] in dl.outbox_list()
         # The transferee is named as the intended new owner in the target field.
         assert activity.get("target") == _OT_TRANSFEREE_ID, (
             f"Offer.target must name the transferee ({_OT_TRANSFEREE_ID}); "

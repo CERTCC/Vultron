@@ -93,8 +93,8 @@ class TestInputKeys:
                 "rm",
                 ("rmState", "rm_state", "rm"),
             ),
-            (CaseStatus, "em", ("emState", "em_state", "em")),
-            (CaseStatus, "pxa", ("pxaState", "pxa_state", "pxa")),
+            (CaseStatus, "em", ("emState", "em")),
+            (CaseStatus, "pxa", ("pxaState", "pxa")),
         ],
     )
     def test_lists_the_alias_choices_then_the_field_name(

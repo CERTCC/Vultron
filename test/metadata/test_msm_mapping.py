@@ -19,11 +19,14 @@ two disagreed for ``EP`` (MSM-08-006 rationale).
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import dataclasses
+import re
+from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
 
 from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
     SenderEntitlement,
     SenderEntitlementKind,
     SenderExemption,
@@ -37,10 +40,10 @@ from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
     NOT_YET_CHECKED,
     ROW_SPECS,
-    SENT_BY_WORDING,
     MappingStatus,
     answered_request,
     mapping_status,
+    send_to,
     sent_by,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY, lookup_entry
@@ -78,6 +81,7 @@ def _occasion(index: int = 0, **overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": f"stub situation {index} arises",
         "anchor": f"stub-{index}",
+        "addressee": AddresseeSide.CASE_MANAGER,
         "heading": f"Stub situation {index}",
         "description": "Stands in for a real occasion.",
         "example": f"stub_example_{index}",
@@ -192,13 +196,52 @@ def test_ep_is_carried_only_by_the_embargo_invite():
 # ---------------------------------------------------------------------------
 
 
+_GLOSSARY = Path(__file__).parents[2] / "docs" / "reference" / "glossary.md"
+
+
+def _glossary_terms() -> set[str]:
+    """The bold terms that open a row of a glossary table."""
+    text = _GLOSSARY.read_text(encoding="utf-8")
+    return set(re.findall(r"^\| \*\*(.+?)\*\* \|", text, flags=re.M))
+
+
+@pytest.mark.spec("MSM-08-010")
+@pytest.mark.parametrize("kind", list(SenderEntitlementKind), ids=str)
+def test_every_kind_declares_wording_and_a_glossary_term(
+    kind: SenderEntitlementKind,
+):
+    assert kind.sent_by.strip()
+    assert kind.term in _glossary_terms()
+
+
+@pytest.mark.spec("MSM-08-009")
+@pytest.mark.parametrize("side", list(AddresseeSide), ids=str)
+def test_every_addressee_side_declares_wording_and_a_glossary_term(
+    side: AddresseeSide,
+):
+    assert side.send_to.strip()
+    assert side.term in _glossary_terms()
+
+
+@pytest.mark.spec("MSM-08-010")
+def test_only_positions_name_the_object_they_are_held_over():
+    """A role is worded alone; a position names its request or object."""
+    named = {k for k in SenderEntitlementKind if "{object}" in k.sent_by}
+    assert named == {
+        SenderEntitlementKind.NAMED_ACTOR,
+        SenderEntitlementKind.AUTHOR,
+    }
+
+
 @pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("MSM-08-010")
 @pytest.mark.parametrize(
     ("kind", "wording"),
     [
         (SenderEntitlementKind.CASE_MANAGER, "the case manager"),
         (SenderEntitlementKind.CASE_OWNER, "the case owner"),
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
+        (SenderEntitlementKind.PARTICIPANT, "a participant"),
         (SenderEntitlementKind.INVITEE, "the invitee"),
         (SenderEntitlementKind.ANY_ACTOR, "any actor"),
     ],
@@ -209,22 +252,12 @@ def test_sent_by_words_each_kind(kind: SenderEntitlementKind, wording: str):
 
 
 @pytest.mark.spec("MSM-08-005")
-def test_every_kind_has_a_wording():
-    """A new kind without a wording would make ``sent_by`` raise KeyError."""
-    worded = set(SENT_BY_WORDING) | {
-        SenderEntitlementKind.NAMED_ACTOR,
-        SenderEntitlementKind.AUTHOR,
-    }
-    assert worded == set(SenderEntitlementKind)
-
-
-@pytest.mark.spec("MSM-08-005")
 def test_sent_by_states_an_exemption_as_not_yet_checked():
     entry = _entry(entitlement=exempt("#0000", "stub"))
     assert sent_by(entry, entry.occasions[0]) == "not yet checked"
 
 
-@pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("MSM-08-010")
 def test_sent_by_words_the_addressee_from_the_answered_request():
     pattern = ActivityPattern(
         activity_=TAtype.ACCEPT, object_=VOtype.CASE_PROPOSAL
@@ -240,6 +273,7 @@ def test_sent_by_words_the_addressee_from_the_answered_request():
 
 
 @pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("MSM-08-010")
 def test_sent_by_words_the_author_from_the_changed_object():
     pattern = ActivityPattern(
         activity_=TAtype.REMOVE, object_=as_ObjectType.NOTE
@@ -252,11 +286,11 @@ def test_sent_by_words_the_author_from_the_changed_object():
     )
     assert (
         sent_by(entry, entry.occasions[0])
-        == "the case owner or the author of the note"
+        == "the case owner or the note's author"
     )
 
 
-@pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("MSM-08-010")
 def test_sent_by_reads_the_inner_object_of_a_nested_request():
     inner = ActivityPattern(
         activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_CASE
@@ -268,7 +302,7 @@ def test_sent_by_reads_the_inner_object_of_a_nested_request():
     )
     assert (
         sent_by(entry, entry.occasions[0])
-        == "the addressee of the vulnerability case"
+        == "the addressee of the vulnerability case offer"
     )
 
 
@@ -301,23 +335,83 @@ def test_sent_by_joins_an_any_of_side_with_or():
     )
 
 
+_TWO_SIDED = SenderRule(
+    at_case_manager=any_of(SenderEntitlementKind.ACTIVE_PARTICIPANT),
+    at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
+)
+
+
 @pytest.mark.spec("MSM-08-005")
-def test_sent_by_words_the_case_manager_side_of_a_two_sided_rule():
-    entry = _entry(
-        entitlement=SenderRule(
-            at_case_manager=any_of(SenderEntitlementKind.ACTIVE_PARTICIPANT),
-            at_participant=any_of(SenderEntitlementKind.CASE_MANAGER),
-        )
-    )
-    assert sent_by(entry, entry.occasions[0]) == "an active participant"
+@pytest.mark.spec("MSM-08-009")
+@pytest.mark.parametrize(
+    ("addressee", "wording"),
+    [
+        (AddresseeSide.CASE_MANAGER, "an active participant"),
+        (AddresseeSide.PARTICIPANT, "the case manager"),
+    ],
+)
+def test_sent_by_words_the_side_of_the_occasions_addressee(
+    addressee: AddresseeSide, wording: str
+):
+    """Two occasions of one two-sided rule get two senders (ADR-0129)."""
+    occasion = _occasion(addressee=addressee)
+    entry = _entry(occasion, entitlement=_TWO_SIDED)
+    assert sent_by(entry, occasion) == wording
 
 
 @pytest.mark.spec("MSM-08-005")
 def test_sent_by_words_the_outside_case_side_of_a_pre_case_rule():
+    occasion = _occasion(addressee=AddresseeSide.OUTSIDE_CASE)
     entry = _entry(
-        entitlement=SenderRule.before_case(SenderEntitlementKind.ANY_ACTOR)
+        occasion,
+        entitlement=SenderRule.before_case(SenderEntitlementKind.ANY_ACTOR),
     )
-    assert sent_by(entry, entry.occasions[0]) == "any actor"
+    assert sent_by(entry, occasion) == "any actor"
+
+
+@pytest.mark.spec("MSM-08-009")
+@pytest.mark.parametrize(
+    ("rule", "addressee"),
+    [
+        (_TWO_SIDED, AddresseeSide.OUTSIDE_CASE),
+        (
+            SenderRule.before_case(SenderEntitlementKind.ANY_ACTOR),
+            AddresseeSide.CASE_MANAGER,
+        ),
+        (
+            SenderRule.before_case(SenderEntitlementKind.ANY_ACTOR),
+            AddresseeSide.PARTICIPANT,
+        ),
+    ],
+)
+def test_an_occasion_sent_to_a_side_its_rule_lacks_fails(
+    rule: SenderRule, addressee: AddresseeSide
+):
+    with pytest.raises(ValueError, match="MSM-08-009"):
+        _entry(_occasion(addressee=addressee), entitlement=rule)
+
+
+@pytest.mark.spec("MSM-08-009")
+@pytest.mark.parametrize("addressee", list(AddresseeSide), ids=str)
+def test_an_exempt_occasion_may_name_any_addressee(addressee: AddresseeSide):
+    """An exemption has no sides yet, so it constrains no addressee."""
+    occasion = _occasion(addressee=addressee)
+    entry = _entry(occasion, entitlement=exempt("#0000", "stub"))
+    assert sent_by(entry, occasion) == NOT_YET_CHECKED
+
+
+#: The "Send to" wording of each addressee, pinned as literals.
+_SEND_TO: dict[AddresseeSide, str] = {
+    AddresseeSide.CASE_MANAGER: "the case manager",
+    AddresseeSide.PARTICIPANT: "a participant",
+    AddresseeSide.OUTSIDE_CASE: "an actor outside any case",
+}
+
+
+@pytest.mark.spec("MSM-08-009")
+@pytest.mark.parametrize("addressee", list(AddresseeSide), ids=str)
+def test_send_to_words_the_addressee(addressee: AddresseeSide):
+    assert send_to(_occasion(addressee=addressee)) == _SEND_TO[addressee]
 
 
 def test_sent_by_refuses_an_undeclared_entitlement():
@@ -338,30 +432,33 @@ def test_sent_by_refuses_a_declaration_that_is_not_a_rule():
         sent_by(entry, entry.occasions[0])
 
 
+#: The side of a sender rule each addressee reads, restated here so the
+#: registry test below does not reuse ``SenderRule.side``.
+_SIDE_FIELD: dict[AddresseeSide, str] = {
+    AddresseeSide.CASE_MANAGER: "at_case_manager",
+    AddresseeSide.PARTICIPANT: "at_participant",
+    AddresseeSide.OUTSIDE_CASE: "outside_case",
+}
+
+
 def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """Recompute "Sent by" from the declaration, independently of the code.
 
     Reads the declaration rather than pinning per-entry strings, so a use case
     that trades an exemption for a real rule changes the value without
-    breaking this test.  The addressee wording reuses ``answered_request``,
-    which the synthetic-entry tests above pin to literal strings.
+    breaking this test.  The object a position names reuses
+    ``answered_request``, which the synthetic-entry tests above pin to
+    literal strings.
     """
     declared = getattr(entry.use_case_class, "sender_entitlement", None)
     if isinstance(declared, SenderExemption):
         base = NOT_YET_CHECKED
     else:
         assert isinstance(declared, SenderRule)
-        side = (
-            declared.at_case_manager
-            or declared.outside_case
-            or declared.at_participant
-        )
+        side = getattr(declared, _SIDE_FIELD[occasion.addressee])
+        assert side, f"{occasion.anchor}: no side for its addressee"
         words = [
-            f"the addressee of the {answered_request(entry)}"
-            if kind is SenderEntitlementKind.NAMED_ACTOR
-            else f"the author of the {answered_request(entry)}"
-            if kind is SenderEntitlementKind.AUTHOR
-            else SENT_BY_WORDING[kind]
+            kind.sent_by.replace("{object}", answered_request(entry))
             for kind in SenderEntitlementKind
             if kind in side
         ]
@@ -374,15 +471,69 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     return f"{base} (usually: {roles})"
 
 
+_REGISTRY_OCCASIONS = [(e, o) for e in SEMANTIC_REGISTRY for o in e.occasions]
+
+
 @pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("MSM-08-009")
 @pytest.mark.parametrize(
     ("entry", "occasion"),
-    [(e, o) for e in SEMANTIC_REGISTRY for o in e.occasions],
+    _REGISTRY_OCCASIONS,
     ids=lambda value: getattr(value, "anchor", ""),
 )
-def test_registry_sent_by_follows_the_declared_entitlement(
+def test_registry_sent_by_follows_the_side_of_the_addressee(
     entry: SemanticEntry, occasion: Occasion
 ):
     assert sent_by(entry, occasion) == _expected_sent_by(entry, occasion)
+    assert send_to(occasion) == _SEND_TO[occasion.addressee]
     for role in occasion.usual_senders:
         assert isinstance(role, CVDRole)
+
+
+@pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("MSM-08-009")
+@pytest.mark.parametrize(
+    ("anchor", "addressee", "wording"),
+    [
+        (
+            "embargo-proposal",
+            AddresseeSide.CASE_MANAGER,
+            "the case manager or an active participant",
+        ),
+        (
+            "relay-embargo-proposal",
+            AddresseeSide.PARTICIPANT,
+            "the case manager",
+        ),
+        (
+            "embargo-termination",
+            AddresseeSide.CASE_MANAGER,
+            "the case manager or the case owner",
+        ),
+        (
+            "embargo-termination-notice",
+            AddresseeSide.PARTICIPANT,
+            "the case manager",
+        ),
+        (
+            "remove-note-from-case",
+            AddresseeSide.CASE_MANAGER,
+            "the case owner or the note's author",
+        ),
+        (
+            "report-acknowledgment",
+            AddresseeSide.OUTSIDE_CASE,
+            "the addressee of the vulnerability report offer"
+            " (usually: vendor, coordinator)",
+        ),
+    ],
+)
+def test_one_wire_activity_carries_an_occasion_per_side(
+    anchor: str, addressee: AddresseeSide, wording: str
+):
+    """The two-sided embargo rules give each occasion its own sender."""
+    entry, occasion = next(
+        (e, o) for e, o in _REGISTRY_OCCASIONS if o.anchor == anchor
+    )
+    assert occasion.addressee is addressee
+    assert sent_by(entry, occasion) == wording

@@ -17,14 +17,15 @@
 
 A ``Create(VulnerabilityCase)`` tells the receiver that *someone else* made
 the case.  Whether to trust that depends on how the receiver came to expect it,
-so the tree picks one of three routes (ADR-0041, CBT-01-005, CBT-01-006):
+so the tree picks one of three routes (CBT-01-005, CBT-01-006, CBT-01-011):
 
 - ``trusted``: the receiver sent a report to the sender and holds a pending
   :class:`~vultron.core.models.report_case_link.VultronReportCaseLink` for it;
 - ``redelivery``: a link already binds the case to the sender, so the
   bootstrap was accepted before;
-- ``direct``: no link, so the sender is trusted only if the snapshot names it
-  as the case's CASE_MANAGER (ADR-0041 AC-5).
+- ``unanchored``: no anchor the receiver wrote names the sender, so the
+  bootstrap is refused and nothing is stored.  A snapshot naming its sender
+  CASE_MANAGER is not an anchor: the sender wrote it (ADR-0132).
 
 :class:`ClassifyBootstrapRouteNode` makes that choice once and records it on a
 shared :class:`BootstrapRoute`.  It cannot be re-derived later: the trusted
@@ -48,19 +49,17 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.services.case_replica_seeding import (
-    find_any_pending_report_case_link,
     find_pending_report_case_link,
     is_bootstrap_accepted,
 )
 from vultron.errors import VultronAlreadyExistsError
 
-logger = logging.getLogger(__name__)
-
-BootstrapRouteName = Literal["trusted", "redelivery", "direct"]
+BootstrapRouteName = Literal["trusted", "redelivery", "unanchored"]
 
 
 @dataclass
@@ -77,7 +76,7 @@ class ClassifyBootstrapRouteNode(DataLayerActionWithPorts):
 
     Always ``SUCCESS`` once the DataLayer is available: the choice is not a
     verdict.  The order is the order of trust: a pending link first, then a
-    redelivery, then the direct-participant route.
+    redelivery; with neither, no anchor names the sender.
     """
 
     def __init__(
@@ -108,7 +107,7 @@ class ClassifyBootstrapRouteNode(DataLayerActionWithPorts):
         ):
             self.route.name = "redelivery"
         else:
-            self.route.name = "direct"
+            self.route.name = "unanchored"
         return Status.SUCCESS
 
 
@@ -184,6 +183,8 @@ class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
     the link is not enough on its own: it may hold a case for another report.
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(
         self,
         route: BootstrapRoute,
@@ -195,6 +196,7 @@ class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
         self.route = route
         self.report_ids = tuple(report_ids)
         self.case_id = case_id
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     def update(self) -> Status:
         link = self.route.link
@@ -208,7 +210,7 @@ class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
             f" reference the submitted report '{link.report_id}'"
             " (CBT-01-005)"
         )
-        logger.warning("%s: %s", self.name, self.feedback_message)
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -220,12 +222,15 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
     CBT-05-009).
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(
         self, case_obj: Any, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
         self.case_id = case_id
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     def update(self) -> Status:
         participants = getattr(self.case_obj, "case_participants", []) or []
@@ -237,60 +242,34 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
             f" contains {len(bare)} bare-URI participant reference(s);"
             f" inline typed objects required (CBT-01-012, CBT-05-009, CBT-05-008)"
         )
-        logger.warning("%s: %s", self.name, self.feedback_message)
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
-class CheckSenderIsSnapshotManagerNode(DataLayerActionWithPorts):
-    """Direct route: the sender must be the snapshot's CASE_MANAGER.
+class RefuseUnanchoredBootstrapNode(py_trees.behaviour.Behaviour):
+    """Unanchored route: refuse a bootstrap no local anchor vouches for.
 
-    Under ADR-0041 AC-5 the CaseActor bootstraps reporters and finders directly
-    by including them in the ``to`` of the Create.  They hold no
-    ``ReportCaseLink``, so the only identity to trust is the CASE_MANAGER the
-    snapshot itself names, and only if it is the sender.
-
-    ADR-0132 moves the reporter's bootstrap to the report receiver, so a
-    receiver that holds a pending ``ReportCaseLink`` has an anchor of its own
-    naming the actor it expects; any other sender is refused here, whatever
-    the snapshot says (CBT-01-011).  #4472 deletes the route.
+    Always ``FAILURE``.  The receiver wrote no record naming the sender, so it
+    has nothing to check the sender against; the roster in the snapshot is the
+    sender's own claim and does not count (CBT-01-011, ADR-0132).
     """
 
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(
-        self,
-        case_obj: Any,
-        sender_id: str,
-        case_id: str,
-        name: str | None = None,
+        self, sender_id: str, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_obj = case_obj
         self.sender_id = sender_id
         self.case_id = case_id
+        self.logger = node_logger(self)  # type: ignore[assignment]
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        anchor = find_any_pending_report_case_link(self.datalayer)
-        if anchor is not None:
-            # The receiver wrote down whom it expects its bootstrap from, and
-            # it is not this sender: a snapshot naming the sender CASE_MANAGER
-            # cannot outrank that anchor (CBT-01-011, ADR-0132).
-            self.feedback_message = (
-                f"untrusted Create of case '{self.case_id}': the bootstrap is"
-                f" expected from '{anchor.case_creator_id}', not"
-                f" '{self.sender_id}'; a snapshot naming its sender"
-                " CASE_MANAGER does not make it trusted (CBT-01-011)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        manager_id = resolve_case_manager_id(self.case_obj, self.datalayer)
-        if manager_id is not None and manager_id == self.sender_id:
-            return Status.SUCCESS
         self.feedback_message = (
-            f"untrusted Create of case '{self.case_id}': no ReportCaseLink and"
-            f" sender '{self.sender_id}' is not its CASE_MANAGER"
-            " (ADR-0041 AC-5)"
+            f"bootstrap of case '{self.case_id}' refused: no trust anchor"
+            f" this actor wrote names '{self.sender_id}', and a snapshot"
+            " naming its sender CASE_MANAGER does not make it trusted"
+            " (CBT-01-011)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

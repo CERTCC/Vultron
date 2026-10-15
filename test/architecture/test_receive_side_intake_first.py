@@ -37,7 +37,6 @@ from test.architecture import _corpus
 from test.architecture.test_receive_side_bt_commit_ordering import (
     BEHAVIORS_ROOT,
     RECEIVE_ACTIVITY_TREE_CALL,
-    _call_name,
 )
 
 #: A tree factory whose name says it handles a received activity.
@@ -63,7 +62,7 @@ def _factories_called_from_received_use_cases() -> set[str]:
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Call)
-                and (name := _call_name(node.func)) is not None
+                and (name := _corpus.callee_name(node.func)) is not None
                 and _TREE_FACTORY_NAME.search(name)
             ):
                 called.add(name)
@@ -78,7 +77,7 @@ def _locals_bound_to_calls(func: ast.FunctionDef) -> dict[str, str]:
             isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
         ):
             continue
-        if (name := _call_name(node.value.func)) is None:
+        if (name := _corpus.callee_name(node.value.func)) is None:
             continue
         for target in node.targets:
             if isinstance(target, ast.Name):
@@ -101,7 +100,7 @@ def _root_call_names(func: ast.FunctionDef) -> set[str]:
             continue
         value = node.value
         if isinstance(value, ast.Call):
-            if (name := _call_name(value.func)) is not None:
+            if (name := _corpus.callee_name(value.func)) is not None:
                 roots.add(name)
         elif isinstance(value, ast.Name) and value.id in assigned:
             roots.add(assigned[value.id])
@@ -139,7 +138,7 @@ def _receive_factories() -> dict[str, _Factory]:
                 name
                 for call in ast.walk(node)
                 if isinstance(call, ast.Call)
-                and (name := _call_name(call.func)) is not None
+                and (name := _corpus.callee_name(call.func)) is not None
             }
             factories[node.name] = (rel_path, called, _root_call_names(node))
     return factories

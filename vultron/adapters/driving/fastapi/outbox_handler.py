@@ -171,7 +171,8 @@ async def handle_outbox_item(
 
     Reads the activity's sealed body from ``dl``, applies the last-resort
     guards (``to:`` present, inline ``object``), extracts recipient actor IDs
-    from the ``to``, ``cc``, ``bto``, and ``bcc`` addressing fields, and calls
+    from the ``to`` field (OX-08-001; ``cc``/``bto``/``bcc`` only warn,
+    OX-08-004), and calls
     ``await emitter.emit(activity_id, body, recipients)`` to deliver the body
     exactly as sealed (VM-08-003).
 

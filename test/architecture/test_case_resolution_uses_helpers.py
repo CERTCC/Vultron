@@ -173,6 +173,12 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             f"{_NODES}/proposal_consent.py",
             "SeedReporterSignatoryNode._resolve_participant",
         ),
+        # R3 — case-under-construction: an absent candidate case is skipped,
+        # and no stored case means the Selector creates one (#4650).
+        (
+            f"{_NODES}/proposal_case_resolution.py",
+            "LoadExistingCaseNode._find_case",
+        ),
         # R3 — optional addressing / stub enrichment; factory tolerates None.
         (f"{_NODES}/invite_actor_emit.py", "build_stub_invite"),
         (
@@ -227,6 +233,14 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         (f"{_NODES}/participant/common.py", "_create_and_attach_participant"),
         (f"{_NODES}/suggest_actor/emit.py", "_resolve_owner_recipient"),
         (f"{_NODES}/vfd_role_guards.py", "_resolve_actor_roles"),
+        # MOD — shared by the CASE_MANAGER's commit-and-apply helper and the
+        # replica copy slots, so it takes a bare `dl`; it raises
+        # VultronNotFoundError on absence (the replica slot resolves the case
+        # Regime 2 first).
+        (
+            "vultron/core/behaviors/embargo/copy_commit.py",
+            "read_embargo_case_file",
+        ),
         # MOD — shared by a received use case, a trigger, a replay node and a
         # BT node, so it takes a bare `dl`; it raises VultronNotFoundError on
         # absence.

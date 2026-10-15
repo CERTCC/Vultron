@@ -22,22 +22,42 @@ rows live on the participant record; the case's consent table is the union of
 its participants' rows.  Being bound by the embargo in force, and having lapsed
 from a replaced one, are lookups over the rows — see
 :meth:`CaseParticipant.is_signatory` and :meth:`CaseParticipant.has_lapsed`.
+
+A row is an AS2 object (``type`` ``EmbargoConsent``) so that the CASE_MANAGER
+can commit each changed row as its own ledger entry, a ``Create`` or
+``Update`` carrying the row in full, and every replica copies it (ADR-0122,
+ADR-0124, CLP-07-009, CLP-07-013).  ``attributedTo`` names the participant
+actor whose consent it is, and the id is derived from that actor and the
+embargo, so the same row has the same id on every node and nothing mints one.
+A row carries no ``published`` or ``updated`` time: building one reads no
+clock (CM-23-016).
 """
 
 from datetime import datetime
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
-from pydantic.alias_generators import to_camel
+from pydantic import Field, field_validator, model_validator
 
 from vultron.core.models._helpers import as_utc
-from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
+from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.wire_keys import input_keys, wire_key
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 
 
-class EmbargoConsent(ValidatedAssignmentMixin, BaseModel):
+def _first(data: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    return next((data[k] for k in keys if data.get(k) is not None), None)
+
+
+class EmbargoConsent(CoreObject):
     """A participant's answer to one embargo: the row of the consent table.
+
+    ``attributed_to`` is the participant actor whose consent the row records.
+    A row built before it is seated on a participant record may leave it
+    unset; :class:`CaseParticipant` stamps its own actor on every row it
+    holds, and a row committed to the ledger on its own must name it.
 
     ``rsvp_deadline`` belongs to the invitation the row is waiting on
     (CM-28-001, CM-28-012): it is set only on an ``INVITED`` row, from that
@@ -46,13 +66,46 @@ class EmbargoConsent(ValidatedAssignmentMixin, BaseModel):
     with different deadlines.
     """
 
-    model_config = ConfigDict(
-        alias_generator=to_camel, populate_by_name=True, extra="forbid"
+    type_: Literal["EmbargoConsent"] = Field(
+        default="EmbargoConsent",
+        validation_alias="type",
+        serialization_alias="type",
     )
-
     embargo_id: NonEmptyString
     state: EmbargoConsentState
     rsvp_deadline: datetime | None = None
+    # A row is copied, never stamped: no clock is read to build one.
+    published: datetime | None = None
+    updated: datetime | None = None
+
+    @classmethod
+    def build_id(cls, embargo_id: str, actor_id: str | None) -> str:
+        """The row's id: derived from its embargo and its participant actor."""
+        return derived_activity_id(
+            "embargo-consent", actor_id or "", embargo_id
+        )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_id(cls, data: Any) -> Any:
+        """Give a row with no id the one its embargo and actor derive.
+
+        A row that carries an id keeps it: a copy writes the id its entry
+        carries (CM-23-016).
+        """
+        if not isinstance(data, dict) or (
+            _first(data, input_keys(cls, "id_")) is not None
+        ):
+            return data
+        embargo_id = _first(data, input_keys(cls, "embargo_id"))
+        if embargo_id is None:
+            return data  # the missing embargo_id is reported by its field
+        return {
+            **data,
+            wire_key("id_", cls): cls.build_id(
+                embargo_id, _first(data, input_keys(cls, "attributed_to"))
+            ),
+        }
 
     @field_validator("rsvp_deadline", mode="after")
     @classmethod
@@ -73,3 +126,24 @@ class EmbargoConsent(ValidatedAssignmentMixin, BaseModel):
                 " (CM-28-013)."
             )
         return self
+
+    def for_actor(self, actor_id: str) -> "EmbargoConsent":
+        """This row attributed to *actor_id*, under the id that derives.
+
+        For the participant record that seats the row: a row with no
+        ``attributed_to`` takes its participant's actor.
+
+        Raises:
+            ValueError: the row is attributed to another actor.
+        """
+        if self.attributed_to == actor_id:
+            return self
+        if self.attributed_to is not None:
+            raise ValueError(
+                f"Consent row for embargo '{self.embargo_id}' is attributed"
+                f" to '{self.attributed_to}', not '{actor_id}'."
+            )
+        data = self.model_dump(exclude={"id_"})
+        return EmbargoConsent.model_validate(
+            {**data, "attributed_to": actor_id}
+        )

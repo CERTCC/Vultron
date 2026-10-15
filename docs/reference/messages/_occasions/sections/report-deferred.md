@@ -6,7 +6,8 @@ Ignores the case, moving the sender's RM state to Deferred. Deferring is a case-
 
 - **When…** a Participant defers further action on the case
 - **Send:** `Ignore(VulnerabilityCase)`
-- **Sent by:** an active participant
+- **Send to:** the case manager
+- **Sent by:** a participant
 - **Seen in:** [How to Advance a Case Through Report Management](../../../../howto/activitypub/activities/manage_case.md)
 - **Formal definition:** [Report/Case Deferred (RD)](../../../formal_protocol/messages.md#rm-message-types)
 - **Mapping status:** [direct](../../index.md#mapping-status)

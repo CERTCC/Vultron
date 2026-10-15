@@ -23,6 +23,7 @@ import time
 from collections.abc import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
+from vultron.core.models.dimensions import dimension_state
 from vultron.core.models.pending_case_inbox import (
     VultronPendingCaseInbox,
 )
@@ -1766,7 +1767,7 @@ def wait_for_case_em_state(
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id, actor_id=dl_actor_id))
         case = as_VulnerabilityCase.model_validate(case_data)
-        return case.current_status.em_state == expected and (
+        return case.em_state == expected and (
             active_embargo_id is None
             or case.active_embargo_id == active_embargo_id
         )
@@ -2140,8 +2141,8 @@ def wait_for_participant_pxa_state(
 ) -> None:
     """Poll until *actor_id*'s participant status shows a public-aware pxa_state.
 
-    ``pxa_state`` is nested at ``participant.participant_status.case_status
-    .pxa_state`` and cannot be reached by the generic
+    The PXA state is nested at ``participant.participant_status.case_status
+    .pxa.state`` and cannot be reached by the generic
     :func:`_wait_for_participant_status_field` (which handles only top-level
     fields on ``as_ParticipantStatus``).  This helper handles the two-level
     attribute access explicitly.
@@ -2173,9 +2174,7 @@ def wait_for_participant_pxa_state(
             latest = participant.participant_status
             if latest is not None:
                 cs = getattr(latest, "case_status", None)
-                pxa = (
-                    getattr(cs, "pxa_state", None) if cs is not None else None
-                )
+                pxa = dimension_state(cs, "pxa")
                 logger.debug(
                     "wait_for_participant_pxa_state poll #%d: "
                     "actor=%r case=%r pxa=%r expected=%r",
@@ -2194,7 +2193,7 @@ def wait_for_participant_pxa_state(
         participant.participant_status if participant is not None else None
     )
     cs = getattr(latest, "case_status", None) if latest is not None else None
-    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    pxa = dimension_state(cs, "pxa")
     raise AssertionError(
         f"Timed out waiting for actor '{actor_id}' pxa_state to be in "
         f"{expected_states!r}; current={pxa!r}"
@@ -2214,8 +2213,9 @@ def wait_for_case_attributed_to(
     Observes the ownership transfer on *client*'s replica of the case.  The
     CaseActor's own store is the authority (CM-21-002, CM-21-004); every other
     replica — the old owner's included — learns the new owner only from the
-    ``Announce(CaseLedgerEntry)`` fan-out applied by
-    ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-007).  So this reads the
+    ``Announce(CaseLedgerEntry)`` fan-out of the ``update_case_owner`` entry,
+    applied by ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-007,
+    CLP-07-013).  So this reads the
     replica whose view is being asserted (EDF-06-002); to gate on the commit
     itself, use :func:`wait_for_case_actor_ledger_event` first (#3602).
 

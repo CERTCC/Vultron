@@ -65,7 +65,7 @@ A statement that names a file path, library, class, or behavior tree node is eit
   State-machine states such as `RM.CLOSED` are protocol constructs.
   The CASE_MANAGER role and case-ledger sync are `protocol` for now; re-judge them if the protocol moves to a federated design with no CASE_MANAGER.
 - **`foundation`** (new) — rules Vultron inherits from the standards beneath it: ActivityStreams 2.0, ActivityPub, HTTP.
-  Examples are addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams, such as IDs being opaque URIs.
+  Examples are addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams, such as every `id` being an IRI.
   A tag records which standard: `as2`, `activitypub`, or `http`.
   An implementer reads `protocol` and `foundation`.
 - **`architecture`** — recommended structure that carries over to other languages but is not required for compliance.

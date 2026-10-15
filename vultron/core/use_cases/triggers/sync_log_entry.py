@@ -34,6 +34,7 @@ from typing import cast
 
 import py_trees.behaviour
 
+from vultron.core.behaviors.store_scope import hosts_actor
 from vultron.core.behaviors.sync.demo_log_entry import CommitDemoLogEntryNode
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import SyncLogEntryResult
@@ -73,6 +74,16 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
         self._actor_id = (
             _find_case_actor_id(self._dl, self._case_id) or requester.id_
         )
+        # Only the store holding the canonical log mints in it, and a tree
+        # never runs as an actor this container does not host (CLP-10-014,
+        # BT-05-005, ADR-0109): refuse before any tree runs.
+        if not hosts_actor(self._dl, self._actor_id):
+            raise VultronCanonicalEntryError(
+                "sync-log-entry: no canonical entry can be recorded for case"
+                f" '{self._case_id}' (event_type={self._event_type!r}) here;"
+                f" its CASE_MANAGER '{self._actor_id}' is not hosted on this"
+                " container, so this store does not hold its canonical log"
+            )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         self._node = CommitDemoLogEntryNode(
@@ -104,14 +115,12 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
             None,
         )
         if entry is None:
-            # The tree reported SUCCESS without a commit: the ledger-authority
-            # guard declined because this store does not hold the canonical
-            # log (ADR-0073, CLP-10-014).  Not a client fault and not a bug in
-            # a node, so it is neither 4xx nor a ``RuntimeError``.  Raising
-            # here means the router queues no flush; had the tree committed
-            # and the lookup still missed (it matches the activity the node
-            # committed, so that would be a node bug), the fan-out would wait
-            # in the CASE_MANAGER's outbox for its next drain.
+            # The tree reported SUCCESS without a commit this lookup finds.
+            # The node matches the activity it committed, so this is a node
+            # fault: an unhosted CASE_MANAGER was refused in ``_prepare`` and
+            # the ledger-store guard raises rather than declining (CLP-10-014).
+            # Raising here means the router queues no flush, so the fan-out
+            # would wait in the CASE_MANAGER's outbox for its next drain.
             raise VultronCanonicalEntryError(
                 "sync-log-entry: no canonical entry was recorded for case"
                 f" '{self._case_id}' (event_type={self._event_type!r});"

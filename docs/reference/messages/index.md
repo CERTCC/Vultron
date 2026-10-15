@@ -10,8 +10,11 @@ contents: generated
 # Message Types
 
 Each row of the table below is an [occasion](../glossary.md#messaging-and-protocol): a situation in a Coordinated Vulnerability Disclosure (CVD) case that a sender conveys with a wire activity.
-The row names the activity to send, who may send it, and the section that documents it.
-Where several rows share one activity, a field value or the receiver's Embargo Management (EM) state tells them apart.
+The row names the activity to send, whom to send it to, who may send it, and the section that documents it.
+"Send to" is the addressee: the Case Manager, a participant, or, before a case exists, an actor outside any case.
+"Sent by" is the standing a receiver requires of the sender of an activity sent to that addressee.
+One activity sent to two addressees can therefore have two rows with different senders.
+Where several rows share one activity, a field value, the receiver's Embargo Management (EM) state, or the addressee tells them apart.
 The groups follow the case lifecycle, then the protocol mechanics that carry it.
 
 {% include-markdown "./_occasions/lookup.md" %}
@@ -34,13 +37,13 @@ The design rationale for keeping the two vocabularies distinct is recorded in [A
 ## The pages
 
 Each page includes its slice of the occasion table under an Occasions heading.
-One section per occasion follows, stating when it applies, the wire activity to send, who may send it, the field or state that distinguishes it, its mapping status, the pages that embed it, and a rendered example.
+One section per occasion follows, stating when it applies, the wire activity to send, whom to send it to, who may send it, the field or state that distinguishes it, its mapping status, the pages that embed it, and a rendered example.
 The four formal-model pages end with a section for each shorthand that has no dedicated wire activity.
 
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 - [Report Management (RM)](rm.md) — Wire activities for the Report Management message types RS, RI, RV, RD, RA, RC, RK, and RE.
-- [Embargo Management (EM)](em.md) — Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE, and the Case Owner's decision on a proposal.
+- [Embargo Management (EM)](em.md) — Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE, the Case Owner's decision on a proposal, and a participant's withdrawal from the embargo in force.
 - [Case State (CS)](cs.md) — Wire activities for the Case State message types CV, CF, CD, CP, CX, CA, CK, and CE.
 - [General (GI)](general.md) — Wire activities for the General message types GI, GK, and GE.
 - [Faults and Acknowledgments](faults_and_acknowledgements.md) — The fault trichotomy and the cumulative hash-chain acknowledgment.
@@ -64,7 +67,7 @@ Each occasion section states its entry's **mapping status**, the relationship be
 
 Two examples show the many-to-many relationship:
 
-- `CP`, `CX` and `CA` are a collapse: all three ride `Add(CaseStatus)`, distinguished by `pxa_state`.
+- `CP`, `CX` and `CA` are a collapse: all three ride `Add(CaseStatus)`, distinguished by `pxaState`.
 - `GI` is an expansion: it spans the note lifecycle and the actor-suggestion exchange.
 
 The shorthands `RE`, `EE`, `CE`, `GE`, `EK`, `CK` and `GK` have no dedicated wire activity.

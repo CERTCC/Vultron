@@ -33,6 +33,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
@@ -430,6 +431,7 @@ class TestRemoveEmbargoRoutingGuard:
             actor=self.AUTHOR_ID,
             to=[self.CASE_ACTOR_ID],
             cc=[self.OTHER_ACTOR_ID],
+            reason=TerminationReason.EARLY,
         )
 
         event = make_payload(
@@ -464,6 +466,7 @@ class TestRemoveEmbargoRoutingGuard:
             actor=self.AUTHOR_ID,
             to=[self.CASE_ACTOR_ID],
             cc=[self.OTHER_ACTOR_ID],
+            reason=TerminationReason.EARLY,
         )
 
         event = make_payload(
@@ -497,6 +500,7 @@ class TestRemoveEmbargoRoutingGuard:
             actor=self.AUTHOR_ID,
             to=[self.CASE_ACTOR_ID],
             cc=[self.OTHER_ACTOR_ID],
+            reason=TerminationReason.EARLY,
         )
 
         event = make_payload(remove_activity, receiving_actor_id=None)

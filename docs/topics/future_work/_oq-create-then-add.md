@@ -1,18 +1,26 @@
-!!! warning "Open question: does a status or an embargo event need its own `Create` before the `Add`?"
+!!! warning "Open question: should the protocol add other wire forms for attaching a case record or a note?"
 
-    ActivityStreams lets a sender attach a new object in two ways.
-    The sender can send one `Add` that carries the object inline.
-    As an alternative, the sender can send a `Create` that mints the object, and then an `Add` that attaches it.
+    ActivityStreams lets a sender attach a new object in more than one way.
+    The protocol names one way for each act ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md)):
 
-    This implementation supports only the first way for a case status, a participant status and an embargo proposal.
-    It does not support a received `Create(CaseStatus)`, `Create(ParticipantStatus)` or `Create(Event)`, and it does not support a direct `Create(CaseParticipant)`.
-    An inbox refuses each one as an unrecognized activity.
-    The demos send the single `Add`, or the `Invite` that carries the `EmbargoEvent`.
-    That is a choice of the prototype, and the protocol does not require it.
-    A note uses the second way: `Create(Note)` and then `Add(Note)`.
+    - A case status is attached by `Add(CaseStatus)`, and a participant status by `Add(ParticipantStatus)`.
+    - A proposed embargo event travels on the `Invite` that proposes it.
+    - A participant record is made by the Case Manager as a consequence of an act it records.
+    - A note is attached by `Add(Note)` with the case as `target`.
 
-    The open question is whether the protocol must also support the separate `Create` for these objects.
-    If it must, each `Create` changes the case file.
-    Thus each `Create` needs its own committed ledger entry and a replica apply step, and the `Add` that follows must find the object that the `Create` stored.
+    A received `Create` of any of these objects is not a protocol message, and its receiver does not change the case file because of it.
 
-    Concern [#4635](https://github.com/CERTCC/Vultron/issues/4635) records this question.
+    The protocol defers three other forms.
+    It does not reject them:
+
+    - A `Create` that mints the object, then an `Add` that attaches it.
+    - A `Create` whose `context` names the case, which attaches the object in one message.
+      ActivityPub servers post content this way with `Create(Note)`.
+    - A note that is not part of any case.
+
+    The open question is whether the protocol adds any of these forms.
+    Each `Create` form changes the case file, so it needs its own committed ledger entry and a replica apply step.
+    The `Create` then `Add` form also needs a definition for an object that exists but is not attached.
+    A receiver must accept every form the protocol names, so each added form is a cost to every implementation.
+
+    Issue [#4550](https://github.com/CERTCC/Vultron/issues/4550) records the convention that one act names one form.
