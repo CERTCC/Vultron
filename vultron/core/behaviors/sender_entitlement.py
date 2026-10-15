@@ -287,10 +287,15 @@ class SenderEntitlementKind(Enum):
     sender against the addressee it recorded for the request (the case
     proposal's report case link, the report Offer's record, the ledgered
     ownership-transfer Offer), never against the copy the reply embeds.
+    A transferee whose closure the case records is refused (CM-23-018).
     """
 
     INVITEE = ("the invitee", "Invitee")
-    """Sender must be the sole ``to`` recipient of the recorded Invite."""
+    """Sender must be the sole ``to`` recipient of the recorded Invite.
+
+    An invitee whose closure the case records (RM ``CLOSED``) is refused: it
+    has left the case and may answer nothing further (CM-23-018).
+    """
 
     AUTHOR = ("the {object}'s author", "Author")
     """Sender must be the author of the object being changed (HP-01-009).
@@ -1248,7 +1253,12 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
     stub Invite names its case through its stub target, and an invitee of one
     case cannot answer for another.
 
-    Spec: EP-09-010, CM-11-017, HP-01-006.
+    When ``closure_case_id`` is given, an invitee whose closure that case
+    records (RM ``CLOSED``) is refused too: it has left the case and may
+    answer nothing further (CM-23-018).  A repeat of a ``Reject`` that closed
+    it is ``SKIPPED`` by the handler's pre-flight before this guard runs.
+
+    Spec: EP-09-010, CM-11-017, CM-23-018, HP-01-006.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -1262,11 +1272,13 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         name: str | None = None,
         *,
         case_id: str | None = None,
+        closure_case_id: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._invite_id = invite_id
         self._sender_actor_id = sender_actor_id
         self._case_id = case_id
+        self._closure_case_id = closure_case_id
 
     @staticmethod
     def _named_case(invite: object) -> str | None:
@@ -1274,6 +1286,24 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         target = getattr(invite, "target", None)
         stub_case = getattr(target, "case_id", None)
         return stub_case if isinstance(stub_case, str) else _as_id(target)
+
+    def _admit_unless_closed(self) -> Status:
+        """SUCCESS, unless the case records the invitee's closure (CM-23-018)."""
+        if self._closure_case_id is None:
+            return Status.SUCCESS
+        assert self.datalayer is not None
+        case = self.datalayer.read(self._closure_case_id)
+        if not isinstance(case, VulnerabilityCase) or not closure_recorded(
+            case, self.datalayer, self._sender_actor_id
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"Invitee '{self._sender_actor_id}' has left case"
+            f" '{self._closure_case_id}' (RM CLOSED) and may answer nothing"
+            " further — REFUSED (CM-23-018, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
     def _refuse_case_join(self, why: str) -> Status:
         self.feedback_message = (
@@ -1297,7 +1327,7 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         )
         if len(recipients) == 1 and same_actor_id(sender, recipients[0]):
             if self._case_id is None:
-                return Status.SUCCESS
+                return self._admit_unless_closed()
             issuer = _as_id(getattr(invite, "actor", None))
             if issuer is None or not same_actor_id(
                 issuer, self.actor_id or ""
@@ -1310,7 +1340,7 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
                 return self._refuse_case_join(
                     f"is for case '{named_case}', not '{self._case_id}'"
                 )
-            return Status.SUCCESS
+            return self._admit_unless_closed()
 
         if invite is None:
             why = f"Invite '{self._invite_id}' was never recorded here"
@@ -1438,7 +1468,10 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
     The transferee is the addressee of the request, so the kind is
     ``NAMED_ACTOR`` (ADR-0129); see :class:`SenderIsOwnershipOfferPartyNode`.
 
-    Spec: CM-21-011, CM-21-013, HP-01-006.
+    A transferee whose closure the case records is refused: it has left the
+    case (CM-23-018).
+
+    Spec: CM-21-011, CM-21-013, CM-23-018, HP-01-006.
     """
 
     _spec = "CM-21-011"
@@ -1450,6 +1483,20 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
             position="the transferee",
             addressees=(offer.transferee_id,),
         )
+
+    def _confirm_standing(self, request: RecordedRequest) -> None:
+        """Refuse a transferee whose closure the case records (CM-23-018).
+
+        Raises:
+            NoStandingError: The transferee has left the case (RM ``CLOSED``).
+        """
+        assert self.datalayer is not None and self._case is not None
+        if closure_recorded(self._case, self.datalayer, self.sender_actor_id):
+            raise NoStandingError(
+                f"Transferee '{self.sender_actor_id}' has left case"
+                f" '{self._case_id}' (RM CLOSED) and may answer nothing"
+                " further (CM-23-018)"
+            )
 
 
 class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):

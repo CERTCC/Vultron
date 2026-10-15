@@ -314,6 +314,7 @@ def _kind_node(
             invite_id=ctx.invite_id,
             sender_actor_id=ctx.sender_id,
             case_id=ctx.case_id if ctx.invite_is_case_join else None,
+            closure_case_id=ctx.case_id,
         )
     # ANY_ACTOR composes no node (see _any_of), so no kind reaches here.
     raise VultronWiringError(
