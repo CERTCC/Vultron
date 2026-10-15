@@ -48,7 +48,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _seal, _to_wire
+from ._base import (
+    _create_and_seal,
+    _seal,
+    _to_wire,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -146,14 +150,7 @@ class _ProposalsMixin:
             proposal=proposal,
             to=recipients,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "create_case_proposal: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "create_case_proposal")
 
     def _sender_profile(self, actor_id: str) -> CoreActor | as_Actor:
         """Return *actor_id*'s own profile from this store (CP-01-010).
@@ -241,14 +238,7 @@ class _ProposalsMixin:
             to=recipients,
             **extra,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "reject_case_proposal: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "reject_case_proposal")
 
     def accept_case_proposal(
         self,

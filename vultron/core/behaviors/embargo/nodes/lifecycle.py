@@ -281,8 +281,9 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
     """Record the executing actor's ``Reject(Invite(EmbargoEvent))``.
 
     The sender's own consent, the case owner's included (MSM-07-004,
-    ADR-0122): a Reject of the active embargo is withdrawal, one of a
-    proposal declines that proposal's row only.  It moves no register entry;
+    ADR-0122): it declines the named embargo's row only, and never withdraws
+    from the embargo in force — that is ``WithdrawEmbargoLifecycleNode``
+    (MSM-07-010).  It moves no register entry;
     the owner's rejection of a proposal is
     ``RejectEmbargoProposalLifecycleNode`` (``owner_decision.py``).
     """

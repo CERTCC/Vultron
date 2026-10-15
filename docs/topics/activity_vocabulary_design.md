@@ -171,11 +171,10 @@ An activity that tries to be both, such as an `Add(CaseStatus)` that names the c
 It does not collapse two messages into one; it dispatches as unrecognized, and the state change never happens.
 
 So the conclusion is narrower than "either verb will do".
-An implementation is free to decide that a given object needs no separate minting step, and to send only the `Add` that attaches it, with the object inline.
-This implementation makes that choice for every status: it does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)`.
-An inbox refuses either one as an unrecognized activity.
-It makes the same choice for an embargo proposal, which carries its `EmbargoEvent` inline on the `Invite`.
-That is a choice the prototype made, not a requirement of the protocol.
+The protocol names one attaching message for each case record, with no separate minting step ([ADR-0137](../adr/0137-case-records-are-attached-by-one-message-never-created-first.md)).
+A case status is attached by `Add(CaseStatus)`, a participant status by `Add(ParticipantStatus)`, and an embargo proposal carries its `EmbargoEvent` on the `Invite`.
+A received `Create(CaseStatus)` or `Create(ParticipantStatus)` is not a protocol message.
+This implementation carries each record inline on the message that attaches it, and its inbox refuses such a `Create` as an unrecognized activity.
 What no implementation can do is merge the two verbs into one activity and expect a Vultron peer to understand it.
 
 {% include-markdown "./future_work/_oq-create-then-add.md" %}

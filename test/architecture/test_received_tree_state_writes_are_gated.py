@@ -177,6 +177,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyEmbargoReinviteFromLedgerNode",
             "ApplyEmbargoRejectionFromLedgerNode",
             "ApplyEmbargoTeardownNode",
+            "ApplyEmbargoWithdrawalFromLedgerNode",
             "ApplyHonourLateAcceptFromLedgerNode",
             "ApplyCreateCaseParticipantFromLedgerNode",
             "ApplyInviteAcceptFromLedgerNode",

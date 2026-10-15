@@ -43,23 +43,68 @@ const MACHINES: Record<MachineName, RawMachine> = {
 }
 
 /**
- * Per-machine lookup: source state -> trigger -> dest state.
+ * Per-machine lookup: source state -> trigger -> dest states (artifact order).
  * Built once at module load so `nextState`/`legalTriggers` are O(1)/O(k).
+ *
+ * A machine may declare SEVERAL dests for one (source, trigger) pair: EM's
+ * `accept` and `reject` from PROPOSED/REVISE each have a "last open proposal"
+ * move that leaves negotiation and a "another proposal is still open" move that
+ * stays in it (ADR-0130, EMB-18-005). Every dest is kept; `nextStates` returns
+ * them all and `nextState` picks one (see `resolveDest`).
  */
-const TRANSITION_INDEX: Record<MachineName, Map<string, Map<string, string>>> =
+const TRANSITION_INDEX: Record<MachineName, Map<string, Map<string, string[]>>> =
   (Object.keys(MACHINES) as MachineName[]).reduce((acc, name) => {
-    const bySource = new Map<string, Map<string, string>>()
+    const bySource = new Map<string, Map<string, string[]>>()
     for (const t of MACHINES[name].transitions) {
       let byTrigger = bySource.get(t.source)
       if (!byTrigger) {
-        byTrigger = new Map<string, string>()
+        byTrigger = new Map<string, string[]>()
         bySource.set(t.source, byTrigger)
       }
-      byTrigger.set(t.trigger, t.dest)
+      const dests = byTrigger.get(t.trigger)
+      if (!dests) byTrigger.set(t.trigger, [t.dest])
+      else if (!dests.includes(t.dest)) dests.push(t.dest)
     }
     acc[name] = bySource
     return acc
-  }, {} as Record<MachineName, Map<string, Map<string, string>>>)
+  }, {} as Record<MachineName, Map<string, Map<string, string[]>>>)
+
+/**
+ * EM states in which an embargo proposal is open (core's `EM_NEGOTIATING`).
+ *
+ * Demo overlay (ui/AGENTS.md §9): the protocol picks between EM's two
+ * `accept`/`reject` moves by how many proposals remain open, which is register
+ * state the artifact does not carry. The Multi-Vendor demo holds at most ONE
+ * open proposal, so its every `accept`/`reject` closes the last one, and EM
+ * leaves negotiation ("EM leaves Proposed or Revise only when no proposal
+ * remains open", EMB-18-005). `resolveDest` therefore picks the dest outside
+ * this set.
+ */
+const EM_NEGOTIATING: ReadonlySet<string> = new Set(['PROPOSED', 'REVISE'])
+
+/**
+ * Pick the single dest for (machine, current, trigger) from its candidates.
+ * Unambiguous transitions return their only dest. An ambiguous one resolves
+ * only through a documented demo overlay; anything else throws, so a new
+ * non-deterministic transition in the artifact fails loudly instead of being
+ * resolved by artifact order.
+ */
+function resolveDest(
+  machine: MachineName,
+  current: string,
+  trigger: string,
+  dests: readonly string[]
+): string {
+  if (dests.length === 1) return dests[0]
+  if (machine === 'em') {
+    const leaving = dests.filter((d) => !EM_NEGOTIATING.has(d))
+    if (leaving.length === 1) return leaving[0]
+  }
+  throw new Error(
+    `Ambiguous ${machine} transition: "${trigger}" from "${current}" may reach ` +
+      `[${dests.join(', ')}] and no demo overlay picks one. See ui/AGENTS.md §9.`
+  )
+}
 
 /** The initial state for a machine (e.g. rm → 'START', vfd → 'vfd'). */
 export function initialState(machine: MachineName): string {
@@ -77,16 +122,32 @@ export function isValidState(machine: MachineName, state: string): boolean {
 }
 
 /**
+ * Every destination `trigger` may take `current` to, in artifact order (empty
+ * if the transition is illegal). Use this for graph searches over the machine,
+ * which must follow every legal move, not just the one the demo would take.
+ */
+export function nextStates(
+  machine: MachineName,
+  current: string,
+  trigger: string
+): readonly string[] {
+  return TRANSITION_INDEX[machine].get(current)?.get(trigger) ?? []
+}
+
+/**
  * Apply `trigger` to `current` and return the destination state, or `null` if
  * the protocol has no such transition from `current`. Callers that expect the
  * transition to be legal should treat `null` as a bug (see `requireNextState`).
+ * Where the protocol allows several dests, the demo overlay in `resolveDest`
+ * picks one.
  */
 export function nextState(
   machine: MachineName,
   current: string,
   trigger: string
 ): string | null {
-  return TRANSITION_INDEX[machine].get(current)?.get(trigger) ?? null
+  const dests = nextStates(machine, current, trigger)
+  return dests.length === 0 ? null : resolveDest(machine, current, trigger, dests)
 }
 
 /**

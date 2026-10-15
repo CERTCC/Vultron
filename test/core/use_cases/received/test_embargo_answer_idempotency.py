@@ -55,6 +55,7 @@ from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_reject_embargo_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.parser import parse_activity
 
@@ -63,6 +64,7 @@ from .test_embargo_relay_replay import _owner_answers, _propose
 
 ACCEPT_EVENT = "accept_invite_to_embargo_on_case"
 REJECT_EVENT = "reject_invite_to_embargo_on_case"
+WITHDRAW_EVENT = "withdraw_from_embargo_on_case"
 
 
 def _invited(net: LedgerNetwork, actor: str, suffix: str) -> tuple[str, str]:
@@ -116,6 +118,22 @@ def _answer(
         net, actor, invite_id, accept=accept, tag=tag, receiver=receiver
     )
     return cast(HandlerResult, net.receive(receiver, body))
+
+
+def _withdraw(
+    net: LedgerNetwork, actor: str, embargo_id: str, *, tag: str
+) -> HandlerResult:
+    """*actor* leaves *embargo_id* with ``Leave(EmbargoEvent)`` (MSM-07-010)."""
+    embargo = cast(Any, net.stores[actor].read(embargo_id))
+    activity = withdraw_from_embargo_activity(
+        embargo,
+        context=net.case_id,
+        actor=actor,
+        to=[MANAGER],
+        id_=f"{actor}/withdrawals/{tag}",
+    )
+    body = cast(dict[str, Any], json.loads(dump_outbound_body(activity)))
+    return cast(HandlerResult, net.receive(MANAGER, body))
 
 
 def _entries(net: LedgerNetwork) -> list[str]:
@@ -209,34 +227,53 @@ def test_another_participants_answer_is_still_its_own_consent(accept: bool):
 
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.spec("MSM-07-004")
-@pytest.mark.parametrize(
-    "activated", [False, True], ids=["proposed", "active"]
-)
-def test_a_reject_after_an_accept_is_a_consent_change(activated: bool):
-    """Accept → Reject by one actor is a consent change, not a repeat.
+def test_a_reject_after_an_accept_is_a_consent_change():
+    """Accept → Reject of a *proposed* embargo is a consent change, not a repeat.
 
-    Rejecting a *proposed* embargo after agreeing to it declines that
-    embargo's row; rejecting the embargo *in force* is withdrawal
-    (MSM-07-004, ADR-0093), the path a Reject takes until withdrawal moves to
-    ``Leave(EmbargoEvent)`` (#4388).  Either way the row becomes ``DECLINED``
-    and the answer is ledgered.
+    The row becomes ``DECLINED`` and the answer is ledgered.
     """
-    net = LedgerNetwork(
-        "https://example.org/cases/answer-accept-then-reject"
-        f"-{'active' if activated else 'proposed'}"
-    )
+    net = LedgerNetwork("https://example.org/cases/answer-accept-then-reject")
     embargo_id, invite_id = _invited(net, BYSTANDER, "change-ar")
     accepted = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
     assert accepted.disposition is HandlerDisposition.APPLIED
-    if activated:
-        _owner_answers(net, embargo_id)
-        assert net.case(MANAGER).active_embargo_id == embargo_id
     committed = _entries(net).count(REJECT_EVENT)
 
     rejected = _answer(net, BYSTANDER, invite_id, accept=False, tag="2")
 
     assert rejected.disposition is HandlerDisposition.APPLIED, rejected.reason
     assert _entries(net).count(REJECT_EVENT) == committed + 1
+    assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
+
+
+@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-010")
+def test_a_reject_of_the_agreed_embargo_in_force_is_refused_leave_withdraws():
+    """Accept → activation → Reject is refused: a Reject never withdraws.
+
+    The refusal is decided before the commit, so nothing is ledgered and the
+    row stays ``AGREED``; the signatory withdraws with ``Leave(EmbargoEvent)``.
+    """
+    net = LedgerNetwork("https://example.org/cases/answer-accept-then-leave")
+    embargo_id, invite_id = _invited(net, BYSTANDER, "change-al")
+    accepted = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
+    assert accepted.disposition is HandlerDisposition.APPLIED
+    _owner_answers(net, embargo_id)
+    assert net.case(MANAGER).active_embargo_id == embargo_id
+    entries = len(_entries(net))
+
+    rejected = _answer(net, BYSTANDER, invite_id, accept=False, tag="2")
+
+    assert rejected.disposition is HandlerDisposition.REFUSED
+    assert "Leave(EmbargoEvent)" in (rejected.reason or "")
+    assert len(_entries(net)) == entries
+    assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.AGREED
+
+    withdrawn = _withdraw(net, BYSTANDER, embargo_id, tag="3")
+
+    assert withdrawn.disposition is HandlerDisposition.APPLIED, (
+        withdrawn.reason
+    )
+    assert _entries(net)[entries:] == [WITHDRAW_EVENT]
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
 
 
@@ -288,8 +325,8 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
     The participant has just said it accepts, so its row moves straight from
     ``DECLINED`` to ``AGREED`` (CM-18-003): there is no re-invite step, real
     or bookkeeping.  One ledger entry records the change and no Invite is
-    sent.  On the embargo in force the Accept follows a withdrawal, so the
-    Accept is a late answer the CASE_MANAGER honours (EMB-17-002).
+    sent.  On the embargo in force the Accept follows a withdrawal
+    (``Leave(EmbargoEvent)``, MSM-07-010), so the Accept is a late answer the CASE_MANAGER honours (EMB-17-002).
     """
     net = LedgerNetwork(
         "https://example.org/cases/answer-reject-then-accept"
@@ -301,8 +338,10 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
         assert agreed.disposition is HandlerDisposition.APPLIED
         _owner_answers(net, embargo_id)
         assert net.case(MANAGER).active_embargo_id == embargo_id
-    rejected = _answer(net, BYSTANDER, invite_id, accept=False, tag="1")
-    assert rejected.disposition is HandlerDisposition.APPLIED
+        declined = _withdraw(net, BYSTANDER, embargo_id, tag="1")
+    else:
+        declined = _answer(net, BYSTANDER, invite_id, accept=False, tag="1")
+    assert declined.disposition is HandlerDisposition.APPLIED, declined.reason
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
     entries = _entries(net)
     invites = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
@@ -329,8 +368,10 @@ def test_an_accept_after_a_reject_of_replaced_terms_is_invited_to_the_current():
     agreed = _answer(net, BYSTANDER, invite_id, accept=True, tag="0")
     assert agreed.disposition is HandlerDisposition.APPLIED
     _owner_answers(net, stale_id)
-    rejected = _answer(net, BYSTANDER, invite_id, accept=False, tag="1")
-    assert rejected.disposition is HandlerDisposition.APPLIED
+    withdrawn = _withdraw(net, BYSTANDER, stale_id, tag="1")
+    assert withdrawn.disposition is HandlerDisposition.APPLIED, (
+        withdrawn.reason
+    )
     current_id = _propose(net, "change-current", 120)
     _owner_answers(net, current_id)
     assert net.case(MANAGER).active_embargo_id == current_id

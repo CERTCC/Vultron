@@ -27,10 +27,9 @@ from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     create_note_activity as build_create_note_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-from ._base import _addressing, _already_sealed, _seal
+from ._base import _addressing, _already_sealed, _create_and_seal
 
 logger = logging.getLogger(__name__)
 
@@ -59,23 +58,6 @@ def _note_for_wire(dl: CasePersistence, note_id: str) -> as_Note:
     if isinstance(stored, as_Note):
         return stored
     return as_Note.model_validate(As2WireRenderAdapter().render(stored))
-
-
-def _store_and_seal(
-    dl: CaseOutboxPersistence, activity: as_Activity, method: str
-) -> tuple[str, str]:
-    """Store *activity* (once) and seal its outbound body; return ``(id, body)``.
-
-    An activity already stored under its id is kept as it is and logged, so a
-    re-run of *method* seals the body the first run stored (VM-08-003).
-    """
-    try:
-        dl.create(activity)
-    except VultronAlreadyExistsError:
-        logger.warning(
-            "%s: activity '%s' already exists — skipping", method, activity.id_
-        )
-    return _seal(dl, activity)
 
 
 class _NotesMixin:
@@ -135,7 +117,7 @@ class _NotesMixin:
             _note_for_wire(self._dl, note_id),
             **_addressing(actor, to, activity_id),
         )
-        return _store_and_seal(self._dl, activity, "create_note_activity")
+        return _create_and_seal(self._dl, activity, "create_note_activity")
 
     def add_note_to_case(
         self,
@@ -149,4 +131,4 @@ class _NotesMixin:
         activity = add_note_to_case_activity(
             note=note, target=case_id, actor=actor, to=to
         )
-        return _store_and_seal(self._dl, activity, "add_note_to_case")
+        return _create_and_seal(self._dl, activity, "add_note_to_case")

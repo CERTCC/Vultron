@@ -211,6 +211,17 @@ class TerminateEmbargoRequest(CaseTriggerRequest):
     reason: TerminationReason = TerminationReason.EARLY
 
 
+class WithdrawEmbargoRequest(CaseTriggerRequest):
+    """
+    Request body for the withdraw-embargo trigger endpoint (EP-09-013).
+
+    TRIG-03-001: Must include case_id to identify the target case.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    Names no Invite: the embargo withdrawn from is the case's embargo in
+    force, which the actor must have agreed to (MSM-07-010).
+    """
+
+
 class SubmitReportRequest(BaseModel):
     """Request body for the submit-report trigger endpoint.
 

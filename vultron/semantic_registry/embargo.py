@@ -23,6 +23,7 @@ from vultron.core.models.events.embargo import (
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
+    WithdrawFromEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
@@ -33,6 +34,7 @@ from vultron.core.use_cases.received.embargo import (
     RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
+    WithdrawFromEmbargoOnCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
@@ -50,6 +52,7 @@ from vultron.wire.as2.extractor import (
     RejectEmbargoProposalOnCasePattern,
     RejectInviteToEmbargoOnCasePattern,
     RemoveEmbargoEventFromCasePattern,
+    WithdrawFromEmbargoOnCasePattern,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -59,6 +62,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _EmRejectEmbargoActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
+    _WithdrawFromEmbargoActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -335,6 +339,37 @@ ENTRIES: list[SemanticEntry] = [
                     "stays in force on its current terms."
                 ),
                 example="reject_embargo_proposal",
+                howto=HowToGuide.MANAGE_EMBARGO,
+            ),
+        ),
+        page=MessagePage.EM,
+    ),
+    # A signatory's withdrawal from the embargo in force (MSM-07-010,
+    # ADR-0122): Leave of the EmbargoEvent, never a Reject of an Invite.
+    SemanticEntry(
+        semantics=MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
+        pattern=WithdrawFromEmbargoOnCasePattern,
+        event_class=WithdrawFromEmbargoOnCaseReceivedEvent,
+        use_case_class=WithdrawFromEmbargoOnCaseReceivedUseCase,
+        phrase="{actor} withdrew from the embargo",
+        wire_activity_class=_WithdrawFromEmbargoActivity,
+        # The use case's door check reads to/cc (HP-01-005, ADR-0118).
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant bound by the active embargo stops "
+                    "complying with it"
+                ),
+                anchor="embargo-withdrawal",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Withdraw from embargo",
+                description=(
+                    "Ends the sender's own consent to the embargo in force, "
+                    "and to any revision it had agreed to. The embargo stays "
+                    "in force for every other participant."
+                ),
+                example="withdraw_from_embargo",
                 howto=HowToGuide.MANAGE_EMBARGO,
             ),
         ),

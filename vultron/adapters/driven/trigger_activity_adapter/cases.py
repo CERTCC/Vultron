@@ -46,6 +46,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from ._base import (
     _addressing,
     _case_for_wire,
+    _create_and_seal,
     _seal,
     _seal_record,
     _to_wire,
@@ -71,14 +72,7 @@ class _CasesMixin:
         case = _case_for_wire(self._dl, case_id)
         extra = _addressing(actor, to, id_)
         activity = create_case_activity(case=case, **extra)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "create_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "create_case")
 
     def engage_case(
         self,
@@ -89,14 +83,7 @@ class _CasesMixin:
         """Create and persist an ``Accept(as_VulnerabilityCase)`` engage activity."""
         case = _case_for_wire(self._dl, case_id)
         activity = rm_engage_case_activity(case=case, actor=actor, to=to)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "engage_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "engage_case")
 
     def defer_case(
         self,
@@ -107,14 +94,7 @@ class _CasesMixin:
         """Create and persist a ``TentativeReject(as_VulnerabilityCase)`` activity."""
         case = _case_for_wire(self._dl, case_id)
         activity = rm_defer_case_activity(case=case, actor=actor, to=to)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "defer_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "defer_case")
 
     def close_case(
         self,
@@ -125,14 +105,7 @@ class _CasesMixin:
         """Create and persist a ``Leave(as_VulnerabilityCase)`` close-case activity."""
         case = _case_for_wire(self._dl, case_id)
         activity = rm_close_case_activity(case=case, actor=actor, to=to)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "close_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "close_case")
 
     def reject_close_case(
         self,
@@ -157,14 +130,7 @@ class _CasesMixin:
         if in_reply_to is not None:
             kwargs["in_reply_to"] = in_reply_to
         activity = reject_close_case_activity(leave=leave, **kwargs)
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "reject_close_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "reject_close_case")
 
     def record_case_fully_closed(
         self,
@@ -220,14 +186,7 @@ class _CasesMixin:
                 f"add_object_to_case: object '{object_id}' of type"
                 f" {type(obj).__name__!r} cannot be carried in an Add activity"
             ) from exc
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "add_object_to_case: activity '%s' already exists — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _create_and_seal(self._dl, activity, "add_object_to_case")
 
     def announce_vulnerability_case(
         self,

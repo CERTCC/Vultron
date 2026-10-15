@@ -97,6 +97,7 @@ from vultron.wire.as2.vocab.examples.embargo import (
     reject_embargo_revision,
     relay_embargo_proposal,
     remove_embargo,
+    withdraw_from_embargo,
 )
 from vultron.wire.as2.vocab.examples.fault import create_processing_fault
 from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
@@ -344,6 +345,9 @@ def main(outdir=None):
     obj_to_file(
         _reject_embargo_proposal, f"{outdir}/reject_embargo_proposal.json"
     )
+
+    _withdraw_from_embargo = withdraw_from_embargo()
+    obj_to_file(_withdraw_from_embargo, f"{outdir}/withdraw_from_embargo.json")
 
     _announce_embargo = announce_embargo()
     obj_to_file(_announce_embargo, f"{outdir}/announce_embargo.json")

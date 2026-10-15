@@ -83,9 +83,12 @@ def _case_with_rejecter(
 
 
 class TestRecordParticipantRejectionNode:
-    def test_records_a_withdrawal_and_succeeds(self, dl: SqliteDataLayer):
+    def test_records_a_rejection_of_the_embargo_in_force_and_succeeds(
+        self, dl: SqliteDataLayer
+    ):
+        """An INVITED row refuses the terms in force: that row declines."""
         case, embargo_id, participant_id = _case_with_rejecter(
-            dl, consent=EmbargoConsentState.AGREED
+            dl, consent=EmbargoConsentState.INVITED
         )
         setup_blackboard(dl)
         node = RecordParticipantRejectionNode(
@@ -99,7 +102,26 @@ class TestRecordParticipantRejectionNode:
         assert (
             participant.consent_for(embargo_id) is EmbargoConsentState.DECLINED
         )
-        assert not participant.is_signatory(embargo_id)
+
+    @pytest.mark.spec("MSM-07-004")
+    def test_a_signatorys_reject_of_the_embargo_in_force_fails(
+        self, dl: SqliteDataLayer
+    ):
+        """A Reject never withdraws: withdrawal is ``Leave(EmbargoEvent)``."""
+        case, embargo_id, participant_id = _case_with_rejecter(
+            dl, consent=EmbargoConsentState.AGREED
+        )
+        setup_blackboard(dl)
+        node = RecordParticipantRejectionNode(
+            case_id=case.id_,
+            embargo_id=embargo_id,
+            rejecting_actor_id=REJECTER,
+        )
+
+        assert _tick(node) == py_trees.common.Status.FAILURE
+        assert "Leave(EmbargoEvent)" in node.feedback_message
+        participant = cast(CaseParticipant, dl.read(participant_id))
+        assert participant.is_signatory(embargo_id)
 
     def test_partial_replica_without_the_participant_succeeds(
         self, dl: SqliteDataLayer

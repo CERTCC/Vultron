@@ -83,6 +83,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Invite", "EmbargoEvent"),
     ("Accept", "EmbargoEvent"),
     ("Reject", "EmbargoEvent"),
+    # A signatory's withdrawal from the embargo in force (MSM-07-010).
+    # Participant-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    ("Leave", "EmbargoEvent"),
     ("Join", "VulnerabilityCase"),
     ("Ignore", "VulnerabilityCase"),
     ("Leave", "VulnerabilityCase"),

@@ -2,7 +2,7 @@
 stakeholder_type: [platform-developer]
 level: 400
 description: >
-  Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE, and the Case Owner's decision on a proposal.
+  Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE, the Case Owner's decision on a proposal, and a participant's withdrawal from the embargo in force.
 ---
 
 # Embargo Management (EM) Messages
@@ -117,6 +117,16 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
 {% include-markdown "./_occasions/sections/embargo-termination-notice.md" %}
 
 - **Recipient:** one `Remove(Event)` per participant other than the CASE_MANAGER, never the CASE_MANAGER itself (EMB-19-001).
+
+{% include-markdown "./_occasions/sections/embargo-withdrawal.md" %}
+
+- **Triggering transition:** none; the case's EM state does not move.
+  The sender's consent to the embargo in force moves from `AGREED` to `DECLINED` (MSM-07-010).
+- **Who sends it:** a participant that agreed to the embargo in force, sent to the Case Manager.
+  It answers no Invite, so a participant whose consent was recorded when the case was created, or when it joined, can send it too.
+- **Open revisions:** every open revision the sender had agreed to is declined with it, because each one would replace the embargo it left.
+- **Refused:** a `Leave` of an embargo that is not in force, from a sender whose consent to it is not `AGREED`, or from the Case Owner, which ends an embargo by terminating it (`ET`).
+- **Not a Reject:** a `Reject` of the Invite for the embargo in force, sent by a participant that agreed to it, is refused; withdrawal is this activity (MSM-07-004).
 
 ## Formal messages with no dedicated wire activity
 
