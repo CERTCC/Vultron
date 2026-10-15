@@ -286,7 +286,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_EmitSingleActivityBase):
     Used when a second ``Offer(Actor, Case)`` arrives while a first
     ``Offer(CaseParticipant)`` is still pending the Case Owner's
     Accept/Reject decision (AC-6, CM-16-008).  Sends a
-    ``Create(Note)`` + ``Add(Note, Case)`` to the Case Owner without
+    ``Add(Note, Case)`` carrying the note to the Case Owner without
     issuing a second ``Offer(CaseParticipant)``.
 
     When ``offer_content`` is provided (non-None, non-empty), it is appended

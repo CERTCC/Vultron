@@ -300,7 +300,7 @@ def _phase_report_submission(
         ).with_case(case),
         case_manager=case_actor_client,
     )
-    # The shared note exchange puts add_note_to_case in the ledger
+    # The shared note exchange puts create_note in the ledger
     # (DEMOMA-16-001); Vendor1 is seated, Vendor2 is not yet.
     reporter_asks_vendor_answers(
         cast.reporter, cast.vendor, cast.coordinator.client, case
