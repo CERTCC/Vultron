@@ -776,6 +776,8 @@ class TestOwnershipOfferNamingNoCase:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "names no case" in result.reason
         assert dl.read(ReceivedActivityRecord.build_id(offer.id_)) is not None
+        # Only the archive keeps it: the refused Offer is not stored (#4737).
+        assert dl.get(offer.type_.value, offer.id_) is None
 
 
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -983,6 +985,7 @@ def test_redelivered_open_offer_is_skipped_and_not_forwarded_again(
 
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-019")
 def test_redelivered_answered_offer_is_skipped_while_a_newer_one_is_open(
     make_payload,
 ):

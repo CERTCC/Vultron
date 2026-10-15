@@ -281,12 +281,19 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             transferee_id=transferee_id,
             original_actor_id=original_actor_id,
             answer_deadline=request.answer_deadline,
-            store_offer=StoreReceivedObjectNode(
-                request.activity_type,
-                request.activity_id,
-                request.activity,
-                "OfferCaseOwnershipTransfer",
-                request.activity_id,
+            # An Offer naming no case is refused below, so only intake's
+            # archive keeps it (CLP-10-018); storing it would let any sender
+            # leave an Offer behind (#4737).
+            store_offer=(
+                StoreReceivedObjectNode(
+                    request.activity_type,
+                    request.activity_id,
+                    request.activity,
+                    "OfferCaseOwnershipTransfer",
+                    request.activity_id,
+                )
+                if case_id is not None
+                else None
             ),
             offer_id=request.activity_id,
             sender_rule=self.sender_entitlement,
@@ -304,8 +311,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             activity=request,
         )
         if case_id is None:
-            # The tree kept the Offer (intake and the store node); there is
-            # no case to act on.
+            # Intake archived the Offer; there is no case to act on.
             applied_or_raise(tree, result, label="OfferOwnershipTransferBT")
             logger.warning(
                 "OfferCaseOwnershipTransferReceived: missing case_id"

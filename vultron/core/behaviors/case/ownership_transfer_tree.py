@@ -320,8 +320,9 @@ def create_offer_ownership_transfer_tree(
 
     Args:
         case_id: URI of the case whose ownership is being offered; ``None``
-            for an Offer that names no case, which is archived and kept but
-            commits and forwards nothing (CLP-10-018).
+            for an Offer that names no case, which intake archives
+            (CLP-10-018); its handler passes no ``store_offer`` for it, and
+            nothing is committed or forwarded.
         transferee_id: URI of the intended new owner; ``None`` skips forwarding.
         original_actor_id: URI of the actor who originated the offer (vendor).
         store_offer: Effect node that writes the Offer activity the accept

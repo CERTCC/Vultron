@@ -47,6 +47,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
+    SenderIsOfferingCaseOwnerNode,
     SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
     SenderIsProposalAddresseeNode,
@@ -433,6 +434,22 @@ def test_case_owner_against_an_ownership_offer_is_the_offerer_check() -> None:
         ),
     )
     assert isinstance(guard, SenderIsOwnershipOffererNode)
+    assert guard.guards_kind is Kind.CASE_OWNER
+
+
+@pytest.mark.spec("CM-21-019")
+def test_case_owner_for_a_new_ownership_offer_is_the_offering_owner_check() -> (
+    None
+):
+    """A new Offer's own id selects the check that also admits its
+    recorded sender's redelivery (HP-01-003); without it, the role alone."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.CASE_OWNER),
+        SenderCheckContext(
+            sender_id=OWNER, case_id=CASE_ID, offered_ownership_id=OFFER_ID
+        ),
+    )
+    assert isinstance(guard, SenderIsOfferingCaseOwnerNode)
     assert guard.guards_kind is Kind.CASE_OWNER
 
 

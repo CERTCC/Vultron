@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.conftest import seed_case_owner_participant
 from test.support.embargo_register import (
     activate,
     write_consent_rows,
@@ -1381,15 +1382,7 @@ def _seed_managed_case(owner, dl, *peers):
     case.actor_participant_index[case_actor.id_] = manager.id_
     # The owner holds CASE_OWNER on the roster: only it may offer the case
     # (CM-21-019).
-    owner_record = as_CaseParticipant(
-        id_=f"{case.id_}/participants/case-owner",
-        context=case.id_,
-        attributed_to=owner.id_,
-        case_roles=[CVDRole.CASE_OWNER],
-    )
-    dl.create(owner_record)
-    case.case_participants.append(owner_record.id_)
-    case.actor_participant_index[owner.id_] = owner_record.id_
+    owner_record = seed_case_owner_participant(dl, case)
     dl.create(case)
     case_actor_dl = dl.clone_for_actor(case_actor.id_)
     _CREATED_DLS.append(case_actor_dl)
