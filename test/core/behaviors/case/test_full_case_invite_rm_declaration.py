@@ -49,6 +49,7 @@ from test.support.rm_declaration import (
     assert_anomaly_flagged_and_noted,
     cases_declaring,
     current_status,
+    queued_notes,
     recorded_rm,
     seed_case,
     status_count,
@@ -200,6 +201,44 @@ class TestFullCaseInviteRepliesApplyTheSharedRule:
             _deliver(dl, case.declared, invite, tail)
 
         assert_anomaly_flagged_and_noted(case, dl, caplog.records)
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestClosedInviteeReply:
+    """An invitee the case records as closed may act on nothing (CM-23-018).
+
+    Its Reject would close it again, so it is SKIPPED (ID-05-003); any other
+    reply is REFUSED before the rule runs (RSH-06-006).  Either way nothing
+    is recorded, committed or sent, and no RSH-06-004 note is posted.
+    """
+
+    @pytest.mark.spec("CM-23-018", "RSH-06-006", "ID-05-003")
+    @pytest.mark.parametrize(
+        "case", cases_declaring(*_DECLARED, sender_closed=True)
+    )
+    def test_closed_invitee_reply_changes_nothing(
+        self, case: RMDeclarationCase, store_for
+    ) -> None:
+        dl = store_for(CASE_MANAGER_ID)
+        invite, tail = _seed_with_invite(dl, case.current)
+        before = status_count(dl)
+        ledger_before = ledger_tail_position(CASE_ID, dl)
+        outbox_before = list(dl.outbox_list())
+
+        result = _deliver(dl, case.declared, invite, tail)
+
+        expected = (
+            HandlerDisposition.SKIPPED
+            if case.declared is RM.CLOSED
+            else HandlerDisposition.REFUSED
+        )
+        assert result.disposition is expected, result.reason
+        assert "CM-23-018" in (result.reason or ""), result.reason
+        assert recorded_rm(dl) == RM.CLOSED
+        assert status_count(dl) == before
+        assert ledger_tail_position(CASE_ID, dl) == ledger_before
+        assert list(dl.outbox_list()) == outbox_before
+        assert queued_notes(dl) == []
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)

@@ -283,6 +283,37 @@ def test_stub_invite_reject_closes_and_keeps_the_record(joining_case) -> None:
     assert participant_status_rm_state(latest) == RM.CLOSED
 
 
+@pytest.mark.spec("CM-23-018", "ID-05-003")
+def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
+    joining_case,
+) -> None:
+    """The first Reject closed the invitee; a second one changes nothing.
+
+    Sent under a new activity id, it is SKIPPED with no ledger entry and
+    nothing sent (CM-23-018, ID-05-003).
+    """
+    first = joining_case.route(
+        rm_reject_invite_to_case_activity(
+            joining_case.stub_invite, actor=joining_case.invitee_id
+        )
+    )
+    assert first.disposition is HandlerDisposition.APPLIED
+    entries_before = len(_ledger_tail(joining_case))
+    outbox_before = list(joining_case.dl.outbox_list())
+
+    second = joining_case.route(
+        rm_reject_invite_to_case_activity(
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            id_="https://example.org/activities/reject-stub-again",
+        )
+    )
+
+    assert second.disposition is HandlerDisposition.SKIPPED, second.reason
+    assert len(_ledger_tail(joining_case)) == entries_before
+    assert list(joining_case.dl.outbox_list()) == outbox_before
+
+
 @pytest.mark.spec("CM-11-009")
 @pytest.mark.parametrize("reply", ["accept", "reject"])
 def test_stub_invite_reply_marks_vendor_aware(joining_case, reply) -> None:

@@ -123,8 +123,11 @@ from its role (CLP-09).
 - **Two acts stay open to a closed sender.** `Reject(CaseLedgerEntry)` gets a replay
   capped at its own closure entries (`closed_participant_ledger_cutoff()`). Its guard
   stays the bare active check (SYNC-03-005), so its use case declares the
-  `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A second `Leave` is `SKIPPED`,
-  with no entry, whatever its activity id.
+  `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A repeat of an act that would
+  close it again (`Leave`, `Close(Report)`, a `Reject` of its Invite) is `SKIPPED`,
+  with no entry, whatever its activity id: `closed_sender_preflight()` asks
+  `closure_recorded()` before the tree runs. Any other invitee reply from it is
+  `REFUSED` there too, since its guard is `INVITEE`, not the shared predicate.
 - **A repeat is decided by its effect, not its id (ID-05-003).** An act whose effect
   is already in place is a no-op, even under a new activity id: you cannot leave
   twice.

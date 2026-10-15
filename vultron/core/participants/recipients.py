@@ -573,11 +573,13 @@ def may_act_on_case(
     may not see: an inert or removed participant is refused, and so is a
     participant at RM ``CLOSED``, which has left the case.
 
-    Two acts stay open to a closed sender, and neither asks this predicate.
-    Its ``Reject(CaseLedgerEntry)`` is checked with
+    Two kinds of act stay open to a closed sender, and neither asks this
+    predicate.  Its ``Reject(CaseLedgerEntry)`` is checked with
     :func:`is_case_content_recipient` (SYNC-03-005) and answered with a
-    replay capped by :func:`closed_participant_ledger_cutoff`.  A repeated
-    ``Leave(VulnerabilityCase)`` is ``SKIPPED`` by effect (ID-05-003).
+    replay capped by :func:`closed_participant_ledger_cutoff`.  A repeat of
+    an act that would close it (a ``Leave(VulnerabilityCase)``, a
+    ``Close(Report)``, a ``Reject`` of its Invite) is ``SKIPPED`` by effect
+    before any sender guard runs (:func:`closure_recorded`, ID-05-003).
 
     An actor the case does not list, or whose record does not resolve, may
     not act: the case cannot vouch for it.
@@ -598,3 +600,18 @@ def _listed_record(
     if participant_id is None:
         return None
     return _resolve_record(case, dl, participant_id)
+
+
+def closure_recorded(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> bool:
+    """True when *case* records the closure of *actor_id* (CM-23-018).
+
+    The roster lists the actor and its record is at RM ``CLOSED``.  An act
+    that would close such a participant again changes nothing: it is the
+    repeat CM-23-018 reports ``SKIPPED``, whatever its activity id
+    (ID-05-003).  An actor the case does not list, or whose record does not
+    resolve, has no recorded closure.
+    """
+    record = _listed_record(case, dl, actor_id)
+    return record is not None and record.rm_closed
