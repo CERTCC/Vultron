@@ -124,6 +124,14 @@ def store_for_actor(
         VultronUnhostedActorError: *require_same_authority* is set and
             *actor_id* is not hosted alongside the store's own actor.
     """
+    if require_same_authority and not hosts_actor(store, actor_id):
+        raise VultronUnhostedActorError(
+            f"actor '{actor_id}' is not hosted alongside"
+            f" '{getattr(store, 'actor_id', None)}':"
+            " no store for it can be opened on this container, and nothing may"
+            " execute or enqueue as an actor this container does not host"
+            " (BT-05-005, CM-24-004, ADR-0109)"
+        )
     if not actor_id:
         return store
     own_actor_id = getattr(store, "actor_id", None)
@@ -131,13 +139,6 @@ def store_for_actor(
         return store
     if own_actor_id == actor_id:
         return store
-    if require_same_authority and not same_authority(own_actor_id, actor_id):
-        raise VultronUnhostedActorError(
-            f"actor '{actor_id}' is not hosted alongside '{own_actor_id}':"
-            " no store for it can be opened on this container, and nothing may"
-            " execute or enqueue as an actor this container does not host"
-            " (BT-05-005, CM-24-004, ADR-0109)"
-        )
     clone_for_actor = getattr(store, "clone_for_actor", None)
     if not callable(clone_for_actor):
         return store
