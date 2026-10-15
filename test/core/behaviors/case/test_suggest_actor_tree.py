@@ -208,6 +208,22 @@ class TestEvaluateDefaultRolesNode:
             CVDRole.VENDOR
         ]
 
+    def test_injected_retired_finder_role_is_dropped(self):
+        """An injected 'finder' is not a role (ADR-0078); only live roles stay."""
+        node = EvaluateDefaultRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
+            injected_roles=["finder", "vendor"],
+        )
+        node.setup()
+        node.initialise()
+        node.update()
+        key = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        assert py_trees.blackboard.Blackboard.storage.get(key) == [
+            CVDRole.VENDOR
+        ]
+
     def test_returns_failure_when_compute_roles_returns_empty(self):
         """AC-4: returns FAILURE when _compute_roles() returns empty list (CM-16-003).
 

@@ -121,8 +121,8 @@ def _make_case_with_case_manager(
     finder_id: str,
     case_actor_id: str,
 ) -> VulnerabilityCase:
-    """Create a VulnerabilityCase with a Finder participant and a Case Actor
-    (CVDRole.CASE_MANAGER).  Persists all objects in *dl*.
+    """Create a VulnerabilityCase with a Reporter participant (the finder
+    persona) and a Case Actor (CVDRole.CASE_MANAGER).  Persists all objects in *dl*.
 
     The actor participant is pre-initialized to RM.VALID so that
     engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.

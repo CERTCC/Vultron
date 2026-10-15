@@ -52,7 +52,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
-from vultron.enums.roles import CVDRole
+from vultron.enums.roles import CVDRole, parse_role
 
 
 class EvaluateDefaultRolesNode(BehaviourWithPorts):
@@ -107,7 +107,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         coerced: list[CVDRole] = []
         for raw in injected_roles:
             try:
-                coerced.append(CVDRole(raw))
+                coerced.append(parse_role(raw))
             except ValueError:
                 self.logger.warning(
                     "%s: ignoring unrecognized injected role %r for actor"
