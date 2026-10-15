@@ -139,6 +139,8 @@ The stored `Accept` would lead into the accept path, which writes to the case, a
 So the CASE_MANAGER answers the duplicate with `Reject(as_CaseProposal)` instead, and commits no ledger entry and changes no case or participant state.
 The `Reject` declines only the redelivery: the stored `Accept` stands, and the proposer learns only that nothing more will be done for the proposal.
 The same lookup gives a former owner this answer after an ownership transfer.
+A duplicate is a redelivery only when it comes from the actor the proposal was admitted for.
+A different actor that sends a proposal under the same identifier is refused: nothing is sent to it, and nothing is written for the case.
 The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
 A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
