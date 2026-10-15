@@ -86,8 +86,8 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         if obj.case_status is not None:
             self.assertIsInstance(obj.case_status, as_CaseStatus)
-            self.assertIn(obj.case_status.em_state, EM)
-            self.assertIn(obj.case_status.pxa_state, CS_pxa)
+            self.assertIn(obj.case_status.em.state, EM)
+            self.assertIn(obj.case_status.pxa.state, CS_pxa)
 
     def test_add_status_to_participant(self):
         activity = examples.add_status_to_participant()

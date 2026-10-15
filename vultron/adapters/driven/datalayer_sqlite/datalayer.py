@@ -45,7 +45,7 @@ from vultron.core.ports.datalayer import StorableRecord
 
 from . import crud, hydration, queries, queues
 from .engine import dispose_actor_engines, get_actor_engine, session_guard
-from .schema import VultronObjectRecord
+from .schema import VultronObjectRecord, require_outbox_pending_index
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +74,15 @@ class SqliteDataLayer:
 
         Raises:
             ValueError: If *actor_id* is empty or yields no usable slug.
+            VultronStaleStoreError: If the store predates the outbox
+                no-duplicate index (OX-06-002) and must be reset.
         """
         self._db_url = db_url
         self._actor_id = actor_id
         self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
+        require_outbox_pending_index(self._engine)
 
     @contextmanager
     def _session(self) -> Iterator[Session]:

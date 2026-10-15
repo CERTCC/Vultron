@@ -389,7 +389,7 @@ def _public_aware_participant(actor_id: str) -> MagicMock:
     object.__setattr__(p, "case_roles", [])
     status = MagicMock()
     cs = MagicMock()
-    cs.pxa_state = CS_pxa.PXA
+    cs.pxa.state = CS_pxa.PXA
     status.case_status = cs
     p.participant_status = status
     p.participant_statuses = [status]
@@ -420,7 +420,7 @@ class TestWaitForParticipantPxaState:
         object.__setattr__(none_participant, "case_roles", [])
         none_status = MagicMock()
         none_cs = MagicMock()
-        none_cs.pxa_state = None
+        none_cs.pxa = None
         none_status.case_status = none_cs
         none_participant.participant_status = none_status
         none_participant.participant_statuses = [none_status]
@@ -452,7 +452,7 @@ class TestWaitForParticipantPxaState:
         none_participant = MagicMock()
         none_status = MagicMock()
         none_cs = MagicMock()
-        none_cs.pxa_state = None
+        none_cs.pxa = None
         none_status.case_status = none_cs
         none_participant.participant_status = none_status
         none_participant.participant_statuses = [none_status]
@@ -479,7 +479,7 @@ def _unaware_participant() -> MagicMock:
     object.__setattr__(p, "case_roles", [])
     status = MagicMock()
     cs = MagicMock()
-    cs.pxa_state = None
+    cs.pxa = None
     status.case_status = cs
     p.participant_status = status
     p.participant_statuses = [status]

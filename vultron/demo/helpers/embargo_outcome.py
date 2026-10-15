@@ -140,10 +140,10 @@ def verify_pending_revision(
 ) -> as_EmbargoEvent:
     """Exactly one longer proposal is pending and the case sits at REVISE."""
     with demo_check("Case is at EM.REVISE — the longer terms are pending"):
-        if case.current_status.em_state != EM.REVISE:
+        if case.em_state != EM.REVISE:
             raise AssertionError(
                 f"Expected EM.REVISE with a revision pending, found"
-                f" {case.current_status.em_state}"
+                f" {case.em_state}"
             )
     with demo_check("Exactly one revision is registered on the case"):
         if len(case.proposed_embargo_ids) != 1:
@@ -178,10 +178,8 @@ def verify_uncontested(
 ) -> None:
     """No default competed: ACTIVE, nothing pending, and not the fallback."""
     with demo_check("Case is at EM.ACTIVE with nothing pending"):
-        if case.current_status.em_state != EM.ACTIVE:
-            raise AssertionError(
-                f"Expected EM.ACTIVE, found {case.current_status.em_state}"
-            )
+        if case.em_state != EM.ACTIVE:
+            raise AssertionError(f"Expected EM.ACTIVE, found {case.em_state}")
         if case.proposed_embargo_ids:
             raise AssertionError(
                 "Expected no pending revision with no actor default, found"
@@ -222,14 +220,14 @@ def verify_receiver_replica_agrees(
     with demo_check(
         "Receiver's replica carries the same EM state (observed, not gated)"
     ):
-        expected = canonical.current_status.em_state
+        expected = canonical.em_state
         seen: dict[str, EM] = {}
 
         def _agrees() -> bool:
             replica = find_case_for_offer(client, offer_id)
             if replica is None:
                 return False
-            seen["em"] = replica.current_status.em_state
+            seen["em"] = replica.em_state
             return seen["em"] == expected
 
         try:

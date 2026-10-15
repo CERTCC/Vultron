@@ -24,9 +24,10 @@ import pytest
 import yaml
 from markdown.extensions import toc  # type: ignore[import-untyped]
 
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.cs import CS_vf
+from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.metadata.base import excluded_docs_spec, mkdocs_config
 from vultron.metadata.file_loading import MetadataLoadError
@@ -448,7 +449,17 @@ def test_distinguished_by_renders_a_field_value():
             object_type=ParticipantStatus, field="vf_state", value=CS_vf.VF
         )
     )
-    assert distinguished_by(occasion) == "`vf_state` = `VF`"
+    assert distinguished_by(occasion) == "`vfState` = `VF`"
+
+
+def test_distinguished_by_names_a_dimension_field_by_its_wire_spelling():
+    """``CaseStatus.pxa`` renders as ``pxaState``, its AS2 key (#4376)."""
+    occasion = _occasion(
+        distinguisher=FieldValue(
+            object_type=CaseStatus, field="pxa", value=CS_pxa.Pxa
+        )
+    )
+    assert distinguished_by(occasion) == "`pxaState` = `Pxa`"
 
 
 def test_distinguished_by_renders_a_state_context():
@@ -488,7 +499,7 @@ def test_fix_readiness_row_reads_as_specified(table):
         "| a Vendor has a fix ready"
         " | `Add(ParticipantStatus)[target=CaseParticipant]`"
         " | an active participant (usually: vendor)"
-        " | `vf_state` = `VF`"
+        " | `vfState` = `VF`"
         " | [Fix Readiness (CF)](../cs.md#fix-readiness) |"
     )
 

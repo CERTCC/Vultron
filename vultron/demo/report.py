@@ -539,12 +539,10 @@ class CaseTimelineEvent(BaseModel):
             ),
             received_at=str(received) if received else None,
             rm_state=_dimension_state(candidates, "rm", "rmState", "rm_state"),
-            em_state=_dimension_state(candidates, "em", "emState", "em_state"),
+            em_state=_dimension_state(candidates, "em", "emState"),
             vf_state=_dimension_state(candidates, "vf", "vfState", "vf_state"),
             d_state=_dimension_state(candidates, "d", "dState", "d_state"),
-            pxa_state=_dimension_state(
-                candidates, "pxa", "pxaState", "pxa_state"
-            ),
+            pxa_state=_dimension_state(candidates, "pxa", "pxaState"),
         )
 
     @property

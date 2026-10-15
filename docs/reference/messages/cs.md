@@ -11,15 +11,15 @@ The CS shorthands announce case-state events. Their wire vocabulary splits along
 a scope boundary that the "case state" name obscures:
 
 - **`V`, `F`, `D` are participant-scoped** — one per (actor × case). They ride
-  `as_ParticipantStatus` (`vf_state` and `d_state`) on
+  `as_ParticipantStatus` (`vfState` and `dState`) on
   `Add(ParticipantStatus)[target=CaseParticipant]`.
 - **`P`, `X`, `A` are case-scoped** — one per case. They ride
-  `as_CaseStatus.pxa_state` on `Add(CaseStatus)[target=VulnerabilityCase]`.
+  the `pxaState` field of `as_CaseStatus` on `Add(CaseStatus)[target=VulnerabilityCase]`.
 
 There are **no case-level `V`/`F`/`D` states**. A case-level status cannot
 express *which* vendor became aware or ready, which is the purpose of the V/F/D
 dimensions in multi-party CVD; those dimensions are always participant-specific
-(ADR-0075). `vf_state` and `d_state` are absent for participants that are neither
+(ADR-0075). `vfState` and `dState` are absent for participants that are neither
 Vendor nor Deployer.
 
 The `Add` carries the new status object inline.

@@ -243,6 +243,52 @@ def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
     assert retired in str(exc_info.value)
 
 
+def _inline_case_status(**extra: Any) -> dict[str, Any]:
+    return {
+        "type": "CaseStatus",
+        "id": "https://example.org/case-status/1",
+        "context": "https://example.org/cases/1",
+        **extra,
+    }
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("SDO-03-003")
+@pytest.mark.parametrize(
+    "flat,declared,value",
+    [("em_state", "emState", "ACTIVE"), ("pxa_state", "pxaState", "PXA")],
+)
+@pytest.mark.parametrize(
+    "build",
+    [
+        _inline_case_status,
+        lambda **extra: _inline_participant_status(
+            caseStatus=_inline_case_status(**extra)
+        ),
+    ],
+    ids=["CaseStatus", "ParticipantStatus.caseStatus"],
+)
+def test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling(
+    build: Callable[..., dict[str, Any]], flat: str, declared: str, value: str
+) -> None:
+    """``em_state``/``pxa_state`` are refused as near misses (SDO-03-003, #4376).
+
+    Once ``CaseStatus`` stops declaring the flat snake_case spellings, each
+    normalises to its wire spelling (``emState``, ``pxaState``), so the
+    near-miss rule refuses it with no ``RETIRED_NAMES`` entry: the field is
+    not retired, only that spelling of it.
+    """
+    from vultron.wire.as2.unknown_keys import RETIRED_NAMES
+
+    assert flat not in RETIRED_NAMES
+    body = _with_inline_object(build(**{flat: value}))
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert flat in message
+    assert declared in message
+
+
 CONSENT_RETIRED_KEYS = [
     ("emConsentState", "SIGNATORY"),
     ("em_consent_state", "SIGNATORY"),

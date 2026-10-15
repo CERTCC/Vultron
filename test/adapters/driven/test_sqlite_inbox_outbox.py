@@ -162,6 +162,61 @@ def test_the_inbox_does_not_take_the_outbox_check(dl):
 
 
 # ---------------------------------------------------------------------------
+# The store enforces OX-06-002: a partial UNIQUE index on outbox rows (#4629)
+# ---------------------------------------------------------------------------
+
+
+def _insert_raw_queue_row(dl, queue: str, activity_id: str) -> None:
+    """Insert a queue row with plain SQL, bypassing every code-level check."""
+    from sqlalchemy import text
+
+    with dl._engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO vultron_queue (queue, activity_id)"
+                " VALUES (:queue, :activity_id)"
+            ),
+            {"queue": queue, "activity_id": activity_id},
+        )
+
+
+@pytest.mark.spec("OX-06-002")
+def test_the_store_refuses_a_second_pending_outbox_row(dl):
+    """The index, not the append code, rejects a raw duplicate outbox row."""
+    from sqlalchemy.exc import IntegrityError
+
+    _insert_raw_queue_row(dl, "outbox", "urn:test:dup")
+    with pytest.raises(IntegrityError):
+        _insert_raw_queue_row(dl, "outbox", "urn:test:dup")
+    assert dl.outbox_list() == ["urn:test:dup"]
+
+
+def test_the_outbox_index_does_not_cover_the_inbox(dl):
+    """The inbox has no no-duplicate rule; a repeated inbox id is kept."""
+    dl.inbox_append("urn:test:again")
+    dl.inbox_append("urn:test:again")
+    assert dl.inbox_list() == ["urn:test:again", "urn:test:again"]
+
+
+@pytest.mark.integration
+@pytest.mark.spec("OX-06-002")
+def test_a_store_without_the_outbox_index_is_refused_at_open(file_dl):
+    """A store written before the index fails loudly, naming the reset."""
+    from sqlalchemy import text
+
+    from vultron.adapters.driven.datalayer_sqlite.schema import (
+        OUTBOX_PENDING_INDEX,
+    )
+    from vultron.errors import VultronStaleStoreError
+
+    with file_dl._engine.begin() as conn:
+        conn.execute(text(f"DROP INDEX {OUTBOX_PENDING_INDEX}"))
+
+    with pytest.raises(VultronStaleStoreError, match="must be reset"):
+        SqliteDataLayer(file_dl.db_url, actor_id=file_dl.actor_id)
+
+
+# ---------------------------------------------------------------------------
 # File-backed integration test
 # ---------------------------------------------------------------------------
 

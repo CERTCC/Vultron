@@ -64,7 +64,7 @@ def test_propose_embargo_strict_raises_when_pxa_set(
     """STRICT propose raises when any of P/X/A is set (EMB-01-002)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     dl.save(case)
     write_consent_rows(dl, case)
     embargo = _make_embargo(dl, case.id_)
@@ -105,7 +105,7 @@ def test_propose_embargo_observed_bypasses_pxa_guard(
     """OBSERVED mode bypasses P/X/A guard and syncs to PROPOSED."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     dl.save(case)
     write_consent_rows(dl, case)
     embargo = _make_embargo(dl, case.id_)
@@ -129,7 +129,7 @@ def test_activate_embargo_strict_raises_when_pxa_set(
     """STRICT activation raises when any of P/X/A is set (EMB-02-002)."""
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
@@ -178,7 +178,7 @@ def test_activate_embargo_observed_bypasses_pxa_guard(
     """OBSERVED mode bypasses P/X/A guard and syncs to ACTIVE."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
@@ -204,7 +204,7 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
     case, _ = _make_case(dl, owner.id_, extra_participant_ids=[finder.id_])
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
@@ -238,7 +238,7 @@ def test_owners_accept_of_an_invite_with_pxa_set_is_consent_only(
     """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
@@ -265,7 +265,7 @@ def test_reject_embargo_proposal_strict_revise_pxa_raises(
     """STRICT reject from REVISE+PXA raises (EMB-04-002: must terminate, not revert)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     active = _make_embargo(dl, case.id_)
     embargo = _make_embargo(dl, case.id_, days=90)
     activate(case, active.id_)
@@ -288,7 +288,7 @@ def test_reject_embargo_proposal_strict_proposed_pxa_allowed(
     """STRICT reject from PROPOSED+PXA is allowed (PROPOSED→NONE, no active embargo)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=CS_pxa.Pxa)  # public aware
+    case.append_case_status(pxa=CS_pxa.Pxa)  # public aware
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
@@ -319,7 +319,7 @@ def test_reject_embargo_proposal_observed_revise_pxa_changes_nothing(
     """
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa_state=pxa_state)
+    case.append_case_status(pxa=pxa_state)
     active = _make_embargo(dl, case.id_)
     embargo = _make_embargo(dl, case.id_, days=90)
     activate(case, active.id_)
