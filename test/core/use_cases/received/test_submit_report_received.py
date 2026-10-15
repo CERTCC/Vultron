@@ -878,6 +878,13 @@ class TestSubmitReportDisposition:
         result, _ = self._run(to=[self.VENDOR_ID], report=False)
         assert result.disposition == HandlerDisposition.SKIPPED
 
+    @pytest.mark.spec("CLP-10-005")
+    @pytest.mark.parametrize("report", [True, False], ids=["report", "none"])
+    def test_offer_runs_one_tree(self, tree_runs, report):
+        """Proposing and keeping a report-less Offer are one tree (#4643)."""
+        self._run(to=[self.VENDOR_ID], report=report)
+        assert len(tree_runs) == 1
+
     @pytest.mark.spec("HP-01-003")
     def test_proposal_flow_failure_raises(self, monkeypatch):
         """A failed proposal flow is this actor's fault, not the sender's."""

@@ -54,6 +54,9 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -373,6 +376,38 @@ def rm_declaration_verdict(
     return verdict
 
 
+def guard_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    node_type: type[py_trees.behaviour.Behaviour],
+) -> HandlerResult | None:
+    """``REFUSED`` with the guard's own reason when a *node_type* guard failed.
+
+    ``None`` when no such guard ran and failed.  For a guard whose message
+    is the whole refusal, so the reason carries no tree label:
+    :class:`~vultron.core.behaviors.case.nodes.incomplete_activity.ActivityIncompleteNode`
+    and the announce tree's trusted-sender guard.  A guard that never ran (a
+    leadership skip, or the post-close guard refused first) is ``None``, so
+    the handler falls through to :func:`verdict_from_bt`.
+    """
+    node = find_node(tree, node_type)
+    if node is None or node.status != Status.FAILURE:
+        return None
+    return HandlerResult.refused(
+        node.feedback_message or f"{node.name} refused the activity"
+    )
+
+
+def incomplete_activity_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal of an activity its handler's tree could not be built for.
+
+    See :func:`guard_refusal` and
+    :func:`~vultron.core.behaviors.case.intake_only_received_tree.create_incomplete_activity_received_tree`.
+    """
+    return guard_refusal(tree, ActivityIncompleteNode)
+
+
 def failure_reason(
     tree: py_trees.behaviour.Behaviour | _HasRoot, result: BTExecutionResult
 ) -> str:
@@ -512,6 +547,8 @@ __all__ = [
     "failure_reason",
     "find_named",
     "find_node",
+    "guard_refusal",
+    "incomplete_activity_refusal",
     "intake_verdict",
     "node_failed",
     "node_succeeded",

@@ -109,6 +109,9 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
     RelayCreationTimeRevisionNode,
 )
@@ -182,7 +185,7 @@ stands (CP-05-005, CP-05-006).
 
 def create_case_proposal_received_tree(
     report_id: str | None,
-    proposal_id: str,
+    proposal_id: str | None,
     proposer_uri: str,
     proposal_dict: dict | None = None,
     actor_config: ActorConfig | None = None,
@@ -321,11 +324,17 @@ def create_case_proposal_received_tree(
     Spec: CP-05-001 through CP-05-006, CP-05-008.
     Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
 
+    A proposal with no id is refused by the same tree's guard instead
+    (``ActivityIncompleteNode``): every branch above is keyed on the
+    proposal, so there is nothing to judge, yet the delivery still runs one
+    tree and is archived (CLP-10-005, CLP-10-018).
+
     Args:
         report_id: URI of the VulnerabilityReport embedded in the proposal
             (CP-01-004). Pass ``None`` if the report URI could not be
             extracted — the case will be created without a report link.
-        proposal_id: URI of the ``as_CaseProposal`` object.
+        proposal_id: URI of the ``as_CaseProposal`` object; ``None`` when
+            the proposal names none.
         proposer_uri: URI of the proposing actor — the report receiver — to
             whom the responses are sent.  If the proposal is admitted, it
             becomes the case's CASE_OWNER: the new case is attributed to it
@@ -357,6 +366,11 @@ def create_case_proposal_received_tree(
         The root ``Sequence`` (intake, then the idempotency Selector), ready
         for ``BTBridge.execute_with_setup``.
     """
+    if proposal_id is None:
+        return create_incomplete_activity_received_tree(
+            "CreateCaseProposalReceivedBT",
+            "Create(CaseProposal) carries no proposal id",
+        )
     bundle = call_out if call_out is not None else CASE_PROPOSAL_DETERMINISTIC
 
     offer_id, offer_actor_id = offer_provenance_from_proposal(proposal_dict)

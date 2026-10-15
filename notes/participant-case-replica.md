@@ -54,9 +54,9 @@ actor or two (CM-02-010).
 ## A Seeding Announce Needs a Locally Derived Anchor (PCR-03-004)
 
 A participant MUST NOT create a replica from an arbitrary
-`Announce(VulnerabilityCase)`. `_sender_is_trusted()` in
-`vultron/core/use_cases/received/actor/announce.py` admits the sender only
-against an anchor the receiver derived itself:
+`Announce(VulnerabilityCase)`. `AnnounceSenderTrustedNode`, a guard in the
+announce tree (`vultron/core/behaviors/case/nodes/announce.py`), admits the
+sender only against an anchor the receiver derived itself:
 
 1. **Report path**: a completed `VultronReportCaseLink` recording
    `case_manager_id` (written on the creator-signed `Create(VulnerabilityCase)`),

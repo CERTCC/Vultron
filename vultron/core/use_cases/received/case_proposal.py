@@ -87,10 +87,10 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_node,
+    incomplete_activity_refusal,
     node_succeeded,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._intake_only import refuse_after_intake
 from vultron.core.use_cases.received._sender_embargo_proposal import (
     sender_embargo_proposal_inputs,
 )
@@ -181,7 +181,7 @@ class CreateCaseProposalReceivedUseCase:
 
     @staticmethod
     def _core_inline_report(
-        activity_obj: Any, proposal_id: str
+        activity_obj: Any, proposal_id: str | None
     ) -> VulnerabilityReport | None:
         """Return the proposal's inline report, if the proposal carries one.
 
@@ -214,19 +214,8 @@ class CreateCaseProposalReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # A proposal with no id is refused by the tree itself (CLP-10-005).
         proposal_id = request.proposal_id
-        if proposal_id is None:
-            logger.warning(
-                "create_case_proposal_received: no proposal_id — refusing"
-            )
-            return refuse_after_intake(
-                self._dl,
-                request,
-                "Create(CaseProposal) carries no proposal id",
-                name="CreateCaseProposalReceivedBT",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
 
         # The report receiver who sent Create(as_CaseProposal) is the activity
         # actor, and becomes the CASE_OWNER if the proposal is admitted.
@@ -258,8 +247,12 @@ class CreateCaseProposalReceivedUseCase:
         # seed) would silently skip, so the reporter would never get a replica.
         proposal_dict: dict | None = None
         activity_obj = request.activity
-        if activity_obj is not None and hasattr(
-            getattr(activity_obj, "object_", None), "model_dump"
+        # A proposal with no id never reaches a node that reads the
+        # rendering: its tree only archives and refuses it.
+        if (
+            proposal_id is not None
+            and activity_obj is not None
+            and hasattr(getattr(activity_obj, "object_", None), "model_dump")
         ):
             if self._wire_render_port is None:
                 raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
@@ -295,10 +288,15 @@ class CreateCaseProposalReceivedUseCase:
             owner_profile=request.proposer_profile,
             **sender_embargo_proposal_inputs(request),
         )
+        if (refusal := incomplete_activity_refusal(tree)) is not None:
+            return refusal
         verdict = verdict_from_bt(
             tree, result, label="CreateCaseProposalReceivedBT"
         )
-        if verdict.disposition is HandlerDisposition.APPLIED:
+        if (
+            verdict.disposition is HandlerDisposition.APPLIED
+            and proposal_id is not None
+        ):
             verdict = self._classify_success(tree, proposal_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(

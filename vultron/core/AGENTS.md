@@ -43,7 +43,8 @@ class CreateReportReceivedUseCase:
   `dl.save()`/`dl.create()`, never hand-built records (HP-08-001); both ratcheted
   in `test/architecture/`
 - Intake-only received handlers call `run_intake_only` (`received/_intake_only.py`);
-  verdict via `intake_verdict`; pre-tree refusal: `refuse_after_intake`
+  verdict via `intake_verdict`; an activity too incomplete to build its tree
+  is refused in-tree via `create_incomplete_activity_received_tree`
 - Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
 - Dispatcher raises `VultronApiHandlerNotFoundError` for unknown semantic types;
   do **not** add per-handler type validation decorators

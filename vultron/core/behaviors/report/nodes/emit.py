@@ -22,10 +22,12 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.authority import (
+    _find_case_actor_id,
+    resolve_case_manager_id,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.core.use_cases._helpers import _find_case_actor_id
 
 
 class _EmitCaseActorReportActivityBase(_EmitSingleActivityBase):

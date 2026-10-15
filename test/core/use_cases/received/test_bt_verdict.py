@@ -24,6 +24,9 @@ from test.core.use_cases.received.conftest import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -33,6 +36,8 @@ from vultron.core.use_cases.received._bt_verdict import (
     failure_reason,
     find_named,
     find_node,
+    guard_refusal,
+    incomplete_activity_refusal,
     intake_verdict,
     node_failed,
     node_succeeded,
@@ -351,3 +356,42 @@ def test_not_case_manager_refusal_names_a_case_with_no_manager():
     assert verdict is not None
     assert verdict.disposition == HandlerDisposition.REFUSED
     assert verdict.reason == f"case '{_CASE_ID}' has no CASE_MANAGER"
+
+
+@pytest.mark.spec("CLP-10-005")
+def test_guard_refusal_carries_the_guards_own_reason():
+    """No tree label: the guard's message is the whole refusal (#4643)."""
+    tree = _ran(_Guard("Guard", Status.FAILURE, "untrusted sender"))
+    verdict = guard_refusal(tree, _Guard)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "untrusted sender"
+
+
+@pytest.mark.parametrize(
+    "children",
+    [
+        (_Guard("Guard", Status.SUCCESS),),
+        # The guard never ran: an earlier node failed first.
+        (
+            _Fixed("First", Status.FAILURE, "closed"),
+            _Guard("Guard", Status.FAILURE),
+        ),
+        (),
+    ],
+    ids=["passed", "never-ran", "absent"],
+)
+def test_guard_refusal_is_none_unless_the_guard_failed(children):
+    assert guard_refusal(_ran(*children), _Guard) is None
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_incomplete_activity_refusal_reads_the_incomplete_guard():
+    tree = _ran(ActivityIncompleteNode("Add(X) is missing its id"))
+    verdict = incomplete_activity_refusal(tree)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "Add(X) is missing its id"
+    assert (
+        incomplete_activity_refusal(_ran(_Fixed("Ok", Status.SUCCESS))) is None
+    )

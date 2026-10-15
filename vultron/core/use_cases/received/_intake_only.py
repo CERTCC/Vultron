@@ -27,17 +27,10 @@ from vultron.core.behaviors.case.intake_only_received_tree import (
     create_intake_only_received_tree,
 )
 from vultron.core.models.events.base import VultronEvent
-from vultron.core.models.use_case_result import (
-    HandlerDisposition,
-    HandlerResult,
-)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    applied_or_raise,
-)
 
 
 def run_intake_only(
@@ -60,36 +53,3 @@ def run_intake_only(
         activity=request,
     )
     return tree, result
-
-
-def refuse_after_intake(
-    dl: CasePersistence,
-    request: VultronEvent,
-    reason: str,
-    *,
-    name: str,
-    sync_port: SyncActivityPort | None,
-    wire_render_port: WireRenderPort | None,
-) -> HandlerResult:
-    """Archive the activity, then refuse it.
-
-    For a handler that turns a delivery away before it can build its real
-    tree (a missing id, an untrusted sender): the refusal still leaves the
-    receiver holding what arrived (CLP-10-018).  The intake-only tree writes
-    nothing else.
-
-    Raises:
-        VultronBTInternalError: Intake itself failed (a local fault, not the
-            sender's).
-    """
-    tree, result = run_intake_only(
-        dl,
-        request,
-        name=name,
-        sync_port=sync_port,
-        wire_render_port=wire_render_port,
-    )
-    verdict = applied_or_raise(tree, result, label=name)
-    if verdict.disposition is HandlerDisposition.SKIPPED:
-        return verdict  # leader skip: intake never ran, nothing was archived
-    return HandlerResult.refused(reason)

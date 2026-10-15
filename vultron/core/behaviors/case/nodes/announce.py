@@ -13,11 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""BT leaf node for received Announce(VulnerabilityCase) activities.
+"""BT leaf nodes for received Announce(VulnerabilityCase) activities.
 
-Provides the action node that seeds a local DataLayer with a
-``VulnerabilityCase`` received from the case's owner/CaseActor, stores
-embedded participants, and links any matching report-case associations.
+Provides the guard that admits an Announce only from the CASE_MANAGER this
+actor already trusts for the case (:class:`AnnounceSenderTrustedNode`,
+PCR-03-001, PCR-03-004), and the action node that seeds a local DataLayer
+with the announced ``VulnerabilityCase``, stores embedded participants, and
+links any matching report-case associations.
 
 Per ``specs/mpcvd-cases.yaml`` MV-10-003 (create if absent) and
 MV-10-004 (idempotent if already present).
@@ -30,12 +32,19 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.participants.authority import _find_case_actor_id
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.carried_embargo import store_carried_embargo
 from vultron.core.services.case_replica_seeding import (
     link_report_case_links,
@@ -43,6 +52,96 @@ from vultron.core.services.case_replica_seeding import (
     store_embedded_participants,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
+
+
+def announced_case_id(
+    request: AnnounceVulnerabilityCaseReceivedEvent, case_obj: Any
+) -> str:
+    """The id of the case *request* announces as *case_obj*.
+
+    Raises:
+        VultronValidationError: The event carries no activity, the activity
+            no object, the object is not a ``VulnerabilityCase``, or the case
+            has no id.  The message is the refusal's reason.
+    """
+    if request.activity is None:
+        raise VultronValidationError("Announce carries no activity")
+    if case_obj is None:
+        raise VultronValidationError("Announce carries no case object")
+    if getattr(case_obj, "type_", None) != "VulnerabilityCase":
+        raise VultronValidationError(
+            "Announce object is not a VulnerabilityCase"
+            f" ({type(case_obj).__name__})"
+        )
+    case_id = _as_id(case_obj)
+    if case_id is None:
+        raise VultronValidationError("Announced case object has no id")
+    return case_id
+
+
+def sender_is_trusted(
+    dl: CasePersistence, case_id: str, sender_id: str | None
+) -> bool:
+    """Return True if *sender_id* is trusted to seed or update *case_id*.
+
+    Resolution order (PCR-03-001, PCR-03-004):
+
+    1. An established ``_find_case_actor_id`` anchor — the address recorded on a
+       completed ``ReportCaseLink``, or else the ``CVDRole.CASE_MANAGER``
+       role-holder on the local replica: trust iff the sender matches.  Both are
+       locally derived, which is the property this guard depends on.  ADR-0088
+       removed the two other paths that resolver once had (a ``case-actor``
+       URL-shape gate and a ``Service``-hosting scan), because neither is
+       evidence of authority (ARCH-24-004) and the hosting scan answered ``None``
+       during the bootstrap window (CM-02-012).
+    2. An invite trust anchor from ``InviteActorToCaseReceivedUseCase`` (a
+       ``VultronPendingCaseInbox`` whose ``case_actor_id`` names the expected
+       CASE_MANAGER): trust iff the sender matches.
+    3. No anchor of either kind: reject (fail closed, PCR-03-004).
+    """
+    case_actor_id = _find_case_actor_id(dl, case_id)
+    if case_actor_id is not None:
+        return case_actor_id == sender_id
+    pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
+    return (
+        isinstance(pending, VultronPendingCaseInbox)
+        and pending.case_actor_id is not None
+        and pending.case_actor_id == sender_id
+    )
+
+
+class AnnounceSenderTrustedNode(DataLayerConditionWithPorts):
+    """Guard: the Announce comes from the CASE_MANAGER this actor trusts.
+
+    ``SUCCESS`` when :func:`sender_is_trusted` holds for the announced case;
+    otherwise ``FAILURE``, with a reason naming the untrusted sender, logged
+    at ``WARNING`` (PCR-03-001, PCR-03-004, PCR-07-010).  Reads only; the
+    seed effect after it is the tree's one write beyond intake.
+    """
+
+    def __init__(
+        self, case_id: str, sender_id: str | None, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.sender_id = sender_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        if sender_is_trusted(self.datalayer, self.case_id, self.sender_id):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"untrusted sender '{self.sender_id}' for case '{self.case_id}'"
+            " (PCR-03-004)"
+        )
+        self.logger.warning(
+            "%s: %s — Announce rejected (PCR-03-001, PCR-07-010)",
+            self.name,
+            self.feedback_message,
+        )
+        return Status.FAILURE
 
 
 def _store_embedded_reports(case_obj, datalayer) -> None:
