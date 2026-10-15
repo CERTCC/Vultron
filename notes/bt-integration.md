@@ -265,7 +265,7 @@ guards, commit, effects.
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. The one-node
    pre-tree runs in `_sender_preflight.py` (`door_refusal`, which runs
    `post_close_refusal_before_tree`, `unaddressed_copy_refusal` and
-   `sender_refusal` in that order, and `repeat_answer_skip`) are the chained
+   `rule_refusal` in that order, and `repeat_answer_skip`) are the chained
    shape CLP-10-005
    forbids; compose their guard into the tree, never add a caller. A tree
    opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only

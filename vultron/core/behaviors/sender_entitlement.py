@@ -53,9 +53,12 @@ sent before any case exists.  The receive-tree
 factory composes the guard from the rule
 (``vultron.core.behaviors.sender_guard.compose_sender_guard``).
 
-Some trees still build their own guard and pass it as ``sender_guard``.  The
-allow-list in ``test/architecture/test_sender_entitlement_ratchet.py`` names
-them (#4437).
+A tree cannot pass a guard of its own.  The ratchet in
+``test/architecture/test_sender_entitlement_ratchet.py`` fails on any of these
+nodes named outside this module and the composer, unless an allow-list names
+the site: a guard not yet migrated names the open issue that migrates it, and
+a standing read that picks an effect after admission says why it admits no
+one (HP-01-007, #4437).
 
 Exemption
 ---------
