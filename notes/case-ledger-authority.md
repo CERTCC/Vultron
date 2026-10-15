@@ -99,16 +99,32 @@ Replicas need the asserted content to rebuild state, so the hash chain is
 computed over entries that each include the payload snapshot, never over pointers
 to prior assertions.
 
+**Planned: `event_type` is the registry's label for the payload (ADR-0140,
+proposed).** Every payload is a valid AS2 activity, and an entry's `event_type`
+must equal the semantic type the registry assigns to its `payload_snapshot`,
+including for the CASE_MANAGER's own acts. Today each write path stamps
+`event_type` from its own string constant. The shapes for ledger-only acts are
+decided in #4723; the equality test is #4724.
+
 ## Refusals Go to the Process Log
 
 Only admitted assertions enter the ledger; there is no disposition field.
 
 - A message that cannot be tied to a case or proto-case is a transport/actor
   diagnostic: Python `logging` only.
-- A case-resolvable message refused at case-layer validation gets a `Reject` sent
+- A case-resolvable message refused by a precondition guard gets a `Reject` sent
   to the asserting participant alone (CLP-05-001) plus a log event. Nothing enters
   the hash chain (CLP-05-002). Other participants need canonical history, not
   failed attempts.
+- The `Reject` wraps the refused activity inline, `inReplyTo` its id, with the
+  guard's reason in `summary` (ADR-0141). Send it as a tree's `refusal_effects`
+  (CLP-10-022), never from `execute()`; a sender-guard refusal and a `SKIPPED`
+  repeat get none. The reason is read by the sender, so it names the sender's own
+  standing only.
+- A `Reject(Invite)` or `Reject(Offer)` refusal notice has the shape of a decline;
+  the sender reads it with the decline's use case, which closes the pending entry.
+  Do not add a pattern to tell them apart: the request had no effect either way
+  (CLP-05-001).
 
 The Python log is per-actor and ephemeral; never replicate it or rely on it for
 protocol semantics (ADR-0019).

@@ -455,14 +455,20 @@ groups:
     kind: protocol
     statement: >
       `RM.CLOSED` MUST be treated as terminal for the `rm` dimension only. A
-      participant at `RM.CLOSED` MUST still have accepted values in other
-      dimensions recorded.
+      status that reaches `RM.CLOSED` MUST still have its accepted values in
+      other dimensions recorded. A status update from a participant whose
+      closure the case's ledger already records is refused in full instead
+      (CM-23-018).
     rationale: >
-      A vendor that has closed its report management workflow may still deploy
-      a fix (VFD) or observe public disclosure (PXA). Freezing the whole
-      snapshot at RM closure discards real protocol state.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a participant
-      at `RM.CLOSED` still has accepted VFD dimension values recorded.
+      A vendor that closes its report management workflow may deploy a fix
+      (VFD) or observe public disclosure (PXA) as it closes. Freezing the whole
+      snapshot at RM closure discards real protocol state. Once its closure is
+      recorded the participant has left the case and may act on nothing
+      further (CM-23-004, CM-23-018), so it reports that progress before it
+      leaves.
+    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a status
+      that reaches `RM.CLOSED` still has its accepted VFD dimension value recorded, and that a later update from a
+      participant already at `RM.CLOSED` is refused in full.
     stories:
     - story_2022_088
     - story_2022_107
@@ -1111,7 +1117,8 @@ groups:
       case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not only
       `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation, which accepts
       only a move to an adjacent RM state, MUST NOT be the receive-side acceptance rule for
-      any of these.
+      any of these. A declaration from a sender whose closure the case's ledger records is
+      not adjudicated: it is refused before the rule applies, with no note (CM-23-018).
     rationale: >
       The acceptance rule belongs to the state machine, not to the message. A
       transition accepted as a status snapshot but refused as the activity that

@@ -46,7 +46,10 @@ from test.core.use_cases.received.conftest import (
 from test.core.use_cases.triggers.embargo.conftest import (
     _build_active_embargo_case,
 )
-from test.support.embargo_register import activate
+from test.support.embargo_register import (
+    activate,
+    agree_to_active_embargo,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -153,6 +156,12 @@ def _send_stub_invite(
     also the CASE_MANAGER address it to itself.
     """
     _hold_case_owner(dl, case_id, actor_id)
+    case = dl.read_case(case_id)
+    assert case is not None
+    if case.embargo_in_force:
+        # The owner recommends, so it must be an active participant: a
+        # signatory to the embargo in force (CM-10-004, CM-23-018).
+        agree_to_active_embargo(dl, case, actor_id)
     offer = activity_of(
         SvcInviteActorToCaseUseCase(
             dl,

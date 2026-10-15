@@ -1610,7 +1610,8 @@ groups:
       sender, however often the Invite is delivered
       (`test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault`); an Invite
       naming no embargo gets the `EmbargoInviteWithoutEmbargo` fault
-      (`test_an_invite_naming_no_embargo_gets_a_processing_fault`); a single-recipient Invite
+      (`test_an_invite_naming_no_embargo_gets_a_processing_fault`; both in
+      `test_embargo_relay_replay.py`); a single-recipient Invite
       resolves that recipient (`test_invite_with_several_recipients_is_refused` and
       `test_invite_with_no_recipient_is_refused` in `test_embargo_revision_relay.py`;
       `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in

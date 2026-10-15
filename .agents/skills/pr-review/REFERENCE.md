@@ -65,7 +65,8 @@ confirmed violations; **WARN** for likely violations requiring closer inspection
 - [ ] `SEMANTIC_REGISTRY`: specific patterns ordered before general ones
 - [ ] `rehydrate()` called before pattern matching
 - [ ] Outbound activities use factory functions in `vultron.wire.as2.factories`
-- [ ] `as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — correct prefix in each layer
+- [ ] `as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — correct prefix in
+      each layer
 
 ### Use Cases (if `use_cases/` changed)
 
@@ -182,7 +183,8 @@ Severity levels:
 - **✅ PASS** — no issues
 - **⚠️ IMPROVE** — works but incomplete; fix in this session
 - **❌ FAIL** — must be addressed before merge
-- **🎫 NEW-ISSUE** — distinct problem; issue cut, decision pending (see SKILL.md decision tree)
+- **🎫 NEW-ISSUE** — distinct problem; issue cut, decision pending (see SKILL.md decision
+  tree)
 
 Overall rating:
 

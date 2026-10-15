@@ -204,7 +204,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) — supersedes 0017-domain-wire-object-separation.md, 0082-wire-core-boundary-pairing-registry.md; partially supersedes 0063-wire-rendering-port-for-core-objects.md, 0074-wire-activity-artifact-immutability.md
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
 - [ADR-0101 Spec Item Format Is Field Presence, Not a Class Choice; a Bare Item Cannot Be a `BehavioralSpec`](0101-spec-item-format-is-field-presence.md)
-- [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) *(provisional)*
+- [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) *(provisional)* — partially superseded by 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
 - [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md)
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md) *(provisional)*
@@ -233,6 +233,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0134 Who Must Obey a Rule Decides Its Spec Kind](0134-who-must-obey-a-rule-decides-its-spec-kind.md) *(provisional)* — partially supersedes 0038-four-tier-specification-taxonomy.md
 - [ADR-0135 Compose Received Trees, Never Chain Them](0135-compose-received-trees-never-chain-them.md) *(provisional)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md
 - [ADR-0137 Case Records and Notes Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(revision 2)* *(provisional)*
+- [ADR-0141 A Refused Assertion Is Answered With a Reject of the Refused Activity](0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md) *(provisional)*
 
 ## Proposed ADRs
 
@@ -242,8 +243,10 @@ General information about architectural decision records is available at <https:
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
+- [ADR-0136 Organize the Site's Top Level by Subject and Reader, Not Diátaxis Type](0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md) *(revision 2)* — partially supersedes 0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md
 - [ADR-0138 A Pushed Pull Request Is Merged Locally Only on Conflict](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)
+- [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md)
 
 ## Rejected ADRs
 

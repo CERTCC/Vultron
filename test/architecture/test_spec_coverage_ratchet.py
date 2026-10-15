@@ -33,7 +33,13 @@ A second guard, :func:`test_no_pr_drops_a_marker_while_changing_a_kind`,
 holds the MS-12-011 rule: a spec whose kind changes keeps the markers it had,
 whatever the destination kind.
 
-Specs: SR-05-005, MS-12-011.
+A third, :func:`test_no_pr_adds_a_named_test_without_its_marker`, holds the
+MS-10-011 rule: a protocol or foundation requirement whose ``verification:``
+names test files has its marker in one of them. The corpus has a backlog, so
+the guard fails only on a requirement a PR adds to the set; ``spec-lint
+--changed-since`` reports the same rule for each requirement a branch touches.
+
+Specs: SR-05-005, MS-12-011, MS-10-011.
 """
 
 import pytest
@@ -47,6 +53,10 @@ from vultron.metadata.specs.coverage import (
 from vultron.metadata.specs.growth_guard import (
     added_since_base,
     compare_with_base,
+)
+from vultron.metadata.specs.verification_refs import (
+    TEST_ROOTS,
+    unmarked_named_test_ids,
 )
 
 #: The trees :func:`uncovered_implementer_ids` reads.
@@ -109,4 +119,24 @@ def test_no_pr_drops_a_marker_while_changing_a_kind():
         f"already verify a spec, whatever the destination kind: restore the "
         f"marker. If this lists specs the branch did not touch, run "
         f"`git fetch origin` and retry."
+    )
+
+
+@pytest.mark.spec_corpus
+@pytest.mark.spec("MS-10-011")
+def test_no_pr_adds_a_named_test_without_its_marker():
+    """No implementer-kind ID names unmarked test files new since the base."""
+    roots = tuple(r for r in TEST_ROOTS if (_corpus.REPO_ROOT / r).is_dir())
+    check = added_since_base(
+        unmarked_named_test_ids,
+        repo_root=_corpus.REPO_ROOT,
+        paths=("specs", *roots),
+    )
+    if check.skipped:
+        pytest.skip(check.skipped)
+    assert not check.added, check.failure_message(
+        "protocol or foundation spec(s) whose verification names test files "
+        "none of which carries the spec's marker",
+        'Add @pytest.mark.spec("<ID>") to the named test that verifies each '
+        "one, or name the test file that carries it (MS-10-011).",
     )

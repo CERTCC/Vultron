@@ -962,6 +962,61 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     assert set(status) <= {"@context", "id", "type", "context", "emState"}
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-17-002: a stub sent in EM REVISE carries the embargo in force, "
+        "not the open revision. Tracked by #4744."
+    ),
+)
+@pytest.mark.spec("CM-17-002")
+def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
+    sample_actor,
+):
+    """In EM ``REVISE`` the prior embargo stays in force (EP-05-002) and
+    accepting the stub binds the invitee to it (CM-11-001), so the stub
+    carries that embargo and ``emState=REVISE``.  The open revision is not
+    yet binding and stays out of the stub; EP-09-011 relays it after
+    joining."""
+    from vultron.core.models._helpers import days_from_now_utc
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_id = "https://example.org/cases/revise-stub"
+    in_force = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    revision = EmbargoEvent(context=case_id, end_time=days_from_now_utc(60))
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-013",
+        stub_summary="Vulnerability under a revised embargo",
+        attributed_to=_ACTOR_URI,
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=EM.REVISE),
+            )
+        ],
+        embargo_register=register(active=in_force, proposed=[revision]),
+    )
+    assert case.em_state == EM.REVISE
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+
+    stub = invite.target
+    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert isinstance(stub.active_embargo, as_EmbargoEvent)
+    assert stub.active_embargo.id_ == in_force.id_
+    assert stub.active_embargo.id_ != revision.id_
+    assert isinstance(stub.case_status, as_CaseStatus)
+    assert stub.case_status.em is not None
+    assert stub.case_status.em.state == EM.REVISE
+
+
 def _embargo_active_case(
     case_id: str, active_embargo: str | EmbargoEvent
 ) -> VulnerabilityCase:

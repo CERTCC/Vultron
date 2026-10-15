@@ -90,6 +90,7 @@ docs-withheld="vultron.metadata.docs.withheld:main"
 docs-links="vultron.metadata.docs.links:main"
 docs-legacy-urls="vultron.metadata.docs.legacy_urls:main"
 pr-size="vultron.metadata.planning.size_bands:main"
+pr-body-lint="vultron.metadata.planning.pr_body_lint:cli"
 targeted-tests="vultron.metadata.planning.targeted_tests:main"
 glossary-index="vultron.metadata.docs.glossary_index:main"
 learnings-index="vultron.metadata.history.incoming:main"
@@ -222,11 +223,22 @@ ignore = [
     # Carried over from the retired .flake8 extend-ignore.
     "E501",
     "E203",
+    # doc-line-too-long: the comment and docstring limit below predates
+    # thousands of longer lines and ruff takes no baseline. Each line a change
+    # adds is held to it by test/architecture/test_line_length_ratchet.py
+    # (PD-10-002) instead.
+    "W505",
     # assert: `assert` is pytest's assertion idiom in test/, and in vultron/ it
     # narrows types and states invariants; the -O stripping hazard it guards
     # against does not apply to how this project is run.
     "S101",
 ]
+
+[tool.ruff.lint.pycodestyle]
+# The 88-character prose limit outside docs/ (PD-10-003), read by `ruff check
+# --select W505` and pinned to vultron.metadata.line_length.LINE_LIMIT. Code
+# lines keep the formatter's line-length above.
+max-doc-length = 88
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10              # IMPLTS-07-008

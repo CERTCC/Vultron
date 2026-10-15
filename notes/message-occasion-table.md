@@ -14,6 +14,7 @@ related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
   - specs/project-documentation.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/message-type-reference.md
   - notes/case-communication-model.md
@@ -91,8 +92,9 @@ lookup table is mostly links.
   ledgered ownership Offer), and each record has one small check on a shared base
   (#4437). The sync check that the CASE_MANAGER's own `Announce(CaseLedgerEntry)`,
   echoed back, came from itself is CASE_MANAGER standing and uses that kind's
-  node. A `Reject(CaseLedgerEntry)` is a participant's, so it stays
-  `ACTIVE_PARTICIPANT` (SYNC-03-005). The invitee stays its own kind: it is checked
+  node. A `Reject(CaseLedgerEntry)` is a participant's, but a closed participant
+  keeps it, so it is the `LEDGER_PEER` kind, not `ACTIVE_PARTICIPANT` (SYNC-03-005,
+  CM-23-018). The invitee stays its own kind: it is checked
   against the `to` of the recorded Invite (EP-09-010, CM-11-017).
 - **A declaration is the full rule, per addressee side** (HP-01-008). It is
   "any of" several kinds, stated per addressee (the CASE_MANAGER, a participant,

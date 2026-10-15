@@ -11,7 +11,8 @@ related_specs:
   - specs/diataxis-requirements.yaml
 ---
 
-<!-- GENERATED from docs/ page frontmatter by `uv run docs-site --write` — do not edit (DF-11-008) -->
+<!-- GENERATED from docs/ page frontmatter by `uv run docs-site --write` —
+     do not edit (DF-11-008) -->
 
 # Site Coverage Matrix — Stakeholder Type × Level
 
