@@ -183,12 +183,16 @@ class CommitAndApplyEmbargoTerminationNode(
             return self._refuse(exc)
         self._step = step
         try:
+            # The trial, run here as well so the Remove's audience is the
+            # case the step leaves (``_audience_case``).
             before = read_embargo_case_file(dl, self._case_id)
             self._ended = trial_apply(before, [step])[-1].case
         except VultronEntryRefusedError as exc:
             return self._refuse(exc)
         try:
-            # A commit that fails raises past this: it is not a refusal
+            # The helper repeats the trial on a fresh read, so a case changed
+            # since the trial above is still refused before the commit.  A
+            # commit that fails raises past this: it is not a refusal
             # (BT-14-001), and nothing has been written by then.
             applied = commit_and_apply_embargo_entries(
                 dl,

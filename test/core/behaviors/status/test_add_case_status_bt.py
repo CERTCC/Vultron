@@ -1348,7 +1348,8 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
 
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.EXITED
@@ -1875,7 +1876,10 @@ class TestRegressionCSPTeardownPath:
         )
         # Runs as the case manager: the seeded case names CASE_MANAGER_ID as
         # its only participant, and teardown authority is the manager's.
-        new_bridge.execute_with_setup(tree=new_node, actor_id=CASE_MANAGER_ID)
+        new_result = new_bridge.execute_with_setup(
+            tree=new_node, actor_id=CASE_MANAGER_ID
+        )
+        assert new_result.status == Status.SUCCESS
 
         new_case = c(VulnerabilityCase, dl_new.read(CASE_ID))
         new_em_state = new_case.current_status.em.state

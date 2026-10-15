@@ -172,7 +172,7 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
 
 
 class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Terminate *embargo_id* when it is the embargo in force; EM → ``EXITED``.
+    """Terminate *embargo_id* if it is the embargo in force; EM → ``EXITED``.
 
     The receive-side effect of a ``Remove(EmbargoEvent)`` whose entry intake
     has already committed: the CASE_MANAGER's arm, and the arm of a paused
@@ -295,8 +295,9 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     force changes nothing: SUCCESS, nothing written.  An entry whose
     ``content`` is not a termination reason, that names no embargo, or that
     claims ``END_TIME_REACHED`` before the embargo's end time (its
-    ``published`` time, ADR-0122) is refused: FAILURE, which keeps the entry
-    from being persisted (SYNC-12-001).  A step the apply function refuses
+    ``published`` time, ADR-0122), or against an embargo this store cannot
+    read (EMB-18-003), is refused: FAILURE, which keeps the entry from being
+    persisted (SYNC-12-001).  A step the apply function refuses
     is held for gap handling, as the frame does for every copied entry.
     """
 
@@ -332,12 +333,18 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
             )
             self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
-        violations = termination_timing_violations(
-            cast(CasePersistence, self.datalayer),
-            case,
-            cast(EmbargoTermination, step.termination),
-            parse_published((entry.payload_snapshot or {}).get("published")),
-        )
+        try:
+            violations = termination_timing_violations(
+                cast(CasePersistence, self.datalayer),
+                case,
+                cast(EmbargoTermination, step.termination),
+                parse_published(
+                    (entry.payload_snapshot or {}).get("published")
+                ),
+            )
+        except VultronError as exc:
+            # An embargo that cannot be read fails closed (EMB-18-003).
+            violations = [str(exc)]
         if violations:
             self.feedback_message = (
                 f"Refused teardown entry '{entry.id_}' on case"

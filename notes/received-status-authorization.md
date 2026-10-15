@@ -67,8 +67,9 @@ property of the pipeline:
   before RSH-08-003).
 - **The one exception** is a signatory whose ledger stream is paused: the
   CASE_MANAGER's direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)` is its
-  only channel, so it applies its own teardown or revision through
-  `EmbargoLifecycle`, gated on `AwaitsEmbargoEndingNoticeNode` (CM-31-010).
+  only channel, so it applies its own teardown (through the one apply
+  function, ADR-0124) or revision (through `EmbargoLifecycle`), gated on
+  `AwaitsEmbargoEndingNoticeNode` (CM-31-010).
 
 ## Two independent gates (ADR-0046)
 

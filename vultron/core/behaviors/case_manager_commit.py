@@ -167,8 +167,9 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     ) -> None:
         """Take a decision whose commit failed back out of the outbox.
 
-        No retry rebuilds a decision: it is taken once, and the embargo
-        teardown's EM write already stops a rerun.  Left queued, it would
+        Nothing has changed the case yet: an act committed before it is
+        applied (ADR-0124) writes only once its entry commits, so a retry
+        decides again and builds a new activity.  Left queued, this one would
         reach participants with no entry that records it, so it is withdrawn,
         as the create-case trigger withdraws its ``Create`` (CLP-07-013).
         One delivery already took cannot be withdrawn, and is reported.

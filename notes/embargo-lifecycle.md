@@ -279,8 +279,9 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    except recording the proposer's (ADR-0093). `activate_embargo()` records the
    owner's agreement; a *shorter* replacement carries every signatory over
    (`CARRY_OVER`), and under *longer* terms non-agreeing signatories lapse by
-   derivation (MSM-07-005). `terminate_active_embargo()` cancels every open
-   proposal and writes no consent (MSM-07-006). Callers do none of this by hand.
+   derivation (MSM-07-005). Termination (`decide_termination()`, then the
+   `TERMINATE` step through the one apply function) cancels every open proposal
+   and writes no consent (MSM-07-006). Callers do none of this by hand.
 4. **Received side passes `transition_mode=TransitionMode.OBSERVED`**; the
    consent cascades still run, so replica rows stay in step with the manager's.
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,

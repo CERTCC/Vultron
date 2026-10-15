@@ -182,9 +182,12 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         it, and a revision of an embargo that no longer exists cannot be
         accepted), so EM derives ``EXITED``.  No participant's consent is
         written: with no ``ACTIVE`` entry nobody is bound, and nothing more
-        can be consented to (ADR-0118, ADR-0122).  The teardown replay node
-        runs this in ``OBSERVED`` mode, so the rule holds on every replica;
-        there, a case already ``EXITED`` is left as it is.
+        can be consented to (ADR-0118, ADR-0122).  No protocol path calls it
+        any more: each decides with :func:`decide_termination` and applies the
+        step through the one apply function after committing its ``Remove``
+        (ADR-0124, #4714).  It remains for fixtures that need an ended
+        embargo; in ``OBSERVED`` mode a case with none in force is left as it
+        is.
 
         An ``END_TIME_REACHED`` termination claimed at *terminated_at*
         before the embargo's end time is refused in either mode, before any

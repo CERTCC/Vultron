@@ -1170,17 +1170,19 @@ groups:
       revisions open, where a later default selection could pick a revision of a dead
       embargo as the earliest-expiring candidate (#3836). The register now enforces it: a
       step that leaves an entry `TERMINATED` while another is `PROPOSED` is refused
-      (ADR-0122), so `EmbargoLifecycle.terminate_active_embargo` applies
-      `TERMINATE` and the `CANCEL` of every proposal as one step. It applies on every
-      replica without extra work: the teardown replay node (`ClearActiveEmbargoNode`) runs
-      the same method in `OBSERVED` mode (#3914).
+      (ADR-0122), so the `TERMINATE` step applies `TERMINATE` and the `CANCEL` of every
+      proposal as one step. The `Remove(EmbargoEvent)` entry carries that whole step, and
+      the CASE_MANAGER and every replica apply it through the one apply function,
+      `apply_embargo_change()` (ADR-0124, #4714), so no cancel has an entry of its own.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_activation.py` assert that
       terminating an embargo while revisions of it are pending leaves no open proposal and an
       empty `pending_embargo_proposal_index`, in `STRICT` and in
       `OBSERVED` mode; `test/core/behaviors/embargo/nodes/test_teardown.py` asserts the same
-      through `ClearActiveEmbargoNode`, and
-      `test/core/use_cases/triggers/embargo/test_terminate.py` through the terminate trigger.
+      through `ClearActiveEmbargoNode` and the replica slot `ApplyEmbargoTeardownNode`,
+      `test/core/use_cases/triggers/embargo/test_terminate.py` through the terminate trigger,
+      and `test/core/use_cases/received/test_embargo_termination_copy.py` that the `Remove`
+      is the only entry and a replica's register matches the CASE_MANAGER's.
     relationships:
     - rel_type: refines
       spec_id: EP-08-003

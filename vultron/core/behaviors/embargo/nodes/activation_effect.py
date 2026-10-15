@@ -21,7 +21,7 @@ them to the canonical case.  :class:`ApplyEmbargoActivationFromLedgerNode`
 and :class:`ApplyEmbargoProposalRejectionFromLedgerNode` apply the same
 decision on a participant replica from the committed entry, so the replica's
 embargo register follows the CASE_MANAGER's without the activity reaching the
-replica directly (PCR-03-001).  Like ``ApplyEmbargoTeardownNode`` they go
+replica directly (PCR-03-001).  They go
 through ``EmbargoLifecycle`` in ``OBSERVED`` mode (EMB-18-001): the
 CASE_MANAGER already decided, so the replica syncs to the decision rather
 than re-adjudicating it.

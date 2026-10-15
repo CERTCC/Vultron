@@ -680,6 +680,30 @@ class TestApplyEmbargoTeardownNode:
             EM.ACTIVE
         )
 
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_an_end_time_entry_whose_embargo_it_cannot_read(self):
+        """An ``END_TIME_REACHED`` against an unreadable embargo fails
+        closed: FAILURE, nothing written, nothing raised."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _embargo = make_case_and_embargo(
+            "atn-unread", em_state=EM.ACTIVE
+        )
+        dl.create(case)  # the embargo record itself is not stored
+        node = _copy_node(
+            dl, _remove_entry(case.id_, _e1(case), "END_TIME_REACHED")
+        )
+
+        status = node.update()
+
+        assert status == py_trees.common.Status.FAILURE
+        assert "Refused teardown entry" in node.feedback_message
+        assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is (
+            EM.ACTIVE
+        )
+
     @pytest.mark.spec("CM-23-016")
     def test_a_step_the_apply_function_refuses_is_held_for_gap_handling(self):
         """Refused into the gap buffer, never patched over (ADR-0124)."""

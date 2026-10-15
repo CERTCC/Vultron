@@ -577,9 +577,10 @@ def terminate_embargo_bt(
        addressed to every other participant and never to the manager
        (EMB-19-001, CLP-10-001, #4112), and only then applies the step
        through the one apply function (ADR-0124), so a failed commit writes
-       nothing; then the ``Add(CaseStatus)`` declaration, then a direct ``Remove(EmbargoEvent)``
-       to each bound signatory the ledger no longer reaches (CM-31-009),
-       crediting *requested_by* when another actor asked for the end.
+       nothing; then the ``Add(CaseStatus)`` declaration, then a direct
+       ``Remove(EmbargoEvent)`` to each bound signatory the ledger no longer
+       reaches (CM-31-009), crediting *requested_by* when another actor
+       asked for the end.
     4. As any other participant: no EM write; the ``Remove`` is queued to the
        CASE_MANAGER as a request (PCR-08-001) and recorded as a pending
        assertion keyed by the ended embargo (EP-09-008, SYNC-11-002) — by
