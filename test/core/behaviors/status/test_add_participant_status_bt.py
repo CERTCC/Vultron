@@ -209,7 +209,7 @@ def populated_bridge(populated_dl):
 # ---------------------------------------------------------------------------
 
 
-class TestSenderIsActiveParticipantNode:
+class TestSenderIsParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
         node = SenderIsParticipantNode(

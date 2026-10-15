@@ -326,7 +326,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         )
 
         # Step 3: vendor self-reports its VFd status to the case actor.
-        # actor=_VENDOR_ID passes VerifySenderIsParticipantNode
+        # actor=_VENDOR_ID passes SenderIsParticipantNode
         # (case.actor_participant_index contains _VENDOR_ID), and is a valid
         # non-CaseActor participant sender for this message type.
         # The status is NOT pre-created — it arrives inline in the activity, so

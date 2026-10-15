@@ -42,7 +42,7 @@ Placement in the tree::
 
     <HandlerBT> (create_receive_activity_tree)
     ├─ Intake
-    ├─ SenderIsParticipantNode         # sender guard (HP-01-006)
+    ├─ SenderIsParticipantNode               # sender guard (HP-01-006)
     ├─ PreconditionGuardStage                # refusal_effects (CLP-10-022)
     │   ├─ PreconditionGuards (Sequence)
     │   │   ├─ … handler guards …

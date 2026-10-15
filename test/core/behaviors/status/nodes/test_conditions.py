@@ -224,6 +224,29 @@ class TestParticipantKindsDiffer:
         )
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("HP-01-006")
+    def test_both_kinds_report_a_missing_case_the_same_way(
+        self, populated_bridge, caplog
+    ):
+        """With no case to check against, each kind refuses with a WARNING
+        naming the sender, not a Regime 1 ERROR."""
+        for node_cls in (
+            SenderIsParticipantNode,
+            SenderIsActiveParticipantNode,
+        ):
+            caplog.clear()
+            node = node_cls(sender_actor_id=ACTOR_ID, case_id=None)
+            with caplog.at_level("WARNING"):
+                result = populated_bridge.execute_with_setup(
+                    tree=node, actor_id=CASE_MANAGER_ID
+                )
+            assert result.status == Status.FAILURE
+            assert "No case in this store to check sender" in (
+                node.feedback_message
+            )
+            assert ACTOR_ID in node.feedback_message
+            assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
 
 @pytest.fixture
 def closed_sender_dl(populated_dl):

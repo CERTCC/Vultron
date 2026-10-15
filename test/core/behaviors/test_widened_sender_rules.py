@@ -34,6 +34,13 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from vultron.core.behaviors.report.prioritize_tree import (
+    create_engage_case_tree,
+)
+from vultron.core.behaviors.report.received_report_trees import (
+    create_close_report_received_tree,
+    create_invalidate_report_received_tree,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -379,6 +386,47 @@ def test_relabelled_declaration_admits_any_listed_participant(
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
     assert rule == SenderRule.in_case(Kind.PARTICIPANT)
     assert _admits(rule, _plain, receiver, sender) is admitted
+
+
+def _hand_placed_trees() -> dict[str, tuple[type, Callable[[], object]]]:
+    """The relabelled use cases whose tree places its own sender guard
+    instead of composing it from the declaration."""
+    request = SimpleNamespace(
+        actor_id=VENDOR,
+        report_id="https://example.org/reports/r",
+        activity_id="https://example.org/activities/a",
+    )
+    return {
+        "engage-case": (
+            EngageCaseReceivedUseCase,
+            lambda: create_engage_case_tree(case_id=CASE_ID, actor_id=VENDOR),
+        ),
+        "close-report": (
+            CloseReportReceivedUseCase,
+            lambda: create_close_report_received_tree(request, CASE_ID),  # type: ignore[arg-type]
+        ),
+        "invalidate-report": (
+            InvalidateReportReceivedUseCase,
+            lambda: create_invalidate_report_received_tree(request, CASE_ID),  # type: ignore[arg-type]
+        ),
+    }
+
+
+@pytest.mark.spec("HP-01-008")
+@pytest.mark.parametrize("label", list(_hand_placed_trees()))
+def test_hand_placed_guard_checks_the_declared_kind(label: str) -> None:
+    """A tree that places its own sender guard checks the kind its use case
+    declares, so the declaration and the tree cannot drift apart."""
+    use_case, build = _hand_placed_trees()[label]
+    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
+    tree = build()
+    kinds = {
+        node.guards_kind
+        for node in tree.iterate()  # type: ignore[attr-defined]
+        if getattr(node, "guards_kind", None) is not None
+    }
+    assert kinds == {Kind.PARTICIPANT}
+    assert kinds <= rule.at_case_manager and kinds <= rule.at_participant
 
 
 @pytest.mark.spec("PCR-03-001")

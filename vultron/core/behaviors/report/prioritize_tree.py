@@ -33,7 +33,7 @@ Structure:
     ├─ Intake
     ├─ HoldCarriedEmbargoNode                        # Only when the Engage carried a case snapshot
     ├─ StoreEmbeddedParticipantsNode                 # Only when the Engage carried a case snapshot
-    ├─ SenderIsParticipantNode                 # Sender guard (HP-01-006)
+    ├─ SenderIsParticipantNode                       # Sender guard (HP-01-006)
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
     └─ EngageEffectsIfCaseManager                    # CASE_MANAGER only (RSH-08-003, #3814)
@@ -44,7 +44,7 @@ Structure:
 
     DeferCaseBT (Sequence)
     ├─ Intake
-    ├─ SenderIsParticipantNode            # Sender guard (HP-01-006)
+    ├─ SenderIsParticipantNode                  # Sender guard (HP-01-006)
     ├─ AdjudicateRMDeclarationNode(DEFERRED)    # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT           # Record receipt before effects (CLP-10-006)
     └─ DeferEffectsIfCaseManager                # CASE_MANAGER only (RSH-08-003, #3814)

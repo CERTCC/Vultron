@@ -563,6 +563,15 @@ class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
+        if self.case_id is None:
+            # An activity that names no case is a routine refusal, as
+            # SenderIsParticipantNode reports it, not a Regime 1 anomaly.
+            self.feedback_message = (
+                f"No case in this store to check sender"
+                f" '{self.sender_actor_id}' against — REFUSED (HP-01-006)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: no case, so no standing to check

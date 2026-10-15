@@ -113,7 +113,7 @@ def create_validate_report_received_tree(
 
         ValidateReportReceivedBT (Sequence)
         ├── Intake
-        ├── SenderIsParticipantNode           # HP-01-006
+        ├── SenderIsParticipantNode                 # HP-01-006
         ├── AdjudicateRMDeclarationNode(VALID)      # RSH-06-006
         ├── GuardedCommitCaseLedgerEntryBT          # CLP-10-006
         ├── ValidateReportBT (Selector)
