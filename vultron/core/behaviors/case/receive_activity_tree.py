@@ -535,8 +535,9 @@ def create_receive_activity_tree(
             holds a state writer (CLP-10-022), or an exempt tree passes a
             ``post_close_reply`` (CM-23-013), or the sender arguments are
             inconsistent: ``sender_rule`` without ``sender_context``, a
-            ``sender_context`` without ``sender_rule``, or a ``sender_context`` naming another case than
-            ``case_id`` (HP-01-008).
+            ``sender_context`` without ``sender_rule``, or a
+            ``sender_context`` naming another case than ``case_id``
+            (HP-01-008).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, ``specs/behavior-tree-integration.yaml``

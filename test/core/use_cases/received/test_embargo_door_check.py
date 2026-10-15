@@ -159,3 +159,30 @@ class TestUnaddressedCopyRefusal:
             r.levelname == "WARNING" and _BYSTANDER in r.getMessage()
             for r in caplog.records
         )
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    "use_case",
+    [
+        AcceptInviteToEmbargoOnCaseReceivedUseCase,
+        RejectInviteToEmbargoOnCaseReceivedUseCase,
+    ],
+    ids=["accept", "reject"],
+)
+def test_an_answer_naming_no_invite_is_refused_before_any_write(use_case):
+    """The invitee is read from the recorded Invite, so none means no invitee."""
+    dl, _actor, _case, embargo = make_embargo_case_with_actor(
+        _CASE, _SENDER, case_manager_actor_id=_MANAGER
+    )
+    request = _request(embargo, to=[_MANAGER], cc=[])
+    request.receiving_actor_id = _MANAGER
+    request.invite_id = None
+    before = _snapshot(dl)
+
+    result = use_case(dl, request).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "is missing its Invite id" in (result.reason or "")
+    assert _snapshot(dl) == before

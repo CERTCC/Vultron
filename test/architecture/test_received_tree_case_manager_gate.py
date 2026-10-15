@@ -292,19 +292,11 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
 )
 
 
-def _call_name(func: ast.expr) -> str | None:
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return None
-
-
 def _calls(node: ast.AST) -> Iterator[tuple[ast.Call, str]]:
     for sub in ast.walk(node):
         if (
             isinstance(sub, ast.Call)
-            and (name := _call_name(sub.func)) is not None
+            and (name := _corpus.callee_name(sub.func)) is not None
         ):
             yield sub, name
 

@@ -102,6 +102,16 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
                 "Reject(Invite(EmbargoEvent)) does not name an embargo"
             )
 
+        if not invite_id:
+            # The invitee is read from the recorded Invite (EP-09-010); a
+            # Reject that names none has no invitee to be.
+            logger.warning(
+                "reject_invite_to_embargo_on_case: cannot resolve invite_id"
+            )
+            return HandlerResult.refused(
+                "Reject(Invite(EmbargoEvent)) is missing its Invite id"
+            )
+
         # The sender must be the recorded Invite's invitee before anything is
         # written, closing the pending ask included (EP-09-010, HP-01-006,
         # ADR-0115).
@@ -113,7 +123,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
                 SenderCheckContext(
                     sender_id=rejecting_actor_id,
                     case_id=case_id,
-                    invite_id=invite_id or "",
+                    invite_id=invite_id,
                 ),
                 request,
                 label="Reject(Invite(EmbargoEvent))",
@@ -131,7 +141,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         tree = reject_invite_to_embargo_tree(
             case_id=case_id,
             rejecting_actor_id=rejecting_actor_id,
-            invite_id=invite_id or "",
+            invite_id=invite_id,
             embargo_id=embargo_id,
             sender_rule=self.sender_entitlement,
         )

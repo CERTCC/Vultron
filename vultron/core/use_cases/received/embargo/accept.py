@@ -119,30 +119,23 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             " — rejecting EA (EMB-02-002)",
             case_id,
         )
-        if invite_id:
-            skipped = run_pxa_refusal_tree(
-                self._dl,
-                self._trigger_activity,
-                self._wire_render_port,
-                self._sync_port,
-                invite_id=invite_id,
-                case_id=case_id,
-                actor_id=receiving_actor_id,
-                recipient_id=accepting_actor_id,
-                store_invite=False,
-                activity=self._request,
-                label="accept_invite_to_embargo_on_case",
-            )
-            if skipped is not None:
-                return HandlerResult.skipped(
-                    f"EA for Invite '{invite_id}' on case '{case_id}' not"
-                    f" refused again: {skipped}"
-                )
-        else:
-            logger.warning(
-                "accept_invite_to_embargo_on_case: missing invite_id"
-                " — ER not emitted for EA on case '%s'",
-                case_id,
+        skipped = run_pxa_refusal_tree(
+            self._dl,
+            self._trigger_activity,
+            self._wire_render_port,
+            self._sync_port,
+            invite_id=invite_id,
+            case_id=case_id,
+            actor_id=receiving_actor_id,
+            recipient_id=accepting_actor_id,
+            store_invite=False,
+            activity=self._request,
+            label="accept_invite_to_embargo_on_case",
+        )
+        if skipped is not None:
+            return HandlerResult.skipped(
+                f"EA for Invite '{invite_id}' on case '{case_id}' not"
+                f" refused again: {skipped}"
             )
         return HandlerResult.refused(
             f"EMB-02-002: P/X/A set on case '{case_id}'; embargo"
@@ -359,13 +352,17 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        embargo_id = request.embargo_id
-        if embargo_id is None:
+        # The invitee is read from the recorded Invite (EP-09-010), so an
+        # Accept that names none has no invitee to be.
+        embargo_id, invite_id = request.embargo_id, request.invite_id
+        if embargo_id is None or not invite_id:
+            missing = "embargo id" if embargo_id is None else "Invite id"
             logger.error(
-                "accept_invite_to_embargo_on_case: missing embargo_id on request"
+                "accept_invite_to_embargo_on_case: missing %s on request",
+                missing,
             )
             return HandlerResult.refused(
-                "Accept(Invite(EmbargoEvent)) is missing its embargo id"
+                f"Accept(Invite(EmbargoEvent)) is missing its {missing}"
             )
 
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
@@ -378,7 +375,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         case_id = _case.id_
         accepting_actor_id = request.actor_id
-        invite_id = request.invite_id or ""
 
         # Before any tree or write, since the expiry, EMB-17 and P/X/A paths
         # below all write or send: the case must not be fully closed
