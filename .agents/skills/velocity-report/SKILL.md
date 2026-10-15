@@ -156,9 +156,12 @@ bad merge that breaks three workflows is one failed CI run on `main`.
 
 - Counts merge commits (two or more parents) in the PR whose headline
   names `main`.
-- Under ADR-0126 (PAD-18-004), syncs happen only on conflict, GitHub's
-  `BEHIND`, or file overlap, so a `median_merges_from_main` near zero is the
-  expected outcome.
+- Under ADR-0138 (PAD-18-004, PAD-18-009), an agent merges `main` locally
+  only on conflict, and every other sync is one `gh pr update-branch` by
+  GitHub: for `BEHIND`, or by the merger for an overlapping PR right before it
+  merges. GitHub's update is a merge commit naming `main` too, so it counts
+  here. A `median_merges_from_main` near zero is the expected outcome, and a
+  PR should rarely show more than two.
 - Any week where `median_merges_from_main` is 2 or more suggests the
   conflict-driven sync rule is triggering often, which is worth investigating.
 - This field cannot see the old policy's sync cost. Under the pre-#4358

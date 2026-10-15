@@ -27,8 +27,14 @@ attempt was stopped.
 
 ## Merge and sync
 
-Use merge commits (the repo's convention). `pr-verify`'s live merge-state check
-is the final gate. Never merge on red or skip a hook.
+Use merge commits (the repo's convention): `gh pr merge --merge`, and
+`gh pr update-branch` (which merges `main` in) rather than `--rebase`.
+`pr-verify`'s live merge-state check is the final gate; the pre-merge check in
+SKILL.md step 4 runs on the PR about to merge, never as a sweep of every open
+PR after a merge (PAD-18-009, ADR-0138). Only a conflict sends a PR back to
+`pr-ship`; `BEHIND` or overlapping files are cleared by `gh pr update-branch`
+and a green CI run, with no local merge and no local suite. Never merge on red
+or skip a hook.
 
 ## Worktrees
 

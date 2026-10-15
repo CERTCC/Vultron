@@ -1213,7 +1213,8 @@ groups:
           every changed module, every changed test file itself, and
           `test/architecture/`. The run MUST select those files with the
           integration marker enabled, so that marker-bearing tests among them
-          are not deselected.
+          are not deselected. A conflict merge with no fix in it is not a fix
+          commit; PAD-18-004 sets its gate.
         rationale: >-
           A full local run after a one-line fix costs about seven minutes on a
           2-CPU slot; CI then runs the full suite again in about five. The
@@ -1231,8 +1232,9 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The local gate MUST escalate from the targeted set to the full unit
-          and integration suites when the branch diff touches shared test
+          The fix-commit gate of PAD-18-002 MUST escalate from the targeted
+          set to the full unit and integration suites when the branch diff
+          touches shared test
           infrastructure (`conftest.py`, test fixtures or factories,
           `pyproject.toml`, `uv.lock`), or any of the integration-bearing
           paths (`vultron/demo/`, `integration_tests/`, `vultron/adapters/`,
@@ -1247,7 +1249,10 @@ groups:
           already escalates on; carrying them forward keeps PAD-18 from
           dropping local integration coverage. Keying on the branch diff, not
           the fix commit, means a fix landing on top of a `conftest.py` change
-          still escalates.
+          still escalates. The list does not govern the gate after a conflict
+          merge (PAD-18-004): applied to the post-merge branch diff it sent
+          most conflict merges to the full suite for paths the merge never
+          touched (ADR-0138).
         verification: >-
           Inspection: the targeted-test command reports `full` for a branch
           diff that touches any listed path.
@@ -1257,38 +1262,51 @@ groups:
       - id: PAD-18-004
         adr:
         - ADR-0126
+        - ADR-0138
         priority: MUST
         kind: process
         statement: >-
           After a Pull Request's first push, an agent MUST merge the base
-          branch into it only when GitHub reports the PR `CONFLICTING` or
-          `BEHIND`, or when files the base changed since the merge base overlap
-          files the PR changes. After such a merge it MUST run the targeted set
-          of PAD-18-002, derived from the post-merge branch diff, which then
-          covers the PR's own changes to the overlapping and conflicted files.
+          branch into it locally only when the Pull Request conflicts with
+          the base: GitHub reports it `CONFLICTING` or `DIRTY`, or a trial
+          merge (`git merge-tree`) conflicts. A Pull Request GitHub reports
+          `BEHIND` without a conflict MUST be updated on GitHub
+          (`gh pr update-branch`), with no local merge and no local suite run.
+          Files changed on both sides without a conflict MUST NOT cause a
+          merge. After resolving a conflict, the agent MUST gate the merge
+          with the linters plus the targeted set for the conflicted files
+          alone, each treated as wholly changed, plus `test/architecture/`,
+          escalating to the full suite only when a conflicted file is a
+          `conftest.py`, `pyproject.toml`, `uv.lock`, or
+          `vultron/__init__.py`.
         rationale: >-
           CI already tests the merge of the PR into its base as of each push,
-          and no repository rule requires branches to be up to date. Merging
-          on every base movement restarted the test-push-wait loop several
-          times an hour during fan-out without adding coverage. The residual
-          risk, a semantic conflict between files neither side shares, is
-          caught by CI on `main` after the merge; closing it entirely is a
-          merge queue's job (#1863). Keying the gate on the post-merge diff
-          lets one derivation serve both cases. `BEHIND` is a trigger because
-          it is the one state in which GitHub itself refuses the merge until
-          the branch contains the base; no ruleset produces it today.
+          and no repository rule requires branches to be up to date. A
+          conflict is the only sync that needs an agent, because someone has
+          to resolve it; every clean merge can be made by GitHub and tested by
+          CI. Merging on file overlap, and deriving the post-merge gate from
+          the whole branch diff, sent most merges to a full local suite run
+          for paths the merge never touched. A conflicted file is gated as
+          wholly changed because both sides edited it; the rest of the merge
+          changed no line the PR wrote, and CI runs the full suite on the
+          push. `BEHIND` is cleared on GitHub because it is the one state in
+          which GitHub itself refuses the merge until the branch contains the
+          base, and `gh pr update-branch` produces the same merge commit a
+          local merge would; no ruleset produces it today.
         verification: >-
-          Inspection: `pr-execute` Phase 5 Step 2 and `work-epic-tasks`
-          consult the overlap check and GitHub's merge state before merging
-          the base, merge on `CONFLICTING`, `BEHIND`, or overlap, and skip the
-          merge when none of the three holds.
+          Inspection: `pr-execute` Phase 5 Step 2 merges the base locally on
+          `CONFLICTING`, `DIRTY`, or a `git merge-tree` conflict only, runs
+          `gh pr update-branch` on a conflict-free `BEHIND`, and records an
+          overlap as `merge_reason: "deferred"` without merging; Step 3 gates
+          a conflict merge with `targeted-tests --paths`, which reports `full`
+          only for the listed configuration files.
         relationships:
         - rel_type: extends
           spec_id: PAD-11-001
           note: >-
             PAD-11-001 says how a conflicted PR is synced (merge, never
             rebase); this adds when a pushed PR is synced at all (on
-            conflict, GitHub's `BEHIND`, or file overlap only).
+            conflict only, or on GitHub for `BEHIND`).
       - id: PAD-18-005
         adr:
         - ADR-0126
@@ -1382,6 +1400,40 @@ groups:
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001
+      - id: PAD-18-009
+        adr:
+        - ADR-0138
+        priority: MUST
+        kind: process
+        statement: >-
+          Immediately before merging a Pull Request, the agent merging it
+          MUST check that Pull Request alone against the current base. On a
+          conflict it MUST send the Pull Request back through the review
+          pipeline instead of merging. When the Pull Request is `BEHIND`, or
+          the base changed files it also changes, the agent MUST update it on
+          GitHub (`gh pr update-branch`) and merge only after CI passes on the
+          updated head, updating at most once per merge. The agent MUST NOT
+          re-check or re-sync other open Pull Requests because a merge moved
+          the base.
+        rationale: >-
+          Overlapping files are where a clean merge is most likely to hide a
+          behavior conflict, and the moment of merging is the only time the
+          base the Pull Request lands on is known. A GitHub-side update tests
+          that exact combination in CI with no agent, no local merge, and no
+          local suite run. Sweeping every open Pull Request after each merge,
+          or updating again whenever the base moves during the CI wait,
+          re-creates the loop ADR-0138 removed; a semantic conflict between
+          files neither side shares is caught by CI on `main` (ADR-0126).
+        verification: >-
+          Inspection: `work-epic-tasks` step 4 runs the merge-state,
+          `git merge-tree`, and `targeted-tests --overlap` checks on the Pull
+          Request about to merge, re-runs `pr-ship` only on a conflict, runs
+          `gh pr update-branch` and `wait-for-ci.sh` before merging a `BEHIND`
+          or overlapping Pull Request, and has no post-merge sweep of other
+          Pull Requests.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-004
 
   - id: PAD-19
     title: Epic Claim for an Epic Run

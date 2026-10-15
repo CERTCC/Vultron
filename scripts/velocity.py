@@ -58,8 +58,18 @@ NET_OPENED_REASONS = ("separate-defect", "debt", "deferred")
 # branch names such as "maintenance" out.
 _MAIN_REF_RE = re.compile(r"\b(?:origin/)?main\b", re.IGNORECASE)
 
-# Fixed format written by pr-execute (PAD-18-006).
-_SUITE_RUNS_RE = re.compile(r"Suite runs:\s+(\d+)\s+full,\s+(\d+)\s+targeted")
+# The line pr-execute writes (PAD-18-006): ``Suite runs: N full, M targeted``.
+# Agents writing the summary by hand also bold the label
+# (``**Suite runs**: N full, M targeted``) or put the counts after the words
+# (``Suite runs: full N, targeted M``); both carry the same two numbers, so
+# both are read rather than dropped as absent.
+_SUITE_RUNS_LABEL = r"(?:\*\*|__)?Suite runs(?:\*\*|__)?:(?:\*\*|__)?\s+"
+_SUITE_RUNS_RE = re.compile(
+    _SUITE_RUNS_LABEL + r"(\d+)\s+full,\s+(\d+)\s+targeted"
+)
+_SUITE_RUNS_WORDS_FIRST_RE = re.compile(
+    _SUITE_RUNS_LABEL + r"full\s+(\d+),\s+targeted\s+(\d+)"
+)
 
 # Workflow-run conclusions.  A "CI run" in this script is one CI iteration:
 # the set of workflow runs GitHub started for one head commit.  Superseded
@@ -591,10 +601,11 @@ def _net_issues(issues: list[dict], periods: list[str], key) -> list[dict]:
 def parse_suite_runs_line(body: str) -> tuple[int, int] | None:
     """Parse the ``Suite runs: N full, M targeted`` line from a comment body.
 
-    Returns ``(full, targeted)`` when the line is present and well-formed.
+    Returns ``(full, targeted)`` when the line is present and well-formed,
+    including the bold-label and words-first forms agents write by hand.
     Returns ``None`` when the line is absent or malformed (PAD-18-006).
     """
-    m = _SUITE_RUNS_RE.search(body)
+    m = _SUITE_RUNS_RE.search(body) or _SUITE_RUNS_WORDS_FIRST_RE.search(body)
     if m:
         return int(m.group(1)), int(m.group(2))
     return None
