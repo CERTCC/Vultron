@@ -938,7 +938,7 @@ groups:
       none of the three.
     rationale: >-
       Addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams
-      (IDs are opaque URIs) bind every implementation, but Vultron does not own them. Filing them
+      (every `id` is an IRI) bind every implementation, but Vultron does not own them. Filing them
       as `protocol` inflates what Vultron defines; filing them as `project` hides them from
       implementers, who read `protocol` and `foundation` together. Where Vultron requires one
       form among several the standard allows, the rule is Vultron's own and is `protocol`. The

@@ -24,11 +24,11 @@ from vultron.core.models.embargo_register import (
     rejection_changes,
     termination_changes,
 )
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
-    TerminationReason,
 )
 
 EmbargoRef = str | EmbargoEvent
@@ -60,11 +60,16 @@ def reject(case: VulnerabilityCase, embargo: EmbargoRef) -> None:
 
 def terminate(
     case: VulnerabilityCase,
-    reason: TerminationReason = TerminationReason.EARLY,
+    termination: EmbargoTermination | None = None,
 ) -> None:
-    """End the embargo in force and cancel every open proposal."""
+    """End the embargo in force and cancel every open proposal.
+
+    *termination* defaults to an early end with no recorded cause.
+    """
     case.apply_embargo_register_step(
-        termination_changes(case.embargo_register, reason)
+        termination_changes(
+            case.embargo_register, termination or EmbargoTermination.early()
+        )
     )
 
 
@@ -97,7 +102,9 @@ def register(
             raise ValueError("a terminated register holds no open entry")
         return [
             EmbargoRegisterEntry(
-                embargo=terminated, status=EmbargoRegisterStatus.TERMINATED
+                embargo=terminated,
+                status=EmbargoRegisterStatus.TERMINATED,
+                termination=EmbargoTermination.early(),
             )
         ]
     entries: list[EmbargoRegisterEntry] = []

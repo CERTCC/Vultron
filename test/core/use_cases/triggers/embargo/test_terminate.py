@@ -26,6 +26,7 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -297,7 +298,10 @@ def _run_cascade_ask(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute_with_setup(
-        tree=ask_case_manager_to_terminate_once(case.id_), actor_id=actor_id
+        tree=ask_case_manager_to_terminate_once(
+            case.id_, TerminationReason.EARLY
+        ),
+        actor_id=actor_id,
     )
 
 

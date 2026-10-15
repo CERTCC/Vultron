@@ -46,6 +46,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from vultron.core.models._helpers import require_future_aware
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -198,7 +199,16 @@ class TerminateEmbargoRequest(CaseTriggerRequest):
 
     TRIG-03-001: Must include case_id to identify the target case.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+
+    ``reason`` is what ends the embargo (ADR-0122).  ``EARLY``, the default,
+    is the actor's own decision to end it before its end time.
+    ``END_TIME_REACHED`` is a request to end it at its end time, such as a
+    Sentinel monitoring embargo timers sends: refused before the end time,
+    and answered as already done, with no activity, once the embargo has
+    ended.
     """
+
+    reason: TerminationReason = TerminationReason.EARLY
 
 
 class WithdrawEmbargoRequest(CaseTriggerRequest):

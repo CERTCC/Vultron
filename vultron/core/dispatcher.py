@@ -24,13 +24,14 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 """
 
 import logging
-from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.ports.dispatcher import ActivityDispatcher, CaseUpkeep
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.errors import (
     UnroutableActivityError,
     VultronApiHandlerNotFoundError,
@@ -39,6 +40,8 @@ from vultron.errors import (
 
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
+    from vultron.core.ports.case_persistence import CasePersistence
     from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
@@ -71,6 +74,12 @@ class DispatcherBase:
     semantic types.  Each factory receives the ``DataLayer`` and returns a
     dict of keyword arguments to pass to the use-case constructor.  Use cases
     whose constructors do not accept these kwargs are unaffected.
+
+    *case_upkeep* is the :class:`~vultron.core.ports.dispatcher.CaseUpkeep`
+    hooks run, in order, before each activity the dispatcher handles for a
+    case, so the activity is handled against the case as it now stands and
+    time-driven case work needs no scheduler.  The composition root chooses
+    the hooks; this class knows only their shape.
     """
 
     def __init__(
@@ -83,9 +92,11 @@ class DispatcherBase:
             ]
             | None
         ) = None,
+        case_upkeep: Sequence[CaseUpkeep] = (),
     ):
         self._use_case_map = use_case_map
         self._port_factories = port_factories or {}
+        self._case_upkeep = tuple(case_upkeep)
 
     def dispatch(
         self, event: "VultronEvent", dl: "DataLayer"
@@ -130,6 +141,7 @@ class DispatcherBase:
             )
             return HandlerResult.refused(f"unroutable: {exc.reason}")
         use_case_class = self._get_use_case(event.semantic_type)
+        self._run_case_upkeep(event, dl)
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
@@ -152,6 +164,31 @@ class DispatcherBase:
                 " (UCORG-05-001)"
             )
         return result
+
+    def _run_case_upkeep(self, event: "VultronEvent", dl: "DataLayer") -> None:
+        """Run each case-upkeep hook for the event's case.
+
+        Skipped with no hooks, or when the event names no case or no
+        receiving actor can be resolved.  A hook logs and returns when its own
+        work fails (see :class:`~vultron.core.ports.dispatcher.CaseUpkeep`);
+        anything it raises is a wiring or programming error and propagates.
+        """
+        if not self._case_upkeep:
+            return
+        try:
+            case_id = self._extract_case_id(event)
+            actor_id = resolve_receiving_actor_id(
+                cast("CasePersistence", dl), event.receiving_actor_id
+            )
+        except (UnroutableActivityError, VultronValidationError):
+            return
+        for upkeep in self._case_upkeep:
+            upkeep(
+                cast("CaseOutboxPersistence", dl),
+                case_id=case_id,
+                actor_id=actor_id,
+                activity_id=event.activity_id,
+            )
 
     def _enforce_join_backfill_gate(
         self, event: "VultronEvent", dl: "DataLayer"
@@ -261,9 +298,11 @@ def get_dispatcher(
         ]
         | None
     ) = None,
+    case_upkeep: Sequence[CaseUpkeep] = (),
 ) -> ActivityDispatcher:
     """Factory: return a ``DirectActivityDispatcher`` for the given routing table."""
     return DirectActivityDispatcher(
         use_case_map=use_case_map,
         port_factories=port_factories,
+        case_upkeep=case_upkeep,
     )

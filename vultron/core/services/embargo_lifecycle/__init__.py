@@ -60,6 +60,11 @@ Tracked in: https://github.com/CERTCC/Vultron/issues/538
 Scaffold (#746); full operations (#747)
 """
 
+from vultron.core.services.embargo_lifecycle.activation import (
+    embargo_end_time_passed,
+    embargo_in_force,
+    termination_timing_violations,
+)
 from vultron.core.services.embargo_lifecycle.pec import (
     embargo_withdrawal_refusal,
     owner_declined_embargo,
@@ -82,4 +87,7 @@ __all__ = [
     "EmbargoLifecycleResult",
     "ParticipantConsentChange",
     "TransitionMode",
+    "embargo_end_time_passed",
+    "embargo_in_force",
+    "termination_timing_violations",
 ]

@@ -94,6 +94,16 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
 {% include-markdown "./_occasions/sections/embargo-termination.md" %}
 
 - **Triggering transition:** Active or Revise → eXited ({A,R} → X).
+- **Reason:** `content` says what ended the embargo, exactly `END_TIME_REACHED` or `EARLY`.
+  A receiver refuses a `Remove` whose `content` is anything else.
+  `summary` is a human-readable account that the protocol does not read.
+- **Why it ended:** the Case Manager's embargo register records a cause beside the reason when it knows one.
+  A termination caused by public awareness, a public exploit or observed attacks carries `EARLY`, and the register names the signal.
+  The termination message does not carry the cause, so a replica that learns of the termination from it records only the reason.
+- **At the end time:** when the end time of the embargo in force has passed, the Case Manager ends it with `END_TIME_REACHED`.
+  It does so the next time it handles the case, or when an outside service such as a [Sentinel](../glossary.md) asks it to.
+  Whichever comes second finds the embargo already ended and sends nothing.
+  A `Remove` that claims `END_TIME_REACHED` before the embargo's end time is refused.
 - **Bound participants that are no longer active:** a signatory that was removed from the case, or that left it and is at RM `CLOSED`, stays bound by the embargo but no longer receives ledger entries.
   The CASE_MANAGER sends each such participant `ET` directly, one activity per participant, outside the ledger stream.
   The notice carries the embargo and nothing else, and it is not a ledger entry.

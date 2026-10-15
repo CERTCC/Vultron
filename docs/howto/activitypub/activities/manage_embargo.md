@@ -116,6 +116,10 @@ Embargo Termination (ET) is implemented in ActivityStreams as `Remove(Event)`.
 Send `Remove(Event)`, then `Announce(Event)` so participants see that the embargo is gone.
 The case moves to `EM.EXITED`, with immediate effect.
 
+Set `content` to the reason the embargo ends: `EARLY` to end it before its end time, or `END_TIME_REACHED` once its end time has passed.
+A receiver refuses a `Remove(Event)` whose `content` is anything else, and refuses `END_TIME_REACHED` sent before the end time.
+Put a human-readable account in `summary` if you want one; the protocol does not read it.
+
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination.md" %}
 
 Only the CASE_MANAGER changes the case's EM state (EP-09-008).
@@ -129,8 +133,15 @@ Your own copy of the case moves to `EM.EXITED` when the CASE_MANAGER's ledger en
     `Remove(Event)` ends the embargo now, rather than proposing a shorter one.
     If you want the embargo to end sooner but still exist, propose a revision with an earlier end time.
 
-An embargo also terminates on its own when the case reaches public awareness.
+An embargo also terminates when the case reaches public awareness.
 See [Early Termination](../../../topics/process_models/em/early_termination.md).
+
+### End the embargo at its end time
+
+You do not need to send anything when the end time passes.
+The CASE_MANAGER ends the embargo with `END_TIME_REACHED` the next time it handles the case.
+To end it on time without waiting for that, have the CASE_MANAGER call the `terminate-embargo` trigger with `reason` set to `END_TIME_REACHED`, for example from a [Sentinel](../../../reference/glossary.md) that watches embargo timers.
+If the embargo has already ended, the trigger answers with no activity and commits nothing.
 
 ---
 

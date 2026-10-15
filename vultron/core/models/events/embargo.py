@@ -9,6 +9,7 @@ from pydantic import field_validator
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.predicates.addressing import normalise_actor_id
+from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,16 @@ class WithdrawFromEmbargoOnCaseReceivedEvent(VultronEvent):
 
 
 class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
-    """Actor removed an EmbargoEvent from a VulnerabilityCase."""
+    """Actor removed an EmbargoEvent from a VulnerabilityCase.
+
+    ``termination_reason`` is the termination's what, parsed from the
+    ``Remove``'s ``content`` at the edge (ADR-0122, ADR-0032).
+    """
 
     semantic_type: Literal[MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE] = (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE
     )
+    termination_reason: TerminationReason
 
     @property
     def embargo_id(self) -> str | None:

@@ -33,6 +33,7 @@ from vultron.wire.as2.extractor._builders import (
     _to_domain_obj,
     ledger_position_from_content,
     proposed_embargo_from,
+    termination_reason_of,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -121,12 +122,7 @@ def extract_intent(
             carrier, activity_id=activity.id_
         )
 
-    if "ledger_tail" in event_class.model_fields:
-        # The full-case Invite and its replies each carry a ledger position as
-        # the JSON dump of a LedgerPosition in ``content`` (VAM-04-011..014).
-        # It is parsed here, at the edge, so core receives the model
-        # (ADR-0032); an absent or unparseable one is refused with a reason.
-        extra_kwargs["ledger_tail"] = ledger_position_from_content(activity)
+    extra_kwargs.update(_content_kwargs(activity, event_class))
 
     if "proposer_profile" in event_class.model_fields:
         # Create(CaseProposal)'s actor is the proposer's inline profile
@@ -198,6 +194,26 @@ def _answer_deadline(activity: as_Activity) -> datetime | None:
     """
     end_time = _activity_end_time(activity)
     return end_time.astimezone(UTC) if end_time is not None else None
+
+
+def _content_kwargs(
+    activity: as_Activity, event_class: type[VultronEvent]
+) -> dict[str, object]:
+    """The event fields parsed from the activity's ``content`` at the edge.
+
+    Core receives the parsed value (ADR-0032); an absent or malformed one is
+    refused with a reason (``VultronParseValidationError``).
+    """
+    kwargs: dict[str, object] = {}
+    if "ledger_tail" in event_class.model_fields:
+        # The full-case Invite and its replies each carry a ledger position as
+        # the JSON dump of a LedgerPosition in ``content`` (VAM-04-011..014).
+        kwargs["ledger_tail"] = ledger_position_from_content(activity)
+    if "termination_reason" in event_class.model_fields:
+        # A termination Remove carries its what in ``content``: exactly
+        # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122).
+        kwargs["termination_reason"] = termination_reason_of(activity)
+    return kwargs
 
 
 def _effective_rsvp_deadline(
