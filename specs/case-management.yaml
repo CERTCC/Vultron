@@ -6032,3 +6032,177 @@ groups:
       spec_id: CM-24-006
     adr:
     - ADR-0125
+- id: CM-33
+  title: Role Delegation Offers
+  description: >-
+    How a role offer, `Offer(CaseParticipantRole)` (ADR-0039), and its answer travel through
+    the CASE_MANAGER, which records both. The offer adds a role to an actor that is already a
+    participant; the roles an Invite carries at joining are CM-17. The routing follows PCR-08
+    and the ownership-transfer model (CM-21).
+  specs:
+  - id: CM-33-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Case Owner offering a role MUST address `Offer(CaseParticipantRole)` to the case's
+      CASE_MANAGER only (`to: [case_manager_id]`), never to the target. When the CASE_MANAGER
+      admits the Offer it MUST commit a `CaseLedgerEntry` for it and then forward it to the
+      target, the forward carrying `inReplyTo` set to the recorded Offer's id, with `actor`
+      and `attributed_to` taken from the delegated-authorship helper (CM-24-005). The
+      CASE_MANAGER MUST NOT grant the role on receiving the Offer: the grant is the committed
+      Accept (CM-02-016).
+    rationale: >-
+      A participant addresses case-scoped messages only to the CASE_MANAGER (PCR-08-001).
+      Sent straight to the target, the Offer bypasses the CASE_MANAGER, so the answer it
+      draws can be neither checked against a recorded Offer nor ledgered. See #4672.
+    verification: >-
+      A test marked `CM-33-001` delivers a Case Owner's role Offer to the CASE_MANAGER and
+      asserts an Offer forward to the target carrying `inReplyTo`, an entry for the Offer,
+      and the target's roles unchanged.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: implements
+      spec_id: PCR-08-001
+    - rel_type: refines
+      spec_id: CM-24-005
+    adr:
+    - ADR-0039
+  - id: CM-33-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on a received `Offer(CaseParticipantRole)` only when the sender
+      is the case's Case Owner. Any other sender MUST be refused, with no ledger entry and no
+      forward. A CASE_MANAGER MAY also offer a role on its own case where its policy delegates
+      role offers to it; it then commits and sends the Offer to the target itself, under the
+      checks of CM-33-003. An implementation MAY omit that CASE_MANAGER-originated path.
+    rationale: >-
+      Handing out a role decides who runs part of the case, which is the Case Owner's
+      decision, as ownership transfer is (CM-02-005). The reference implementation builds the
+      Case Owner path only. See #4672.
+    verification: >-
+      A test marked `CM-33-002` delivers a role Offer from a participant that is not the Case
+      Owner and asserts `REFUSED` with no entry committed and nothing queued.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0039
+    - ADR-0115
+  - id: CM-33-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse a role Offer that carries no readable `CVDRole`, that
+      offers `CVDRole.CASE_OWNER` or `CVDRole.CASE_MANAGER`, whose target is not a participant
+      in the case, or whose target already holds the offered role. A refused Offer MUST leave
+      no ledger entry and MUST NOT be forwarded; a missing role MUST NOT be read as any
+      default role.
+    rationale: >-
+      A grant only adds a role, so an accepted CASE_OWNER or CASE_MANAGER offer would leave
+      the case with two holders of a role it has exactly one of (CM-21-001, CM-02-001).
+      Ownership moves by ownership transfer (CM-21); a CASE_MANAGER handoff moves ledger
+      authority and is not designed (#3362). The received use case once read a missing role
+      as CASE_MANAGER. See #4672.
+    verification: >-
+      A test marked `CM-33-003` delivers a role Offer for each refused shape and asserts
+      `REFUSED` with no entry committed and nothing queued.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: constrains
+      spec_id: CM-02-016
+    - rel_type: refines
+      spec_id: CM-02-001
+    adr:
+    - ADR-0039
+  - id: CM-33-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The target of a role Offer MUST act on it only when the CASE_MANAGER sent it, and MUST
+      address its `Accept` or `Reject` to the CASE_MANAGER only, never to the Case Owner that
+      made the Offer. A role Offer sent to the target by any other actor MUST be refused, with
+      no answer sent.
+    rationale: >-
+      A replica takes case changes from the CASE_MANAGER alone (PCR-03-001), and the answer is
+      a case-scoped message (PCR-08-001). An answer that reaches only the Case Owner is never
+      ledgered. See #4672.
+    verification: >-
+      A test marked `CM-33-004` delivers a role Offer to the target from the Case Owner
+      directly and asserts `REFUSED` with nothing queued.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: implements
+      spec_id: PCR-08-001
+    - rel_type: refines
+      spec_id: PCR-03-001
+    adr:
+    - ADR-0039
+  - id: CM-33-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Accept(Offer(CaseParticipantRole))` or
+      `Reject(Offer(CaseParticipantRole))` only when the sender is the target named in a role
+      Offer it recorded for the case and that Offer is open. An Offer is open until the ledger
+      holds an Accept or Reject entry for it (CLP-11-001). An answer naming the forward MUST
+      be resolved to the recorded Offer through the forward's `inReplyTo`. Any other sender,
+      or an answer to an Offer that is not open, MUST be refused with no ledger entry and no
+      role change; a redelivery of the answer that closed the Offer MUST be reported `SKIPPED`
+      (HP-01-003).
+    rationale: >-
+      The answer decides whether a role is granted, so only the actor offered the role may
+      give it, and only once. The check is against the Offer the CASE_MANAGER recorded, never
+      the copy embedded in the answer (as CM-11-017 and CM-21-011 do). See #4672.
+    verification: >-
+      A test marked `CM-33-005` delivers an Accept of a recorded role Offer from a participant
+      that is not its target and asserts `REFUSED` with no entry committed and no role
+      granted.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: depends_on
+      spec_id: CM-33-001
+    adr:
+    - ADR-0039
+    - ADR-0115
+  - id: CM-33-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER admits an answer to a role Offer under CM-33-005, it MUST commit a
+      `CaseLedgerEntry` for it (`accept_case_participant_role` or
+      `reject_case_participant_role`) and MUST broadcast `Announce(CaseLedgerEntry)` to the
+      case's participants. On an Accept it MUST grant the role on its own replica as CM-02-016
+      requires; a Reject changes no role.
+    rationale: >-
+      A participant's answer to an Offer is a case event (CLP-02-012), and the coverage test
+      exempted both answers until they reached a commit (CLP-09-003). See #4672.
+    verification: >-
+      A test marked `CM-33-006` delivers the target's Accept of a recorded role Offer and
+      asserts the `accept_case_participant_role` entry, the role on the target's participant
+      record and a queued `Announce`; and the same for a Reject, with no role change.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-02-012
+    - rel_type: implements
+      spec_id: PCR-08-003
+    - rel_type: depends_on
+      spec_id: CM-33-005
+    adr:
+    - ADR-0039
