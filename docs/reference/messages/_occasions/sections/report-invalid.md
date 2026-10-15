@@ -6,7 +6,7 @@ Designates the report as invalid, moving the sender's RM state to Invalid.
 
 - **When…** a report receiver judges the report invalid
 - **Send:** `TentativeReject(Offer(VulnerabilityReport))`
-- **Sent by:** an active participant (usually: vendor, coordinator)
+- **Sent by:** a participant (usually: vendor, coordinator)
 - **Seen in:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Formal definition:** [Report Invalid (RI)](../../../formal_protocol/messages.md#rm-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)

@@ -6,7 +6,7 @@ Removes the note from the case named by the target.
 
 - **When…** a note's author or the Case Owner withdraws a note from the case
 - **Send:** `Remove(Note)[target=VulnerabilityCase]`
-- **Sent by:** an active participant
+- **Sent by:** the case owner or the author of the note
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)

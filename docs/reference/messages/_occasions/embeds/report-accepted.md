@@ -6,7 +6,7 @@
 
     - **When…** a Participant accepts the case for further action
     - **Send:** `Join(VulnerabilityCase)`
-    - **Sent by:** an active participant
+    - **Sent by:** a participant
     - **Reference:** [Report/Case Accepted (RA)](../../rm.md#report-accepted)
 
     ??? example "Example activity"
