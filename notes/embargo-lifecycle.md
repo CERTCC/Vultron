@@ -202,11 +202,14 @@ catch-up fetch or deferral, refuse instead.
 
 - **A late `Accept(Invite(EmbargoEvent))`** — deadline passed, or row already
   `TIMED_OUT`/`DECLINED` — first commits a CASE_MANAGER-authored expiry entry
-  if the row still needs `TIME_OUT`, then routes to honour (EMB-17-001),
+  if the row still needs `TIME_OUT` (the Accept tree's clock decision,
+  CLP-10-025), then routes to honour (EMB-17-001),
   re-invite (EMB-17-003) or no-op (EMB-17-004). Each branch commits an entry so
-  replicas learn the outcome (RSH-08-004), and every factory in
-  `vultron/core/behaviors/embargo/expiry_tree.py` is CASE_MANAGER-gated; a
-  non-manager gets `REFUSED` and changes no consent (BT-17-001). The outcome
+  replicas learn the outcome (RSH-08-004), and each runs only at the
+  CASE_MANAGER — the expiry behind the received-tree factory's clock-decision
+  gate, the routing trees in `vultron/core/behaviors/embargo/expiry_tree.py`
+  behind their own; a non-manager gets `REFUSED` and changes no consent
+  (BT-17-001). The outcome
   table is in `notes/participant-embargo-consent.md` § "Expiry is lazy, and
   only the CASE_MANAGER's".
 - **Owner close settles pending Invites without waiting.** After close an Invite
