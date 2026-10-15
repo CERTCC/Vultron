@@ -78,7 +78,9 @@ def _make_proposal() -> as_CaseProposal:
     )
 
 
-def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
+def _run_create_proposal(
+    dl, proposal, make_payload, *, sender: str = _VENDOR_URI, **use_case_kwargs
+):
     """Helper: build and execute CreateCaseProposalReceivedUseCase.
 
     The event names ``_CASE_ACTOR_URI`` as the receiving actor, so *dl* must be
@@ -89,7 +91,7 @@ def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
     while nothing happened at all.
     """
     activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR_URI),
+        actor=VultronOrganization(id_=sender),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -900,6 +902,28 @@ class TestCaseProposalDisposition:
         assert case.id_ in result.reason
         again = _run_create_proposal(dl, proposal, make_payload)
         assert again.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CP-05-006")
+    def test_another_senders_reuse_of_the_proposal_id_is_refused(
+        self, make_payload
+    ):
+        """An admitted proposal id from a different sender is refused (#4650)."""
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+        _run_create_proposal(dl, proposal, make_payload)
+        cases_before = list(dl.list_objects("VulnerabilityCase"))
+
+        result = _run_create_proposal(
+            dl,
+            proposal,
+            make_payload,
+            sender="https://example.org/vendors/other",
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "was admitted for" in result.reason
+        assert list(dl.list_objects("VulnerabilityCase")) == cases_before
 
     @pytest.mark.spec("HP-01-003")
     def test_decline_without_emit_port_is_refused(self, make_payload):

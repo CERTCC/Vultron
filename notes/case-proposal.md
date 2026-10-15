@@ -229,13 +229,21 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   vulnerability is a report-management question (RMB-11-002). The case is found
   through the stored `Accept`'s `result`, not only by owner: after an ownership
   transfer the former owner owns nothing, and an owner-only lookup made a second
-  case (#4650).
+  case (#4650). Gate that `Accept` scan on whether the admission record pre-dated
+  this delivery (`RecordProposalAdmissionNode`'s `admission_record_was_prior`), not
+  on the report: the report id is sender-chosen, so a redelivery may name a report
+  with no case.
+- **Same proposal id, another sender**: refused by `CheckSenderIsAdmittedProposerNode`,
+  which heads the closed-case and accept arms. The proposal id is sender-chosen, so
+  it is not a redelivery, and without the guard the stored `Accept` leads that sender
+  into the proposal's case, which then commits ledger entries as that sender (#4650).
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
-  `LoadExistingCaseNode` reuses the case only when its `attributed_to` is the proposer;
-  another proposer gets a case of its own (CBT-06-002), because the report id is
-  sender-chosen. `find_case_by_report_id` is only the fast path; on another proposer's
-  case the node scans for the proposer's own.
+  For a new proposal id, `LoadExistingCaseNode` reuses the case only when its
+  `attributed_to` is the proposer; another proposer gets a case of its own
+  (CBT-06-002), because the report id is sender-chosen. `find_case_by_report_id` is
+  only the fast path; on another proposer's case the node scans for the proposer's
+  own.
 - **Fully closed case** (CP-05-006, CP-05-008): a proposal that resolves to a case
   whose ledger holds `case_fully_closed` gets `Reject(CaseProposal)`, and nothing is
   written for the case (CM-23-013). The factory's post-close guard cannot see it,

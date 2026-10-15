@@ -43,8 +43,6 @@ from vultron.core.behaviors.case.nodes.post_close import (
 )
 from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
     accept_scan_can_match,
-    accepted_case_id,
-    activity_names_proposal,
     find_activity_for_proposal,
     proposal_case_ids,
 )
@@ -238,6 +236,67 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
         return Status.FAILURE
 
 
+class CheckSenderIsAdmittedProposerNode(DataLayerAction):
+    """Return FAILURE if this proposal was admitted for a different sender.
+
+    A proposal id is chosen by its sender, so another actor can send a
+    ``Create(as_CaseProposal)`` under an id that was already admitted.  That
+    is not a redelivery of the request this service replied to (CP-05-006,
+    ASK-08-001): the request came from someone else.  The
+    ``CaseProposalAdmissionRecord`` names the proposer the proposal was
+    admitted for, and only that proposer's delivery may resolve the
+    proposal's case through its stored ``Accept``.  Without this guard such a
+    delivery reaches that case and commits ledger entries for it as the
+    other sender (#4650).
+
+    Returns SUCCESS when the proposal has no admission record (a first
+    delivery) or the record names *proposer_uri*, also after an ownership
+    transfer: a former owner is still the proposal's proposer.  It heads the
+    closed-case arm and the accept arm, so a FAILURE ends in a refused
+    delivery that writes nothing for the case.
+
+    A missing DataLayer raises and store errors propagate, as in the other
+    guards here.
+    """
+
+    def __init__(
+        self,
+        proposal_id: str,
+        proposer_uri: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._proposal_id = proposal_id
+        self._proposer_uri = proposer_uri
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            raise VultronWiringError(
+                f"{self.name}: no DataLayer, so it cannot tell whom proposal"
+                f" '{self._proposal_id}' was admitted for"
+            )
+        record = self.datalayer.read(
+            CaseProposalAdmissionRecord.build_id(self._proposal_id)
+        )
+        admitted_for = getattr(record, "proposer_uri", None)
+        if admitted_for is None or str(admitted_for) == self._proposer_uri:
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"proposal '{self._proposal_id}' was admitted for"
+            f" '{admitted_for}', not for sender '{self._proposer_uri}'"
+        )
+        # INFO: the use case logs the refusal at WARNING.
+        self.logger.info(
+            "%s: refusing proposal '%s' from actor_id=%s: it was admitted"
+            " for '%s' (CP-05-006)",
+            self.name,
+            self._proposal_id,
+            self._proposer_uri,
+            admitted_for,
+        )
+        return Status.FAILURE
+
+
 class CheckDeclineRecordExistsNode(DataLayerAction):
     """Return SUCCESS if this proposal was already declined."""
 
@@ -345,8 +404,5 @@ __all__ = [
     "CheckDeclineRecordExistsNode",
     "CheckNoDeclineRecordNode",
     "CheckRejectAlreadyAnsweredNode",
-    "accept_scan_can_match",
-    "accepted_case_id",
-    "activity_names_proposal",
-    "find_activity_for_proposal",
+    "CheckSenderIsAdmittedProposerNode",
 ]

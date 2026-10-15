@@ -142,6 +142,9 @@ from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalAlreadyAnsweredNode,
     CheckProposalCaseFullyClosedNode,
     CheckRejectAlreadyAnsweredNode,
+    CheckSenderIsAdmittedProposerNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
     activity_names_proposal,
     find_activity_for_proposal,
 )
@@ -202,6 +205,7 @@ __all__ = [
     "CheckProposalAlreadyAnsweredNode",
     "CheckProposalCaseFullyClosedNode",
     "CheckRejectAlreadyAnsweredNode",
+    "CheckSenderIsAdmittedProposerNode",
     "EmitRejectCaseProposalNode",
     "RecordProposalAdmissionNode",
     "RecordProposalDeclineNode",

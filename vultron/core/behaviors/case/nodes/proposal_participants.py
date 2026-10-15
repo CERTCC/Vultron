@@ -274,7 +274,6 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
-        # Skip if the owner already has a participant in this case.
         # Regime 3 (ADR-0087): idempotency probe during case construction. A
         # truly-absent case falls through to _create_and_attach_participant
         # below, which hard-fails (returns None → FAILURE at the guard).
@@ -297,6 +296,7 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
                 stored_case.attributed_to,
             )
             return Status.SUCCESS
+        # Skip if the owner already has a participant in this case.
         if (
             stored_case is not None
             and self._owner_uri in stored_case.actor_participant_index

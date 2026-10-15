@@ -1602,3 +1602,92 @@ class TestAFormerOwnersRedeliveryReusesTheAcceptedCase:
             len(_participants_of(dl, str(case.id_), _VENDOR_URI))
             == rows_before
         ), "no new participant is created for the former owner"
+
+
+_UNSEEN_REPORT_URI = "https://finder.example.org/reports/r-999"
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("ASK-08-002")
+class TestARedeliveryNamingAnotherReportReusesTheAcceptedCase:
+    """A redelivery is found through the stored ``Accept``, whatever it names.
+
+    ``report_id`` is chosen by the sender.  A redelivery that names a report
+    with no case must still resolve to the case the proposal's stored
+    ``Accept`` names, so the ``Accept`` scan is gated on the admission record
+    the *earlier* delivery wrote, not only on the report (#4650).
+    """
+
+    def test_no_second_case_is_created(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        (case,) = _cases(dl)
+        _drain_outbox(dl)
+
+        _run_tree(dl, report_id=_UNSEEN_REPORT_URI)
+
+        assert [c.id_ for c in _cases(dl)] == [case.id_], (
+            "the redelivery must not create a second case (CP-05-006)"
+        )
+
+    def test_it_is_answered_with_the_stored_accept(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        (stored_accept,) = list(dl.list_objects("Accept"))
+        _drain_outbox(dl)
+
+        status = _run_tree(dl, report_id=_UNSEEN_REPORT_URI)
+
+        assert status == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Accept"]
+        (resent,) = _outbox_activities(dl)
+        assert resent.id_ == stored_accept.id_
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CM-21-001")
+class TestAnotherSendersReuseOfAnAdmittedProposalIdIsRefused:
+    """A proposal id admitted for one sender is refused for any other.
+
+    The proposal id is chosen by the sender, so another actor can reuse it.
+    That delivery is not a redelivery, and the stored ``Accept`` must not lead
+    it into the proposal's case (#4650).
+    """
+
+    def test_it_writes_nothing_for_the_open_case(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        _drain_outbox(dl)
+        ledger_before = _ledger_count(dl)
+        state_before = _case_state(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE, "the delivery is refused"
+        assert _ledger_count(dl) == ledger_before, (
+            "no CaseLedgerEntry is committed for the other sender"
+        )
+        assert _case_state(dl) == state_before, (
+            "no second case and no case or participant change"
+        )
+        assert _types_in_outbox(dl) == [], "nothing is sent"
+
+    def test_it_writes_nothing_for_a_closed_case(self, dl):
+        _accepted_then_closed(dl)
+        state_before = _case_state(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE, "the delivery is refused"
+        assert _case_state(dl) == state_before
+        assert _types_in_outbox(dl) == []
+        assert (
+            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
+        ), "no decline is recorded on the original proposer's proposal"
+
+    def test_the_original_proposer_is_still_answered(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        _drain_outbox(dl)
+        _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        status = _run_tree(dl)
+
+        assert status == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Accept"]

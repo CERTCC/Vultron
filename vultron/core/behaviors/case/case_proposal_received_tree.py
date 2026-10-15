@@ -53,13 +53,18 @@ The top-level tree is a Selector with five branches, tried in order:
   CP-05-008, CM-23-013).  The factory's post-close guard cannot do this: the
   proposal names a report, not a case.
 
+The closed-case arm and the accept arm both start with
+``CheckSenderIsAdmittedProposerNode``: a proposal id already admitted for
+another sender is not a redelivery, so that delivery is refused before either
+arm resolves the proposal's case (CP-05-006, #4650).
+
 * **Decline** — ``DeclineProposalArm``: the ``EvaluateCaseProposal`` call-out
   point refused, so record the decline and emit ``Reject(as_CaseProposal)``.
   Its guards are proposal-keyed: ``report_id`` is supplied by the sender, so a
   report-keyed guard is one the sender can satisfy in order to skip the gate.
 
-* **Accept** — ``AcceptProposalArm``: ``CheckNoDeclineRecordNode`` then the
-  normal / duplicate flow, a Sequence that first writes the proposal-keyed
+* **Accept** — ``AcceptProposalArm``: ``CheckSenderIsAdmittedProposerNode``,
+  ``CheckNoDeclineRecordNode``, then the normal / duplicate flow, a Sequence that first writes the proposal-keyed
   ``CaseProposalAdmissionRecord`` (so a later delivery can tell that *this*
   proposal began the accept path) and then resolves the case via a Selector
   between ``LoadExistingCaseNode`` (AC-1/AC-2: finds and reuses the existing
@@ -123,6 +128,7 @@ from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalAlreadyAnsweredNode,
     CheckProposalCaseFullyClosedNode,
     CheckRejectAlreadyAnsweredNode,
+    CheckSenderIsAdmittedProposerNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
     CreateCaseFromProposalNode,
@@ -517,6 +523,10 @@ def create_case_proposal_received_tree(
         name="DeclineClosedCaseProposalArm",
         memory=False,
         children=[
+            # Only the proposal's admitted proposer resolves its case (#4650).
+            CheckSenderIsAdmittedProposerNode(
+                proposal_id=proposal_id, proposer_uri=proposer_uri
+            ),
             CheckNoDeclineRecordNode(proposal_id=proposal_id),
             CheckProposalCaseFullyClosedNode(
                 proposal_id=proposal_id,
@@ -587,6 +597,12 @@ def create_case_proposal_received_tree(
         name="AcceptProposalArm",
         memory=False,
         children=[
+            # A proposal id already admitted for another sender is refused:
+            # that delivery is not a redelivery, and the stored Accept must
+            # not lead it into the proposal's case (CP-05-006, #4650).
+            CheckSenderIsAdmittedProposerNode(
+                proposal_id=proposal_id, proposer_uri=proposer_uri
+            ),
             CheckNoDeclineRecordNode(proposal_id=proposal_id),
             main_flow,
         ],

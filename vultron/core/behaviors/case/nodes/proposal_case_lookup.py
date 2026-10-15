@@ -167,9 +167,11 @@ def proposal_case_ids(
     it also runs only when it can find something: when the store holds a case
     for the report (:func:`accept_scan_can_match`), or when the proposal's
     ``CaseProposalAdmissionRecord`` shows that an earlier delivery began the
-    accept path.  Pass ``admission_record_is_prior=False`` from a node that
-    runs after this delivery wrote the record itself; there the record says
-    nothing about earlier deliveries.
+    accept path.  A node that runs after this delivery wrote the record
+    itself cannot tell that from the record, so it passes
+    ``admission_record_is_prior`` as ``RecordProposalAdmissionNode`` reported
+    it (``admission_record_was_prior``): ``False`` when this delivery wrote
+    the record.
 
     Store errors propagate.
     """

@@ -34,9 +34,11 @@ import logging
 from typing import cast
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
+    DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
 from vultron.core.models.case_proposal_admission import (
@@ -50,7 +52,7 @@ from vultron.core.ports.datalayer import DataLayer
 logger = logging.getLogger(__name__)
 
 
-class RecordProposalAdmissionNode(DataLayerAction):
+class RecordProposalAdmissionNode(DataLayerActionWithPorts):
     """Stamp "this proposal began the accept path" before anything is created.
 
     The first step of the accept flow, and deliberately ahead of case creation.
@@ -70,6 +72,12 @@ class RecordProposalAdmissionNode(DataLayerAction):
     Idempotent: a record that already exists is left alone, so a redelivery that
     resumes a half-built case does not disturb it.
 
+    Writes ``admission_record_was_prior`` to the blackboard: ``True`` when the
+    record was already stored, that is, an earlier delivery of this proposal
+    began the accept path.  ``LoadExistingCaseNode`` reads it, because after
+    this node runs the record itself no longer tells it whether the proposal
+    is a redelivery (CP-05-006).
+
     On the accept path FAILURE is the safe direction — this node runs before any
     write, so failing here aborts the Sequence with nothing to undo. It therefore
     keeps the ordinary ``_require_datalayer_and_actor`` convention rather than
@@ -88,6 +96,16 @@ class RecordProposalAdmissionNode(DataLayerAction):
         self._proposal_id = proposal_id
         self._proposer_uri = proposer_uri
 
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "admission_record_was_prior": PortInformation(
+            data_type=bool, required=True
+        ),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"admission_record_was_prior": "/admission_record_was_prior"}
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -101,6 +119,7 @@ class RecordProposalAdmissionNode(DataLayerAction):
                 self.name,
                 self._proposal_id,
             )
+            self._set_output("admission_record_was_prior", True)
             return Status.SUCCESS
 
         try:
@@ -121,6 +140,7 @@ class RecordProposalAdmissionNode(DataLayerAction):
             self.name,
             self._proposal_id,
         )
+        self._set_output("admission_record_was_prior", False)
         return Status.SUCCESS
 
 

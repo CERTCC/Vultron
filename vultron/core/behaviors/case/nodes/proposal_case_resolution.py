@@ -76,10 +76,13 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
     resolves to no stored case, allowing the Selector to fall through to
     ``CreateCaseFromProposalNode`` (normal path).
 
-    It runs after ``RecordProposalAdmissionNode`` wrote this delivery's
-    admission record, so that record is not read as evidence of an earlier
-    acceptance.  Store errors propagate: a lookup that cannot answer must not
-    fall through into creating a case.
+    It runs after ``RecordProposalAdmissionNode``, so the admission record is
+    always stored by then and says nothing about earlier deliveries.  That
+    node's ``admission_record_was_prior`` output says it instead: ``True``
+    means an earlier delivery began the accept path, so the ``Accept`` scan
+    runs even when the redelivery names a report that has no case.  Store
+    errors propagate: a lookup that cannot answer must not fall through into
+    creating a case.
     """
 
     def __init__(
@@ -94,13 +97,29 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
         self._owner_id = owner_id
         self._proposal_id = proposal_id
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "admission_record_was_prior": PortInformation(
+            data_type=bool, required=True
+        ),
+    }
+
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "case_id": PortInformation(data_type=str, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
+        return {
+            "case_id": "/case_id",
+            "admission_record_was_prior": "/admission_record_was_prior",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._admission_record_was_prior: bool = self.get_input(
+            "admission_record_was_prior"
+        )
 
     def _find_case(self) -> VulnerabilityCase | None:
         assert self.datalayer is not None
@@ -110,7 +129,7 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
             self._proposal_id,
             self._owner_id,
             self._report_id,
-            admission_record_is_prior=False,
+            admission_record_is_prior=self._admission_record_was_prior,
         ):
             case = datalayer.read_case(case_id)
             if case is not None:
