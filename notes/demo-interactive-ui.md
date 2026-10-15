@@ -11,6 +11,7 @@ tracks:
   - "#4726"
   - "#4730"
   - "#4733"
+  - "#4759"
 description: >
   Design for the Vultron interactive demo UI: a React dashboard for stakeholder
   presentations that shows only what the real system did. Live, it watches each
@@ -294,8 +295,8 @@ they block wait for them.
    #4724 (the registry labels every ledger entry) → #4725 (export the registry
    table to `ui/`).
 2. **Recordings and the tree.** #3901 (deterministic recordings) and Idea
-   #4726 (scenario-tree design) → #4727 (tree index and shared-prefix check);
-   #4736 (Finder → Reporter) after #4726 and #2677; Idea #4733 (scenarios as
+   #4726 (scenario-tree design) → #4736 (Finder → Reporter) → #4759 (path
+   declarations) → #4727 (tree index and shared-prefix check, after #3901); Idea #4733 (scenarios as
    composition) after #4727, producing one Task per scenario family.
 3. **UI correctness.** #4728 (tooling baseline) → #4729 (Log Replay reads the
    current ledger, golden tests over the recordings).

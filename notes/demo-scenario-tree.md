@@ -6,6 +6,7 @@ tracks:
   - "#4727"
   - "#4733"
   - "#4736"
+  - "#4759"
   - "#4747"
 description: >
   Design for making the demo scenario tree explicit (#4726): branch points
@@ -98,8 +99,8 @@ Reporter: whom to tell?                    (room for "Vendor found it itself": #
         └─ offer ownership to Coordinator2 ...................... rccv-handoff
 ```
 
-The exact prompts, choice labels and triggers are #4727's predecessor Task's to
-write; the shape above is what the paths must produce.
+The exact prompts, choice labels and triggers are #4759's to write; the shape
+above is what the paths must produce.
 
 - **Future scenarios fit as new choices.** Vendor self-report is a third root
   choice. Two-reporter, split and merge scenarios (#3671, #4243, #4244) add
@@ -155,7 +156,7 @@ logic, different addresses (DEMOCI-11-017).
 ## Task order
 
 1. #4736 — Finder → Reporter rename (no longer waits on #2677).
-2. The branch-point table, path declarations and registry checks (no recordings
-   needed).
+2. #4759 — the branch-point table, path declarations and registry checks (no
+   recordings needed).
 3. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
 4. #4733 — composition, family by family.
