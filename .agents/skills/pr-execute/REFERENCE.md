@@ -8,10 +8,11 @@ Detailed criteria consumed during execution. Referenced from SKILL.md.
 
 `pr_metadata.needs_integration_tests` is set by `pr-triage` and is
 informational for execute. The local gate's scope comes from `targeted-tests`
-(SKILL.md Phase 5 Step 3), which reports `full` when the branch diff touches
-any of these integration-bearing paths (PAD-18-003), as well as shared test
-infrastructure (`conftest.py`, fixtures, factories, `pyproject.toml`,
-`uv.lock`):
+(SKILL.md Phase 5 Step 3), which, for a fix commit's branch-diff gate, reports
+`full` when the branch diff touches any of these integration-bearing paths
+(PAD-18-003), as well as shared test infrastructure (`conftest.py`, fixtures,
+factories, `pyproject.toml`, `uv.lock`). The gate after a conflict merge
+(`--paths`) escalates on shared test configuration only (PAD-18-004):
 
 - `vultron/demo/` — any demo script or orchestration file
 - `integration_tests/` — any integration test file
@@ -178,37 +179,49 @@ explicit blocked/unblocked status.
 
 ### When sync runs, and why it runs late
 
-The base is merged in Phase 5 (CI loop, Step 2) **only** when GitHub reports the
-PR `CONFLICTING` or `BEHIND`, or `targeted-tests --overlap` finds files both the
-base and the PR changed since the merge base (PAD-18-004). Otherwise the branch
-is left behind its base: CI already tests the PR merged into its base on every
-push, and no repository rule requires up-to-date branches (ADR-0126). `BEHIND`
-appears only if a ruleset starts requiring them; merging is then the only way
-GitHub will accept the PR.
+The base is merged locally in Phase 5 (CI loop, Step 2) **only** when the PR
+conflicts with it: GitHub reports `CONFLICTING` or `DIRTY`, or
+`git merge-tree --write-tree` finds a conflict (PAD-18-004). A PR GitHub
+reports `BEHIND` is updated on GitHub with `gh pr update-branch`, a clean
+merge no agent has to test. Otherwise the branch is left behind its base, even
+when the base changed files the PR also changes: CI already tests the PR
+merged into its base on every push, no repository rule requires up-to-date
+branches (ADR-0126), and the merger refreshes an overlapping PR on GitHub
+right before merging it, so CI tests it against the base it lands on
+(PAD-18-009, ADR-0138).
 
 The check runs after all fixes, before the local gate. Three reasons:
 
-1. **Execute's own fixes can create conflicts or overlap.** A fix touching a file
-   a base-branch commit touched only overlaps once both exist. The overlap check
-   counts uncommitted work for this reason.
+1. **Execute's own fixes can create conflicts.** A fix touching a line a
+   base-branch commit touched only conflicts once both exist.
 2. **The base branch moves during the run.** Triage's merge state is stale by the
    time execute finishes; another PR can land mid-pipeline.
-3. **The gate must be derived from the merged tree.** When a merge happens, the
-   targeted set is derived from the post-merge branch diff: the PR's own
-   changes, including its edits to the overlapping files and any
-   conflict-resolution edits. Tests for what the base alone changed in those
-   files are not selected; CI on the push runs them against the merged tree.
-   A semantic conflict between files neither side shares is not caught here
-   either; CI on `main` catches it after merge, and closing that gap is a
-   merge queue's job (#1863).
+3. **The gate after a conflict merge is the conflicted files.** Each is
+   treated as wholly changed (`targeted-tests --paths`), since both sides edited
+   it, and its importers and mirror tests run. The rest of the merge changed no
+   line the PR wrote; CI on the push runs the full suite against the merged
+   tree. A semantic conflict between files neither side shares is not caught
+   here either; CI on `main` catches it after merge (ADR-0126, ADR-0138).
 
 ### Merge, do not rewrite
 
-Once a branch is pushed and a PR is open, use `sync-with-main.sh` (merge commit),
-not `freshen-branch.sh` (cherry-pick rewrite). Rewriting a pushed branch requires
+Once a branch is pushed and a PR is open, use `sync-with-main.sh` (merge commit)
+or `gh pr update-branch` (the same merge, made by GitHub), not
+`freshen-branch.sh` (cherry-pick rewrite). Rewriting a pushed branch requires
 a force-push, which orphans reviewers' line comments and breaks any `commit_ref`
 already recorded in the triage/execute artifacts. `freshen-branch.sh` belongs to
 `create-pr`, before the first push.
+
+**After `gh pr update-branch`**, the PR head has a merge commit the local
+worktree lacks. Fast-forward before any later local commit or push:
+
+```bash
+git fetch origin <head_ref> && git merge --ff-only FETCH_HEAD
+```
+
+Skipping this makes the next push non-fast-forward, which Step 4 treats as a
+stop. `--ff-only` fails rather than creating a second merge if local commits
+were made in between; push those first, then update.
 
 ### Resolving each path
 
@@ -231,9 +244,9 @@ Rules that do not bend:
 - **Verify no markers remain** before pushing:
   `git grep -nE '^(<<<<<<<|=======|>>>>>>>)'` must be empty.
 - **Re-run the gate after resolving**, even if it passed pre-merge: the
-  targeted set of PAD-18-002, derived from the post-merge branch diff
-  (PAD-18-004), escalated to the full suite when `targeted-tests` reports
-  `full` (SKILL.md Phase 5 Step 3).
+  tests for the conflicted files, `targeted-tests --paths <conflicted files>`
+  (PAD-18-004), escalated to the full suite when it reports `full`
+  (SKILL.md Phase 5 Step 3).
 - **Never resolve a conflict you do not understand.** Abort
   (`sync-with-main.sh --abort`), record the merge-state finding as `skipped` with
   the conflicted paths and why, and stop. An honest stop beats a wrong merge.
@@ -403,10 +416,10 @@ diverge (indicating execute was interrupted before completion).
 |---|---|
 | `base_ref` | Branch checked against — copied from `pr_metadata.base_ref`, not assumed to be `main` |
 | `conflict_free` | `true` if, at the end of Phase 5, the branch has no unresolved conflict with the base: no merge was required, or the required merge completed with no markers left |
-| `merge_required` | `true` if Phase 5 Step 2 called for a merge in any iteration (PAD-18-004); `false` if every check found none of `CONFLICTING`, `BEHIND`, or overlap |
-| `merge_reason` | `"conflicting"`, `"behind"`, `"overlap"`, or `null` when `merge_required` is `false` |
-| `overlap_paths` | Paths `targeted-tests --overlap` listed; `[]` when none |
-| `sync_commit_ref` | Merge commit SHA, or `null` when no merge was required. When a required merge finds the branch already contains the base (`sync-with-main.sh` exit `0` with nothing merged), record `HEAD`'s SHA: the merge was satisfied |
+| `merge_required` | `true` if Phase 5 Step 2 merged in any iteration — locally on a conflict, or on GitHub for `BEHIND` (PAD-18-004); `false` otherwise, including when an overlap was deferred |
+| `merge_reason` | `"conflicting"` (local merge), `"behind"` (`gh pr update-branch`), `"deferred"` (overlap only: no merge, left to the merger's update-branch, PAD-18-009), or `null` when Step 2 found none of these |
+| `overlap_paths` | Paths `targeted-tests --overlap` listed; `[]` when none. Recorded for the merger, never acted on by execute |
+| `sync_commit_ref` | Merge commit SHA (local, or GitHub's after `update-branch`), or `null` when `merge_required` is `false`. When a required merge finds the branch already contains the base (`sync-with-main.sh` exit `0` with nothing merged), record `HEAD`'s SHA: the merge was satisfied |
 | `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge or no merge |
 | `mergeable_after_sync` | `merge-state.sh` `mergeable` from the "On CI green" (or eject) call in Phase 5 |
 | `merge_state_status_after_sync` | `mergeStateStatus` from the same call |
@@ -417,7 +430,9 @@ diverge (indicating execute was interrupted before completion).
 `sync_commit_ref` as `UNSYNCED-EXECUTE` — an execute run that never established
 the PR was conflict-free cannot produce a READY-TO-MERGE verdict. Containing the
 base tip is **not** required (PAD-18-005): a branch that is behind but neither
-conflicts, overlaps, nor is reported `BEHIND` by GitHub is conflict-free.
+conflicts nor is reported `BEHIND` by GitHub is conflict-free, and a deferred
+overlap (`merge_reason: "deferred"`, `sync_commit_ref: null`) is not a merge
+that never happened.
 
 `integration_tests_run` is `true` when any gate run in Phase 5 was the full
 suite (`pytest -m ""`), which includes the integration-marked tests.
@@ -447,7 +462,9 @@ Derivation, so the count is cumulative across every execute run on the PR:
 `scripts/velocity.py` reads the line from the most recent PR comment or review
 that carries it (PAD-18-007), so keep it a plain line in exactly the form
 `Suite runs: <N> full, <M> targeted` — no bold, no extra words between the
-numbers.
+numbers. Agents writing the summary freehand produced `**Suite runs**: …` and
+`Suite runs: full N, targeted M`; `velocity.py` reads those two forms too, but
+any other wording is counted as absent.
 
 ### `docs_refresh` Fields
 
@@ -475,7 +492,7 @@ commits.
 **Halted (inversion, awaiting you)**: <H>
 **Tests run**: targeted set / full suite (`-m ""`)
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
-**Base sync**: ✅ merged `<base_ref>` @ `def5678` (<conflicting / behind / overlap>) — <N> conflicts resolved / ✅ not needed — no conflict, not behind, no overlap / ❌ conflicts unresolved
+**Base sync**: ✅ merged `<base_ref>` @ `def5678` (conflicting) — <N> conflicts resolved / ✅ updated on GitHub @ `def5678` (behind) / ✅ deferred — overlaps `<base_ref>` on <paths>, merger updates before merge / ✅ not needed — no conflict, not behind / ❌ conflicts unresolved
 **Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute
 
 Suite runs: <suite_runs.full> full, <suite_runs.targeted> targeted

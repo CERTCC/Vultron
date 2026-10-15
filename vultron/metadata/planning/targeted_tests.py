@@ -12,16 +12,18 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The local test gate for a pushed Pull Request (``targeted-tests``).
 
-After a Pull Request's first push, CI is the full-suite authority (ADR-0126);
-a fix commit is gated locally by a *targeted* set derived from the branch
-diff. This command derives that set, or says the diff needs the full suite,
-and answers the "did the base move under me?" question that decides whether
-to merge the base at all::
+After a Pull Request's first push, CI is the full-suite authority (ADR-0126,
+ADR-0138); a fix commit is gated locally by a *targeted* set derived from the
+branch diff. This command derives that set, or says the diff needs the full
+suite, derives the narrower gate after a conflict merge, and answers the "did
+the base touch my files?" question that decides whether the merger refreshes
+the Pull Request on GitHub before merging it::
 
     targeted-tests                     # file list, or `full` + its triggers
     targeted-tests --pytest            # the pytest command line to run
     targeted-tests --json
     targeted-tests --overlap           # files changed on both sides
+    targeted-tests --paths F [F ...]   # the gate after a conflict merge
 
 Output contract (stable; pipeline skills parse it):
 
@@ -35,8 +37,17 @@ Output contract (stable; pipeline skills parse it):
   ``{"mode", "tests", "triggers", "unmapped", "pytest"}``.
 - **Overlap mode** (``--overlap``) prints the paths the base changed since
   the merge base that this branch also changes, one per line, and exits 1
-  when there are any and 0 when there are none (PAD-18-004). ``--json``
+  when there are any and 0 when there are none (PAD-18-009). ``--json``
   prints ``{"base", "merge_base", "overlap"}``.
+- **Paths mode** (``--paths``) prints the same selection output for the
+  named files instead of the branch diff: the gate after resolving a merge
+  conflict, run on the conflicted files (PAD-18-004). Each file counts as
+  wholly changed, since both sides edited it, and only
+  :func:`conflict_suite_trigger` paths force the full suite: CI runs the full
+  suite on the push, so the integration-bearing and test-support triggers
+  that guard a fix commit are not repeated here (PAD-18-003). ``--base`` is
+  not read. A conflicted non-Python file under ``test/`` (a data file) maps
+  to no test and is named on stderr like any other unmapped path.
 - Exit 2 is a setup error (not a repository, unknown base ref).
 
 Changed paths no rule maps to a test (a docs page, a script outside
@@ -79,7 +90,7 @@ PAD-18-003's third escalation clause — a CI failure in a test the targeted
 set does not include — is the caller's to apply: this command cannot see CI.
 
 Requirements: specs/parallel-development.yaml PAD-18-002, PAD-18-003,
-PAD-18-004.
+PAD-18-004, PAD-18-009.
 """
 
 from __future__ import annotations
@@ -105,6 +116,7 @@ from vultron.metadata.specs.backstop import (
     changed_nodes,
     changed_paths,
     changed_symbols,
+    changes_from_paths,
     collect_git_changes,
     git_toplevel,
     imported_symbols,
@@ -175,6 +187,25 @@ def _is_test_file(path: str) -> bool:
     )
 
 
+def conflict_suite_trigger(path: str) -> FullSuiteTrigger | None:
+    """Why a conflicted *path* needs the full suite, or ``None``.
+
+    The subset of :func:`full_suite_trigger` that applies after a conflict
+    merge (``--paths``): files that configure every test run, whose effect no
+    import or mirror lookup can bound. A conflict anywhere else is gated by
+    its importers and mirror tests; CI runs the rest on the push
+    (PAD-18-003, PAD-18-004).
+    """
+    name = PurePosixPath(path).name
+    if name == "conftest.py":
+        return FullSuiteTrigger(path, "conftest.py (shared test fixtures)")
+    if path in SHARED_CONFIG_FILES:
+        return FullSuiteTrigger(path, "test configuration or dependencies")
+    if path == PACKAGE_ROOT:
+        return FullSuiteTrigger(path, "package root (runs on every import)")
+    return None
+
+
 def full_suite_trigger(path: str) -> FullSuiteTrigger | None:
     """Why *path* needs the full suite (PAD-18-003), or ``None``.
 
@@ -186,13 +217,9 @@ def full_suite_trigger(path: str) -> FullSuiteTrigger | None:
     that imports one of its helpers is selected through the index
     (:func:`build_index`).
     """
-    name = PurePosixPath(path).name
-    if name == "conftest.py":
-        return FullSuiteTrigger(path, "conftest.py (shared test fixtures)")
-    if path in SHARED_CONFIG_FILES:
-        return FullSuiteTrigger(path, "test configuration or dependencies")
-    if path == PACKAGE_ROOT:
-        return FullSuiteTrigger(path, "package root (runs on every import)")
+    shared = conflict_suite_trigger(path)
+    if shared is not None:
+        return shared
     for prefix in INTEGRATION_PREFIXES:
         if path.startswith(prefix):
             return FullSuiteTrigger(path, f"integration-bearing ({prefix})")
@@ -434,6 +461,7 @@ def select_tests(
     tests: dict[str, TestFile],
     exists: Callable[[str], bool],
     old_source: Callable[[str], str | None] = _no_history,
+    trigger: Callable[[str], FullSuiteTrigger | None] = full_suite_trigger,
 ) -> Selection:
     """The targeted set for a branch diff, or the triggers that forbid one.
 
@@ -445,13 +473,15 @@ def select_tests(
         exists: Whether a repository-relative path exists in the work tree.
         old_source: A changed file's source at the merge base, or ``None``
             when it did not exist there.
+        trigger: The escalation rule: :func:`full_suite_trigger` for a
+            branch diff, :func:`conflict_suite_trigger` for ``--paths``.
     """
     selection = Selection()
     paths = sorted(set(paths))
     for path in paths:
-        trigger = full_suite_trigger(path)
-        if trigger is not None:
-            selection.triggers.append(trigger)
+        escalation = trigger(path)
+        if escalation is not None:
+            selection.triggers.append(escalation)
     if selection.full:
         return selection
     selected: set[str] = set()
@@ -518,6 +548,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "merge base; exit 1 when there are any"
         ),
     )
+    parser.add_argument(
+        "--paths",
+        nargs="+",
+        metavar="PATH",
+        help=(
+            "derive the gate for these files (the conflicted files after a "
+            "base merge) instead of the branch diff; each counts as wholly "
+            "changed"
+        ),
+    )
     output = parser.add_mutually_exclusive_group()
     output.add_argument("--json", action="store_true", help="JSON output")
     output.add_argument(
@@ -575,6 +615,10 @@ def _run_selection(args: argparse.Namespace, root: Path) -> int:
         lambda p: (root / p).is_file(),
         _source_at(git, start),
     )
+    return _report_selection(selection, args)
+
+
+def _report_selection(selection: Selection, args: argparse.Namespace) -> int:
     print(_render_selection(selection, args))
     if args.pytest and selection.full:
         for trigger in selection.triggers:
@@ -590,6 +634,18 @@ def _run_selection(args: argparse.Namespace, root: Path) -> int:
             file=sys.stderr,
         )
     return 0
+
+
+def _run_paths(args: argparse.Namespace, root: Path) -> int:
+    changes = changes_from_paths(root, args.paths)
+    selection = select_tests(
+        [c.path for c in changes],
+        [c for c in changes if c.path.endswith(".py")],
+        build_index(root),
+        lambda p: (root / p).is_file(),
+        trigger=conflict_suite_trigger,
+    )
+    return _report_selection(selection, args)
 
 
 def _run_overlap(args: argparse.Namespace, root: Path) -> int:
@@ -618,10 +674,14 @@ def main() -> int:
     args = parser.parse_args()
     if args.overlap and args.pytest:
         parser.error("--pytest does not apply to --overlap")
+    if args.overlap and args.paths:
+        parser.error("--paths does not apply to --overlap")
     try:
         root = git_toplevel(Path.cwd()).resolve()
         if args.overlap:
             return _run_overlap(args, root)
+        if args.paths:
+            return _run_paths(args, root)
         return _run_selection(args, root)
     except (BackstopError, OSError) as exc:
         print(f"targeted-tests: error: {exc}", file=sys.stderr)

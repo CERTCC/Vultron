@@ -150,26 +150,35 @@ only pushed commits, which is why PAD-04-004 asks for a push at each checkpoint.
 ## Merge Conflict Recovery
 
 ```text
-Pushed PR (pr-execute, and work-epic-tasks after each merge):
+Pushed PR, in pr-execute:
   1. git fetch origin <base>
-     merge-state.sh <pr>                           → CONFLICTING or BEHIND?
-     targeted-tests --base origin/<base> --overlap → shared files?
-     ├── none → do nothing; being behind the base is fine (PAD-18-004)
-     └── any  → sync-with-main.sh <base>  (merge, never rebase: PAD-11-001)
-           ├── merges, or conflicts resolved
-           │     → targeted gate on the post-merge diff
-           │     → git push (never --force: PAD-11-002); CI re-runs
+     merge-state.sh <pr>                              → CONFLICTING/DIRTY? BEHIND?
+     git merge-tree --write-tree HEAD origin/<base>   → would conflict?
+     ├── no conflict, not BEHIND → do nothing, even if files overlap (PAD-18-004)
+     ├── BEHIND, no conflict     → gh pr update-branch; no local gate; CI re-runs
+     └── conflict → sync-with-main.sh <base>  (merge, never rebase: PAD-11-001)
+           ├── conflicts resolved
+           │     → linters + targeted-tests --paths <conflicted files>
+           │     → git push (never --force: PAD-11-002); CI runs the full suite
            └── conflict cannot be resolved safely
                  → sync-with-main.sh --abort
                  → gh pr comment: explain the conflict  (PAD-11-003)
                  → gh pr edit --add-label needs-rebase  (PAD-11-004)
                  → stop; a human resolves it            (PAD-11-005)
+
+The merger, right before merging one PR (work-epic-tasks; PAD-18-009):
+  conflict                → re-run pr-ship
+  BEHIND, or files overlap → gh pr update-branch, wait-for-ci.sh, merge on green
+  neither                 → merge
 ```
 
-The base is merged only when it touched a file the PR also changes, or GitHub
-reports a conflict or `BEHIND`. A semantic conflict between files neither side
-shares is caught by CI on `main` after merge (ADR-0126). Before the first push
-there is nothing published to rewrite, so `create-pr` cherry-picks instead.
+Only a conflict costs an agent and a local run; every clean merge is GitHub's,
+tested by CI (ADR-0138). Check only the PR about to merge, never every open PR
+after a merge, and update it at most once: re-syncing on every movement of
+`main` is the loop ADR-0138 removed. A semantic conflict between files neither
+side shares is caught by CI on `main` after merge (ADR-0126). Before the first
+push there is nothing published to rewrite, so `create-pr` cherry-picks
+instead.
 
 ## Shared `.git` and Worktree Pruning (Danger)
 

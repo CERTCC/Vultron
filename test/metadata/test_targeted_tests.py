@@ -1,13 +1,13 @@
 """Tests for the ``targeted-tests`` local test gate.
 
 Requirements: specs/parallel-development.yaml PAD-18-002, PAD-18-003,
-PAD-18-004.
+PAD-18-004, PAD-18-009.
 """
 
 import json
 import shlex
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -17,6 +17,7 @@ from vultron.metadata.planning.targeted_tests import (
     ARCHITECTURE_TESTS,
     INTEGRATION_PREFIXES,
     build_index,
+    conflict_suite_trigger,
     full_suite_trigger,
     overlap,
     pytest_argv,
@@ -505,11 +506,67 @@ def test_full_pytest_argv_has_no_paths():
 
 
 # ---------------------------------------------------------------------------
-# Overlap (PAD-18-004)
+# Conflict-merge gate (PAD-18-004)
 # ---------------------------------------------------------------------------
+
+CONFLICT_FULL_PATHS = [
+    "conftest.py",
+    "test/conftest.py",
+    "pyproject.toml",
+    "uv.lock",
+    "vultron/__init__.py",
+]
 
 
 @pytest.mark.spec("PAD-18-004")
+@pytest.mark.parametrize("path", CONFLICT_FULL_PATHS)
+def test_conflict_gate_escalates_on_shared_configuration(path):
+    assert conflict_suite_trigger(path) is not None
+    assert full_suite_trigger(path) == conflict_suite_trigger(path)
+
+
+@pytest.mark.spec("PAD-18-004")
+@pytest.mark.parametrize(
+    "path",
+    [
+        p
+        for p in FULL_PATHS
+        if p not in CONFLICT_FULL_PATHS
+        and PurePosixPath(p).name != "conftest.py"
+    ],
+)
+def test_conflict_gate_does_not_escalate_on_fix_commit_triggers(path):
+    """Integration-bearing and test-support paths are CI's after a merge."""
+    assert full_suite_trigger(path) is not None
+    assert conflict_suite_trigger(path) is None
+
+
+@pytest.mark.spec("PAD-18-004")
+def test_conflict_gate_selects_importers_of_an_integration_path():
+    path = "vultron/adapters/a/mod.py"
+    tests = _index(
+        {
+            "test/x/test_adapter.py": "from vultron.adapters.a.mod import f\n",
+            "test/x/test_unrelated.py": "from vultron.b import thing\n",
+        }
+    )
+    selection = select_tests(
+        [path],
+        [_change(None, path)],
+        tests,
+        lambda p: True,
+        trigger=conflict_suite_trigger,
+    )
+    assert not selection.full
+    assert selection.tests == [ARCHITECTURE_TESTS, "test/x/test_adapter.py"]
+
+
+# ---------------------------------------------------------------------------
+# Overlap (PAD-18-009)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("PAD-18-009")
 def test_overlap_is_the_intersection():
     assert overlap(["a", "b", "c"], ["c", "d", "a"]) == ["a", "c"]
     assert overlap(["a"], ["b"]) == []
@@ -683,7 +740,7 @@ def test_cli_pytest_full_names_trigger_on_stderr(
     assert "pyproject.toml" in captured.err
 
 
-@pytest.mark.spec("PAD-18-004")
+@pytest.mark.spec("PAD-18-009")
 def test_cli_overlap_exits_1_on_shared_file(git_repo, monkeypatch, capsys):
     _edit(git_repo / "vultron" / "a" / "mod.py", "return 1", "return 3")
     git(git_repo, "commit", "-q", "-am", "branch edit")
@@ -698,7 +755,7 @@ def test_cli_overlap_exits_1_on_shared_file(git_repo, monkeypatch, capsys):
     assert "1 file(s) changed on both main" in captured.err
 
 
-@pytest.mark.spec("PAD-18-004")
+@pytest.mark.spec("PAD-18-009")
 def test_cli_overlap_exits_0_when_disjoint(git_repo, monkeypatch, capsys):
     _edit(git_repo / "vultron" / "a" / "mod.py", "return 1", "return 3")
     git(git_repo, "commit", "-q", "-am", "branch edit")
@@ -718,8 +775,79 @@ def test_cli_bad_base_exits_2(git_repo, monkeypatch, capsys):
     assert "no-such-ref" in capsys.readouterr().err
 
 
-@pytest.mark.spec("PAD-18-004")
+@pytest.mark.spec("PAD-18-009")
 def test_cli_pytest_with_overlap_is_a_usage_error(git_repo, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         _main(monkeypatch, "--overlap", "--pytest")
+    assert exc.value.code == 2
+
+
+@pytest.mark.spec("PAD-18-004")
+def test_cli_paths_selects_every_importer_of_a_conflicted_file(
+    git_repo, monkeypatch, capsys
+):
+    """A conflicted file counts as wholly changed: both sides edited it."""
+    assert _main(monkeypatch, "--paths", "vultron/a/mod.py") == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out == [
+        ARCHITECTURE_TESTS,
+        "test/a/test_mod.py",
+        "test/a/test_other.py",
+    ]
+
+
+@pytest.mark.spec("PAD-18-004")
+def test_cli_paths_ignores_the_branch_diff(git_repo, monkeypatch, capsys):
+    """Only the named files count, not the rest of the branch."""
+    (git_repo / "test" / "conftest.py").write_text("import pytest\n")
+    assert _main(monkeypatch, "--paths", "docs/index.md") == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines() == [ARCHITECTURE_TESTS]
+    assert "docs/index.md" in captured.err
+
+
+@pytest.mark.spec("PAD-18-004")
+def test_cli_paths_escalates_on_shared_configuration(
+    git_repo, monkeypatch, capsys
+):
+    assert _main(monkeypatch, "--paths", "pyproject.toml", "--pytest") == 0
+    captured = capsys.readouterr()
+    assert shlex.split(captured.out)[-2:] == ["-m", ""]
+    assert "pyproject.toml" in captured.err
+
+
+@pytest.mark.spec("PAD-18-004")
+def test_cli_paths_does_not_escalate_on_integration_paths(
+    git_repo, monkeypatch, capsys
+):
+    adapter = git_repo / "vultron" / "adapters"
+    adapter.mkdir()
+    (adapter / "port.py").write_text("def f():\n    return 1\n")
+    (git_repo / "test" / "a" / "test_port.py").write_text(
+        "from vultron.adapters.port import f\n"
+    )
+    assert (
+        _main(monkeypatch, "--paths", "vultron/adapters/port.py", "--json")
+        == 0
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert data["mode"] == "targeted"
+    assert data["tests"] == [ARCHITECTURE_TESTS, "test/a/test_port.py"]
+    assert data["pytest"][-2:] == [ARCHITECTURE_TESTS, "test/a/test_port.py"]
+
+
+@pytest.mark.spec("PAD-18-004")
+def test_cli_paths_outside_the_repository_exits_2(
+    git_repo, tmp_path_factory, monkeypatch, capsys
+):
+    outside = tmp_path_factory.mktemp("elsewhere") / "x.py"
+    outside.write_text("x = 1\n")
+    assert _main(monkeypatch, "--paths", str(outside)) == 2
+    assert "outside" in capsys.readouterr().err
+
+
+@pytest.mark.spec("PAD-18-004")
+def test_cli_paths_with_overlap_is_a_usage_error(git_repo, monkeypatch):
+    with pytest.raises(SystemExit) as exc:
+        _main(monkeypatch, "--overlap", "--paths", "vultron/a/mod.py")
     assert exc.value.code == 2

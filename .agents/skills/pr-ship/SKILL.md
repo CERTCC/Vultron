@@ -106,8 +106,9 @@ Print the base branch and merge state alongside the PR title. Do **not** stop on
 a conflicting or draft PR — resolving conflicts is exactly what the pipeline is
 for. `pr-execute` Phase 5 (CI Loop) syncs and resolves; `pr-verify` Phase 2 gates the
 verdict. A conflicted PR at this point is a normal input, not an error. Neither
-is a PR that is merely behind its base: the pipeline merges the base only on
-conflict, GitHub's `BEHIND`, or file overlap (PAD-18-004).
+is a PR that is merely behind its base: the pipeline merges the base locally
+only on conflict, and clears GitHub's `BEHIND` with `gh pr update-branch`
+(PAD-18-004). File overlap is left to the merger (PAD-18-009).
 
 If the PR is a draft carrying the `needs-rebase` label, note that `create-pr`
 opened it that way because it could not freshen the branch, and that execute will
@@ -256,7 +257,7 @@ the pipeline runs:
 | Phase | Check | Role |
 |---|---|---|
 | `pr-triage` Phase 12 | Read merge state, emit a FAIL finding | Early warning; recorded in `pr_metadata` |
-| `pr-execute` Phase 5 (CI Loop) | Merge the base **only** when GitHub reports `CONFLICTING` or `BEHIND`, or `targeted-tests --overlap` finds shared files (PAD-18-004); resolve conflicts; gate with the targeted set from the post-merge diff | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included, and before the local gate so the targeted set is derived from the merged tree |
+| `pr-execute` Phase 5 (CI Loop) | Merge the base locally **only** on conflict (`CONFLICTING`, `DIRTY`, or `git merge-tree` finds one), resolve, and gate with the tests for the conflicted files (`targeted-tests --paths`); clear GitHub's `BEHIND` with `gh pr update-branch`; record an overlap as `deferred`, never merge for it (PAD-18-004, ADR-0138) | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included. Does not loop back when the base moves during the CI wait |
 | `pr-verify` Phase 2 | Live re-check as a hard gate | The **authoritative** answer. Blocks `READY-TO-MERGE` on `CONFLICTING`, `DIRTY`, or GitHub's `BEHIND` — never on its own base-tip comparison (PAD-18-005) |
 
 Execute resolves rather than verify because verify is a read-only reporter by
