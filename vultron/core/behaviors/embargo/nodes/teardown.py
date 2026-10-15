@@ -15,6 +15,9 @@
 
 """Embargo removal and teardown nodes."""
 
+from datetime import datetime
+from typing import cast
+
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
@@ -28,15 +31,30 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes import _require_log_entry
+from vultron.core.models._helpers import parse_published
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    TerminationRequest,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import case_content_recipients
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
+    termination_timing_violations,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
-from vultron.errors import BtNodePreconditionError, VultronNotFoundError
+from vultron.core.states.embargo_register import (
+    termination_reason_from_content,
+)
+from vultron.errors import (
+    BtNodePreconditionError,
+    VultronError,
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 
 
 class HasEmbargoActiveNode(DataLayerConditionWithPorts):
@@ -72,6 +90,54 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
+class TerminationIsTimelyNode(DataLayerConditionWithPorts):
+    """Guard: a received termination may end the embargo in force now.
+
+    FAILURE when *termination* is ``END_TIME_REACHED`` claimed at
+    *terminated_at* before the end time of the case's embargo in force, or
+    carries no time (ADR-0122); SUCCESS otherwise, an ``EARLY`` termination
+    or a case with no embargo in force included.  It runs among the received
+    tree's precondition guards, so a refused termination is never committed
+    (CLP-10-006).  An embargo that cannot be read fails closed (EMB-18-003).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        termination: EmbargoTermination,
+        terminated_at: datetime | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._termination = termination
+        self._terminated_at = terminated_at
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
+        try:
+            violations = termination_timing_violations(
+                cast(CasePersistence, self.datalayer),
+                case,
+                self._termination,
+                self._terminated_at,
+            )
+        except VultronError as exc:
+            violations = [str(exc)]
+        if not violations:
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"Refused termination on case '{self.case_id}': "
+            + "; ".join(violations)
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     """Terminate the embargo in force, so EM derives ``EXITED``.
 
@@ -79,8 +145,11 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     ``EmbargoLifecycle.terminate_active_embargo()`` in OBSERVED mode
     (EMB-18-001): one register step terminates the ``ACTIVE`` entry and
     cancels every open proposal (EP-08-004, ADR-0122), in one
-    ``datalayer.save()``.  A ``Remove`` ends the embargo before its end time,
-    so the reason passed is ``EARLY`` (stored once #4293 carries it).
+    ``datalayer.save()``.  The ``TERMINATED`` entry records *termination*:
+    for a received ``Remove``, the what its ``content`` carries, claimed at
+    its ``published`` time (*terminated_at*).  An ``END_TIME_REACHED``
+    claimed before the embargo's end time is refused: FAILURE, nothing
+    written (ADR-0122).
 
     Handles idempotency: returns SUCCESS without modifying state when EM is
     already EXITED.  A case with no embargo in force is also left unchanged
@@ -88,11 +157,21 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     :attr:`applied` tells a caller which happened.
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(
+        self,
+        case_id: str,
+        termination: TerminationRequest,
+        terminated_at: datetime | None = None,
+        name: str | None = None,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self._termination = termination
+        self._terminated_at = terminated_at
         #: True only when this tick terminated an embargo.
         self.applied = False
+        #: True when this tick's termination was refused (ADR-0122).
+        self.refused = False
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -117,11 +196,17 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
         try:
             result = lifecycle.terminate_active_embargo(
                 case_id=self.case_id,
-                reason=TerminationReason.EARLY,
+                termination=self._termination,
                 actor_id=self.actor_id,
                 transition_mode=TransitionMode.OBSERVED,
+                terminated_at=self._terminated_at,
             )
         except VultronNotFoundError as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        except VultronInvalidStateTransitionError as exc:
+            self.refused = True
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -166,16 +251,33 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts, StateWriteCapable):
     register is never forced into a state its rules refuse.
 
     When ``case_id`` is not provided at construction (``None``), the node
-    reads it from the log entry in the blackboard ``activity`` key.  This
-    allows the node to be shared between the ``RemoveEmbargoFromCaseBT``
-    (construction-time ``case_id``) and the
-    ``AnnounceLogEntryReceivedBT`` participant subtree (blackboard
-    ``activity``).
+    reads it from the log entry in the blackboard ``activity`` key, with the
+    termination the entry's ``Remove`` carries: the what in ``content``,
+    claimed at the snapshot's ``published`` time.  A replica learns only the
+    what this way; the why stays on the CASE_MANAGER's entry until #4294
+    copies whole register entries (ADR-0122).  An entry whose ``content`` is
+    not a termination reason, or an ``END_TIME_REACHED`` published before
+    the embargo's end time, is refused: FAILURE, which keeps the entry from
+    being persisted (SYNC-12-001).  With ``case_id`` given, *termination*
+    (and, for ``END_TIME_REACHED``, *terminated_at*) must be given too.
     """
 
-    def __init__(self, case_id: str | None = None, name: str | None = None):
+    def __init__(
+        self,
+        case_id: str | None = None,
+        name: str | None = None,
+        termination: EmbargoTermination | None = None,
+        terminated_at: datetime | None = None,
+    ):
         super().__init__(name=name or self.__class__.__name__)
+        if (case_id is None) != (termination is None):
+            raise ValueError(
+                "ApplyEmbargoTeardownNode: give case_id and termination"
+                " together, or neither to read both from the log entry"
+            )
         self.case_id = case_id
+        self._termination = termination
+        self._terminated_at = terminated_at
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -201,17 +303,35 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts, StateWriteCapable):
             return f
         assert self.datalayer is not None
 
-        if self.case_id is not None:
+        if self._termination is not None:
+            assert self.case_id is not None  # paired in __init__
             case_id = self.case_id
+            termination = self._termination
+            terminated_at = self._terminated_at
         else:
             entry = _require_log_entry(self._activity, self.name)
             case_id = entry.case_id
+            try:
+                termination, terminated_at = _termination_carried_by(entry)
+            except ValueError as exc:
+                self.feedback_message = (
+                    f"Refused teardown entry on case '{case_id}': {exc}"
+                )
+                self.logger.warning("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
 
         # AC-1: delegate EM state read/write to canonical nodes.
-        clear_node = ClearActiveEmbargoNode(case_id=case_id)
+        clear_node = ClearActiveEmbargoNode(
+            case_id=case_id,
+            termination=termination,
+            terminated_at=terminated_at,
+        )
         clear_node.datalayer = self.datalayer
         clear_node.actor_id = self.actor_id
         if clear_node.update() != Status.SUCCESS:
+            if clear_node.refused:
+                self.feedback_message = clear_node.feedback_message
+                return Status.FAILURE
             self.feedback_message = (
                 f"Case '{case_id}' not found — teardown skipped"
             )
@@ -225,6 +345,25 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts, StateWriteCapable):
         self.feedback_message = f"Embargo teardown applied on case '{case_id}'"
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+
+def _termination_carried_by(
+    entry: CaseLedgerEntry,
+) -> tuple[EmbargoTermination, datetime | None]:
+    """The termination a teardown entry's ``Remove`` carries, and its time.
+
+    The what is the snapshot's ``content`` (ADR-0122); the time is its
+    ``published``.
+
+    Raises:
+        ValueError: ``content`` is not exactly a termination reason.
+    """
+    snapshot = entry.payload_snapshot or {}
+    reason = termination_reason_from_content(snapshot.get("content"))
+    return (
+        EmbargoTermination.from_reason(reason),
+        parse_published(snapshot.get("published")),
+    )
 
 
 class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):

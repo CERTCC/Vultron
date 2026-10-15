@@ -22,10 +22,13 @@ the branch is conflict-free against its base, the local gate passes, and all CI
 checks have completed successfully (or the 4-iteration cap is reached).
 
 After a PR's first push, CI is the full-suite authority (ADR-0126). Execute
-therefore merges the base only when the PR conflicts, GitHub reports it
-`BEHIND`, or the base touched the PR's files (PAD-18-004), and gates each
-push with the linters plus the targeted test set for the branch diff, not the
-full suite (PAD-18-002).
+therefore merges the base only when the PR conflicts with it (PAD-18-004,
+ADR-0138), gates a conflict merge with the tests for the conflicted files,
+and gates each fix push with the linters plus the targeted test set for the
+branch diff, not the full suite (PAD-18-002). A PR GitHub reports `BEHIND` is
+refreshed on GitHub with `gh pr update-branch`, which needs no local run. A PR
+that merely shares files with the base is left alone: whoever merges it
+refreshes it the same way first (PAD-18-009).
 
 **One exception to "no new discovery"**: the CI loop (Phase 5) re-reads CI state
 and merge state from live sources rather than trusting triage's snapshots. CI
@@ -245,52 +248,69 @@ fix(ci): resolve CI failures — <summary>
 
 Record `commit_ref` for each CI finding addressed.
 
-#### Step 2 — Sync with base, only when needed
+#### Step 2 — Sync with base, only on conflict
 
-Merge the base into the branch **only** when GitHub reports the PR
-`CONFLICTING` or `BEHIND`, or the base changed files this PR also changes
-(PAD-18-004). Being behind the base is not by itself a reason to merge: CI
-tests the PR merged into its base on every push, so a branch GitHub does not
-report `BEHIND` is left alone. Run both checks first:
+Merge the base into the branch locally **only** when it conflicts with the
+base (PAD-18-004). A conflict is the one sync that needs an agent: someone has
+to read both sides and resolve it. Being behind the base, even when the base
+changed files this PR also changes, is not a reason to merge here: CI tests
+the PR merged into its base on every push, and the merger refreshes an
+overlapping PR on GitHub (`gh pr update-branch`) right before merging it, at
+no local cost (PAD-18-009, ADR-0138). Run the checks first:
 
 ```bash
 git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
 bash .agents/skills/shared/merge-state.sh <number>; ms=$?; echo "merge-state exit: $ms"
+git merge-tree --write-tree --name-only HEAD origin/<base_ref> > /tmp/merge-tree.txt; mt=$?; echo "merge-tree exit: $mt"
 PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --overlap; ov=$?; echo "overlap exit: $ov"
 ```
 
-If the fetch fails, stop and report: `targeted-tests` does not fetch, so a
-stale `origin/<base_ref>` gives a stale overlap answer and a stale test set.
-`targeted-tests --overlap` lists the paths the base changed since the merge
-base that this branch also changes, counting uncommitted work.
+If the fetch fails, stop and report: neither `merge-tree` nor `targeted-tests`
+fetches, so a stale `origin/<base_ref>` gives a stale answer. `merge-tree`
+tries the merge without touching the worktree and exits `1` when it would
+conflict, so a conflict is seen even when GitHub answers `UNKNOWN` or has not
+recomputed mergeability since the base moved. It reads committed work only;
+commit Phase 2 and CI fixes before this step. `--overlap` is recorded, not
+acted on: it lists the paths the base changed since the merge base that this
+branch also changes.
 
 Read `merge_state_status` from `merge-state.sh`'s JSON. Treat `DIRTY` as
 `CONFLICTING`, whatever the exit code. Then take the first row that matches:
 
-| `merge-state.sh` | `--overlap` | Action |
+| `merge-state.sh` | `merge-tree` | Action |
 |---|---|---|
-| any | `2` | Setup error (unknown base ref) — stop and report |
-| `1` (`CONFLICTING`) | `0` or `1` | Merge — record `merge_reason: "conflicting"` |
-| `0`, `merge_state_status: BEHIND` | `0` or `1` | Merge — record `merge_reason: "behind"` (and any listed paths) |
-| `0` or `2` | `1` (paths listed) | Merge — record `merge_reason: "overlap"` and the listed paths |
-| `0` or `2` | `0` (none) | **Do not merge.** Go to Step 3 |
+| any | not `0` or `1`, or `--overlap` exit `2` | Setup error (unknown base ref) — stop and report |
+| `1` (`CONFLICTING`) | any | Merge locally — record `merge_reason: "conflicting"` |
+| any | `1` | Merge locally — record `merge_reason: "conflicting"` |
+| `0`, `merge_state_status: BEHIND` | `0` | Update on GitHub (below) — record `merge_reason: "behind"` |
+| `0` or `2`, `--overlap` exit `1` | `0` | **Do not merge.** Record `merge_reason: "deferred"` and the listed paths; go to Step 3 |
+| `0` or `2` | `0` | **Do not merge.** Go to Step 3 |
 
-`merge_state.merge_required` is `true` if any iteration merged, and `false` only
-when every iteration reached the last row.
+`merge_state.merge_required` is `true` if any iteration merged (locally or on
+GitHub), and `false` only when every iteration reached one of the last two
+rows.
 
-`merge-state.sh` exit `2` (`UNKNOWN`, or a `gh pr view` failure) does not
-force a merge: a conflict needs a file both sides changed, so the overlap check
-already sees it whatever GitHub answered. The live mergeability gate is
-`pr-verify`'s, not this step's.
+**`BEHIND`, updated on GitHub.** `BEHIND` is the one state in which GitHub
+itself refuses the merge until the branch contains the base, and `pr-verify`
+blocks on it (PAD-18-005). GitHub reports it only when a ruleset requires
+up-to-date branches, which ADR-0126 found this repository does not set;
+seeing it means that changed. `merge-tree` already showed the merge is clean,
+so let GitHub make it. If this iteration has local commits not yet pushed,
+gate and push them first (Steps 3 and 4), then update:
 
-`BEHIND` is a merge trigger because it is the one state in which GitHub itself
-refuses the merge until the branch contains the base. GitHub reports it only
-when a ruleset requires up-to-date branches, which ADR-0126 found this
-repository does not set; seeing it means that changed. Merging clears it, so
-record triage's `BEHIND` finding as `outcome: fixed` with the merge commit as
-`commit_ref`, and `pr-verify` re-reads the live state (PAD-18-005).
+```bash
+gh pr update-branch <number>; rc=$?; echo "update-branch exit: $rc"
+git fetch origin <head_ref> && git merge --ff-only FETCH_HEAD
+```
 
-When a merge is called for:
+The new merge commit is GitHub's, so the local worktree must fast-forward to it
+before any later commit (REFERENCE.md § "Merge, do not rewrite"). It changes no
+line the PR wrote, so it needs no local gate: go to Step 5, where CI tests it. Record its SHA as `sync_commit_ref`, and record
+triage's `BEHIND` finding as `outcome: fixed` with that SHA as `commit_ref`. If
+`update-branch` fails, or GitHub reports a conflict, take the
+`"conflicting"` row instead.
+
+When a local merge is called for (`"conflicting"`):
 
 ```bash
 bash .agents/skills/shared/sync-with-main.sh <base_ref>
@@ -332,10 +352,26 @@ guess and do not push:
 
 #### Step 3 — Run the local gate
 
-The gate is the linters plus the **targeted test set** for the branch diff
-(PAD-18-002), never a bare full-suite run by default. Derive the set from the
-branch as it stands now, after any Step 2 merge, so a merge's overlapping and
-conflicted files are covered by the same derivation:
+The gate is the linters plus a **targeted test set**, never a bare full-suite
+run by default. Which set depends on what this iteration changed:
+
+- **Fix commits** (Phase 2 fixes, CI fixes): the targeted set for the branch
+  diff (PAD-18-002), escalating to the full suite on PAD-18-003's paths.
+- **A Step 2 conflict merge and nothing else**: the tests for the conflicted
+  files only (PAD-18-004). Pass the paths Step 2 recorded in
+  `conflicts_resolved` as `targeted-tests --paths <file>...`. Each counts as
+  wholly changed, and only shared test configuration (`conftest.py`,
+  `pyproject.toml`, `uv.lock`, `vultron/__init__.py`) sends it to the full
+  suite: the merge changed no other line the PR wrote, and CI runs the full
+  suite on the push.
+- **A Step 2 merge that resolved no conflict, and nothing else**
+  (`sync-with-main.sh` exit `0`: GitHub's `CONFLICTING` was stale, or
+  `merge-tree` and `git merge` disagreed): the linters alone. The merge
+  changed no line the PR wrote, `conflicts_resolved` is `[]`, and
+  `targeted-tests --paths` with no path is a usage error, not an empty gate.
+  Record no gate run.
+- **Both**: the branch-diff set; it already covers the conflicted files the PR
+  changed.
 
 Run the linters first, as their own command, and stop on a non-zero
 `lint exit:` — a lint failure must not be masked by the test-set step's status:
@@ -344,27 +380,29 @@ Run the linters first, as their own command, and stop on a non-zero
 uv run ruff check && uv run ruff format --check && uv run mypy && uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
 ```
 
-Then derive the set:
+Then derive the set. `<scope>` is `--base origin/<base_ref>` for the
+branch-diff set, or `--paths <conflicted files>` after a conflict merge alone:
 
 ```bash
 git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
-PYTHONPATH= uv run targeted-tests --base origin/<base_ref> > /tmp/targeted-tests.txt; rc=$?; cat /tmp/targeted-tests.txt; echo "exit: $rc"; (exit $rc)
+PYTHONPATH= uv run targeted-tests <scope> > /tmp/targeted-tests.txt; rc=$?; cat /tmp/targeted-tests.txt; echo "exit: $rc"; (exit $rc)
 ```
 
 Read the first line of `/tmp/targeted-tests.txt`:
 
 - **A test path** — the gate is the targeted set. Paths printed on stderr as
   `no test maps to` are left to CI; that is expected, not an error.
-- **`full`** — the branch diff touches shared test infrastructure or an
-  integration-bearing path (PAD-18-003); each following line names the path
-  and reason. The gate is the full suite with every marker enabled.
+- **`full`** — the scope touches shared test infrastructure or (branch-diff
+  scope only) an integration-bearing path (PAD-18-003); each following line
+  names the path and reason. The gate is the full suite with every marker
+  enabled.
 
 Run the command `targeted-tests --pytest` prints for whichever mode it chose.
 It carries `-m ""` so integration-marked tests among the selected files are
 not deselected by the `addopts` default:
 
 ```bash
-gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --pytest); rc=$?
+gate=$(PYTHONPATH= uv run targeted-tests <scope> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
 ```
 
@@ -385,14 +423,16 @@ A piped form would report 0 for a killed run and this step would push it.
 — **do not re-run the test suite for more output**.
 
 **Count every gate run** for the execute summary's `Suite runs:` line
-(PAD-18-006): a run of the full suite (either escalation) adds one to
-`suite_runs.full`; a targeted run adds one to `suite_runs.targeted`. Single-test
+(PAD-18-006): a run of the full suite (any escalation) adds one to
+`suite_runs.full`; a targeted run, of either scope, adds one to
+`suite_runs.targeted`. Single-test
 re-runs while debugging a failure are not gate runs and are not counted.
 
 If tests fail: fix branch-owned failures per [REFERENCE.md](REFERENCE.md)
-§ "Test Failure Rules", commit, then **re-run Step 2's two checks**. Return to
-the merge only if they now call for one; otherwise re-run this step's gate
-directly. Do not push failing code.
+§ "Test Failure Rules", commit, then **re-run Step 2's checks**. Return to the
+merge only if they now find a conflict; otherwise re-run this step's gate
+directly, now with the branch-diff scope (the fix is a fix commit). Do not
+push failing code.
 
 After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 § "xfail Ratchet".
@@ -433,11 +473,11 @@ bash .agents/skills/shared/wait-for-ci.sh <number>
 
 **On CI green**:
 
-1. Re-run Step 2's two checks (`git fetch`, `merge-state.sh <number>`,
-   `targeted-tests --overlap`). If any of them now calls for a merge
-   (`CONFLICTING`, `BEHIND`, or overlap), return to Step 2 — a push can race a
-   base-branch merge. A base that merely moved ahead, with none of the three,
-   is not a reason to return.
+1. Run `merge-state.sh <number>` once more for the `merge_state` block. Do
+   **not** return to Step 2 because the base moved during the wait, even onto
+   this PR's files: that loop is what ADR-0138 removed. A conflict that lands
+   after this point is caught by `pr-verify`'s live merge-state gate or by the
+   merger's pre-merge check (PAD-18-009), which re-runs `pr-ship`.
 
 2. If the PR is a draft with a `needs-rebase` label, undraft it:
 
@@ -460,10 +500,13 @@ Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
 
 1. Build the execute artifact in memory throughout Phases 2–5; write it only now.
    Write `.claude/pr-{number}-execute.json` per the schema in [REFERENCE.md](REFERENCE.md).
-2. Render the execute summary comment (format in [REFERENCE.md](REFERENCE.md)
-   § "Execute Comment Format"). It carries the `Suite runs: <N> full, <M>
-   targeted` line, derived per [REFERENCE.md](REFERENCE.md) § "`suite_runs`
-   Fields and the Suite runs count". The full count includes `create-pr`'s
+2. Render the execute summary comment by filling in the template in
+   [REFERENCE.md](REFERENCE.md) § "Execute Comment Format" — copy its lines,
+   do not write the summary freehand. It carries the `Suite runs: <N> full,
+   <M> targeted` line, derived per [REFERENCE.md](REFERENCE.md) §
+   "`suite_runs` Fields and the Suite runs count". That line is read by
+   `scripts/velocity.py`: write it exactly, unbolded, numbers before the words,
+   with nothing between them. The full count includes `create-pr`'s
    first-push run only when that run happened.
 3. Post comment: `gh pr review <number> --comment --body "<summary>"`
 4. Record `execute_comment_url` in the artifact; re-write the file with the URL.

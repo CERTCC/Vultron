@@ -138,12 +138,17 @@ def test_bound_link_selects_redelivery_and_writes_nothing(dl, make_payload):
     assert dl.read(_CASE_ID) is None
 
 
-def test_no_link_and_manager_sender_selects_direct(dl, make_payload):
+@pytest.mark.spec("CBT-01-011")
+def test_no_anchor_is_refused_though_the_snapshot_names_the_sender_manager(
+    dl, make_payload
+):
+    """#4472: the sender's own roster is not an anchor, so nothing is stored."""
     _, result, route, _ = _run(dl, make_payload, _CREATOR, _case())
 
-    assert result.status == Status.SUCCESS
-    assert route.name == "direct"
-    assert route.replica_stored is True
+    assert result.status == Status.FAILURE
+    assert route.name == "unanchored"
+    assert route.replica_stored is False
+    assert dl.read(_CASE_ID) is None
 
 
 def test_refusal_carries_the_chosen_routes_reason(dl, make_payload):
@@ -166,12 +171,15 @@ def test_refusal_carries_the_chosen_routes_reason(dl, make_payload):
     assert dl.read(_CASE_ID) is None
 
 
-def test_direct_refusal_names_the_untrusted_sender(dl, make_payload):
+@pytest.mark.spec("CBT-01-011")
+def test_unanchored_refusal_names_the_untrusted_sender(dl, make_payload):
     tree, result, route, _ = _run(dl, make_payload, _IMPOSTER, _case())
 
     assert result.status == Status.FAILURE
-    assert route.name == "direct"
-    assert "ADR-0041" in BTBridge.get_failure_reason(tree)
+    assert route.name == "unanchored"
+    reason = BTBridge.get_failure_reason(tree)
+    assert _IMPOSTER in reason
+    assert "CBT-01-011" in reason
     assert dl.read(_CASE_ID) is None
 
 

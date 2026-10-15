@@ -127,10 +127,10 @@ groups:
     statement: >-
       A handler that receives a message it holds no role or addressing to act on MUST report
       `REFUSED` with a reason naming the missing role or addressing. That covers a
-      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, a copy of
-      an activity that names the receiving actor in neither `to` nor `cc`, and an addressing
-      the message's own protocol does not honour — a `cc`-only receiver of `Offer(Report)`,
-      where only a `to` recipient acts (HP-09-001, HP-09-002). Such a receipt is not a
+      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, and a copy
+      of an activity whose `to` does not name the receiving actor. `cc`, `bto` and `bcc` address
+      no Vultron recipient (OX-08-001, ADR-0109), so a `cc`-only receiver is such a copy, of an
+      `Offer(Report)` (HP-09-001, HP-09-002, HP-10-001) as of any other. Such a receipt is not a
       legitimate no-op and MUST NOT be reported as `SKIPPED`; `SKIPPED` is reserved for a
       duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to
       act on
@@ -165,9 +165,9 @@ groups:
       its assertion before any write, outbound activity or ledger commit, and MUST report
       `REFUSED` with a reason naming the missing entitlement when it cannot. Entitlement is
       the sender's standing, not the receiver's: the governing group's sender clause names
-      it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CP-06-005,
-      HP-01-010, RMB-08-004, SYNC-03-005), and a receiver role check such as the
-      CASE_MANAGER gate (BT-17-001) never satisfies it.
+      it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CM-33-002,
+      CM-33-004, CM-33-005, CP-06-005, HP-01-010, RMB-08-004, SYNC-03-005), and a receiver
+      role check such as the CASE_MANAGER gate (BT-17-001) never satisfies it.
     rationale: >-
       A received activity is an assertion about the sender's state (HP-00-001), so the
       first question is whether the sender may assert it. An audit found handlers that let

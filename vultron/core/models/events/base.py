@@ -61,6 +61,7 @@ class MessageSemantics(StrEnum):
     REJECT_INVITE_TO_EMBARGO_ON_CASE = auto()
     ACTIVATE_EMBARGO_ON_CASE = auto()
     REJECT_EMBARGO_PROPOSAL_ON_CASE = auto()
+    WITHDRAW_FROM_EMBARGO_ON_CASE = auto()
 
     CLOSE_CASE = auto()
 
@@ -140,7 +141,7 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
 
     # Dispatch-context annotation: the canonical ID of the actor whose inbox
     # is being processed.  Set by the inbox adapter (not extracted from wire
-    # format) so that use cases can compare it against activity.to/cc without
+    # format) so that use cases can compare it against activity.to without
     # inspecting AS2 types.  None when dispatched outside the inbox path (CLI,
     # triggers, tests that don't set it).
     receiving_actor_id: NonEmptyString | None = None

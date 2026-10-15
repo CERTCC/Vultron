@@ -236,8 +236,8 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
             # satisfy that: it is a store-consistency check, not an authority one
             # (ARCH-24-005).  On a container co-hosting the CaseActor and another
             # actor, ``store_for_actor(require_same_authority=True)`` resolves for
-            # the co-hosted actor, so the guard reports "not foreign" and would
-            # let a non-CASE_MANAGER mint a canonical index in its own log.
+            # the co-hosted actor, so the guard stands aside and would let a
+            # non-CASE_MANAGER mint a canonical index in its own log.
             #
             # The steps the advance wrote have no entry to back them, so they
             # are withdrawn: an actor that cannot record a closure step does

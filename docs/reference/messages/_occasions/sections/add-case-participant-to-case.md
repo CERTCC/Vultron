@@ -6,6 +6,7 @@ Asks the Case Manager to reinstate the participant record named by the object. T
 
 - **When…** the Case Owner reinstates a removed Participant
 - **Send:** `Add(CaseParticipant)[target=VulnerabilityCase]`
+- **Send to:** the case manager
 - **Sent by:** the case owner
 - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
 - **Mapping status:** [none](../../index.md#mapping-status)

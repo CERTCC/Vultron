@@ -113,8 +113,9 @@ def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
     description=(
         "Demo-only convenience wrapper. "
         "Creates a Note object, adds it to the actor's local copy of the "
-        "case, and queues Create(Note) and AddNoteToCase(Note, Case) "
-        "activities in the actor's outbox for delivery to case participants. "
+        "case, and queues one Create(Note), whose note names the case as "
+        "its context, in the actor's outbox for delivery to the case's "
+        "CASE_MANAGER. "
         "In a production deployment the actor's own BT would handle this "
         "step autonomously. Use the general ``add-object-to-case`` trigger "
         "at ``/trigger/`` when the Note already exists. "
@@ -358,8 +359,9 @@ def demo_sync_log_entry(
             background_tasks=background_tasks,
         )
     except VultronCanonicalEntryError:
-        # The tree ran but this store does not hold the canonical log, so the
-        # ledger-authority guard declined the mint (ADR-0073).  Kept as the
+        # The commit did not persist.  An unhosted CASE_MANAGER is refused
+        # before any tree runs, and the ledger-authority guard raises rather
+        # than declining (CLP-10-014, ADR-0109).  Kept as the
         # 500 this route has always answered; ``domain_error_translation()``
         # has no mapping for it because it is neither a client fault nor a
         # state conflict.

@@ -33,14 +33,16 @@ groups:
   - id: IE-02-002
     priority: MUST
     kind: foundation
-    statement: The endpoint MUST accept POST requests only
+    statement: The endpoint MUST accept activities delivered to it by HTTP POST.
     rationale: >-
-      ActivityPub delivers an activity to an inbox by HTTP POST. It allows a GET on an
-      inbox only to the actor's authenticated owner, and Vultron has no
-      authentication, so POST is the only method the inbox serves (IE-02-003).
+      ActivityPub delivers an activity to an inbox by HTTP POST. Vultron inherits the
+      rule. That POST is the only method the inbox serves is this codebase's choice
+      (IE-02-005).
     verification: >-
-      Integration tests in `test/demo/` confirm that POST requests to the inbox
-      endpoint return HTTP 202.
+      `test_post_activity_to_actor_inbox_accepted` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
+      activity POSTed to the inbox is answered 202, and integration tests in
+      `test/demo/` deliver every activity that way.
     stories:
     - story_2022_002
     - story_2022_012
@@ -71,6 +73,29 @@ groups:
     - story_2022_038
     tags:
     - http
+  - id: IE-02-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox endpoint MUST serve POST only. It MUST NOT serve the read (GET) that
+      ActivityPub allows an inbox's authenticated owner.
+    rationale: >-
+      Split from IE-02-002 (MS-12-010), which keeps the POST delivery ActivityPub
+      defines. ActivityPub lets the actor that owns an inbox read it with an
+      authenticated GET; this codebase has no authentication, so a GET would open
+      another actor's mail, and it serves none. Another implementation with
+      authentication may serve the owner's read. The answer to any other method is
+      HTTP's 405 (IE-02-003).
+    verification: >-
+      `test_non_post_on_inbox_path_returns_405` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, HEAD,
+      OPTIONS, PUT, PATCH, and DELETE on the inbox path are each refused with 405.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-02-002
+    - rel_type: depends_on
+      spec_id: IE-02-003
+      note: the status that refuses the methods this spec does not serve
   - id: IE-02-004
     priority: MUST_NOT
     kind: architecture
@@ -447,19 +472,18 @@ groups:
     - story_2022_043
   - id: IE-11-003
     priority: MUST
-    kind: foundation
+    kind: protocol
     statement: >-
       The inbox endpoint MUST consider all four addressing fields — to, cc,
       bto, bcc — when determining whether the receiving actor is named as a
       recipient. A match on any one field is sufficient.
     rationale: >-
-      ActivityStreams 2.0 makes every actor named in `to`, `cc`, `bto` or `bcc` a
-      recipient; this restates that rule for the IE-11-001 refusal. Vultron itself
-      sets only `to` (OX-08) and never addresses a copy to its own sender (ADR-0109), but an inbound
-      Activity from another implementation that names this actor only in `cc`,
-      `bto` or `bcc` has not excluded it, so checking only `to` would refuse it
-      wrongly. What a handler then does with a `cc`-only address is HP-10's
-      question, not the endpoint's.
+      Vultron chooses which ActivityStreams audience-targeting properties count as
+      addressing, so the rule is its own (maintainer ruling, 2026-10-15, #4673).
+      Vultron defines no use for `audience` on any object or activity, so an actor
+      named only there is not addressed. Vultron sets only `to` (OX-08), but another
+      implementation may name this actor only in `cc`, `bto` or `bcc`; checking only
+      `to` would refuse it wrongly. A `cc`-only address is HP-10's question.
     verification: >-
       `test/adapters/driving/fastapi/routers/actors/test_inbox.py` asserts that an
       Activity naming the receiving actor only in `to`, `cc`, `bto`, or `bcc` passes the
@@ -472,5 +496,3 @@ groups:
     - story_2022_040
     - story_2022_042
     - story_2022_044
-    tags:
-    - as2

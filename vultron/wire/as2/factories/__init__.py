@@ -41,6 +41,7 @@ from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
     bootstrap_replay_question_activity,
     create_case_activity,
+    create_note_activity,
     ledger_position_content,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
@@ -66,6 +67,7 @@ from vultron.wire.as2.factories.case_participant import (
     add_status_to_participant_activity,
     create_participant_activity,
     remove_participant_from_case_activity,
+    update_participant_activity,
 )
 from vultron.wire.as2.factories.embargo import (
     activate_embargo_activity,
@@ -76,6 +78,7 @@ from vultron.wire.as2.factories.embargo import (
     ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories.fault import create_processing_fault_activity
@@ -115,6 +118,7 @@ __all__ = [
     "announce_vulnerability_case_activity",
     "bootstrap_replay_question_activity",
     "create_case_activity",
+    "create_note_activity",
     "offer_case_participant_role_activity",
     "offer_case_ownership_transfer_activity",
     "reject_case_participant_role_activity",
@@ -139,6 +143,7 @@ __all__ = [
     "add_status_to_participant_activity",
     "create_participant_activity",
     "remove_participant_from_case_activity",
+    "update_participant_activity",
     # embargo
     "activate_embargo_activity",
     "announce_embargo_activity",
@@ -148,6 +153,7 @@ __all__ = [
     "ignore_late_embargo_accept_activity",
     "reject_embargo_proposal_activity",
     "remove_embargo_from_case_activity",
+    "withdraw_from_embargo_activity",
     # report
     "parse_submit_report_offer",
     "rm_close_report_activity",

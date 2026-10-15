@@ -20,6 +20,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/call-out-configuration.md
@@ -264,7 +265,7 @@ guards, commit, effects.
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. The one-node
    pre-tree runs in `_sender_preflight.py` (`door_refusal`, which runs
    `post_close_refusal_before_tree`, `unaddressed_copy_refusal` and
-   `sender_refusal` in that order, and `repeat_answer_skip`) are the chained
+   `rule_refusal` in that order, and `repeat_answer_skip`) are the chained
    shape CLP-10-005
    forbids; compose their guard into the tree, never add a caller. A tree
    opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
@@ -328,8 +329,9 @@ receive it, so the gate could only skip. `Update(VulnerabilityCase)` has no
 received tree; an inbound one resolves to `UNKNOWN` and is refused (#4443).
 Nor do `Create(CaseStatus)`, `Create(ParticipantStatus)`, `Create(Event)` or a
 direct `Create(CaseParticipant)`: storing the record they carry would change
-the case file with no entry (CLP-07-013), so this implementation does not
-support them (#4598; open question #4635).
+the case file with no entry (CLP-07-013), and the protocol does not allow them:
+each record enters a case only by its one attaching message (VAM-01-011,
+ADR-0137).
 Every other tree whose activity is canonical passes `case_id`, with its
 refusing nodes in `precondition_guards`, so a refused activity leaves no entry.
 

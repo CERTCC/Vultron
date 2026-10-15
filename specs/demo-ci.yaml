@@ -597,7 +597,7 @@ groups:
           shared by all scenarios.
         rationale: >-
           A shared minimal list (validate_report,
-          add_participant_status_to_participant, close_case, add_note_to_case,
+          add_participant_status_to_participant, close_case, create_note,
           engage_case) does not guard against a scenario-specific
           phase (e.g. notes-exchange) regressing silently. Each scenario's
           expected-event-types list must reflect what that scenario is designed

@@ -8,10 +8,10 @@ occasions: three situations — vendor awareness, fix ready, fix deployed — sh
 
 This module holds the value objects only.  An occasion records what only a
 human can supply; everything derivable from it (the mapping status, the
-"Sent by" wording) is derived by ``vultron.metadata.msm`` (MSM-08-005,
-MSM-08-006).
+"Sent by" and "Send to" wording) is derived by ``vultron.metadata.msm``
+(MSM-08-005, MSM-08-006, MSM-08-009).
 
-Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007.
+Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007, MSM-08-009.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -34,6 +34,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.dimensions import (
     DIMENSION_STATE_FIELD,
     is_dimension_model,
@@ -317,6 +318,11 @@ class Occasion(BaseModel):
         when: The sender's situation, worded to complete "When…", e.g.
             "a Vendor has a fix ready".
         anchor: Stable section anchor, lowercase words joined by hyphens.
+        addressee: Whom the activity is sent to, as a side of a sender rule:
+            the CASE_MANAGER, a participant, or an actor outside any case.
+            It picks the side of the use case's declared rule that gives
+            "Sent by", and renders as "Send to"; ``SemanticEntry`` refuses an
+            addressee its use case's rule states no side for (MSM-08-009).
         heading: The plain-English heading of the occasion's section, in
             sentence case, e.g. "Add note to case".  Required when the
             occasion has no shorthand.  An occasion whose shorthand is
@@ -348,6 +354,7 @@ class Occasion(BaseModel):
 
     when: NonEmptyString
     anchor: Annotated[str, Field(pattern=ANCHOR_PATTERN)]
+    addressee: AddresseeSide
     description: NonEmptyString
     heading: NonEmptyString | None = None
     example: Annotated[str, Field(pattern=_EXAMPLE_NAME_PATTERN)]

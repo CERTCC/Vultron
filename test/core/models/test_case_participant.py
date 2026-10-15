@@ -19,6 +19,7 @@ from vultron.core.models.case_participant import (
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.embargo_register import (
     FINAL_REGISTER_STATUSES,
@@ -371,7 +372,14 @@ def _entry(
     embargo_id: str, status: EmbargoRegisterStatus, replaces: str | None = None
 ) -> EmbargoRegisterEntry:
     return EmbargoRegisterEntry(
-        embargo=embargo_id, status=status, replaces=replaces
+        embargo=embargo_id,
+        status=status,
+        replaces=replaces,
+        termination=(
+            EmbargoTermination.early()
+            if status == EmbargoRegisterStatus.TERMINATED
+            else None
+        ),
     )
 
 

@@ -6,6 +6,7 @@ Announces that the Deployer whose participant record is the target has deployed 
 
 - **When…** a Deployer has deployed the fix
 - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+- **Send to:** the case manager
 - **Sent by:** a participant (usually: deployer)
 - **Distinguished by:** `dState` = `D`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)

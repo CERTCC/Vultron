@@ -15,14 +15,18 @@
 Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
+from vultron.core.states.embargo_register import (
+    termination_reason_from_content,
+)
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Ignore,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -135,6 +139,24 @@ class _RejectEmbargoProposalActivity(as_Reject):
     target: as_VulnerabilityCaseRef = None
 
 
+class _WithdrawFromEmbargoActivity(as_Leave):
+    """A signatory withdraws from the embargo in force (MSM-07-010).
+
+    ``Leave(EmbargoEvent)[context=VulnerabilityCase]``: the sender ends its
+    own consent to the case's active embargo, which stays in force for
+    everyone else (ADR-0122).  It answers no Invite, so it covers every
+    signatory, including one made by seeding or by joining.  The case owner
+    does not send it: it ends an embargo by terminating it.
+    object_: the as_EmbargoEvent in force (inline, VAM-05-012)
+    context: the VulnerabilityCase the embargo is on
+    """
+
+    object_: as_EmbargoEvent = Field(
+        default=..., validation_alias="object", serialization_alias="object"
+    )
+    context: as_VulnerabilityCaseRef = None
+
+
 class _AnnounceEmbargoActivity(as_Announce):
     """The case owner is announcing an embargo on the case.
     object_: the as_EmbargoEvent being announced
@@ -154,12 +176,20 @@ class _RemoveEmbargoFromCaseActivity(as_Remove):
     cancels every open proposal in the same step, so EM derives ``EXITED``
     (MSM-07-006, ADR-0122).  A Remove naming an embargo that is only
     proposed changes nothing.  This should only be performed by the case
-    owner.
+    owner, or by the CASE_MANAGER.
     object_: as_EmbargoEvent
     origin: VulnerabilityCase
+    content: the termination's what — exactly ``END_TIME_REACHED`` or
+        ``EARLY`` (ADR-0122); anything else is refused.  ``summary`` is a
+        human-readable account the protocol does not read.
     """
 
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     origin: as_VulnerabilityCaseRef = None
+
+    @model_validator(mode="after")
+    def _content_is_a_termination_reason(self):
+        termination_reason_from_content(self.content)
+        return self

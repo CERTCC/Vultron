@@ -271,7 +271,8 @@ groups:
       `test/core/use_cases/received/case/test_helpers.py` sends
       `Create(VulnerabilityCase)` from an actor no local anchor names, with a
       snapshot naming that sender as CASE_MANAGER, and asserts a refusal and an
-      empty case store.
+      empty case store. It runs once per anchor state: a pending link naming
+      another actor, no link at all, and a link already bound to another case.
     adr:
     - ADR-0132
     relationships:

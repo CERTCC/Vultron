@@ -40,6 +40,10 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import (
+    TerminationReason,
+    termination_reason_from_content,
+)
 from vultron.core.states.rm import RM
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.errors import VultronParseValidationError
@@ -83,7 +87,7 @@ def _get_id(field: object) -> str | None:
 
 
 def _get_id_list(field: object) -> list[str] | None:
-    """Convert an AS2 to/cc field (Any | None) to a list of ID strings."""
+    """Convert an AS2 addressing field (Any | None) to a list of ID strings."""
     if field is None:
         return None
     if isinstance(field, str):
@@ -101,6 +105,26 @@ def _get_type(field: object) -> str | None:
         return None
     t = getattr(field, "type_", None)
     return str(t) if t is not None else None
+
+
+def termination_reason_of(activity: as_Activity) -> TerminationReason:
+    """Parse the reason a termination ``Remove`` carries in its ``content``.
+
+    Exactly ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122), checked here at the
+    parse edge so core receives the enum (ADR-0032).
+
+    Raises:
+        VultronParseValidationError: when ``content`` is anything else,
+            naming the activity.
+    """
+    try:
+        return termination_reason_from_content(
+            getattr(activity, "content", None)
+        )
+    except ValueError as exc:
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r}: {exc}"
+        ) from exc
 
 
 def ledger_position_from_content(activity: as_Activity) -> LedgerPosition:
@@ -210,8 +234,11 @@ def _build_activity_snapshot(
         origin=_get_id(origin),
         context=_get_id(context),
         in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+        # `to` only: `cc` is AS2 vocabulary the wire model still parses, and
+        # the inbox still counts for addressing (IE-11-003), but it has no
+        # handler semantics, so it is not carried into core (HP-10-001,
+        # ADR-0109).
         to=_get_id_list(getattr(activity, "to", None)),
-        cc=_get_id_list(getattr(activity, "cc", None)),
         summary=getattr(activity, "summary", None) or None,
         content=getattr(activity, "content", None) or None,
         suggested_roles=getattr(activity, "suggested_roles", None) or None,

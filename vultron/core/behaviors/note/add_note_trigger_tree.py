@@ -23,9 +23,11 @@ The tree runs three steps in sequence:
    to *result_out*.
 2. **AttachNoteFromResultNode** — reads ``note_id`` from *result_out* and
    appends it to the case's ``notes`` list (idempotent).
-3. **sender_side_bt** — resolves the Case Manager, constructs the outbound
-   ``Add(Note, Case)`` activity, and queues it in the actor's outbox
-   (PCR-08-001).
+3. **sender_side_bt** — resolves the Case Manager, constructs the one
+   outbound ``Create(Note)`` (the note's ``context`` names the case; the
+   ``Create`` has no ``target`` and no ``Add`` follows it), and queues it in
+   the actor's outbox (PCR-08-001).  The Case Manager attaches the note and
+   commits a ``create_note`` entry from the ``Create`` alone.
 
 This refactoring satisfies #712 AC-2: all protocol-significant domain work
 (note creation, persistence, case attachment) is performed inside the BT so
@@ -71,8 +73,8 @@ def add_note_to_case_trigger_bt(
 
         - Creates and persists the note (via TriggerActivityPort).
         - Attaches the note to the local case copy.
-        - Resolves the Case Manager, builds outbound activities, and queues
-          them in the actor's outbox.
+        - Resolves the Case Manager, builds the outbound ``Create(Note)``,
+          and queues it in the actor's outbox.
     """
     return py_trees.composites.Sequence(
         name="AddNoteToCaseTriggerBT",

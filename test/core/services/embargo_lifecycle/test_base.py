@@ -31,13 +31,13 @@ from test.support.embargo_register import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
@@ -416,7 +416,7 @@ class TestServiceAlwaysWritesEmState:
             case_id=case.id_,
             actor_id=owner.id_,
             transition_mode=TransitionMode.STRICT,
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
         )
 
         assert result.em_after == EM.EXITED

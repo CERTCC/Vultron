@@ -19,6 +19,8 @@ Covers:
               when a fully inline participant object is provided (CBT-01-008).
   CBT-05-008  Bootstrap Create is refused with a protocol-error reason when
               a participant arrives as a bare URI string (#2736, #2808).
+  CBT-01-011  Bootstrap Create from an actor no local anchor names is refused,
+              whatever its snapshot claims (#4472).
 """
 
 import pytest
@@ -175,21 +177,60 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("CBT-01-011")
-def test_bootstrap_from_an_actor_no_anchor_names_is_refused(make_payload):
-    """A snapshot that names its sender CASE_MANAGER does not make it trusted."""
-    _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt01011"
+_CBT01011_VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt01011"
+_CBT01011_REPORT_ID = "https://example.org/reports/report-cbt01011"
+
+
+def _anchors_naming_another_sender() -> list[VultronReportCaseLink]:
+    # The finder sent the report to the vendor and is waiting for its case.
+    return [
+        VultronReportCaseLink(
+            report_id=_CBT01011_REPORT_ID, case_creator_id=_CBT01011_VENDOR_ID
+        )
+    ]
+
+
+def _anchor_already_bound() -> list[VultronReportCaseLink]:
+    # The finder's only link already names the vendor's case.
+    return [
+        VultronReportCaseLink(
+            report_id=_CBT01011_REPORT_ID,
+            case_id="https://example.org/cases/vendor-case-cbt01011",
+            case_creator_id=_CBT01011_VENDOR_ID,
+        )
+    ]
+
+
+@pytest.mark.spec("CBT-01-011", "CBT-05-002", "HP-01-006")
+@pytest.mark.parametrize(
+    "anchors",
+    [
+        pytest.param(
+            _anchors_naming_another_sender,
+            id="pending-link-names-another-actor",
+        ),
+        pytest.param(list, id="no-link-at-all"),
+        pytest.param(_anchor_already_bound, id="only-link-already-bound"),
+    ],
+)
+def test_bootstrap_from_an_actor_no_anchor_names_is_refused(
+    make_payload, anchors
+):
+    """A snapshot that names its sender CASE_MANAGER does not make it trusted.
+
+    Whatever anchors the receiver holds, none names this sender, so the
+    ``Create`` is refused and nothing is stored (#4472, ADR-0132).
+    """
     _IMPOSTOR_ID = "https://impostor.example.org/actors/mgr-cbt01011"
     _FINDER_ID = "https://finder.example.org/actors/finder-cbt01011"
     _CASE_ID = "https://example.org/cases/case-cbt01011"
-    _REPORT_ID = "https://example.org/reports/report-cbt01011"
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
-    dl.create(VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID))
-    # The finder wrote this anchor: it sent the report to the vendor.
-    dl.save(
-        VultronReportCaseLink(report_id=_REPORT_ID, case_creator_id=_VENDOR_ID)
+    dl.create(
+        VulnerabilityReport(id_=_CBT01011_REPORT_ID, attributed_to=_FINDER_ID)
     )
+    for link in anchors():
+        dl.save(link)
     impostor = CoreCaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         id_=f"{_CASE_ID}/participants/impostor",
@@ -205,7 +246,7 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(make_payload):
     case = as_VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT-01-011 unanchored sender",
-        vulnerability_reports=[_REPORT_ID],
+        vulnerability_reports=[_CBT01011_REPORT_ID],
         case_participants=[impostor, finder],
     )
     case.actor_participant_index[_IMPOSTOR_ID] = impostor.id_
@@ -216,4 +257,7 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(make_payload):
     result = CreateCaseReceivedUseCase(dl, event).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
+    assert result.reason is not None
+    assert _IMPOSTOR_ID in result.reason
+    assert "CBT-01-011" in result.reason
     assert dl.read(_CASE_ID) is None

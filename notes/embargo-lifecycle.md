@@ -105,10 +105,35 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   never the copy. `append_case_status(em=...)` is refused, and a received
   `Add(CaseStatus)` whose EM differs has its EM refused and the case's carried
   forward (RSH-05-023, SDO-03-006).
-- **Do not store the termination reason on the entry** while the replica's
-  `Remove` does not carry it, or the manager's and replica's registers disagree
-  (#4293). `TERMINATE` still requires a reason argument. A `Remove` naming an
-  embargo not in force changes nothing.
+- **A termination records what and why (ADR-0122, EMB-13-004).** The what
+  (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
+  `content`, parsed at the edge (`termination_reason_from_content()`); the why
+  is a structured cause (`vultron/core/models/embargo_termination.py`), so far
+  only `ThreatSignalCause` naming `P`/`X`/`A`. Both sit on the `TERMINATED`
+  entry as one `EmbargoTermination`, required there and refused elsewhere. The
+  cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
+  triggering status, or, when unknown at build time, the case's PXA at the
+  write. Never put the why on the `Remove`: a replica that replays it
+  records only the what, until #4294 copies whole entries (a case snapshot's
+  `embargoRegister` already carries the entry, cause included). Read the
+  recorded what back from the register (`case.embargo_termination`) when
+  building the CASE_MANAGER's `Remove` and the CM-31-009 notices, so the wire
+  and the entry cannot disagree. A `Remove` naming an embargo not in force
+  changes nothing.
+- **End-time termination is one idempotent path (EMB-13-003).**
+  `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers
+  an already-`EXITED` case as done and otherwise runs `terminate_embargo_bt`
+  with `END_TIME_REACHED`. The CASE_MANAGER's lazy check is a `CaseUpkeep`
+  hook (`end_time_case_upkeep`) that the composition roots install on the
+  inbox and trigger dispatchers, so it runs before each activity or trigger
+  for a case; the dispatchers know only the hook's shape. A Sentinel reaches
+  the path through the terminate trigger with `reason=END_TIME_REACHED`. That
+  trigger's registry row sets `runs_case_upkeep=False`: it takes the end-time
+  path itself once the end time has passed, an `EARLY` request included, so
+  the lazy check never pre-empts the answer it owes. `termination_timing_violations()` refuses an
+  `END_TIME_REACHED` claimed before the end time — in the trigger's
+  `_prepare`, the lifecycle, the received tree's guard
+  (`TerminationIsTimelyNode`, before the commit) and replica replay.
 
 ---
 
@@ -287,10 +312,11 @@ rest as revisions (`docs/topics/process_models/em/defaults.md`).
   (VP-04-002), each is a revision of it, and the register refuses `TERMINATED`
   beside `PROPOSED`.
 - **A Reject names the active embargo or an open proposal — nothing else.**
-  `record_embargo_rejection` treats the active one as consent withdrawal and an
-  open one as refusal of its terms; anything else raises
-  `VultronValidationError` (ADR-0093). Test seeding that hands the service an
-  unknown embargo is a test bug.
+  `record_embargo_rejection` declines the named row; anything else raises
+  `VultronValidationError` (ADR-0093). A Reject of the active embargo from an
+  `AGREED` row raises too: withdrawal is `record_embargo_withdrawal`, the
+  effect of `Leave(EmbargoEvent)` (MSM-07-010). Test seeding that hands the
+  service an unknown embargo is a test bug.
 
 There is no multi-candidate poll (ADR-0100): offer alternatives as several
 `Invite`s. Re-proposing the remainder as revisions is deliberately manual
@@ -437,9 +463,9 @@ listed (`PARTICIPANT`). The invitee rows use `SenderIsInviteeNode`.
   embedding a doctored Invite cannot name itself the invitee; an Invite the store
   never recorded names no invitee and is refused.
 - **A handler that writes before its tree runs checks first** through
-  `rule_refusal()`, which composes the same guard from the declared rule (or
-  `sender_refusal()` for the invitee check); the tree carries the guard as well,
-  in the factory's sender stage.
+  `rule_refusal()`, which composes the same guard from the declared rule, the
+  invitee rows included; the tree carries the guard as well, in the factory's
+  sender stage. A handler never builds a sender node of its own (HP-01-007).
 
 The `Remove` row at the CASE_MANAGER is not stated by a spec; it
 follows EP-09-005 (the owner decides) and the ER-never-ET rule above.

@@ -619,7 +619,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">IDs MUST be globally unique within the system — uniqueness enforcement.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[OID-01-003](../specs/protocol.md#oid-01-003)</td>
+<td markdown="span">[OID-01-003](../specs/project.md#oid-01-003)</td>
 <td markdown="span">The canonical base URI for locally created objects MUST be configurable — local ID namespace.</td>
 </tr>
 <tr markdown="1">

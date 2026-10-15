@@ -9,6 +9,7 @@ from pydantic import field_validator
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.predicates.addressing import normalise_actor_id
+from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +68,46 @@ class RejectEmbargoProposalOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     ] = MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE
 
 
+class WithdrawFromEmbargoOnCaseReceivedEvent(VultronEvent):
+    """A participant withdrew from the embargo in force on the case.
+
+    ``Leave(EmbargoEvent)[context=VulnerabilityCase]`` (MSM-07-010,
+    ADR-0122): the sender ends its own consent to the active embargo.  It is
+    not an answer to an Invite, and it ends nothing for the case.
+    """
+
+    semantic_type: Literal[MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE] = (
+        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE
+    )
+
+    @property
+    def embargo_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
+
+    @property
+    def case_id(self) -> str | None:
+        return self.context_id
+
+    @property
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.context)
+
+
 class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
-    """Actor removed an EmbargoEvent from a VulnerabilityCase."""
+    """Actor removed an EmbargoEvent from a VulnerabilityCase.
+
+    ``termination_reason`` is the termination's what, parsed from the
+    ``Remove``'s ``content`` at the edge (ADR-0122, ADR-0032).
+    """
 
     semantic_type: Literal[MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE] = (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE
     )
+    termination_reason: TerminationReason
 
     @property
     def embargo_id(self) -> str | None:

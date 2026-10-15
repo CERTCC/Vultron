@@ -3,13 +3,13 @@ title: "Message Occasion Table: Generated Fragments, Addressees and Sender Rules
 status: active
 kind: plan
 tracks:
-  - "#4438"
   - "#4417"
 description: >-
-  Remaining design for the occasion lookup table (ADR-0128, ADR-0129): how
-  "Sent by" and "Send to" are derived from the sender rule, the "When…"
-  grammar, and typed distinguishers. Occasions, the generated fragments, the
-  pages that include them and the how-to embeds with "Seen in" have landed.
+  Design of the occasion lookup table (ADR-0128, ADR-0129): how "Sent by" and
+  "Send to" are derived from the sender rule and the occasion's addressee, the
+  "When…" grammar, and typed distinguishers. Occasions, the generated
+  fragments, the pages that include them, the how-to embeds with "Seen in" and
+  the addressees (#4438) have landed.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
@@ -40,15 +40,15 @@ Distinguished by | Details. The formal shorthand is only the Details link text.
 
 Nothing derivable is typed by hand. The occasions, `SemanticEntry.page`, the
 derived `MappingStatus` and discriminator (#4429) and the generated YAML and
-fragments (#4430) have landed (rules in `notes/message-type-reference.md`
-§ Occasions); the addressee is #4438.
+fragments (#4430) and the addressee (#4438) have landed (rules in
+`notes/message-type-reference.md` § Occasions).
 
 | Fact | Owner |
 |---|---|
 | when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes, section heading (when no own shorthand) | `SemanticEntry.occasions` |
 | formal message name | `ProtocolShorthand.formal_name`, held to `formal_protocol/messages.md` by a test |
 | wire summary | the entry's `ActivityPattern`, rendered as today |
-| send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
+| send to (addressee) | `Occasion.addressee`, an `AddresseeSide`, worded by its `send_to` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | `SemanticEntry.page`, a `MessagePage` value |
 | `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
@@ -70,11 +70,15 @@ lookup table is mostly links.
   case, active or not; "an active participant" (`ACTIVE_PARTICIPANT`) is one
   entitled to the case's content (CM-10-004). The two kinds split in #4437 so
   that each declaration says which one its handler checks.
-- Each `SenderEntitlementKind` declares its own wording and glossary term
-  (MSM-08-010), so no wording table is kept by hand; an exemption reads "not yet
-  checked". About half the received use cases are exempt today, so the column
-  fills in only as exemptions close; never paper over that with hand-written
-  values.
+- The wording is declared on each kind, not kept here: see
+  `SenderEntitlementKind.sent_by` and `.term`, and `AddresseeSide.send_to`, in
+  `vultron/core/behaviors/sender_entitlement.py` (MSM-08-010). A test holds every
+  term to a glossary row. A position's wording names its object with an
+  `{object}` placeholder ("the addressee of the case proposal", "the note's
+  author"), and a nested request by its object and verb ("the addressee of the
+  vulnerability case offer"); an exemption reads "not yet checked". About half
+  the received use cases are exempt today, so the column fills in only as
+  exemptions close; never paper over that with hand-written values.
 - **Positions are entitlement kinds, not roles and not a second list**
   (HP-01-009). "The invitee" holds that position only within one exchange, and a
   report precedes any case, so no position joins `CVDRole`. A separate
@@ -103,9 +107,12 @@ lookup table is mostly links.
 - **Each occasion names its addressee; "Sent by" and "Send to" are derived**
   (MSM-08-009). One wire activity can carry occasions with different senders: a
   participant's `Invite(Event)` to the CASE_MANAGER and the CASE_MANAGER's
-  `Invite(Event)` to a participant match one entry and one use case. The table
-  serves emitters, so the CASE_MANAGER appears as sender only on its own
-  occasions.
+  `Invite(Event)` to a participant match one entry and one use case, so they are
+  two occasions (`embargo-proposal` and `relay-embargo-proposal`); `Remove(Event)`
+  likewise has the Case Owner's `embargo-termination` and the CASE_MANAGER's
+  `embargo-termination-notice`. `SemanticEntry` refuses an occasion whose
+  addressee is a side its use case's rule leaves empty; an exemption constrains
+  no addressee until it closes.
 
 ## Row content rules
 

@@ -89,12 +89,15 @@ from vultron.wire.as2.vocab.examples.embargo import (
     activate_embargo,
     announce_embargo,
     embargo_event,
+    notify_embargo_termination,
     propose_embargo,
     propose_embargo_revision,
     reject_embargo,
     reject_embargo_proposal,
     reject_embargo_revision,
+    relay_embargo_proposal,
     remove_embargo,
+    withdraw_from_embargo,
 )
 from vultron.wire.as2.vocab.examples.fault import create_processing_fault
 from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
@@ -343,6 +346,9 @@ def main(outdir=None):
         _reject_embargo_proposal, f"{outdir}/reject_embargo_proposal.json"
     )
 
+    _withdraw_from_embargo = withdraw_from_embargo()
+    obj_to_file(_withdraw_from_embargo, f"{outdir}/withdraw_from_embargo.json")
+
     _announce_embargo = announce_embargo()
     obj_to_file(_announce_embargo, f"{outdir}/announce_embargo.json")
 
@@ -398,6 +404,8 @@ def main(outdir=None):
         add_exploit_public_to_case,
         add_attacks_observed_to_case,
         propose_embargo_revision,
+        relay_embargo_proposal,
+        notify_embargo_termination,
         accept_embargo_revision,
         reject_embargo_revision,
         remove_note_from_case,

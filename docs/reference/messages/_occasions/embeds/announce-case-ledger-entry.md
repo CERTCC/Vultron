@@ -6,6 +6,7 @@
 
     - **When…** the Case Manager has committed a case event to the case ledger
     - **Send:** `Announce(CaseLedgerEntry)`
+    - **Send to:** a participant
     - **Sent by:** the case manager
     - **Reference:** [Announce case ledger entry](../../ledger_replication.md#announce-case-ledger-entry)
 

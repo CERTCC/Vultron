@@ -285,16 +285,16 @@ def test_single_container_commit_lands_in_the_case_managers_store(
 
 
 @pytest.mark.spec("CLP-10-014")
-def test_store_without_the_canonical_log_declines_and_reports_it(
+def test_store_without_the_canonical_log_refuses_before_any_tree(
     actor_and_dl,
 ):
-    """The case's CASE_MANAGER is elsewhere: the ledger-authority guard
-    declines the mint (ADR-0073) and the use case says so rather than
-    returning an entry it did not record."""
+    """The case's CASE_MANAGER is on another container: the trigger refuses
+    before running a tree as it (BT-05-005, ADR-0109), rather than returning
+    an entry it did not record."""
     actor, dl = actor_and_dl
     case = _seed_case(dl, _FOREIGN_CM_ID)
 
-    with pytest.raises(VultronCanonicalEntryError, match="no canonical entry"):
+    with pytest.raises(VultronCanonicalEntryError, match="not hosted on this"):
         _run(
             dl,
             SyncLogEntryTriggerRequest(

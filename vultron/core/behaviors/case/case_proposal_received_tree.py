@@ -62,9 +62,10 @@ The top-level tree is a Selector with five branches, tried in order:
   normal / duplicate flow, a Sequence that first writes the proposal-keyed
   ``CaseProposalAdmissionRecord`` (so a later delivery can tell that *this*
   proposal began the accept path) and then resolves the case via a Selector
-  between ``LoadExistingCaseNode`` (AC-1/AC-2: finds and reuses an existing
-  ``VulnerabilityCase`` for the same report) and ``CreateCaseFromProposalNode``
-  (normal path: creates a new case).
+  between ``LoadExistingCaseNode`` (AC-1/AC-2: finds and reuses the existing
+  ``VulnerabilityCase`` the proposal resolves to — the proposer's own case for
+  the report, or the case the proposal's stored ``Accept`` names) and
+  ``CreateCaseFromProposalNode`` (normal path: creates a new case).
 
 Why the accept arm carries a guard
 ----------------------------------
@@ -261,9 +262,12 @@ def create_case_proposal_received_tree(
       ``VulnerabilityCase`` to use:
 
       * ``LoadExistingCaseNode`` (AC-1/AC-2): if *proposer_uri* already owns a
-        case for *report_id*, write its ID to the blackboard and succeed
-        (CP-05-008); another proposer's case for the report is not reused.
-        A fully closed case never reaches this node: branch 3 declines it.
+        case for *report_id* (CP-05-008), or the proposal's stored ``Accept``
+        names a case (a redelivery, CP-05-006, also from a former owner after
+        an ownership transfer, #4650), write its ID to the blackboard and
+        succeed; another proposer's case for the report is not reused.  It
+        resolves the case with ``proposal_case_ids``, as branch 3 does, and a
+        fully closed case never reaches it: branch 3 declines it.
       * ``CreateCaseFromProposalNode`` (normal path): create a new case,
         attributed to *proposer_uri*, which becomes the CASE_OWNER
         (CP-09-001).
@@ -274,7 +278,9 @@ def create_case_proposal_received_tree(
          COORDINATOR + CASE_MANAGER (ADR-0041)
       4. ``AddOwnerParticipantNode`` — proposing actor added as
          CASE_OWNER (plus *proposer_case_roles*) at RM.RECEIVED
-         (ADR-0041 AC-1, CP-09-007)
+         (ADR-0041 AC-1, CP-09-007); skipped for a proposer that no longer
+         owns the case it resolved to, so a former owner's redelivery does
+         not make it CASE_OWNER again (CM-21-001)
       5. ``AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
          (ADR-0041 AC-2)
       6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
@@ -360,7 +366,11 @@ def create_case_proposal_received_tree(
         name="ResolveCaseIdSelector",
         memory=False,
         children=[
-            LoadExistingCaseNode(report_id=report_id, owner_id=proposer_uri),
+            LoadExistingCaseNode(
+                report_id=report_id,
+                owner_id=proposer_uri,
+                proposal_id=proposal_id,
+            ),
             CreateCaseFromProposalNode(
                 report_id=report_id, owner_id=proposer_uri
             ),

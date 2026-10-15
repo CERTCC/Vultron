@@ -25,6 +25,9 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
@@ -191,6 +194,7 @@ class TestOwnershipTransferUseCases:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         # Nothing to establish the sender's standing against, so it is
@@ -213,6 +217,7 @@ class TestOwnershipTransferUseCases:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -299,6 +304,8 @@ class TestOwnershipTransferUseCases:
             attributed_to=vendor_id,
             # The Offer named no deadline, so the forward carries none.
             end_time=None,
+            # The forward links back to the recorded Offer (CM-21-018).
+            in_reply_to=activity.id_,
         )
 
         # Forwarded offer must land in CaseActor's outbox (not transferee's slot).
@@ -713,6 +720,7 @@ class TestOwnershipTransferUseCases:
             make_payload(accept, receiving_actor_id=None),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert _owner(dl, case_id) == _COORDINATOR_ID, (
@@ -897,6 +905,7 @@ def _accept(dl, make_payload, offer, sender=_COORDINATOR_ID, accept=None):
         make_payload(accept, receiving_actor_id=dl.actor_id),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
 
@@ -1109,6 +1118,58 @@ def _assert_nothing_changed(dl, case_id: str, roles_before, entries_before):
     assert _event_types(dl) == entries_before
 
 
+def _forward_harness(make_payload, case_id: str):
+    """A CASE_MANAGER store whose trigger adapter mints real forwards."""
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    dl, deliver, _ = _ownership_offer_harness(
+        make_payload, case_id, forward=True
+    )
+    # In the CASE_MANAGER's address book, so the ledger snapshot can inline
+    # the forward's bare-id target (CLP-07).
+    dl.create(as_Service(id_=_COORDINATOR_ID, name="Coordinator"))
+    return dl, deliver
+
+
+def _forward_of(dl, offer_id: str):
+    """The forward in the CASE_MANAGER's outbox that links to *offer_id*."""
+    (forward,) = [
+        item
+        for item in (dl.read(i) for i in dl.outbox_list())
+        if item is not None
+        and getattr(getattr(item, "type_", None), "value", None) == "Offer"
+        and getattr(item, "in_reply_to", None) == offer_id
+    ]
+    return forward
+
+
+def _plant_forged_forward(
+    dl,
+    case_id: str,
+    target: str,
+    forward_id: str,
+    in_reply_to: str | None,
+):
+    """Store an Offer that claims the CASE_MANAGER forwarded it.
+
+    Inbound inline objects are stored by id, so a sender can plant one,
+    linked by *in_reply_to* (CM-21-018) to a recorded Offer, or unlinked.
+    """
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase)
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    forged = offer_case_ownership_transfer_activity(
+        case,
+        target=as_Service(id_=target, name="Forged"),
+        actor=_CASE_ACTOR_ID,
+        id_=forward_id,
+        **({} if in_reply_to is None else {"in_reply_to": in_reply_to}),
+    )
+    dl.create(forged)
+    return forged
+
+
 class TestAcceptIsActedOnOnlyFromTheTransferee:
     """CM-21-011, HP-01-006: the sender rule of the ownership-transfer Accept."""
 
@@ -1144,24 +1205,13 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         ownership to the transferee that Offer names.
         """
         case_id = "https://example.org/cases/case_ot_forwarded"
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-
-        dl, deliver, _ = _ownership_offer_harness(
-            make_payload, case_id, forward=True
-        )
-        # In the CASE_MANAGER's address book, so the ledger snapshot can
-        # inline the forward's bare-id target (CLP-07).
-        dl.create(as_Service(id_=_COORDINATOR_ID, name="Coordinator"))
+        dl, deliver = _forward_harness(make_payload, case_id)
         disposition, offer = deliver(
             _COORDINATOR_ID, "https://example.org/activities/offer_fwd"
         )
         assert disposition is HandlerDisposition.APPLIED
-        (forwarded,) = [
-            item
-            for item in (dl.read(i) for i in dl.outbox_list())
-            if getattr(getattr(item, "type_", None), "value", None) == "Offer"
-        ]
-        assert forwarded is not None and forwarded.id_ != offer.id_
+        forwarded = _forward_of(dl, offer.id_)
+        assert forwarded.id_ != offer.id_
 
         result = _accept(dl, make_payload, forwarded)
 
@@ -1281,25 +1331,6 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         _assert_nothing_changed(dl, case_id, roles_before, entries_before)
         assert dl.outbox_list() == outbox_before
 
-    @staticmethod
-    def _plant_forged_forward(dl, case_id: str, target: str, forward_id: str):
-        """Store an Offer that claims the CASE_MANAGER forwarded it.
-
-        Inbound inline objects are stored by id, so a sender can plant one.
-        """
-        case = dl.read(case_id)
-        assert isinstance(case, VulnerabilityCase)
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-
-        forged = offer_case_ownership_transfer_activity(
-            case,
-            target=as_Service(id_=target, name="Forged"),
-            actor=_CASE_ACTOR_ID,
-            id_=forward_id,
-        )
-        dl.create(forged)
-        return forged
-
     @pytest.mark.spec("CM-21-011")
     def test_forged_forward_naming_the_impostor_is_refused(self, make_payload):
         """A planted 'forward' stands for no Offer the CASE_MANAGER recorded."""
@@ -1307,8 +1338,12 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         impostor = "https://example.org/users/mallory"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
         deliver(_COORDINATOR_ID, "https://example.org/activities/offer_fs")
-        forged = self._plant_forged_forward(
-            dl, case_id, impostor, "https://example.org/activities/forged_fs"
+        forged = _plant_forged_forward(
+            dl,
+            case_id,
+            impostor,
+            "https://example.org/activities/forged_fs",
+            "https://example.org/activities/offer_fs",
         )
         roles_before = _owner_roles(dl, case_id)
         entries_before = _event_types(dl)
@@ -1330,11 +1365,12 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         impostor = "https://example.org/users/mallory"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
         deliver(_COORDINATOR_ID, "https://example.org/activities/offer_fo")
-        forged = self._plant_forged_forward(
+        forged = _plant_forged_forward(
             dl,
             case_id,
             _COORDINATOR_ID,
             "https://example.org/activities/forged_fo",
+            "https://example.org/activities/offer_fo",
         )
         roles_before = _owner_roles(dl, case_id)
         entries_before = _event_types(dl)
@@ -1514,22 +1550,13 @@ class TestRejectOfOwnershipTransfer:
     def test_reject_of_the_forwarded_offer_is_ledgered(self, make_payload):
         """The transferee declines the copy the CASE_MANAGER forwarded."""
         case_id = "https://example.org/cases/case_ot_reject_fwd"
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-
-        dl, deliver, _ = _ownership_offer_harness(
-            make_payload, case_id, forward=True
-        )
-        dl.create(as_Service(id_=_COORDINATOR_ID, name="Coordinator"))
+        dl, deliver = _forward_harness(make_payload, case_id)
         disposition, offer = deliver(
             _COORDINATOR_ID, "https://example.org/activities/offer_rj_fwd"
         )
         assert disposition is HandlerDisposition.APPLIED
-        (forwarded,) = [
-            item
-            for item in (dl.read(i) for i in dl.outbox_list())
-            if getattr(getattr(item, "type_", None), "value", None) == "Offer"
-        ]
-        assert forwarded is not None and forwarded.id_ != offer.id_
+        forwarded = _forward_of(dl, offer.id_)
+        assert forwarded.id_ != offer.id_
 
         result = _reject(dl, make_payload, forwarded)
 

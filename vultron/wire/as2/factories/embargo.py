@@ -34,6 +34,7 @@ from vultron.core.models.rsvp_deadline import (
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
@@ -48,12 +49,14 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _IgnoreLateEmbargoAcceptActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
+    _WithdrawFromEmbargoActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Ignore,
     as_Invite,
+    as_Leave,
     as_Reject,
     as_Remove,
 )
@@ -373,6 +376,46 @@ def reject_embargo_proposal_activity(
         ) from exc
 
 
+def withdraw_from_embargo_activity(
+    embargo: as_EmbargoEvent,
+    context: as_VulnerabilityCaseRef | None = None,
+    **kwargs,
+) -> as_Leave:
+    """Build a Leave(as_EmbargoEvent)[context=VulnerabilityCase].
+
+    A signatory's withdrawal from the embargo in force (MSM-07-010,
+    ADR-0122): the receiver declines the sender's ``AGREED`` row for the
+    active embargo, and every open proposal's row it had agreed to, and
+    changes no register entry.  Distinct from
+    :func:`em_reject_embargo_activity`, which answers an Invite and never
+    withdraws, and from ``Leave(VulnerabilityCase)``, which leaves the case.
+    The case owner does not send it.
+
+    Args:
+        embargo: The ``as_EmbargoEvent`` in force, carried inline.
+        context: The ``VulnerabilityCase`` (or its URI) the embargo is on.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``).
+
+    Returns:
+        An ``as_Leave`` whose ``object_`` is the embargo event.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _WithdrawFromEmbargoActivity(
+            object_=embargo, context=context, **kwargs
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "withdraw_from_embargo_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "withdraw_from_embargo_activity: invalid arguments"
+        ) from exc
+
+
 def announce_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
@@ -404,9 +447,19 @@ def announce_embargo_activity(
         ) from exc
 
 
+#: The human-readable ``summary`` of a termination ``Remove``, by reason.
+#: The protocol reads ``content``, never this (ADR-0122).
+_TERMINATION_SUMMARY: dict[TerminationReason, str] = {
+    TerminationReason.END_TIME_REACHED: "The embargo reached its end time.",
+    TerminationReason.EARLY: "The embargo ended before its end time.",
+}
+
+
 def remove_embargo_from_case_activity(
     embargo: as_EmbargoEvent,
     origin: as_VulnerabilityCaseRef | None = None,
+    *,
+    reason: TerminationReason,
     **kwargs,
 ) -> as_Remove:
     """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
@@ -414,7 +467,12 @@ def remove_embargo_from_case_activity(
     Ends the embargo in force on a case (ET): the receiver terminates the
     case's ``ACTIVE`` embargo register entry and cancels every open proposal
     with it (MSM-07-006, ADR-0122).  This MUST only be performed by the case
-    owner.
+    owner, or by the CASE_MANAGER.
+
+    *reason* is the termination's what, carried as ``content``: exactly
+    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).  ``summary`` defaults to a
+    human-readable account the protocol does not read; pass ``summary`` to
+    override it.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.
@@ -423,6 +481,7 @@ def remove_embargo_from_case_activity(
         embargo: The ``as_EmbargoEvent`` to remove.
         origin: The ``VulnerabilityCase`` (or its URI) from which
             the embargo is removed.
+        reason: What ended the embargo; required.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -434,8 +493,9 @@ def remove_embargo_from_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
+        kwargs.setdefault("summary", _TERMINATION_SUMMARY[reason])
         return _RemoveEmbargoFromCaseActivity(
-            object_=embargo, origin=origin, **kwargs
+            object_=embargo, origin=origin, content=reason.value, **kwargs
         )
     except ValidationError as exc:
         logger.warning(

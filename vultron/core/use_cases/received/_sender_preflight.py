@@ -18,11 +18,12 @@
 The receive-tree factory places the sender guard after intake, but a handler
 can write or send *before* its tree runs (a P/X/A refusal, an expiry commit,
 closing a pending ask) or have no tree at all.
-:func:`sender_refusal` runs the same guard node from
-:mod:`vultron.core.behaviors.sender_entitlement` as a one-node tree, so the
-predicate stays in that module (HP-01-007) and the handler only asks.
 :func:`rule_refusal` runs the guard the factory composes from the use case's
-declared rule (HP-01-008), so the pre-flight and the tree ask the same thing.
+declared rule (HP-01-008) as a one-node tree, so the pre-flight and the tree
+ask the same thing, the predicate stays in
+:mod:`vultron.core.behaviors.sender_entitlement` (HP-01-007), and the handler
+only asks.  A handler never builds a sender guard of its own; the ratchet in
+``test/architecture/test_sender_entitlement_ratchet.py`` holds it to that.
 
 :func:`post_close_refusal_before_tree` does the same for the post-close write
 boundary (CM-23-013): it runs the factory's own
@@ -74,7 +75,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 
 
-def sender_refusal(
+def _guard_refusal(
     dl: CasePersistence,
     receiving_actor_id: str,
     guard: py_trees.behaviour.Behaviour,
@@ -92,7 +93,7 @@ def sender_refusal(
     Args:
         dl: The receiving store.
         receiving_actor_id: The actor whose replica the activity is applied to.
-        guard: A sender-entitlement condition node.
+        guard: The sender guard composed from a declared rule.
         label: Names the handler's step in the refusal reason.
         sync_port: The handler's sync port, passed on as every received
             bridge is (SYNC-02-003); the guard commits nothing.
@@ -145,7 +146,7 @@ def rule_refusal(
     guard = compose_sender_guard(rule, context)
     if guard is None:
         return None  # the receiver's side admits any actor
-    return sender_refusal(
+    return _guard_refusal(
         dl,
         receiving_actor_id,
         guard,
@@ -288,28 +289,35 @@ def door_refusal(
     dl: CasePersistence,
     receiving_actor_id: str,
     request: VultronEvent,
-    guard: py_trees.behaviour.Behaviour,
+    rule: SenderRule,
+    context: SenderCheckContext,
     *,
-    case_id: str,
     label: str,
     sync_port: SyncActivityPort | None,
 ) -> HandlerResult | None:
     """The first refusal owed before a handler writes, or ``None``.
 
-    In order: the case is fully closed (CM-23-013), the copy was not
-    addressed to this receiver (HP-01-005), the sender is not entitled
-    (HP-01-006).  None of the three writes or sends anything.
+    In order: the case the *context* names is fully closed (CM-23-013), the
+    copy was not addressed to this receiver (HP-01-005), the sender lacks the
+    standing *rule* requires (HP-01-006, HP-01-008).  None of the three
+    writes or sends anything.
     """
     return (
         post_close_refusal_before_tree(
             dl,
             receiving_actor_id,
             request,
-            case_id=case_id,
+            case_id=context.case_id,
             sync_port=sync_port,
         )
         or unaddressed_copy_refusal(receiving_actor_id, request, label=label)
-        or sender_refusal(
-            dl, receiving_actor_id, guard, label=label, sync_port=sync_port
+        or rule_refusal(
+            dl,
+            receiving_actor_id,
+            rule,
+            context,
+            request,
+            label=label,
+            sync_port=sync_port,
         )
     )

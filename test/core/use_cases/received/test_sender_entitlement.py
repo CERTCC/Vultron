@@ -81,6 +81,7 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
@@ -1275,6 +1276,7 @@ def test_embargo_remove_from_a_non_owner_is_refused(
             origin=owned_case.id_,
             actor=_BYSTANDER_ID,
             to=[_CASE_MANAGER_ID],
+            reason=TerminationReason.EARLY,
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )
@@ -1310,6 +1312,7 @@ def test_embargo_remove_from_the_owner_is_applied(
             context=owned_case.id_,
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
+            reason=TerminationReason.EARLY,
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )
@@ -1367,6 +1370,7 @@ def test_embargo_remove_from_the_owner_with_trailing_slash_is_applied(
             context=owned_case.id_,
             actor=f"{_OWNER_ID}/",
             to=[_CASE_MANAGER_ID],
+            reason=TerminationReason.EARLY,
         ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )

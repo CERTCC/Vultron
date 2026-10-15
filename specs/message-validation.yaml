@@ -239,20 +239,22 @@ groups:
     - as2
   - id: MV-05-002
     priority: MUST
-    kind: foundation
+    kind: protocol
     statement: The system MUST treat ActivityStreams object IDs as opaque URIs
     rationale: >-
-      An ActivityStreams `id` identifies an object and carries no other meaning, so a
-      receiver that reads structure into it depends on how one sender mints its
-      identifiers. Vultron inherits the rule.
+      An `id` identifies an object and carries no other meaning, so a receiver that
+      reads structure into it depends on how one sender mints its identifiers.
+      ActivityStreams 2.0 and ActivityPub require an `id` to be an IRI (MV-05-001) but
+      say nothing about opacity, so the rule is not inherited: it is Vultron's own,
+      binding every implementation that receives another's identifiers. A case stub's
+      `id` is the case's ID with `/stub` appended, and still no receiver derives the
+      case from it (CM-11-003).
     verification: >-
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
       strings.
     stories:
     - story_2022_030
-    tags:
-    - as2
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:

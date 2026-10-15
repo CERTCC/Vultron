@@ -1002,6 +1002,36 @@ def test_owner_embargo_decisions_are_distinct_from_invite_answers(
 
 
 # ---------------------------------------------------------------------------
+# MSM-07-010 — a signatory's withdrawal from the embargo in force is
+# Leave(EmbargoEvent)[context=VulnerabilityCase], distinct from leaving the
+# case, Leave(VulnerabilityCase).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("VAM-05-011")
+@pytest.mark.spec("VAM-05-012")
+def test_leave_of_the_embargo_is_a_withdrawal() -> None:
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    assert (
+        find_matching_semantics(examples.withdraw_from_embargo())
+        == MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE
+    )
+
+
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("VAM-05-011")
+def test_leave_of_the_case_is_not_a_withdrawal_from_the_embargo() -> None:
+    from vultron.wire.as2.factories import rm_close_case_activity
+    from vultron.wire.as2.vocab.examples._base import case, finder
+
+    leave_case = rm_close_case_activity(case(), actor=finder().id_)
+
+    assert find_matching_semantics(leave_case) == MessageSemantics.CLOSE_CASE
+
+
+# ---------------------------------------------------------------------------
 # VAM-04-015 — the ownership-transfer withdrawal, Undo(Offer(VulnerabilityCase))
 # ---------------------------------------------------------------------------
 

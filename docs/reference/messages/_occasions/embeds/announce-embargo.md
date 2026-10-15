@@ -6,6 +6,7 @@
 
     - **When…** the Case Manager states the terms of the embargo in force
     - **Send:** `Announce(Event)[context=VulnerabilityCase]`
+    - **Send to:** a participant
     - **Sent by:** the case manager
     - **Reference:** [Announce embargo](../../em.md#announce-embargo)
 

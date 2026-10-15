@@ -116,10 +116,12 @@ def _project_case_to_stub(
 ) -> as_VulnerabilityCaseStub:
     """Project a ``as_VulnerabilityCase`` (core or wire) to a ``as_VulnerabilityCaseStub``.
 
-    When ``em_state == EM.ACTIVE`` and *embargo_obj* is provided, the stub
-    carries ``active_embargo`` (ID + ``end_time``) and ``case_status``
-    (with ``em_state``) so the invitee can give informed consent (CM-17-002).
-    Falls back to a minimal stub when the case has no active embargo.
+    When ``em_state == EM.ACTIVE`` the stub carries ``case_status`` (with
+    ``em_state``) and ``active_embargo`` so the invitee can give informed
+    consent (CM-17-002).  ``active_embargo`` is the **full** embargo, every
+    term as the inviter holds it, not just its ID and ``end_time``: this
+    prototype builds no way for the invitee to ask for the embargo by ID
+    (CM-17-011).  Builds a minimal stub when the case has no active embargo.
 
     Refuses to build a stub when the case carries no ``stub_summary``
     (CM-17-010, MV-10-001, AC-2 of #4165): the owner must choose a summary
@@ -127,12 +129,15 @@ def _project_case_to_stub(
 
     Args:
         case: A core or wire ``as_VulnerabilityCase`` to project.
-        embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``.
+        embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``
+            when the case holds its active embargo inline.
 
     Raises:
         VultronActivityConstructionError: When the case carries no
             ``stub_summary``.  Set ``VulnerabilityCase.stub_summary`` before
-            emitting a stub Invite (CM-17-010).
+            emitting a stub Invite (CM-17-010).  Also when the active
+            embargo cannot be embedded whole (CM-17-011); see
+            :func:`_stub_embargo`.
     """
     stub_summary = getattr(case, "stub_summary", None)
     if stub_summary is None:
@@ -146,11 +151,9 @@ def _project_case_to_stub(
     # EM is derived from the case's embargo register (ADR-0122).
     em_state = getattr(case, "em_state", None)
     active_embargo = getattr(case, "active_embargo", None)
-    if em_state != EM.ACTIVE or active_embargo is None:
+    if em_state != EM.ACTIVE:
         return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
-    embargo_ref = _stub_embargo_ref(active_embargo, embargo_obj, case_id)
-    if embargo_ref is None:
-        return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
+    embargo = _stub_embargo(active_embargo, embargo_obj, case_id)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
@@ -160,47 +163,57 @@ def _project_case_to_stub(
     return as_VulnerabilityCaseStub(
         case_id=case_id,
         summary=stub_summary,
-        active_embargo=embargo_ref,
+        active_embargo=embargo,
         case_status=wire_status,
     )
 
 
-def _stub_embargo_ref(
-    active_embargo: Any,
-    embargo_obj: Any,
+def _stub_embargo(
+    active_embargo: str | WireEmbargoEvent | None,
+    embargo_obj: object,
     case_id: str,
-) -> WireEmbargoEvent | str | None:
-    """The ``active_embargo`` an enriched stub carries (CM-17-002).
+) -> WireEmbargoEvent:
+    """The full embargo an enriched stub embeds (CM-17-002, CM-17-011).
 
     ``active_embargo`` is id-or-object: a case seeded from a sealed Announce
-    carries the ``EmbargoEvent`` inline, a locally built one holds the id.  The
-    stub names the embargo by id either way, and an inline object is its own
-    *embargo_obj* when the caller supplied none.  Returns the id alone when no
-    end time is known, and ``None`` when there is no usable id at all.
+    carries the ``EmbargoEvent`` inline, a locally built one holds the id.  An
+    inline object is its own *embargo_obj* when the caller supplied none.  The
+    object is embedded as held, never rebuilt, so the invitee sees the terms
+    the inviter holds, its start and name included.
+
+    Raises:
+        VultronActivityConstructionError: When the case names no active
+            embargo, no embargo object is at hand (only its ID is known), or
+            *embargo_obj* is not the case's active embargo.  A stub naming
+            the embargo by ID alone would leave the invitee no way to read
+            the terms, since this prototype builds no fetch by ID
+            (CM-17-011), so it is not sent.
     """
+    if active_embargo is None:
+        raise VultronActivityConstructionError(
+            f"_stub_embargo: case {case_id!r} is embargo-active but names no"
+            " active embargo, so the stub has no terms to embed (CM-17-002,"
+            " CM-17-011)"
+        )
     if isinstance(active_embargo, str):
-        active_embargo_uri: Any = active_embargo
+        active_id = active_embargo
     else:
-        active_embargo_uri = getattr(active_embargo, "id_", None)
+        active_id = active_embargo.id_
         if embargo_obj is None:
             embargo_obj = active_embargo
-    if not isinstance(active_embargo_uri, str) or not active_embargo_uri:
-        return None
-    end_time = getattr(embargo_obj, "end_time", None)
-    if end_time is None:
-        return active_embargo_uri
-    try:
-        return WireEmbargoEvent(
-            id_=active_embargo_uri, end_time=end_time, context=case_id
+    if not isinstance(embargo_obj, WireEmbargoEvent):
+        raise VultronActivityConstructionError(
+            f"_stub_embargo: case {case_id!r} has active embargo"
+            f" {active_id!r} but no EmbargoEvent object to embed in the stub"
+            " — the stub carries the full embargo, not its ID (CM-17-002,"
+            " CM-17-011)"
         )
-    except ValidationError as exc:
-        logger.warning(
-            "_project_case_to_stub: could not build WireEmbargoEvent"
-            " for %r — falling back to bare URI: %s",
-            active_embargo_uri,
-            exc,
+    if embargo_obj.id_ != active_id:
+        raise VultronActivityConstructionError(
+            f"_stub_embargo: embargo {embargo_obj.id_!r} is not case"
+            f" {case_id!r}'s active embargo {active_id!r} (CM-17-011)"
         )
-        return active_embargo_uri
+    return embargo_obj
 
 
 def add_report_to_case_activity(
@@ -293,6 +306,35 @@ def create_case_activity(
         logger.warning("create_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
             "create_case_activity: invalid arguments"
+        ) from exc
+
+
+def create_note_activity(note: as_Note, **kwargs) -> as_Create:
+    """Build a ``Create(Note)``.
+
+    The case the note belongs to is the note's own ``context``, so the
+    ``Create`` takes no ``target``: a receiver that holds the case attaches
+    the note from its ``context`` (CM-06).  ``Add(Note, target=Case)``
+    (:func:`add_note_to_case_activity`) is the message for attaching a note
+    that already exists.
+
+    Args:
+        note: The ``as_Note`` being created.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``id_``).
+
+    Returns:
+        An ``as_Create`` whose ``object_`` is the note.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return as_Create(object_=note, **kwargs)
+    except ValidationError as exc:
+        logger.warning("create_note_activity: invalid arguments: %s", exc)
+        raise VultronActivityConstructionError(
+            "create_note_activity: invalid arguments"
         ) from exc
 
 
@@ -756,7 +798,7 @@ def rm_invite_to_case_activity(
             can set them on the new inert ``CaseParticipant``.
         embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
             *target* is a ``as_VulnerabilityCase`` and ``em_state == EM.ACTIVE``
-            to include ``end_time`` in the stub (CM-17-002).
+            to embed the full embargo in the stub (CM-17-002, CM-17-011).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
 
@@ -764,7 +806,9 @@ def rm_invite_to_case_activity(
         An ``as_Invite`` whose ``object_`` is the invited actor.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, the
+            case carries no ``stub_summary`` (CM-17-010), or its active
+            embargo cannot be embedded whole (CM-17-011).
     """
     if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
         target = _project_case_to_stub(target, embargo_obj)

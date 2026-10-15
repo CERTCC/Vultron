@@ -16,10 +16,12 @@ on authority the Case Owner never granted.
 1. A case begins with a **Case Owner** — the actor whose disclosure decision the
    case exists to serve. Case ownership is not delegated, though it may be
    transferred ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
-2. The Case Owner MAY delegate the **Case Manager** role. The delegation is an
-   `Offer(CaseParticipantRole)` addressed to the receiving actor in the context of
-   the case, answered with `Accept` or `Reject`. The same activity grants any
-   other role.
+2. The Case Owner MAY offer an additional role to an actor that is already a participant.
+   The offer is an `Offer(CaseParticipantRole)` addressed to the case's Case Manager only, never to the receiving actor ([CM-33-001](../specs/protocol.md#cm-33-001)).
+   The Case Manager records the offer and forwards it to the receiving actor, which answers the Case Manager with `Accept` or `Reject` ([CM-33-004](../specs/protocol.md#cm-33-004)).
+   The Case Manager records the answer and grants the role on an `Accept` ([CM-33-006](../specs/protocol.md#cm-33-006)).
+   Only the Case Owner may make a role offer ([CM-33-002](../specs/protocol.md#cm-33-002)).
+   The Case Owner and Case Manager roles cannot be offered ([CM-33-003](../specs/protocol.md#cm-33-003)): ownership moves by transfer, and how the Case Manager role is handed to another actor is not yet specified.
 3. The Case Manager records each actor's roles on that actor's
    `CaseParticipant` entry in the case.
 
@@ -51,7 +53,9 @@ It carries exactly these fields ([CM-17-010](../specs/protocol.md#cm-17-010)):
   A receiver tells a stub from a case by its `type` alone.
 - `caseId`: the identifier of the case the stub stands for.
 - `activeEmbargo` and `caseStatus`: present only when an embargo is active.
-  They state the embargo terms the invitee would agree to by accepting: the embargo's identifier and end time, and the case's embargo state ([CM-17-002](../specs/protocol.md#cm-17-002)).
+  They state the embargo terms the invitee would agree to by accepting: the active embargo and the case's embargo state ([CM-17-002](../specs/protocol.md#cm-17-002)).
+  The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
+  This implementation always carries the full embargo inline, because it does not build that lookup ([CM-17-011](../specs/project.md#cm-17-011)).
 - `summary`: required human-readable context saying what the invitee is being asked to join ([MV-10-001](../specs/protocol.md#mv-10-001)).
   The sender chooses it: it may be the case name, or a deliberately less revealing string, because the case name itself can be sensitive to share with an actor not yet bound by the embargo.
 

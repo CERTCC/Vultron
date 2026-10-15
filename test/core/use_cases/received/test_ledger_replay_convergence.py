@@ -37,6 +37,9 @@ import pytest
 from pydantic import BaseModel
 
 from test.support.embargo_register import propose, write_consent_rows
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
@@ -52,14 +55,22 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.pending_assertion import get_pending_assertion_store
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
+from vultron.core.use_cases.triggers.requests import (
+    AddNoteToCaseTriggerRequest,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
@@ -75,6 +86,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -88,23 +100,8 @@ def _send(net: LedgerNetwork, activity: Any) -> None:
 
 
 def _replay(net: LedgerNetwork, replica: str) -> list[str]:
-    """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that.
-
-    Returns the event types delivered, in chain order.
-    """
-    event_types = []
-    for activity in net.queued(MANAGER, to=replica, type_="Announce"):
-        body = read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {}
-        entry = body.get("object") or {}
-        if entry.get("type") != "CaseLedgerEntry":
-            continue
-        verdict = net.receive(replica, body)
-        assert verdict.disposition is HandlerDisposition.APPLIED, (
-            entry.get("eventType"),
-            verdict.reason,
-        )
-        event_types.append(entry["eventType"])
-    return event_types
+    """Hand *replica* the CASE_MANAGER's ledger broadcast, and only that."""
+    return net.replay_ledger(replica)
 
 
 def _ledger(net: LedgerNetwork, actor_id: str) -> list[str]:
@@ -432,7 +429,11 @@ def test_a_replica_follows_the_owners_embargo_removal():
     _send(
         net,
         remove_embargo_from_case_activity(
-            _embargo(net), origin=net.case_id, actor=OWNER, to=[MANAGER]
+            _embargo(net),
+            origin=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
+            reason=TerminationReason.EARLY,
         ),
     )
 
@@ -542,8 +543,9 @@ def test_a_replica_follows_a_note_attached_from_a_create():
 @pytest.mark.spec("CM-13-007")
 @pytest.mark.spec("RSH-08-004")
 def test_a_replica_follows_a_note_sent_as_create_then_add():
-    """The add-note trigger's pair, Create(Note) then Add(Note), for one note:
-    the CASE_MANAGER commits both entries, and both case copies hold the note
+    """A sender that posts one note as Create(Note) then Add(Note), a valid
+    protocol form this implementation's trigger does not use (#4549): the
+    CASE_MANAGER commits both entries, and both case copies hold the note
     once, because the second attach changes nothing (CM-13-007, #4441)."""
     net = LedgerNetwork(
         "https://example.org/cases/replay-create-add-note", em_state=EM.NONE
@@ -572,6 +574,106 @@ def test_a_replica_follows_a_note_sent_as_create_then_add():
     assert [_as_id(n) for n in replica.notes] == [
         _as_id(n) for n in manager.notes
     ]
+
+
+def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
+    """The note entries *actor_id*'s store holds for the case, in order."""
+    entries = [
+        cast(CaseLedgerEntry, e)
+        for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
+        if getattr(e, "case_id", None) == net.case_id
+        and "note" in cast(CaseLedgerEntry, e).event_type
+    ]
+    return sorted(entries, key=lambda e: e.log_index)
+
+
+@pytest.mark.spec("CLP-07-002")
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("SYNC-11-002")
+@pytest.mark.spec("RSH-08-004")
+def test_add_note_trigger_makes_one_create_note_entry():
+    """The add-note trigger sends one Create(Note) naming the case as the
+    note's context: the CASE_MANAGER commits exactly one entry for the note
+    (``create_note``), a replica attaches the note from it and holds the Note
+    object, and the entry's Announce clears the sender's pending assertion
+    (#4549 AC-2, AC-3)."""
+    net = LedgerNetwork(
+        "https://example.org/cases/trigger-create-note", em_state=EM.NONE
+    )
+    net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
+
+    result = SvcAddNoteToCaseUseCase(
+        net.stores[BYSTANDER],
+        AddNoteToCaseTriggerRequest(
+            actor_id=BYSTANDER,
+            case_id=net.case_id,
+            note_name="Question",
+            note_content="Is there a workaround?",
+        ),
+        trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
+    ).execute()
+    assert result.activity is not None and result.note is not None
+    create_id: str = result.activity["id"]
+    note_id: str = result.note["id"]
+
+    queued = net.queued(BYSTANDER, to=MANAGER)
+    assert [(a.type_, a.id_) for a in queued] == [("Create", create_id)]
+    pending = get_pending_assertion_store(BYSTANDER)
+    assert pending.is_suppressed(net.case_id, "create_note", create_id)
+
+    verdicts = net.deliver(BYSTANDER, to=MANAGER)
+    assert [(type_, v.disposition) for type_, v in verdicts] == [
+        ("Create", HandlerDisposition.APPLIED)
+    ]
+
+    entries = _note_entries(net, MANAGER)
+    assert [(e.event_type, e.log_object_id) for e in entries] == [
+        ("create_note", create_id)
+    ]
+    assert note_id in [_as_id(n) for n in net.case(MANAGER).notes]
+
+    assert _replay(net, OWNER).count("create_note") == 1
+    assert [_as_id(n) for n in net.case(OWNER).notes].count(note_id) == 1
+    assert net.stores[OWNER].read(note_id) is not None
+
+    assert "create_note" in _replay(net, BYSTANDER)
+    assert not pending.is_suppressed(net.case_id, "create_note", create_id)
+    assert [_as_id(n) for n in net.case(BYSTANDER).notes].count(note_id) == 1
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("VAM-07-002")
+@pytest.mark.spec("RSH-08-004")
+def test_a_replica_follows_an_existing_note_added_to_the_case():
+    """Add(Note, target=Case) for a note that already exists stays a
+    supported received message: the CASE_MANAGER commits an
+    ``add_note_to_case`` entry and attaches the note, and a replica attaches
+    it from that entry (#4549 AC-4)."""
+    net = LedgerNetwork(
+        "https://example.org/cases/replay-add-existing-note", em_state=EM.NONE
+    )
+    note = as_Note(
+        id_="https://example.org/notes/replay-add-existing-note",
+        content="Written elsewhere",
+        context=net.case_id,
+    )
+    net.stores[MANAGER].create(note)
+    assert note.id_ not in [_as_id(n) for n in net.case(MANAGER).notes]
+
+    _send(
+        net,
+        add_note_to_case_activity(
+            note, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+        ),
+    )
+
+    assert [e.event_type for e in _note_entries(net, MANAGER)] == [
+        "add_note_to_case"
+    ]
+    assert note.id_ in [_as_id(n) for n in net.case(MANAGER).notes]
+    assert "add_note_to_case" in _replay(net, OWNER)
+    assert note.id_ in [_as_id(n) for n in net.case(OWNER).notes]
+    assert net.stores[OWNER].read(note.id_) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -631,7 +733,11 @@ def test_embargo_removal_writes_nothing_at_an_active_replica():
         net,
         BYSTANDER,
         remove_embargo_from_case_activity(
-            _embargo(net), origin=net.case_id, actor=MANAGER, to=[BYSTANDER]
+            _embargo(net),
+            origin=net.case_id,
+            actor=MANAGER,
+            to=[BYSTANDER],
+            reason=TerminationReason.EARLY,
         ),
     )
 
