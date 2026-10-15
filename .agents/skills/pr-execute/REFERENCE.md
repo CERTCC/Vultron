@@ -335,7 +335,7 @@ File: `.claude/pr-{number}-execute.json`
     "base_ref": "main",
     "conflict_free": true,
     "merge_required": true,
-    "merge_reason": "overlap",  // "conflicting" | "behind" | "overlap" | null
+    "merge_reason": "conflicting",  // "conflicting" | "behind" | "deferred" | null
     "overlap_paths": ["vultron/core/models/case/case.py", "uv.lock"],
     "sync_commit_ref": "def5678",
     "conflicts_resolved": ["vultron/core/models/case/case.py", "uv.lock"],
