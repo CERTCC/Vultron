@@ -204,8 +204,11 @@ _TRANSFEREE_ID = "https://example.org/actors/transferee"
 def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
     """The CASE_MANAGER records (ledgers) an Offer naming ``_TRANSFEREE_ID``.
 
-    Its forward to the transferee is not what these tests are about.
+    Its forward to the transferee is not what these tests are about.  The
+    owner holds ``CASE_OWNER`` on the roster, since only it may offer the
+    case (CM-21-019).
     """
+    seed_case_owner_participant(cm_store, owned_case, _OWNER_ID)
     cm_store.create(owned_case)
     offer = offer_case_ownership_transfer_activity(
         owned_case,

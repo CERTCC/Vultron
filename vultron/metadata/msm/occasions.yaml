@@ -241,7 +241,7 @@ groups:
     when: the Case Owner offers to transfer ownership of the case to another actor
     send: Offer(VulnerabilityCase)
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: the case owner
     semantics: offer_case_ownership_transfer
     status: none
     description: Offers the case to the actor named by the target, for example from a Reporter

@@ -3568,6 +3568,51 @@ groups:
     - ADR-0053
     stories:
     - story_2022_050
+  - id: CM-21-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST admit an ownership-transfer `Offer(VulnerabilityCase)`
+      only from the actor holding `CVDRole.CASE_OWNER` on the case when it processes
+      the Offer; the CASE_MANAGER sends no such Offer to itself, so no other standing
+      admits one there. A participant replica, such as the transferee's, MUST take
+      the Offer only from the case's CASE_MANAGER, as its forward (CM-21-005,
+      PCR-03-001); a replica that holds no such case, or whose case names no
+      CASE_MANAGER, has no CASE_MANAGER to recognise and MUST refuse it. Any other
+      sender MUST be refused before anything is written: no ledger commit, no
+      forward, no expiry commit for an earlier Offer (CM-21-017), the Offer not
+      stored, and `VulnerabilityCase.attributed_to` and every participant's
+      `CASE_OWNER` role unchanged. A redelivery of an Offer the CASE_MANAGER already
+      recorded from the same sender keeps the standing it was admitted with
+      (HP-01-003).
+    rationale: >-
+      CM-21-011 admits an Accept from the transferee of a recorded Offer, so whoever
+      can get an Offer recorded chooses the next owner. Without a sender rule any
+      actor that knows a case id could offer the case to itself and accept it, even
+      from off the roster. The Case Owner is the one actor with the authority to
+      hand the case on (CM-02-004). The redelivery clause keeps a late copy of an
+      answered Offer a duplicate rather than a refusal once its sender has handed
+      ownership on. See #4540.
+    verification: >-
+      A test marked `CM-21-019` delivers an Offer from an actor off the roster and
+      from a participant without `CASE_OWNER` to the CASE_MANAGER and asserts each
+      is `REFUSED` with no ledger entry, no forward, the Offer not stored and the
+      owner unchanged; a test confirms such an Offer does not ledger the expiry of
+      an overdue earlier Offer; tests at the transferee assert the CASE_MANAGER's
+      forward is taken and an Offer from any other sender, or at a store holding no
+      case, is refused.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-21-005
+    - rel_type: refines
+      spec_id: CM-21-011
+    adr:
+    - ADR-0115
+    - ADR-0129
+    stories:
+    - story_2022_050
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-

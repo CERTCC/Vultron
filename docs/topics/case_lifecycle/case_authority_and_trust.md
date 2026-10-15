@@ -92,7 +92,7 @@ They are the Case Owner's decisions, carried out by the CASE_MANAGER ([CM-02-005
 | Admitting an actor to the case | The Case Owner approves or rejects each invitation. Another participant may only recommend an actor ([CM-16-019](../../reference/specs/protocol.md#cm-16-019)) |
 | Granting a role | The Case Owner, through a role offer the receiving actor accepts ([§11.1 Role Assignment](../../reference/vultron-spec/interactions.md#111-role-assignment-n)) |
 | Removing or reinstating a participant | The Case Owner only ([CM-31-004](../../reference/specs/protocol.md#cm-31-004)) |
-| Transferring ownership | The Case Owner offers. Only the named transferee may accept ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)) |
+| Transferring ownership | Only the Case Owner may offer ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)). Only the named transferee may accept ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)) |
 | Activating or ending an embargo | The Case Owner ([CM-02-005](../../reference/specs/protocol.md#cm-02-005)) |
 | Closing the case | The Case Owner, by leaving it (see [Closing a case](#closing-a-case-is-a-hard-write-boundary)) |
 

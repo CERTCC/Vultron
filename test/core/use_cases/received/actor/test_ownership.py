@@ -60,25 +60,15 @@ class TestOwnershipTransferUseCases:
     """Tests for offer/accept/reject ownership transfer use cases."""
 
     def test_offer_case_ownership_transfer_persists_offer(self, make_payload):
-        """OfferCaseOwnershipTransferReceivedUseCase persists the offer."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ot1",
-            name="OT Case 1",
-        )
+        """The transferee persists the CASE_MANAGER's forwarded Offer."""
+        dl, case = _transferee_replica("https://example.org/cases/case_ot1")
         activity = offer_case_ownership_transfer_activity(
             case,
-            target="https://example.org/users/coordinator",
-            actor="https://example.org/users/vendor",
-            to=["https://test.example/api/v2/actors/test-actor"],
+            target=_COORDINATOR_ID,
+            actor=_CASE_ACTOR_ID,
+            to=[_COORDINATOR_ID],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=_COORDINATOR_ID)
 
         result = OfferCaseOwnershipTransferReceivedUseCase(
             dl,
@@ -266,6 +256,8 @@ class TestOwnershipTransferUseCases:
             case_manager_participant.id_
         )
         case.case_participants.append(case_manager_participant.id_)
+        # Only the Case Owner may offer the case (CM-21-019).
+        seed_case_owner_participant(dl, case, vendor_id)
         dl.create(case)
         dl.create(case_manager_participant)
 
@@ -367,6 +359,8 @@ class TestOwnershipTransferUseCases:
             case_manager_participant.id_
         )
         case.case_participants.append(case_manager_participant.id_)
+        # Only the Case Owner may offer the case (CM-21-019).
+        seed_case_owner_participant(dl, case, vendor_id)
         dl.create(case)
         dl.create(case_manager_participant)
 
@@ -410,6 +404,13 @@ class TestOwnershipTransferUseCases:
             isinstance(c.pop("store_offer", None), StoreReceivedObjectNode)
             for c in calls
         )
+        # The sender guard is composed from the declared rule (CM-21-019).
+        assert all(
+            c.pop("sender_rule", None)
+            is OfferCaseOwnershipTransferReceivedUseCase.sender_entitlement
+            and c.pop("sender_id", None) == vendor_id
+            for c in calls
+        )
         assert calls == [
             {
                 "case_id": case.id_,
@@ -430,86 +431,47 @@ class TestOwnershipTransferUseCases:
         # with no factory and the forward silently degrades to a WARNING.
         trigger_activity.offer_case_ownership_transfer.assert_called_once()
 
-    def test_forwarded_offer_attributes_the_requesting_participant(
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("HP-01-006")
+    def test_offer_sent_as_the_case_manager_to_itself_is_refused(
         self, make_payload
     ):
-        """The forwarded Offer must carry the vendor, not the CaseActor.
+        """The CASE_MANAGER sends no Offer to itself (CM-21-019).
 
-        A delegated ownership-transfer Offer arrives with ``actor`` = CaseActor
-        and ``attributed_to`` = the participant who asked for the transfer
-        (CM-24-001, CM-24-002).  When the CaseActor forwards it, the forwarded
-        Offer's ``attributed_to`` must still name that participant — otherwise
-        the CaseActor attributes the vendor's intent to itself and no receiver,
-        nor any replica materialising the offer from the ledger snapshot, can
-        recover who offered.
+        The Case Owner sends its own Offer to the CASE_MANAGER, so an Offer
+        arriving at the CASE_MANAGER as sent by the CASE_MANAGER, attributed
+        to the Case Owner, has no sender with standing: the attribution is a
+        claim, and the sender does not hold ``CASE_OWNER``.
         """
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
+        case_id = "https://example.org/cases/case_ot7"
+        dl, _, trigger_activity = _ownership_offer_harness(
+            make_payload, case_id
         )
-
-        case_actor_id = "https://example.org/actors/case-actor-attr"
-        vendor_id = "https://example.org/users/vendor-attr"
-        transferee_id = "https://example.org/users/coordinator-attr"
-
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ot7",
-            name="OT Attribution Case",
-            attributed_to=vendor_id,
-        )
-        case_manager_participant = as_CaseParticipant(
-            attributed_to=case_actor_id,
-            context=case.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        case.actor_participant_index[case_actor_id] = (
-            case_manager_participant.id_
-        )
-        case.case_participants.append(case_manager_participant.id_)
-        dl.create(case)
-        dl.create(case_manager_participant)
-
-        # The delegated shape: CaseActor sends, vendor is attributed.
+        case = _read_case(dl, case_id)
         activity = offer_case_ownership_transfer_activity(
             case,
-            target=as_Service(id_=transferee_id, name="Coordinator Attr"),
-            actor=case_actor_id,
-            to=[case_actor_id],
-            attributed_to=vendor_id,
+            target=_COORDINATOR_ID,
+            actor=_CASE_ACTOR_ID,
+            to=[_CASE_ACTOR_ID],
+            attributed_to=_VENDOR_ID,
             id_="https://example.org/activities/offer_ot7",
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
-        assert event.activity.attributed_to == vendor_id, (
-            "the extractor must carry attributed_to onto the activity snapshot,"
-            " or the delegated author is unrecoverable downstream (CM-24-002)"
-        )
+        entries_before = _event_types(dl)
 
-        trigger_activity = MagicMock()
-        trigger_activity.offer_case_ownership_transfer.return_value = (
-            "https://example.org/activities/offer_ot7_fwd",
-            {},
-        )
-
-        OfferCaseOwnershipTransferReceivedUseCase(
+        result = OfferCaseOwnershipTransferReceivedUseCase(
             dl,
-            event,
+            make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID),
             trigger_activity=trigger_activity,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        kwargs = (
-            trigger_activity.offer_case_ownership_transfer.call_args.kwargs
-        )
-        assert kwargs["attributed_to"] == vendor_id, (
-            "forwarded Offer must attribute the vendor who asked for the"
-            f" transfer, not the CaseActor that relayed it. Got: {kwargs!r}"
-        )
-        assert kwargs["actor"] == case_actor_id
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "is not the Case Owner" in result.reason
+        assert _event_types(dl) == entries_before
+        trigger_activity.offer_case_ownership_transfer.assert_not_called()
+        assert _owner(dl, case_id) == _VENDOR_ID
 
     def test_forwarded_offer_ignores_attributed_to_from_a_non_case_actor(
         self, make_payload, caplog
@@ -541,7 +503,7 @@ class TestOwnershipTransferUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot8",
             name="OT Spoof Case",
-            attributed_to=vendor1_id,
+            attributed_to=vendor2_id,
         )
         case_manager_participant = as_CaseParticipant(
             attributed_to=case_actor_id,
@@ -552,10 +514,13 @@ class TestOwnershipTransferUseCases:
             case_manager_participant.id_
         )
         case.case_participants.append(case_manager_participant.id_)
+        # Only the Case Owner may offer the case (CM-21-019).
+        seed_case_owner_participant(dl, case, vendor2_id)
         dl.create(case)
         dl.create(case_manager_participant)
 
-        # vendor2 sends under its own identity but claims vendor1's intent.
+        # vendor2, the owner, sends under its own identity but claims
+        # vendor1's intent.
         activity = offer_case_ownership_transfer_activity(
             case,
             target=as_Service(id_=transferee_id, name="Coordinator Spoof"),
@@ -631,6 +596,8 @@ class TestOwnershipTransferUseCases:
             case_manager_participant.id_
         )
         case.case_participants.append(case_manager_participant.id_)
+        # Only the Case Owner may offer the case (CM-21-019).
+        seed_case_owner_participant(dl, case, vendor_id)
         dl.create(case)
         dl.create(case_manager_participant)
 
@@ -654,9 +621,13 @@ class TestOwnershipTransferUseCases:
             ).execute()
 
         assert any("no trigger_activity" in r.message for r in caplog.records)
-        # No activity should have landed in any outbox.
+        # No forward landed in the outbox: only the ledger entry's Announce to
+        # the Case Owner, the one other participant (CM-21-005).
         case_actor_outbox = dl.clone_for_actor(case_actor_id).outbox_list()
-        assert len(case_actor_outbox) == 0
+        queued = [dl.read(item) for item in case_actor_outbox]
+        assert [
+            getattr(getattr(q, "type_", None), "value", None) for q in queued
+        ] == ["Announce"]
 
     def test_offer_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
         self, make_payload
@@ -664,29 +635,29 @@ class TestOwnershipTransferUseCases:
         """When receiving_actor_id is absent the store owner processes the Offer.
 
         Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back
-        to dl.actor_id, so the offer is persisted rather than dropped.
+        to dl.actor_id (the CASE_MANAGER), so the offer is persisted rather
+        than dropped.
         """
-
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        actor_id = "https://example.org/actors/store-owner-ot"
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ot_nostamp",
-            name="OT No-Stamp Test",
+        case_id = "https://example.org/cases/case_ot_nostamp"
+        dl, _, trigger_activity = _ownership_offer_harness(
+            make_payload, case_id
         )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
         activity = offer_case_ownership_transfer_activity(
-            case,
-            target="https://example.org/users/transferee",
-            actor="https://example.org/users/vendor",
-            to=[actor_id],
+            _read_case(dl, case_id),
+            # Inline, as the inbox rehydrates it: the ledger commit refuses a
+            # bare-id target.
+            target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+            actor=_VENDOR_ID,
+            to=[_CASE_ACTOR_ID],
         )
         event = make_payload(activity, receiving_actor_id=None)
 
         OfferCaseOwnershipTransferReceivedUseCase(
             dl,
             event,
+            trigger_activity=trigger_activity,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -807,6 +778,8 @@ class TestOwnershipOfferNamingNoCase:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "names no case" in result.reason
         assert dl.read(ReceivedActivityRecord.build_id(offer.id_)) is not None
+        # Only the archive keeps it: the refused Offer is not stored (#4737).
+        assert dl.get(offer.type_.value, offer.id_) is None
 
 
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -909,6 +882,12 @@ def _accept(dl, make_payload, offer, sender=_COORDINATOR_ID, accept=None):
     ).execute()
 
 
+def _read_case(dl, case_id: str) -> VulnerabilityCase:
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase)
+    return case
+
+
 def _owner(dl, case_id: str) -> str | None:
     case = dl.read(case_id)
     assert isinstance(case, VulnerabilityCase)
@@ -1008,6 +987,7 @@ def test_redelivered_open_offer_is_skipped_and_not_forwarded_again(
 
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-019")
 def test_redelivered_answered_offer_is_skipped_while_a_newer_one_is_open(
     make_payload,
 ):
@@ -1385,13 +1365,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         assert dl.outbox_list() == outbox_before
 
     @pytest.mark.spec("CM-21-011")
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="The ownership-transfer Offer is not sender-checked, so an"
-        " actor can record an Offer naming itself and accept it. Tracked by"
-        " #4540.",
-    )
+    @pytest.mark.spec("CM-21-019")
     def test_offer_from_a_non_owner_cannot_win_ownership(self, make_payload):
         """An actor off the roster offers the case to itself, then accepts."""
         case_id = "https://example.org/cases/case_ot_self_offer"
@@ -1431,6 +1405,248 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert _owner(dl, case_id) == _VENDOR_ID
+
+
+_MALLORY_ID = "https://example.org/users/mallory"
+
+
+class TestOfferIsAdmittedOnlyFromTheCaseOwner:
+    """CM-21-019, HP-01-006: the sender rule of the ownership-transfer Offer.
+
+    At the CASE_MANAGER only the Case Owner may offer the case.  Any other
+    sender is refused before anything is written: no ledger entry, no
+    forward, no lazy expiry of an earlier Offer, and the owner unchanged.
+    """
+
+    def _assert_refused_and_nothing_written(
+        self, dl, trigger_activity, case_id, offer, before
+    ):
+        roles_before, entries_before, outbox_before = before
+        _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+        assert dl.outbox_list() == outbox_before
+        trigger_activity.offer_case_ownership_transfer.assert_not_called()
+        assert dl.read(offer.id_) is None, (
+            "a refused Offer must not be stored for the accept trigger to"
+            " read back"
+        )
+
+    @staticmethod
+    def _before(dl, case_id):
+        return (_owner_roles(dl, case_id), _event_types(dl), dl.outbox_list())
+
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("HP-01-006")
+    def test_offer_from_an_actor_off_the_roster_is_refused(self, make_payload):
+        case_id = "https://example.org/cases/case_ot_offer_stranger"
+        dl, deliver, trigger_activity = _ownership_offer_harness(
+            make_payload, case_id
+        )
+        before = self._before(dl, case_id)
+
+        disposition, offer = deliver(
+            _MALLORY_ID,
+            "https://example.org/activities/offer_stranger",
+            offerer=_MALLORY_ID,
+        )
+
+        assert disposition is HandlerDisposition.REFUSED
+        self._assert_refused_and_nothing_written(
+            dl, trigger_activity, case_id, offer, before
+        )
+
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("HP-01-006")
+    def test_offer_from_a_participant_that_is_not_case_owner_is_refused(
+        self, make_payload
+    ):
+        """A participant on the roster without ``CASE_OWNER`` cannot offer."""
+        case_id = "https://example.org/cases/case_ot_offer_participant"
+        dl, deliver, trigger_activity = _ownership_offer_harness(
+            make_payload, case_id
+        )
+        before = self._before(dl, case_id)
+
+        disposition, offer = deliver(
+            "https://example.org/users/vendor2",
+            "https://example.org/activities/offer_participant",
+            offerer=_COORDINATOR_ID,
+        )
+
+        assert disposition is HandlerDisposition.REFUSED
+        self._assert_refused_and_nothing_written(
+            dl, trigger_activity, case_id, offer, before
+        )
+
+    @pytest.mark.spec("CM-21-019")
+    def test_refusal_names_the_case_owner_standing(self, make_payload):
+        case_id = "https://example.org/cases/case_ot_offer_reason"
+        dl, _, _ = _ownership_offer_harness(make_payload, case_id)
+        case = _read_case(dl, case_id)
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target=_MALLORY_ID,
+            actor=_MALLORY_ID,
+            to=[_CASE_ACTOR_ID],
+            id_="https://example.org/activities/offer_reason",
+        )
+
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(offer, receiving_actor_id=_CASE_ACTOR_ID),
+            trigger_activity=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "is not the Case Owner" in result.reason
+
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("CM-21-017")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_refused_offer_does_not_ledger_an_overdue_expiry(
+        self, make_payload
+    ):
+        """Only an entitled sender prompts the CASE_MANAGER to write."""
+        case_id = "https://example.org/cases/case_ot_offer_stranger_expiry"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        deadline = _deadline_shortly()
+        first, _ = deliver(
+            _COORDINATOR_ID,
+            "https://example.org/activities/offer_stranger_expiry_1",
+            end_time=deadline,
+        )
+        assert first is HandlerDisposition.APPLIED
+        _wait_past(deadline)
+        entries_before = _event_types(dl)
+
+        refused, _ = deliver(
+            _MALLORY_ID,
+            "https://example.org/activities/offer_stranger_expiry_2",
+            offerer=_MALLORY_ID,
+        )
+
+        assert refused is HandlerDisposition.REFUSED
+        assert _event_types(dl) == entries_before
+
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("HP-01-003")
+    def test_a_recorded_offer_id_resent_by_another_sender_is_refused(
+        self, make_payload
+    ):
+        """Only the sender the CASE_MANAGER recorded redelivers its Offer."""
+        case_id = "https://example.org/cases/case_ot_offer_reused_id"
+        dl, deliver, trigger_activity = _ownership_offer_harness(
+            make_payload, case_id
+        )
+        offer_id = "https://example.org/activities/offer_reused_id"
+        first, _ = deliver(_COORDINATOR_ID, offer_id)
+        assert first is HandlerDisposition.APPLIED
+        entries_before = _event_types(dl)
+
+        again, _ = deliver(_MALLORY_ID, offer_id, offerer=_MALLORY_ID)
+
+        assert again is HandlerDisposition.REFUSED
+        assert _event_types(dl) == entries_before
+        trigger_activity.offer_case_ownership_transfer.assert_called_once()
+
+
+def _transferee_replica(case_id: str, *, holds_case: bool = True):
+    """The transferee's (coordinator's) store, holding a replica of the case."""
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_COORDINATOR_ID)
+    case = as_VulnerabilityCase(
+        id_=case_id, name="Replica", attributed_to=_VENDOR_ID
+    )
+    if holds_case:
+        seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
+        seed_case_owner_participant(dl, case, _VENDOR_ID)
+        seed_case_participant(dl, case, _COORDINATOR_ID)
+        dl.create(case)
+    return dl, case
+
+
+def _offer_at_transferee(dl, make_payload, case, sender, offer_id):
+    """Deliver an Offer of *case* to the coordinator, sent by *sender*."""
+    offer = offer_case_ownership_transfer_activity(
+        case,
+        target=_COORDINATOR_ID,
+        actor=sender,
+        to=[_COORDINATOR_ID],
+        id_=offer_id,
+    )
+    result = OfferCaseOwnershipTransferReceivedUseCase(
+        dl,
+        make_payload(offer, receiving_actor_id=_COORDINATOR_ID),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+    return result, offer
+
+
+class TestOfferAtTheTransferee:
+    """CM-21-019, PCR-03-001: the transferee takes the Offer only from the
+    CASE_MANAGER's forward."""
+
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("PCR-03-001")
+    def test_transferee_takes_the_case_managers_forward(self, make_payload):
+        case_id = "https://example.org/cases/case_ot_transferee_cm"
+        dl, case = _transferee_replica(case_id)
+
+        result, offer = _offer_at_transferee(
+            dl,
+            make_payload,
+            case,
+            _CASE_ACTOR_ID,
+            "https://example.org/activities/offer_transferee_cm",
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert dl.read(offer.id_) is not None
+
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.parametrize("sender", [_VENDOR_ID, _MALLORY_ID])
+    def test_transferee_refuses_an_offer_not_from_the_case_manager(
+        self, make_payload, sender
+    ):
+        """Even the Case Owner's own Offer goes through the CASE_MANAGER."""
+        case_id = "https://example.org/cases/case_ot_transferee_direct"
+        dl, case = _transferee_replica(case_id)
+
+        result, offer = _offer_at_transferee(
+            dl,
+            make_payload,
+            case,
+            sender,
+            "https://example.org/activities/offer_transferee_direct",
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        assert dl.read(offer.id_) is None
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("PCR-03-001")
+    def test_transferee_holding_no_case_refuses_the_offer(self, make_payload):
+        """With no replica there is no CASE_MANAGER to recognise."""
+        case_id = "https://example.org/cases/case_ot_transferee_no_case"
+        dl, case = _transferee_replica(case_id, holds_case=False)
+
+        result, offer = _offer_at_transferee(
+            dl,
+            make_payload,
+            case,
+            _CASE_ACTOR_ID,
+            "https://example.org/activities/offer_transferee_no_case",
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert dl.read(offer.id_) is None
 
 
 def _vendor_replica(case_id: str):
@@ -1840,28 +2056,6 @@ class TestWithdrawalOfOwnershipTransfer:
 
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("CM-24-002")
-    def test_delegated_offer_is_withdrawn_by_the_participant_it_speaks_for(
-        self, make_payload
-    ):
-        """The offer trigger sends the Offer as the CASE_MANAGER, attributed
-        to the Case Owner; that Case Owner is the one who may withdraw it."""
-        case_id = "https://example.org/cases/case_ot_undo_delegated"
-        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
-        disposition, offer = deliver(
-            _COORDINATOR_ID,
-            "https://example.org/activities/offer_undo_delegated",
-            offerer=_CASE_ACTOR_ID,
-            attributed_to=_VENDOR_ID,
-        )
-        assert disposition is HandlerDisposition.APPLIED
-
-        result = _undo(dl, make_payload, offer)
-
-        assert result.disposition is HandlerDisposition.APPLIED
-        assert "undo_case_ownership_transfer" in _event_types(dl)
-
-    @pytest.mark.spec("CM-21-015")
-    @pytest.mark.spec("CM-24-002")
     def test_attributed_to_on_a_direct_offer_does_not_move_the_offerer(
         self, make_payload
     ):
@@ -1929,19 +2123,27 @@ class TestWithdrawalOfOwnershipTransfer:
     def test_withdrawal_from_an_offerer_that_is_not_case_owner_is_refused(
         self, make_payload
     ):
-        """Only a Case Owner withdraws: an Offer made by a non-owner (which
-        the CASE_MANAGER does not yet refuse, #4540) cannot be withdrawn by
-        it."""
+        """Only a Case Owner withdraws: the offerer, once it no longer holds
+        ``CASE_OWNER``, cannot withdraw the Offer it made."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
         case_id = "https://example.org/cases/case_ot_undo_not_owner"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
         _, offer = deliver(
             "https://example.org/users/vendor2",
             "https://example.org/activities/offer_undo_not_owner",
-            offerer=_COORDINATOR_ID,
         )
+        # The offerer loses the role while its Offer is open.
+        case = dl.read(case_id)
+        assert isinstance(case, VulnerabilityCase)
+        record = dl.read(case.actor_participant_index[_VENDOR_ID])
+        assert isinstance(record, CaseParticipant)
+        record.remove_role(CVDRole.CASE_OWNER)
+        dl.save(record)
         entries_before = _event_types(dl)
 
-        result = _undo(dl, make_payload, offer, sender=_COORDINATOR_ID)
+        result = _undo(dl, make_payload, offer, sender=_VENDOR_ID)
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None

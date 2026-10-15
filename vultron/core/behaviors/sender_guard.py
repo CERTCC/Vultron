@@ -66,6 +66,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsInviteeNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
+    SenderIsOfferingCaseOwnerNode,
     SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
     SenderIsParticipantNode,
@@ -162,6 +163,10 @@ class SenderCheckContext:
             the Case Owner that made the Offer.
         authored_object_id: The object an ``AUTHOR`` sender must have
             written: the note being removed (CM-30-001).
+        offered_ownership_id: A new ownership-transfer Offer's own id: a
+            ``CASE_OWNER`` sender must hold the role, unless it redelivers
+            an Offer the CASE_MANAGER recorded from it (CM-21-019,
+            HP-01-003).
     """
 
     sender_id: str
@@ -172,6 +177,7 @@ class SenderCheckContext:
     case_manager_required: bool = False
     request: AddresseeRequest | None = None
     authored_object_id: str | None = None
+    offered_ownership_id: str | None = None
 
 
 def embargo_sender_context(
@@ -267,6 +273,31 @@ _MEMBERSHIP_NODES: dict[
     SenderEntitlementKind.PARTICIPANT: SenderIsParticipantNode,
     SenderEntitlementKind.ACTIVE_PARTICIPANT: SenderIsActiveParticipantNode,
 }
+
+
+def _case_owner_node(ctx: SenderCheckContext) -> py_trees.behaviour.Behaviour:
+    """The ``CASE_OWNER`` check for the activity in *ctx*.
+
+    The withdrawal of a recorded ownership-transfer Offer checks the Owner
+    that made it (CM-21-015); a new Offer checks the Owner making it
+    (CM-21-019); anything else checks the role alone.
+    """
+    if isinstance(ctx.request, OwnershipOfferRequest):
+        return SenderIsOwnershipOffererNode(
+            case_id=_case_of(ctx, "an ownership-transfer Offer"),
+            offer_id=ctx.request.offer_id,
+            sender_actor_id=ctx.sender_id,
+            reply_id=ctx.request.reply_id,
+        )
+    if ctx.offered_ownership_id is not None:
+        return SenderIsOfferingCaseOwnerNode(
+            case_id=_case_of(ctx, "an ownership-transfer Offer"),
+            offer_id=ctx.offered_ownership_id,
+            sender_actor_id=ctx.sender_id,
+        )
+    return SenderIsCaseOwnerNode(
+        sender_actor_id=ctx.sender_id, case_id=ctx.case_id
+    )
 
 
 def _kind_node(
