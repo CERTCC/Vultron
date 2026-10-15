@@ -26,26 +26,30 @@ CM-28-014, BT-17-001).  The tree follows the guard → commit → effect pattern
    No PEC transition is applied here.
 2. :class:`InviteExpiryNeedsApplyNode` gates whether a ledger entry must be
    committed (CM-28-009) — true only when the invitee is still ``INVITED``.
-3. After the commit node, :class:`RecordInviteExpiryNode` calls
-   :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.record_invite_expiry`
-   to apply ``INVITED → TIMED_OUT``.  A failed commit therefore leaves the
-   invitee unchanged (CLP-10-006).
+3. :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyInviteExpiryNode`
+   commits the expired-invitation entry, then the CASE_MANAGER's
+   ``Update(EmbargoConsent)`` carrying the invitee's ``TIMED_OUT`` row, and
+   only then writes the row through the one apply function (ADR-0124).  A failed commit therefore leaves the invitee
+   unchanged (CLP-07-013, CLP-10-006).
 
 :class:`InviteExpiryChangedConsentNode` is a backward-compatible alias for
 :class:`InviteExpiryNeedsApplyNode`.
 
-A participant replica never evaluates a deadline; it applies the manager's
-decision from the committed entry through
+A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
+it copies the ``Update(EmbargoConsent)`` entry through the consent slot, and
 :class:`ApplyInviteExpiryFromLedgerNode`, reached from
-``create_announce_log_entry_tree`` (RSH-08-004, CM-28-014).
+``create_announce_log_entry_tree`` (RSH-08-004, CM-28-014), recognises the
+expiry entry itself.
 
 For the no-op late-Accept decision (EMB-17-004):
 :class:`ApplyInviteExpiryNoopFromLedgerNode` recognises the entry and
 returns SUCCESS without applying any PEC transition.
 
 For the honour late-Accept decision (EMB-17-001):
-:class:`HonourLateAcceptNode` applies the honour after the commit, and
-:class:`ApplyHonourLateAcceptFromLedgerNode` replays it on replicas.
+:class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyHonourLateAcceptNode`
+commits the honour entry and its ``AGREED`` row before writing it, and
+:class:`ApplyHonourLateAcceptFromLedgerNode` recognises the honour entry on
+replicas, which copy the row from its own entry.
 """
 
 from datetime import datetime
@@ -55,12 +59,10 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import VultronNotFoundError
 
@@ -70,9 +72,9 @@ IS_EXPIRED_KEY = "is_expired"
 NEEDS_APPLY_KEY = "needs_apply"
 """``result_out`` key: the invitee's row is still ``INVITED`` and TIME_OUT needs applying.
 
-Set by :class:`EvaluateInviteExpiryNode` (read-only assess).  The tree's
-commit node runs when this is ``True``; after a successful commit
-:class:`RecordInviteExpiryNode` applies ``INVITED → TIMED_OUT`` (CLP-10-006).
+Set by :class:`EvaluateInviteExpiryNode` (read-only assess).  When it is
+``True`` the expiry tree commits the expiry and its ``TIMED_OUT`` row, then
+applies ``INVITED → TIMED_OUT`` (CLP-10-006, ADR-0124).
 """
 
 CONSENT_CHANGED_KEY = NEEDS_APPLY_KEY
@@ -155,8 +157,9 @@ class InviteExpiryNeedsApplyNode(py_trees.behaviour.Behaviour):
 
     SUCCESS when :class:`EvaluateInviteExpiryNode` found the invitee still
     ``INVITED`` with a passed deadline — the one outcome that requires a
-    ledger entry and a subsequent :class:`RecordInviteExpiryNode` (CM-28-009,
-    CLP-10-006).
+    ledger entry and a subsequent
+    :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyInviteExpiryNode`
+    (CM-28-009, CLP-10-006).
     """
 
     def __init__(
@@ -175,122 +178,57 @@ class InviteExpiryNeedsApplyNode(py_trees.behaviour.Behaviour):
 InviteExpiryChangedConsentNode = InviteExpiryNeedsApplyNode
 
 
-class RecordInviteExpiryNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Apply PEC ``TIME_OUT`` (``INVITED → TIMED_OUT``) after the commit.
+class _RecordedActFromLedgerNode(_LedgerEffectNode):
+    """Recognise an act entry whose consent change is its own entry.
 
-    This is the **effect** node (CLP-10-006, BT-06-006).  It calls
-    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.record_invite_expiry`
-    only **after** the commit node has persisted the ledger entry, so a
-    failed commit leaves the invitee unchanged.  Only the invitee's row for
-    *embargo_id* moves: the deadline belongs to that invitation (CM-28-001).
+    The CASE_MANAGER commits the act, then an ``Update(EmbargoConsent)``
+    carrying the row it changes; the consent slot copies that row
+    (ADR-0124, CM-23-016).  This entry therefore changes nothing here: the
+    node returns SUCCESS so the entry is persisted in its chain position, and
+    computes nothing (no deadline, no PEC transition).  An entry that names
+    no actor or no embargo fails, so it is not persisted (SYNC-12-001).
+    Regime 2 (ADR-0087): a replica holding no copy of the case skips with
+    SUCCESS.
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        invitee_id: str,
-        embargo_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._invitee_id = invitee_id
-        self._embargo_id = embargo_id
+    _label: str = "act"
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
-        assert self.datalayer is not None
-        try:
-            result = EmbargoLifecycle(
-                persistence=self.datalayer
-            ).record_invite_expiry(
-                case_id=self._case_id,
-                actor_id=self._invitee_id,
-                embargo_id=self._embargo_id,
-            )
-        except VultronNotFoundError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        self.feedback_message = (
-            f"Applied invite expiry of '{self._invitee_id}'"
-            f" on case '{self._case_id}'"
-            f" ({len(result.participant_changes)} consent row change(s))"
-        )
-        if result.participant_changes:
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-        else:
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class ApplyInviteExpiryFromLedgerNode(_LedgerEffectNode):
-    """Replay the CASE_MANAGER's expiry entry on a replica (CM-28-014, ADR-0118).
-
-    The entry's ``actor`` is the timed-out invitee (the snapshot is attributed
-    to it, CM-28-009) and its ``object`` is the Invite, naming the embargo; the
-    replica applies ``TIME_OUT`` (``INVITED → TIMED_OUT``) to that one row
-    idempotently — only from ``INVITED``, any other state is left unchanged —
-    and evaluates no deadline of its own.
-    Regime 2 (ADR-0087): a replica holding no copy of the case, or no record
-    of the invitee, skips with SUCCESS.  An entry that names no invitee or no
-    embargo fails, so it is not persisted as applied (SYNC-12-001).
-    """
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
         entry = self._get_entry()
         case = self._resolve_case_replica(entry.case_id)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
-        invitee_id = _extract_id_from_field(
-            entry.payload_snapshot.get("actor")
-        )
+        actor_id = _extract_id_from_field(entry.payload_snapshot.get("actor"))
         embargo_id = _snapshot_embargo_id(entry.payload_snapshot)
-        if not invitee_id or not embargo_id:
+        if not actor_id or not embargo_id:
             self.feedback_message = (
-                f"expiry entry on case '{case.id_}' is missing invitee"
-                f" ('{invitee_id}') or embargo id ('{embargo_id}')"
+                f"{self._label} entry on case '{case.id_}' is missing its"
+                f" actor ('{actor_id}') or embargo id ('{embargo_id}')"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        participant_id = case.actor_participant_index.get(invitee_id)
-        if not participant_id:
-            self.feedback_message = (
-                f"no participant record for '{invitee_id}' on case"
-                f" '{case.id_}' — skipping (partial replica)"
-            )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.feedback_message = (
-                f"participant id '{participant_id}' for '{invitee_id}' on"
-                f" case '{case.id_}' is not a CaseParticipant — skipping"
-            )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        # The same operation the CASE_MANAGER ran after its commit: the
-        # invitation's row times out if still INVITED, and nothing else moves.
-        changes = (
-            EmbargoLifecycle(persistence=self.datalayer)
-            .record_invite_expiry(
-                case_id=case.id_, actor_id=invitee_id, embargo_id=embargo_id
-            )
-            .participant_changes
-        )
         self.feedback_message = (
-            f"Replayed invite expiry of '{invitee_id}' on case '{case.id_}'"
-            f" ({len(changes)} consent row change(s))"
+            f"recorded the {self._label} of '{actor_id}' for embargo"
+            f" '{embargo_id}' on case '{case.id_}'; its consent row is its"
+            " own entry (ADR-0124)"
         )
-        if changes:
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-        else:
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+
+class ApplyInviteExpiryFromLedgerNode(_RecordedActFromLedgerNode):
+    """Recognise the CASE_MANAGER's expiry entry on a replica (CM-28-014).
+
+    The entry's ``actor`` is the timed-out invitee and its ``object`` the
+    Invite, naming the embargo.  The ``TIMED_OUT`` row follows as the
+    CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, which the consent
+    slot copies, so a replica never evaluates a deadline nor runs
+    ``TIME_OUT`` itself (CM-23-016, ADR-0124).
+    """
+
+    _label = "invite expiry"
 
 
 class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
@@ -330,115 +268,16 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
         return Status.SUCCESS
 
 
-class HonourLateAcceptNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Apply the CASE_MANAGER's honour decision after the commit (EMB-17-001).
+class ApplyHonourLateAcceptFromLedgerNode(_RecordedActFromLedgerNode):
+    """Recognise the CASE_MANAGER's honour decision on a replica (EMB-17-001).
 
-    This is the **effect** node in
-    :func:`~vultron.core.behaviors.embargo.expiry_tree.create_honour_late_accept_tree`.
-    Called after the ledger entry is committed, it applies
-    ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED`` by
-    delegating to
-    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`
-    (CLP-10-006, BT-06-006, EMB-17-001, ADR-0118).
+    The entry's ``actor`` is the accepted participant and its ``object``
+    the Invite and the embargo.  The ``AGREED`` row follows as the
+    CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, which the consent
+    slot copies (CM-23-016, ADR-0124).
     """
 
-    def __init__(
-        self,
-        case_id: str,
-        actor_id: str,
-        embargo_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._actor_id = actor_id
-        self._embargo_id = embargo_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        try:
-            result = EmbargoLifecycle(
-                persistence=self.datalayer
-            ).honour_late_accept(
-                case_id=self._case_id,
-                actor_id=self._actor_id,
-                embargo_id=self._embargo_id,
-            )
-        except VultronNotFoundError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        self.feedback_message = (
-            f"Honoured late Accept for '{self._actor_id}'"
-            f" on case '{self._case_id}' (embargo '{self._embargo_id}',"
-            f" {len(result.participant_changes)} consent row change(s))"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class ApplyHonourLateAcceptFromLedgerNode(_LedgerEffectNode):
-    """Replay the CASE_MANAGER's honour decision on a replica (EMB-17-001).
-
-    The entry's ``actor`` is the accepted participant; the entry's ``object``
-    carries the Invite's id and the embargo's id.  The replica applies
-    ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED`` by
-    calling
-    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`.
-    Regime 2 (ADR-0087): a replica holding no copy of the case skips with
-    SUCCESS.  An entry that names no actor or embargo fails (SYNC-12-001).
-    """
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
-        if case is None:
-            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
-        actor_id = _extract_id_from_field(entry.payload_snapshot.get("actor"))
-        embargo_id = _snapshot_embargo_id(entry.payload_snapshot)
-        if not actor_id or not embargo_id:
-            self.feedback_message = (
-                f"honour-late-accept entry on case '{case.id_}'"
-                f" is missing actor ('{actor_id}') or"
-                f" embargo id ('{embargo_id}')"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
-            self.feedback_message = (
-                f"no participant record for '{actor_id}' on case"
-                f" '{case.id_}' — skipping (partial replica)"
-            )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        try:
-            result = EmbargoLifecycle(
-                persistence=self.datalayer
-            ).honour_late_accept(
-                case_id=entry.case_id,
-                actor_id=actor_id,
-                embargo_id=embargo_id,
-            )
-        except VultronNotFoundError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        self.feedback_message = (
-            f"Replayed honour-late-accept for '{actor_id}'"
-            f" on case '{case.id_}' (embargo '{embargo_id}',"
-            f" {len(result.participant_changes)} consent row change(s))"
-        )
-        if result.participant_changes:
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-        else:
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
+    _label = "honoured late Accept"
 
 
 __all__ = [
@@ -449,8 +288,6 @@ __all__ = [
     "ApplyInviteExpiryFromLedgerNode",
     "ApplyInviteExpiryNoopFromLedgerNode",
     "EvaluateInviteExpiryNode",
-    "HonourLateAcceptNode",
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",
-    "RecordInviteExpiryNode",
 ]

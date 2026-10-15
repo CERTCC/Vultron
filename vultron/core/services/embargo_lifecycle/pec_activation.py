@@ -28,15 +28,21 @@ import logging
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_apply import (
+    EmbargoCaseFile,
+    apply_embargo_change,
+    changed_objects,
+)
+from vultron.core.models.embargo_consent_move import owner_agreement
+from vultron.core.services.embargo_lifecycle.activation_decision import (
+    carry_over_changes,
+)
 from vultron.core.services.embargo_lifecycle.pec import (
     _PecEffectsMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
-)
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-    PEC_Trigger,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,45 +51,17 @@ logger = logging.getLogger(__name__)
 class _PecActivationMixin(_PecEffectsMixin):
     """Consent bookkeeping run when an embargo becomes the one in force."""
 
-    def _carry_signatories_over(
-        self,
-        case: VulnerabilityCase,
-        *,
-        previous_embargo_id: str,
-        revised_embargo_id: str,
-    ) -> list[ParticipantConsentChange]:
-        """Apply ``CARRY_OVER`` to the revision for every signatory to the old one.
-
-        The shorter arm of EP-05-001: a revision ending no later than the
-        embargo it replaces asks nothing new of an existing signatory
-        (agreeing to N days is agreeing to every shorter period), so its
-        agreement carries over by containment (CM-10-001).  Only a
-        participant whose row for *previous_embargo_id* is ``AGREED`` is
-        carried over, so the containment argument is always about consent the
-        participant itself gave.  A ``DECLINED`` row for the revision is
-        lifted too: declining a shorter revision objects to losing time, not
-        to keeping the embargo, and the decline stays in the ledger
-        (ADR-0122).  A *longer* revision needs no counterpart: a signatory
-        that has not agreed to it has lapsed by derivation
-        (:meth:`CaseParticipant.has_lapsed`).
-        """
-        changes: list[ParticipantConsentChange] = []
-        for participant_id, participant in self._each_participant(case):
-            if (
-                participant.consent_for(previous_embargo_id)
-                != EmbargoConsentState.AGREED
-            ):
-                continue
-            changes.extend(
-                self._apply_where_legal(
-                    case,
-                    participant_id,
-                    participant,
-                    revised_embargo_id,
-                    PEC_Trigger.CARRY_OVER,
-                )
+    def _case_file(self, case: VulnerabilityCase) -> EmbargoCaseFile:
+        """*case* and the participant records its roster indexes."""
+        participants = {
+            actor_id: record
+            for actor_id, participant_id in case.actor_participant_index.items()
+            if isinstance(
+                record := self._persistence.read(participant_id),
+                CaseParticipant,
             )
-        return changes
+        }
+        return EmbargoCaseFile(case=case, participants=participants)
 
     def _consent_at_activation(
         self,
@@ -102,31 +80,48 @@ class _PecActivationMixin(_PecEffectsMixin):
         the embargo replaced, taken before the case was mutated;
         *previous_embargo_id* is that embargo.
 
-        - The owner's row for the activated embargo is ``AGREED``: an
-          activation is the owner agreeing to the terms, so the owner is
-          never lapsed by it.  A ``DECLINED`` row moves straight to
-          ``AGREED``: the owner has changed its answer, so it is not invited
-          again first (MSM-07-008).  A row that is already ``AGREED`` is left
-          as it is (ADR-0122).
+        The rows are the ones the CASE_MANAGER's decision names
+        (:mod:`~vultron.core.services.embargo_lifecycle.activation_decision`),
+        written through the one apply function, so this path and the
+        copy model move the same rows:
+
+        - The owner's row for the activated embargo is ``AGREED``
+          (:func:`~vultron.core.models.embargo_consent_move.owner_agreement`),
+          a ``DECLINED`` row included (MSM-07-008).
         - Replacing A with a B that ends no later than A carries A's
-          signatories over (:meth:`_carry_signatories_over`); a longer B
-          carries nobody, and the signatories who have not agreed to it have
-          lapsed by derivation.  A first activation replaces nothing.
+          signatories over
+          (:func:`~vultron.core.services.embargo_lifecycle.activation_decision.carry_over_changes`);
+          a longer B carries nobody, and the signatories who have not agreed
+          to it have lapsed by derivation.  A first activation replaces
+          nothing.
         """
-        changes: list[ParticipantConsentChange] = []
-        owner_id = _as_id(case.attributed_to)
-        if owner_id is not None and owner_id in case.actor_participant_index:
-            changes.extend(
-                self._record_actor_acceptance(case, owner_id, embargo_id)
-            )
+        before = self._case_file(case)
+        after = before
+        agreement = owner_agreement(after, embargo_id)
+        if agreement is not None:
+            after = apply_embargo_change(after, agreement)
         if ends_no_later and previous_embargo_id is not None:
-            changes.extend(
-                self._carry_signatories_over(
-                    case,
-                    previous_embargo_id=previous_embargo_id,
-                    revised_embargo_id=embargo_id,
-                )
+            for change in carry_over_changes(
+                after,
+                previous_embargo_id=previous_embargo_id,
+                revised_embargo_id=embargo_id,
+            ):
+                after = apply_embargo_change(after, change)
+        changes = [
+            ParticipantConsentChange(
+                participant_id=record.id_,
+                embargo_id=embargo_id,
+                consent_before=before.participants[actor_id]
+                .consent_for(embargo_id)
+                .value,
+                consent_after=record.consent_for(embargo_id).value,
             )
+            for actor_id, record in after.participants.items()
+            if record is not before.participants[actor_id]
+        ]
+        changed = changed_objects(before, after)
+        if changed:
+            self._persistence.save_many(list(changed))
         logger.info(
             "Recorded consent on case '%s' for activated embargo '%s' (%s);"
             " %d row change(s)",

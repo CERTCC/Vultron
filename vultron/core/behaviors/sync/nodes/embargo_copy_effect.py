@@ -46,7 +46,7 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.embargo.copy_commit import (
+from vultron.core.behaviors.embargo_case_file import (
     read_embargo_case_file,
     save_case_file,
 )
@@ -58,6 +58,7 @@ from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
+    EmbargoCaseFile,
     EmbargoChange,
     apply_embargo_change,
     change_is_in_place,
@@ -114,6 +115,18 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         """
         raise NotImplementedError
 
+    def _stated_changes(
+        self, entry: CaseLedgerEntry, after: EmbargoCaseFile
+    ) -> list[EmbargoChange]:
+        """Further changes the entry's activity states, applied after it.
+
+        *after* is the case file as :meth:`_change` leaves it.  An act's own
+        activity can state more than one change (CLP-07-013): the owner's
+        ``Accept(EmbargoEvent, target=Case)`` is the ``ACTIVATE`` step and
+        the owner's agreement.  None by default.
+        """
+        return []
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -145,6 +158,8 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             return Status.SUCCESS
         try:
             after = apply_embargo_change(before, change)
+            for stated in self._stated_changes(entry, after):
+                after = apply_embargo_change(after, stated)
         except VultronEntryRefusedError as exc:
             return self._refuse(entry, exc)
         save_case_file(self.datalayer, before, after)

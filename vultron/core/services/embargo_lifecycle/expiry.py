@@ -15,9 +15,11 @@
 
 An invitation's deadline is read when something asks about it, not by a
 timer: ``assess_invite_expiry`` and ``pending_invitations`` read rows,
-``record_invite_expiry`` and ``detect_and_apply_expiry`` move an
-unanswered ``INVITED`` row to ``TIMED_OUT`` (the pocket veto), and
-``honour_late_accept`` records a late Accept the case honours (EMB-17-001).
+and ``detect_and_apply_expiry`` moves an unanswered ``INVITED`` row to
+``TIMED_OUT`` (the pocket veto).  The CASE_MANAGER's own expiry and honour of
+a late Accept commit the row before writing it, through the one apply function
+(``CommitAndApplyInviteExpiryNode``, ``CommitAndApplyHonourLateAcceptNode``,
+ADR-0124).
 """
 
 import logging
@@ -90,16 +92,14 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
           signatory to the active embargo.  Used by EMB-17 routing.
         * ``needs_apply`` — ``True`` when the row for *embargo_id* is still
           ``INVITED`` **and** its deadline has passed.  When ``True``, the
-          caller MUST call :meth:`record_invite_expiry` after committing the
-          ledger entry (CLP-10-006).
+          caller commits the expiry and its ``TIMED_OUT`` row, then applies
+          it (CLP-10-006, ADR-0124).
 
         Only the row for *embargo_id* is read: an RSVP deadline belongs to
         one invitation (CM-28-001, CM-28-012), and the participant's other
         invitations keep their own.  This method makes **no writes**, so a
-        BT node can assess the situation, the commit node can persist the
-        ledger entry, and only then the effect node calls
-        :meth:`record_invite_expiry` (guard → commit → effect, CLP-10-006,
-        BT-06-006).
+        BT node can assess the situation, and only once the entries commit is
+        the row written (guard → commit → effect, CLP-10-006, BT-06-006).
 
         Args:
             case_id: ID of the ``VulnerabilityCase``.
@@ -143,7 +143,7 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
 
         Read-only.  Returns one ``(participant, embargo_id)`` pair per
         consent row that is ``INVITED`` and whose register entry is not final
-        — the rows :meth:`record_invite_expiry` would move.  A row for a
+        — the rows an expiry would move.  A row for a
         final entry is frozen (ADR-0122), so it is not pending: nothing can
         answer or expire it.  The owner-close settle step (CM-23-014) expires
         each pair without waiting for its deadline.
@@ -174,121 +174,6 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
                     continue
                 pending.append((participant, row.embargo_id))
         return pending
-
-    def record_invite_expiry(
-        self,
-        *,
-        case_id: str,
-        actor_id: str,
-        embargo_id: str,
-    ) -> EmbargoLifecycleResult:
-        """Apply PEC ``TIME_OUT`` (``INVITED → TIMED_OUT``) after the commit.
-
-        This is the **effect** half of the guard → commit → effect trio
-        (CLP-10-006, BT-06-006).  The CASE_MANAGER calls it only after its
-        expiry entry has been committed by
-        :func:`~vultron.core.behaviors.sync.commit_tree.create_commit_log_entry_tree`,
-        and a replica calls it as it replays that entry.  Only the row for
-        *embargo_id* moves: the deadline that passed belongs to that one
-        invitation (CM-28-001, CM-28-012).
-
-        Idempotent: a row that is no longer ``INVITED`` (already
-        ``TIMED_OUT``, or any other state), or whose register entry is final,
-        is left as it is.  An actor with no participant record is logged and
-        skipped.
-
-        Args:
-            case_id: ID of the ``VulnerabilityCase``.
-            actor_id: ID of the actor whose invite timed out.
-            embargo_id: ID of the ``EmbargoEvent`` the invitation was for.
-
-        Returns:
-            :class:`EmbargoLifecycleResult` with ``is_expired=True`` when
-            ``TIME_OUT`` was applied, ``is_expired=False`` when the row had
-            already left ``INVITED`` (idempotent call).
-        """
-        case = self._read_case(case_id)
-        em_state = case.em_state
-        resolved = self._find_participant(case, actor_id)
-        if resolved is None:
-            logger.debug(
-                "record_invite_expiry: actor '%s' has no participant"
-                " record in case '%s' — skipping",
-                actor_id,
-                case_id,
-            )
-            return _unchanged(em_state)
-        participant_id, participant = resolved
-        participant_changes = self._apply_where_legal(
-            case, participant_id, participant, embargo_id, PEC_Trigger.TIME_OUT
-        )
-        if participant_changes:
-            logger.info(
-                "Invite to embargo '%s' timed out for actor '%s' on case '%s'"
-                " (PEC INVITED → TIMED_OUT — recorded after commit)",
-                embargo_id,
-                actor_id,
-                case_id,
-            )
-        return _unchanged(
-            em_state,
-            participant_changes=participant_changes,
-            is_expired=bool(participant_changes),
-        )
-
-    def honour_late_accept(
-        self,
-        *,
-        case_id: str,
-        actor_id: str,
-        embargo_id: str,
-    ) -> EmbargoLifecycleResult:
-        """Apply the honour decision: ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED``.
-
-        This is the **effect** of :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE`
-        (EMB-17-001, ADR-0118).  Called by the replica replay node
-        :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`
-        **and** by the CASE_MANAGER's
-        :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
-        **after** the entry is committed (CLP-10-006).
-
-        The shared
-        :meth:`~vultron.core.services.embargo_lifecycle.pec._PecEffectsMixin._record_actor_acceptance`
-        applies ``AGREE`` to the row for *embargo_id*.  A ``DECLINED`` row
-        moves directly: the participant has changed its answer, so there is no
-        re-invite step (CM-18-003).
-
-        Idempotent: a participant whose row is already ``AGREED`` is not
-        changed.
-
-        Args:
-            case_id: ID of the ``VulnerabilityCase``.
-            actor_id: ID of the honouring actor.
-            embargo_id: ID of the active ``EmbargoEvent`` to agree to.
-
-        Returns:
-            :class:`EmbargoLifecycleResult` describing the PEC transitions.
-
-        Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case or
-                *actor_id* has no participant record on it.
-        """
-        case = self._read_case(case_id)
-        em_state = case.em_state
-        # An unknown honouring actor is an error, not a skip (Raises).
-        self._require_participant(case, actor_id)
-
-        all_changes = self._record_actor_acceptance(case, actor_id, embargo_id)
-        logger.info(
-            "honour_late_accept: honoured late Accept for actor '%s'"
-            " on case '%s' (embargo '%s', EMB-17-001;"
-            " %d consent row change(s))",
-            actor_id,
-            case_id,
-            embargo_id,
-            len(all_changes),
-        )
-        return _unchanged(em_state, participant_changes=all_changes)
 
     def detect_and_apply_expiry(
         self,

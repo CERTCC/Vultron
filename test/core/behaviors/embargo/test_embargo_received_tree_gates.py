@@ -29,8 +29,8 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
     invite_to_embargo_on_case_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
-    ActivateEmbargoLifecycleNode,
     CaptureActiveEmbargoNode,
+    CommitAndApplyEmbargoActivationNode,
     IndexReceivedEmbargoProposalNode,
     SendEmbargoEndingNoticesNode,
 )
@@ -114,7 +114,7 @@ def test_activate_embargo_backfill_is_the_factory_gate() -> None:
     # admitted, then re-issue stale stub Invites (CM-11-016).
     assert [type(n) for n in gate.gated_branch.children] == [
         CaptureActiveEmbargoNode,
-        ActivateEmbargoLifecycleNode,
+        CommitAndApplyEmbargoActivationNode,
         SendEmbargoEndingNoticesNode,
         BackfillAdmittedParticipantsNode,
         ReissueStubInvitesNode,

@@ -52,14 +52,13 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.embargo.nodes import (
-    EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_INVITE_EVENT_TYPE,
     EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
     EMBARGO_TEARDOWN_EVENT_TYPE,
     AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
-    ActivateEmbargoLifecycleNode,
     CollectEmbargoInviteRecipientsNode,
+    CommitAndApplyEmbargoActivationNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoTeardownNode,
     EmbargoActivityBuilder,
@@ -441,23 +440,40 @@ def activate_embargo_trigger_bt(
     """Build trigger-side BT for the case owner's activation (EP-09-008).
 
     ``Accept(EmbargoEvent, target=Case)`` (ADR-0122): as the CASE_MANAGER the
-    owner activates the proposal ``STRICT`` and commits its decision; any
-    other owner asks the CASE_MANAGER.
+    owner decides the activation ``STRICT``, commits the ``Accept`` (the
+    whole ``ACTIVATE`` step and its own agreement) and then one
+    ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row, and only then writes
+    the case file (:class:`CommitAndApplyEmbargoActivationNode`, ADR-0124);
+    any other owner asks the CASE_MANAGER.  The manager's arm otherwise
+    matches :func:`_answer_arms`: the ``Accept`` is addressed to nobody, the
+    ``Add(CaseStatus)`` follows, dropped signatories are told (CM-31-009) and
+    outstanding stub Invites are re-issued (CM-11-016).
     """
+    capture, notices = embargo_ending_notice_nodes(case_id)
     return py_trees.composites.Sequence(
         name="ActivateEmbargoTriggerBT",
         memory=False,
-        children=_answer_arms(
+        children=_by_role(
             "ActivateEmbargo",
             case_id,
-            ActivateEmbargoLifecycleNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                result_out=result_out,
-            ),
-            EMBARGO_ACTIVATION_EVENT_TYPE,
-            result_out,
-            activity_builder,
+            as_case_manager=[
+                capture,
+                CommitAndApplyEmbargoActivationNode(
+                    case_id=case_id,
+                    embargo_id=embargo_id,
+                    result_out=result_out,
+                    builder=activity_builder,
+                ),
+                _make_emit_node(case_id),
+                notices,
+                ReissueStubInvitesNode(case_id=case_id),
+            ],
+            otherwise=[
+                sender_side_bt(
+                    case_id=case_id,
+                    activity_builder=_asserting(activity_builder, result_out),
+                )
+            ],
         ),
     )
 

@@ -44,8 +44,10 @@ from __future__ import annotations
 from typing import Any
 
 from py_trees.common import Status
-from pydantic import ValidationError
 
+from vultron.core.behaviors.embargo.nodes.carried_embargo import (
+    store_carried_embargo,
+)
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
     RecordParticipantAcceptanceNode,
@@ -60,10 +62,8 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
-from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
@@ -146,26 +146,13 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         CLP-10-017).  A bare id is enough when the record is already here.
         """
         assert self.datalayer is not None
-        if self.datalayer.read(embargo_id) is not None:
-            return True
-        if not isinstance(embargo_data, dict):
-            self.feedback_message = (
-                f"embargo '{embargo_id}' is not stored here and the entry"
-                " names it by id only, so it cannot be reconstructed"
-            )
+        problem = store_carried_embargo(
+            self.datalayer, embargo_data, embargo_id
+        )
+        if problem is not None:
+            self.feedback_message = problem
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return False
-        try:
-            embargo = EmbargoEvent.model_validate(
-                project_wire_snapshot_to_core(EmbargoEvent, embargo_data)
-            )
-        except ValidationError as exc:
-            self.feedback_message = (
-                f"embargo '{embargo_id}' in the entry is malformed: {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return False
-        self.datalayer.create(embargo)
         self.logger.debug(
             "%s: stored embargo '%s' from the canonical entry",
             self.name,

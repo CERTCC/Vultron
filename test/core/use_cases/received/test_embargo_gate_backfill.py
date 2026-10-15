@@ -186,6 +186,9 @@ class _GateScenario:
             self.dl,
             self._make_payload(activation, receiving_actor_id=MANAGER_ID),
             sync_port=SyncActivityAdapter(self.dl),
+            # Each carried-over signatory's row is its own CASE_MANAGER
+            # entry, built through the factory (ADR-0124).
+            trigger_activity=TriggerActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 

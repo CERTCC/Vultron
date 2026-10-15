@@ -33,7 +33,9 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.stub_reply import stub_accept_consent
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +98,15 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
 
 
 class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Sign embargo consent on the participant and record the event."""
+    """Write the invitee's agreement its ``Accept`` of the stub Invite states.
+
+    The Accept's own entry, committed by intake, is the entry for the row
+    (CLP-07-013): the row is written through the one apply function, as a
+    replica writes it from the same entry
+    (:func:`~vultron.core.participants.stub_reply.stub_accept_consent`,
+    ADR-0124).  The changed record replaces ``new_invite_participant`` for
+    the nodes that persist it.
+    """
 
     def __init__(self, invitee_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -107,39 +117,51 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts, StateWriteCapable):
         "new_invite_participant": PortInformation(
             data_type=object, required=True
         ),
-        "active_embargo_id": PortInformation(data_type=str, required=True),
+        "invitee_case": PortInformation(data_type=object, required=False),
+    }
+
+    #: Written back to the record's own key, so the nodes that persist it
+    #: read the signed copy.
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "signed_participant": PortInformation(data_type=object, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "new_invite_participant": "/new_invite_participant",
-            "active_embargo_id": "/active_embargo_id",
+            "invitee_case": "/invitee_case",
+            "signed_participant": "/new_invite_participant",
         }
 
     def initialise(self) -> None:
         super().initialise()
         self.new_invite_participant = self.get_input("new_invite_participant")
-        self.active_embargo_id: str = self.get_input("active_embargo_id")
+        try:
+            self._invitee_case = self.get_input("invitee_case")
+        except (NoDataAvailable, NotImplementedError):
+            self._invitee_case = None
 
     def update(self) -> Status:
         participant = self.new_invite_participant
-        active_embargo_id = self.active_embargo_id
+        case = self._invitee_case
         if not isinstance(participant, CaseParticipant) or not isinstance(
-            active_embargo_id, str
+            case, VulnerabilityCase
         ):
             self.logger.error(
-                "%s: participant or active_embargo_id missing", self.name
+                "%s: participant or invitee_case missing", self.name
             )
             return Status.FAILURE
 
         # An AGREED row stays; a participant that declined this embargo is
         # not signed (ADR-0118).
-        participant.sign_embargo(active_embargo_id)
+        signed = stub_accept_consent(case, participant)
+        self._set_output("signed_participant", signed)
         self.logger.info(
-            "%s: signed embargo consent for invitee '%s' (embargo in force,"
+            "%s: %s embargo consent for invitee '%s' (embargo in force,"
             " CM-10-001)",
             self.name,
+            "recorded" if signed is not participant else "no change to",
             self.invitee_id,
         )
         return Status.SUCCESS

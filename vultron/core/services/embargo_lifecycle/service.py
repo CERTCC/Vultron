@@ -21,6 +21,9 @@ class.
 from vultron.core.services.embargo_lifecycle.activation import (
     _ActivationOperationsMixin,
 )
+from vultron.core.services.embargo_lifecycle.activation_decision import (
+    _ActivationDecisionMixin,
+)
 from vultron.core.services.embargo_lifecycle.answers import (
     _AnswerOperationsMixin,
 )
@@ -43,6 +46,7 @@ class EmbargoLifecycle(
     _ProposalOperationsMixin,
     _AnswerOperationsMixin,
     _ActivationOperationsMixin,
+    _ActivationDecisionMixin,
     _ConsentOperationsMixin,
     _InviteExpiryOperationsMixin,
 ):
@@ -65,6 +69,7 @@ class EmbargoLifecycle(
         - :meth:`abandon_embargo_proposals`
         - :meth:`terminate_active_embargo`
         - :meth:`activate_embargo`
+        - :meth:`decide_activation` (decides only; writes nothing, ADR-0124)
         - :meth:`initialize_creation_embargo` (STRICT only; one write, EP-04-002)
         - :meth:`record_participant_consent` (no EM transition; no mode param)
         - :meth:`record_embargo_rejection` (no EM transition; no mode param)

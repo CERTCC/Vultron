@@ -39,7 +39,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import (
-    ActivateEmbargoLifecycleNode,
+    CommitAndApplyEmbargoActivationNode,
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
     RejectEmbargoProposalLifecycleNode,
@@ -231,11 +231,11 @@ class TestOwnerMayActivateEmbargoNode:
 
 
 # ---------------------------------------------------------------------------
-# ActivateEmbargoLifecycleNode / RejectEmbargoProposalLifecycleNode
+# CommitAndApplyEmbargoActivationNode / RejectEmbargoProposalLifecycleNode
 # ---------------------------------------------------------------------------
 
 
-class TestActivateEmbargoLifecycleNode:
+class TestCommitAndApplyEmbargoActivationNode:
     @pytest.mark.spec("EMB-18-001")
     def test_activates_the_proposal_and_records_the_owners_agreement(
         self, dl: SqliteDataLayer
@@ -246,7 +246,7 @@ class TestActivateEmbargoLifecycleNode:
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
 
-        node = ActivateEmbargoLifecycleNode(
+        node = CommitAndApplyEmbargoActivationNode(
             case_id=case.id_, embargo_id=revision_id, result_out=result_out
         )
 
@@ -273,7 +273,7 @@ class TestActivateEmbargoLifecycleNode:
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
 
-        node = ActivateEmbargoLifecycleNode(
+        node = CommitAndApplyEmbargoActivationNode(
             case_id=case.id_, embargo_id=active_id, result_out=result_out
         )
 
@@ -292,7 +292,7 @@ class TestActivateEmbargoLifecycleNode:
         )
         setup_blackboard(dl, actor_id=MANAGER)
 
-        node = ActivateEmbargoLifecycleNode(
+        node = CommitAndApplyEmbargoActivationNode(
             case_id=case.id_, embargo_id=revision_id, result_out={}
         )
 
@@ -319,7 +319,7 @@ class TestActivateEmbargoLifecycleNode:
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
 
-        node = ActivateEmbargoLifecycleNode(
+        node = CommitAndApplyEmbargoActivationNode(
             case_id=case.id_, embargo_id=revision_id, result_out=result_out
         )
 
