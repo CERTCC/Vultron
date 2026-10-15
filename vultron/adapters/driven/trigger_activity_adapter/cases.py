@@ -44,6 +44,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from ._base import (
+    _addressing,
     _case_for_wire,
     _seal,
     _seal_record,
@@ -64,10 +65,12 @@ class _CasesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(as_VulnerabilityCase)`` activity."""
         case = _case_for_wire(self._dl, case_id)
-        activity = create_case_activity(case=case, actor=actor, to=to)
+        extra = _addressing(actor, to, id_)
+        activity = create_case_activity(case=case, **extra)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:

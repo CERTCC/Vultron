@@ -50,7 +50,7 @@ The re-invite of a stale accepter (EMB-17-003) is a CASE_MANAGER-gated commit �
 effect node of the relay's frame::
 
     ReinviteStaleAccepterBT (CASE_MANAGER-gated)
-    └─ ReinviteStaleAccepterNode     # stamp → build → commit → outbox → PEC INVITE
+    └─ ReinviteStaleAccepterNode     # stamp → build → outbox → commit → PEC INVITE
 
 Replicas replay it through
 :class:`~vultron.core.behaviors.embargo.nodes.relay_effect.ApplyEmbargoReinviteFromLedgerNode`.
@@ -366,11 +366,12 @@ def create_reinvite_stale_accepter_tree(
     embargo_id: str,
     invitee_id: str,
     actor_config: "ActorConfig | None" = None,
+    answers: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build the CASE_MANAGER-gated EMB-17-003 re-invite tree.
 
-    The gate is the role guard; the node commits the re-invite as a canonical
-    entry before it queues it (CLP-10-006, BT-17-001) and then applies PEC
+    The gate is the role guard; the node queues the re-invite, commits it as
+    a canonical entry once queued (ADR-0119, BT-17-001) and then applies PEC
     ``INVITE`` to the invitee, recording the fresh deadline the Invite carries
     (CM-28-013).  Replicas learn both from the entry.
 
@@ -379,6 +380,7 @@ def create_reinvite_stale_accepter_tree(
         embargo_id: The case's *current* embargo, which the re-invite carries.
         invitee_id: The accepting participant being asked again.
         actor_config: The manager's configuration; sets the RSVP window.
+        answers: The late Accept's id; the re-invite's id is derived from it.
     """
     return create_case_manager_gated_tree(
         name="ReinviteStaleAccepterBT",
@@ -389,6 +391,7 @@ def create_reinvite_stale_accepter_tree(
                 embargo_id=embargo_id,
                 invitee_id=invitee_id,
                 actor_config=actor_config,
+                answers=answers,
             )
         ],
         body_name="ReinviteStaleAccepter",

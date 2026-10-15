@@ -975,10 +975,11 @@ groups:
       scenarios (#3033) and congested the CaseActor outbox in fcvcv (#2898). This
       is CM-14-011's rule applied to the CASE_MANAGER-authoritative path: the
       receiver's system must hold the case object before any fan-out that references
-      it. The bootstrap Create is not a message about a ledger event (it is the
-      CBT-01 trust handoff), so SYNC-09-002's commit-before-emit applies to the
-      `Announce(CaseLedgerEntry)` fan-out, which still follows its commit. The
-      order has a cost that is accepted deliberately: a genesis `create_case`
+      it. It is also SYNC-09-002's order: the entries record a case whose creation
+      was sent, and only the `Announce(CaseLedgerEntry)` fan-out follows its
+      commit. The create-case trigger takes the same order, and there a genesis
+      commit that fails withdraws the still-pending `Create` and the case with it.
+      The order has a cost that is accepted deliberately: a genesis `create_case`
       commit that fails can no longer withhold the `Accept` and `Create`, which
       are already queued and whose retry marker is already cleared; the failure
       is surfaced as a non-APPLIED verdict and an ERROR log rather than

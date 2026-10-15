@@ -347,14 +347,13 @@ conditions MUST NOT be applied to the case state machine. (SYNC-09-001)
 In a single-node Case Actor deployment, every append is an immediate commit.
 No replication quorum is required.
 
-### 7.2 Emit-After-Commit Invariant
+### 7.2 Commit-After-Send Invariant
 
-External Vultron messages (activities sent to Participant Actors or other
-protocol participants) MUST only be emitted after the associated
-`CaseLedgerEntry` is committed. (SYNC-09-002)
+A node MUST commit the `CaseLedgerEntry` that records a Vultron message it sends only after the message has been written to its own outbox, and MUST NOT commit it before that write.
+`Announce(CaseLedgerEntry)` is the one message sent after its commit: it delivers a committed entry. (SYNC-09-002)
 
-This ensures that activities a node claims to have taken are durably recorded
-and cannot be rolled back by a leadership change.
+This ensures that every entry records an act that has happened.
+A retry after a send whose commit failed rebuilds the activity under its first id, so the outbox does not send it twice. (OX-06-002)
 
 ### 7.3 Effects-Before-Persist Invariant
 
@@ -512,7 +511,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-08-004 | §6.5 | Monotonic visibility: participants MUST NOT regress position |
 | SYNC-08-005 | §5.1 | Reject-on-divergence MUST trigger resynchronisation |
 | SYNC-09-001 | §7.1 | Entry MUST be durably written before being treated as committed |
-| SYNC-09-002 | §7.2 | External messages MUST only be emitted after ledger commit |
+| SYNC-09-002 | §7.2 | A sent message MUST be committed only after its outbox write |
 | SYNC-09-003 | §7.4 | BT execution MUST be gated on replication leadership |
 | SYNC-10-001 | §6.6 | After restart, actor MUST re-establish freshness before new actions |
 | SYNC-10-002 | §6.6 | While catching up, actor MUST block protocol-significant actions |

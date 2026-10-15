@@ -24,9 +24,9 @@ emits is not replayed for EM, so without this commit every replica kept the
 state it had before the manager decided (#4085).
 
 The nodes here build the decision activity through the trigger-activity
-factory as the executing actor, commit the sealed blob as the canonical
-entry (VM-08-003) and only then queue it (ledger commit precedes outbox
-write).  The activity is addressed to the participants it has to *reach*,
+factory as the executing actor, queue it when it has an audience, and then
+commit the sealed blob as the canonical entry (VM-08-003): the entry records
+a completed act (ADR-0119).  The activity is addressed to the participants it has to *reach*,
 never to the manager itself (CLP-10-001, ADR-0109): an embargo teardown goes
 to every other participant (EMB-19-001), and an empty audience commits the
 entry and queues nothing (EMB-19-002).  A decision every replica learns from

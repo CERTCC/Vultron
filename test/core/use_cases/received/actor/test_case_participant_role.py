@@ -84,7 +84,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             json.dumps({"type": "Accept", "actor": self._CASE_ACTOR_URI}),
         )
         return OfferCaseParticipantRoleReceivedUseCase(
-            dl, event, trigger_activity=trigger
+            dl, event, trigger_activity=trigger, sync_port=MagicMock()
         ).execute()
 
     def _seed_case(self, dl):
@@ -175,23 +175,22 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         from unittest.mock import MagicMock
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self._CASE_ACTOR_URI,
         )
+        self._seed_case(dl)
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
-        trigger = MagicMock()
-        # The port returns the payload snapshot as a JSON string.
-        trigger.accept_case_participant_role.return_value = (
-            "https://example.org/activities/accept-1",
-            json.dumps({"type": "Accept", "actor": self._CASE_ACTOR_URI}),
-        )
+        trigger = MagicMock(wraps=TriggerActivityAdapter(dl))
 
         OfferCaseParticipantRoleReceivedUseCase(
-            dl, event, trigger_activity=trigger
+            dl, event, trigger_activity=trigger, sync_port=MagicMock()
         ).execute()
 
         trigger.accept_case_participant_role.assert_called_once()
@@ -218,11 +217,15 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         result = OfferCaseParticipantRoleReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=MagicMock(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert len(dl.outbox_list()) == 1
+        (queued,) = dl.outbox_list()
+        assert getattr(dl.read(queued), "type_", None) == "Accept"
 
     def _seed_case_with_cm(self, dl):
         """Seed a case whose CASE_MANAGER is the receiving (case-actor) store."""

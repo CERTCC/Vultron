@@ -93,7 +93,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     received proposal: the CASE_MANAGER emits ``Invite(EmbargoEvent)`` as
     ``actor`` with the losing party in ``attributedTo`` (CM-24-001,
     CM-24-002), under the proposal id the registration minted, and commits it
-    in this tree.  The committed Invite is the revision's proposal entry: no
+    in this tree once it is queued (ADR-0119).  The committed Invite is the revision's proposal entry: no
     proposal activity exists at creation, and #4099's replay recognises the
     entry as a relayed Invite (EP-09-007).  The losing party is the proposer
     and is not invited (EP-09-002).  The case tree places this node after its
@@ -129,7 +129,12 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
       the marker carries the receipt the send wrote right after queueing it
       (``invite_queued``) — delivery empties the outbox, so the outbox itself
       cannot say — then the winner's PEC INVITE is applied where still legal,
-      the Invite indexed, and the marker deleted (#4156);
+      the Invite indexed, and the marker deleted (#4156).  The send queues
+      and receipts the Invite before it commits it, so a committed Invite
+      without a receipt is one an older order committed first;
+    - the marker carries the receipt but the ledger has no entry (a relay
+      whose commit failed after the send): the Invite is rebuilt under the
+      marker's id, not queued again, and committed;
     - a reporter that is itself the CASE_OWNER: nobody to invite, nothing is
       indexed, the marker is deleted;
     - otherwise the Invite is sent, indexed, and the marker deleted.
@@ -184,6 +189,23 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
                 f" '{self._case_id}', so the Invite has no id to carry"
             )
         return self._marker.proposal_id
+
+    def _queue(self, activity_id: str) -> None:
+        """Queue the Invite unless the marker's receipt says it already was.
+
+        Delivery empties the outbox, so a send whose commit failed may no
+        longer be pending there; the receipt is what tells a retry that the
+        Invite was sent (#4156).
+        """
+        assert self._marker is not None
+        if self._marker.invite_queued:
+            self.logger.info(
+                "%s: Invite '%s' was already queued — committing it only",
+                self.name,
+                activity_id,
+            )
+            return
+        super()._queue(activity_id)
 
     def _record_queued(self, activity_id: str) -> None:
         """Write the receipt that the Invite reached the outbox (#4156)."""

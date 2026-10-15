@@ -132,3 +132,44 @@ def fail_commits(
 
     monkeypatch.setattr(module, "create_commit_log_entry_tree", _tree)
     return seen
+
+
+def record_sends_and_commits(
+    monkeypatch: pytest.MonkeyPatch, actor_id: str
+) -> list[tuple[str, str]]:
+    """Record, in order, what *actor_id*'s store queues and commits.
+
+    Each outbox append that queues an activity adds ``("queued", activity
+    id)``; each ledger entry the store commits adds ``(event_type, object
+    id)``.  The one list shows whether a sent activity reached the outbox
+    before the entry recording it (ADR-0119).
+
+    Returns:
+        The list, filled in as the code under test runs.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+    events: list[tuple[str, str]] = []
+    original_append = SqliteDataLayer.outbox_append
+    original_save = SqliteDataLayer.save
+
+    def _append(self: SqliteDataLayer, activity_id: str) -> bool:
+        queued = original_append(self, activity_id)
+        if queued and self.actor_id == actor_id:
+            events.append(("queued", activity_id))
+        return queued
+
+    def _save(self: SqliteDataLayer, obj: Any) -> Any:
+        is_new_entry = (
+            isinstance(obj, CaseLedgerEntry)
+            and self.actor_id == actor_id
+            and self.read(obj.id_) is None
+        )
+        result = original_save(self, obj)
+        if is_new_entry:
+            events.append((str(obj.event_type), str(obj.log_object_id)))
+        return result
+
+    monkeypatch.setattr(SqliteDataLayer, "outbox_append", _append)
+    monkeypatch.setattr(SqliteDataLayer, "save", _save)
+    return events

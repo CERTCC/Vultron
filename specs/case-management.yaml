@@ -2192,10 +2192,18 @@ groups:
     statement: In every step of the actor suggestion flow, the CASE_MANAGER MUST commit the ledger entry for a protocol event
       AFTER the corresponding message has been sent or received, never before.
     rationale: Pre-announcing a decision in the ledger before communicating the decision creates a window where the ledger
-      shows an effect without its cause.
-    verification: Integration tests in `test/demo/` confirm that ledger entries in the actor
-      suggestion flow are committed only after the corresponding message has been sent or
-      received, never before.
+      shows an effect without its cause. A sent message is sent once it is in the CASE_MANAGER's outbox (SYNC-09-002).
+    verification: >-
+      `test/core/use_cases/received/actor/test_offer_case_participant.py::TestActorSuggestionFlowRecordsEachMessageAfterItIsSent`
+      records the CASE_MANAGER's outbox writes and commits at each step — the
+      forwarded `Offer(CaseParticipant)`, the Case Owner's `Accept` with the
+      Invite and `AcceptActorRecommendation` it sends, and the owner's `Reject`
+      with the `RejectActorRecommendation` — and asserts the received message is
+      recorded first and each sent one is queued before its entry;
+      `TestActorSuggestionAnswersAreSentOnceOnRetry` in the same file asserts a
+      retry after a failed commit queues each answer once and records it once.
+    adr:
+    - ADR-0119
     stories:
     - story_2022_053
     - story_2022_045
@@ -2404,25 +2412,28 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER MUST commit exactly one `CaseLedgerEntry` for an emitted `Invite`
-      activity, in the tree that emits it, after the Invite activity has been constructed and
-      before it is appended to the outbox. The Invite MUST NOT be addressed to the CASE_MANAGER
+      activity, in the tree that emits it: the Invite is constructed, appended to the outbox,
+      and then its entry is committed. The Invite MUST NOT be addressed to the CASE_MANAGER
       itself, and no received-side path MUST commit a second entry for it.
     rationale: >-
-      Build, commit, then enqueue is the order `vultron/core/behaviors/case/AGENTS.md` enforces
-      for every emit that also commits: a commit that fails after the outbox write orphans an
-      activity queued for delivery with no ledger entry, and the next duplicate check then takes
-      the fresh path (ISSUE-1325). An earlier wording required the commit to follow the queueing;
-      the code never did that, and the loopback copy that wording assumed committed the same
-      Invite a second time (#2996, ADR-0109).
+      The entry records an Invite already sent (SYNC-09-002, ADR-0119). The emitting tree's
+      commit is the Invite's only one: the loopback copy an earlier design assumed committed
+      the same Invite a second time (#2996, ADR-0109). A retry after a send whose commit failed
+      rebuilds the Invite under its first id, so the outbox does not queue it twice while it is
+      pending (OX-06-002), a delivered one reaches its receiver again under the same id and is
+      dropped (ID-02-001), and the commit records it once.
     verification: >-
-      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py` asserts the emit node
-      commits before it appends to the outbox and sets no `cc`; the case-ledger invariant harness
-      asserts a single entry per Invite activity id (CLP-07-002).
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+      asserts the emit node appends to the outbox before it commits and sets no `cc`;
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestInviteRetrySendsOnce` asserts a
+      retry queues and commits the Invite once; the case-ledger invariant harness asserts a
+      single entry per Invite activity id (CLP-07-002).
     relationships:
     - rel_type: implements
       spec_id: CLP-10-006
     adr:
     - ADR-0109
+    - ADR-0119
   - id: CM-17-007
     priority: MUST
     kind: project

@@ -1,9 +1,9 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-10-02
 created: 2026-10-02
-updated: 2026-10-02
-revision: 1
+updated: 2026-10-14
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; specs/sync-ledger-replication.yaml SYNC-09-002;
@@ -81,8 +81,8 @@ It is not an act the ledger records; it is the record itself, replicated to the 
 
 ## Validation
 
-Epic #4158 carries the work.
-Once this ADR is accepted, SYNC-09-002, SBT-04-004, EP-09-002, OX-14-002's verification and ADR-0066's emit-after-commit invariant state the order this ADR sets, and a test of each emitting tree asserts that the outbox write precedes the commit that records it and that a retry after a failed commit sends nothing twice.
+Issue #4158 carries the work.
+SYNC-09-002, SBT-04-004, EP-09-002, CM-16-010, CM-17-006 and OX-14-002's verification state the order this ADR sets, and tests of the emitting trees assert that the outbox write precedes the commit that records it and that a retry after a failed commit queues the activity once and records it once.
 
 ## Pros and Cons of the Options
 
@@ -107,4 +107,6 @@ Once this ADR is accepted, SYNC-09-002, SBT-04-004, EP-09-002, OX-14-002's verif
 ## More Information
 
 Decided with the maintainer in the 2026-10-02 `learn` session, which considered narrowing SYNC-09-002 and rejected it in favour of this principle.
-Until this ADR is accepted, new code follows the current specs, which still require the commit before the send; this ordering is under review.
+Every emitting tree is built to this order (#4158).
+A retry can find its activity in the outbox only when it rebuilds the activity under the first attempt's id, so each sent activity a retry can rebuild takes an id derived from the request it answers (`derived_activity_id`).
+The create-case trigger, which used to commit before it queued its `Create` so a failed genesis could withdraw the case, now withdraws the still-pending `Create` from the outbox with the case; once delivery has taken it, the case is kept and the failure surfaced, as on the proposal path (CP-09-009).
