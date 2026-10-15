@@ -27,10 +27,12 @@ author had in mind. The two that matter most:
 
 - a store that cannot name its own actor is returned unchanged, so test doubles
   and non-actor-scoped implementations keep working (BT-05-005's one exception);
-- ``require_same_authority`` returns ``None`` rather than a clone, because
+- ``require_same_authority`` raises rather than cloning, because
   ``clone_for_actor`` succeeds for *any* well-formed id — so a remote actor's id
   otherwise yields a fresh empty local store that looks like a successful publish
-  and publishes nothing (#2484).
+  and publishes nothing (#2484), and nothing may execute as an actor this node
+  does not host (BT-05-005, ADR-0109).  ``hosts_actor`` asks the same question
+  without refusing.
 """
 
 from typing import Any, cast
@@ -38,11 +40,13 @@ from typing import Any, cast
 import pytest
 
 from vultron.core.behaviors.store_scope import (
+    hosts_actor,
     port_for_store,
     same_authority,
     store_for_actor,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronUnhostedActorError
 
 _NODE = "http://vendor:7999/api/v2"
 _OWN = f"{_NODE}/actors/vendor"
@@ -195,16 +199,20 @@ class TestStoreForActorScoping:
         assert _scope(store, _FOREIGN).actor_id == _FOREIGN
 
 
+@pytest.mark.spec("BT-05-005")
 class TestRequireSameAuthority:
-    def test_a_foreign_actor_yields_none_instead_of_an_empty_store(self):
+    def test_a_foreign_actor_raises_instead_of_yielding_a_store(self):
         """#2484: the failure this flag exists to prevent.
 
         ``clone_for_actor`` succeeds for any well-formed id, so a remote actor's
         id produced a fresh empty local store — a publish that looked like it
-        worked and delivered nothing. ``None`` forces the caller to decide.
+        worked and delivered nothing.  There is no fall-back either: no
+        sanctioned path executes or writes as an actor this node does not host
+        (ADR-0109), so the call raises and clones nothing.
         """
         store = _Store(_OWN)
-        assert _scope(store, _FOREIGN, require_same_authority=True) is None
+        with pytest.raises(VultronUnhostedActorError):
+            _scope(store, _FOREIGN, require_same_authority=True)
         assert store.cloned_for == []
 
     def test_a_co_hosted_actor_is_still_reached(self):
@@ -216,25 +224,44 @@ class TestRequireSameAuthority:
 
     def test_the_flag_does_not_override_the_earlier_fall_throughs(self):
         """A store that names no actor has no authority to compare, so it is
-        returned rather than refused — otherwise every test double would get
-        ``None`` from an inbox endpoint."""
+        returned rather than refused — the test-double exception (BT-05-005)."""
         store = _UnscopedStore()
         assert _scope(store, _FOREIGN, require_same_authority=True) is store
 
     def test_defaults_to_permissive(self):
-        """The default has to stay permissive: ``BTBridge`` calls it without the
-        flag and treats ``None`` as impossible."""
-        assert _scope(_Store(_OWN), _FOREIGN) is not None
+        """Without the flag the store is cloned, as the demo seeders rely on."""
+        assert _scope(_Store(_OWN), _FOREIGN).actor_id == _FOREIGN
 
-    def test_logs_which_actor_was_refused(self, caplog):
-        """A silent ``None`` is hard to diagnose from a missing delivery."""
-        import logging
-
-        with caplog.at_level(
-            logging.DEBUG, logger="vultron.core.behaviors.store_scope"
-        ):
+    def test_the_refusal_names_both_actors(self):
+        """A refusal is diagnosable: it says which actor, and whose store."""
+        with pytest.raises(VultronUnhostedActorError) as excinfo:
             _scope(_Store(_OWN), _FOREIGN, require_same_authority=True)
-        assert _FOREIGN in caplog.text
+        assert _FOREIGN in str(excinfo.value)
+        assert _OWN in str(excinfo.value)
+
+
+class TestHostsActor:
+    """The non-refusing form of the same question (provisioning callers)."""
+
+    @pytest.mark.parametrize(
+        "actor_id, expected",
+        [(_OWN, True), (_SIBLING, True), (_FOREIGN, False), ("", True)],
+    )
+    def test_answers_by_authority(self, actor_id, expected):
+        assert hosts_actor(_Store(_OWN), actor_id) is expected
+
+    def test_an_unscoped_store_hosts_every_actor(self):
+        assert hosts_actor(_UnscopedStore(), _FOREIGN) is True
+
+    def test_agrees_with_store_for_actor(self):
+        """Where it says yes the scoped call succeeds; where no, it raises."""
+        for actor_id in (_OWN, _SIBLING, _FOREIGN):
+            store = _Store(_OWN)
+            if hosts_actor(store, actor_id):
+                _scope(store, actor_id, require_same_authority=True)
+            else:
+                with pytest.raises(VultronUnhostedActorError):
+                    _scope(store, actor_id, require_same_authority=True)
 
 
 class _Port:

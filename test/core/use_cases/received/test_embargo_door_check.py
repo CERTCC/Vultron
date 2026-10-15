@@ -60,7 +60,8 @@ def _request(embargo: Any, *, to: list[str], cc: list[str]) -> MagicMock:
     """A well-formed request from ``_SENDER``, received by ``_BYSTANDER``.
 
     Every id a use case's shape checks read is filled in, so the only fault
-    left is the addressing.
+    left is the addressing.  *cc* is set on the activity double only to show
+    that it is never read (ADR-0109).
     """
     request = MagicMock()
     request.receiving_actor_id = _BYSTANDER
@@ -110,12 +111,13 @@ def test_an_unaddressed_copy_is_refused_before_any_write(use_case):
     assert "neither the sender nor a recipient" in reason
     assert _BYSTANDER in reason
     assert f"to=['{_MANAGER}']" in reason
-    assert f"cc=['{_OTHER}']" in reason
+    # cc has no handler semantics and core does not carry it (ADR-0109).
+    assert "cc=" not in reason
     assert _snapshot(dl) == before
 
 
 class TestUnaddressedCopyRefusal:
-    """The shared helper admits the sender and every to/cc recipient."""
+    """The shared helper admits the sender and every ``to`` recipient."""
 
     @staticmethod
     def _event(to: list[str], cc: list[str]) -> MagicMock:
@@ -132,14 +134,23 @@ class TestUnaddressedCopyRefusal:
         [
             (_SENDER, [], []),
             (_MANAGER, [_MANAGER], []),
-            (_MANAGER, [_OTHER], [_MANAGER]),
             (_MANAGER, [f"{_MANAGER}/"], []),
         ],
-        ids=["sender", "to", "cc", "trailing-slash"],
+        ids=["sender", "to", "trailing-slash"],
     )
     def test_admits_the_sender_and_each_recipient(self, receiver, to, cc):
         event = self._event(to, cc)
         assert unaddressed_copy_refusal(receiver, event, label="Test") is None
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("OX-08-001")
+    def test_a_cc_value_does_not_make_a_recipient(self):
+        """Only ``to`` addresses a Vultron recipient (ADR-0109): even a stray
+        ``cc`` on the activity is not read."""
+        event = self._event([_OTHER], [_MANAGER])
+        result = unaddressed_copy_refusal(_MANAGER, event, label="Test")
+        assert result is not None
+        assert result.disposition is HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-005")
     def test_refuses_an_event_with_no_activity(self):
@@ -148,7 +159,7 @@ class TestUnaddressedCopyRefusal:
         result = unaddressed_copy_refusal(_BYSTANDER, event, label="Test")
         assert result is not None
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "to=[], cc=[]" in (result.reason or "")
+        assert "(to=[])" in (result.reason or "")
 
     @pytest.mark.spec("HP-01-005")
     def test_refusal_logs_a_warning(self, caplog):

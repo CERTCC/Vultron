@@ -49,23 +49,22 @@ receives the `Announce(CaseLedgerEntry)` for each step.
 ### Offer flow
 
 ```text
-Offering actor calls trigger: offer-case-ownership-transfer
+Case Owner calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
-      self._actor_id      = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
-      self._requesting_actor_id = offering_actor_id  ← attribution (CM-24-002)
+      self._actor_id = offering_actor_id   ← the owner sends its own Offer
   → EmitOfferCaseOwnershipTransferNode
       constructs: Offer(VulnerabilityCase, target=transferee_id)
-      actor:      case_actor_id                ← delegated-message contract
-      attributed_to: offering_actor_id
-      addressed:  to=[case_actor_id]           ← MUST (CM-21-005)
-      queued in:  CASE_MANAGER outbox              ← CM-24-004
+      actor:      offering_actor_id        ← no attributedTo
+      addressed:  to=[case_actor_id]       ← MUST (CM-21-005)
+      queued in:  the owner's own outbox   ← CM-24-004, ADR-0109
 
 CASE_MANAGER inbox receives Offer
   → OfferCaseOwnershipTransferReceivedUseCase:
       1. Records the Offer object (idempotent).
       2. Commits CaseLedgerEntry (offer-recorded).
       3. Announce(CaseLedgerEntry) → all participants.
-      4. Forwards Offer to transferee's inbox.
+      4. Forwards Offer to transferee's inbox (the delegated emit, CM-24-004):
+         actor=case_actor_id, attributed_to=offering_actor_id.
 ```
 
 ### Accept flow
@@ -140,12 +139,13 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
 
 ### `SvcOfferCaseOwnershipTransferUseCase` and `EmitOfferCaseOwnershipTransferNode`
 
-- `actor` is the CASE_MANAGER and `attributed_to` the offering actor, both from the
-  shared `delegated_authorship()` helper (CM-24-001, CM-24-002, CM-24-005), in
-  `_prepare()` and again in the emit node's `_call_factory()` (CM-24-004).
-- A case always has a CASE_MANAGER (CM-24-006): when none resolves, fail; never fall
-  back to the offering actor (#3964 retires the remaining fallback arms).
-- `to=[case_actor_id]`; the Offer's `target` carries `transferee_id`.
+- `actor` is the offering Case Owner, from its own store and outbox; no trigger
+  executes a tree as the CASE_MANAGER (CM-24-004, ADR-0109). The bridge raises for
+  an executing actor this container does not host (BT-05-005).
+- A case always has a CASE_MANAGER (CM-24-006): when none resolves, fail; never send
+  to the transferee directly.
+- `to=[case_actor_id]`; the Offer's `target` carries `transferee_id`. The CASE_MANAGER
+  is never sent an Offer by itself: the delegated emit is its forward.
 
 ### `EmitAcceptCaseOwnershipTransferNode`
 
@@ -161,9 +161,10 @@ forwarded Offer has `actor=case_actor_id`, `attributed_to=` the original offerer
 `target` and `to=[transferee_id]` (CM-21-005), and `in_reply_to=` the recorded
 Offer's id (CM-21-018).
 
-- **Take the offerer from `attributed_to`, not `actor_id`** (#3012). The inbound Offer
-  is delegated, so its `actor` is the CASE_MANAGER; reading `actor_id` attributes the
-  offer to the CASE_MANAGER on every replica.
+- **At the transferee, take the offerer from `attributed_to`, not `actor_id`**
+  (#3012). The forward is delegated, so its `actor` is the CASE_MANAGER; reading
+  `actor_id` attributes the offer to the CASE_MANAGER. At the CASE_MANAGER the Offer
+  is the owner's own, so its sender is the offerer.
 - **Honour `attributed_to` only in the delegated shape**, when the sender is this
   case's CASE_MANAGER (`_resolve_offering_actor_id()`). Otherwise any participant could
   forge the offerer of record: nothing downstream re-checks `attributed_to`

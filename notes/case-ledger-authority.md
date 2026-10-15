@@ -81,9 +81,9 @@ the CaseActor here?". Conflating any two has produced bugs.
   (CM-02-013, `test/architecture/test_role_authority_resolver.py`).
 - **Address resolution is downstream of authority** (ARCH-24-005). A `None` from
   `_find_case_actor_id` means "no resolvable address", never "no authority".
-- **The store guard is not an authority check** (ARCH-24-005). It stops a
-  delegated-emit fall-through from minting an index in a store that is not the
-  log's home, which would fork the chain.
+- **The store guard is not an authority check** (ARCH-24-005). It raises when a
+  commit would mint an index in a store that is not the log's home, which would
+  fork the chain; no sanctioned path gets there (CLP-10-014, ADR-0109).
 - **A resolver that cannot answer says so.** Never fall back to "the first
   `Service` in the store": a failed lookup must not look like a successful one.
 

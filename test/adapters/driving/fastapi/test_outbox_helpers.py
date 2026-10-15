@@ -40,7 +40,18 @@ from vultron.adapters.driving.fastapi import outbox_handler as oh
 def test_extract_recipients_deduplicates():
     """_extract_recipients returns each actor ID at most once."""
     alice = "https://example.org/actors/alice"
-    body = {"to": [alice], "cc": [alice]}  # duplicate
+    body = {"to": [alice, alice]}  # duplicate
+    assert oh._extract_recipients(body) == [alice]
+
+
+@pytest.mark.spec("OX-08-001")
+@pytest.mark.spec("OX-08-004")
+@pytest.mark.parametrize("addr_field", ["cc", "bto", "bcc"])
+def test_extract_recipients_reads_only_to(addr_field):
+    """A secondary addressing field names no recipient (ADR-0109)."""
+    alice = "https://example.org/actors/alice"
+    carol = "https://example.org/actors/carol"
+    body = {"to": [alice], addr_field: [carol]}
     assert oh._extract_recipients(body) == [alice]
 
 

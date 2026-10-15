@@ -3,6 +3,7 @@
 
 from unittest.mock import MagicMock
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -23,6 +24,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronUnhostedActorError
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -263,20 +265,44 @@ def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
     assert create_node.payload_snapshot is not None
 
 
+_FOREIGN_CASE_ACTOR = "https://other.example.net/actors/case-actor"
+
+
+def _tick_with_blackboard(tree, datalayer, actor_id, sync_port):
+    """Tick *tree* with the blackboard written directly, bypassing BTBridge.
+
+    ``BTBridge`` already refuses a foreign executing actor before any tree
+    ticks (BT-05-005), so reaching the guard as one needs the blackboard set
+    by hand — the shape of a node that misused it.
+    """
+    blackboard = py_trees.blackboard.Client(name="ForeignCommitTest")
+    for key, value in (
+        ("datalayer", datalayer),
+        ("actor_id", actor_id),
+        ("sync_port", sync_port),
+    ):
+        blackboard.register_key(key=key, access=py_trees.common.Access.WRITE)
+        setattr(blackboard, key, value)
+    bt = py_trees.trees.BehaviourTree(root=tree)
+    bt.setup()
+    try:
+        bt.tick()
+    finally:
+        for key in ("datalayer", "actor_id", "sync_port"):
+            py_trees.blackboard.Blackboard.storage.pop(f"/{key}", None)
+
+
 @pytest.mark.spec("BT-05-006")
 @pytest.mark.spec("CLP-08-005")
-@pytest.mark.spec("CLP-10-001")
-def test_commit_tree_declines_to_mint_for_a_foreign_ledger(
-    bridge, datalayer, case_obj
-):
-    """A delegated emit against a remote CaseActor must not claim an index.
+@pytest.mark.spec("CLP-10-014")
+def test_commit_tree_raises_for_a_foreign_ledger(datalayer, case_obj):
+    """A commit as an actor this store does not host raises, writing nothing.
 
-    This is the post-handoff shape from #2626: the case owner emits as the
-    case's CaseActor, which lives on another container, so ``BTBridge`` hands
-    the tree the *owner's* store (BT-05-005).  Minting here would fork the
-    canonical chain — the real CaseActor mints its own entry at the same index
-    from the ``cc:`` copy — so the commit is declined and the entry is left to
-    arrive by replication (CLP-10-001).
+    This was the post-handoff shape from #2626: the case owner emitted as a
+    CaseActor on another container, and the commit declined silently while a
+    ``cc:`` copy carried the activity to the real log.  ADR-0109 retired both:
+    no sanctioned path executes a tree as an unhosted actor, so the guard
+    raises (CLP-10-014), before the port guard, the persist or the fan-out.
     """
     sync_port = MagicMock(spec=SyncActivityPort)
     tree = create_commit_log_entry_tree(
@@ -288,42 +314,67 @@ def test_commit_tree_declines_to_mint_for_a_foreign_ledger(
         ),
     )
 
-    result = bridge.execute_with_setup(
-        tree=tree,
-        actor_id="https://other.example.net/actors/case-actor",
-        sync_port=sync_port,
+    with pytest.raises(VultronUnhostedActorError):
+        _tick_with_blackboard(tree, datalayer, _FOREIGN_CASE_ACTOR, sync_port)
+
+    assert list(datalayer.list_objects("CaseLedgerEntry")) == []
+    sync_port.send_announce_log_entry.assert_not_called()
+
+
+@pytest.mark.spec("CLP-10-014")
+def test_commit_tree_as_a_foreign_actor_is_an_internal_error(
+    bridge, datalayer, case_obj
+):
+    """Through the bridge the refusal is an internal error, still writing nothing."""
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-remote",
+        event_type="invite_actor_to_case",
     )
 
-    # SUCCESS, because declining *is* handling it — every caller reads a
-    # non-SUCCESS commit as a hard failure.
-    assert result.status == Status.SUCCESS
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=_FOREIGN_CASE_ACTOR, sync_port=sync_port
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
     assert list(datalayer.list_objects("CaseLedgerEntry")) == []
     sync_port.send_announce_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("BT-05-006")
+@pytest.mark.spec("CLP-10-014")
 @pytest.mark.parametrize(
-    "actor_id,expected",
+    "actor_id",
     [
         # This store's own actor, and a CaseActor co-hosted with it: the bridge
         # can hand the tree that actor's store, so the mint is this store's to
         # make and the guard stands aside.
-        (OWNER_ACTOR_ID, Status.FAILURE),
-        ("https://example.org/actors/case-actor", Status.FAILURE),
-        # Another container's CaseActor — the post-handoff shape.
-        ("https://other.example.net/actors/case-actor", Status.SUCCESS),
+        OWNER_ACTOR_ID,
+        "https://example.org/actors/case-actor",
     ],
 )
-def test_decline_foreign_ledger_commit_only_declines_foreign(
-    bridge, actor_id, expected
-):
-    """FAILURE means "go commit"; SUCCESS means "declined, not ours to mint"."""
+def test_ledger_store_guard_stands_aside_for_a_hosted_actor(bridge, actor_id):
+    """SUCCESS means "this store holds the log — go commit"."""
     result = bridge.execute_with_setup(
         tree=DeclineForeignLedgerCommitNode(name="Guard"),
         actor_id=actor_id,
     )
 
-    assert result.status == expected
+    assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("CLP-10-014")
+def test_ledger_store_guard_raises_for_a_foreign_actor(datalayer):
+    """The guard itself is the fail-fast invariant, not a decline."""
+    with pytest.raises(VultronUnhostedActorError):
+        _tick_with_blackboard(
+            DeclineForeignLedgerCommitNode(name="Guard"),
+            datalayer,
+            _FOREIGN_CASE_ACTOR,
+            MagicMock(spec=SyncActivityPort),
+        )
 
 
 @pytest.mark.spec("SYNC-10-001")
