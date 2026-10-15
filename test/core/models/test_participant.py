@@ -57,7 +57,8 @@ class TestRolesProperty:
 
     def test_roles_returns_list_of_cvdrole(self):
         """roles property items are CVDRole instances."""
-        p = _make_participant(roles=[CVDRole.REPORTER])
+        p = _make_participant(roles=[CVDRole.REPORTER, CVDRole.VENDOR])
+        assert len(p.roles) == 2
         for role in p.roles:
             assert isinstance(role, CVDRole)
 

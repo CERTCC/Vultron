@@ -25,6 +25,7 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
 """
 
+import logging
 from unittest.mock import MagicMock
 
 import py_trees
@@ -208,8 +209,12 @@ class TestEvaluateDefaultRolesNode:
             CVDRole.VENDOR
         ]
 
-    def test_injected_retired_finder_role_is_dropped(self):
-        """An injected 'finder' is not a role (ADR-0078); only live roles stay."""
+    def test_injected_retired_finder_role_is_dropped(self, caplog):
+        """An injected 'finder' is not a role (ADR-0078); only live roles stay.
+
+        The warning carries the retirement reason, not just "unrecognized".
+        """
+        caplog.set_level(logging.WARNING)
         node = EvaluateDefaultRolesNode(
             suggested_actor_id=_RECOMMENDED,
             case_id=_CASE_ID,
@@ -223,6 +228,9 @@ class TestEvaluateDefaultRolesNode:
         assert py_trees.blackboard.Blackboard.storage.get(key) == [
             CVDRole.VENDOR
         ]
+        assert any(
+            "ADR-0078" in record.getMessage() for record in caplog.records
+        )
 
     def test_returns_failure_when_compute_roles_returns_empty(self):
         """AC-4: returns FAILURE when _compute_roles() returns empty list (CM-16-003).

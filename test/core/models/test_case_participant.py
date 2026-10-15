@@ -279,6 +279,22 @@ class TestRetiredFinderRole:
                 }
             )
 
+    @pytest.mark.parametrize(
+        "cvd_role", [["FINDER"], ["reporter", "finder"], "finder"]
+    )
+    def test_stored_status_finder_role_is_refused_with_its_reason(
+        self, cvd_role
+    ):
+        """A stored status ``cvdRole`` naming FINDER fails with the reason.
+
+        Stored ``cvdRole`` carries member names (``"FINDER"``) as well as
+        values, so both spellings and the bare-string form are refused.
+        """
+        with pytest.raises(ValidationError, match="ADR-0078"):
+            ParticipantStatus.model_validate(
+                {"context": _CONTEXT, "cvd_role": cvd_role}
+            )
+
 
 # ---------------------------------------------------------------------------
 # ACCEPTED status for Reporter

@@ -41,7 +41,7 @@ class CVDRole(StrEnum):
     There is no ``FINDER`` role (ADR-0078): an actor that discovers and
     reports a vulnerability holds ``REPORTER``, and who found it is report or
     note metadata.  The retired wire value ``"finder"`` is refused, see
-    :data:`RETIRED_ROLE_VALUES`.
+    ``RETIRED_ROLE_VALUES``.
 
     Roles:
         REPORTER: Entity that reports the vulnerability to others.
