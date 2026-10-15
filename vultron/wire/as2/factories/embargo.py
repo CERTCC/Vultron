@@ -126,8 +126,16 @@ def em_propose_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, or
             if *rsvp_deadline* is naive, below the applicable minimum, or
-            after the embargo's end.
+            after the embargo's end, or if *embargo* is not an
+            ``as_EmbargoEvent``.
     """
+    # The wire class takes the terms by URI for a received Invite (ADR-0123);
+    # this codebase always sends them inline (VAM-01-010).
+    if not isinstance(embargo, as_EmbargoEvent):
+        raise VultronActivityConstructionError(
+            "em_propose_embargo_activity: embargo must be an inline"
+            f" as_EmbargoEvent, got {type(embargo).__name__} (VAM-01-010)"
+        )
     if rsvp_deadline is not None:
         if rsvp_deadline.tzinfo is None:
             raise VultronActivityConstructionError(

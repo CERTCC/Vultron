@@ -917,7 +917,7 @@ def cs_observations_from_snap(snap: dict) -> tuple[bool, bool, bool]:
     case_status = snap.get("caseStatus") or snap.get("case_status")
     pxa_state: str | None = None
     if isinstance(case_status, dict):
-        pxa_state = case_status.get("pxaState") or case_status.get("pxa_state")
+        pxa_state = case_status.get("pxaState")
 
     return (
         vf_state == "VF",

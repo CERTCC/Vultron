@@ -7,7 +7,7 @@ Announces evidence that the vulnerability is known to the public.
 - **When…** a Participant learns that the public knows of the vulnerability
 - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
 - **Sent by:** not yet checked
-- **Distinguished by:** `pxa_state` = `Pxa`
+- **Distinguished by:** `pxaState` = `Pxa`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Public Awareness (CP)](../../../formal_protocol/messages.md#cs-message-types)
 - **Mapping status:** [collapse](../../index.md#mapping-status)

@@ -145,7 +145,7 @@ def demo_propose_embargo_accept(
                 raise ValueError(
                     "Could not retrieve case after embargo acceptance"
                 )
-            if not is_em_embargo_active(final_case.current_status.em_state):
+            if not is_em_embargo_active(final_case.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have an active embargo after "
                     f"acceptance, but active_embargo is None. "
@@ -219,16 +219,16 @@ def demo_propose_embargo_reject(
                 raise ValueError(
                     "Could not retrieve case after embargo rejection"
                 )
-            if is_em_embargo_active(final_case.current_status.em_state):
+            if is_em_embargo_active(final_case.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have no active embargo after "
                     f"rejection, but active_embargo = {final_case.active_embargo}"
                 )
-            if final_case.current_status.em_state != EM.NONE:
+            if final_case.em_state != EM.NONE:
                 raise ValueError(
                     f"Expected the owner's rejection to close the proposal on"
                     f" case '{case.id_}' (EM NONE), but EM is"
-                    f" {final_case.current_status.em_state}"
+                    f" {final_case.em_state}"
                 )
 
     logger.info("✅ DEMO COMPLETE (reject path): Embargo rejected gracefully.")

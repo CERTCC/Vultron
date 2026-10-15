@@ -62,7 +62,7 @@ def _make_case_with_pxa(pxa_state: CS_pxa) -> VulnerabilityCase:
         id_=CASE_ID, name="Invariant Guard Test", attributed_to=ACTOR_ID
     )
     if pxa_state != CS_pxa.pxa:
-        case.append_case_status(pxa_state=pxa_state)
+        case.append_case_status(pxa=pxa_state)
     return case
 
 
