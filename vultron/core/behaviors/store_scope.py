@@ -32,6 +32,7 @@ from typing import Any, TypeVar, cast
 from urllib.parse import urlsplit
 
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronUnhostedActorError
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +74,32 @@ def same_authority(a: str, b: str) -> bool:
     return (ua.scheme, ua.netloc) == (ub.scheme, ub.netloc)
 
 
+def hosts_actor(store: object, actor_id: str) -> bool:
+    """True unless *store* names its actor and *actor_id* is another authority's.
+
+    The question :func:`store_for_actor` refuses on, asked without refusing:
+    can a store for *actor_id* be opened from *store* on this node?  A store
+    that reports no ``actor_id`` (a test double, or any non-actor-scoped
+    implementation) has nothing to compare against and is taken to host every
+    actor, as :func:`store_for_actor` takes it.  Callers for whom an actor on
+    another container is a normal topology rather than a fault — provisioning
+    a CaseActor that may be hosted elsewhere — ask this first.
+    """
+    if not actor_id:
+        return True
+    own_actor_id = getattr(store, "actor_id", None)
+    if not isinstance(own_actor_id, str) or not own_actor_id:
+        return True
+    return own_actor_id == actor_id or same_authority(own_actor_id, actor_id)
+
+
 def store_for_actor(
     store: _S,
     actor_id: str,
     *,
     require_same_authority: bool = False,
-) -> _S | None:
-    """Return the store belonging to *actor_id*, or ``None`` if unreachable.
+) -> _S:
+    """Return the store belonging to *actor_id*.
 
     Args:
         store: The DataLayer this caller was handed.  Returned unchanged when it
@@ -88,16 +108,21 @@ def store_for_actor(
             — those callers were correct before per-actor storage and stay so.
         actor_id: Canonical URI of the actor whose store is wanted.
         require_same_authority: When true, refuse to open a store for an actor
-            under a different authority and return ``None`` instead.  Set this
-            when the point of the write is to *publish* something the named actor
-            serves — an inbox endpoint, say.  ``clone_for_actor`` succeeds for
-            any well-formed id, so without this guard a remote actor's id yields
-            a fresh empty local store that looks like a success and publishes
-            nothing (#2484).
+            under a different authority.  ``clone_for_actor`` succeeds for any
+            well-formed id, so without this guard a remote actor's id yields a
+            fresh empty local store that looks like a success and holds nothing
+            (#2484).  Every caller that executes or writes as *actor_id* sets
+            it; there is no fall-back to the store in hand, because no
+            sanctioned path runs as an actor this node does not host
+            (BT-05-005, ADR-0109).  Use :func:`hosts_actor` to ask without
+            refusing.
 
     Returns:
-        The store to use, or ``None`` when *actor_id* is not hosted here and
-        *require_same_authority* is set.
+        The store to use.
+
+    Raises:
+        VultronUnhostedActorError: *require_same_authority* is set and
+            *actor_id* is not hosted alongside the store's own actor.
     """
     if not actor_id:
         return store
@@ -107,12 +132,12 @@ def store_for_actor(
     if own_actor_id == actor_id:
         return store
     if require_same_authority and not same_authority(own_actor_id, actor_id):
-        logger.debug(
-            "Actor '%s' is not hosted alongside '%s'; no local store for it",
-            actor_id,
-            own_actor_id,
+        raise VultronUnhostedActorError(
+            f"actor '{actor_id}' is not hosted alongside '{own_actor_id}':"
+            " no store for it can be opened on this container, and nothing may"
+            " execute or enqueue as an actor this container does not host"
+            " (BT-05-005, CM-24-004, ADR-0109)"
         )
-        return None
     clone_for_actor = getattr(store, "clone_for_actor", None)
     if not callable(clone_for_actor):
         return store

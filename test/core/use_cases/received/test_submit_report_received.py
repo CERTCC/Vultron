@@ -426,7 +426,6 @@ class TestOfferAddressingSemantics:
     def _make_event(
         self,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         target: str | None = None,
         receiving_actor_id: str | None = None,
     ) -> SubmitReportReceivedEvent:
@@ -436,7 +435,6 @@ class TestOfferAddressingSemantics:
             type_="Offer",
             actor=self.FINDER_ID,
             to=to,
-            cc=cc,
             target=target,
         )
         return SubmitReportReceivedEvent(
@@ -513,14 +511,46 @@ class TestOfferAddressingSemantics:
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert dl.read(link_id) is None
 
+    def _make_wire_event(
+        self, to: str, cc: list[str]
+    ) -> SubmitReportReceivedEvent:
+        """The event the inbox builds from a wire ``Offer(Report)`` with *cc*.
+
+        Goes through the extractor, the edge where ``cc`` is dropped
+        (ADR-0109), so the handler sees exactly what a real delivery gives it.
+        """
+        from vultron.semantic_registry import extract_event
+        from vultron.wire.as2.factories import rm_submit_report_activity
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        offer = rm_submit_report_activity(
+            as_VulnerabilityReport(id_=self.REPORT_ID, name="r", content="c"),
+            to=to,
+            actor=self.FINDER_ID,
+            cc=cc,
+            id_=self.OFFER_ID,
+        )
+        assert offer.cc == cc  # the wire model still parses it
+        event = extract_event(offer)
+        assert isinstance(event, SubmitReportReceivedEvent)
+        return event.model_copy(update={"receiving_actor_id": self.VENDOR_ID})
+
     @pytest.mark.spec("HP-10-001")
     def test_receiving_actor_in_cc_logs_warning_no_case(self, caplog):
-        """HP-10-001: Receiving actor in Offer.cc → WARNING logged, no case."""
+        """HP-10-001: Receiving actor in Offer.cc → WARNING logged, no case.
+
+        The vendor is only in the wire Offer's ``cc``.  The extractor does not
+        carry ``cc`` into core (ADR-0109), so the handler sees a receiver that
+        is not in ``to``, discards the Offer, and its WARNING says ``cc``
+        addressing is not supported.
+        """
         import logging
 
-        event = self._make_event(
-            cc=[self.VENDOR_ID], receiving_actor_id=self.VENDOR_ID
-        )
+        event = self._make_wire_event(to=self.OTHER_ID, cc=[self.VENDOR_ID])
+        assert event.activity is not None
+        assert event.activity.cc is None
         dl = self._make_dl()
 
         with caplog.at_level(logging.WARNING):
@@ -747,7 +777,7 @@ class TestSubmitReportDisposition:
     REPORT_ID = "https://example.org/reports/r-disp-1"
     OFFER_ID = "https://example.org/activities/offer-disp-1"
 
-    def _run(self, to=None, cc=None, report=True, actor_config=None, dl=None):
+    def _run(self, to=None, report=True, actor_config=None, dl=None):
         from vultron.core.models.actor import VultronService
 
         report_obj = (
@@ -758,7 +788,6 @@ class TestSubmitReportDisposition:
             type_="Offer",
             actor=self.FINDER_ID,
             to=to,
-            cc=cc,
         )
         event = SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
@@ -793,7 +822,8 @@ class TestSubmitReportDisposition:
     @pytest.mark.spec("HP-01-005")
     @pytest.mark.spec("HP-10-001")
     def test_cc_only_is_refused(self):
-        result, _ = self._run(cc=[self.VENDOR_ID])
+        """A cc-only receiver arrives with an empty ``to`` (ADR-0109)."""
+        result, _ = self._run(to=None)
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "cc" in result.reason
 
@@ -830,7 +860,7 @@ class TestSubmitReportDisposition:
     def test_not_a_recipient_is_refused(self):
         result, _ = self._run(to=[self.OTHER_ID])
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason and "not a recipient" in result.reason
+        assert result.reason and "not a to recipient" in result.reason
 
     @pytest.mark.spec("HP-01-003")
     def test_auto_create_disabled_is_skipped(self):

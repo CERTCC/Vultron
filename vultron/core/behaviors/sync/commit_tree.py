@@ -35,10 +35,10 @@ def create_commit_log_entry_tree(
 
     Guarded by :class:`~vultron.core.behaviors.sync.nodes.ledger_authority.DeclineForeignLedgerCommitNode`
     so that only the store holding the canonical log claims an index in it.  The
-    guard is the Selector's first child and reports SUCCESS when it declines, so
-    a caller still reads a non-SUCCESS result as a real failure — "the canonical
-    log is somewhere else, and replication will bring the entry here" is not one
-    (ADR-0073, BT-05-006).
+    guard is the Sequence's first child and raises, having written nothing, when
+    the executing actor is not one this container hosts: no sanctioned path runs
+    a commit there, so it is a fault, never a decline (CLP-10-014, BT-05-005,
+    ADR-0109).
 
     The mint sequence opens with
     :class:`~vultron.core.behaviors.sync.nodes.port_guard.RequireSyncPortNode`:
@@ -65,7 +65,7 @@ def create_commit_log_entry_tree(
         if check_freshness
         else []
     )
-    return py_trees.composites.Selector(
+    return py_trees.composites.Sequence(
         name="CommitLogEntryBT",
         memory=False,
         children=[

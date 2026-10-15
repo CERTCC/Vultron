@@ -146,11 +146,14 @@ class OfferCaseOwnershipTransferReceivedUseCase:
     def _resolve_offering_actor_id(self, case_id: str) -> str | None:
         """Return the actor whose intent the forwarded Offer should carry.
 
-        The inbound Offer is normally a *delegated* message: the CaseActor is its
-        `actor` and the participant who asked for the transfer is in
-        `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone would
-        make the CaseActor forward an Offer attributing that participant's intent
-        to itself, leaving no receiver able to recover who offered.
+        Two shapes arrive.  At the CASE_MANAGER, the Offer is the Case Owner's
+        own: the owner is its `actor` and it carries no `attributed_to`
+        (CM-21-005, CM-24-004), so the sender is the offerer.  At the
+        transferee, it is the CASE_MANAGER's forward, a *delegated* message:
+        the CaseActor is its `actor` and the owner who asked for the transfer
+        is in `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone
+        there would attribute the owner's intent to the CaseActor, leaving no
+        receiver able to recover who offered.
 
         `attributed_to` is honoured **only** in that delegated shape — when the
         sender is this case's CaseActor.  A peer that sets `attributed_to` on an

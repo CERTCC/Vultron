@@ -32,7 +32,7 @@ from vultron.core.behaviors.case.case_actor_identity import (
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
-from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.behaviors.store_scope import hosts_actor, store_for_actor
 from vultron.core.models.actor import VultronService
 from vultron.errors import VultronAlreadyExistsError
 
@@ -56,10 +56,11 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
     Co-located only.  When the CaseActor runs in a different container this node
     cannot reach its store, and provisioning there is that container's own
     business (its seed config) — which is exactly what a *stable* identity makes
-    possible and a per-case one did not.  ``store_for_actor`` is asked for the
-    same authority for that reason: ``clone_for_actor`` succeeds for *any*
-    well-formed id, so without the guard a remote CaseActor's id opens a fresh
-    empty local store that looks like a success and publishes nothing.
+    possible and a per-case one did not.  ``hosts_actor`` is asked first for
+    that reason: ``clone_for_actor`` succeeds for *any* well-formed id, so
+    without the check a remote CaseActor's id opens a fresh empty local store
+    that looks like a success and publishes nothing, and ``store_for_actor``
+    refuses such an id outright.
 
     Extracted from ``WritePendingReportCaseLinkNode.update()``, which had grown
     to two jobs — provisioning and link-writing — in breach of the ~20–30 line
@@ -86,8 +87,12 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         case_actor = VultronService(id_=case_actor_id, name="CaseActor")
-        own_store = store_for_actor(
-            self.datalayer, case_actor_id, require_same_authority=True
+        own_store = (
+            store_for_actor(
+                self.datalayer, case_actor_id, require_same_authority=True
+            )
+            if hosts_actor(self.datalayer, case_actor_id)
+            else None
         )
         stores = (
             ("its own", own_store),

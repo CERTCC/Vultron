@@ -72,9 +72,12 @@ class VultronActivity(CoreObject):
     one_of: Any | None = None
     closed: Any | None = None
     # Addressing carries actor references; a blank one names nobody
-    # (CS-08-001).
+    # (CS-08-001).  Only ``to`` is modelled: Vultron addresses every direct
+    # message with it (OX-08-001), and ``cc``/``bto``/``bcc`` have no handler
+    # semantics (HP-10-001, ADR-0109).  ``cc`` stays declared on ``CoreObject``
+    # only as AS2 vocabulary a stored wire activity may dump (ARCH-25-008);
+    # the extractor never maps it and no core code reads it.
     to: list[NonEmptyString] | None = None
-    cc: list[NonEmptyString] | None = None
     # CM-16-003: the wire dump this model is validated from is camelCase, so
     # the alias is required — without it the field silently validates to None
     # and the suggested roles vanish from the delivered activity.

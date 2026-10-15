@@ -18,9 +18,9 @@ ownership-transfer workflow (TRIG-11 / OT-02).
 
 Provides:
 
-- :class:`EmitOfferCaseOwnershipTransferNode` — emits
-  ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-  offering actor to the specified transferee.
+- :class:`EmitOfferCaseOwnershipTransferNode` — emits the Case Owner's own
+  ``Offer(VulnerabilityCase)`` (ownership transfer variant) to the case's
+  CASE_MANAGER, naming the transferee as its ``target``.
 - :class:`EmitAcceptCaseOwnershipTransferNode`,
   :class:`EmitRejectCaseOwnershipTransferNode` and
   :class:`EmitWithdrawCaseOwnershipTransferNode` — the replies to an Offer,
@@ -66,20 +66,22 @@ logger = logging.getLogger(__name__)
 
 
 class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
-    """Emit ``Offer(VulnerabilityCase)`` (ownership transfer) to ``transferee_id``.
+    """Emit the Case Owner's ``Offer(VulnerabilityCase)`` to the CASE_MANAGER.
 
     Calls ``trigger_activity_factory.offer_case_ownership_transfer()`` with
-    ``actor=self.actor_id``, ``case_id``, and ``transferee_id``, then queues
-    the resulting activity in the actor's outbox (TRIG-11-001).  An
-    ``end_time`` becomes the Offer's activity-level ``end_time``, the deadline
-    to answer it (TRIG-11-007, CM-21-016); without one the Offer carries none.
+    ``actor=self.actor_id`` — the offering Case Owner, never the CASE_MANAGER
+    (CM-24-004, ADR-0109) — ``case_id`` and ``transferee_id``, addressed
+    ``to`` the case's CASE_MANAGER (CM-21-005), then queues it in the owner's
+    own outbox (TRIG-11-001).  The CASE_MANAGER's received tree forwards it to
+    the transferee.  An ``end_time`` becomes the Offer's activity-level
+    ``end_time``, the deadline to answer it (TRIG-11-007, CM-21-016); without
+    one the Offer carries none.
     """
 
     def __init__(
         self,
         case_id: str,
         transferee_id: str,
-        requesting_actor_id: str,
         content: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
@@ -89,7 +91,6 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.content = content
-        self.requesting_actor_id = requesting_actor_id
         self.end_time = end_time
 
     def _call_factory(self) -> tuple[str, str]:
@@ -106,23 +107,19 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             cm_id = resolve_case_manager_id(case, self.datalayer)
             if cm_id:
                 case_actor_id = [cm_id]
-        authorship = delegated_authorship(
-            doing_actor_id=self.actor_id,
-            requesting_actor_id=self.requesting_actor_id,
-        )
         return self.trigger_activity_factory.offer_case_ownership_transfer(
-            actor=authorship.actor,
+            actor=self.actor_id,
             case_id=self.case_id,
             transferee_id=self.transferee_id,
             content=self.content,
             to=case_actor_id,
-            attributed_to=authorship.attributed_to,
             end_time=self.end_time,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "Actor '%s' offered case ownership transfer for case '%s' to '%s'",
+            "Actor '%s' sent the CASE_MANAGER an ownership transfer offer for"
+            " case '%s' to '%s'",
             self.actor_id,
             self.case_id,
             self.transferee_id,
