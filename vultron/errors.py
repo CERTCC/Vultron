@@ -394,6 +394,16 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronStaleStoreError(VultronError):
+    """Raised when a persisted store predates a change to its stored shape.
+
+    Stored data carries no backwards compatibility and no migration: a store
+    written before a shape change is refused when it is opened, with a message
+    saying it must be reset, rather than run without the guarantee the new
+    shape provides (``notes/datalayer-design.md`` § "Changing a Table's Shape").
+    """
+
+
 class VultronBTInternalError(VultronError):
     """Raised when a received-side or trigger-side BT failed on an internal error.
 
