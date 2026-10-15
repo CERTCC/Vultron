@@ -105,6 +105,9 @@ Nodes
   (``CASE_OWNER`` kind; CM-21-015).  Whether that Offer is still open is a
   precondition guard after the sender check
   (``vultron.core.behaviors.case.nodes.ownership_offer_guard``)
+- ``SenderIsOfferingCaseOwnerNode`` — guards that the sender of a new
+  ownership-transfer Offer holds CVDRole.CASE_OWNER, or is the recorded sender
+  of the Offer it redelivers (``CASE_OWNER`` kind; CM-21-019)
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
   merged from ``CheckIsCaseOwnerNode``
 - ``SenderIsNoteAuthorNode`` — guards that the sender is the note's author and
@@ -145,6 +148,7 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     recorded_ownership_offer,
+    recorded_ownership_offer_sender,
 )
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
@@ -1470,6 +1474,82 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
             )
 
 
+class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
+    """Guard: the sender of a new ownership-transfer Offer is the Case Owner.
+
+    At the CASE_MANAGER only the actor holding ``CVDRole.CASE_OWNER`` on the
+    case may offer it (CM-21-019); the kind is ``CASE_OWNER``.  It runs on
+    the CASE_MANAGER's side of the rule, which holds the case (Regime 1).
+
+    A redelivery of an Offer the CASE_MANAGER already ledgered from this
+    sender is a duplicate, not a new Offer: its standing was established when
+    it was admitted, and the sender may since have handed ownership on, so
+    the role is not re-checked and the open-Offer guard reports it
+    ``SKIPPED`` (HP-01-003).  The same Offer id from any other sender is
+    judged as a new Offer.
+
+    Spec: CM-21-019, HP-01-003, HP-01-006.
+    """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.CASE_OWNER
+    )
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the Offer names.
+            offer_id: The Offer's own id, so a redelivery is recognised.
+            sender_actor_id: The Offer's sender.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._offer_id = offer_id
+        self._sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        sender = self._sender_actor_id
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: the CASE_MANAGER holds its case
+        if _holds_case_owner_role(self.datalayer, case, sender):
+            return Status.SUCCESS
+        recorded_sender = recorded_ownership_offer_sender(
+            self.datalayer, self._case_id, self._offer_id
+        )
+        if recorded_sender is not None and same_actor_id(
+            recorded_sender, sender
+        ):
+            self.logger.debug(
+                "%s: Offer '%s' was recorded from '%s' — redelivery"
+                " (HP-01-003)",
+                self.name,
+                self._offer_id,
+                sender,
+            )
+            return Status.SUCCESS
+        return self._refuse(
+            f"Sender '{sender}' is not the Case Owner of case"
+            f" '{self._case_id}', so it may not offer its ownership"
+        )
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (CM-21-019, HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 # ---------------------------------------------------------------------------
 # Condition node: a side the declared rule leaves empty
 # ---------------------------------------------------------------------------
@@ -1716,6 +1796,7 @@ __all__ = [
     "SenderIsProposalAddresseeNode",
     "SenderIsOwnershipOfferPartyNode",
     "SenderIsOwnershipTransfereeNode",
+    "SenderIsOfferingCaseOwnerNode",
     "SenderIsOwnershipOffererNode",
     "SenderIsInviteeNode",
     "SenderIsOfferAddresseeNode",

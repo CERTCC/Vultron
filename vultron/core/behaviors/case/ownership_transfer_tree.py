@@ -30,7 +30,9 @@ Provides:
   ``ForwardOfferToTransfereeNode`` as ``manager_effects`` so the factory's
   CASE_MANAGER gate lets only the CaseActor forward the offer (CM-21-005,
   ADR-0053, BT-17-008), and refuses the Offer at the CASE_MANAGER while an
-  earlier one for the case is open (CM-21-014).
+  earlier one for the case is open (CM-21-014).  Its sender guard is
+  composed from the use case's declared rule: the Case Owner at the
+  CASE_MANAGER, the CASE_MANAGER at the transferee (CM-21-019).
 """
 
 import logging
@@ -275,6 +277,25 @@ def create_undo_ownership_transfer_tree(
     return tree
 
 
+def offer_sender_context(
+    sender_id: str, case_id: str, offer_id: str | None
+) -> SenderCheckContext:
+    """The context a new ownership-transfer Offer's sender is checked in.
+
+    At the CASE_MANAGER the sender must be the Case Owner, unless it
+    redelivers an Offer recorded from it (*offer_id*, HP-01-003); at a
+    replica it must be the CASE_MANAGER, and a case the replica does not
+    hold refuses (CM-21-019, PCR-03-001).  The handler's pre-flight and the
+    received tree's guard read the same context.
+    """
+    return SenderCheckContext(
+        sender_id=sender_id,
+        case_id=case_id,
+        offered_ownership_id=offer_id,
+        case_manager_required=True,
+    )
+
+
 def create_offer_ownership_transfer_tree(
     case_id: str | None,
     transferee_id: str | None,
@@ -282,6 +303,9 @@ def create_offer_ownership_transfer_tree(
     store_offer: StoreReceivedObjectNode | None = None,
     offer_id: str | None = None,
     answer_deadline: datetime | None = None,
+    *,
+    sender_rule: SenderRule,
+    sender_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``OfferCaseOwnershipTransferReceivedUseCase``.
 
@@ -297,8 +321,9 @@ def create_offer_ownership_transfer_tree(
 
     Args:
         case_id: URI of the case whose ownership is being offered; ``None``
-            for an Offer that names no case, which is archived and kept but
-            commits and forwards nothing (CLP-10-018).
+            for an Offer that names no case, which intake archives
+            (CLP-10-018); its handler passes no ``store_offer`` for it, and
+            nothing is committed or forwarded.
         transferee_id: URI of the intended new owner; ``None`` skips forwarding.
         original_actor_id: URI of the actor who originated the offer (vendor).
         store_offer: Effect node that writes the Offer activity the accept
@@ -314,6 +339,12 @@ def create_offer_ownership_transfer_tree(
         answer_deadline: The Offer's ``end_time`` in UTC, if it carries one
             (CM-21-016); the forward carries it, so the transferee knows
             when it may no longer answer.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (CM-21-019, HP-01-008).
+            Composed only with a case: an Offer naming no case is kept and
+            refused by its handler (CLP-10-018).
+        sender_id: The Offer's sender, which the guard checks
+            (:func:`offer_sender_context`).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -347,6 +378,12 @@ def create_offer_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="OfferOwnershipTransferBT",
         case_id=case_id,
+        sender_rule=sender_rule if case_id is not None else None,
+        sender_context=(
+            offer_sender_context(sender_id, case_id, offer_id)
+            if case_id is not None
+            else None
+        ),
         precondition_guards=precondition_guards,
         replica_effects=replica_effects,
         manager_effects=manager_effects,
