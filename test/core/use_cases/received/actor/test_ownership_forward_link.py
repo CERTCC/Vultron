@@ -28,13 +28,14 @@ import pytest
 from test.core.use_cases.received.actor.test_ownership import (
     _COORDINATOR_ID,
     _VENDOR_ID,
-    # Aliased so pytest does not collect the class's tests here a second time.
-    TestAcceptIsActedOnOnlyFromTheTransferee as _AcceptSenderTests,
     _accept,
+    _assert_nothing_changed,
     _event_types,
+    _forward_harness,
+    _forward_of,
     _owner,
     _owner_roles,
-    _ownership_offer_harness,
+    _plant_forged_forward,
     _reject,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -45,29 +46,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 _FINDER_ID = "https://example.org/users/finder"
 
 _Answer = Callable[..., Any]
-
-
-def _forward_harness(make_payload, case_id: str):
-    """A CASE_MANAGER store whose trigger adapter mints real forwards."""
-    dl, deliver, _ = _ownership_offer_harness(
-        make_payload, case_id, forward=True
-    )
-    # In the CASE_MANAGER's address book, so the ledger snapshot can inline
-    # the forward's bare-id target (CLP-07).
-    dl.create(as_Service(id_=_COORDINATOR_ID, name="Coordinator"))
-    return dl, deliver
-
-
-def _forward_of(dl, offer_id: str):
-    """The forward in the CASE_MANAGER's outbox that links to *offer_id*."""
-    (forward,) = [
-        item
-        for item in (dl.read(i) for i in dl.outbox_list())
-        if item is not None
-        and getattr(getattr(item, "type_", None), "value", None) == "Offer"
-        and getattr(item, "in_reply_to", None) == offer_id
-    ]
-    return forward
 
 
 def _offer_entry(dl, offer_id: str) -> CaseLedgerEntry:
@@ -146,7 +124,7 @@ def test_answer_to_an_unlinked_forward_is_refused(
     dl.create(as_Service(id_=_FINDER_ID, name="Finder"))
     offer_id = "https://example.org/activities/offer_link_recorded"
     assert deliver(transferee_id, offer_id)[0] is HandlerDisposition.APPLIED
-    forward = _AcceptSenderTests._plant_forged_forward(
+    forward = _plant_forged_forward(
         dl,
         case_id,
         _COORDINATOR_ID,
@@ -161,9 +139,7 @@ def test_answer_to_an_unlinked_forward_is_refused(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason is not None and "never recorded" in result.reason
-    assert _event_types(dl) == entries_before
+    _assert_nothing_changed(dl, case_id, roles_before, entries_before)
     assert dl.outbox_list() == outbox_before
-    assert _owner(dl, case_id) == _VENDOR_ID
-    assert _owner_roles(dl, case_id) == roles_before
     still_open = open_ownership_offer(dl, case_id)
     assert still_open is not None and still_open.offer_id == offer_id
