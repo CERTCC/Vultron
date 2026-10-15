@@ -2,7 +2,7 @@
 """
 Wire-layer alias for CaseLedgerEntry.
 
-Per ADR-0099 detail 3: the core class is the canonical form.
+Per ARCH-25-003 (ADR-0099): the core class is the canonical form.
 The as_-prefixed name is retained for backward compatibility.
 """
 
@@ -22,7 +22,7 @@ The as_-prefixed name is retained for backward compatibility.
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
-# Backward-compatibility alias (ADR-0099 detail 3)
+# Backward-compatibility alias (ARCH-25-003, ADR-0099)
 as_CaseLedgerEntry = CaseLedgerEntry
 
 # Register core class in WIRE_TYPE_MAP so the parser admits it inline

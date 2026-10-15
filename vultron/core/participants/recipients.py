@@ -36,6 +36,10 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
 - :func:`embargo_ending_notice_recipients` — the bound signatories the
   ledger fan-out no longer reaches, owed a direct notice when their embargo
   ends or shortens (CM-31-009).  Not case content (CM-10-007).
+- :func:`reporter_introduction_recipients` — the reporters the report
+  receiver introduces the CASE_MANAGER to with its own
+  ``Create(VulnerabilityCase)`` (CBT-01-001, ADR-0132).  The case-content
+  selection narrowed to the ``REPORTER`` and ``FINDER`` roles.
 
 Each reads the roster (``actor_participant_index``) and resolves each entry to
 its participant record.  A roster entry whose record cannot be read is not
@@ -49,10 +53,10 @@ records only, in no fixed order, and skips what it cannot read silently).
 Record precedence matches it: the stored record first, an inline copy only as
 the fallback.
 
-The report-flow ``Create(Case)`` does not come here:
-``case_creation._collect_create_case_addressees`` builds its addressees from
-the actor, the report and the offer rather than the roster, and every one of
-them is seated at case initialization.
+The report tree's own ``Create(Case)`` (``case_creation.CreateCaseActivity``)
+does not come here: ``case_creation._collect_create_case_addressees``
+builds its addressees from the actor, the report and the offer rather than
+the roster, and every one of them is seated at case initialization.
 
 The sender check reads the same records: :func:`may_act_on_case` is the one
 predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-018), so a
@@ -71,6 +75,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +210,31 @@ def case_content_recipients(
         for actor_id, _record in case_content_participants(
             case, dl, excluding=excluding
         )
+    ]
+
+
+def reporter_introduction_recipients(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+    *,
+    excluding: Collection[str] = (),
+) -> list[str]:
+    """Return the reporters the report receiver introduces the case to.
+
+    The report receiver sends each of them its own
+    ``Create(VulnerabilityCase)``, which names the CASE_MANAGER it delegated
+    the case to (CBT-01-001, CM-12-003, ADR-0132).  The message carries the
+    whole case, so it is case content: only active participants qualify
+    (CM-10-004), narrowed to the ``REPORTER`` and ``FINDER`` roles the case
+    initialization seats the report submitter in.  *excluding* is typically
+    the receiver itself and the CASE_MANAGER.  Roster order is kept.
+    """
+    return [
+        actor_id
+        for actor_id, record in case_content_participants(
+            case, dl, excluding=excluding
+        )
+        if CVDRole.REPORTER in record.roles or CVDRole.FINDER in record.roles
     ]
 
 

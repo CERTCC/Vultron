@@ -88,7 +88,7 @@ def _accepted_wire_patch(
     shape the non-override path produces and only what was adjudicated is
     rewritten (RSH-05-004, RSH-05-009).  The *values* come from the port rather
     than being re-serialized here (CLP-07-009, CLP-07-010, ADR-0063); the *keys*
-    come from the core fields' own aliases (ADR-0099 detail 2) — see
+    come from the core fields' own aliases (ARCH-25-002, ADR-0099) — see
     :mod:`vultron.core.behaviors.ledger_patch`.
     """
     rendered = port.render(filtered)
@@ -100,7 +100,7 @@ def _accepted_wire_patch(
 def _to_core_status(status_obj: Any) -> ParticipantStatus | None:
     """Return *status_obj* if it is a core :class:`ParticipantStatus`.
 
-    ``SqliteDataLayer.read`` returns core models, and under ADR-0099 detail 3
+    ``SqliteDataLayer.read`` returns core models, and under ARCH-25-003 (ADR-0099)
     the wire ``as_ParticipantStatus`` *is* this class, so a status is either
     already canonical or not a status at all.  No projection capability is
     duck-typed on the object (ARCH-20-008); anything else answers ``None`` and

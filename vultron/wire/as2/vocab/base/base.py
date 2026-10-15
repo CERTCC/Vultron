@@ -61,7 +61,7 @@ __all__ = [
 class as_Base(BaseModel):
     """Root of the wire vocabulary for AS2 types that have no core class.
 
-    Under ADR-0099 detail 4 this root inherits nothing from core: the core
+    Under ARCH-25-004 (ADR-0099) this root inherits nothing from core: the core
     classes are the object model and AS2 is their serialization, so there is no
     shared ancestor to keep lenient for both.  What remains here is unpaired AS2
     vocabulary (``as_Link``, the generic activities) and it declares its own

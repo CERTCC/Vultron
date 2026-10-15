@@ -189,10 +189,8 @@ Specifically, each replicated entry is delivered as
 
 Each `Announce(CaseLedgerEntry)` activity:
 
-- MUST embed the full inline `CaseLedgerEntry` object in its `object` field.
-  A URI-only reference MUST NOT be used, because the recipient needs all
-  entry fields (`prev_log_hash`, `entry_hash`) to validate the hash chain
-  without an additional round-trip to the sender's store. (SYNC-02-004)
+- MUST carry the `CaseLedgerEntry` itself as its `object`, inline or by reference, with every field the recipient needs to validate the hash chain (`prev_log_hash`, `entry_hash`). (SYNC-02-004)
+  The reference implementation embeds the full entry inline and never sends a URI-only reference (SYNC-02-005); that is a shortcut of the prototype, not a protocol rule.
 - MUST identify the sender, the target recipient, the log entry hash, and the
   predecessor hash. (SYNC-02-002)
 
@@ -204,12 +202,9 @@ individually, not broadcast. (SYNC-02-003)
 
 ### 4.3 Semantic Routing on First Delivery
 
-Semantic routing of an inbound `Announce(CaseLedgerEntry)` MUST resolve to
-the log-entry semantic using the typed inline object obtained during parsing,
-without requiring a DataLayer round-trip on first delivery. Message ingress
-MUST NOT use the canonical ledger store as a scratch or lookup cache for
-routing, rehydration, or classification of an inbound announce. (SYNC-13-003,
-SYNC-13-004)
+A receiver MUST treat an inbound `Announce(CaseLedgerEntry)` as the announcement of a ledger entry on first delivery, without needing any stored record of the entry (SYNC-13-004).
+The reference implementation resolves the log-entry semantic from the typed inline object obtained during parsing, without a DataLayer round-trip (SYNC-13-007).
+Message ingress MUST NOT use the canonical ledger store as a scratch or lookup cache for routing, rehydration, or classification of an inbound announce. (SYNC-13-003)
 
 ---
 
@@ -352,14 +347,13 @@ conditions MUST NOT be applied to the case state machine. (SYNC-09-001)
 In a single-node Case Actor deployment, every append is an immediate commit.
 No replication quorum is required.
 
-### 7.2 Emit-After-Commit Invariant
+### 7.2 Commit-After-Send Invariant
 
-External Vultron messages (activities sent to Participant Actors or other
-protocol participants) MUST only be emitted after the associated
-`CaseLedgerEntry` is committed. (SYNC-09-002)
+A node MUST commit the `CaseLedgerEntry` that records a Vultron message it sends only after the message has been written to its own outbox, and MUST NOT commit it before that write.
+`Announce(CaseLedgerEntry)` is the one message sent after its commit: it delivers a committed entry. (SYNC-09-002)
 
-This ensures that activities a node claims to have taken are durably recorded
-and cannot be rolled back by a leadership change.
+This ensures that every entry records an act that has happened.
+A retry after a send whose commit failed rebuilds the activity under its first id, so the outbox does not send it twice. (OX-06-002)
 
 ### 7.3 Effects-Before-Persist Invariant
 
@@ -498,7 +492,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-02-001 | §4.1 | Replication MUST use `Announce` activities |
 | SYNC-02-002 | §4.1 | Each replication message MUST identify sender, recipient, hashes |
 | SYNC-02-003 | §4.2 | Replication MUST originate from the CASE_MANAGER |
-| SYNC-02-004 | §4.1 | `Announce(CaseLedgerEntry)` MUST embed full inline entry |
+| SYNC-02-004 | §4.1 | `Announce(CaseLedgerEntry)` MUST carry the entry, inline or by reference |
 | SYNC-03-001 | §5.1 | Receiver MUST reject on predecessor hash mismatch |
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
@@ -517,7 +511,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-08-004 | §6.5 | Monotonic visibility: participants MUST NOT regress position |
 | SYNC-08-005 | §5.1 | Reject-on-divergence MUST trigger resynchronisation |
 | SYNC-09-001 | §7.1 | Entry MUST be durably written before being treated as committed |
-| SYNC-09-002 | §7.2 | External messages MUST only be emitted after ledger commit |
+| SYNC-09-002 | §7.2 | A sent message MUST be committed only after its outbox write |
 | SYNC-09-003 | §7.4 | BT execution MUST be gated on replication leadership |
 | SYNC-10-001 | §6.6 | After restart, actor MUST re-establish freshness before new actions |
 | SYNC-10-002 | §6.6 | While catching up, actor MUST block protocol-significant actions |
@@ -534,7 +528,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-13-001 | §2.2 | Entry in DataLayer means "committed and effects applied" |
 | SYNC-13-002 | §2.2 | Adapter/wire code MUST NOT write CaseLedgerEntry to DataLayer |
 | SYNC-13-003 | §4.3 | Ingress MUST NOT use ledger store as scratch for routing |
-| SYNC-13-004 | §4.3 | Routing MUST use typed inline object, not DataLayer round-trip |
+| SYNC-13-004 | §4.3 | First delivery MUST be recognized without a stored record of the entry |
 | SYNC-13-005 | §2.1 | Only the CASE_MANAGER MUST author CaseLedgerEntry records |
 | SYNC-13-006 | §2.2 | Participants MUST obtain entries only via Announce receive behavior |
 | SYNC-14-001 | §6.2 | Forward-gap entry MUST be retained in non-ledger holding area |

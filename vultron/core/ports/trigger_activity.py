@@ -188,8 +188,11 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
+
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -299,7 +302,7 @@ class TriggerActivityPort(Protocol):
         case for the proposal (CP-05-004).  *proposal* is the wire-serialised
         ``as_CaseProposal`` from the inbound ``Create``; it is embedded inline so
         the vendor has full context without reading anything from the case actor
-        service's store (AKM-03-001).
+        service's store (AKM-03-003).
 
         *summary* carries the refusal reason when the service has one to give,
         which is what the proposer surfaces (CP-06-004).  It is optional: a
@@ -322,7 +325,7 @@ class TriggerActivityPort(Protocol):
         The CASE_MANAGER sends this to acknowledge that it will open (or has
         already opened) a case for the proposal (CP-05-002).  *proposal* is the
         wire-serialised ``as_CaseProposal`` the inbound ``Create`` carried,
-        embedded inline (AKM-03-001); *result* is the URI of the case the
+        embedded inline (AKM-03-003); *result* is the URI of the case the
         Accept ties to (CP-05-006).
 
         Returns ``(activity_id, activity_blob)``.
@@ -779,6 +782,7 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
@@ -786,6 +790,7 @@ class TriggerActivityPort(Protocol):
         ``case_id``, ``role``, ``target_actor_id``, and ``vendor_id``)
         before building the Accept so that ``Accept.object_`` is a typed
         ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
 
         Returns ``(activity_id, activity_dict)``.
         """

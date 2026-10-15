@@ -65,6 +65,7 @@ def create_add_case_participant_received_tree(
     case_id: str,
     sender_id: str,
     claimed_actor_id: str | None = None,
+    activity_id: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Create the BT for ``AddCaseParticipantToCaseReceivedUseCase``.
 
@@ -107,6 +108,8 @@ def create_add_case_participant_received_tree(
             when it names one; it must match the stored record's actor
             (CM-31-011), because a replica resolves the record by it.  The
             notice and any embargo Invite go to the stored record's actor.
+        activity_id: The ``Add``'s id; the embargo Invite's id is derived
+            from it, so a redelivery rebuilds the same Invite (OX-06-002).
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
@@ -143,6 +146,7 @@ def create_add_case_participant_received_tree(
             InviteReinstatedParticipantToEmbargoNode(
                 case_id=case_id,
                 participant_id=participant_id,
+                answers=activity_id,
             ),
         ],
     )

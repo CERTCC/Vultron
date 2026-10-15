@@ -105,7 +105,7 @@ class TestCaseReferenceRegistration:
 
 
 class TestCaseReferenceWireRoundTrip:
-    """as_CaseReference IS CaseReference (ADR-0099 detail 3, issue #3487)."""
+    """as_CaseReference IS CaseReference (ARCH-25-003, ADR-0099, issue #3487)."""
 
     def test_from_core_preserves_url(self):
         from vultron.wire.as2.vocab.objects.case_reference import (

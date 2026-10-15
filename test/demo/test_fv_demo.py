@@ -1326,6 +1326,23 @@ class TestRunTwoActorDemo:
             "Expected demo to succeed, but got errors:\n" + caplog.text
         )
 
+        # AC-5 of #4511: the Finder's replica came from the Vendor's
+        # introduction (ADR-0132), not from a hand-seeded copy: its own link
+        # records the Vendor as introducer and the CaseActor as CASE_MANAGER.
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+
+        finder_links = [
+            link
+            for link in get_datalayer(finder_id).list_objects("ReportCaseLink")
+            if isinstance(link, VultronReportCaseLink)
+        ]
+        assert [
+            (link.case_creator_id, link.case_manager_id)
+            for link in finder_links
+        ] == [(vendor_id, case_actor_id_on(base))]
+        assert finder_links[0].case_id is not None
+
 
 class TestDumpCaseLogs:
     """Case-log dump behavior for participant and case-actor outputs."""
@@ -1941,7 +1958,7 @@ class TestCaseLedgerInvariants:
     #: commit-path completeness — see issue #789).
     _REQUIRED_EVENT_TYPES: frozenset[str] = frozenset(
         {
-            "add_participant_status_to_participant",  # participant tracking — CI invariant 7
+            "add_participant_status_to_participant",  # participant tracking — CI invariant 7.
             # offer_case_manager_role removed: ADR-0041 removes SendOfferCaseManagerRoleNode;
             # CaseActor self-assigns CASE_MANAGER natively without the offer/accept round-trip.
         }

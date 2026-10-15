@@ -42,7 +42,6 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
-    CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -66,112 +65,6 @@ from vultron.wire.as2.factories import (
 
 class TestEmbargoProposalLifecycle:
     """Tests for embargo create, invite, accept, and reject use cases."""
-
-    def test_create_embargo_event_stores_event(
-        self, monkeypatch, make_payload
-    ):
-        """create_embargo_event persists the as_EmbargoEvent to the DataLayer."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Create,
-        )
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_cem1",
-            name="Create Embargo Test",
-        )
-        embargo = as_EmbargoEvent(
-            id_="https://example.org/cases/case_cem1/embargo_events/embargo1",
-            content="Proposed embargo",
-            context="https://example.org/cases/case_cem1",
-            end_time=days_from_now_utc(45),
-        )
-        # The store's owner manages the case and the vendor owns it, so the
-        # Create comes from the Case Owner (ADR-0115).
-        seed_store_owner_as_case_manager(dl, case)
-        seed_case_owner_participant(
-            dl, case, "https://example.org/users/vendor"
-        )
-        dl.create(case)
-
-        activity = as_Create(
-            actor="https://example.org/users/vendor",
-            object_=embargo,
-            context=case,
-            to=["https://test.example/api/v2/actors/test-actor"],
-        )
-
-        event = make_payload(activity)
-
-        result = CreateEmbargoEventReceivedUseCase(dl, event).execute()
-        assert result.disposition is HandlerDisposition.APPLIED
-
-        stored = dl.get(embargo.type_, embargo.id_)
-        assert stored is not None
-
-    def test_create_embargo_event_idempotent(self, monkeypatch, make_payload):
-        """create_embargo_event skips storing a duplicate as_EmbargoEvent."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Create,
-        )
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_cem2",
-            name="Create Embargo Idempotent",
-        )
-        embargo = as_EmbargoEvent(
-            id_="https://example.org/cases/case_cem2/embargo_events/embargo2",
-            content="Proposed embargo",
-            context="https://example.org/cases/case_cem2",
-            end_time=days_from_now_utc(45),
-        )
-        # The store's owner manages the case and the vendor owns it, so the
-        # Create comes from the Case Owner (ADR-0115).
-        seed_store_owner_as_case_manager(dl, case)
-        seed_case_owner_participant(
-            dl, case, "https://example.org/users/vendor"
-        )
-        dl.create(case)
-
-        activity = as_Create(
-            actor="https://example.org/users/vendor",
-            object_=embargo,
-            context=case,
-            to=["https://test.example/api/v2/actors/test-actor"],
-        )
-        event = make_payload(activity)
-
-        CreateEmbargoEventReceivedUseCase(dl, event).execute()
-        result = CreateEmbargoEventReceivedUseCase(
-            dl, event
-        ).execute()  # second call no-op
-        assert result.disposition is HandlerDisposition.SKIPPED
-
-        stored = dl.get(embargo.type_, embargo.id_)
-        assert stored is not None
 
     def test_invite_to_embargo_on_case_stores_proposal(
         self, monkeypatch, make_payload

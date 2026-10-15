@@ -50,7 +50,7 @@ class AS2JSONResponse(JSONResponse):
     media_type = AS2_CONTENT_TYPE
 
     def __init__(self, content: "as_Base | Any", **kwargs: Any) -> None:
-        # A CoreObject is its own AS2 class (ADR-0099 detail 3), so it dumps as
+        # A CoreObject is its own AS2 class (ARCH-25-003, ADR-0099), so it dumps as
         # one.  Any other model has no AS2 form; dumping it by alias would
         # synthesise a document that is not AS2 (ARCH-20-006), so refuse it.
         if isinstance(content, (as_Base, CoreObject)):

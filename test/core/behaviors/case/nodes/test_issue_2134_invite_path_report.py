@@ -6,7 +6,7 @@ VulnerabilityReport objects and the add_report_to_case ledger backfill.  It is
 never sent the reporter's Offer, so it holds the report but no
 VultronOfferRecord and answers no Offer (CM-11-020).
 
-1. SeedAnnouncedCaseNode stores embedded VulnerabilityReport objects (CBT-01-007).
+1. SeedAnnouncedCaseNode stores embedded VulnerabilityReport objects (CBT-01-012).
 2. ApplyOfferReportFromLedgerNode stores the report and creates no
    VultronOfferRecord.
 """
@@ -83,7 +83,7 @@ def _make_wire_report() -> as_VulnerabilityReport:
 
 
 def _make_wire_case_with_embedded_report() -> as_VulnerabilityCase:
-    """Return as_VulnerabilityCase with full embedded as_VulnerabilityReport (CBT-01-007)."""
+    """Return as_VulnerabilityCase with full embedded as_VulnerabilityReport (CBT-01-012)."""
     wire_report = _make_wire_report()
     return as_VulnerabilityCase(
         id_=CASE_ID,
@@ -151,7 +151,7 @@ def _make_offer_report_ledger_entry():
 
 
 class TestSeedAnnouncedCaseNodeStoresEmbeddedReports:
-    """CBT-01-007: SeedAnnouncedCaseNode must store embedded VulnerabilityReport objects.
+    """CBT-01-012: SeedAnnouncedCaseNode must store embedded VulnerabilityReport objects.
 
     When Announce(VulnerabilityCase) carries full VulnerabilityReport objects
     (not bare ID strings), SeedAnnouncedCaseNode must persist each embedded
@@ -194,7 +194,7 @@ class TestSeedAnnouncedCaseNodeStoresEmbeddedReports:
         stored_report = invited_dl.read(REPORT_ID)
         assert stored_report is not None, (
             "SeedAnnouncedCaseNode must store embedded VulnerabilityReport "
-            "objects from Announce(VulnerabilityCase) (CBT-01-007, ISSUE-2134)"
+            "objects from Announce(VulnerabilityCase) (CBT-01-012, ISSUE-2134)"
         )
 
     def test_idempotent_when_report_already_present(
@@ -293,7 +293,7 @@ class TestApplyOfferReportFromLedgerNode:
 
         Regression for #2180: when the report is added to the case *after* the
         case was announced to an invited participant, the Announce(VulnerabilityCase)
-        carried no embedded report (CBT-01-007 path is empty), so the report
+        carried no embedded report (CBT-01-012 path is empty), so the report
         object only ever reaches the participant inside the add_report_to_case
         ledger snapshot.  ApplyOfferReportFromLedgerNode must therefore store the
         report object too — otherwise _reconstitute_offer 404s on the report

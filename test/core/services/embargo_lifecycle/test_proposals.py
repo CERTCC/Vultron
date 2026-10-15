@@ -291,7 +291,7 @@ def test_propose_embargo_invalid_state_raises(
     """propose_embargo from EXITED raises VultronInvalidStateTransitionError.
 
     Once an embargo is TERMINATED the register accepts no further change
-    (ADR-0122 invariant 4), so the case is left as it was.
+    (ADR-0122), so the case is left as it was.
     """
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)

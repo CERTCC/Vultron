@@ -65,3 +65,10 @@ class CaseOutboxPersistence(CasePersistence, Protocol):
         ...
 
     def outbox_list(self) -> list[str]: ...
+
+    def outbox_withdraw(self, activity_id: str) -> bool:
+        """Remove *activity_id* if it is still pending; ``True`` if removed.
+
+        See :meth:`~vultron.core.ports.datalayer.DataLayer.outbox_withdraw`.
+        """
+        ...

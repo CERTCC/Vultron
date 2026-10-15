@@ -79,11 +79,6 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     # The CASE_MANAGER's Reject of a role offer is not yet ledgered, which
     # CLP-02-012 requires.
     "reject_case_participant_role": "#4588",
-    # Store-only Create(X) handlers write the object with no entry.
-    "create_case_participant": "#4598",
-    "create_case_status": "#4598",
-    "create_participant_status": "#4598",
-    "create_embargo_event": "#4598",
 }
 
 

@@ -169,7 +169,7 @@ def test_occasions_sharing_one_shorthand_on_one_entry_are_direct():
             MappingStatus.COLLAPSE,
         ),
         (MessageSemantics.CREATE_NOTE, MappingStatus.EXPANSION),
-        (MessageSemantics.CREATE_EMBARGO_EVENT, MappingStatus.NONE),
+        (MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE, MappingStatus.NONE),
         (MessageSemantics.CREATE_PROCESSING_FAULT, MappingStatus.EVOLVED),
         (MessageSemantics.REJECT_CASE_LEDGER_ENTRY, MappingStatus.EVOLVED),
     ],

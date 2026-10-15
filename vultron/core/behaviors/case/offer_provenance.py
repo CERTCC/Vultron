@@ -67,7 +67,7 @@ def offer_provenance_from_proposal(
 
     def _pick(field: str) -> str | None:
         # The AS2 spelling of the snapshot key is derived from the core field
-        # name, not typed here (ADR-0099 detail 2).
+        # name, not typed here (ARCH-25-002, ADR-0099).
         raw = (proposal_dict or {}).get(wire_key(field, VultronOfferRecord))
         if not isinstance(raw, str):
             raw = (proposal_dict or {}).get(field)

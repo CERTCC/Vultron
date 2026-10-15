@@ -57,7 +57,7 @@ from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 #: It lives in core rather than beside ``ACTIVITY_STREAMS_NS`` in the wire layer
 #: because under ADR-0099 the core classes *are* the objects that carry it, and
 #: core MUST NOT import wire (ARCH-01-001 — the one boundary rule ADR-0099 leaves
-#: fully in force).  Wire imports it from here, which detail 6 permits.
+#: fully in force).  Wire imports it from here, which ARCH-25-006 permits.
 VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
 
 
@@ -93,7 +93,7 @@ def _json_form(return_type: Any, value: Any) -> Any:
 class CoreRecord(ValidatedAssignmentMixin):
     """Minimal core root: a stored record that is not an AS2 object.
 
-    ADR-0099 detail 4 gives core two roots.  This one carries only the
+    ARCH-25-004 (ADR-0099) gives core two roots.  This one carries only the
     identity every stored record needs — ``id_``, ``type_``, ``name`` — for
     records that never go on the wire in their own right: dead letters,
     offer bookkeeping, replication state.  It has no ``@context``, no alias
@@ -186,7 +186,7 @@ def with_record_id(data: dict[str, Any], record_id: str) -> dict[str, Any]:
 class CoreObject(CoreRecord):
     """The one AS2 object root of the Vultron core domain model.
 
-    ADR-0099 detail 4: under one object model the core classes *are* the AS2
+    ARCH-25-004 (ADR-0099): under one object model the core classes *are* the AS2
     objects, so this root carries the AS2 object fields, the JSON-LD
     ``@context`` and the timestamps, on top of the identity from
     :class:`CoreRecord`.  Its ``by_alias`` dump is the AS2 wire form.
@@ -195,7 +195,7 @@ class CoreObject(CoreRecord):
     ``icon``, ``image``, …) stay declared on purpose: a declared-but-unused
     field is a *recognised* field core ignores, whereas an undeclared one
     would be an unrecognised field rejected on every message carrying it
-    (ADR-0099 details 7 and 8).
+    (ARCH-25-007, ARCH-25-008; ADR-0099).
 
     A bare ``CoreObject(id_=..., type_=...)`` is the minimal reference the
     extractor wraps an otherwise-unmodelled object in; it keeps the ``type_``
@@ -208,14 +208,14 @@ class CoreObject(CoreRecord):
     (omitted, or annotated as a union) are intentionally not registered.
 
     ``context_`` defaults to ``None`` and is ``exclude=True``, so it never
-    reaches a stored row: ADR-0099 detail 1 keeps persistence on Python field
+    reaches a stored row: ARCH-25-001 (ADR-0099) keeps persistence on Python field
     names with no ``@context``.  It is emitted only on the AS2 path — see
     :meth:`_serialize_with_jsonld_context`.
     """
 
     # The AS2 spelling of every field, derived rather than hand-maintained.
     #
-    # ADR-0099 detail 2 puts the AS2 spelling on the core class, because under one
+    # ARCH-25-002 (ADR-0099) puts the AS2 spelling on the core class, because under one
     # object model there is no second class left to hold it.  `to_camel` derives
     # it correctly for all but three fields — `id_`, `type_` and `context_`, whose
     # trailing underscores exist to dodge Python keyword/shadowing collisions and
@@ -368,7 +368,7 @@ class CoreObject(CoreRecord):
         spellings: dict[str, str] = {}
         for name, info in cls.model_computed_fields.items():
             spellings[name] = name
-            # CoreObject carries alias_generator=to_camel (ADR-0099 detail 2), so
+            # CoreObject carries alias_generator=to_camel (ARCH-25-002, ADR-0099), so
             # dump(by_alias=True) emits `embargoAdherence`.
             spellings[to_camel(name)] = name
             alias = getattr(info, "alias", None)
@@ -427,7 +427,7 @@ class CoreObject(CoreRecord):
         needed for the same reason (ISSUE-3257, ADR-0103): ``default_factory=
         now_utc`` correctly stamps an object this process authors, but on
         inbound data it would fabricate a time the sender never claimed.  Under
-        ADR-0099 detail 3 an inbound ``CaseParticipant``, ``EmbargoEvent`` or
+        ARCH-25-003 (ADR-0099) an inbound ``CaseParticipant``, ``EmbargoEvent`` or
         ``VulnerabilityCase`` validates straight into this class rather than a
         wire subclass of ``as_Base``, so without this the rule silently stops
         holding for every collapsed type.  Gated on the same validation-context
@@ -465,7 +465,7 @@ class CoreObject(CoreRecord):
         """Read a naive timestamp as UTC; leave an absent one absent.
 
         The core twin of ``as_Object.validate_datetime`` (CS-13-001, CM-28-006,
-        #3784).  Under ADR-0099 detail 3 an inbound ``EmbargoEvent``,
+        #3784).  Under ARCH-25-003 (ADR-0099) an inbound ``EmbargoEvent``,
         ``CaseParticipant`` or ``VulnerabilityCase`` validates straight into
         this class, so the wire validator never sees their fields and a naive
         ``endTime`` on a nested object would otherwise reach core unchanged —
@@ -509,7 +509,7 @@ class CoreObject(CoreRecord):
     ) -> Any:
         """Add the JSON-LD ``@context`` on the AS2 path, and only there.
 
-        ADR-0099 detail 1 gives one class two serializations, chosen by where the
+        ARCH-25-001 (ADR-0099) gives one class two serializations, chosen by where the
         object is going:
 
         ==========================  ==========================================

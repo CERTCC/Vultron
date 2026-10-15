@@ -199,7 +199,7 @@ class TestCheckAutoCaseCreationEnabledNode:
         assert node.update() == Status.FAILURE
 
     def test_defaults_to_success_when_no_config(self) -> None:
-        """No ActorConfig supplied → default enabled (ADR-0015 Option 4)."""
+        """No ActorConfig supplied → default enabled (CM-15-001)."""
         node = CheckAutoCaseCreationEnabledNode(actor_config=None)
         assert node.update() == Status.SUCCESS
 

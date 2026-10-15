@@ -530,6 +530,73 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
 
 
 @pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("OX-06-002")
+def test_a_replacement_whose_commit_failed_is_recorded_once_by_the_next_run(
+    actor_store,
+) -> None:
+    """A replacement is queued, then committed; a failed commit is finished.
+
+    The replacement's id derives from the stub it replaces, and the next run
+    of the re-issue node records the replacement it already sent, under the
+    same id: one queued Invite, one entry (ADR-0119, OX-06-002).
+    """
+    from test.support.ledger import fail_commits
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+        ReissueStubInvitesNode,
+    )
+    from vultron.core.behaviors.sync import commit_tree
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+    from vultron.errors import VultronBTInternalError
+
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+
+    with pytest.MonkeyPatch.context() as mp:
+        failed = fail_commits(
+            mp,
+            commit_tree,
+            when=lambda kw: kw["event_type"] == "invite_actor_to_case",
+        )
+        with pytest.raises(VultronBTInternalError, match="commit failed"):
+            _terminate(dl, owner.id_, case.id_)
+    (replacement_id,) = failed
+    assert dl.outbox_list().count(replacement_id) == 1
+
+    def _recorded() -> list[str]:
+        return [
+            e.log_object_id
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.log_object_id == replacement_id
+        ]
+
+    assert _recorded() == []
+
+    result = BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute_with_setup(
+        tree=ReissueStubInvitesNode(case_id=case.id_), actor_id=owner.id_
+    )
+
+    assert result.status.name == "SUCCESS", result
+    assert dl.outbox_list().count(replacement_id) == 1
+    assert _recorded() == [replacement_id]
+    replacements = [
+        i for i in _invites_to(dl, invitee.id_) if i.id_ != original["id"]
+    ]
+    assert [i.id_ for i in replacements] == [replacement_id]
+
+
+@pytest.mark.spec("CM-11-016")
 def test_a_received_embargo_removal_re_issues_the_outstanding_stub(
     actor_store,
 ) -> None:

@@ -56,8 +56,8 @@ class StoreDeadLetterRecordNode(DataLayerAction):
         request = self._request
         unresolvable_uri = request.object_id or ""
         # A local record, not a message: the summary is stored in the
-        # persistence shape (Python field names, no ``@context``; ADR-0099
-        # detail 1) and is opaque and write-only (ADR-0035), so it needs no AS2
+        # persistence shape (Python field names, no ``@context``; ARCH-25-001,
+        # ADR-0099) and is opaque and write-only (ADR-0035), so it needs no AS2
         # rendering.  ``request.activity`` is the extractor's core-branch
         # ``VultronActivity``, which core must not render itself (ARCH-20-001).
         activity_summary = (

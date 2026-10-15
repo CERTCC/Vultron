@@ -251,6 +251,7 @@ class TestPutEmbargoPolicy:
 class TestGetEmbargoPolicy:
     @pytest.mark.spec("EP-02-001")
     @pytest.mark.spec("HTTP-09-002")
+    @pytest.mark.spec("HTTP-04-001")
     def test_returns_the_published_policy_as_as2_json(
         self, client_actors, hosted_actor
     ):

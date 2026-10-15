@@ -16,12 +16,10 @@
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
-    CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
-    CreateCaseParticipantReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
@@ -32,41 +30,14 @@ from vultron.semantic_registry._occasion import (
 )
 from vultron.wire.as2.extractor import (
     AddCaseParticipantToCasePattern,
-    CreateCaseParticipantPattern,
     RemoveCaseParticipantFromCasePattern,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,
-    _CreateParticipantActivity,
     _RemoveParticipantFromCaseActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
-    SemanticEntry(
-        semantics=MessageSemantics.CREATE_CASE_PARTICIPANT,
-        pattern=CreateCaseParticipantPattern,
-        event_class=CreateCaseParticipantReceivedEvent,
-        use_case_class=CreateCaseParticipantReceivedUseCase,
-        phrase="{actor} created a case participant record",
-        wire_activity_class=_CreateParticipantActivity,
-        include_activity=True,
-        occasions=(
-            Occasion(
-                when=(
-                    "a Participant is about to add an actor's participant "
-                    "record to the case"
-                ),
-                anchor="create-case-participant",
-                heading="Create case participant",
-                description=(
-                    "Mints a participant record that pairs an actor with its "
-                    "roles in the case. It precedes the Add."
-                ),
-                example="create_participant",
-            ),
-        ),
-        page=MessagePage.CASE_MANAGEMENT,
-    ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
         pattern=AddCaseParticipantToCasePattern,

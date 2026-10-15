@@ -1731,7 +1731,7 @@ class TestCaseFullyClosedIsTheCaseManagersOwnAct:
         case = snapshot["object"]
         assert case["type"] == "VulnerabilityCase"
         assert case["id"] == CASE_ID
-        # Carried in full: the participants are objects, not ids (CBT-01-007).
+        # Carried in full: the participants are objects, not ids (CLP-07-006).
         assert case["caseParticipants"]
         assert all(isinstance(p, dict) for p in case["caseParticipants"])
 

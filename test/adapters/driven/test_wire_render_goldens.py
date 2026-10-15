@@ -16,10 +16,10 @@
 """Golden render output for every ``CORE_VOCABULARY`` entry (#3490 AC-2).
 
 The goldens were captured from ``As2WireRenderAdapter.render()`` *before* it
-stopped resolving a wire counterpart (ADR-0099 detail 1), so this test is the
+stopped resolving a wire counterpart (ARCH-25-001, ADR-0099), so this test is the
 evidence that the one-object-model render is a behaviour-preserving change.
 The ``VultronNote`` and ``VultronActivity``-family entries were added after:
-the port refused them until ADR-0099 detail 4 moved them onto ``CoreObject``.
+the port refused them until ARCH-25-004 (ADR-0099) moved them onto ``CoreObject``.
 Later ``main`` changes were then regenerated in: ``CoreActorCollection`` was
 deleted (#3563), actors now derive an absent inbox/outbox from their id
 (#3616), a participant carries its ``joined`` fact (#4046), and a case's

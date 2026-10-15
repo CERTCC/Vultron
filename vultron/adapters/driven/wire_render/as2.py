@@ -16,7 +16,7 @@
 """AS2 adapter implementing
 :class:`~vultron.core.ports.wire_render.WireRenderPort`.
 
-Under one object model (ADR-0099 detail 1) a core object *is* its AS2 form:
+Under one object model (ARCH-25-001, ADR-0099) a core object *is* its AS2 form:
 rendering is the object's own
 ``model_dump(by_alias=True, exclude_none=True, mode="json",
 serialize_as_any=True)``.  The field

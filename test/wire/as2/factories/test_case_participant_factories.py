@@ -30,7 +30,6 @@ from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_status_to_participant_activity,
     create_participant_activity,
-    create_status_for_participant_activity,
     remove_participant_from_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -105,50 +104,6 @@ def test_create_participant_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         create_participant_activity(
             participant="not-a-participant"  # type: ignore[arg-type]
-        )
-    assert exc_info.value.__cause__ is not None
-
-
-# ---------------------------------------------------------------------------
-# create_status_for_participant_activity
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("AF-01-002")
-def test_create_status_for_participant_returns_create(
-    sample_participant_status,
-):
-    result = create_status_for_participant_activity(
-        status=sample_participant_status, actor=_ACTOR_URI
-    )
-    assert isinstance(result, as_Create)
-
-
-def test_create_status_for_participant_object_is_status(
-    sample_participant_status,
-):
-    result = create_status_for_participant_activity(
-        status=sample_participant_status, actor=_ACTOR_URI
-    )
-    assert result.object_ == sample_participant_status
-
-
-def test_create_status_for_participant_target_is_set(
-    sample_participant_status,
-):
-    result = create_status_for_participant_activity(
-        status=sample_participant_status,
-        target=_PARTICIPANT_URI,
-        actor=_ACTOR_URI,
-    )
-    assert result.target == _PARTICIPANT_URI
-
-
-@pytest.mark.spec("AF-04-001")
-def test_create_status_for_participant_invalid_raises():
-    with pytest.raises(VultronActivityConstructionError) as exc_info:
-        create_status_for_participant_activity(
-            status="not-a-status"  # type: ignore[arg-type]
         )
     assert exc_info.value.__cause__ is not None
 
@@ -276,6 +231,5 @@ def test_all_case_participant_factories_importable_from_package():
         add_participant_to_case_activity,
         add_status_to_participant_activity,
         create_participant_activity,
-        create_status_for_participant_activity,
         remove_participant_from_case_activity,
     )

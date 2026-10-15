@@ -325,7 +325,7 @@ def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
 
     from pydantic import BaseModel
 
-    # The fixture changed with ADR-0099 detail 3, and the reason is worth keeping.
+    # The fixture changed with ARCH-25-003 (ADR-0099), and the reason is worth keeping.
     # It used to build an ``as_CaseParticipant`` with ``accepted_embargo_ids=[""]``
     # — legal on the lenient wire class, rejected by the core class's
     # ``NonEmptyString``, so "constructible yet unprojectable". Collapsing the pair

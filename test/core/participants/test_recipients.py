@@ -38,11 +38,13 @@ from vultron.core.participants.recipients import (
     is_case_content_recipient,
     ledger_entry_recipients,
     may_act_on_case,
+    reporter_introduction_recipients,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 _CASE_ID = "https://example.org/cases/recipients-001"
 _SENDER = "https://example.org/actors/sender"
@@ -67,11 +69,13 @@ def _seat(
     joined: bool = True,
     rm_state: RM = RM.ACCEPTED,
     store: bool = True,
+    roles: tuple[CVDRole, ...] = (),
 ) -> CaseParticipant:
     participant = CaseParticipant(
         id_=f"{_CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=_CASE_ID,
+        case_roles=list(roles),
         joined=joined,
         embargo_consents=(
             [EmbargoConsent(embargo_id=_EMBARGO_ID, state=consent)]
@@ -414,6 +418,33 @@ def test_closed_participant_ledger_cutoff_is_its_last_own_closure_entry(
         )
         is None
     )
+
+
+@pytest.mark.spec("CBT-01-001", "CM-10-004", "CM-10-007", "CM-23-004")
+def test_reporter_introduction_reaches_only_active_open_reporters(
+    dl: SqliteDataLayer,
+) -> None:
+    """The receiver introduces only active, open REPORTER/FINDER participants.
+
+    An inert finder, a closed reporter, and a participant holding neither
+    role are left out; the excluded receiver and CASE_MANAGER are too.
+    """
+    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    activate(case, _EMBARGO_ID)
+    _seat(dl, case, _SENDER, roles=(CVDRole.CASE_OWNER,))
+    _seat(dl, case, _SIGNATORY, roles=(CVDRole.REPORTER,))
+    _seat(
+        dl,
+        case,
+        _INVITED,
+        consent=EmbargoConsentState.INVITED,
+        roles=(CVDRole.FINDER,),
+    )
+    _seat(dl, case, _CLOSED, rm_state=RM.CLOSED, roles=(CVDRole.REPORTER,))
+    _seat(dl, case, _UNJOINED, roles=(CVDRole.VENDOR,))
+    assert reporter_introduction_recipients(case, dl, excluding={_SENDER}) == [
+        _SIGNATORY
+    ]
 
 
 # ---------------------------------------------------------------------------
