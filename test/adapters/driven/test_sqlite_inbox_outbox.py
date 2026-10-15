@@ -109,6 +109,23 @@ def test_an_id_no_longer_pending_is_queued_again(dl):
     assert dl.outbox_list() == ["urn:test:delivered"]
 
 
+def test_outbox_withdraw_removes_a_pending_id_and_leaves_the_rest(dl):
+    """A pending activity can be taken back before delivery (ADR-0119)."""
+    dl.outbox_append("urn:test:kept")
+    dl.outbox_append("urn:test:withdrawn")
+
+    assert dl.outbox_withdraw("urn:test:withdrawn") is True
+    assert dl.outbox_list() == ["urn:test:kept"]
+
+
+def test_outbox_withdraw_reports_an_id_delivery_already_took(dl):
+    dl.outbox_append("urn:test:delivered")
+    assert dl.outbox_pop() == "urn:test:delivered"
+
+    assert dl.outbox_withdraw("urn:test:delivered") is False
+    assert dl.outbox_withdraw("urn:test:never-queued") is False
+
+
 @pytest.mark.integration
 @pytest.mark.spec("OX-06-002")
 def test_concurrent_appends_to_a_file_backed_store_queue_one_row(file_dl):

@@ -21,9 +21,9 @@ that is keyed on the **proposal**, not on the report.
 
 ``main_flow`` writes this as its first step, before the case is created. That
 ordering is what the guard on the refusal arm needs, because the accept path
-creates the case and commits its ledger entries *before* it emits the
-``Accept``. A delivery that fails in that window leaves a case with no stored
-``Accept``, and without a proposal-keyed record the only evidence available is
+creates the case *before* it emits the ``Accept`` (its ledger entries are
+committed after the ``Accept`` and ``Create`` are queued, CP-09-009). A
+delivery that fails in that window leaves a case with no stored ``Accept``, and without a proposal-keyed record the only evidence available is
 report-keyed — which answers a different question:
 
 - *"has a case been created for this report?"* is true for a proposal this

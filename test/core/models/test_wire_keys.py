@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The AS2 spelling of a core field is *derived*, never typed (ADR-0099 detail 2).
+"""The AS2 spelling of a core field is *derived*, never typed (ARCH-25-002, ADR-0099).
 
 ``wire_keys`` exists so that no core module contains a camelCase spelling of a
 core field name. The value of a derivation over a translation table is that it

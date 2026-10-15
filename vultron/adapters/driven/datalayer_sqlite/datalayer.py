@@ -369,6 +369,10 @@ class SqliteDataLayer:
         """Remove and return the oldest activity ID from the outbox."""
         return queues.outbox_pop(self)
 
+    def outbox_withdraw(self, activity_id: str) -> bool:
+        """Withdraw *activity_id* if it is still pending; ``True`` if withdrawn."""
+        return queues.outbox_withdraw(self, activity_id)
+
     # ------------------------------------------------------------------
     # Per-activity outbox attempt counter (OX-13-001)
     # ------------------------------------------------------------------

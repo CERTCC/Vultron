@@ -35,7 +35,7 @@ class TestDimensionState:
     """``_dimension_state`` reads all three persisted shapes."""
 
     def test_reads_the_bare_state_value(self):
-        """Canonical shape since ADR-0099 detail 5 / SDO-01-004: ``{"rm": "..."}``.
+        """Canonical shape since ARCH-25-005 (ADR-0099) / SDO-01-004: ``{"rm": "..."}``.
 
         A dimension serializes to its bare state value, so this is what a stored
         core ``ParticipantStatus`` row now looks like. It used to be treated as a

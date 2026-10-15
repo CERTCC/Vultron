@@ -112,11 +112,12 @@ Modeling it as `as:Undo` would claim that the earlier `Ignore(VulnerabilityCase)
 
 Vultron documents object creation and object attachment as two activities.
 `as:Create` mints a new object; `as:Add` attaches an existing object to another object.
-A new note therefore appears as `Create(Note)` followed by `Add(Note)[target=VulnerabilityCase]`, and a new status as `Create(CaseStatus)` followed by `Add(CaseStatus)[target=VulnerabilityCase]`.
+A new note therefore appears as `Create(Note)` followed by `Add(Note)[target=VulnerabilityCase]`.
+A new status is different in this implementation: it travels inline on the `Add(CaseStatus)[target=VulnerabilityCase]` that attaches it, with no `Create` before it.
 
 ```mermaid
 ---
-title: Create then Add for statuses and notes
+title: Create then Add for notes; Add alone for statuses
 ---
 flowchart TB
     subgraph as:Add
@@ -126,22 +127,18 @@ flowchart TB
     end
     subgraph as:Create
         CreateNote["Draft a note<br/>Create(Note)"]
-        CreateParticipantStatus["Create Participant Status<br/>Create(ParticipantStatus)"]
-        CreateCaseStatus["Create Case Status<br/>Create(CaseStatus)"]
     end
     start([Start])
-    start -.-> CreateCaseStatus
-    start -.-> CreateParticipantStatus
+    start -.-> AddStatusToCase
+    start -.-> AddStatusToParticipant
     start -.-> CreateNote
     CreateNote --> AddNoteToCase
-    CreateCaseStatus --> AddStatusToCase
-    CreateParticipantStatus --> AddStatusToParticipant
     AddStatusToParticipant -.-> AddStatusToCase
     AddNoteToCase -.-> AddStatusToParticipant
     AddNoteToCase -.-> AddStatusToCase
 ```
 
-The diagram shows each object being created and then attached.
+The diagram shows a note being created and then attached, and each status being attached with the status inline.
 The dotted arrows show attachments that can follow from one another: a participant status update can lead to a case status update, and a note can lead to either.
 
 ### ActivityStreams does not force the split
@@ -165,14 +162,20 @@ Read against the formal message set, the split carries no information: a reader 
 Read against the wire vocabulary, the split is a real distinction that the protocol's dispatch depends on.
 
 The two forms are separate messages with separate handlers.
-`Create(CaseStatus)` is recognized by its `context` naming the case; `Add(CaseStatus)` is recognized by its `target` naming the case.
-The state change itself — applying the new `pxaState` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
-An activity that tries to be both, such as a `Create(CaseStatus)` carrying a `target`, matches neither pattern.
+`Create(Note)` is recognized by its verb and object alone; `Add(Note)` and `Add(CaseStatus)` are recognized by their `target` naming the case.
+The state change of a status — applying the new `pxaState` to the case — hangs off the `Add`, because that is the activity that asserts the attachment (MSM-03-004 through MSM-03-006).
+An activity that tries to be both, such as an `Add(CaseStatus)` that names the case in `context` and has no `target`, matches no pattern.
 It does not collapse two messages into one; it dispatches as unrecognized, and the state change never happens.
 
 So the conclusion is narrower than "either verb will do".
 An implementation is free to decide that a given object needs no separate minting step, and to send only the `Add` that attaches it, with the object inline.
-What it cannot do is merge the two verbs into one activity and expect a Vultron peer to understand it.
+This implementation makes that choice for every status: it does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)`.
+An inbox refuses either one as an unrecognized activity.
+It makes the same choice for an embargo proposal, which carries its `EmbargoEvent` inline on the `Invite`.
+That is a choice the prototype made, not a requirement of the protocol.
+What no implementation can do is merge the two verbs into one activity and expect a Vultron peer to understand it.
+
+{% include-markdown "./future_work/_oq-create-then-add.md" %}
 
 ### Where fewer activities are worth having
 
@@ -189,7 +192,7 @@ flowchart LR
 
 The diagram shows the fully expanded form: a `Create` that mints the status and an `Add` that attaches it.
 The `Create` is avoidable, because an object can be sent inline inside the activity that attaches it.
-A single `Add(ParticipantStatus)[target=CaseParticipant]` carrying the new status object expresses the same outcome.
+A single `Add(ParticipantStatus)[target=CaseParticipant]` carrying the new status object expresses the same outcome, and it is the only form this implementation supports.
 
 ```mermaid
 ---
@@ -344,7 +347,7 @@ The mechanisms themselves — which activity conveys which failure mode, and how
 | Unambiguous combinations | No two activity types share a verb, object, and target. |
 | Verb selection | `as:Read` for text-centric acknowledgment; `as:View` and `as:Listen` stay available. |
 | Unused verbs | `as:Like`, `as:Dislike`, `as:Flag` carry no protocol meaning; `as:Undo` misdescribes a forward transition. |
-| Create and Add | A wire expansion with no formal counterpart, and still two distinct messages on the wire. Inline the object to send fewer activities; do not merge the two verbs. |
+| Create and Add | A wire expansion with no formal counterpart, and still two distinct messages on the wire. Inline the object to send fewer activities; do not merge the two verbs. This implementation sends a status or an embargo proposal with no separate `Create`. |
 | Invite and Add | `as:Invite` asks; `as:Add` asserts. Late arrivals are invited. |
 | Closure verbs | `Leave(VulnerabilityCase)` once a case exists; `Reject(Offer(VulnerabilityReport))` before one does. |
 | New object types | Minted only where no existing combination distinguishes two acts (ADR-0039). |

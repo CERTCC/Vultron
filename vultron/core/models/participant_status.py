@@ -94,7 +94,7 @@ class ParticipantStatus(CoreObject):
         serialization_alias="type",
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
-    # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
+    # Each dimension serializes to its bare state value (ARCH-25-005, ADR-0099), so
     # the alias alone produces the flat wire shape the AS2 form has always used:
     # ``rm`` -> ``{"rmState": "START"}``.  ``AliasChoices`` keeps the legacy flat
     # spellings accepted on input so no caller has to change.
@@ -141,7 +141,7 @@ class ParticipantStatus(CoreObject):
     # There is deliberately no ``_migrate_flat_fields`` before-validator any
     # more.  It hand-translated the flat ``rm_state`` / ``rmState`` spellings
     # into the nested ``{"state": ...}`` form, and was the only AS2 spelling in
-    # this module outside an alias.  Both mechanisms ADR-0099 detail 5 introduced
+    # this module outside an alias.  Both mechanisms ARCH-25-005 (ADR-0099) introduced
     # now cover its whole job with nothing hand-written: the ``AliasChoices``
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
@@ -166,7 +166,7 @@ class ParticipantStatus(CoreObject):
         The raw input may spell a dimension any of the ways its
         ``validation_alias`` accepts, so "is it absent?" asks the field for its
         own input spellings via :func:`input_keys` rather than listing them here
-        — core code must not type an AS2 spelling (ADR-0099 detail 2).  The
+        — core code must not type an AS2 spelling (ARCH-25-002, ADR-0099).  The
         empty-dict seed is only a *default*: it is written under the Python field
         name, which is the last choice in each field's ``AliasChoices``, so a
         spelling actually present in the input still wins.
@@ -229,8 +229,8 @@ class ParticipantStatus(CoreObject):
     # SDO-03-003; these go with #4377).  The deleted ``as_ParticipantStatus`` carried
     # ``rm_state``/``vf_state``/``d_state`` as real fields, so callers read and
     # assigned them; the dimension remains the owner of the state machine
-    # (ADR-0036) and the flat spelling is only how it serializes (ADR-0099
-    # detail 5).
+    # (ADR-0036) and the flat spelling is only how it serializes (ARCH-25-005,
+    # ADR-0099).
     #
     # ``vf`` and ``d`` are legitimately absent for a participant whose role does
     # not carry them (ADR-0075), so those two views are optional in both
@@ -269,8 +269,8 @@ class ParticipantStatus(CoreObject):
 
         ``name`` is an optional AS2 property carrying a display label, not
         protocol data. The object derives its own label from its own state, for
-        the same reason a dimension serializes its own value (ADR-0099 detail
-        5): the fact belongs to the class that holds the state.
+        the same reason a dimension serializes its own value (ARCH-25-005,
+        ADR-0099): the fact belongs to the class that holds the state.
 
         Only set when the caller supplied none, so an explicit ``name`` always
         wins. ``object.__setattr__`` avoids re-entering validation, since

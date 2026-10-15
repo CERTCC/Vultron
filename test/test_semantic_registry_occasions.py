@@ -220,7 +220,7 @@ def test_field_value_accepts_a_member_of_the_field_enum(
 
 @pytest.mark.spec("MSM-08-002")
 def test_field_value_reads_a_dimension_field_as_its_state():
-    """A dimension field travels as its bare state (ADR-0099 detail 5)."""
+    """A dimension field travels as its bare state (ARCH-25-005, ADR-0099)."""
     distinguisher = FieldValue(
         object_type=CaseStatus, field="pxa", value=CS_pxa.PXa
     )

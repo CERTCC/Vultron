@@ -58,7 +58,7 @@ _SNAPSHOT_REFERENCE_CORE_FIELDS = (
 #: have come from either serialization: the wire render port produces AS2 keys,
 #: a plain core ``model_dump`` produces Python field names.  The AS2 spelling is
 #: *derived* from the core name by :func:`wire_key` rather than written out
-#: here — core code must not type an AS2 spelling (ADR-0099 detail 2).
+#: here — core code must not type an AS2 spelling (ARCH-25-002, ADR-0099).
 _SNAPSHOT_REFERENCE_FIELDS = set(_SNAPSHOT_REFERENCE_CORE_FIELDS) | set(
     wire_keys(_SNAPSHOT_REFERENCE_CORE_FIELDS)
 )

@@ -2,7 +2,7 @@
 """
 Wire-layer alias for CaseParticipant.
 
-Per ADR-0099 detail 3: the core class is the canonical form.
+Per ARCH-25-003 (ADR-0099): the core class is the canonical form.
 The as_-prefixed names are retained for backward compatibility.
 
 ``as_CaseParticipant`` was held back with the two status classes by #3487, which

@@ -193,8 +193,8 @@ def _field_annotation(object_type: type, field_name: str) -> object:
 
     A field may be a declared Pydantic field or a read property.  A status
     dimension field (``CaseStatus.pxa``) is typed by its dimension object,
-    which travels as its bare state value (ADR-0099 detail 5), so it resolves
-    to the annotation of the dimension's ``state``.
+    which travels as its bare state value (ARCH-25-005, ADR-0099), so it
+    resolves to the annotation of the dimension's ``state``.
     """
     attribute = getattr(object_type, field_name, None)
     if isinstance(attribute, property) and attribute.fget is not None:
@@ -266,7 +266,8 @@ class FieldValue(BaseModel):
         """Return the value *carrier* holds in this distinguisher's field.
 
         A status dimension field is read as its ``state``, the value it
-        travels as (ADR-0099 detail 5), so it compares to :attr:`value`.
+        travels as (ARCH-25-005, ADR-0099), so it compares to
+        :attr:`value`.
         """
         held = getattr(carrier, self.field)
         if is_dimension_model(type(held)):

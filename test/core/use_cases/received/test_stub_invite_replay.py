@@ -166,7 +166,7 @@ def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
 ) -> None:
     """The creation entry reaches another replica, which stores the record.
 
-    Verifies that ``emit_stub_invite``'s commit is fanned out to the case's
+    Verifies that ``commit_stub_invite``'s commit is fanned out to the case's
     active participants even though it passes no ``sync_port`` of its own.
     """
     _the_owner_invites_the_joiner(net)

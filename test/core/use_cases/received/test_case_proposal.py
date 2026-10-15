@@ -27,6 +27,7 @@ from types import SimpleNamespace
 import py_trees
 import pytest
 
+from test.support.ledger import commit_case_fully_closed
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -107,6 +108,7 @@ def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
 class TestCreateCaseProposalReceivedUseCase:
     """Tests for CreateCaseProposalReceivedUseCase (CP-05-001 through CP-05-004)."""
 
+    @pytest.mark.spec("CP-05-009")
     def test_execute_creates_case_and_queues_activities(self, make_payload):
         """Happy path: case created + Accept + Create(VulnerabilityCase) queued."""
         dl = SqliteDataLayer(
@@ -146,7 +148,7 @@ class TestCreateCaseProposalReceivedUseCase:
         accepts = dl.list_objects("Accept")
         assert len(accepts) == 1, "Expected one Accept activity"
 
-        # The Accept must carry the full inline proposal (CP-05-003, AKM-03-001).
+        # The Accept must carry the full inline proposal (CP-05-003, CP-05-009).
         accept_obj = dl.read(accepts[0].id_)
         accept_object_ = getattr(accept_obj, "object_", None)
         assert accept_object_ is not None, (
@@ -155,7 +157,7 @@ class TestCreateCaseProposalReceivedUseCase:
         # After DataLayer round-trip the dict may be deserialized to an AS2 object;
         # the key invariant is that it is NOT a bare URI string.
         assert not isinstance(accept_object_, str), (
-            "Accept.object_ must not be a bare URI string — inline object required (CP-05-003)"
+            "Accept.object_ must not be a bare URI string — inline object required (CP-05-009)"
         )
         obj_type = getattr(accept_object_, "type_", None) or (
             accept_object_.get("type")
@@ -881,6 +883,25 @@ class TestCaseProposalDisposition:
         assert result.reason and "declined" in result.reason
 
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("CM-23-013")
+    def test_proposal_for_a_fully_closed_case_is_refused(self, make_payload):
+        """A redelivery after close is declined; the next one is a duplicate."""
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+        _run_create_proposal(dl, proposal, make_payload)
+        (case,) = list(dl.list_objects("VulnerabilityCase"))
+        commit_case_fully_closed(dl, case.id_, _VENDOR_URI)
+
+        result = _run_create_proposal(dl, proposal, make_payload)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "fully closed" in result.reason
+        assert case.id_ in result.reason
+        again = _run_create_proposal(dl, proposal, make_payload)
+        assert again.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
     def test_decline_without_emit_port_is_refused(self, make_payload):
         """A decline whose Reject cannot be sent still fails closed (#2255).
 
@@ -1036,7 +1057,7 @@ class TestCaseProposalDisposition:
 class TestCoreInlineReport:
     """``_core_inline_report`` hands the parsed report down unchanged.
 
-    Under ADR-0099 detail 3 the ``as_VulnerabilityReport`` the wire parser
+    Under ARCH-25-003 (ADR-0099) the ``as_VulnerabilityReport`` the wire parser
     validated *is* the core ``VulnerabilityReport``, so there is no projection
     step and none is duck-typed (#3840).  Anything else in the slot yields
     ``None`` so ``StoreProposalReportNode`` rebuilds from the proposal dict.

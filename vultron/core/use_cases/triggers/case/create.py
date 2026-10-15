@@ -21,6 +21,7 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.create_case_trigger_tree import (
     create_case_trigger_bt,
 )
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.use_case_result import CaseResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import resolve_actor
@@ -28,6 +29,9 @@ from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+#: Kind label of the trigger's ``Create(VulnerabilityCase)`` derived id.
+CREATE_CASE_ID_KIND = "create-vulnerability-case"
 
 
 class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
@@ -67,8 +71,15 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
         to = self._to
 
         def _build_activity(case_id: str) -> tuple[str, str]:
+            # One Create per case, its id derived from the case it creates
+            # (ID-04-004, OX-06-002).
             return self._factory.create_case(
-                case_id=case_id, actor=self._actor_id, to=to
+                case_id=case_id,
+                actor=self._actor_id,
+                to=to,
+                id_=derived_activity_id(
+                    CREATE_CASE_ID_KIND, self._actor_id, case_id
+                ),
             )
 
         return create_case_trigger_bt(

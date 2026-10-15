@@ -43,12 +43,7 @@ class ActivityPattern(BaseModel):
     to_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
     object_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
     target_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
-    # A tuple admits any of several scalar types — the declared form of "this
-    # activity's subject may be a case or a report" (VAM-05-001, EP-04-009).
-    context_: (
-        Union[AOtype, VOtype, "ActivityPattern", tuple[AOtype | VOtype, ...]]
-        | None
-    ) = None
+    context_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
 
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""
@@ -73,19 +68,12 @@ class ActivityPattern(BaseModel):
 
 
 def _match_activity_field(
-    pattern_field: (
-        AOtype | VOtype | ActivityPattern | tuple[AOtype | VOtype, ...] | None
-    ),
+    pattern_field: AOtype | VOtype | ActivityPattern | None,
     activity_field: object,
     strict: bool = False,
 ) -> bool:
     if pattern_field is None:
         return True
-    if isinstance(pattern_field, tuple):
-        return any(
-            _match_activity_field(alternative, activity_field, strict)
-            for alternative in pattern_field
-        )
     if isinstance(pattern_field, ActivityPattern):
         # Nested Activity patterns (e.g. Accept(Invite(...))): a non-Activity
         # value (including unresolved string refs) cannot structurally match.

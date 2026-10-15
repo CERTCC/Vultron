@@ -41,6 +41,7 @@ from test.core.use_cases.received.actor.test_ownership import (
     _reject,
     _undo,
 )
+from test.support.ledger import commit_case_fully_closed
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -389,23 +390,9 @@ class TestOnlyThePartyPromptsTheExpiry:
 @pytest.mark.spec("CM-21-017")
 def test_expiry_changes_nothing_once_the_case_is_fully_closed(make_payload):
     """After ``case_fully_closed`` the CASE_MANAGER commits no expiry."""
-    from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-    from vultron.core.models.case_ledger import HashChainLedgerRecord
-
     case_id = "https://example.org/cases/case_dl_closed"
     dl, _, _, _ = _expired_offer(make_payload, case_id)
-    dl.create(
-        _to_persistable_entry(
-            HashChainLedgerRecord(
-                case_id=case_id,
-                log_index=len(_event_types(dl)),
-                object_id=f"{case_id}/owner-leave",
-                event_type="case_fully_closed",
-                payload_snapshot={"actor": _VENDOR_ID},
-                prev_log_hash="0" * 64,
-            )
-        )
-    )
+    commit_case_fully_closed(dl, case_id, _VENDOR_ID)
     entries_before = _event_types(dl)
     tree = create_ownership_offer_expiry_tree(case_id=case_id, now=now_utc())
 

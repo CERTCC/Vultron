@@ -53,7 +53,6 @@ from vultron.wire.as2.vocab.activities.case import (
     _AddStatusToCaseActivity,
     _AnnounceVulnerabilityCaseActivity,
     _CreateCaseActivity,
-    _CreateCaseStatusActivity,
     _OfferCaseOwnershipTransferActivity,
     _OfferCaseParticipantRoleActivity,
     _RejectCaseOwnershipTransferActivity,
@@ -294,34 +293,6 @@ def create_case_activity(
         logger.warning("create_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
             "create_case_activity: invalid arguments"
-        ) from exc
-
-
-def create_case_status_activity(
-    status: as_CaseStatus,
-    **kwargs,
-) -> as_Create:
-    """Build a Create(as_CaseStatus).
-
-    Args:
-        status: The ``as_CaseStatus`` being created.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``).
-
-    Returns:
-        An ``as_Create`` whose ``object_`` is the status.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    try:
-        return _CreateCaseStatusActivity(object_=status, **kwargs)
-    except ValidationError as exc:
-        logger.warning(
-            "create_case_status_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "create_case_status_activity: invalid arguments"
         ) from exc
 
 
@@ -1355,7 +1326,7 @@ def reject_case_proposal_activity(
 
     The case-actor service sends this when it declines the report receiver's proposal
     (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the report receiver
-    has full proposal context without an additional round-trip.
+    has full proposal context without an additional round-trip (CP-05-009).
 
     Args:
         actor_id: URI of the case-actor service that is rejecting the proposal.

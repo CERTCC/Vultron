@@ -24,8 +24,8 @@ between the core (domain) and wire (ActivityStreams) layers:
    ``alias_generator`` — and still accepts Python field names.
 4. No CoreObject subclass references the AS2 namespace string directly.
 
-Invariant 3 **inverted** under ADR-0099, and that is worth stating rather than
-quietly editing. It used to read "no CoreObject subclass uses
+ARCH-25-002 inverted the third invariant here, and that is worth stating rather
+than quietly editing. It used to read "no CoreObject subclass uses
 alias_generator=to_camel", because AS2 spelling belonged to the wire layer
 (ARCH-12-003, ARCH-12-004) and a paired ``as_*`` class held it. ARCH-25-002
 deletes those classes and puts the spelling on the core class, so there is no

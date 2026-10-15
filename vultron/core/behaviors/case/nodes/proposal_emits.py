@@ -71,7 +71,7 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
         self._proposal_id = proposal_id
         self._proposer_uri = proposer_uri
         # proposal_dict is the wire-serialised proposal (model_dump(by_alias=True)).
-        # The factory embeds it inline (CP-05-003, AKM-03-001); without it there
+        # The factory embeds it inline (CP-05-009, AKM-03-003); without it there
         # is nothing to embed, so the emit fails rather than sending a bare id.
         self._proposal_dict = proposal_dict
 
@@ -111,7 +111,7 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
         if self._proposal_dict is None:
             self.feedback_message = (
                 f"Accept(CaseProposal) for '{self._proposal_id}' has no"
-                " proposal to embed (CP-05-003, AKM-03-001)"
+                " proposal to embed (CP-05-009, AKM-03-003)"
             )
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

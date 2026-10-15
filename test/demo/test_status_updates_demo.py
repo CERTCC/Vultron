@@ -43,8 +43,8 @@ def test_demo(demo_env, demo_fn, caplog):
 
     For the status workflow, verifies:
     - Case initialized with finder participant
-    - CaseStatus created and added to case
-    - ParticipantStatus created and added to participant
+    - a new CaseStatus added, inline, to the case
+    - a new ParticipantStatus added, inline, to the participant
     """
     import logging
 

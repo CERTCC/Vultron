@@ -38,7 +38,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import exists, insert, literal, select as sa_select
+from sqlalchemy import delete, exists, insert, literal, select as sa_select
 from sqlmodel import col, select
 
 from vultron.adapters.outbox_dead_letter import (
@@ -86,6 +86,26 @@ def _queue_pop(dl: "SqliteDataLayer", queue: str) -> str | None:
         session.delete(row)
         session.commit()
     return activity_id
+
+
+def _queue_remove(dl: "SqliteDataLayer", queue: str, activity_id: str) -> bool:
+    """Remove *activity_id* from *queue* if it is pending; ``True`` if removed.
+
+    One ``DELETE`` statement, so a concurrent pop and this removal cannot
+    both take the same row.
+    """
+    stmt = (
+        delete(QueueEntry)
+        .where(
+            col(QueueEntry.queue) == queue,
+            col(QueueEntry.activity_id) == activity_id,
+        )
+        .returning(col(QueueEntry.id))
+    )
+    with dl._session() as session:
+        removed = session.execute(stmt).scalars().all()
+        session.commit()
+    return bool(removed)
 
 
 def _queue_append(dl: "SqliteDataLayer", queue: str, activity_id: str) -> None:
@@ -213,6 +233,20 @@ def outbox_list(dl: "SqliteDataLayer") -> list[str]:
         List of activity ID strings in insertion order.
     """
     return _queue_list(dl, "outbox")
+
+
+def outbox_withdraw(dl: "SqliteDataLayer", activity_id: str) -> bool:
+    """Withdraw *activity_id* from this actor's outbox before it is delivered.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        activity_id: ID of the activity to withdraw.
+
+    Returns:
+        ``True`` when a pending entry was removed, ``False`` when the id was
+        not pending: delivery already took it, or it was never queued.
+    """
+    return _queue_remove(dl, "outbox", activity_id)
 
 
 def outbox_pop(dl: "SqliteDataLayer") -> str | None:

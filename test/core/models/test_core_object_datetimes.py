@@ -16,8 +16,8 @@
 The core twin of ``as_Object.validate_datetime``'s coverage in
 ``test/wire/as2/vocab/base/test_wire_base_hierarchy.py``
 (``test_as_object_naive_datetime_string_normalized_to_utc`` /
-``test_as_object_naive_datetime_object_normalized_to_utc``).  Under ADR-0099
-detail 3 a collapsed type validates into ``CoreObject`` directly, so the
+``test_as_object_naive_datetime_object_normalized_to_utc``).  Under ARCH-25-003
+(ADR-0099) a collapsed type validates into ``CoreObject`` directly, so the
 guarantee has to hold on this branch by itself.
 """
 

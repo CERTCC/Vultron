@@ -45,14 +45,14 @@ class CaseStatus(CoreObject):
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]
-    # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
+    # Each dimension serializes to its bare state value (ARCH-25-005, ADR-0099), so
     # the alias alone produces the flat wire shape the AS2 form has always used:
     # ``em`` -> ``{"emState": "NONE"}``.  Declared for the same reason
     # ``ParticipantStatus`` declares its own: the AS2 spelling of a core field
-    # belongs in the field's alias and nowhere else (ADR-0099 detail 2), which
-    # is also where core code that must key an AS2-shaped snapshot reads it
-    # from (:mod:`vultron.core.models.wire_keys`).  Adding them here made this
-    # class's own ``by_alias`` dump agree with the wire form that
+    # belongs in the field's alias and nowhere else (ARCH-25-002, ADR-0099),
+    # which is also where core code that must key an AS2-shaped snapshot reads
+    # it from (:mod:`vultron.core.models.wire_keys`).  Adding them here made
+    # this class's own ``by_alias`` dump agree with the wire form that
     # ``as_CaseStatus`` — and therefore every replica — has always produced.
     #
     # Input accepts the wire spelling and the field name only.  The old flat
@@ -92,8 +92,8 @@ class CaseStatus(CoreObject):
         label, so a core ``CaseStatus`` that left ``name`` unset silently
         shortened the enclosing participant status's label — making core and
         ``as_ParticipantStatus`` disagree on an AS2 property for the one input
-        shape that sets ``case_status``, which is exactly the parity ADR-0099
-        detail 5 claims.  ``name`` reaches the wire through
+        shape that sets ``case_status``, which is exactly the parity ARCH-25-005
+        (ADR-0099) claims.  ``name`` reaches the wire through
         ``CaseLedgerEntry.payloadSnapshot``, so the disagreement is
         protocol-visible.
 

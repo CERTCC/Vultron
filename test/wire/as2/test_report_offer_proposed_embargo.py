@@ -28,14 +28,13 @@ from typing import Any
 import pytest
 
 from vultron.core.models.actor import VultronOrganization
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
 )
 from vultron.core.models.events.report import SubmitReportReceivedEvent
-from vultron.semantic_registry import extract_event, find_matching_semantics
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     rm_submit_report_activity,
@@ -249,30 +248,6 @@ def test_case_proposal_without_terms_extracts_none():
     event = extract_event(parse_activity(_wire(activity)))
     assert isinstance(event, CreateCaseProposalReceivedEvent)
     assert event.proposed_embargo is None
-
-
-# ---------------------------------------------------------------------------
-# VAM-05-001: Create(EmbargoEvent) may name a report as its subject
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("VAM-05-001")
-@pytest.mark.parametrize(
-    "context_obj",
-    [
-        pytest.param(_report(), id="report"),
-        pytest.param(
-            VulnerabilityCase(id_=_CASE, attributed_to=_VENDOR), id="case"
-        ),
-    ],
-)
-def test_create_embargo_event_dispatches_with_either_subject(context_obj):
-    event = EmbargoEvent(context=context_obj.id_, end_time=_END)
-    activity = as_Create(actor=_VENDOR, object_=event, context=context_obj)
-    assert (
-        find_matching_semantics(activity)
-        is MessageSemantics.CREATE_EMBARGO_EVENT
-    )
 
 
 @pytest.mark.spec("CP-01-008")

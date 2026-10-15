@@ -18,8 +18,6 @@ rows stay, as the derived page, shorthands and status of each entry.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import pytest
-
 from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.msm import MappingStatus
 from vultron.metadata.msm._mapping import ROW_SPECS, SEMANTICS_TO_ROW
@@ -50,19 +48,6 @@ def test_format_pattern_with_target_qualifier():
     entry = lookup_entry(MessageSemantics.ADD_CASE_STATUS_TO_CASE)
     assert entry is not None and entry.pattern is not None
     assert "target=" in format_pattern(entry.pattern)
-
-
-@pytest.mark.spec("VAM-05-001")
-def test_format_pattern_tuple_context_renders_the_alternatives():
-    """A tuple ``context_`` renders as ``a|b``, not as enum reprs."""
-    entry = lookup_entry(MessageSemantics.CREATE_EMBARGO_EVENT)
-    assert entry is not None and entry.pattern is not None
-    result = format_pattern(entry.pattern)
-    assert (
-        result
-        == "Create(Event)[context=VulnerabilityCase|VulnerabilityReport]"
-    )
-    assert "VultronObjectType" not in result
 
 
 def test_wire_summary_of_a_none_status_entry_is_its_pattern():
@@ -109,16 +94,9 @@ def test_ep_maps_only_to_invite_embargo():
     ]
 
 
-@pytest.mark.parametrize(
-    "semantics",
-    [
-        MessageSemantics.CREATE_EMBARGO_EVENT,
-        MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
-    ],
-)
-def test_create_and_announce_embargo_event_have_no_shorthand(semantics):
-    """Minting or announcing embargo terms proposes nothing, so carries no EP."""
-    row = SEMANTICS_TO_ROW[semantics]
+def test_announce_embargo_event_has_no_shorthand():
+    """Announcing embargo terms proposes nothing, so carries no EP."""
+    row = SEMANTICS_TO_ROW[MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE]
     assert row.shorthands == ()
     assert row.status == MappingStatus.NONE
 

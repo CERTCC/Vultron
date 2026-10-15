@@ -167,7 +167,7 @@ def test_read_preserves_core_object_id(dl):
 def test_read_returns_core_type_for_core_entity(dl):
     """dl.read() MUST return the core VulnerabilityCase for a saved VulnerabilityCase.
 
-    After ADR-0099 detail 3, as_VulnerabilityCase is an alias for VulnerabilityCase,
+    After ARCH-25-003 (ADR-0099), as_VulnerabilityCase is an alias for VulnerabilityCase,
     so the distinction is between core class identity and wire wrapper identity.
     """
     case = VulnerabilityCase()
@@ -185,7 +185,7 @@ def test_read_returns_core_type_for_core_entity(dl):
 def test_list_objects_returns_core_type_for_core_entity(dl):
     """dl.list_objects() MUST return the core VulnerabilityReport for saved core entities.
 
-    After ADR-0099 detail 3, as_VulnerabilityReport is an alias for VulnerabilityReport.
+    After ARCH-25-003 (ADR-0099), as_VulnerabilityReport is an alias for VulnerabilityReport.
     """
     report = VulnerabilityReport()
     dl.save(report)
@@ -405,7 +405,7 @@ def _mixed_spelling_case_row(case_id):
     each entry is in camelCase wire format, which is what makes core validation
     of the *participant* fail while the case itself looks well formed.
 
-    After ADR-0099 detail 3, as_VulnerabilityCase is an alias for VulnerabilityCase,
+    After ARCH-25-003 (ADR-0099), as_VulnerabilityCase is an alias for VulnerabilityCase,
     so the test data is built by constructing a plain VulnerabilityCase and then
     injecting camelCase participant data directly.
     """
@@ -480,7 +480,7 @@ def test_read_returns_the_core_type_for_a_mixed_spelling_row(dl):
     ``as_VulnerabilityCase`` from ``dl.read()``, and ``resolve_case`` then raised
     ``Expected VulnerabilityCase, got as_VulnerabilityCase`` — a 422 on every
     subsequent case operation (fcv-reject demo, Phase 3 add-note-to-case).
-    After ADR-0099 detail 3, as_VulnerabilityCase IS VulnerabilityCase, so the
+    After ARCH-25-003 (ADR-0099), as_VulnerabilityCase IS VulnerabilityCase, so the
     type mismatch from #2232 is structurally impossible.  The read path still
     recovers mixed-spelling rows via _normalize_wire_nested_objects.
     """

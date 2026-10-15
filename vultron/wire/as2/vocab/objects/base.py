@@ -85,7 +85,7 @@ class as_VultronObject(as_Object):
 
     **``inline_required_refs`` contract**: Some AS2 ref fields are *required* by
     the protocol to carry a whole object rather than a URI — ``as_CaseProposal``
-    must inline its ``as_VulnerabilityReport`` (CP-01-004, AKM-03-001). The type
+    must inline its ``as_VulnerabilityReport`` (CP-01-004, AKM-03-003). The type
     annotation cannot express that: ``ActivityStreamRequiredRef[T]`` is
     ``T | as_Link | NonEmptyString``, so a URI type-checks. Name such fields
     here::

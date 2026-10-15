@@ -24,14 +24,13 @@ from py_trees.common import Status
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.ledger import commit_case_fully_closed
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     case_is_fully_closed,
 )
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -50,18 +49,7 @@ def _store(actor_id: str, closed: bool) -> SqliteDataLayer:
     seed_case_manager_participant(dl, case, MANAGER)
     dl.create(case)
     if closed:
-        dl.create(
-            _to_persistable_entry(
-                HashChainLedgerRecord(
-                    case_id=CASE_ID,
-                    log_index=0,
-                    object_id="https://example.org/activities/owner-leave",
-                    event_type="case_fully_closed",
-                    payload_snapshot={"actor": OTHER},
-                    prev_log_hash="0" * 64,
-                )
-            )
-        )
+        commit_case_fully_closed(dl, CASE_ID, OTHER)
     return dl
 
 

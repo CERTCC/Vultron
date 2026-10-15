@@ -54,7 +54,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 
 def test_vulnerability_report_round_trips_between_core_and_wire():
-    """ADR-0099 detail 3: as_VulnerabilityReport is VulnerabilityReport (identity)."""
+    """ARCH-25-003 (ADR-0099): as_VulnerabilityReport is VulnerabilityReport (identity)."""
     assert as_VulnerabilityReport is VulnerabilityReport
 
     core = VulnerabilityReport(
@@ -177,7 +177,7 @@ def test_case_participant_round_trips_between_core_and_wire():
 
 
 def test_vulnerability_case_round_trips_between_core_and_wire():
-    """ADR-0099 detail 3: as_VulnerabilityCase is VulnerabilityCase (identity)."""
+    """ARCH-25-003 (ADR-0099): as_VulnerabilityCase is VulnerabilityCase (identity)."""
     assert as_VulnerabilityCase is VulnerabilityCase
 
     case_status = CoreCaseStatus(
@@ -245,7 +245,7 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
 
 
 def test_case_ledger_entry_to_core_returns_domain_model():
-    """ADR-0099 detail 3: as_CaseLedgerEntry is CaseLedgerEntry (identity)."""
+    """ARCH-25-003 (ADR-0099): as_CaseLedgerEntry is CaseLedgerEntry (identity)."""
     assert as_CaseLedgerEntry is CaseLedgerEntry
 
     entry = as_CaseLedgerEntry(

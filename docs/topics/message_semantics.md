@@ -80,13 +80,13 @@ and makes the protocol available in any language or framework.
 
 ## Object verbosity and selective disclosure
 
-Vultron messages carry objects inline. When you send a message about a case,
-the case object travels with it. When you send a message about a report, the
-report object is included.
+A Vultron message carries each object it names inline or by reference, and a receiver copes with either form.
+The reference implementation carries objects inline, because it cannot yet fetch an object by reference.
+When it sends a message about a case, the case object travels with it.
+When it sends a message about a report, the report object is included.
 
-The default is **full inline objects**. The receiver can process the message
-without querying the sender's data store, because everything needed is in the
-message.
+So in the reference implementation the default is **full inline objects**.
+The receiver can process the message without querying the sender's data store, because everything needed is in the message.
 
 There is a tradeoff. Full objects are large, and they share all their fields
 with everyone who receives the message. For most messages in a running case,

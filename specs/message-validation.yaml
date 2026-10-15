@@ -16,7 +16,7 @@ groups:
   specs:
   - id: MV-01-001
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: Incoming payloads MUST conform to ActivityStreams 2.0 structure
     verification: >-
       Integration tests in `test/demo/` confirm that the inbox handler rejects
@@ -36,6 +36,8 @@ groups:
     - story_2022_038
     adr:
     - ADR-0005
+    tags:
+    - as2
   - id: MV-01-005
     priority: MUST
     kind: project
@@ -221,8 +223,11 @@ groups:
   specs:
   - id: MV-05-001
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: The system MUST validate that ID and reference fields contain valid URIs
+    rationale: >-
+      ActivityStreams 2.0 gives every `id` and every reference as an IRI, so a value
+      that is not one is not a well-formed activity. Vultron inherits the rule.
     verification: >-
       A unit test confirms that the activity validator rejects activities whose `id`,
       `actor`, or `object` reference fields contain non-URI strings, and accepts
@@ -230,16 +235,24 @@ groups:
     stories:
     - story_2022_034
     - story_2022_030
+    tags:
+    - as2
   - id: MV-05-002
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: The system MUST treat ActivityStreams object IDs as opaque URIs
+    rationale: >-
+      An ActivityStreams `id` identifies an object and carries no other meaning, so a
+      receiver that reads structure into it depends on how one sender mints its
+      identifiers. Vultron inherits the rule.
     verification: >-
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
       strings.
     stories:
     - story_2022_030
+    tags:
+    - as2
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
@@ -247,18 +260,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Outbound Vultron activities MUST carry a fully inline typed object in their
-      `object_` field; a bare URI reference or `as_Link` is not permitted because
-      the recipient has no access to the sender's DataLayer and cannot resolve the
-      reference to determine the activity's semantic type.
-    note: >-
-      The rule binds the activity's own `object_`. An `Invite(EmbargoEvent)` nested as the
-      object of an ER may name its terms by URI: the ER answers the Invite by id and type,
-      both inline, and needs no terms (ADR-0123).
+      The `object` of an outbound Vultron activity MUST let its recipient determine the
+      activity's semantic type: it is carried inline as a typed object, or by a reference
+      the recipient can dereference to a typed object (AKM-05-003, AKM-05-004).
     verification: >-
-      Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
-      `VultronValidationError` is raised when `object_` is a bare string URI rather
-      than a typed object.
+      Satisfied in this codebase through AKM-03-003, which carries every `object` inline:
+      `vultron/adapters/driving/fastapi/outbox_delivery.py` raises
+      `VultronValidationError` when `object_` is a bare string URI rather than a typed
+      object.
     stories:
     - story_2022_039
     - story_2022_106

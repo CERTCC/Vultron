@@ -33,7 +33,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
-from vultron.core.use_cases.received._store_only import refuse_after_intake
+from vultron.core.use_cases.received._intake_only import refuse_after_intake
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)

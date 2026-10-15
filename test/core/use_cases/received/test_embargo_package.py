@@ -32,10 +32,10 @@ _CAP = 500
 _SUBMODULES = (
     "accept",
     "announce",
-    "create_add_remove",
     "invite",
     "owner_decision",
     "reject",
+    "remove",
 )
 
 #: Every public name the flat module exported before the split, plus the
@@ -43,7 +43,6 @@ _SUBMODULES = (
 _FORMER_EXPORTS = (
     "AcceptInviteToEmbargoOnCaseReceivedUseCase",
     "AnnounceEmbargoEventToCaseReceivedUseCase",
-    "CreateEmbargoEventReceivedUseCase",
     "InviteToEmbargoOnCaseReceivedUseCase",
     "RejectInviteToEmbargoOnCaseReceivedUseCase",
     "RemoveEmbargoEventFromCaseReceivedUseCase",

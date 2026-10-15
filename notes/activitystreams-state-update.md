@@ -96,11 +96,12 @@ never by its sparseness: a sparse `VulnerabilityCase` is always a case.
 
 ## Bootstrap Embeds Nested Objects Inline
 
-Every nested domain object in a `Create(VulnerabilityCase)` bootstrap (for
-example the `case_participants` records) MUST be a full inline object, never a
-URI string (CBT-01-007). `ActivityStreamRef` accepts the string, but the
-receiver persists only materialized entries, so the participant is never stored
-and later participant guards fail. Serialize the snapshot with
+In this codebase every nested domain object in a `Create(VulnerabilityCase)`
+bootstrap (for example the `case_participants` records) MUST be a full inline
+object, never a URI string (CBT-01-012; the protocol allows either, CBT-01-007).
+`ActivityStreamRef` accepts the string, but the receiver persists only
+materialized entries, so the participant is never stored and later participant
+guards fail. Serialize the snapshot with
 `serialize_as_any=True` (see above).
 
 ## Registry Patterns Match the Inbound Wire Format
