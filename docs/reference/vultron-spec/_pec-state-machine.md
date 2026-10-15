@@ -77,7 +77,7 @@ A revision does not move a signatory until it takes effect.
 While a revision is only proposed, the prior embargo is still in force and every signatory to it remains Signatory; the proposer is recorded as having accepted the terms it proposed.
 A signatory that accepts the proposed terms records that acceptance and stays Signatory to the embargo in force.
 A signatory that declines the proposed terms refuses them and nothing more: it stays Signatory, because only declining the **active** embargo is withdrawal.
-A signatory withdraws by leaving the embargo in force (`Leave(EmbargoEvent)`), not by rejecting an invitation to it; the decline then also covers every open revision it had accepted ([MSM-07-010](../specs/protocol.md#msm-07-010)).
+A signatory withdraws by leaving the embargo in force (`Leave(EmbargoEvent)`), not by rejecting an invitation to it; the decline then also covers every open revision it had accepted ([VAM-05-011](../specs/protocol.md#vam-05-011)).
 Only the case owner's accept or reject changes the embargo on the case; the other participants' answers inform that decision.
 
 When the owner activates the revision, consent is re-evaluated against the new terms, and the direction of the change matters.
