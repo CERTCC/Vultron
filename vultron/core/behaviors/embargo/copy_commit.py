@@ -66,7 +66,8 @@ from vultron.core.models.embargo_apply import (
     changed_objects,
 )
 from vultron.core.models.embargo_consent_event_types import (
-    CONSENT_ROW_EVENT_TYPES,
+    CREATE_EMBARGO_CONSENT_EVENT_TYPE,
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -195,13 +196,17 @@ def consent_row_entry(
     """
 
     def _commit() -> dict[str, Any]:
+        # Constants, not the verb map: the ledger-commit inventory resolves
+        # each committed event type from its name (RSH-08-004).
         if change.verb == ConsentRowVerb.CREATE:
+            event_type = CREATE_EMBARGO_CONSENT_EVENT_TYPE
             activity_id, blob = (
                 trigger_activity.record_embargo_consent_created(
                     row=change.row, case_id=case_id, actor=actor_id
                 )
             )
         else:
+            event_type = UPDATE_EMBARGO_CONSENT_EVENT_TYPE
             activity_id, blob = (
                 trigger_activity.record_embargo_consent_updated(
                     row=change.row,
@@ -216,7 +221,7 @@ def consent_row_entry(
             case_id=case_id,
             activity_id=activity_id,
             activity_blob=blob,
-            event_type=CONSENT_ROW_EVENT_TYPES[change.verb],
+            event_type=event_type,
             sync_port=sync_port,
         )
 
