@@ -162,7 +162,7 @@ groups:
     rationale: 'Constructor arguments are the canonical way to initialise an immutable value-object. This clarification prevents
       over-application of the rule.'
     verification: >-
-      A unit test confirms that `CaseParticipant(case_roles=[CVDRole.FINDER])`
+      A unit test confirms that `CaseParticipant(case_roles=[CVDRole.REPORTER])`
       constructs successfully and `participant.roles` returns the initial role list.
     tags:
     - protocol
@@ -213,7 +213,7 @@ groups:
   - id: PRM-04-002
     priority: SHOULD
     kind: protocol
-    statement: 'Wire-layer `model_validator` methods in `CaseParticipant` subclasses (e.g. `FinderParticipant`, `VendorParticipant`)
+    statement: 'Wire-layer `model_validator` methods in `CaseParticipant` subclasses (e.g. `ReporterParticipant`, `VendorParticipant`)
       that initialise `case_roles` SHOULD call `add_role()` rather than assigning to `self.case_roles` directly, so that role-management
       logic is centralised.'
     rationale: 'Using `add_role()` in validators ensures any future invariant checks or logging added to `add_role()` apply

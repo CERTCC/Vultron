@@ -71,7 +71,7 @@ groups:
     priority: SHOULD
     kind: project
     statement: A shared BT node or subtree that models a generic operation (e.g., "create a case participant with any role")
-      SHOULD replace all role-specific one-off variants (e.g., `CreateFinderParticipantNode`, `CreateVendorParticipantNode`)
+      SHOULD replace all role-specific one-off variants (e.g., `CreateReporterParticipantNode`, `CreateVendorParticipantNode`)
       once the shared version is available.
     rationale: Reduces maintenance surface; fixes and improvements apply consistently across all use sites.
 - id: BTND-03
@@ -348,7 +348,7 @@ groups:
       participant records are built and attached via
       `_create_and_attach_participant`, and that no role-specific
       participant-creation subclasses or alias names (e.g.,
-      `CreateFinderParticipantNode`) are present.
+      `CreateReporterParticipantNode`) are present.
     adr:
     - ADR-0114
     stories:

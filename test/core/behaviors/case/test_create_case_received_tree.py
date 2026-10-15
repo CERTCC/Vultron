@@ -385,7 +385,7 @@ def test_bootstrap_addressees_withhold_an_inert_finder():
         embargo_id=embargo.id_,
         extra=(
             _participant(_REPORTER, CVDRole.REPORTER, agreed),
-            _participant(_FINDER, CVDRole.FINDER, uninvited),
+            _participant(_FINDER, CVDRole.REPORTER, uninvited),
         ),
     )
     case = case.model_copy(

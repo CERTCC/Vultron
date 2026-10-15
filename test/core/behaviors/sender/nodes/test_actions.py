@@ -32,7 +32,7 @@ from vultron.core.behaviors.sender.nodes.actions import (
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -66,7 +66,7 @@ def _make_case_with_case_manager(
     case_actor_id: str,
 ) -> tuple[as_VulnerabilityCase, VendorParticipant]:
     case = as_VulnerabilityCase(name="Test Case")
-    finder_participant = FinderParticipant(
+    finder_participant = ReporterParticipant(
         attributed_to=actor_id,
         context=case.id_,
     )
@@ -126,7 +126,7 @@ class TestResolveCaseManagerNode:
     def test_failure_when_no_case_manager(self, dl, bridge):
         store, actor = dl
         case = as_VulnerabilityCase(name="No Manager Case")
-        participant = FinderParticipant(
+        participant = ReporterParticipant(
             attributed_to=actor.id_,
             context=case.id_,
         )

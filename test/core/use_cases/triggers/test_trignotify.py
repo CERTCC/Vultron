@@ -87,7 +87,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -150,7 +150,7 @@ def _make_case_with_case_manager(
         WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
     )
 
-    finder_participant = FinderParticipant(
+    finder_participant = ReporterParticipant(
         attributed_to=finder_id,
         context=case.id_,
     )
@@ -199,7 +199,7 @@ def _make_two_actor_case(
         id_=f"{case.id_}/participants/finder",
         attributed_to=finder_id,
         context=case.id_,
-        case_roles=[CVDRole.FINDER],
+        case_roles=[CVDRole.REPORTER],
     )
     case.add_participant(vendor_participant)
     case.add_participant(finder_participant)
@@ -578,7 +578,7 @@ def _make_case_with_case_owner_and_manager(
     )
     finder_p = CaseParticipant(
         attributed_to=finder_id,
-        case_roles=[CVDRole.FINDER],
+        case_roles=[CVDRole.REPORTER],
     )
     manager_p = CaseParticipant(
         attributed_to=manager_id,
@@ -845,7 +845,7 @@ class TestReportTriggerToField:
         )
         finder_p = CaseParticipant(
             attributed_to=self.finder.id_,
-            case_roles=[CVDRole.FINDER],
+            case_roles=[CVDRole.REPORTER],
         )
         case = VulnerabilityCase(name="No Manager Case")
         case.vulnerability_reports.append(self.report.id_)

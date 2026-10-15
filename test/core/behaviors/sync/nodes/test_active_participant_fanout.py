@@ -107,7 +107,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
         SIGNATORY_ID: _participant(
             case.id_,
             SIGNATORY_ID,
-            CVDRole.FINDER,
+            CVDRole.REPORTER,
             RM.ACCEPTED,
             embargo.id_,
             EmbargoConsentState.AGREED,

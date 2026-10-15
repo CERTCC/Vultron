@@ -98,7 +98,7 @@ def demo_initialize_case(
     6. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
        sends the stub Invite
     7. Finder accepts (RmAcceptInviteToCaseActivity), which seats it as a
-       FINDER participant (ADR-0114)
+       REPORTER participant (ADR-0114, ADR-0078)
     8. Final case state is logged
 
     This follows the workflow in docs/howto/activitypub/activities/initialize_case.md.
@@ -189,7 +189,7 @@ def demo_initialize_case(
         "Steps 6-7: Vendor invites finder; finder accepts and joins"
     ):
         participant = seat_participant_through_stub_invite(
-            client, case, owner=vendor, invitee=finder, role=CVDRole.FINDER
+            client, case, owner=vendor, invitee=finder, role=CVDRole.REPORTER
         )
         logger.info("Seated participant: %s", logfmt(participant))
         with demo_check("Finder participant in case participant list"):

@@ -20,9 +20,7 @@
 Several convenience subclasses are provided that auto-set ``case_roles`` via
 model validators:
 
-- :class:`FinderParticipant`
 - :class:`ReporterParticipant`
-- :class:`FinderReporterParticipant`
 - :class:`VendorParticipant`
 - :class:`DeployerParticipant`
 - :class:`CoordinatorParticipant`
@@ -85,7 +83,7 @@ class CaseParticipant(CoreObject):
     ``type_`` is ``Literal["CaseParticipant"]`` so this class auto-registers
     in :data:`CORE_VOCABULARY` and round-trips through the DataLayer.
 
-    Role-specific subclasses (:class:`FinderParticipant`,
+    Role-specific subclasses (:class:`ReporterParticipant`,
     :class:`VendorParticipant`, etc.) inherit from this class and auto-set
     ``case_roles`` via model validators.  All subclasses share the same
     ``type_`` value ``"CaseParticipant"`` because they carry no additional
@@ -695,9 +693,7 @@ def _seed_accepted_status(data: Any) -> Any:
     """Seed ``participant_statuses`` with a single ``RM.ACCEPTED`` rung.
 
     A reporter has, by definition, accepted the report, so its first ladder
-    rung is ``RM.ACCEPTED``.  Shared by :class:`ReporterParticipant` and
-    :class:`FinderReporterParticipant`, which previously carried byte-identical
-    copies (de-duplicated per ADR-0089 AC-5, ARCH-15-004, CS-22-001).
+    rung is ``RM.ACCEPTED``.  Used by :class:`ReporterParticipant`.
     """
     if not isinstance(data, dict):
         return data
@@ -716,25 +712,6 @@ def _seed_accepted_status(data: Any) -> Any:
     return data
 
 
-class FinderParticipant(CaseParticipant):
-    """A CaseParticipant that holds the FINDER role."""
-
-    @model_validator(mode="before")
-    @classmethod
-    def _set_role(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        roles = [CVDRole.FINDER]
-        data["case_roles"] = roles
-        ps_list = data.get("participant_statuses")
-        if ps_list:
-            latest = ps_list[-1]
-            if isinstance(latest, ParticipantStatus):
-                latest.cvd_role = coerce_cvd_roles(roles)
-        return data
-
-
 class ReporterParticipant(CaseParticipant):
     """A CaseParticipant that holds the REPORTER role.
 
@@ -749,33 +726,6 @@ class ReporterParticipant(CaseParticipant):
             return data
         data = dict(data)
         roles = [CVDRole.REPORTER]
-        data["case_roles"] = roles
-        ps_list = data.get("participant_statuses")
-        if ps_list:
-            latest = ps_list[-1]
-            if isinstance(latest, ParticipantStatus):
-                latest.cvd_role = coerce_cvd_roles(roles)
-        return data
-
-    @model_validator(mode="before")
-    @classmethod
-    def _set_accepted_status(cls, data: Any) -> Any:
-        return _seed_accepted_status(data)
-
-
-class FinderReporterParticipant(CaseParticipant):
-    """A CaseParticipant that holds both FINDER and REPORTER roles.
-
-    Also initialises ``participant_statuses`` to ``[ACCEPTED]``.
-    """
-
-    @model_validator(mode="before")
-    @classmethod
-    def _set_roles(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        roles = [CVDRole.FINDER, CVDRole.REPORTER]
         data["case_roles"] = roles
         ps_list = data.get("participant_statuses")
         if ps_list:

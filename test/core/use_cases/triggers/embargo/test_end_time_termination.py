@@ -38,7 +38,7 @@ from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.core.models.dimensions import PxaDimension
@@ -98,7 +98,7 @@ class _World:
             attributed_to=self.manager.id_, context=case.id_
         )
         owner.add_role(CVDRole.CASE_MANAGER)
-        finder = FinderParticipant(
+        finder = ReporterParticipant(
             attributed_to=self.finder.id_, context=case.id_
         )
         case.case_participants = [owner.id_, finder.id_]

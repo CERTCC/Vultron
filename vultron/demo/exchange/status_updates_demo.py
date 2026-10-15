@@ -24,7 +24,7 @@ This demo script showcases the following workflows:
 3. Participant status workflow: vendor adds a new ParticipantStatus,
    carried inline, to a participant
 
-Each demo starts from an initialized case with a single FINDER
+Each demo starts from an initialized case with a single REPORTER
 participant, seated through its stub Invite, so the status update workflows can be demonstrated in isolation.
 
 This corresponds to the workflow documented in:
@@ -94,7 +94,7 @@ def _setup_initialized_case(
     finder: as_Actor,
     vendor: as_Actor,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    """Set up a case with one FINDER participant.
+    """Set up a case with the finder seated as a REPORTER participant.
 
     Delegates to the shared :func:`~vultron.demo.helpers.workflow.setup_initialized_case`
     and then looks up the finder's participant record for callers that need it.
@@ -239,7 +239,7 @@ def demo_status_workflow(
             context=participant.id_,
             rm=RmDimension(state=RM.RECEIVED),
             attributed_to=finder.id_,
-            cvd_role=[CVDRole.FINDER],
+            cvd_role=[CVDRole.REPORTER],
             case_status=case_status,
         )
         add_pstatus_activity = add_status_to_participant_activity(

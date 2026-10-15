@@ -4,7 +4,7 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| a Reporter has written up a vulnerability and is about to submit the report | `Create(VulnerabilityReport)` | an actor outside any case | any actor (usually: finder, reporter) | — | [Create report](../rm.md#create-report) |
+| a Reporter has written up a vulnerability and is about to submit the report | `Create(VulnerabilityReport)` | an actor outside any case | any actor (usually: reporter) | — | [Create report](../rm.md#create-report) |
 | a Reporter submits a vulnerability report to a Vendor or Coordinator | `Offer(VulnerabilityReport)` | an actor outside any case | any actor (usually: reporter) | — | [Report Submission (RS)](../rm.md#report-submission) |
 | a report receiver has read a submitted report | `Read(Offer(VulnerabilityReport))` | an actor outside any case | the addressee of the vulnerability report offer (usually: vendor, coordinator) | — | [Report Acknowledgment (RK)](../rm.md#report-acknowledgment) |
 | a report receiver judges the report valid | `Accept(Offer(VulnerabilityReport))` | the case manager | a participant (usually: vendor, coordinator) | — | [Validate report](../rm.md#report-valid) |

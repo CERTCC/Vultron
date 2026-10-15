@@ -10,8 +10,6 @@ from vultron.core.models.case_participant import (
     CaseParticipant,
     CoordinatorParticipant,
     DeployerParticipant,
-    FinderParticipant,
-    FinderReporterParticipant,
     ObserverParticipant,
     ReporterParticipant,
     VendorParticipant,
@@ -225,13 +223,11 @@ class TestAddParticipantStatus:
 
 
 _ROLE_SUBCLASS_CASES = [
-    (FinderParticipant, [CVDRole.FINDER]),
+    (ReporterParticipant, [CVDRole.REPORTER]),
     (VendorParticipant, [CVDRole.VENDOR]),
     (DeployerParticipant, [CVDRole.DEPLOYER]),
     (CoordinatorParticipant, [CVDRole.COORDINATOR]),
     (ObserverParticipant, [CVDRole.OBSERVER]),
-    (ReporterParticipant, [CVDRole.REPORTER]),
-    (FinderReporterParticipant, [CVDRole.FINDER, CVDRole.REPORTER]),
     (CaseActorParticipant, [CVDRole.COORDINATOR, CVDRole.CASE_MANAGER]),
 ]
 
@@ -260,25 +256,46 @@ class TestRoleSubclasses:
         assert p.type_ == "CaseParticipant"
 
 
+class TestRetiredFinderRole:
+    """FINDER and its participant subclasses are retired (ADR-0078)."""
+
+    @pytest.mark.parametrize(
+        "name", ["FinderParticipant", "FinderReporterParticipant"]
+    )
+    def test_finder_subclasses_are_gone(self, name):
+        """A finder that reports is a ReporterParticipant; no Finder subclass."""
+        import vultron.core.models.case_participant as module
+
+        assert not hasattr(module, name)
+
+    def test_stored_finder_role_is_refused_with_its_reason(self):
+        """A record stored before the retirement fails loudly, never re-read."""
+        with pytest.raises(ValidationError, match="ADR-0078"):
+            CaseParticipant.model_validate(
+                {
+                    "attributed_to": _ACTOR,
+                    "context": _CONTEXT,
+                    "case_roles": ["finder", "reporter"],
+                }
+            )
+
+
 # ---------------------------------------------------------------------------
-# ACCEPTED status for Reporter and FinderReporter
+# ACCEPTED status for Reporter
 # ---------------------------------------------------------------------------
 
 
 class TestAcceptedStatusOnReporterSubclasses:
-    """ReporterParticipant and FinderReporterParticipant start at RM.ACCEPTED."""
+    """ReporterParticipant starts at RM.ACCEPTED."""
 
-    @pytest.mark.parametrize(
-        "cls", [ReporterParticipant, FinderReporterParticipant]
-    )
-    def test_participant_status_accepted(self, cls):
-        """Subclass starts with RM.ACCEPTED participant status."""
-        p = cls(attributed_to=_ACTOR, context=_CONTEXT)
+    def test_participant_status_accepted(self):
+        """ReporterParticipant starts with RM.ACCEPTED participant status."""
+        p = ReporterParticipant(attributed_to=_ACTOR, context=_CONTEXT)
         assert p.participant_status is not None
         assert p.participant_status.rm.state == RM.ACCEPTED
 
     @pytest.mark.parametrize(
-        "cls", [FinderParticipant, VendorParticipant, CoordinatorParticipant]
+        "cls", [VendorParticipant, DeployerParticipant, CoordinatorParticipant]
     )
     def test_non_reporter_status_rm_start(self, cls):
         """Non-reporter subclasses start at RM.START."""

@@ -79,7 +79,7 @@ def _case_manager_store() -> SqliteDataLayer:
     )
     _seat(dl, case, _MANAGER_ID, "case-manager", [CVDRole.CASE_MANAGER])
     _seat(dl, case, _OWNER_ID, "owner", [CVDRole.CASE_OWNER])
-    _seat(dl, case, _FINDER_ID, "finder", [CVDRole.FINDER])
+    _seat(dl, case, _FINDER_ID, "finder", [CVDRole.REPORTER])
     dl.create(case)
     return dl
 
