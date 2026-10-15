@@ -324,7 +324,7 @@ RECIPES: dict[str, Recipe] = {
         )
     ),
     "record_case_owner_updated": lambda w: w.adapter.record_case_owner_updated(
-        case_id=w.case_id, actor=_CASE_ACTOR, cause_id=_CAUSE_ID
+        case=w.case, actor=_CASE_ACTOR, cause_id=_CAUSE_ID
     ),
     "record_case_announced": lambda w: w.adapter.record_case_announced(
         case_id=w.case_id,

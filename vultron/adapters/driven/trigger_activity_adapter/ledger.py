@@ -187,20 +187,22 @@ class _LedgerRecordsMixin:
 
     def record_case_owner_updated(
         self,
-        case_id: str,
+        case: VulnerabilityCase,
         actor: str,
         cause_id: str,
     ) -> tuple[str, str]:
         """Build and seal ``Update(VulnerabilityCase)`` naming the new owner."""
-        # The case as stored, its participants by id: each changed record is
-        # carried in full by its own ``update_case_participant`` entry
-        # (ADR-0124), as for the genesis ``Create``.
+        # The case as it will be stored, its participants by id: each changed
+        # record is carried in full by its own ``update_case_participant``
+        # entry (ADR-0124), as for the genesis ``Create``.  The caller passes
+        # the changed case because the entry commits before the change is
+        # saved (CLP-07-013).
         activity = update_case_activity(
-            case=_stored_case(self._dl, case_id),
+            case=case,
             actor=actor,
-            context=case_id,
+            context=case.id_,
             id_=derived_activity_id(
-                "case-owner-updated", actor, cause_id, case_id
+                "case-owner-updated", actor, cause_id, case.id_
             ),
         )
         return _seal_record(self._dl, activity)

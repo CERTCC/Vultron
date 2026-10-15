@@ -591,14 +591,16 @@ class TriggerActivityPort(Protocol):
 
     def record_case_owner_updated(
         self,
-        case_id: str,
+        case: VulnerabilityCase,
         actor: str,
         cause_id: str,
     ) -> tuple[str, str]:
-        """``Update(VulnerabilityCase)`` (``update_case_owner``), the case as stored.
+        """``Update(VulnerabilityCase)`` (``update_case_owner``), the changed case.
 
         Records the case's new ``attributed_to`` after an ownership transfer
-        (CM-21-002).  *cause_id* names the act the change follows, as for
+        (CM-21-002).  *case* is the case as it will be stored: the entry
+        commits before the change is saved (CLP-07-013).  *cause_id* names
+        the act the change follows, as for
         :meth:`record_case_participant_updated`.
         """
         ...

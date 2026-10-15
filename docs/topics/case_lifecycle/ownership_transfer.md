@@ -74,7 +74,7 @@ That offer must also still be open, with no other answer to it recorded.
 It refuses an acceptance from anyone else, or a second acceptance of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
-On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
+On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
 The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008, CM-21-009](../../reference/specs/protocol.md#cm-21)).
 The CASE_MANAGER records the acceptance in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
 
@@ -89,6 +89,8 @@ Each entry is an `Update` that the CASE_MANAGER authors, and it carries the chan
 A participant's copy of the case changes only by copying what these entries carry: it stores each participant record as received and takes `attributed_to` from the carried case ([CM-23-016](../../reference/specs/protocol.md#cm-23-016)).
 It does not decide for itself who the new owner is, and it assigns no ids or times of its own, so every copy holds the same owner and the same roles as the CASE_MANAGER.
 The previous owner's record changes first, so no copy ever shows two owners.
+A copy applies the entries one at a time, so between the first two it briefly shows no participant with `CASE_OWNER`, and until the third its `attributed_to` still names the previous owner.
+The CASE_MANAGER records all three entries before it saves the change, so it never makes a change that has no entry.
 The new owner's own copy is updated by the same entries; nothing is delivered to it separately.
 
 ```text

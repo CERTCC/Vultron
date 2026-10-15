@@ -131,7 +131,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
             )
         ),
         "record_case_owner_updated": lambda a: a.record_case_owner_updated(
-            case_id=CASE_ID, actor=CASE_ACTOR_ID, cause_id=OFFER_ID
+            case=case, actor=CASE_ACTOR_ID, cause_id=OFFER_ID
         ),
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,

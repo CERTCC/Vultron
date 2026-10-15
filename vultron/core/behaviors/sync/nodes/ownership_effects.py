@@ -53,6 +53,13 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
     carries.  It reads no role, sender or offer and computes no owner, so a
     replica holds the owner the CASE_MANAGER recorded (CM-23-016).
 
+    Only ``attributed_to`` is copied because it is the one case field the
+    transfer changes: the rest of the carried case is what a replica at that
+    ledger position already holds, each part from an entry of its own (the
+    participant records from the ``update_case_participant`` entries before
+    this one), as for ``case_fully_closed``.  Copying the whole carried case
+    is the one-apply-function end state of ADR-0124 (#4532).
+
     Lenient on a replica that holds no copy of the case (Regime 2, ADR-0087),
     and an idempotent no-op when the case already names that owner.  FAILURE,
     so the entry is not persisted (SYNC-12-001), when the entry carries no

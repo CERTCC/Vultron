@@ -43,7 +43,7 @@ from vultron.core.models.participant_event_types import (
 from vultron.core.participants.ownership_offer import recorded_ownership_offer
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronError, VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -59,13 +59,22 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
 
     1. Reading all objects that need mutation (case + affected participants).
     2. Applying all role changes in memory.
-    3. Committing every mutated object in a single ``save_many`` call so
-       no partial state is ever visible to other readers.
-    4. Recording each changed object as its own CASE_MANAGER-authored ledger
+    3. Recording each changed object as its own CASE_MANAGER-authored ledger
        entry, after the ``Accept`` entry the commit tree wrote (CLP-07-013,
        ADR-0124): the previous owner's participant record, the new owner's,
        then the case.  Each entry is an ``Update`` carrying the object in
-       full, so a replica copies it and derives nothing (CM-23-016).
+       full, so a replica copies it and derives nothing (CM-23-016).  The
+       entries commit before the change is saved, so a change is never made
+       without its entry: when the first entry cannot be built or committed,
+       nothing changes.
+    4. Saving every mutated object in a single ``save_many`` call so no
+       partial state is ever visible to other readers (CM-21-004).
+
+    The entries' ids derive from the act they follow, so a run that commits
+    an entry its earlier run committed records nothing new (ID-04-004).
+    Entries that commit while a later one fails stay recorded with the change
+    unsaved; making the act and all its consequences commit as one is the
+    trial-apply step of ADR-0124 (#4532).
 
     Specifically:
 
@@ -88,10 +97,11 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     ``SUCCESS`` without mutation.
 
     Returns ``FAILURE`` when the DataLayer is unavailable or the case is not
-    found, when the new owner cannot be named, or when an entry does not
-    commit; ``SUCCESS`` otherwise.  A missing trigger-activity port raises
-    before anything is written: without it no entry can be built
-    (ARCH-15-001).
+    found, when the new owner cannot be named, or when an entry cannot be
+    built or does not commit; ``SUCCESS`` otherwise.  A missing
+    trigger-activity port raises before this node changes anything: without
+    it no entry can be built (ARCH-15-001).  The node is an effect of the
+    received ``Accept``, so that entry is already committed by then.
 
     Subclasses name the new owner through :meth:`_new_owner_id`, and the act
     the entries follow through :meth:`_cause_id`.
@@ -180,7 +190,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             return Status.SUCCESS
 
         # Every change gets an entry, so the port that builds them must be
-        # here before anything is written (CLP-07-013).
+        # here before anything is changed (CLP-07-013).
         trigger_activity = self._require_trigger_activity_port()
 
         # --- Read phase: collect every object that must change ---------------
@@ -223,7 +233,20 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
                 self.case_id,
             )
 
-        # --- Commit phase: single atomic transaction (CM-21-004) -------------
+        # --- Record phase: one entry per changed object, before the change
+        # is saved (CLP-07-013) ---------------------------------------------
+        try:
+            self._record_consequences(
+                trigger_activity,
+                [p for p in (old_participant, new_participant) if p],
+                case,
+            )
+        except (RuntimeError, VultronError) as exc:
+            self.feedback_message = f"{self.name}: {exc}"
+            self.logger.exception("%s", self.feedback_message)
+            return Status.FAILURE
+
+        # --- Save phase: single atomic transaction (CM-21-004) ---------------
         self.datalayer.save_many(to_save)  # type: ignore[union-attr]
         self.logger.info(
             "%s: atomically transferred ownership of case '%s' from '%s'"
@@ -234,29 +257,20 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             new_owner_id,
             len(to_save),
         )
-
-        # --- Record phase: one entry per changed object (CLP-07-013) ---------
-        try:
-            self._record_consequences(
-                trigger_activity,
-                [p for p in (old_participant, new_participant) if p],
-            )
-        except RuntimeError as exc:
-            self.feedback_message = f"{self.name}: {exc}"
-            self.logger.exception("%s", self.feedback_message)
-            return Status.FAILURE
         return Status.SUCCESS
 
     def _record_consequences(
         self,
         trigger_activity: "TriggerActivityPort",
         participants: list[CaseParticipant],
+        case: VulnerabilityCase,
     ) -> None:
-        """Commit each changed participant record, then the case.
+        """Commit each changed participant record, then the changed *case*.
 
         Raises:
             RuntimeError: an entry did not commit (see
                 :func:`~vultron.core.behaviors.sync.commit_tree.commit_emitted_activity`).
+            VultronError: an entry could not be built.
         """
         actor_id = cast(str, self.actor_id)
         cause_id = self._cause_id()
@@ -273,7 +287,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
         self._commit(
             UPDATE_CASE_OWNER_EVENT_TYPE,
             trigger_activity.record_case_owner_updated(
-                case_id=self.case_id, actor=actor_id, cause_id=cause_id
+                case=case, actor=actor_id, cause_id=cause_id
             ),
         )
 

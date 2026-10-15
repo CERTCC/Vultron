@@ -147,9 +147,14 @@ class ApplyCaseParticipantUpdateFromLedgerNode(_LedgerEffectNode):
     """Store the changed record an ``update_case_participant`` entry carries.
 
     The carried record replaces the replica's copy of it, as the CASE_MANAGER
-    stored it (CM-23-016).  Lenient on a replica that holds no copy of the
-    case (Regime 2, ADR-0087), or none of the record, which it then learns
-    with the roster entry that seats it; both are SUCCESS with nothing
+    stored it (CM-23-016).  The whole record is stored, not only the changed
+    role: a write a participant made to its own copy that no entry carries
+    yet is overwritten until the entry recording it arrives, because a
+    replica holds what the ledger says (ADR-0124).
+
+    Lenient on a replica that holds no copy of the case (Regime 2, ADR-0087),
+    or none of the record, which it then learns with the roster entry that
+    seats it, or a record under another id; all are SUCCESS with nothing
     written.  An entry whose object is not a valid ``CaseParticipant`` fails
     with a reason, so it is not persisted (SYNC-12-001).
     """

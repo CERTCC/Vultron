@@ -1461,9 +1461,15 @@ NEW_OWNER_ID = "https://example.org/actors/new-owner"
 
 
 def _make_ownership_transfer_entry(
-    log_index: int, new_owner_id: str, prev_hash: str = _ZERO_HASH
+    log_index: int, new_owner_id: str | None, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
-    """The CASE_MANAGER's ``update_case_owner`` entry, carrying the case."""
+    """The CASE_MANAGER's ``update_case_owner`` entry, carrying the case.
+
+    *new_owner_id* ``None`` leaves ``attributedTo`` out of the carried case.
+    """
+    carried: dict[str, str] = {"id": CASE_ID, "type": "VulnerabilityCase"}
+    if new_owner_id is not None:
+        carried["attributedTo"] = new_owner_id
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -1473,11 +1479,7 @@ def _make_ownership_transfer_entry(
             payload_snapshot={
                 "type": "Update",
                 "actor": OWNER_ACTOR_ID,
-                "object": {
-                    "id": CASE_ID,
-                    "type": "VulnerabilityCase",
-                    "attributedTo": new_owner_id,
-                },
+                "object": carried,
             },
             prev_log_hash=prev_hash,
         )
@@ -1551,6 +1553,28 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         )
 
         assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.attributed_to == OWNER_ACTOR_ID
+
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("CM-23-016")
+    def test_an_entry_carrying_no_owner_fails_and_is_not_persisted(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """No owner to copy: the replica computes none, and stores no entry."""
+        entry = _make_ownership_transfer_entry(0, None, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.FAILURE
+        assert datalayer.read(entry.id_) is None
         updated = datalayer.read(CASE_ID)
         assert updated is not None
         assert updated.attributed_to == OWNER_ACTOR_ID
@@ -1638,6 +1662,28 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
 
         assert result.status == Status.SUCCESS
         assert datalayer.read(stranger.id_) is None
+
+    @pytest.mark.spec("CM-23-016")
+    def test_a_record_under_another_id_is_left_alone(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The replica indexes the actor under another record: nothing stored."""
+        held = self._held(datalayer, case_obj)
+        carried = held.model_copy(
+            deep=True,
+            update={"id_": "https://example.org/participants/other-id"},
+        )
+        carried.add_role(CVDRole.CASE_OWNER)
+
+        result = _run_announce(
+            bridge, case_actor, self._entry(case_obj, carried)
+        )
+
+        assert result.status == Status.SUCCESS
+        assert datalayer.read(carried.id_) is None
+        stored = datalayer.read(self._HELD_ID)
+        assert isinstance(stored, CaseParticipant)
+        assert not stored.has_role(CVDRole.CASE_OWNER)
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("CM-21-007")

@@ -432,7 +432,7 @@ class TestTransferRecordsEachChange:
             TriggerActivityAdapter,
         )
 
-        _owned_case(dl)
+        old, new = _owned_case(dl)
         port = MagicMock(spec=TriggerActivityAdapter)
         port.record_case_participant_updated.return_value = ("urn:x", "{}")
         bridge = BTBridge(datalayer=dl, trigger_activity=port)
@@ -453,6 +453,43 @@ class TestTransferRecordsEachChange:
 
         assert result.status == Status.FAILURE
         assert result.internal_error is False
+        # The entries commit before the change is saved: no change without
+        # its entry (CLP-07-013).
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_entry_that_cannot_be_built_fails_the_transfer(
+        self, dl
+    ) -> None:
+        """A port error is a FAILURE with nothing changed, not a crash."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.errors import VultronActivityConstructionError
+
+        old, new = _owned_case(dl)
+        port = MagicMock(spec=TriggerActivityAdapter)
+        port.record_case_participant_updated.side_effect = (
+            VultronActivityConstructionError("invalid arguments")
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=port)
+
+        result = bridge.execute_with_setup(
+            tree=AcceptCaseOwnershipTransferNode(
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+            ),
+            actor_id=NEW_OWNER_ID,
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
 
 
 # ---------------------------------------------------------------------------
