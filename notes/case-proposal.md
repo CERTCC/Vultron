@@ -233,13 +233,15 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   this delivery (`RecordProposalAdmissionNode`'s `admission_record_was_prior`), not
   on the report: the report id is sender-chosen, so a redelivery may name a report
   with no case.
-- **Same proposal id, another sender**: the proposal id is sender-chosen, so
-  `LoadExistingCaseNode` reuses the stored `Accept`'s case only for the proposer the
-  admission record names (`accepted_for_proposer_only`); otherwise native
-  initialization commits ledger entries to that case as the other sender. Refusing
-  that sender is a sender-entitlement check, so it belongs in the use case's
-  declaration, not in this tree (HP-01-007, HP-01-008); until then it gets a stray
-  case (#4719).
+- **Same proposal id, another sender**: the proposal id is sender-chosen, so the
+  use case declares `SenderRule.before_case(AUTHOR)` and the factory composes
+  `SenderIsProposalAuthorNode` ahead of every arm: a proposal id whose admission or
+  decline record names another proposer is `REFUSED` before any proposal-keyed
+  record is read or written (HP-01-008, #4719). Add any new proposal-keyed record
+  that names the proposer to that node. `LoadExistingCaseNode` still reuses the
+  stored `Accept`'s case only for the admitted proposer
+  (`accepted_for_proposer_only`), so a guard bypass cannot lead another sender
+  into the case (#4650).
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its

@@ -67,10 +67,8 @@ from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     create_reject_case_proposal_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -138,10 +136,14 @@ class CreateCaseProposalReceivedUseCase:
     Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#812",
-        "prototype admits a Create(CaseProposal) from any sender (CP-05-002); "
-        "sender must be the report receiver once CaseActors are spawned",
+    # The proposal precedes the case, so the rule is for an actor outside
+    # any case.  Its author is the proposer this CASE_MANAGER recorded for the
+    # proposal id; an id it has not recorded is a new proposal, which any
+    # actor may make, the admission decision being the call-out point's
+    # (CP-05-002).  The proposal id is the sender's choice, so another
+    # proposer's admitted or declined id is refused (CP-05-006, #4719).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
+        SenderEntitlementKind.AUTHOR
     )
 
     def __init__(
@@ -280,6 +282,7 @@ class CreateCaseProposalReceivedUseCase:
             inline_report=inline_report,
             call_out=self._call_out,
             proposer_case_roles=request.proposer_case_roles,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,

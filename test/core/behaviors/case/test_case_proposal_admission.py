@@ -74,6 +74,7 @@ from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     case_is_announced,
 )
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_admission import (
@@ -87,6 +88,9 @@ from vultron.core.models.pending_create_case_activity import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.use_cases.received.case_proposal import (
+    CreateCaseProposalReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
@@ -104,6 +108,9 @@ _VENDOR_URI = "https://vendor.example.org/actors/vendor"
 _REPORTER_URI = "https://finder.example.org/actors/finder"
 _REPORT_URI = "https://finder.example.org/reports/r-001"
 _PROPOSAL_URI = "https://vendor.example.org/proposals/p-001"
+
+#: The rule the use case declares; the tree factory composes its guard.
+_SENDER_RULE: SenderRule = CreateCaseProposalReceivedUseCase.sender_entitlement
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +227,7 @@ def _run_tree(
             id_=_REPORT_URI, attributed_to=_REPORTER_URI
         ),
         call_out=call_out,
+        sender_rule=_SENDER_RULE,
     )
     result = BTBridge(
         datalayer=dl,
@@ -877,6 +885,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                     id_=_REPORT_URI, attributed_to=_REPORTER_URI
                 ),
                 call_out=_declining_bundle(ticks),
+                sender_rule=_SENDER_RULE,
             )
             status = (
                 BTBridge(
@@ -1669,14 +1678,7 @@ class TestAnotherSendersReuseOfAnAcceptedProposalId:
             "the accepted case and its participants are unchanged"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Create(CaseProposal) is not sender-checked, so a reused proposal"
-            " id from another sender still creates a stray case. Tracked by"
-            " #4719."
-        ),
-    )
+    @pytest.mark.spec("HP-01-006")
     def test_no_second_case_is_created(self, dl):
         assert _run_tree(dl) == Status.SUCCESS
         (case,) = _cases(dl)
@@ -1696,6 +1698,83 @@ class TestAnotherSendersReuseOfAnAcceptedProposalId:
 
         assert status == Status.SUCCESS
         assert _types_in_outbox(dl) == ["Accept"]
+
+    @pytest.mark.spec("HP-01-006")
+    def test_the_other_sender_is_refused_and_sent_nothing(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        _drain_outbox(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE, "the sender guard refuses it"
+        assert _types_in_outbox(dl) == [], "nothing is sent to anyone"
+        admission = dl.read(
+            CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI)
+        )
+        assert isinstance(admission, CaseProposalAdmissionRecord)
+        assert admission.proposer_uri == _VENDOR_URI, (
+            "the admission record still names the original proposer"
+        )
+        assert (
+            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
+        )
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("HP-01-006")
+class TestAnotherSendersReuseOfAClosedCasesProposalId:
+    """The closed-case arm never declines on another proposer's proposal id.
+
+    The proposal id is chosen by the sender.  Before the sender guard, the
+    closed-case arm wrote a ``CaseProposalDeclineRecord`` on the original
+    proposer's proposal id for the other sender, and sent it a ``Reject``
+    (#4719, AC-3).
+    """
+
+    def test_no_decline_record_is_written(self, dl):
+        _accepted_then_closed(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE
+        assert (
+            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
+        )
+        assert _types_in_outbox(dl) == []
+
+    def test_the_original_proposer_is_still_declined(self, dl):
+        _accepted_then_closed(dl)
+        _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert _run_tree(dl) == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Reject"]
+        assert _decline_record(dl, _PROPOSAL_URI).proposer_uri == _VENDOR_URI
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("HP-01-006")
+class TestAnotherSendersReuseOfADeclinedProposalId:
+    """A declined proposal id reused by another sender is refused, not
+    answered from the decline record."""
+
+    def test_the_other_sender_is_refused_and_sent_nothing(self, dl):
+        assert _run_tree(dl, call_out=_declining_bundle([])) == Status.SUCCESS
+        record_before = _decline_record(dl, _PROPOSAL_URI).model_dump_json()
+        _drain_outbox(dl)
+
+        status = _run_tree(
+            dl,
+            proposer_uri=_OTHER_PROPOSER_URI,
+            call_out=_declining_bundle([]),
+        )
+
+        assert status == Status.FAILURE
+        assert _types_in_outbox(dl) == []
+        assert (
+            _decline_record(dl, _PROPOSAL_URI).model_dump_json()
+            == record_before
+        )
+        assert _cases(dl) == []
 
 
 def _case_rows(dl, case_id: str) -> list[str]:

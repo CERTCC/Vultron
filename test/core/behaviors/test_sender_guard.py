@@ -52,12 +52,15 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
     SenderIsProposalAddresseeNode,
+    SenderIsProposalAuthorNode,
     SenderIsRequestAddresseeNode,
     SenderRule,
     any_of,
 )
 from vultron.core.behaviors.sender_guard import (
     AddresseeRequest,
+    AuthoredCaseProposal,
+    AuthoredNote,
     CaseProposalRequest,
     OwnershipOfferRequest,
     ReportOfferRequest,
@@ -65,6 +68,12 @@ from vultron.core.behaviors.sender_guard import (
     compose_sender_guard,
 )
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_proposal_admission import (
+    CaseProposalAdmissionRecord,
+)
+from vultron.core.models.case_proposal_decline import (
+    CaseProposalDeclineRecord,
+)
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
@@ -513,7 +522,9 @@ def test_author_kind_admits_only_the_objects_author(
     guard = compose_sender_guard(
         SenderRule.in_case(Kind.AUTHOR),
         SenderCheckContext(
-            sender_id=sender, case_id=CASE_ID, authored_object_id=NOTE_ID
+            sender_id=sender,
+            case_id=CASE_ID,
+            authored_object=AuthoredNote(note_id=NOTE_ID),
         ),
     )
     assert isinstance(guard, SenderIsNoteAuthorNode)
@@ -530,7 +541,9 @@ def test_author_kind_refuses_an_author_no_longer_a_participant() -> None:
     guard = compose_sender_guard(
         SenderRule.in_case(Kind.AUTHOR),
         SenderCheckContext(
-            sender_id=STRANGER, case_id=CASE_ID, authored_object_id=NOTE_ID
+            sender_id=STRANGER,
+            case_id=CASE_ID,
+            authored_object=AuthoredNote(note_id=NOTE_ID),
         ),
     )
     assert guard is not None
@@ -541,18 +554,89 @@ def test_author_kind_refuses_an_author_no_longer_a_participant() -> None:
 
 
 def test_author_without_the_changed_object_is_a_wiring_error() -> None:
-    with pytest.raises(VultronWiringError, match="authored_object_id"):
+    with pytest.raises(VultronWiringError, match="authored_object"):
         compose_sender_guard(
             SenderRule.in_case(Kind.AUTHOR),
             SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
         )
 
 
+# The case proposal's author: the proposer this CASE_MANAGER recorded for the
+# proposal id, which the sender chose (CP-05-006, #4719).
+
+PROPOSAL_ID = "https://example.org/proposals/sender-rule"
+
+
+def _proposal_author_guard(sender: str) -> py_trees.behaviour.Behaviour:
+    guard = compose_sender_guard(
+        SenderRule.before_case(Kind.AUTHOR),
+        SenderCheckContext(
+            sender_id=sender,
+            authored_object=AuthoredCaseProposal(proposal_id=PROPOSAL_ID),
+        ),
+    )
+    assert isinstance(guard, SenderIsProposalAuthorNode)
+    assert guard.guards_kind is Kind.AUTHOR
+    return guard
+
+
+def _admission(proposer: str) -> CaseProposalAdmissionRecord:
+    return CaseProposalAdmissionRecord(
+        proposal_id=PROPOSAL_ID, case_actor_id=MANAGER, proposer_uri=proposer
+    )
+
+
+def _decline(proposer: str) -> CaseProposalDeclineRecord:
+    return CaseProposalDeclineRecord(
+        proposal_id=PROPOSAL_ID, case_actor_id=MANAGER, proposer_uri=proposer
+    )
+
+
+@pytest.mark.spec("HP-01-009")
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.parametrize(
+    ("records", "sender", "admitted"),
+    [
+        ((), STRANGER, True),
+        ((_admission(VENDOR),), VENDOR, True),
+        ((_admission(VENDOR),), STRANGER, False),
+        ((_decline(VENDOR),), VENDOR, True),
+        ((_decline(VENDOR),), STRANGER, False),
+        ((_admission(VENDOR), _decline(VENDOR)), STRANGER, False),
+    ],
+    ids=[
+        "new-proposal",
+        "admitted-proposer",
+        "admitted-for-another",
+        "declined-proposer",
+        "declined-for-another",
+        "both-records-for-another",
+    ],
+)
+def test_author_kind_admits_only_a_proposals_recorded_proposer(
+    records: tuple[PersistableModel, ...], sender: str, admitted: bool
+) -> None:
+    scenario = _store(MANAGER)
+    for record in records:
+        scenario.dl.create(record)
+    result = scenario.run(
+        _proposal_author_guard(sender),
+        activity=SimpleNamespace(actor_id=sender),
+    )
+    assert not result.internal_error, result.feedback_message
+    assert (result.status == Status.SUCCESS) is admitted
+    if not admitted:
+        assert VENDOR in result.feedback_message
+        assert "HP-01-006" in result.feedback_message
+
+
 def test_author_without_a_case_is_a_wiring_error() -> None:
     with pytest.raises(VultronWiringError, match="case_id"):
         compose_sender_guard(
             SenderRule.before_case(Kind.AUTHOR),
-            SenderCheckContext(sender_id=VENDOR, authored_object_id=NOTE_ID),
+            SenderCheckContext(
+                sender_id=VENDOR, authored_object=AuthoredNote(note_id=NOTE_ID)
+            ),
         )
 
 
@@ -608,7 +692,9 @@ def _composed_vendor_guard(kind: Kind) -> py_trees.behaviour.Behaviour:
     guard = compose_sender_guard(
         SenderRule.in_case(kind),
         SenderCheckContext(
-            sender_id=VENDOR, case_id=CASE_ID, authored_object_id=NOTE_ID
+            sender_id=VENDOR,
+            case_id=CASE_ID,
+            authored_object=AuthoredNote(note_id=NOTE_ID),
         ),
     )
     assert guard is not None
