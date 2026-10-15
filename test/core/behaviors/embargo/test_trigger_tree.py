@@ -34,13 +34,15 @@ from vultron.core.behaviors.case_status_snapshot import (
 from vultron.core.behaviors.embargo.nodes import (
     AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
+    CommitAndApplyEmbargoTerminationNode,
     CommitEmbargoDecisionNode,
-    CommitEmbargoTeardownNode,
     LeaveAbandonmentToCaseManagerNode,
     ProposeEmbargoLifecycleNode,
     ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
-    TerminateEmbargoLifecycleNode,
+)
+from vultron.core.behaviors.embargo.nodes.lifecycle import (
+    _EmbargoLifecycleNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
     ABANDONMENT_LEFT_TO_CASE_MANAGER,
@@ -257,28 +259,33 @@ class TestRejectProposedEmbargoBt:
 @pytest.mark.spec("RSH-04-002")
 @pytest.mark.spec("EP-09-008")
 class TestTerminateEmbargoBt:
-    def test_manager_arm_writes_commits_then_declares(
-        self, result_out, activity_builder
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.parametrize("use_builder", [True, False])
+    def test_manager_arm_commits_and_applies_in_one_node_then_declares(
+        self, result_out, activity_builder, use_builder
     ):
+        """The ``Remove`` commits before its step applies, inside one node
+        (ADR-0124, #4714): no lifecycle write runs ahead of the commit."""
         tree = terminate_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
             termination=EmbargoTermination.early(),
-            activity_builder=activity_builder,
+            activity_builder=activity_builder if use_builder else None,
         )
-        _assert_manager_arm_order(tree, TerminateEmbargoLifecycleNode)
-
-    def test_cascade_manager_arm_writes_commits_then_declares(
-        self, result_out
-    ):
-        tree = terminate_embargo_bt(
-            case_id=CASE_ID,
-            result_out=result_out,
-            termination=EmbargoTermination.early(),
+        manager = _arm(tree, "AsCaseManager")
+        index = {type(n): i for i, n in reversed(list(enumerate(manager)))}
+        assert (
+            index[CommitAndApplyEmbargoTerminationNode]
+            < index[EmitCaseStatusUpdateNode]
         )
-        _assert_manager_arm_order(
-            tree, TerminateEmbargoLifecycleNode, CommitEmbargoTeardownNode
-        )
+        assert [
+            n for n in manager if isinstance(n, _CommitCaseManagerActivityBase)
+        ] == [
+            n
+            for n in manager
+            if isinstance(n, CommitAndApplyEmbargoTerminationNode)
+        ], "the termination is the arm's only commit"
+        assert not any(isinstance(n, _EmbargoLifecycleNode) for n in manager)
 
     def test_emit_node_present_without_activity_builder(self, result_out):
         tree = terminate_embargo_bt(
