@@ -35,16 +35,12 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,
-    CreateCaseStatusReceivedUseCase,
-    CreateParticipantStatusReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    create_case_status_activity,
-    create_status_for_participant_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -58,66 +54,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 class TestStatusUseCases:
     """Tests for case status and participant status handlers."""
-
-    def test_create_case_status_stores_status(self, monkeypatch, make_payload):
-        """create_case_status persists the as_CaseStatus to the DataLayer."""
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_cs1",
-            name="Case Status Test",
-        )
-        status = as_CaseStatus(
-            id_="https://example.org/cases/case_cs1/statuses/s1",
-            context=case.id_,
-        )
-        activity = create_case_status_activity(
-            status, actor="https://example.org/users/vendor", context=case.id_
-        )
-
-        event = make_payload(activity)
-
-        result = CreateCaseStatusReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
-        ).execute()
-
-        stored = dl.get(status.type_, status.id_)
-        assert stored is not None
-        assert result.disposition == HandlerDisposition.APPLIED
-
-    def test_create_case_status_idempotent(self, monkeypatch, make_payload):
-        """create_case_status skips storing a duplicate as_CaseStatus."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_cs2",
-            name="Case Status Idempotent",
-        )
-        status = as_CaseStatus(
-            id_="https://example.org/cases/case_cs2/statuses/s2",
-            context=case.id_,
-        )
-        dl.create(status)
-
-        activity = create_case_status_activity(
-            status, actor="https://example.org/users/vendor", context=case.id_
-        )
-        event = make_payload(activity)
-
-        result = CreateCaseStatusReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
-        ).execute()
-
-        stored = dl.get(status.type_, status.id_)
-        assert stored is not None
-        assert result.disposition == HandlerDisposition.SKIPPED
 
     def test_add_case_status_to_case_appends_status(
         self, monkeypatch, make_payload
@@ -501,36 +437,6 @@ class TestStatusUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
         assert updated_case.em_state == EM.NONE
         assert updated_case.current_status.em.state == EM.NONE
-
-    def test_create_participant_status_stores_status(
-        self, monkeypatch, make_payload
-    ):
-        """create_participant_status persists the as_ParticipantStatus."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        pstatus = as_ParticipantStatus(
-            id_="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
-            context="https://example.org/cases/case_ps1",
-        )
-        case_ps1 = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ps1",
-            name="PS Case 1",
-        )
-        activity = create_status_for_participant_activity(
-            pstatus, actor="https://example.org/users/vendor", context=case_ps1
-        )
-
-        event = make_payload(activity)
-
-        CreateParticipantStatusReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
-        ).execute()
-
-        stored = dl.get(pstatus.type_, pstatus.id_)
-        assert stored is not None
 
     def test_add_participant_status_to_participant_appends_status(
         self, monkeypatch, make_payload

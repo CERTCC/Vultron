@@ -257,7 +257,7 @@ def _require_recorded_offer(
             f" ({raw_offer_id})",
         )
     stored_participant = getattr(stored_offer, "object_", None)
-    # AKM-03-001: dehydration stores object_ as a bare ID string;
+    # AKM-03-003: dehydration stores object_ as a bare ID string;
     # follow the reference to retrieve the full as_CaseParticipant.
     if isinstance(stored_participant, str):
         stored_participant = dl.read(stored_participant)

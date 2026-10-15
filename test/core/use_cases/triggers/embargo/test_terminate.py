@@ -219,6 +219,40 @@ def test_manager_terminate_queues_nothing_addressed_to_itself(
     ), "the CASE_MANAGER must not address its own outbox to itself"
 
 
+@pytest.mark.spec("SYNC-09-002")
+def test_manager_teardown_is_queued_before_it_is_committed(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ``Remove`` reaches the outbox before the entry that records it.
+
+    A ledger entry records a completed act (ADR-0119).
+    """
+    from test.support.ledger import record_sends_and_commits
+
+    owner, dl = owner_actor_and_dl
+    finder = _persist_actor(dl, "Finder Co")
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    events = record_sends_and_commits(monkeypatch, owner.id_)
+
+    SvcTerminateEmbargoUseCase(
+        dl,
+        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+    (remove_id,) = [
+        object_id
+        for kind, object_id in events
+        if kind == EMBARGO_TEARDOWN_EVENT_TYPE
+    ]
+    assert events.index(("queued", remove_id)) < events.index(
+        (EMBARGO_TEARDOWN_EVENT_TYPE, remove_id)
+    )
+
+
 @pytest.mark.spec("EP-09-008")
 def test_non_manager_terminate_asks_the_case_manager(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],

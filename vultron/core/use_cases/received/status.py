@@ -7,9 +7,6 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.store_received_object import (
-    StoreReceivedObjectNode,
-)
 from vultron.core.behaviors.status.add_case_status_tree import (
     add_case_status_tree,
 )
@@ -25,8 +22,6 @@ from vultron.core.behaviors.status.nodes.dimension_filter import (
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
-    CreateCaseStatusReceivedEvent,
-    CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
@@ -45,10 +40,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     post_close_refusal,
     verdict_from_bt,
-)
-from vultron.core.use_cases.received._store_only import (
-    run_store_only,
-    store_only_verdict,
 )
 
 if TYPE_CHECKING:
@@ -85,44 +76,6 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
     """Return True if the StatusAdoptionGate Selector returned FAILURE."""
     gate = find_named(tree, "StatusAdoptionGate")
     return gate is not None and gate.status == Status.FAILURE
-
-
-class CreateCaseStatusReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check defined for case status creation"
-    )
-
-    def __init__(
-        self,
-        dl: CasePersistence,
-        request: CreateCaseStatusReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._wire_render_port = wire_render_port
-        self._sync_port = sync_port
-        self._request: CreateCaseStatusReceivedEvent = request
-
-    def execute(self) -> HandlerResult:
-        request = self._request
-        tree, result = run_store_only(
-            self._dl,
-            request,
-            name="CreateCaseStatusReceivedBT",
-            sync_port=self._sync_port,
-            wire_render_port=self._wire_render_port,
-            store_node=StoreReceivedObjectNode(
-                request.object_type,
-                request.status_id,
-                request.status,
-                "CaseStatus",
-                request.activity_id,
-            ),
-        )
-        return store_only_verdict(
-            tree, result, label="CreateCaseStatusReceivedBT"
-        )
 
 
 class AddCaseStatusToCaseReceivedUseCase:
@@ -212,44 +165,6 @@ class AddCaseStatusToCaseReceivedUseCase:
                     case_id=case_id,
                 )
         return verdict
-
-
-class CreateParticipantStatusReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check defined for participant status creation"
-    )
-
-    def __init__(
-        self,
-        dl: CasePersistence,
-        request: CreateParticipantStatusReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._wire_render_port = wire_render_port
-        self._sync_port = sync_port
-        self._request: CreateParticipantStatusReceivedEvent = request
-
-    def execute(self) -> HandlerResult:
-        request = self._request
-        tree, result = run_store_only(
-            self._dl,
-            request,
-            name="CreateParticipantStatusReceivedBT",
-            sync_port=self._sync_port,
-            wire_render_port=self._wire_render_port,
-            store_node=StoreReceivedObjectNode(
-                request.object_type,
-                request.status_id,
-                request.status,
-                "ParticipantStatus",
-                request.activity_id,
-            ),
-        )
-        return store_only_verdict(
-            tree, result, label="CreateParticipantStatusReceivedBT"
-        )
 
 
 class AddParticipantStatusToParticipantReceivedUseCase:

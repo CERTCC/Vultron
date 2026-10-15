@@ -53,6 +53,7 @@ __all__ = [
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
     "REPORT_CASE_PROPOSAL",
+    "REPORTER_INTRODUCTION",
     "ReplicaEmitExemption",
 ]
 
@@ -172,6 +173,24 @@ REPORT_CASE_PROPOSAL: Final = ReplicaEmitExemption(
 )
 
 
+REPORTER_INTRODUCTION: Final = ReplicaEmitExemption(
+    name="reporter-introduction",
+    reason=(
+        "A trusted Create(VulnerabilityCase) seeds a replica, and the case"
+        " owner that receives it is the report receiver, which introduces the"
+        " CASE_MANAGER to the reporter with its own Create(VulnerabilityCase)"
+        " (CBT-01-001, CM-12-003, ADR-0132).  The introduction is the"
+        " executing actor's own act, addressed to the actor that sent it the"
+        " report: it answers that report outside any case traffic the"
+        " CASE_MANAGER routes (PCR-08-001), and the reporter has no anchor"
+        " for the CASE_MANAGER until it arrives (CBT-01-005).  The receiving"
+        " replica is never the case's CASE_MANAGER on this path, so there is"
+        " no gate to put it under."
+    ),
+    covers=frozenset({"IntroduceCaseManagerToReporterNode"}),
+)
+
+
 #: Every exemption ``create_receive_activity_tree`` accepts, by name.
 #:
 #: The RM-declaration gap-note exemptions (engage, defer, and the three report
@@ -193,6 +212,7 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
                 EMBARGO_INVITE_ANSWER,
                 EMBARGO_INVITE_REFUSAL,
                 REPORT_CASE_PROPOSAL,
+                REPORTER_INTRODUCTION,
             )
         }
     )

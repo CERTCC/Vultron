@@ -328,7 +328,7 @@ if __name__ == "__main__":
 
 
 class TestEmbargoPolicyCoreConversion(unittest.TestCase):
-    """Wire EmbargoPolicy IS core EmbargoPolicy (identity) — ADR-0099 detail 3."""
+    """Wire EmbargoPolicy IS core EmbargoPolicy (identity) — ARCH-25-003 (ADR-0099)."""
 
     def setUp(self):
         from vultron.core.models.embargo_policy import (
@@ -347,7 +347,7 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
         )
 
     def test_from_core_produces_wire_instance(self):
-        """ADR-0099 detail 3: wire IS core — no from_core() needed."""
+        """ARCH-25-003 (ADR-0099): wire IS core — no from_core() needed."""
         self.assertIs(self.wire_cls, self.core_cls)
         self.assertIsInstance(self.core_policy, self.wire_cls)
 

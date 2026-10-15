@@ -22,8 +22,8 @@
 - **wire** (``vultron/wire/as2/vocab/objects/case_status.py``) — flat
   ``rm_state: RM``, and no ``rm`` attribute at all.
 
-ADR-0099 detail 3 collapsed the pair, so there is one shape: the flat spelling is
-an alias of the dimension (detail 5), and ``as_ParticipantStatus`` is the core
+ARCH-25-003 (ADR-0099) collapsed the pair, so there is one shape: the flat spelling is
+an alias of the dimension (ARCH-25-005), and ``as_ParticipantStatus`` is the core
 class. The tests below are kept because the *failure modes* they document were
 real and their fixes still have to hold — but read them knowing the second shape
 no longer exists.
@@ -38,7 +38,7 @@ Two silent-failure modes followed from the split, both reproduced here:
    reader degraded instead of failing (ARCH-15-001, ARCH-15-002).
 
 Both were made to *raise*, which stopped the loss without fixing its cause.
-ADR-0099 fixes the cause: core carries the AS2 spelling (detail 2), so the key is
+ADR-0099 fixes the cause: core carries the AS2 spelling (ARCH-25-002), so the key is
 read into the right field and the ladder survives; and the second shape is gone,
 so there is no mismatch left to raise about. The tests assert the values *arrive*,
 which is stronger than asserting a refusal — a refusal is also consistent with the
@@ -178,8 +178,8 @@ class TestParticipantStatusRmStateHelper:
         This asserted the opposite: that ``as_ParticipantStatus(rm_state=...)``
         had **no** ``rm`` attribute at all, and that reading it had to raise.
         That was true while ``as_ParticipantStatus`` was a separate wire class
-        holding a flat field. ADR-0099 detail 3 collapsed the pair, so the flat
-        spelling is now an alias of the dimension (detail 5) and there is no
+        holding a flat field. ARCH-25-003 (ADR-0099) collapsed the pair, so the flat
+        spelling is now an alias of the dimension (ARCH-25-005) and there is no
         shape mismatch left to raise about — the value is simply read.
 
         The guard itself is still covered, by

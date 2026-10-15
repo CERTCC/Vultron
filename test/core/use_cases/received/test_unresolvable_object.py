@@ -135,8 +135,8 @@ class TestUnresolvableObjectUseCase:
         """The summary is a local record, so it is not rendered as AS2.
 
         Core must not render the core-branch activity itself (ARCH-20-001), and a
-        stored record keeps Python field names with no ``@context`` (ADR-0099
-        detail 1), so the summary is the activity's plain dump.
+        stored record keeps Python field names with no ``@context`` (ARCH-25-001,
+        ADR-0099), so the summary is the activity's plain dump.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",

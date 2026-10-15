@@ -69,6 +69,7 @@ vultrabot_cvd="vultron.bt.base.demo.cvd:main"
 vultrabot="vultron.bt.base.demo.cvd:main"
 vultron-demo="vultron.demo.cli:main"
 vultron-demo-report="vultron.demo.report:main"
+export-demo-states="vultron.metadata.demo_scenarios.export_states:main"
 spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
 spec-lint="vultron.metadata.specs.lint:main"
@@ -330,7 +331,7 @@ filterwarnings = [
 ]
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
-    "spec(spec_id): mark test as verifying a specific spec requirement ID",
+    "spec(*spec_ids): mark test as verifying one or more spec requirement IDs",
     "case_ledger_invariants: marks tests as case-ledger invariant harness tests (require devlogs/ JSONL artifacts; skip when absent)",
     "executes_as(actor_id): the actor whose identity the test's behavior tree runs under; store fixtures open that actor's store (ADR-0073)",
     "spec_corpus: marks tests that load actual specs/ YAML files; run on specs/** path changes via spec-check.yml",

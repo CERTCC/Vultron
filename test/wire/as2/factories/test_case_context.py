@@ -228,6 +228,7 @@ def test_case_target_ref_leaves_a_uri_a_stub_and_none_alone():
     assert case_target_ref(None) is None
 
 
+@pytest.mark.spec("AKM-02-005")
 @pytest.mark.spec("AKM-02-003")
 def test_factories_given_a_full_case_target_send_its_uri():
     case = as_VulnerabilityCase(id_=_CASE_ID, name="full")

@@ -20,7 +20,7 @@ class Displayable(Protocol):
     """Anything carrying an optional display ``name`` and an ``id_`` URI.
 
     Structural rather than ``CoreRecord``: wire ``as_*`` objects no longer
-    share a root with core (ADR-0099 detail 4), yet carry the same two fields.
+    share a root with core (ARCH-25-004, ADR-0099), yet carry the same two fields.
     """
 
     @property

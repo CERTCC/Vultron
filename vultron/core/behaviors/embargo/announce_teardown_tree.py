@@ -448,6 +448,8 @@ def invite_to_embargo_on_case_tree(
             embargo_id=embargo_id,
             proposer_id=proposer_id,
             actor_config=actor_config,
+            # A redelivery of the same proposal rebuilds the same Invites.
+            answers=invite_id,
         ),
         # EP-09-002: the relay skips the manager, so it writes its own row.
         record_manager_embargo_consent_tree(

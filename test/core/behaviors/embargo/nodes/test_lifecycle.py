@@ -128,7 +128,11 @@ class TestTerminateEmbargoBT:
 
     @staticmethod
     def _run_as_manager(
-        suffix: str, em_state: EM = EM.ACTIVE, *, use_builder: bool = True
+        suffix: str,
+        em_state: EM = EM.ACTIVE,
+        *,
+        use_builder: bool = True,
+        expect: py_trees.common.Status = py_trees.common.Status.SUCCESS,
     ) -> tuple[VulnerabilityCase, SqliteDataLayer, MagicMock]:
         case, _cm, dl = make_case_with_manager(suffix, em_state=em_state)
         _store_active_embargo(dl, case)
@@ -159,7 +163,7 @@ class TestTerminateEmbargoBT:
             activity_builder=builder if use_builder else None,
         )
         result = bridge.execute_with_setup(tree, actor_id=CASE_MANAGER_ACTOR)
-        assert result.status == py_trees.common.Status.SUCCESS
+        assert result.status == expect, result
         return case, dl, factory
 
     @pytest.mark.spec("EMB-07-001")
@@ -204,6 +208,69 @@ class TestTerminateEmbargoBT:
         assert not any(
             CASE_MANAGER_ACTOR in (r.to or []) + (r.cc or []) for r in removes
         )
+
+    @pytest.mark.spec("SYNC-09-002")
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.parametrize("use_builder", [True, False])
+    def test_a_teardown_whose_commit_fails_is_withdrawn_from_the_outbox(
+        self, monkeypatch: pytest.MonkeyPatch, use_builder: bool
+    ):
+        """No ``Remove`` reaches a participant without the entry recording it.
+
+        The ``Remove`` is queued before it is committed (ADR-0119), and no
+        retry rebuilds it, so a failed commit withdraws it — trigger and
+        cascade alike.
+        """
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+
+        failed = fail_commits(
+            monkeypatch,
+            commit_tree,
+            when=lambda kw: kw["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE,
+        )
+        case, dl, _factory = self._run_as_manager(
+            f"teb11{int(use_builder)}",
+            use_builder=use_builder,
+            expect=py_trees.common.Status.FAILURE,
+        )
+
+        assert len(failed) == 1, "the teardown was never committed"
+        assert not [
+            i
+            for i in dl.outbox_list()
+            if cast(VultronActivity, dl.read(i)).type_ == "Remove"
+        ], "an unrecorded Remove was left in the outbox"
+        assert EMBARGO_TEARDOWN_EVENT_TYPE not in committed_event_types(
+            dl, case.id_
+        )
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_teardown_delivery_already_took_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ):
+        """A ``Remove`` that cannot be withdrawn is logged at ERROR."""
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            when=lambda kw: kw["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE,
+        )
+        monkeypatch.setattr(
+            SqliteDataLayer, "outbox_withdraw", lambda _self, _id: False
+        )
+        with caplog.at_level("ERROR"):
+            self._run_as_manager(
+                "teb12", expect=py_trees.common.Status.FAILURE
+            )
+
+        assert any(
+            r.levelname == "ERROR"
+            and "already taken for delivery" in r.message
+            for r in caplog.records
+        ), caplog.text
 
     @pytest.mark.spec("EP-09-008")
     def test_non_manager_asks_and_writes_nothing(self):

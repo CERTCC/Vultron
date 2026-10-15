@@ -102,7 +102,7 @@ class ValidateEmbargoProposalStateNode(DataLayerActionWithPorts):
     A read-only precondition for the propose trigger, ahead of the role arms:
     ``EXITED`` admits no proposal, because once an embargo register entry is
     ``TERMINATED`` the register accepts no further change (EP-09-001,
-    ADR-0122 invariant 4).  A participant that is not the CASE_MANAGER writes no EM
+    ADR-0122).  A participant that is not the CASE_MANAGER writes no EM
     state and so runs no ``STRICT`` check (EP-09-008); without this guard its
     proposal would be queued, refused by the CASE_MANAGER's admission guard
     without a ``Reject``, and leave a pending assertion behind.  Returns

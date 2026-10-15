@@ -15,7 +15,7 @@
 
 """Ratchet: core code producing the AS2 wire shape itself (ARCH-20-001).
 
-ADR-0099 detail 2 puts ``alias_generator=to_camel`` on ``CoreObject``, so
+ARCH-25-002 (ADR-0099) puts ``alias_generator=to_camel`` on ``CoreObject``, so
 ``model_dump(by_alias=True)`` on a core object *is* the wire shape.  That is
 the mechanism behind ``WireRenderPort``, not a licence: core logic still hands
 delivery to the port.  Every ``by_alias=True`` call under ``vultron/core/`` is

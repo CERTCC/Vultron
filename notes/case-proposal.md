@@ -218,8 +218,8 @@ is a separate record type so no persisted shape changes. See
 
 ## Duplicate-Proposal Handling (CP-05-006)
 
-`create_case_proposal_received_tree` is a four-arm Selector, in order: in-flight
-marker, already-declined answer, admission decision, accept flow.
+`create_case_proposal_received_tree` is a five-arm Selector, in order: in-flight
+marker, already-declined answer, closed-case decline, admission decision, accept flow.
 
 - **Marker exists** (`CheckMarkerExistsNode`): `Accept` sent, `Create` pending; drop the
   duplicate, the retry runner owns recovery.
@@ -233,6 +233,14 @@ marker, already-declined answer, admission decision, accept flow.
   another proposer gets a case of its own (CBT-06-002), because the report id is
   sender-chosen. `find_case_by_report_id` is only the fast path; on another proposer's
   case the node scans for the proposer's own.
+- **Fully closed case** (CP-05-006, CP-05-008): a proposal that resolves to a case
+  whose ledger holds `case_fully_closed` gets `Reject(CaseProposal)`, and nothing is
+  written for the case (CM-23-013). The factory's post-close guard cannot see it,
+  because the proposal names a report, not a case. `CheckProposalCaseFullyClosedNode`
+  resolves the case two ways: the proposer's own case for the report, and the case
+  the proposal's stored `Accept` names. The second way covers a redelivery by a
+  former owner after a transfer. Any new way the accept arm finds a case must also
+  be added there, or that case escapes the check.
 - The `Accept`'s `result` always names the case the proposal produced or reused, so
   the requester correlates it without a second `Create`, which is not sent again.
   `CheckCaseAlreadyAnnouncedNode` skips the marker and `Create` steps, and

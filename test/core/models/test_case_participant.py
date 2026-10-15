@@ -205,7 +205,7 @@ class TestAddParticipantStatus:
             as_ParticipantStatus,
         )
 
-        # ``as_ParticipantStatus`` *is* ``ParticipantStatus`` (ADR-0099 detail 3),
+        # ``as_ParticipantStatus`` *is* ``ParticipantStatus`` (ARCH-25-003, ADR-0099),
         # so the status is accepted rather than refused.  ``test_rejects_non_status_object``
         # below still covers a genuinely wrong type.
         p = _make()

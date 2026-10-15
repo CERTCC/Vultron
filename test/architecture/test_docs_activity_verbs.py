@@ -33,9 +33,9 @@ this ratchet reads both:
   ``CreateNotePattern(activity_=TAtype.CREATE)``.
 
 Both are needed because the docs draw names from both systems.  ``CreateNote``
-and ``CreateParticipantStatus`` are registry patterns with no dedicated class;
-``CreateStatusForParticipant`` is a class whose pattern carries a different
-name.  A class-only map makes the first kind invisible, which is how
+is a registry pattern with no dedicated class; ``AddStatusToParticipant`` is a
+class whose pattern carries a different name
+(``AddParticipantStatusToParticipant``).  A class-only map makes the first kind invisible, which is how
 ``CreateStatus`` — a name belonging to neither system — survived review.  The
 two sources agree wherever they overlap, and a disagreement is itself a finding.
 
@@ -159,7 +159,7 @@ _INLINE_WIRE_FORM = re.compile(r"`([A-Z][A-Za-z]+\([^`]*\))`")
 #: present, a ``> 30`` floor tolerated 19 disappearing while every test stayed
 #: green.  Pin it at the real count so losing even one is loud, and raise it
 #: when nodes are added (MS-11 ratchet discipline, DF-09-009).
-_MIN_LABELLED_NODES = 52
+_MIN_LABELLED_NODES = 49
 
 #: Node ids whose wire form no registry entry carries on its own, mapped to the
 #: pattern that does carry it.  ``ActivateEmbargo`` shares
@@ -190,6 +190,15 @@ _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
         # acknowledge.md: named as the form that matches nothing, to warn an
         # implementer off sending the bare report instead of its Offer.
         "Read(VulnerabilityReport)": "counter-example (MSM-01-008)",
+        # establish_embargo.md, manage_participants.md, status_updates.md:
+        # named as forms this implementation does not support, to warn an
+        # implementer off sending a separate Create ahead of the Invite or Add
+        # that carries the object inline (#4598; open question #4635).
+        "Create(Event)": "not supported by this implementation (#4598)",
+        "Create(CaseStatus)": "not supported by this implementation (#4598)",
+        "Create(ParticipantStatus)": (
+            "not supported by this implementation (#4598)"
+        ),
     }
 )
 

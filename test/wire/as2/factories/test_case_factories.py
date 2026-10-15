@@ -38,7 +38,6 @@ from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
-    create_case_status_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     rm_accept_invite_to_case_activity,
@@ -222,35 +221,6 @@ def test_create_case_kwargs_forwarded(sample_case):
 def test_create_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         create_case_activity(case="not-a-case")  # type: ignore[arg-type]
-    assert exc_info.value.__cause__ is not None
-
-
-# ---------------------------------------------------------------------------
-# create_case_status_activity
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("AF-01-002")
-def test_create_case_status_returns_create(sample_status):
-    result = create_case_status_activity(
-        status=sample_status, actor=_ACTOR_URI
-    )
-    assert isinstance(result, as_Create)
-
-
-def test_create_case_status_object_is_status(sample_status):
-    result = create_case_status_activity(
-        status=sample_status, actor=_ACTOR_URI
-    )
-    assert result.object_ == sample_status
-
-
-@pytest.mark.spec("AF-04-001")
-def test_create_case_status_invalid_raises():
-    with pytest.raises(VultronActivityConstructionError) as exc_info:
-        create_case_status_activity(
-            status="not-a-status"  # type: ignore[arg-type]
-        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -820,7 +790,6 @@ def test_all_case_factories_importable_from_package():
         add_status_to_case_activity,
         announce_vulnerability_case_activity,
         create_case_activity,
-        create_case_status_activity,
         offer_case_ownership_transfer_activity,
         reject_case_ownership_transfer_activity,
         rm_accept_invite_to_case_activity,

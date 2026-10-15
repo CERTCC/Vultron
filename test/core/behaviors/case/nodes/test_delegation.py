@@ -161,6 +161,52 @@ class TestAutoAcceptCaseParticipantRoleNode:
         assert result.status == Status.FAILURE
 
 
+class TestAutoAcceptIsSentThenRecorded:
+    """The Accept reaches the outbox before its entry (ADR-0119)."""
+
+    @pytest.mark.spec("SYNC-09-002")
+    def test_the_accept_is_queued_before_it_is_committed(self, bridge, dl):
+        queued_at_commit: list[list[str]] = []
+
+        def _commit(node_self, accept_id, payload_snapshot):
+            queued_at_commit.append(dl.outbox_list())
+
+        node = _make_accept_node()
+        with patch.object(type(node), "_commit_accept_to_ledger", _commit):
+            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        assert queued_at_commit == [dl.outbox_list()]
+        assert len(queued_at_commit[0]) == 1
+
+    @pytest.mark.spec("OX-06-002")
+    def test_a_retry_after_a_failed_commit_queues_the_accept_once(
+        self, bridge, dl
+    ):
+        """The Accept's id derives from the Offer, so a retry rebuilds it.
+
+        A failed commit raises rather than returning FAILURE: the Accept is
+        already queued, and a FAILURE would send a Reject after it.
+        """
+        node = _make_accept_node()
+        with patch.object(
+            type(node),
+            "_commit_accept_to_ledger",
+            side_effect=RuntimeError("commit down"),
+        ):
+            first = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert first.internal_error, first
+        (accept_id,) = dl.outbox_list()
+
+        with patch.object(type(node), "_commit_accept_to_ledger"):
+            retry = bridge.execute_with_setup(
+                tree=_make_accept_node(), actor_id=ACTOR_ID
+            )
+
+        assert retry.status == Status.SUCCESS
+        assert dl.outbox_list() == [accept_id]
+
+
 class TestEmitRejectCaseParticipantRoleNode:
     """Unit tests for EmitRejectCaseParticipantRoleNode (ADR-0039)."""
 

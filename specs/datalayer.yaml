@@ -759,7 +759,7 @@ groups:
       activities are given records only one level deep — so a second-level inline object collapses to
       an id that no read can expand. CP-01-004 requires `as_CaseProposal` to carry its
       `as_VulnerabilityReport` inline for exactly the reason that makes the collapse unrecoverable: the
-      receiver may not hold the report and no dereferencing mechanism is specified (AKM-03-001). The
+      receiver may not hold the report and this codebase does not yet dereference (AKM-03-003). The
       declaration belongs on the model because that is where the invariant is, and because a lookup
       table in the storage layer is action at a distance from the field it governs.
     relationships:
@@ -809,7 +809,7 @@ groups:
       reference in the vocabulary is either an activity, kept inline already, or a case, report, status,
       participant or embargo, which the sender does hold; `_OfferCaseOwnershipTransferActivity.target` is
       exempt because its declared type is a ref union, so an id there is in-shape. Left undeclared, the
-      stored Invite came back carrying a bare string, outbox delivery refused it for AKM-03-001 and gave
+      stored Invite came back carrying a bare string, outbox delivery refused it for AKM-03-003 and gave
       up after its retries, and the failure surfaced one hop away as the invitee answering 404 to
       `reject-case-invite` for an invitation it had never been told about. Carrying the object is
       necessary but not sufficient: read-back must also re-type it, or semantic matching classifies the

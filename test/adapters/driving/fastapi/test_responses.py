@@ -126,7 +126,7 @@ def test_non_as2_content_passthrough():
 def test_core_object_renders_as_its_own_as2_form():
     """A ``CoreObject`` is its own AS2 class, so it serializes as one.
 
-    ARCH-20-006: under ADR-0099 detail 3 there is no separate ``as_*`` class
+    ARCH-20-006: under ARCH-25-003 (ADR-0099) there is no separate ``as_*`` class
     for a domain type, so an HTTP route serves the core object's own
     ``by_alias`` dump.
     """

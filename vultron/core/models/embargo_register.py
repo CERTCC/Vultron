@@ -73,7 +73,7 @@ class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
 
     ``embargo`` is the ``EmbargoEvent`` or its id.  The object form is kept
     when a sender carried it, so a recipient can read the terms of the
-    embargo in force without a dereference (AKM-03-001, DL-08-001).
+    embargo in force without a dereference (AKM-02-004, DL-08-001).
     ``replaces`` names the embargo an activated revision replaced.
     ``termination`` is how a ``TERMINATED`` entry ended — the what and, when
     recorded, the why (ADR-0122) — and is set on that status only.  Entries
@@ -247,9 +247,9 @@ def em_move_violations(
 ) -> list[str]:
     """The EM move from *before* to *after*, if *em_trigger* does not allow it.
 
-    Both registers must keep invariants 1–3, so EM derives from each
-    (ADR-0122); the move must then be in the EM transition table
-    (ADR-0130, EMB-18-006).  An empty list means the move is legal.
+    Both registers must pass :func:`register_invariant_violations`, so EM
+    derives from each (ADR-0122); the move must then be in the EM transition
+    table (ADR-0130, EMB-18-006).  An empty list means the move is legal.
     """
     source = derive_em(entry.status for entry in before)
     dest = derive_em(entry.status for entry in after)
@@ -335,12 +335,13 @@ def apply_register_step(
     for its entry, ``SUPERSEDE`` needs an ``ACTIVATE`` in the same step,
     ``CANCEL`` needs a ``TERMINATE`` in the same step or, when
     *threat_signal* is set, no ``ACTIVE`` entry before it, and once an entry
-    is ``TERMINATED`` no step changes anything (invariant 4), and the step
-    names exactly one EM trigger.  The result must then keep invariants 1–3,
-    and EM derived before and after must be one of that trigger's moves in
-    the EM transition table (ADR-0130, EMB-18-006).  Every node — the
-    CASE_MANAGER and each replica — applies a step only through this
-    function, so all of them make the same checks.  An activated entry
+    is ``TERMINATED`` no step changes anything, and the step names exactly
+    one EM trigger.  The result must then pass
+    :func:`register_invariant_violations`, and EM derived before and after
+    must be one of that trigger's moves in the EM transition table
+    (ADR-0130, EMB-18-006).  Every node — the CASE_MANAGER and each replica —
+    applies a step only through this function, so all of them make the same
+    checks.  An activated entry
     records the entry it superseded in ``replaces``.  New entries are
     appended; none is removed.
 
@@ -469,7 +470,7 @@ def carry_embargo_inline(
     """*entries* with *embargo*'s entry holding the object, not its id.
 
     For a copy of a case about to be sent: a recipient cannot dereference an
-    embargo it does not hold (AKM-03-001, EMB-18-003).  The status is
+    embargo it does not hold (AKM-02-004, EMB-18-003).  The status is
     unchanged, so this is not a register step.
     """
     return [

@@ -346,7 +346,7 @@ class TestToWireObject:
         ],
     )
     def test_core_object_is_carried_as_itself(self, core_obj):
-        """A ``CoreObject`` is its own wire form (ADR-0099 detail 3).
+        """A ``CoreObject`` is its own wire form (ARCH-25-003, ADR-0099).
 
         No counterpart is resolved by class name: that lookup matched
         ``WIRE_TYPE_MAP`` only by coincidence (``VulnerabilityCase``) and
@@ -410,8 +410,8 @@ class TestAnnounceVulnerabilityCase:
 
 
 class TestCaseOnTheWireCarriesItsParticipants:
-    """CBT-05-005 / CBT-01-007: a case put on the wire carries its participants
-    (and reports) inline, not as ids.
+    """CBT-05-005 / CBT-01-012 / AKM-02-004: a case put on the wire carries
+    its participants (and reports) inline, not as ids.
 
     The recipient of a bootstrap ``Create`` or ``Announce`` stores each embedded
     participant as its own record; with ids alone it has no participant at
@@ -606,7 +606,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
 
 class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
-    """CBT-01-007: the Announce embeds each report the case names, or is not
+    """AKM-02-004: the Announce embeds each report the case names, or is not
     sent.  The sealed body is delivered as built, so a bare reference here
     would reach a recipient that cannot resolve it."""
 
@@ -697,7 +697,7 @@ class TestRejectCaseProposal:
         )
 
         # Storage dehydrates an inline Activity sub-field to its URI, so the
-        # proposal has to be stored for the read-back to resolve it (AKM-03-001).
+        # proposal has to be stored for the read-back to resolve it (AKM-03-003).
         assert dl.read(activity_id) is not None
         assert dl.read(proposal["id"]) is not None
 
@@ -710,7 +710,7 @@ class TestRejectCaseProposal:
 
         stored = dl.read(activity_id)
         assert not isinstance(stored.object_, str), (
-            "a bare URI is unreadable to the vendor (AKM-03-001)"
+            "a bare URI is unreadable to the vendor (AKM-03-003)"
         )
         assert stored.object_.id_ == proposal["id"]
 

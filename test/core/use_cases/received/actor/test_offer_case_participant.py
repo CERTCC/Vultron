@@ -52,6 +52,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
     OfferCaseParticipantReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
@@ -370,7 +371,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         offer = _build_offer_activity(origin=origin, roles=[CVDRole.VENDOR])
         # Store the CaseParticipant object so the IRI follow-up in the use
-        # case (AKM-03-001) succeeds and returns the roles.
+        # case (AKM-03-003) succeeds and returns the roles.
         # dl.save() is used instead of dl.create() because _record_offer
         # (called by _seed_dl_for_case_actor) may have already stored these
         # records; save() overwrites without raising VultronAlreadyExistsError.
@@ -1534,4 +1535,283 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
         assert dl.outbox_list() == [], (
             "a receiver that is not the CASE_MANAGER must not notify the"
             " recommender of the rejection"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CM-16-010: every step of the actor suggestion flow records its message
+# after the message is sent or received (ADR-0119)
+# ---------------------------------------------------------------------------
+
+
+def _seed_a_recommendation_at_the_case_manager() -> tuple[
+    SqliteDataLayer, Any
+]:
+    """The CASE_MANAGER's store and a participant's ``Offer(Actor, Case)``.
+
+    The recommendation is not yet recorded, so the CASE_MANAGER forwards it to
+    the Case Owner as ``Offer(CaseParticipant)`` (CM-16-004).
+    """
+    from test.core.use_cases.received.conftest import seed_case_participant
+    from vultron.wire.as2.factories import recommend_actor_activity
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
+    case = as_VulnerabilityCase(
+        id_=CASE_ID, name="OfferRoundTripTest", attributed_to=CASE_OWNER_ID
+    )
+    seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
+    seed_case_owner_participant(dl, case, CASE_OWNER_ID)
+    seed_case_participant(dl, case, RECOMMENDER_ID)
+    dl.create(as_Service(id_=CASE_ACTOR_ID))
+    dl.create(case)
+    recommendation = recommend_actor_activity(
+        as_Actor(id_=RECOMMENDED_ID),
+        target=_case_ref(CASE_ID),
+        actor=RECOMMENDER_ID,
+        to=[CASE_ACTOR_ID],
+        suggested_roles=["vendor"],
+    )
+    return dl, extract_event(recommendation)
+
+
+def _assert_each_send_follows_its_queueing(
+    events: list[tuple[str, str]], event_types: set[str]
+) -> None:
+    """Each entry of *event_types* follows the outbox write of its activity."""
+    sent = [
+        (kind, object_id) for kind, object_id in events if kind in event_types
+    ]
+    assert {kind for kind, _ in sent} == event_types, events
+    for kind, object_id in sent:
+        assert events.index(("queued", object_id)) < events.index(
+            (kind, object_id)
+        ), f"{kind} '{object_id}' was committed before it was queued: {events}"
+
+
+class TestActorSuggestionFlowRecordsEachMessageAfterItIsSent:
+    """CM-16-010: no step's entry is committed before its message.
+
+    A message the CASE_MANAGER sends is recorded after it reaches the
+    outbox; a message it receives is recorded after intake, before anything
+    it sends in answer (ADR-0119, CLP-10-006).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _record(self, monkeypatch):
+        from test.support.ledger import record_sends_and_commits
+
+        self.events = record_sends_and_commits(monkeypatch, CASE_ACTOR_ID)
+
+    @staticmethod
+    def _execute(use_case_class, dl, event):
+        result = use_case_class(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED, result
+
+    @pytest.mark.spec("CM-16-010")
+    def test_step_1_the_forward_to_the_owner_is_queued_then_recorded(self):
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        dl, event = _seed_a_recommendation_at_the_case_manager()
+
+        self._execute(OfferActorToCaseReceivedUseCase, dl, event)
+
+        assert self.events[0][0] != "queued", "the receipt is recorded first"
+        _assert_each_send_follows_its_queueing(
+            self.events, {"offer_case_participant"}
+        )
+
+    @pytest.mark.spec("CM-16-010")
+    def test_step_3_the_owners_accept_is_recorded_then_each_answer(self):
+        dl, _ = _seed_dl_for_case_actor()
+        event = TestAcceptOfferCaseParticipantReceivedUseCase()._event_with_stored_offer(
+            dl
+        )
+
+        self._execute(AcceptOfferCaseParticipantReceivedUseCase, dl, event)
+
+        assert self.events[0][0] != "queued", "the Accept is recorded first"
+        _assert_each_send_follows_its_queueing(
+            self.events,
+            {"invite_actor_to_case", "accept_actor_recommendation"},
+        )
+
+    @pytest.mark.spec("CM-16-010")
+    def test_step_3_the_owners_reject_is_recorded_then_its_answer(self):
+        dl, _ = _seed_dl_for_case_actor()
+        event = TestRejectOfferCaseParticipantReceivedUseCase()._event()
+
+        self._execute(RejectOfferCaseParticipantReceivedUseCase, dl, event)
+
+        assert self.events[0][0] != "queued", "the Reject is recorded first"
+        _assert_each_send_follows_its_queueing(
+            self.events, {"reject_actor_recommendation"}
+        )
+
+
+class TestActorSuggestionAnswersAreSentOnceOnRetry:
+    """A retry after a send whose commit failed sends nothing twice.
+
+    Each answer's id is derived from the recommendation it answers, so the
+    retry rebuilds the queued answer under the same id: the outbox does not
+    queue it again (OX-06-002) and the commit records it once (ADR-0119).
+    """
+
+    @staticmethod
+    def _run(use_case_class, dl, event):
+        return use_case_class(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    @staticmethod
+    def _queued_of(dl: SqliteDataLayer, type_: str) -> list[str]:
+        return [
+            item
+            for item in dl.outbox_list()
+            if str(getattr(dl.read(item), "type_", "")) == type_
+        ]
+
+    @staticmethod
+    def _entries_of(dl: SqliteDataLayer, event_type: str) -> list[str]:
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        return [
+            e.log_object_id
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.event_type == event_type
+        ]
+
+    def _retry_after_a_failed_commit(
+        self, use_case_class, dl, event, event_type
+    ) -> str:
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+
+        with pytest.MonkeyPatch.context() as mp:
+            failed = fail_commits(
+                mp, commit_tree, when=lambda kw: kw["event_type"] == event_type
+            )
+            # The answer is queued, so the failed commit escapes rather than
+            # failing the tree into another arm (BT-14-001).
+            with pytest.raises(VultronBTInternalError, match="commit failed"):
+                self._run(use_case_class, dl, event)
+        (answer_id,) = failed
+        assert dl.outbox_list().count(answer_id) == 1
+        assert self._entries_of(dl, event_type) == []
+
+        retry = self._run(use_case_class, dl, event)
+
+        assert retry.disposition is HandlerDisposition.APPLIED, retry
+        assert dl.outbox_list().count(answer_id) == 1
+        assert self._entries_of(dl, event_type) == [answer_id]
+        return answer_id
+
+    @pytest.mark.spec("OX-06-002")
+    @pytest.mark.spec("CM-16-010")
+    def test_the_forwarded_offer_is_sent_once(self):
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        dl, event = _seed_a_recommendation_at_the_case_manager()
+
+        self._retry_after_a_failed_commit(
+            OfferActorToCaseReceivedUseCase,
+            dl,
+            event,
+            "offer_case_participant",
+        )
+
+    @pytest.mark.spec("OX-06-002")
+    @pytest.mark.spec("CM-16-010")
+    def test_accept_actor_recommendation_is_sent_once(self):
+        dl, _ = _seed_dl_for_case_actor()
+        event = TestAcceptOfferCaseParticipantReceivedUseCase()._event_with_stored_offer(
+            dl
+        )
+
+        self._retry_after_a_failed_commit(
+            AcceptOfferCaseParticipantReceivedUseCase,
+            dl,
+            event,
+            "accept_actor_recommendation",
+        )
+
+    @pytest.mark.spec("OX-06-002")
+    @pytest.mark.spec("CM-16-010")
+    def test_reject_actor_recommendation_is_sent_once(self):
+        dl, _ = _seed_dl_for_case_actor()
+        event = TestRejectOfferCaseParticipantReceivedUseCase()._event()
+
+        self._retry_after_a_failed_commit(
+            RejectOfferCaseParticipantReceivedUseCase,
+            dl,
+            event,
+            "reject_actor_recommendation",
+        )
+
+
+class TestAFailedAnswerCommitDoesNotFallThrough:
+    """A queued answer whose commit fails ends the tree; no other arm runs.
+
+    The answer is in the outbox before it is committed (ADR-0119), so a
+    FAILURE would let the recommendation Selector try its next arm and
+    forward a fresh ``Offer(CaseParticipant)`` after the ``Accept``.  The
+    failed commit escapes as an internal error instead (BT-14-001).
+    """
+
+    @pytest.mark.spec("BT-14-001")
+    @pytest.mark.spec("CM-16-010")
+    def test_the_already_participant_accept_is_the_only_send(self):
+        from test.core.use_cases.received.conftest import (
+            seed_case_participant,
+        )
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        dl, event = _seed_a_recommendation_at_the_case_manager()
+        case = dl.read_case(CASE_ID)
+        assert case is not None
+        seed_case_participant(dl, case, RECOMMENDED_ID)
+        dl.save(case)
+
+        with pytest.MonkeyPatch.context() as mp:
+            failed = fail_commits(
+                mp,
+                commit_tree,
+                when=lambda kw: (
+                    kw["event_type"] == "accept_actor_recommendation"
+                ),
+            )
+            with pytest.raises(VultronBTInternalError, match="commit failed"):
+                OfferActorToCaseReceivedUseCase(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                ).execute()
+
+        (accept_id,) = failed
+        answers = [
+            item
+            for item in dl.outbox_list()
+            if str(getattr(dl.read(item), "type_", "")) != "Announce"
+        ]
+        assert answers == [accept_id], (
+            "only the Accept may be queued; no other arm may answer after it"
         )

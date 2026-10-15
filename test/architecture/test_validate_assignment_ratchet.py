@@ -92,7 +92,7 @@ _SELF_ASSIGNING_AFTER_VALIDATORS: frozenset[str] = frozenset()
 # (issue #2294, step 2 of #2261).  Every other core model inherits it from one of these,
 # so the enumeration stays short rather than listing every class.
 #
-# There is no longer a shared base to exclude: ADR-0099 detail 4 gave
+# There is no longer a shared base to exclude: ARCH-25-004 (ADR-0099) gave
 # ``as_Base`` its own root, so the core record root ``CoreRecord`` carries the
 # flag through ``ValidatedAssignmentMixin`` without touching the wire branch.
 #
@@ -323,7 +323,7 @@ def test_core_roots_are_not_shared_with_the_wire_branch():
     """ARCH-21-002: validate_assignment on the core root cannot reach the wire.
 
     The flag lives on ``CoreRecord``; this holds only while no wire class
-    inherits it (ADR-0099 detail 4).
+    inherits it (ARCH-25-004, ADR-0099).
     """
     from vultron.core.models.base import CoreRecord
     from vultron.wire.as2.vocab.base.base import as_Base

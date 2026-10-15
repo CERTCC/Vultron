@@ -108,9 +108,12 @@ before the Offer's state is read (#4437).
   replica does not hold refuses (`SenderCheckContext.case_manager_required`,
   PCR-03-001).
 - **The transferee answers the forward, not the recorded Offer.** The forward
-  (CM-21-005) has its own id and is not ledgered, so `recorded_ownership_offer()`
-  also accepts an Offer the CASE_MANAGER issued itself for the same case and
-  transferee, published no earlier than the recorded Offer (latest such entry).
+  (CM-21-005) has its own id and is not ledgered, so it carries `inReplyTo` set to
+  the recorded Offer's id, and `recorded_ownership_offer()` follows that link,
+  read from the CASE_MANAGER's own stored forward (CM-21-018). Never match by
+  time: with second-precision stamps, a late answer to one Offer's forward closes
+  a newer Offer to the same transferee recorded in the same second (#4565). A
+  forward with no link is a protocol error, refused, with no time fallback.
 - **Either answer closes the Offer for the other.** The Accept and the Reject share
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".
@@ -149,7 +152,8 @@ address the Accept to the offerer.
 through the guarded commit, and forwards via `ForwardOfferToTransfereeNode` passed as
 `manager_effects`, so the factory wraps it in the CASE_MANAGER gate (BT-17-008). The
 forwarded Offer has `actor=case_actor_id`, `attributed_to=` the original offerer,
-`target` and `to=[transferee_id]` (CM-21-005).
+`target` and `to=[transferee_id]` (CM-21-005), and `in_reply_to=` the recorded
+Offer's id (CM-21-018).
 
 - **Take the offerer from `attributed_to`, not `actor_id`** (#3012). The inbound Offer
   is delegated, so its `actor` is the CASE_MANAGER; reading `actor_id` attributes the

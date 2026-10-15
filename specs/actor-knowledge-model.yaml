@@ -54,34 +54,70 @@ groups:
     priority: MUST_NOT
     kind: protocol
     verification: >-
+      Satisfied in this codebase through AKM-02-004: inspection of the outbound activity
+      factories confirms each embeds inline the objects a recipient cannot be expected to
+      hold already, and uses a bare reference only for an object the recipient already
+      has, such as the case it participates in.
+    statement: >-
+      Actors MUST NOT name an object the recipient cannot be expected to hold already by a
+      reference the recipient cannot dereference (AKM-05-003, AKM-05-004). Such an object
+      is carried inline, or by a reference the recipient can fetch.
+  - id: AKM-02-004
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry inline every object a recipient cannot be expected to hold
+      already, and MUST use a bare reference only for an object the recipient already
+      has, such as the case it participates in.
+    rationale: >-
+      How this codebase meets AKM-02-002; split from it so AKM-02-002 states only what
+      other participants observe (MS-12-010). This codebase does not yet dereference
+      (AKM-05-003), so a reference to an object its recipient does not hold could not be
+      resolved. Carrying the object inline instead is a shortcut of this prototype
+      reference implementation, not a protocol rule.
+    verification: >-
       Inspection of the outbound activity factories confirms each embeds inline the
       objects a recipient cannot be expected to hold already, and uses a bare reference
       only for an object the recipient already has, such as the case it participates in.
-    statement: >-
-      Actors MUST NOT use an object reference in place of the full inline object when the
-      recipient cannot be expected to hold the referenced object already.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-02-002
   - id: AKM-02-003
     priority: MUST
     kind: protocol
     statement: >-
-      The `target` field is the one slot that MAY carry a reference to the case rather
-      than the case inline, and only in two forms: the case URI, when the recipient
-      already holds the case (a participant or the CASE_MANAGER being addressed about
-      it, as in the full-case Invite of CM-11-010); or the case stub
+      A case named in an activity's `target` MUST take one of two forms: the case URI,
+      when the recipient already holds the case (a participant or the CASE_MANAGER being
+      addressed about it, as in the full-case Invite of CM-11-010); or the case stub
       (`VulnerabilityCaseStub`, CM-11-013) the stub Invite sends to an actor that does
-      not yet hold the case. A full case MUST NOT travel in `target`; the factory
-      reduces one to its URI.
+      not yet hold the case. A full case MUST NOT travel in `target`.
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
       every trigger-port activity's `target`: a case there is a URI or an object of type
-      `VulnerabilityCaseStub`. `test/wire/as2/factories/test_case_context.py` checks
-      `case_target_ref` reduces a full case to its URI and leaves a stub and a URI
-      alone.
+      `VulnerabilityCaseStub`.
     adr:
     - ADR-0114
     stories:
     - story_2022_053
     - story_2022_024
+  - id: AKM-02-005
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's activity factories MUST reduce a full case given as `target` to its
+      URI and leave a case stub or a URI unchanged. `target` is the one slot in which
+      this codebase carries a case by reference rather than inline.
+    rationale: >-
+      How this codebase meets AKM-02-003; split from it so AKM-02-003 states only the
+      forms other participants observe in `target` (MS-12-010). That every other slot
+      carries the case inline follows from this codebase's inline-object shortcut
+      (AKM-02-004, AKM-03-003), not from the protocol.
+    verification: >-
+      `test/wire/as2/factories/test_case_context.py` checks `case_target_ref` reduces a
+      full case to its URI and leaves a stub and a URI alone.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-02-003
 - id: AKM-03
   title: Outbound Activity Object Integrity
   specs:
@@ -90,11 +126,40 @@ groups:
     kind: protocol
     statement: >-
       Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
-      Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object.
-    verification: Integration tests in `test/demo/` confirm that outbound initiating activities include a
-      fully-serialized `object` field rather than a bare URI reference.
+      Join, Ignore, Leave) MUST carry, as their `object`, the domain object they act on,
+      inline or by reference.
+    verification: Integration tests in `test/demo/` confirm that outbound initiating activities carry the domain
+      object they act on in their `object` field.
     stories:
     - story_2022_053
+  - id: AKM-03-003
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the `object` of every outbound activity as a fully inline
+      typed object, never as a bare URI reference or an `as_Link`. AKM-03-002 enforces
+      this at delivery.
+    rationale: >-
+      How this codebase meets AKM-03-001 and MV-09-001; split from them so they state
+      only what other participants observe (MS-12-010). A receiver of this codebase does
+      not dereference (AKM-05-003), so it could not resolve a reference to learn the
+      activity's semantic type. Carrying the object inline is a shortcut of this
+      prototype reference implementation, not a protocol rule.
+    note: >-
+      The rule binds the activity's own `object`. An `Invite(EmbargoEvent)` nested as the
+      object of an ER may name its terms by URI: the ER answers the Invite by id and type,
+      both inline, and needs no terms (ADR-0123).
+    verification: >-
+      Integration tests in `test/demo/` confirm that outbound initiating activities
+      include a fully serialized `object` field rather than a bare URI reference.
+      `vultron/adapters/driving/fastapi/outbox_delivery.py` raises
+      `VultronValidationError` when `object_` is a bare string URI rather than a typed
+      object.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-03-001
+    - rel_type: implements
+      spec_id: MV-09-001
   - id: AKM-03-002
     priority: MUST
     kind: project

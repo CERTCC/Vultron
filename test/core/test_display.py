@@ -91,7 +91,7 @@ def test_friendly_name_object_without_name_uses_id_segment():
 
 
 # ---------------------------------------------------------------------------
-# Wire objects — no longer CoreRecord since ADR-0099 detail 4
+# Wire objects — no longer CoreRecord since ARCH-25-004 (ADR-0099)
 # ---------------------------------------------------------------------------
 
 
