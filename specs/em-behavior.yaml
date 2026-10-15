@@ -1332,8 +1332,8 @@ groups:
       under an embargo that has expired. The lazy check needs no scheduler;
       the outside request lets a deployment end an embargo on time without
       waiting for the next activity on the case. One path keeps the two from
-      both committing, which would break the register's invariant 4
-      (ADR-0122).
+      both committing: a register with a `TERMINATED` entry accepts no further
+      change (ADR-0122).
     verification: >-
       `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
       covers the lazy check, the outside request, the order of the two, a

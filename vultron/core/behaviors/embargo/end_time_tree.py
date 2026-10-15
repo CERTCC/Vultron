@@ -27,7 +27,8 @@ one idempotent termination path, :func:`end_embargo_at_end_time_bt`:
 Both commit the CASE_MANAGER's ``Remove(EmbargoEvent)`` with ``content``
 ``END_TIME_REACHED`` and run the full cascade of ``terminate_embargo_bt``.
 Whichever arrives second finds the embargo ended, commits nothing and is
-answered as already done, so it never reaches the register (invariant 4)::
+answered as already done, so it never reaches the register, which accepts
+no change once an entry is ``TERMINATED``::
 
     EndEmbargoAtEndTimeBT (Selector)
     ├─ EmbargoAlreadyEndedNode          # EM EXITED: already done
