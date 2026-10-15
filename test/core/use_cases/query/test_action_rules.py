@@ -23,6 +23,7 @@ from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
+    PxaDimension,
     RmDimension,
     VfDimension,
 )
@@ -69,7 +70,7 @@ def dl():
         embargo_register=register(active=EMBARGO_ID),
         case_statuses=[  # type: ignore[arg-type]
             CaseStatus(
-                pxa_state=CS_pxa.Pxa,  # type: ignore[call-arg]
+                pxa=PxaDimension(state=CS_pxa.Pxa),
                 context=CASE_ID,
             )
         ],
@@ -291,7 +292,7 @@ class TestGetActionRulesUseCase:
                 embargo_register=embargo_register,
                 case_statuses=[  # type: ignore[arg-type]
                     CaseStatus(
-                        pxa_state=CS_pxa.pxa,  # type: ignore[call-arg]
+                        pxa=PxaDimension(state=CS_pxa.pxa),
                         context=CASE_ID,
                     )
                 ],

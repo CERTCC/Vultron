@@ -16,6 +16,7 @@ related_specs:
   - specs/case-management.yaml (CM-11-013, CM-31-003)
   - specs/code-style.yaml (CS-08-001, CS-14-001)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
+  - specs/status-dimension-objects.yaml (SDO-03-003)
   - specs/message-validation.yaml (MV-01-001, MV-02-002, MV-04-003, MV-11-001
     through MV-11-005)
   - specs/vocabulary-model.yaml (VM-06-008)
@@ -131,8 +132,8 @@ reset the field, losing state without an error (#2232).
 
 - camelCase aliases from `alias_generator=to_camel` on `CoreObject` (ARCH-25-002);
 - `AliasChoices` on dimension fields (a flat `rm_state`/`rmState` on
-  `ParticipantStatus`, `em_state` on `CaseStatus`), which are interpreted, not
-  dropped.
+  `ParticipantStatus`; `emState`/`em` on `CaseStatus`, whose flat `em_state`
+  spelling is retired, SDO-03-003), which are interpreted, not dropped.
 
 A wire-shaped row persisted anyway is projected to core on read
 (`hydration.project_wire_row_to_core`). Deliberate snapshot reconstruction in core
@@ -193,6 +194,11 @@ disposition is stated once there (MV-11, ARCH-25-007/008):
 4. **Core `forbid` is unchanged** (MV-11-004). The retired-name list lives on the
    wire side (`unknown_keys.RETIRED_NAMES`), consulted only at the parse edge; no
    core guard names a retired key.
+   `RETIRED_NAMES` is for keys whose *field* is gone (`vfd_state`,
+   `activeEmbargo`). A retired *spelling* of a live field needs no entry: once
+   the class stops declaring it, it normalises to the live spelling, so rule 2
+   already refuses it and names both (`em_state`/`pxa_state` on `CaseStatus`,
+   #4376).
 5. **Never re-validate from the raw body after parse** (MV-11-005). Set-aside keys
    would reappear on a core class and the wrong type would be stored. Ingress
    storage persists the parsed object.

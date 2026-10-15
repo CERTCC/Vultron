@@ -127,7 +127,7 @@ def test_vfd_dimensions_ride_participant_status_not_case_status():
 @pytest.mark.spec("MSM-03-005")
 @pytest.mark.spec("MSM-03-006")
 def test_pxa_dimensions_ride_case_status():
-    """`CP`/`CX`/`CA` stay case-scoped on `as_CaseStatus.pxa_state`."""
+    """`CP`/`CX`/`CA` stay case-scoped on `as_CaseStatus.pxa`."""
     pattern = _pattern(MessageSemantics.ADD_CASE_STATUS_TO_CASE)
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "CaseStatus"

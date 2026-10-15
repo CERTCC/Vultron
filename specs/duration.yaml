@@ -215,12 +215,12 @@ groups:
     kind: protocol
     statement: >-
       When a default embargo duration is applied at case creation, this application MUST be
-      logged at INFO level to ensure visibility in logs. The resulting `CaseStatus.em_state`
+      logged at INFO level to ensure visibility in logs. The resulting `CaseStatus.em.state`
       MUST be `EM.ACTIVE` (not `EM.PROPOSED`); see `specs/embargo-policy.yaml` EP-04-001.
     verification: >-
       Integration tests in `test/demo/` confirm that applying a default embargo
       duration at case creation produces an INFO-level log entry and sets
-      `CaseStatus.em_state` to `EM.ACTIVE`.
+      `CaseStatus.em.state` to `EM.ACTIVE`.
     stories:
     - story_2022_010
     - story_2022_014
