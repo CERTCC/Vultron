@@ -1696,18 +1696,20 @@ class TestAssessAndRecordInviteExpiry:
 
     @pytest.mark.spec("CLP-10-006", "BT-06-006")
     def test_failed_commit_leaves_invitee_invited(self, monkeypatch):
-        """A failed commit in create_invite_expiry_tree leaves the invitee INVITED.
+        """A failed commit in the expiry decision leaves the invitee INVITED.
 
-        The tree uses guard → commit → effect.  If the commit node fails, the
-        effect node (RecordInviteExpiryNode) must not run, so the invitee stays
-        in INVITED state rather than TIMED_OUT (CLP-10-006, BT-06-006).
+        The decision uses guard → commit → effect.  If the commit node fails,
+        the effect node (RecordInviteExpiryNode) must not run, so the invitee
+        stays in INVITED state rather than TIMED_OUT (CLP-10-006, BT-06-006),
+        and the decision fails, which the clock-decision stage logs and
+        continues past (CLP-10-025).
         """
         from unittest.mock import patch
 
+        import py_trees
+
         from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.expiry_tree import (
-            create_invite_expiry_tree,
-        )
+        from vultron.core.behaviors.embargo import expiry_tree as _et_module
 
         dl = _make_dl()
         case_id = "https://example.org/cases/fail-commit"
@@ -1720,25 +1722,19 @@ class TestAssessAndRecordInviteExpiry:
             invitee_deadline=_PAST,
         )
 
-        # Simulate a commit failure by making the ledger write raise.
-        from vultron.core.behaviors.sync import commit_tree as _ct_module
+        class _Fail(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.FAILURE
 
         def _failing_commit(*args, **kwargs):
             """Return a tree whose only node always fails."""
-            import py_trees
-
-            class _Fail(py_trees.behaviour.Behaviour):
-                def update(self):
-                    return py_trees.common.Status.FAILURE
-
             return _Fail(name="FailingCommitSim")
 
         with patch.object(
-            _ct_module, "create_commit_log_entry_tree", _failing_commit
+            _et_module, "create_commit_log_entry_tree", _failing_commit
         ):
-            # Rebuild tree with patched commit
             result_out2: dict = {}
-            tree2 = create_invite_expiry_tree(
+            tree2 = _et_module.invite_expiry_decision(
                 case_id=case_id,
                 invitee_id=_INVITEE,
                 invite_id=f"{case_id}/invites/i1",
@@ -1747,10 +1743,13 @@ class TestAssessAndRecordInviteExpiry:
                 now=_NOW,
                 result_out=result_out2,
             )
-            BTBridge(datalayer=dl).execute_with_setup(
+            result = BTBridge(datalayer=dl).execute_with_setup(
                 tree=tree2, actor_id=_COORD
             )
 
+        assert result.status is py_trees.common.Status.FAILURE
+        assert not result.internal_error
+        assert result_out2[_et_module.IS_EXPIRED_KEY] is True
         # The invitee must still be INVITED — no effect was applied.
         case2 = dl.read(case_id)
         assert isinstance(case2, CoreCase)

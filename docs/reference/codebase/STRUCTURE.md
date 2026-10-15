@@ -123,7 +123,8 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | `vultron/core/ports/trigger_dispatcher.py` + `vultron/core/trigger_dispatcher.py` | One-method `TriggerDispatcher` port and its `RegistryTriggerDispatcher` implementation; replaced the deleted `TriggerService` facade |
 | `vultron/adapters/driving/fastapi/trigger_runner.py` | `run_trigger()`, the single call every trigger route makes; it schedules a drain of the emitting actor's outbox after the use case returns |
 | `vultron/core/use_cases/triggers/request_bodies.py` | Trigger request-body models; the core `*TriggerRequest` models derive from them and add `actor_id` |
-| `vultron/core/behaviors/case/receive_activity_tree.py` + `nodes/intake.py` | Four-stage received-side tree factory (intake → guards → commit → effects) and the intake node that archives every received activity (ADR-0111) |
+| `vultron/core/behaviors/case/receive_activity_tree.py` + `nodes/intake.py` | Staged received-side tree factory (intake → door guards → clock decisions → precondition guards → commit → effects) and the intake node that archives every received activity (ADR-0111, ADR-0135) |
+| `vultron/core/behaviors/case/nodes/clock_decision_stage.py` | The clock-decision stage the factory builds from `clock_decisions`: the CASE_MANAGER's expiries, a refused commit logged and passed over (CLP-10-025) |
 | `vultron/core/models/received_activity_record.py` | The receiver's archive record for one received activity (CLP-10-017) |
 | `vultron/core/behaviors/embargo/nodes/relay.py` | The CASE_MANAGER relays an adjudicated embargo proposal as Invites to the other participants (ADR-0113) |
 | `vultron/core/services/embargo_lifecycle/` | `EmbargoLifecycle` split into a per-responsibility package (activation, answers, consent, PEC, proposals) |

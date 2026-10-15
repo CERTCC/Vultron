@@ -206,11 +206,6 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # admits a participant, so it has no received activity to archive
         # (CM-10-006, ADR-0118).
         "embargo_admission_backfill_tree",
-        # expiry tree — the CASE_MANAGER-gated expiry evaluation called from
-        # AcceptInviteToEmbargoOnCaseReceivedUseCase; synthesises and commits an
-        # expiry entry without processing the received activity itself
-        # (CM-28-009, CM-28-014, BT-17-001, ADR-0118).
-        "create_invite_expiry_tree",
         # honour-late-accept tree — the CASE_MANAGER-gated honour decision
         # called from AcceptInviteToEmbargoOnCaseReceivedUseCase for the
         # EMB-17-001 branch; commits a synthesised honour entry, not a received
@@ -226,11 +221,6 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # stale-embargo branch; commits the manager's own emission under its
         # CASE_MANAGER gate, not a received assertion (EMB-17-011).
         "create_reinvite_stale_accepter_tree",
-        # ownership-transfer Offer expiry tree — the CASE_MANAGER-gated lazy
-        # expiry run before the Accept, Reject, Undo and Offer received trees;
-        # synthesises and commits an expiry entry without processing the
-        # received activity itself (CM-21-017, CLP-07-013, BT-17-001).
-        "create_ownership_offer_expiry_tree",
     }
 )
 

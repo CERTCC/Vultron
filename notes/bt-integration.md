@@ -280,9 +280,14 @@ guards, commit, effects.
    admitted (a new ownership Offer after the open one expired, CM-21-014). It
    runs only at the CASE_MANAGER, commits only its own entry, reads only the
    clock, policy and the case's ledger and file. A commit the ledger refuses
-   logs a warning and does not end the tree; an internal error does. The
-   two expiry trees run from helpers (`_expire_overdue_offer`,
-   `_run_expiry_tree`) are the sites it replaces.
+   logs a warning and does not end the tree; an internal error does. Pass
+   the decision as `clock_decisions`: the factory wraps each in a
+   `ClockDecision` inside a `ClockDecisionStage`
+   (`case/nodes/clock_decision_stage.py`) behind a CASE_MANAGER gate, and
+   refuses one that holds the received activity's commit. The ownership
+   Offer expiry (`ExpireOverdueOwnershipOfferNode`) and the embargo Invite
+   expiry (`invite_expiry_decision`) are clock decisions; never run one as a
+   tree of its own before the received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).

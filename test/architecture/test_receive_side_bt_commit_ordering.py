@@ -19,7 +19,8 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
 1. No tree factory under ``vultron/core/behaviors/`` may call
    ``create_guarded_commit_case_ledger_entry_tree`` directly.  Every
    receive-side BT composes through ``create_receive_activity_tree``, which
-   fixes the stage order intake → guards → commit → effects.  Only
+   fixes the stage order intake → door guards → clock decisions → guards →
+   commit → effects.  Only
    ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
    both factories — is exempt.
 2. No rejection validator sits in an effect stage (``replica_effects``,
@@ -31,6 +32,9 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    nodes never run ahead of the commit; ``test_refusal_stage.py`` pins that
    at run time and ``test_receive_activity_tree.py`` that the factory gates
    it (CLP-10-022).
+4. No built received tree commits ahead of its guarded commit except inside
+   the clock-decision stage, and there only from a decision's own commit
+   node, never the received activity's (CLP-10-025).
 
 The intake-first ratchet — every receive-side factory returns the shared
 factory's result, with the bypassing and nesting factories as exact sets
@@ -43,6 +47,7 @@ accumulating debt.
 
 import ast
 
+import py_trees
 import pytest
 
 from test.architecture import _corpus
@@ -260,3 +265,153 @@ def test_no_effect_node_is_used_as_a_precondition_guard() -> None:
             "Protocol-effect nodes placed before the commit (CLP-10-006):\n"
             f"{lines}"
         )
+
+
+# ---------------------------------------------------------------------------
+# CLP-10-025 ratchet: no commit runs ahead of the guards except inside the
+# clock-decision stage, and there only the stage's own commit — never the
+# received activity's.  Asked of the *built* trees, so a commit reached
+# through a helper or a nested factory is seen where it runs.
+# ---------------------------------------------------------------------------
+
+GUARDED_COMMIT_NAME = "GuardedCommitCaseLedgerEntryBT"
+
+
+def _commit_node_types() -> tuple[type, ...]:
+    """Every node class that commits a ledger entry in-tree."""
+    from vultron.core.behaviors.case.nodes.lifecycle import (
+        CommitCaseLedgerEntryNode,
+    )
+    from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
+
+    return (CommitCaseLedgerEntryNode, CreateLogEntryNode)
+
+
+def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
+    """Commits *root* runs before its guarded commit that CLP-10-025 forbids.
+
+    A commit ahead of the guarded commit is allowed only inside a
+    :class:`ClockDecisionStage`, and there only the decision's own entry
+    (``CreateLogEntryNode``); the received activity's commit
+    (``CommitCaseLedgerEntryNode``) inside the stage would commit the
+    activity's own assertion before the guards judge it.  A tree with no
+    guarded commit has no "ahead of the commit" and reports nothing.
+    """
+    from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+        ClockDecisionStage,
+    )
+    from vultron.core.behaviors.case.nodes.lifecycle import (
+        CommitCaseLedgerEntryNode,
+    )
+
+    names = [child.name for child in root.children]
+    if GUARDED_COMMIT_NAME not in names:
+        return []
+    ahead = root.children[: names.index(GUARDED_COMMIT_NAME)]
+    commits = _commit_node_types()
+    found: list[str] = []
+
+    def walk(node: py_trees.behaviour.Behaviour, in_stage: bool) -> None:
+        in_stage = in_stage or isinstance(node, ClockDecisionStage)
+        if isinstance(node, commits) and (
+            not in_stage or isinstance(node, CommitCaseLedgerEntryNode)
+        ):
+            where = "in the clock-decision stage" if in_stage else "outside"
+            found.append(f"{type(node).__name__} ({where})")
+        for child in node.children:
+            walk(child, in_stage)
+
+    for child in ahead:
+        walk(child, in_stage=False)
+    return found
+
+
+@pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("CLP-10-010")
+def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
+    """Every received tree commits ahead of its guards only from a clock
+    decision's own commit node."""
+    from test.architecture._received_tree_builds import built_received_trees
+
+    trees = built_received_trees()
+    offenders = {
+        f"{path}:{factory}": found
+        for (path, factory), tree in trees.items()
+        if (found := _early_commits(tree))
+    }
+    assert offenders == {}, (
+        "Commits ahead of the guarded commit outside a clock decision's own"
+        f" entry (CLP-10-025): {offenders}"
+    )
+    assert any(
+        "ClockDecisionsIfCaseManager" in [c.name for c in t.children]
+        for t in trees.values()
+    ), "no built tree has a clock-decision stage — corpus drifted?"
+
+
+class TestEarlyCommitDetector:
+    """The detector flags what the ratchet exists to catch."""
+
+    @staticmethod
+    def _tree(
+        *ahead: py_trees.behaviour.Behaviour,
+    ) -> py_trees.composites.Sequence:
+        commit = py_trees.behaviours.Success(name=GUARDED_COMMIT_NAME)
+        return py_trees.composites.Sequence(
+            name="Root", memory=False, children=[*ahead, commit]
+        )
+
+    @staticmethod
+    def _decision_commit() -> py_trees.behaviour.Behaviour:
+        from vultron.core.behaviors.sync.commit_tree import (
+            create_commit_log_entry_tree,
+        )
+
+        return create_commit_log_entry_tree(
+            case_id="https://example.org/cases/c",
+            object_id="https://example.org/objects/o",
+            event_type="expired",
+        )
+
+    def test_a_commit_among_the_guards_is_flagged(self) -> None:
+        tree = self._tree(self._decision_commit())
+
+        assert _early_commits(tree) == ["CreateLogEntryNode (outside)"]
+
+    def test_the_decisions_own_commit_inside_the_stage_is_allowed(
+        self,
+    ) -> None:
+        from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+            ClockDecisionStage,
+        )
+
+        stage = ClockDecisionStage(
+            name="ClockDecisions", decisions=[self._decision_commit()]
+        )
+
+        assert _early_commits(self._tree(stage)) == []
+
+    def test_the_activitys_commit_inside_the_stage_is_flagged(self) -> None:
+        from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+            ClockDecisionStage,
+        )
+        from vultron.core.behaviors.case.nodes.lifecycle import (
+            CommitCaseLedgerEntryNode,
+        )
+
+        stage = ClockDecisionStage(
+            name="ClockDecisions",
+            decisions=[
+                CommitCaseLedgerEntryNode(case_id="https://example.org/c")
+            ],
+        )
+
+        assert _early_commits(self._tree(stage)) == [
+            "CommitCaseLedgerEntryNode (in the clock-decision stage)"
+        ]
+
+    def test_a_commit_after_the_guarded_commit_is_not_early(self) -> None:
+        tree = self._tree()
+        tree.add_child(self._decision_commit())
+
+        assert _early_commits(tree) == []

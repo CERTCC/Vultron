@@ -15,9 +15,10 @@
 
 """Invite-expiry BT nodes: evaluation (CASE_MANAGER only) and replica replay.
 
-The CASE_MANAGER evaluates invite expiry lazily behind its role gate
-(:func:`~vultron.core.behaviors.embargo.expiry_tree.create_invite_expiry_tree`,
-CM-28-014, BT-17-001).  The tree follows the guard → commit → effect pattern
+The CASE_MANAGER evaluates invite expiry lazily, as a clock decision of the
+Invite Accept tree behind the received-tree factory's role gate
+(:func:`~vultron.core.behaviors.embargo.expiry_tree.invite_expiry_decision`,
+CLP-10-025, CM-28-014, BT-17-001).  The tree follows the guard → commit → effect pattern
 (CLP-10-006, BT-06-006):
 
 1. :class:`EvaluateInviteExpiryNode` calls the **read-only**
@@ -55,6 +56,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
@@ -169,6 +171,44 @@ class InviteExpiryNeedsApplyNode(py_trees.behaviour.Behaviour):
         if self._result_out.get(NEEDS_APPLY_KEY):
             return Status.SUCCESS
         return Status.FAILURE
+
+
+class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
+    """Precondition guard: the clock decision found the Invite still open.
+
+    FAILURE when :class:`EvaluateInviteExpiryNode`, the Accept tree's clock
+    decision, found the invitee's deadline passed: the Accept is late, so the
+    normal answer path must not record it, whether or not the expiry entry
+    could be committed (CLP-10-025).  The handler then routes the late
+    Accept by its compatibility with the case's embargo (EMB-17-001).  SUCCESS otherwise, including on a store that is
+    not the CASE_MANAGER, where the decision does not run and *result_out*
+    stays unset.  Read-only.
+    """
+
+    def __init__(
+        self,
+        result_out: dict[str, Any],
+        invitee_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._result_out = result_out
+        self._invitee_id = invitee_id
+        self._case_id = case_id
+
+    def update(self) -> Status:
+        if self._result_out.get(IS_EXPIRED_KEY):
+            self.feedback_message = (
+                f"the Invite of '{self._invitee_id}' on case"
+                f" '{self._case_id}' passed its RSVP deadline; a late Accept"
+                " is routed by its compatibility with the case's embargo,"
+                " not recorded as an answer (EMB-17-001)"
+            )
+            log = node_logger(self)
+            log.debug("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return Status.SUCCESS
 
 
 #: Backward-compatible alias for :class:`InviteExpiryNeedsApplyNode`.
@@ -452,5 +492,6 @@ __all__ = [
     "HonourLateAcceptNode",
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",
+    "InviteNotExpiredNode",
     "RecordInviteExpiryNode",
 ]
