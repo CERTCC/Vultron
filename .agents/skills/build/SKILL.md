@@ -107,7 +107,8 @@ Invoke the `orient-agent` skill.
         --body "No implementable sub-issues found. Run \`/plan-issue <ISSUE_NUMBER>\` to decompose this Epic into Tasks before building."
       ```
 
-   3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run `/plan-issue N` to decompose it into Tasks first."
+   3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run
+      `/plan-issue N` to decompose it into Tasks first."
    4. **Stop.** Do not claim, branch, or proceed.
 
 5. Fail-fast blocker gate on every selected issue (auto-selected or explicit),
@@ -412,6 +413,7 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
    body:         </tmp/pr-body-<N>.md from Phase 5, completed per pr-body-guide.md>
    labels:       <topic labels only — never size:, see step 1>
    issue_number: <N>        # the first bundle member
+   manifest:     /tmp/spec-manifest-<N>.txt   # resolved in Phase 6 step 2
    ```
 
    `create-pr` freshens the branch onto `origin/main` (cherry-pick),
@@ -427,9 +429,13 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
 
    Then **record the outcome** (PD-03-008): edit the PR body to replace the
    `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
-   `Docs:` line `check-docs-sync` reported, and push any docs commit. Do this
-   before `archive-history`. The session is not done while the placeholder
-   remains.
+   `Docs:` line `check-docs-sync` reported, and push any docs commit. Then run
+   `pr-body-lint --pr-json` at the final stage, with `--closes-work-item` (a
+   build PR closes a `Task` or `Feature`, so it needs a `Docs:` line even when
+   it changes no `.py`), and fix every finding (PAD-20-005; `check-docs-sync`
+   § Step 5).
+   Do this before `archive-history`. The session is not done while the
+   placeholder remains.
 
 4. Post the pre-push review on the PR as a comment: each finding with its
    resolution, so a human sees what the review found (PAD-07-004).

@@ -12,7 +12,8 @@
        but it is still in early stages and will be the target of future BT integration work.
  6. Ensure all insights from @plan/BT_INTEGRATION.md are capture in the
     appropriate specs or IMPLEMENTATION_NOTES.md files.
- 7. Remove BT_INTEGRATION.md once all insights have been distributed to the appropriate files.
+ 7. Remove BT_INTEGRATION.md once all insights have been distributed to the appropriate
+    files.
  8. git commit the refined specifications with a clear commit message.
 
 DO NOT BEGIN IMPLEMENTATION.

@@ -138,17 +138,22 @@ either add the gloss shown or rewrite using the plain-language alternative.
 
 ### Bad/good rewrite examples
 
-❌ "PEC state machine transitions from NO_EMBARGO were fixed."
-✅ "The embargo-consent state machine was corrected: participants can now accept or decline an embargo offer even when they are not currently party to one."
+❌ "PEC state machine transitions from NO_EMBARGO were fixed." ✅ "The embargo-consent
+state machine was corrected: participants can now accept or decline an embargo offer
+even when they are not currently party to one."
 
-❌ "Production Collapses 1, 3, and 4 were completed."
-✅ "Three fuzzer subsystems — the exploit-strategy evaluator, the suggest-actor notification loop, and the publication leaf — were converted from simplified simulation placeholders to full call-out abstractions ready for production backend wiring."
+❌ "Production Collapses 1, 3, and 4 were completed." ✅ "Three fuzzer subsystems — the
+exploit-strategy evaluator, the suggest-actor notification loop, and the publication
+leaf — were converted from simplified simulation placeholders to full call-out
+abstractions ready for production backend wiring."
 
-❌ "VFD role guards were added for f→F and d→D."
-✅ "Role guards now ensure that only a vendor actor can mark a fix as developed, and only a deployer actor can mark it as deployed — previously these checks were absent."
+❌ "VFD role guards were added for f→F and d→D." ✅ "Role guards now ensure that only a
+vendor actor can mark a fix as developed, and only a deployer actor can mark it as
+deployed — previously these checks were absent."
 
-❌ "FUZZ-08e retriever call-out points were implemented."
-✅ "The actor-retrieval step in the multi-actor suggestion workflow was refactored to expose an injectable call-out point for custom retrieval backends."
+❌ "FUZZ-08e retriever call-out points were implemented." ✅ "The actor-retrieval step in
+the multi-actor suggestion workflow was refactored to expose an injectable call-out
+point for custom retrieval backends."
 
 ---
 

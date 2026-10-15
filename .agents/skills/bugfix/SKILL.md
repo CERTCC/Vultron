@@ -262,8 +262,8 @@ Once the plan is confirmed:
    `create-pr` runs it exactly once before the first push (PAD-18-008).
    Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md`. A failing check holds the PR whatever
-   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception: the devcontainer
-   `actionlint` hang, `notes/devcontainer-tooling.md`).
+   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole
+   exception: the devcontainer `actionlint` hang, `notes/devcontainer-tooling.md`).
 
 6. **Pre-review self-check** — once the fix is finished, run the four items in
    `.agents/skills/shared/pre-review-self-check.md` (affected-text sweep,
@@ -290,6 +290,7 @@ Once the plan is confirmed:
      body:         <per pr-body-guide.md implementation template>
      labels:       <topic labels only — never size:, see above>
      issue_number: <N>        # the first bundle member
+     manifest:     /tmp/spec-manifest-<N>.txt   # the resolved backstop manifest
      ```
 
    - Invoke `check-docs-sync` while CI runs in the cloud to identify any
@@ -300,8 +301,11 @@ Once the plan is confirmed:
      (Gate 1); unattended, run `write-docs` inline or hold the PR.
    - **Record the outcome** (PD-03-008): edit the PR body to replace the
      `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
-     `Docs:` line `check-docs-sync` reported, and push any docs commit. Do
-     this before `archive-history`.
+     `Docs:` line `check-docs-sync` reported, and push any docs commit. Then
+     run `pr-body-lint --pr-json` at the final stage, with
+     `--closes-work-item` (a bugfix PR closes a `Bug`, so it needs a `Docs:`
+     line even when it changes no `.py`), and fix every finding (PAD-20-005;
+     `check-docs-sync` § Step 5). Do this before `archive-history`.
    - Invoke `archive-history` — once per bundle member, each entry carrying the
      same PR URL:
 

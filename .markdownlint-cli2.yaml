@@ -4,8 +4,18 @@ config:
   "MDOO4":
     style: "dash"
   # 013 Line length
-  # Disabled because we have a lot of long lines. We should fix this eventually.
-  "MD013": false
+  # 88 characters outside docs/ (AGENTS.md § Markdown Formatting, PD-10-001);
+  # tables and code blocks are exempt, and a line whose overflow is one
+  # unbreakable token (a URL) passes because `strict` stays false. The limit is
+  # vultron.metadata.line_length.LINE_LIMIT; test_line_length.py pins the two.
+  # Turned off again, by a nested .markdownlint-cli2.yaml, in docs/ (one
+  # sentence per line, no limit, SG-38) and in the archives plan/history/
+  # (append-only, HM-01-005), plan/retired-specs/ (retired text kept as it was,
+  # MS-09-005) and archived_notes/.
+  "MD013":
+    line_length: 88
+    code_blocks: false
+    tables: false
   # 033 Inline HTML
   # Disabled because we use inline HTML (<br/> in table cells for example)
   "MD033": false

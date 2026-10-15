@@ -28,15 +28,19 @@ For each unresolved comment in the PR:
 > "Line 42 should use the `NonEmptyString` validator for this field."
 
 **Resolution message**:
-> "Addressed in commit abc1234: Changed line 42 to use `NonEmptyString` validator as suggested. This ensures the field rejects empty strings."
+> "Addressed in commit abc1234: Changed line 42 to use `NonEmptyString` validator as
+> suggested. This ensures the field rejects empty strings."
 
 ### ⚠️ Partially Addressed
 
 **Original comment**:
-> "This linting error should be fixed, and we should also consider refactoring the entire module for consistency."
+> "This linting error should be fixed, and we should also consider refactoring the
+> entire module for consistency."
 
 **Reply**:
-> "Addressed the immediate linting issue (line 42) in commit abc1234. The broader refactoring concern is important but would be better as a separate effort—I've created issue #999 to track it. Want to discuss priorities?"
+> "Addressed the immediate linting issue (line 42) in commit abc1234. The broader
+> refactoring concern is important but would be better as a separate effort—I've created
+> issue #999 to track it. Want to discuss priorities?"
 
 ### ❌ Cannot Address / Needs Discussion
 
@@ -44,7 +48,10 @@ For each unresolved comment in the PR:
 > "This changes the dispatcher architecture. Won't this break existing handlers?"
 
 **Reply**:
-> "Good catch. This change does modify dispatcher behavior, but only for the new CaseActor participant type—existing handlers are not affected (see ADR-007 for the architectural boundaries). Would you like me to add a code comment documenting this invariant?"
+> "Good catch. This change does modify dispatcher behavior, but only for the new
+> CaseActor participant type—existing handlers are not affected (see ADR-007 for the
+> architectural boundaries). Would you like me to add a code comment documenting this
+> invariant?"
 
 ## Handling Non-Code Feedback
 
@@ -66,7 +73,8 @@ For each unresolved comment in the PR:
 **Action**:
 
 - If decision is explained in ADR or design notes → Resolve with reference
-- If deserves discussion → Reply: "Good question. Let's discuss in the design doc / ADR comment thread"
+- If deserves discussion → Reply: "Good question. Let's discuss in the design doc / ADR
+  comment thread"
 - Do NOT mark as resolved without addressing the concern
 
 ### Process/Style Feedback

@@ -63,9 +63,12 @@ values on `DemoState`. Do not model EM or PXA per-participant.
 
 ## 4. Key data types (`src/types.ts`)
 
-- `TimelineEvent` — a node: `type: 'decision' | 'consequence'`, `lane`, `x`, `causedBy?`, `consequences[]`.
-- `DemoState` — the demo: `participants` map, case-level `emState` / `pxaState`, `timelineEvents[]`, `eventLog[]`.
-- `ParticipantState` — per participant: `role`, `rmState`, `vfdState`, `laneIndex`, consent/publication/closure flags.
+- `TimelineEvent` — a node: `type: 'decision' | 'consequence'`, `lane`, `x`,
+  `causedBy?`, `consequences[]`.
+- `DemoState` — the demo: `participants` map, case-level `emState` / `pxaState`,
+  `timelineEvents[]`, `eventLog[]`.
+- `ParticipantState` — per participant: `role`, `rmState`, `vfdState`, `laneIndex`,
+  consent/publication/closure flags.
 
 ## 5. Log Replay pipeline (`src/utils/`)
 
