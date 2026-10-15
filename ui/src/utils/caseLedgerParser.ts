@@ -55,6 +55,7 @@ export type LedgerEventType =
   | 'offer_case_manager_role'
   | 'create_case'
   | 'validate_report'
+  | 'create_note'
   | 'add_note_to_case'
   | 'add_participant_status_to_participant'
   | 'add_case_status_to_case'

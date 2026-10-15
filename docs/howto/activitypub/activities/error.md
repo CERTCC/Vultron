@@ -27,7 +27,7 @@ You finish with the sender informed of why the message failed, in a form it can 
 |---|---|
 | Received but **not understood** — format error, unknown type, parse failure | `Create(ProcessingFault)` |
 | Received and understood but **declined** — invalid state, rule violation, unauthorized | `as:Reject` |
-| Received and understood, but the condition needs **narrative explanation** | `Create(Note)` and `Add(Note)` |
+| Received and understood, but the condition needs **narrative explanation** | A case note: `Create(Note)`, or `Add(Note)` for a note that already exists |
 
 Three mechanisms cover every case (MSM-05-001).
 

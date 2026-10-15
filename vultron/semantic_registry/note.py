@@ -50,17 +50,18 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when=(
-                    "a Participant has written a note it is about to post to "
-                    "the case"
-                ),
+                when="a Participant posts a new note to the case",
                 anchor="create-note",
                 heading="Create note",
                 description=(
-                    "Mints a note for the case. When the note's context "
-                    "names the case, the Case Manager attaches it and "
-                    "records the attachment in the case ledger, so the Add "
-                    "that follows changes nothing more."
+                    "Creates a note and, when the note's context names the "
+                    "case, posts it to that case: the Case Manager attaches "
+                    "the note and records the attachment in the case "
+                    "ledger. The Create carries no target. A receiver also "
+                    "accepts a Create followed by an Add of the same note, "
+                    "and the Add then changes nothing more. This "
+                    "implementation's add-note trigger sends the Create "
+                    "alone."
                 ),
                 example="create_note",
                 howto=HowToGuide.STATUS_UPDATES,
@@ -79,12 +80,19 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="a Participant posts a note to the case",
+                when=(
+                    "a Participant attaches a note that already exists to "
+                    "the case"
+                ),
                 anchor="add-note-to-case",
                 heading="Add note to case",
                 description=(
-                    "Attaches the note to the case named by the target, for "
-                    "example to ask or answer a question."
+                    "Attaches the note to the case named by the target, and "
+                    "the Case Manager records the attachment in the case "
+                    "ledger. A receiver accepts it on its own, for a note "
+                    "created earlier or elsewhere, or after a Create of the "
+                    "same note. This implementation's add-note trigger does "
+                    "not send it: a new note goes as a Create alone."
                 ),
                 example="add_note_to_case",
                 howto=HowToGuide.STATUS_UPDATES,
