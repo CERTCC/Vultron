@@ -41,6 +41,9 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Announce,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +59,26 @@ def hand_back_activity_id(receiving_actor_id: str, entry_id: str) -> str:
     """
     return derived_activity_id(
         _HAND_BACK_ID_KIND, receiving_actor_id, entry_id
+    )
+
+
+def hand_back_announce(
+    entry: CaseLedgerEntry, case_manager_id: str, receiving_actor_id: str
+) -> as_Announce:
+    """The ``Announce(CaseLedgerEntry)`` that carries *entry* back in.
+
+    It is attributed to the CASE_MANAGER even though the receiver builds it:
+    the buffer holds the entry, not the Announce that carried it, and the
+    CASE_MANAGER is the one sender a replica applies entries from (SYNC-14-009,
+    ADR-0135).  It is an inbox envelope, never a ledger entry, so the replica
+    still mints nothing in the ledger (CLP-07-013): the entry inside is the
+    CASE_MANAGER's, copied unchanged.
+    """
+    return announce_log_entry_activity(
+        entry=ledger_entry_to_wire(entry),
+        id_=hand_back_activity_id(receiving_actor_id, entry.id_),
+        actor=case_manager_id,
+        to=[receiving_actor_id],
     )
 
 
@@ -82,11 +105,8 @@ class InboxHandBackAdapter:
         (:func:`hand_back_activity_id`); the second one finds the entry stored
         and is a no-op.
         """
-        announce = announce_log_entry_activity(
-            entry=ledger_entry_to_wire(entry),
-            id_=hand_back_activity_id(receiving_actor_id, entry.id_),
-            actor=case_manager_id,
-            to=[receiving_actor_id],
+        announce = hand_back_announce(
+            entry, case_manager_id, receiving_actor_id
         )
         self._dl.save(announce)
         self._dl.inbox_append(announce.id_)
@@ -101,4 +121,8 @@ class InboxHandBackAdapter:
         )
 
 
-__all__ = ["InboxHandBackAdapter", "hand_back_activity_id"]
+__all__ = [
+    "InboxHandBackAdapter",
+    "hand_back_activity_id",
+    "hand_back_announce",
+]

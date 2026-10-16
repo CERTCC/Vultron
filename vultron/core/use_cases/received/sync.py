@@ -54,7 +54,7 @@ from vultron.core.models.events.sync import (
 )
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
-    get_ledger_gap_buffer,
+    resolve_ledger_gap_buffer,
 )
 from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
@@ -261,9 +261,9 @@ class AnnounceLedgerEntryReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        gap_buffer = self._gap_buffer
-        if gap_buffer is None and request.receiving_actor_id:
-            gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
+        gap_buffer = resolve_ledger_gap_buffer(
+            self._gap_buffer, request.receiving_actor_id
+        )
 
         logger.info(
             "sync: received log-entry announcement '%s' for case '%s' "

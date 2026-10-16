@@ -19,7 +19,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
-    get_ledger_gap_buffer,
+    resolve_ledger_gap_buffer,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -83,9 +83,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         tree = create_announce_vulnerability_case_received_tree(
             case_obj=case_obj, request=request
         )
-        gap_buffer = self._gap_buffer
-        if gap_buffer is None and request.receiving_actor_id:
-            gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
+        gap_buffer = resolve_ledger_gap_buffer(
+            self._gap_buffer, request.receiving_actor_id
+        )
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,

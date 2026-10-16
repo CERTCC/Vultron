@@ -28,13 +28,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import cast
 
-from vultron.adapters.driven.sync_activity_adapter import (
-    ledger_entry_to_wire,
+from vultron.adapters.driven.inbox_hand_back_adapter import (
+    hand_back_announce,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import announce_log_entry_activity
 
 
 @dataclass(frozen=True)
@@ -76,10 +75,10 @@ def handed_back_event(
     handed_back: HandedBack,
 ) -> AnnounceLogEntryReceivedEvent:
     """The event the inbox routes for *handed_back*, as the adapter wraps it."""
-    activity = announce_log_entry_activity(
-        ledger_entry_to_wire(handed_back.entry),
-        actor=handed_back.case_manager_id,
-        to=[handed_back.receiving_actor_id],
+    activity = hand_back_announce(
+        handed_back.entry,
+        handed_back.case_manager_id,
+        handed_back.receiving_actor_id,
     )
     event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
     return event.model_copy(

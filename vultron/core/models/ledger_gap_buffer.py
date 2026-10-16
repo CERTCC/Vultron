@@ -254,6 +254,19 @@ def get_ledger_gap_buffer(
     return _BUFFERS[actor_id]
 
 
+def resolve_ledger_gap_buffer(
+    injected: LedgerGapBuffer | None, receiving_actor_id: str | None
+) -> LedgerGapBuffer | None:
+    """Return *injected*, else the receiving actor's registry buffer.
+
+    ``None`` only when nothing was injected and no receiving actor is named,
+    which leaves the tree with no buffer to park entries in or hand back from.
+    """
+    if injected is not None or not receiving_actor_id:
+        return injected
+    return get_ledger_gap_buffer(receiving_actor_id)
+
+
 def _reset_buffers() -> None:
     """Clear the global per-actor buffer registry.
 
@@ -267,5 +280,6 @@ __all__ = [
     "DEFAULT_LEDGER_GAP_BUFFER_MAX",
     "LedgerGapBuffer",
     "get_ledger_gap_buffer",
+    "resolve_ledger_gap_buffer",
     "_reset_buffers",
 ]

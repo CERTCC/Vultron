@@ -91,10 +91,6 @@ class SyncActivityAdapter:
             return self
         return type(self)(dl)
 
-    def _to_wire(self, entry: CaseLedgerEntry) -> WireCaseLedgerEntry:
-        """Convert a log entry to its wire-layer representation."""
-        return ledger_entry_to_wire(entry)
-
     def send_reject_log_entry(
         self,
         entry: CaseLedgerEntry,
@@ -124,7 +120,7 @@ class SyncActivityAdapter:
                 entry.id_,
             )
             return
-        wire_entry = self._to_wire(entry)
+        wire_entry = ledger_entry_to_wire(entry)
         reject = reject_log_entry_activity(
             entry=wire_entry,
             context=tail_hash,
@@ -210,7 +206,7 @@ class SyncActivityAdapter:
                 to,
             )
             return False
-        wire_entry = self._to_wire(entry)
+        wire_entry = ledger_entry_to_wire(entry)
         announce = announce_log_entry_activity(
             entry=wire_entry,
             actor=actor_id,

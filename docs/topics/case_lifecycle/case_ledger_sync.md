@@ -289,19 +289,17 @@ So after the replica commits a new last entry, finding the successor is a
 single lookup: the held entry whose `prevLogHash` equals the hash of the entry
 just committed.
 
-The drain then repeats. Commit the successor, look up *its* successor, and
-continue until no held entry extends the chain
-([SYNC-14-003](../../reference/specs/protocol.md#sync-14-003)). A run of ten
-entries that arrived in reverse order clicks into place in one cascade, in
-`log_index` order.
+The drain then repeats until no held entry extends the chain ([SYNC-14-003](../../reference/specs/protocol.md#sync-14-003)).
+Each step is a delivery of its own: the replica hands the successor back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` from the case's CASE_MANAGER, and does not process it inside the delivery that committed its predecessor ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+When that delivery commits the successor, it hands back *its* successor in turn.
+A run of ten entries that arrived in reverse order clicks into place in one cascade, in `log_index` order.
 
 Three properties make the drain safe:
 
 - **Same path.** A drained entry goes through the same processing as an entry
   that arrived in order — no separate code path with its own behavior
-  ([SYNC-14-008](../../reference/specs/protocol.md#sync-14-008)). In this
-  implementation that means the drain re-runs the announce receive behavior
-  tree on each held entry, in `log_index` order.
+  ([SYNC-14-008](../../reference/specs/protocol.md#sync-14-008)).
+  In this implementation that holds by construction, because each held entry reaches the announce receive behavior tree as an ordinary inbox delivery.
 - **Effects before storage.** The entry's consequences — an embargo ending, a
   participant joining, a status changing — are applied first, and the entry is
   stored only if they all succeed

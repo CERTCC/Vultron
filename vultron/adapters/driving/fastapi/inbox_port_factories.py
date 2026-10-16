@@ -45,6 +45,7 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_PERMISSIVE,
 )
+from vultron.core.behaviors.sync.nodes.hand_back import INBOX_HAND_BACK_KEY
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -306,7 +307,7 @@ def _inbox_hand_back_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``Announce(CaseLedgerEntry)`` lands in the queue the same inbox loop
     drains after the current delivery (SYNC-14-009).
     """
-    return {"inbox_hand_back": InboxHandBackAdapter(dl)}
+    return {INBOX_HAND_BACK_KEY: InboxHandBackAdapter(dl)}
 
 
 def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
