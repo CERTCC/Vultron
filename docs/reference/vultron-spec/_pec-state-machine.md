@@ -1,36 +1,39 @@
 ## 9. Participant Embargo Consent (PEC) State Machine [N]
 
-An embargo binds the participants who agreed to it. Embargo Management
-([§7 Embargo Management (EM) State Machine](tracking-models.md#7-embargo-management-em-state-machine-n)) records whether the case
-has an embargo; it cannot record who has agreed, because that answer differs per
-participant. Participant Embargo Consent records it.
+An embargo binds the participants who agreed to it.
+Embargo Management ([§7 Embargo Management (EM) State Machine](tracking-models.md#7-embargo-management-em-state-machine-n)) records whether the case has an embargo; it cannot record who has agreed, because that answer differs per participant.
+Participant Embargo Consent records it.
 
-The distinction has practical force. A participant invited to a case that already
-has an active embargo has not yet agreed to anything, and the CASE_MANAGER must
-not send it embargoed content until it has
-([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)). A participant that declines is
-still in the case and still receives the negotiation traffic
-([§9.5 Embargo Traffic Reaches Non-Signatories](tracking-models.md#95-embargo-traffic-reaches-non-signatories)). Neither
-position is expressible in the case-level embargo state.
+The distinction has practical force.
+A participant invited to a case that already has an active embargo has not yet agreed to anything, and the CASE_MANAGER must not send it embargoed content until it has ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+A participant that declines is still in the case and still receives the negotiation traffic ([§9.5 Embargo Traffic Reaches Non-Signatories](tracking-models.md#95-embargo-traffic-reaches-non-signatories)).
+Neither position is expressible in the case-level embargo state.
 
-Consent is per participant, but the CASE_MANAGER writes it: it is recorded on the
-case, alongside the participant's other case state.
+Consent is per participant, but the CASE_MANAGER writes it: it is recorded on the participant's record in the case, alongside the participant's other case state.
 
 !!! note "Informative: provenance"
     The original protocol design had four state machines and no consent machine.
-    This one emerged during implementation, when the case-level embargo state
-    proved unable to distinguish "no embargo exists" from "this participant has
-    not yet agreed". It is normative here, because correct embargo behavior cannot
-    be specified without it.
+    This one emerged during implementation, when the case-level embargo state proved unable to distinguish "no embargo exists" from "this participant has not yet agreed".
+    It is normative here, because correct embargo behavior cannot be specified without it.
 
 ### 9.1 States
 
-Each participant's position on the case's current embargo terms is one of the states below.
-Consent is given to specific terms, so an implementation records one consent row per participant and embargo (`INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED`) and derives the position from the rows and the embargo in force.
-`SIGNATORY` is an accepted row for the active embargo, and `LAPSED` and `UNBOUND_EXITED` are read from the rows and the case rather than written (ADR-0122).
-A participant can therefore be a signatory to the active embargo and have already accepted a proposed revision of it.
+Consent is given to specific terms, so a participant has one **consent row** for every entry in the case's embargo register ([§7 Embargo Management (EM) State Machine](tracking-models.md#7-embargo-management-em-state-machine-n)), and each row holds one of the five states below (CM-18-001).
+A row answers one question: what has this participant said about this one embargo?
+A participant can therefore be bound by the embargo in force and have already agreed to a proposed revision of it, on two different rows.
 
 {% include-markdown "./includes/_pec-states-table.md" %}
+
+Every row is written.
+Proposing an embargo writes an `UNINVITED` row for it on every current participant, and creating a participant record writes an `UNINVITED` row for every entry already in the register (CM-18-001).
+No state is read from a missing row: a missing row is a defect, and reading one raises.
+A participant that joins late stays `UNINVITED` on embargoes that are no longer in force; it is invited only to the embargo in force and to open revisions (CM-11-006, EP-09-011).
+
+`UNINVITED` and `DECLINED` both leave the participant unbound by the embargo the row answers, but they are distinct states, because whether the participant gave an answer matters.
+The lapsed read stops at a `DECLINED` row and passes over an `UNINVITED` one ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)), and an open proposal is relayed to a joiner only while its row for that proposal is `UNINVITED` (CM-18-001, EP-09-011).
+
+`INVITED` carries the invitation's respond-by deadline, the **RSVP deadline**, on the row itself (CM-28-013).
+The deadline belongs to one invitation, so a participant can hold several `INVITED` rows with different deadlines, and one passing times out only its own row.
 
 {% include-markdown "../../topics/process_models/em/pec_state_machine_diagram.md" %}
 
@@ -39,189 +42,179 @@ A participant can therefore be a signatory to the active embargo and have alread
 
 ### 9.2 Transitions and Guards
 
-Six triggers drive the machine.
-**Invite** extends an invitation, **accept** and **decline** record the participant's answer, **revise** fires when the case owner activates revised terms that end later than the terms a signatory accepted, **expire** fires when an invitation's deadline passes unanswered, and **exit** fires when the embargo enters Exited.
+Five triggers drive each row (CM-18-003).
+**INVITE** records an invitation, **AGREE** and **DECLINE** record an answer, **TIME_OUT** fires when an invitation's RSVP deadline passes unanswered, and **CARRY_OVER** agrees for a participant when the case owner activates a revision that asks nothing new of it.
 
-| From | Trigger | To |
+| Trigger | From | To |
 |---|---|---|
-| Unbound | invite | Invited |
-| Unbound | accept | Signatory |
-| Unbound | decline | Declined |
-| Invited | accept | Signatory |
-| Invited | decline | Declined |
-| Invited | expire (deadline passes) | Expired |
-| Signatory | revise | Lapsed |
-| Signatory | decline | Declined |
-| Lapsed | invite | Invited |
-| Lapsed | accept | Signatory |
-| Lapsed | decline | Declined |
-| Declined | invite | Invited |
-| Declined | accept | Signatory |
-| Expired | invite | Invited |
-| Expired | accept | Signatory |
-| Expired | decline | Declined |
-| any state but Unbound (exited) | exit | Unbound (exited) |
+| `INVITE` | `UNINVITED`, `DECLINED`, `TIMED_OUT` | `INVITED` |
+| `AGREE` | `UNINVITED`, `INVITED`, `DECLINED`, `TIMED_OUT` | `AGREED` |
+| `DECLINE` | `UNINVITED`, `INVITED`, `AGREED`, `TIMED_OUT` | `DECLINED` |
+| `TIME_OUT` | `INVITED` | `TIMED_OUT` |
+| `CARRY_OVER` | every state except `AGREED` | `AGREED` |
 
-Equivalently, by trigger: invite is valid from Unbound, Lapsed, Declined and Expired; accept is valid from Unbound, Invited, Lapsed, Declined and Expired; decline is valid from Unbound, Invited, Lapsed, Signatory and Expired; revise is valid only from Signatory; expire is valid only from Invited; exit is valid from every state except Unbound (exited).
+No other trigger is valid from any state, and an implementation rejects one as a protocol error (CM-18-009).
+A row for an embargo whose register entry is final (`REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) accepts no trigger at all, so the consent given to an embargo that is no longer in play is frozen as it stood (CM-18-003).
+
+`AGREED` refuses `INVITE`.
+Consent already given is not undone by asking again (CM-18-004).
+A participant whose terms have since changed is invited on its row for the new embargo, which leaves its `AGREED` row for the old one alone.
+
+`AGREE` and `DECLINE` are valid directly from `UNINVITED`.
+Consent does not always arrive through an invitation: a finder that opens a case for its own finding and sets its default embargo was invited by nobody, and a reporter consents by reporting.
+The case history MUST NOT record an invitation that did not happen (ADR-0048).
 
 A repeated answer is not a transition.
-When a participant sends the same answer to the same invitation again, accepting terms it has already accepted or declining terms it has already declined, the CASE_MANAGER changes nothing, records nothing in the case ledger and sends nothing, whatever the repeat's activity id (CM-13-005).
+When a participant sends the same answer to the same invitation again, the CASE_MANAGER changes nothing, records nothing in the case ledger and sends nothing, whatever the repeat's activity id (CM-13-005).
 A different answer is a new answer, and the table above applies to it.
-A participant that declined and then accepts has changed its answer, so it becomes Signatory directly, without being invited again.
+A participant that declined and then agrees has changed its answer, so its row moves to `AGREED` directly, without being invited again.
 
-None of Lapsed, Declined and Expired is terminal.
-A participant in any of them can be invited again, which is what makes renegotiation possible.
-Unbound (exited) is terminal and accepts no trigger: an embargo that has entered Exited has no outgoing transition, so a participant whose embargo was terminated cannot be invited back into it.
+None of `DECLINED`, `TIMED_OUT` and `AGREED` is terminal.
+A `DECLINED` or `TIMED_OUT` row can be invited again, which is what makes renegotiation possible, and an `AGREED` row can be declined.
+What ends a row's life is its register entry reaching a final status, not any state of the row.
 
-A revision does not move a signatory until it takes effect.
-While a revision is only proposed, the prior embargo is still in force and every signatory to it remains Signatory; the proposer is recorded as having accepted the terms it proposed.
-A signatory that accepts the proposed terms records that acceptance and stays Signatory to the embargo in force.
-A signatory that declines the proposed terms refuses them and nothing more: it stays Signatory, because only declining the **active** embargo is withdrawal.
-A signatory withdraws by leaving the embargo in force (`Leave(EmbargoEvent)`), not by rejecting an invitation to it; the decline then also covers every open revision it had accepted ([VAM-05-011](../specs/protocol.md#vam-05-011)).
-Only the case owner's accept or reject changes the embargo on the case; the other participants' answers inform that decision.
+### 9.3 Signatory and Lapsed
 
-When the owner activates the revision, consent is re-evaluated against the new terms, and the direction of the change matters.
-A revision that ends **no later than** the terms it replaces asks nothing new of anyone who agreed to the old terms, since agreeing to N days is agreeing to every shorter period; every signatory is carried over as a signatory to the new terms.
-A revision that ends **later** asks for more than they promised; every signatory that has not accepted it moves to Lapsed by the revise trigger, and those that did accept it stay Signatory.
-In either case a participant in any other state that had already accepted the revision becomes Signatory to it, because it has accepted the embargo now in force.
-Only signatories to the old terms are carried over: a participant already Lapsed stays Lapsed until it is invited again or accepts, and an Invited participant whose invitation the activation has made stale is handled as in [§9.4 Deadlines and the Pocket Veto](tracking-models.md#94-deadlines-and-the-pocket-veto).
-If the owner rejects the revision instead, the old terms stand and nobody's consent changes.
+Two positions a participant can hold are not states.
+Each is a read of the participant's rows and the case's register, and neither is stored or drawn on the state machine (CM-18-001).
+
+| Read | Definition |
+|---|---|
+| **Signatory** | The participant's row for the register's `ACTIVE` entry is `AGREED`. |
+| **Lapsed** | An entry is `ACTIVE`, the participant's row for it is neither `AGREED` nor `DECLINED`, and, following `replaces` back from the `ACTIVE` entry, the first entry whose row is `AGREED` or `DECLINED` has an `AGREED` row. |
+
+With no `ACTIVE` entry nobody is a signatory and nobody has lapsed.
+After an embargo is terminated no entry is `ACTIVE`, so the termination writes no row: every participant's position follows from the register alone (CM-18-016, MSM-07-006).
+
+A participant lapses when the case owner activates a revision that ends later than the embargo the participant agreed to, and the participant has not agreed to the revision.
+It did agree, and the embargo in force has since become something it did not agree to.
+Only the embargoes that were once in force sit on the `replaces` chain, so agreeing to a proposal that never took effect binds nothing to lapse from.
+A participant that withdrew from a later embargo has a `DECLINED` row on the chain, and has not lapsed when a further revision replaces that one.
 
 !!! warning "Lapsed is neither the proposal state nor the deadline state"
-    Lapsed is reached only from Signatory, and only by the revise trigger.
-    That trigger fires when the case owner *activates* longer terms the participant has not accepted, never when a revision is merely proposed and never when the revision ends no later than the accepted terms.
-    It means the participant did agree, and the embargo in force has since become something it did not agree to.
+    A merely proposed revision lapses nobody, and neither does a revision that ends no later than the accepted terms.
+    A participant that lets an invitation deadline pass reaches `TIMED_OUT` on that invitation's row, not lapsed.
+    A lapse is not timer-based and has no transition of its own: a lapsed participant is re-invited, on an `INVITED` row for the embargo in force, and the deadline attaches to that invitation (CM-18-002).
 
-    A participant that lets an invitation deadline pass reaches **Expired**, not Lapsed.
-    A Lapsed participant has no deadline until it is invited again.
+A revision does not move anyone's consent to the embargo in force until it takes effect (EP-05-002).
+While a revision is only proposed, the prior embargo is in force and every signatory to it remains one.
+The proposer's row for the revision is `AGREED`, because proposing terms is consenting to them, and every other participant gets an `UNINVITED` row for it.
+A signatory that agrees to the revision records that on the revision's row, and one that declines it refuses those terms and nothing more, on that row only (MSM-07-003, MSM-07-004).
 
-### 9.3 What Unbound Means
+A signatory withdraws by leaving the embargo in force with `Leave(EmbargoEvent)`, not by rejecting an invitation to it (MSM-07-010).
+The withdrawal declines its row for the embargo in force and every open proposal's row it had agreed to, because every open proposal is a revision of the embargo it is leaving.
+A `Reject` of the active embargo from an `AGREED` row is refused with a reported reason (MSM-07-004).
+The case owner does not leave an embargo; it ends one by terminating it.
 
-Unbound means there is no embargo in scope for this participant. It does not
-mean "has not yet agreed".
+Only the case owner's decision changes the embargo on the case; the other participants' answers inform it (EP-09-005).
+When the owner activates a revision, the direction of the change decides what happens to the consent of the signatories to the old terms (EP-05-001, MSM-07-005):
 
-That reading matters because consent does not always arrive through an
-invitation. A finder who opens a case for its own finding and sets its default
-embargo was invited by nobody. A reporter's consent is expressed by submitting the
-report. In both cases the participant is a signatory without any invitation having
-been sent, and the case history MUST NOT record an invitation that did not happen.
+- A revision that ends **no later than** the terms it replaces asks nothing new of anyone who agreed to the old terms, since agreeing to N days is agreeing to every shorter period.
+  The CASE_MANAGER applies `CARRY_OVER` to the revision's row of every participant whose row for the replaced embargo is `AGREED`, a `DECLINED` row for the revision included.
+- A revision that ends **later** asks for more than they promised.
+  No row is written: a signatory to the old terms whose row for the revision is not `AGREED` has lapsed, by the definition above.
 
-Two consequences follow:
-
-- Accept and decline are valid directly from Unbound. No invitation is
-  required.
-- The transition from Signatory to Invited MUST be rejected.
-  Consent already given cannot be withdrawn by re-inviting the participant; if longer terms the participant has not accepted take effect, the revise trigger lapses the consent instead.
-
-Unbound is the initial state only.
-When an embargo ends, every participant moves to the terminal Unbound (exited) instead: Unbound can be invited and a terminated embargo cannot be renegotiated, so the two must be different states.
+Either way, a participant already holding an `AGREED` row for the revision is its signatory by lookup, whether it is the proposer or an early acceptor.
+Only signatories to the old terms are carried over.
+A participant that had lapsed from an earlier embargo stays lapsed until it is re-invited or agrees.
+An `INVITED` participant whose invitation the activation has made stale is re-invited to the current terms, as in [§9.4 Deadlines and the Pocket Veto](tracking-models.md#94-deadlines-and-the-pocket-veto) (EMB-17-003).
+If the owner rejects the revision instead, the old terms stand and nobody's consent changes (MSM-07-009).
 
 ### 9.4 Deadlines and the Pocket Veto
 
 An embargo invitation does not stay open indefinitely.
-A participant that neither accepts nor declines before the deadline is recorded as Expired — the **pocket veto**.
+A participant that neither agrees nor declines before the RSVP deadline has its row for that invitation moved to `TIMED_OUT`, the **pocket veto** (CM-18-002).
 Silence is not treated as assent, because proceeding on an unanswered invitation would mean asserting agreement the participant never gave.
-Nor is it recorded as a refusal: Declined is reached only by an explicit decline.
+Nor is it recorded as a refusal: `DECLINED` is reached only by an explicit refusal (CM-28-004).
 
 The deadline may be explicit or defaulted:
 
-- An embargo invitation MAY carry its own `endTime`, giving an explicit
-  respond-by instant. Where present, it takes precedence over the policy window.
-- Where absent, a configurable policy window applies. The default window is
-  7 days.
+- An embargo invitation MAY carry its own `endTime`, giving an explicit respond-by instant.
+  Where present, it takes precedence over the policy window (CM-28-001, CM-28-002).
+- Where absent, a configurable policy window applies.
+  The default window is 7 days.
 
-Either way the result is bounded below and above by the two rules further down
-this section: the explicit `endTime` takes precedence over the policy window, but
-neither escapes the minimum window or the embargo-end ceiling.
-
-The pocket veto is the implicit form of this one mechanism, not a second
-mechanism alongside it.
+Either way the result is bounded below and above by the two rules further down this section: the explicit `endTime` takes precedence over the policy window, but neither escapes the minimum window or the embargo-end ceiling.
+The pocket veto is the implicit form of this one mechanism, not a second mechanism alongside it.
 
 !!! warning "One invitation carries two different end times"
     The invitation's `endTime` is the **respond-by** deadline for the invitee.
-    The embargo event nested inside the invitation has its own `endTime`, which
-    is when the **embargo** would expire. They sit one nesting level apart and
-    mean different things.
+    The embargo event nested inside the invitation has its own `endTime`, which is when the **embargo** would expire.
+    They sit one nesting level apart and mean different things.
 
-    An implementation that reads the embargo's expiry as the RSVP deadline will
-    hold invitations open for the entire embargo period. One that reads the RSVP
-    deadline as the embargo expiry will tear down embargoes days after they were
-    agreed.
+    An implementation that reads the embargo's expiry as the RSVP deadline will hold invitations open for the entire embargo period.
+    One that reads the RSVP deadline as the embargo expiry will tear down embargoes days after they were agreed.
 
-**Enforcing the deadline.** The CASE_MANAGER enforces it. It does so lazily: when
-it next handles the case, it compares the deadline against the current time. No
-scheduler or timer service is required.
+**Recording the deadline.**
+When the CASE_MANAGER relays an invitation, it sets the Invite's `endTime` and records the deadline on the invitee's `INVITED` row for the invited embargo (CM-28-012, CM-28-013).
+Every replica records the same deadline by copying the CASE_MANAGER's ledger entry for that row.
+A participant does not derive or store a deadline on receipt of an Invite.
 
-**A minimum window applies.** The CASE_MANAGER MUST enforce a minimum respond-by
-window. The minimum is the lesser of a configured window, 72 hours by default, and
-the time remaining in the embargo the invitation concerns. Where an invitation
-carries a shorter deadline, the CASE_MANAGER MUST extend the deadline to that
-minimum. It MUST NOT reject the invitation for this reason: a too-short deadline is
-the proposer's error, and refusing the invitation would penalize the invitee for it.
+**Enforcing the deadline.**
+The CASE_MANAGER enforces it, and only the CASE_MANAGER (CM-28-003, CM-28-014).
+It does so lazily: when it next handles the case, it compares each deadline against its own clock, so no scheduler or timer service is required (CM-28-007, CM-28-008).
+Before it commits the case owner's decision on a proposal, whenever it processes any other received embargo activity for the case, and whenever it runs an embargo trigger of its own, it expires every `INVITED` row whose deadline has passed and whose embargo is an open proposal or the embargo in force (CM-28-015).
+A row of a replaced, rejected, canceled or ended embargo is frozen and is not swept.
+The sweep runs after the activity's sender has been admitted and before the activity's own refusals, so an expiry is recorded even when the activity is then refused.
 
-**A deadline may not outlive its embargo.** The CASE_MANAGER MUST NOT let a
-respond-by deadline fall after the end of the embargo it concerns. Where a computed
-deadline would — whether it came from the invitation's explicit `endTime` or from
-the policy window — the CASE_MANAGER MUST clamp it down to the embargo's end.
+**A minimum window applies.**
+The CASE_MANAGER MUST enforce a minimum respond-by window.
+The minimum is the lesser of a configured window, 72 hours by default, and the time remaining in the embargo the invitation concerns (EP-07-002).
+Where an invitation carries a shorter deadline, the CASE_MANAGER MUST extend the deadline to that minimum.
+It MUST NOT reject the invitation for this reason: a too-short deadline is the proposer's error, and refusing the invitation would penalize the invitee for it.
+
+**A deadline may not outlive its embargo.**
+The CASE_MANAGER MUST NOT let a respond-by deadline fall after the end of the embargo it concerns (CM-28-011).
+Where a computed deadline would, whether it came from the invitation's explicit `endTime` or from the policy window, the CASE_MANAGER MUST clamp it down to the embargo's end.
 
 An invitee must be able to answer while there is still something to answer about.
-Invite a participant to a 24-hour embargo with no explicit `endTime` and a 7-day policy window records their inaction as an expiry on day 7 — six days after the embargo ended.
+Invite a participant to a 24-hour embargo with no explicit `endTime` and a 7-day policy window, and its inaction would be recorded as a time-out on day 7, six days after the embargo ended.
 This is why the minimum window above is relative rather than absolute: a 12-hour embargo grants a 12-hour answer window, and that is not an unreasonably short deadline when 12 hours is the whole embargo.
 
-**A late acceptance is not refused.** The CASE_MANAGER MUST NOT refuse a late accept on deadline grounds.
-Three cases apply.
-If the terms it accepts are still current, the CASE_MANAGER records the consent: an Expired or Declined participant becomes Signatory directly.
-If the terms are stale, the CASE_MANAGER sends a fresh invitation carrying the current terms.
-If no embargo remains, the CASE_MANAGER records the accept as a no-op; the participant keeps its place in the case either way.
+**A late acceptance is not refused.**
+The CASE_MANAGER MUST NOT refuse a late accept on deadline grounds (EMB-17-001).
+Three cases apply:
 
-**An expiry and a refusal reach different states.** Silence records Expired; an explicit decline records Declined.
-The case history distinguishes them too — it holds the decline that was sent, or the CASE_MANAGER's record of the expiry — but every reader of the consent state can tell them apart without consulting it.
-Both can be invited again, and both move to Signatory directly on a late accept.
+- If the terms it accepts are the case's current embargo, the CASE_MANAGER records the consent: a `TIMED_OUT` or `DECLINED` row moves to `AGREED` directly (EMB-17-002).
+- If the terms are stale, the CASE_MANAGER sends a fresh invitation carrying the current terms (EMB-17-003).
+- If no embargo remains, the CASE_MANAGER records the accept as a no-op and leaves the rows unchanged; the participant keeps its place in the case either way (EMB-17-004, EMB-17-008).
+
+**A time-out and a refusal reach different states.**
+Silence records `TIMED_OUT`; an explicit refusal records `DECLINED`.
+The case ledger distinguishes them too, holding either the refusal that was sent or the CASE_MANAGER's record of the expiry (CM-28-005, CM-28-009), but every reader of the consent rows can tell them apart without consulting it.
+Both can be invited again, and both move to `AGREED` directly on a late accept of the current terms.
 
 ### 9.5 Embargo Traffic Reaches Non-Signatories
 
-Embargo consent gates case **content**. It does not gate the negotiation about the
-embargo itself.
+Embargo consent gates case **content**.
+It does not gate the negotiation about the embargo itself.
 
-The CASE_MANAGER MUST deliver embargo meta-protocol messages — invitations, the accepts and rejects answering them, and terminations — to every participant, including those at Declined, Expired and Lapsed.
+The CASE_MANAGER MUST deliver embargo meta-protocol activities addressed to a participant directly (an embargo `Invite` and its responses) to that participant even when it declined, timed out or lapsed; they are not ledger fan-out, which the content gate holds back from non-signatories (CM-10-005).
 A participant cannot agree to revised terms it was never told about, and one that declined the original terms may well accept the revision.
 
-Only case content — report details, fix status, sensitive notes — is gated on
-Signatory status ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+Only case content (report details, fix status, sensitive notes) is gated on being a signatory ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
 ### 9.6 Embargo Adherence
 
-Whether a participant is currently bound by the embargo is a single yes-or-no
-question, and the protocol answers it from the consent state: a participant is
-bound exactly when its consent state is Signatory.
+Whether a participant is currently bound by the embargo is a single yes-or-no question, and the protocol answers it from the consent rows: a participant is bound exactly when it is a signatory, that is, when its row for the register's `ACTIVE` entry is `AGREED` (CM-18-001).
 
-This is a derived fact, not an independent one. An implementation MUST NOT record
-adherence as a value that can be set separately from the consent state it
-reports, because the two would then be able to disagree — and a case that reports
-a participant as bound while its consent state says otherwise has no correct
-reading.
+This is a derived fact, not an independent one.
+An implementation MUST NOT record adherence as a value that can be set separately from the rows it reports, because the two would then be able to disagree, and a case that reports a participant as bound while its rows say otherwise has no correct reading.
 
-A change of consent MUST be made by applying a consent trigger through the
-transitions of [§9.2 Transitions and Guards](tracking-models.md#92-transitions-and-guards), so that every change is
-a valid one and is recorded as such.
+A change of consent MUST be made either by applying a consent trigger through the transitions of [§9.2 Transitions and Guards](tracking-models.md#92-transitions-and-guards), or by copying the row a ledger entry carries after checking its starting state, through the one apply function the CASE_MANAGER and every replica share, so that every change is a valid one and is recorded as such (CM-18-005).
+The CASE_MANAGER commits every consent row it changes as its own `Update(EmbargoConsent)` ledger entry, or `Create(EmbargoConsent)` for a row it brings into existence, after the entry of the act that caused it (CLP-07-013, EP-09-007).
+Where the act's own activity states the row, such as a participant's `Accept(Invite(EmbargoEvent))` or, for the case owner's own row, its `Accept(EmbargoEvent, target=Case)` activating an embargo, that entry is the row's entry.
 
 !!! note "Informative: how the reference implementation does this"
-    The reference implementation exposes adherence as a computed property derived
-    from the stored consent state, so there is no separate field to fall out of
-    step. Any mechanism with that property satisfies the requirement above.
+    The reference implementation exposes adherence as a computed lookup over the stored consent rows and the register, so there is no separate field to fall out of step.
+    Any mechanism with that property satisfies the requirement above.
 
 ### 9.7 Gating Full Case Delivery
 
-Before the CASE_MANAGER delivers full case content
-(`Announce(VulnerabilityCase)` carrying report details, vulnerability
-description, and sensitive notes), **both** conditions MUST hold for the
-recipient:
+Before the CASE_MANAGER delivers full case content (`Announce(VulnerabilityCase)` carrying report details, vulnerability description, and sensitive notes), **both** conditions MUST hold for the recipient:
 
-1. The participant is **admitted to the case** — its RM state is at least
-   Received.
-2. The participant is a **signatory to the active embargo**
-   (an accepted consent row for the active embargo), **OR** there is no active embargo
-   (`EM.NONE`).
+1. The participant is **admitted to the case**: its RM state is at least Received.
+2. The participant is a **signatory to the active embargo** (its row for the active embargo is `AGREED`), **OR** no embargo is in force (EM is not `ACTIVE` or `REVISE`).
 
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}
@@ -229,19 +222,14 @@ recipient:
     Full definitions are in [§6.1 States](tracking-models.md#61-states).
 
 !!! warning "The gate is admission plus consent — not completed triage"
-    It is tempting to read condition 1 as `RM.ACCEPTED`. That reading is wrong
-    and self-defeating: an invitee is at `RM.RECEIVED` from the stub
-    Invite and stays there after `Accept(Invite)`, and reaches `ACCEPTED` only *after* receiving the full case
-    and running its triage cycle ([§6.3 Per-Participant RM Tracking](tracking-models.md#63-per-participant-rm-tracking)). Requiring `ACCEPTED` before delivery
-    would mean a participant could never obtain the case it needs in order to
-    reach the state that gates it.
+    It is tempting to read condition 1 as `RM.ACCEPTED`.
+    That reading is wrong and self-defeating: an invitee is at `RM.RECEIVED` from the stub Invite and stays there after `Accept(Invite)`, and reaches `ACCEPTED` only *after* receiving the full case and running its triage cycle ([§6.3 Per-Participant RM Tracking](tracking-models.md#63-per-participant-rm-tracking)).
+    Requiring `ACCEPTED` before delivery would mean a participant could never obtain the case it needs in order to reach the state that gates it.
 
-    **Embargo consent — not RM progress — is the substantive gate on case
-    content.** The ordering is: admit the participant at `RM.RECEIVED`, resolve
-    embargo consent, then deliver the full case.
+    **Embargo consent — not RM progress — is the substantive gate on case content.**
+    The ordering is: admit the participant at `RM.RECEIVED`, resolve embargo consent, then deliver the full case.
 
-This matters to [§10 Model Interactions and Cascade Rules](interactions.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` implies consent
-to any active embargo, which is what allows delivery to proceed immediately rather
-than waiting on a separate consent round-trip.
+This matters to [§10 Model Interactions and Cascade Rules](interactions.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` agrees to any active embargo on the joiner's row for it, which is what allows delivery to proceed immediately rather than waiting on a separate consent round-trip.
+A joiner whose row for the active embargo is `DECLINED` stays declined, because joining is not an answer to the embargo.
 
 ---

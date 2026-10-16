@@ -94,7 +94,9 @@ def _domain_values() -> dict[type, Any]:
         CVDRole: CVDRole.VENDOR,
         # The declared rule a migrated tree composes its sender guard from
         # (HP-01-008); a guard is a condition, so any composable rule will do.
-        SenderRule: SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        # CASE_MANAGER composes for a case known at build time and for one a
+        # ledger activity names at run time alike (LedgerActivityContext).
+        SenderRule: SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
     }
 
 

@@ -79,6 +79,9 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
 )
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
@@ -418,7 +421,9 @@ def test_announce_tree_has_a_removal_replay_node() -> None:
 
     names = [
         type(node).__name__
-        for node in create_announce_log_entry_tree().iterate()
+        for node in create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ).iterate()
     ]
     assert any("Remove" in n and "Participant" in n for n in names), names
 

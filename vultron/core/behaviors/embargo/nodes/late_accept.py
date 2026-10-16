@@ -13,9 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's no-op acknowledgement of a late embargo Accept (EMB-17-004)."""
+"""The CASE_MANAGER's routing of a late embargo Accept (EMB-17).
 
+An ``Accept(Invite(EmbargoEvent))`` the Invite expiry found late is not an
+answer (EMB-17-001).  The CASE_MANAGER routes it by its compatibility with the
+case's embargo, one arm per outcome, each a diversion of the Accept tree
+(CLP-10-026): :class:`LateAcceptRouteIsNode` names the arm, and
+:class:`CommitLateAcceptAcknowledgementNode` is the no-op acknowledgement
+when the case holds no embargo (EMB-17-004).
+"""
+
+from enum import StrEnum
 from typing import Any, cast
+
+from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.ledger_payload import (
     _extract_payload_snapshot,
@@ -23,13 +34,92 @@ from vultron.core.behaviors.case.nodes.ledger_payload import (
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
     PortInformation,
 )
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_NOOP_EVENT_TYPE
+from vultron.core.states.em import EM
 from vultron.errors import VultronWiringError
+
+
+class LateAcceptRoute(StrEnum):
+    """How the CASE_MANAGER answers a late embargo ``Accept`` (EMB-17-001).
+
+    - ``HONOUR`` — the accepted embargo is the case's current one: the
+      participant's row moves to ``AGREED`` (EMB-17-002).
+    - ``REINVITE`` — the case has a current embargo, but not the accepted
+      one: the accepter is invited to it (EMB-17-003).
+    - ``ACKNOWLEDGE`` — the case holds no embargo (EM ``EXITED`` or
+      ``NONE``): a no-op acknowledgement (EMB-17-004).
+    """
+
+    HONOUR = "honour"
+    REINVITE = "reinvite"
+    ACKNOWLEDGE = "acknowledge"
+
+
+def late_accept_route(
+    em_state: EM, active_embargo_id: str | None, embargo_id: str
+) -> LateAcceptRoute:
+    """The EMB-17 arm for a late Accept of *embargo_id* (EMB-17-001)."""
+    if em_state in (EM.ACTIVE, EM.REVISE) and active_embargo_id == embargo_id:
+        return LateAcceptRoute.HONOUR
+    if em_state in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
+        return LateAcceptRoute.REINVITE
+    return LateAcceptRoute.ACKNOWLEDGE
+
+
+class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
+    """Condition: a late Accept of *embargo_id* takes the *route* arm.
+
+    Reads the case's EM state through
+    :func:`~vultron.core.behaviors.embargo.nodes.em_state.read_case_em_state`
+    (AC-1, #1474) and its embargo in force when the node runs, after the
+    Invite expiry has been recorded.  SUCCESS when
+    :func:`late_accept_route` names *route*, logged at INFO; FAILURE
+    otherwise.  Read-only.  A case the CASE_MANAGER cannot
+    read raises: it holds its own case (Regime 1, ADR-0087), and a guess
+    here would route the Accept to the wrong arm.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        accepting_actor_id: str,
+        route: LateAcceptRoute,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._embargo_id = embargo_id
+        self._accepting_actor_id = accepting_actor_id
+        self.route = route
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        em_state = read_case_em_state(self.datalayer, self._case_id)
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure
+        route = late_accept_route(
+            em_state, case.active_embargo_id, self._embargo_id
+        )
+        if route is not self.route:
+            return Status.FAILURE
+        self.feedback_message = (
+            f"late Accept of embargo '{self._embargo_id}' by"
+            f" '{self._accepting_actor_id}' on case '{self._case_id}'"
+            f" (EM {em_state.name}): {route.value} (EMB-17-001)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
 
 class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
@@ -98,4 +188,9 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
         )
 
 
-__all__ = ["CommitLateAcceptAcknowledgementNode"]
+__all__ = [
+    "CommitLateAcceptAcknowledgementNode",
+    "LateAcceptRoute",
+    "LateAcceptRouteIsNode",
+    "late_accept_route",
+]

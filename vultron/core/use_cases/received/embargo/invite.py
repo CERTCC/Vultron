@@ -7,12 +7,24 @@ if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
     from vultron.core.ports.wire_render import WireRenderPort
 
+import py_trees
+
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.announce_teardown_tree import (
-    invite_to_embargo_on_case_tree,
+from vultron.core.behaviors.embargo.invite_received_tree import (
+    EmbargoInviteFault,
+    EmbargoInviteSubjects,
+    received_embargo_invite_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
+)
+from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
+    ReceiverIsInviteeNode,
+)
+from vultron.core.behaviors.embargo.refusal_tree import PXA_INVITE_REFUSAL
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderRule,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
@@ -29,21 +41,12 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
-)
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    addressee_refusal,
     node_failed,
+    pxa_refusal_verdict,
     verdict_from_bt,
-)
-from vultron.core.use_cases.received._embargo_pxa import (
-    pxa_embargo_ineligible,
-    refuse_pxa_invite,
-)
-from vultron.core.use_cases.received._sender_preflight import (
-    post_close_refusal_before_tree,
-    rule_refusal,
 )
 from vultron.errors import VultronProtocolViolationError
 
@@ -51,13 +54,9 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
-from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlementKind,
-    SenderRule,
-)
-from vultron.core.behaviors.sender_guard import embargo_sender_context
-
 logger = logging.getLogger(__name__)
+
+_TREE_LABEL = "InviteToEmbargoOnCaseBT"
 
 
 def resolve_invitee_id(
@@ -158,69 +157,27 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
         self._actor_config = actor_config
 
-    def _emit_fault(
-        self, failure_class: str, receiving_actor_id: str, case_id: str
-    ) -> None:
-        """Tell the sender its Invite was received but not understood.
+    def _subjects(
+        self, case_id: str, invite_id: str
+    ) -> EmbargoInviteSubjects | EmbargoInviteFault:
+        """What the Invite names, or the fault that answers it (EP-09-010).
 
         A well-formed activity that breaks a protocol shape rule is answered
-        with ``Create(ProcessingFault)`` (MSM-05-001).  The fault id derives
-        from the Invite and the failure class, so a re-delivery emits nothing
-        new (ID-04-004).
+        with ``Create(ProcessingFault)`` (MSM-05-001); the fault is the
+        tree's to send.
         """
-        if self._trigger_activity is None:
-            logger.warning(
-                "invite_to_embargo_on_case: trigger_activity unavailable —"
-                " ProcessingFault not emitted for invite '%s'",
-                self._request.activity_id,
-            )
-            return
-        self._trigger_activity.emit_processing_fault(
-            actor=receiving_actor_id,
-            failed_activity_id=self._request.activity_id,
-            failure_class=failure_class,
-            to=[self._request.actor_id],
-            case_id=case_id or None,
-        )
-
-    def execute(self) -> HandlerResult:
         request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
-        case_id = request.context_id or ""
-        # ``activity_id`` is a required ``NonEmptyString`` on every event.
-        invite_id = request.activity_id
-
-        # CM-23-013: the shape checks below answer with a ProcessingFault
-        # before any tree runs; after close nothing is answered (CM-23-017).
-        if (
-            refusal := post_close_refusal_before_tree(
-                self._dl,
-                receiving_actor_id,
-                request,
-                case_id=case_id or None,
-                sync_port=self._sync_port,
-            )
-        ) is not None:
-            return refusal
-
         embargo_id = request.object_id
         if not embargo_id:
             logger.warning(
                 "invite_to_embargo_on_case: invite '%s' names no embargo",
                 invite_id,
             )
-            self._emit_fault(
-                VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO,
-                receiving_actor_id,
-                case_id,
+            return EmbargoInviteFault(
+                failure_class=VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO,
+                reason=f"Invite(EmbargoEvent) '{invite_id}' names no embargo",
+                addressed=True,
             )
-            return HandlerResult.refused(
-                f"Invite(EmbargoEvent) '{invite_id}' names no embargo"
-            )
-
         # The invitee is a subject the message names, not the actor whose
         # replica this is (ADR-0022): the Invite's sole `to` recipient.  An
         # Invite naming none or several is a misrouting, refused before the
@@ -236,69 +193,35 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 request.receiving_actor_id,
                 exc,
             )
-            self._emit_fault(
-                VULTRON_FAILURE_MISROUTED_EMBARGO_INVITE,
-                receiving_actor_id,
-                case_id,
+            return EmbargoInviteFault(
+                failure_class=VULTRON_FAILURE_MISROUTED_EMBARGO_INVITE,
+                reason=str(exc),
             )
-            return HandlerResult.refused(str(exc))
+        return EmbargoInviteSubjects(
+            embargo_id=embargo_id,
+            invitee_id=invitee_id,
+            proposer_id=resolve_proposer_id(request, self._dl),
+        )
 
-        # Door check before any tree or write, after the shape checks
-        # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0118).
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id, request, label="Invite(EmbargoEvent)"
-            )
-        ) is not None:
-            return refusal
-
-        # The sender must have standing before anything is written or sent,
-        # the P/X/A refusal included: an active participant at the
-        # CASE_MANAGER, the CASE_MANAGER at a participant (CM-10-004,
-        # EP-09-003, PCR-08, ADR-0115).
-        if (
-            refusal := rule_refusal(
-                self._dl,
-                receiving_actor_id,
-                self.sender_entitlement,
-                embargo_sender_context(request.actor_id, case_id or None),
-                request,
-                label="Invite(EmbargoEvent)",
-                sync_port=self._sync_port,
-            )
-        ) is not None:
-            return refusal
-
-        # The sender guard above refused an empty case_id.
-        if pxa_embargo_ineligible(self._dl, case_id):
-            return refuse_pxa_invite(
-                self._dl,
-                self._trigger_activity,
-                self._wire_render_port,
-                self._sync_port,
-                request,
-                case_id=case_id,
-                invite_id=invite_id,
-                embargo_id=embargo_id,
-                invitee_id=invitee_id,
-                receiving_actor_id=receiving_actor_id,
-            )
+    def execute(self) -> HandlerResult:
+        request = self._request
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        case_id = request.context_id or ""
+        # ``activity_id`` is a required ``NonEmptyString`` on every event.
+        invite_id = request.activity_id
+        subjects = self._subjects(case_id, invite_id)
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
-        # invitee_id is threaded into the tree as a node constructor arg so
-        # only the addressee's store answers the Invite, even when
-        # receiving_actor_id != invitee_id.  The tree's two arms are
-        # role-gated in-tree (BT-17-001): the CASE_MANAGER adjudicates and
-        # relays the proposal of ``proposer_id`` (EP-09-001, EP-09-002); the
-        # addressee's replica answers the Invite to the CASE_MANAGER and
-        # writes no EM or consent state (EP-09-003).
-        tree = invite_to_embargo_on_case_tree(
+        # The door guards, the P/X/A refusal and both arms are in the tree:
+        # the CASE_MANAGER adjudicates and relays the proposal (EP-09-001,
+        # EP-09-002); the addressee's replica answers the Invite to the
+        # CASE_MANAGER and writes no EM or consent state (EP-09-003).
+        tree = received_embargo_invite_tree(
+            subjects,
             case_id=case_id,
-            invitee_id=invitee_id,
             invite_id=invite_id,
-            embargo_id=embargo_id,
-            proposer_id=resolve_proposer_id(request, self._dl),
             sender_actor_id=request.actor_id,
             sender_rule=self.sender_entitlement,
             embargo=(
@@ -308,33 +231,59 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             ),
             actor_config=self._actor_config,
         )
-        bridge = BTBridge(
+        result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
         )
 
-        verdict = verdict_from_bt(
-            tree, result, label="InviteToEmbargoOnCaseBT"
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED and node_failed(
-            tree, EmbargoProposalNotYetRecordedNode
-        ):
-            # The same Invite, delivered again (CLP-13-001, HP-01-003).
-            verdict = HandlerResult.skipped(
-                f"invite '{invite_id}' was already applied on case '{case_id}'"
-            )
+        verdict = verdict_from_bt(tree, result, label=_TREE_LABEL)
+        if isinstance(subjects, EmbargoInviteFault):
+            if verdict.disposition is HandlerDisposition.APPLIED:
+                verdict = HandlerResult.refused(subjects.reason)
+            elif (refusal := addressee_refusal(tree)) is not None:
+                verdict = refusal
+        elif verdict.disposition is HandlerDisposition.REFUSED:
+            verdict = self._refusal(tree, verdict, case_id, subjects)
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning("%s (invite '%s')", verdict.reason, invite_id)
-            return verdict
-
         # No deadline is stored on receipt: the CASE_MANAGER recorded the one
         # it stamped at its relay's commit, and a replica records that value
         # from the committed entry (CM-28-013).
+        return verdict
+
+    def _refusal(
+        self,
+        tree: py_trees.behaviour.Behaviour,
+        verdict: HandlerResult,
+        case_id: str,
+        subjects: EmbargoInviteSubjects,
+    ) -> HandlerResult:
+        """The verdict for a run the tree did not admit."""
+        invite_id = self._request.activity_id
+        if (refusal := addressee_refusal(tree)) is not None:
+            return refusal
+        if (
+            refusal := pxa_refusal_verdict(
+                tree,
+                PXA_INVITE_REFUSAL,
+                f"Invite(EmbargoEvent) '{invite_id}' on case '{case_id}'",
+            )
+        ) is not None:
+            if node_failed(tree, ReceiverIsInviteeNode):
+                return HandlerResult.refused(
+                    f"{refusal.reason}; no ER sent, the Invite is addressed"
+                    f" to '{subjects.invitee_id}' (EP-09-010)"
+                )
+            return refusal
+        if node_failed(tree, EmbargoProposalNotYetRecordedNode):
+            # The same Invite, delivered again (CLP-13-001, HP-01-003).
+            return HandlerResult.skipped(
+                f"invite '{invite_id}' was already applied on case '{case_id}'"
+            )
         return verdict

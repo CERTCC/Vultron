@@ -12,20 +12,26 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Every received embargo use case refuses an unaddressed copy (HP-01-005).
 
-The door check (``unaddressed_copy_refusal``, ADR-0118, #4132) runs before
-any tree: a receiver that neither sent the activity nor is named in its
-``to``/``cc`` refuses it with a reason naming itself and the recipients the
-sender chose, and writes nothing to its store or its outbox.
+The door check is the tree's addressee guard
+(``ActivityAddressedToReceiverNode``, ADR-0118, #4132), between the
+post-close boundary and the sender guard (CLP-10-010): a receiver that
+neither sent the activity nor is named in its ``to`` refuses it with a reason
+naming itself and the recipients the sender chose.  Intake has archived the
+copy (CLP-10-018); nothing else is written to its store or its outbox.
 """
 
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.use_cases._helpers import unaddressed_copy_refusal
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -34,6 +40,17 @@ from vultron.core.use_cases.received.embargo import (
     RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
+    WithdrawFromEmbargoOnCaseReceivedUseCase,
+)
+from vultron.wire.as2.factories import (
+    activate_embargo_activity,
+    announce_embargo_activity,
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
+    remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
 )
 
 from .conftest import make_embargo_case_with_actor
@@ -45,65 +62,94 @@ _OTHER = "https://example.org/users/vendor-a"
 #: Holds a copy it was never addressed: not the sender, not in to/cc.
 _BYSTANDER = "https://example.org/users/vendor-b"
 
-_USE_CASES = [
-    ActivateEmbargoOnCaseReceivedUseCase,
-    RejectEmbargoProposalOnCaseReceivedUseCase,
-    RemoveEmbargoEventFromCaseReceivedUseCase,
-    InviteToEmbargoOnCaseReceivedUseCase,
-    AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    RejectInviteToEmbargoOnCaseReceivedUseCase,
-    AnnounceEmbargoEventToCaseReceivedUseCase,
-]
+_ADDRESSING: dict[str, Any] = {
+    "actor": _SENDER,
+    "to": [_MANAGER],
+    "cc": [_OTHER],
+}
 
 
-def _request(embargo: Any, *, to: list[str], cc: list[str]) -> MagicMock:
-    """A well-formed request from ``_SENDER``, received by ``_BYSTANDER``.
+def _invite(embargo: Any) -> Any:
+    return em_propose_embargo_activity(
+        embargo,
+        context=_CASE,
+        id_=f"{_CASE}/activities/invite",
+        **_ADDRESSING,
+    )
 
-    Every id a use case's shape checks read is filled in, so the only fault
-    left is the addressing.  *cc* is set on the activity double only to show
-    that it is never read (ADR-0109).
-    """
-    request = MagicMock()
-    request.receiving_actor_id = _BYSTANDER
-    request.actor_id = _SENDER
-    request.activity_id = f"{_CASE}/activities/a1"
-    request.activity.to = to
-    request.activity.cc = cc
-    request.case_id = _CASE
-    request.context_id = _CASE
-    request.embargo_id = embargo.id_
-    request.object_id = embargo.id_
-    request.embargo = embargo
-    request.object_type = "EmbargoEvent"
-    request.invite_id = f"{_CASE}/activities/invite"
-    request.invitee_id = to[0] if len(to) == 1 else None
-    request.to_recipients = to
-    return request
+
+#: Each use case and the activity it receives, from _SENDER to _MANAGER.
+_ACTIVITIES: dict[type, Callable[[Any], Any]] = {
+    ActivateEmbargoOnCaseReceivedUseCase: lambda e: activate_embargo_activity(
+        e, target=_CASE, context=_CASE, **_ADDRESSING
+    ),
+    RejectEmbargoProposalOnCaseReceivedUseCase: (
+        lambda e: reject_embargo_proposal_activity(
+            e, target=_CASE, context=_CASE, **_ADDRESSING
+        )
+    ),
+    RemoveEmbargoEventFromCaseReceivedUseCase: (
+        lambda e: remove_embargo_from_case_activity(
+            e,
+            origin=_CASE,
+            context=_CASE,
+            reason=TerminationReason.EARLY,
+            **_ADDRESSING,
+        )
+    ),
+    WithdrawFromEmbargoOnCaseReceivedUseCase: (
+        lambda e: withdraw_from_embargo_activity(
+            e, context=_CASE, **_ADDRESSING
+        )
+    ),
+    InviteToEmbargoOnCaseReceivedUseCase: _invite,
+    AcceptInviteToEmbargoOnCaseReceivedUseCase: (
+        lambda e: em_accept_embargo_activity(
+            _invite(e), context=_CASE, **_ADDRESSING
+        )
+    ),
+    RejectInviteToEmbargoOnCaseReceivedUseCase: (
+        lambda e: em_reject_embargo_activity(
+            _invite(e), context=_CASE, **_ADDRESSING
+        )
+    ),
+    AnnounceEmbargoEventToCaseReceivedUseCase: (
+        lambda e: announce_embargo_activity(e, context=_CASE, **_ADDRESSING)
+    ),
+}
 
 
 def _snapshot(dl: SqliteDataLayer) -> tuple[dict[str, Any], list[str]]:
-    """Every stored record, by type, and the outbox."""
-    records = {t: dl.by_type(t) for t in dl.count_all()}
+    """Every stored record but intake's archive, by type, and the outbox."""
+    records = {
+        t: dl.by_type(t)
+        for t in dl.count_all()
+        if t != ReceivedActivityRecord.__name__
+    }
     return records, list(dl.outbox_list())
 
 
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("CLP-10-010")
 @pytest.mark.parametrize(
-    "use_case", _USE_CASES, ids=[uc.__name__ for uc in _USE_CASES]
+    "use_case", list(_ACTIVITIES), ids=[uc.__name__ for uc in _ACTIVITIES]
 )
-def test_an_unaddressed_copy_is_refused_before_any_write(use_case):
+def test_an_unaddressed_copy_is_refused_before_any_write(
+    use_case, make_payload
+):
     dl, _actor, _case, embargo = make_embargo_case_with_actor(
         _CASE,
         _SENDER,
         extra_participants=[_OTHER, _BYSTANDER],
         case_manager_actor_id=_MANAGER,
     )
+    activity = _ACTIVITIES[use_case](embargo)
     before = _snapshot(dl)
 
     result = use_case(
-        dl, _request(embargo, to=[_MANAGER], cc=[_OTHER])
+        dl, make_payload(activity, receiving_actor_id=_BYSTANDER)
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -114,62 +160,6 @@ def test_an_unaddressed_copy_is_refused_before_any_write(use_case):
     # cc has no handler semantics and core does not carry it (ADR-0109).
     assert "cc=" not in reason
     assert _snapshot(dl) == before
-
-
-class TestUnaddressedCopyRefusal:
-    """The shared helper admits the sender and every ``to`` recipient."""
-
-    @staticmethod
-    def _event(to: list[str], cc: list[str]) -> MagicMock:
-        event = MagicMock()
-        event.actor_id = _SENDER
-        event.activity_id = f"{_CASE}/activities/a2"
-        event.activity.to = to
-        event.activity.cc = cc
-        return event
-
-    @pytest.mark.spec("HP-01-005")
-    @pytest.mark.parametrize(
-        "receiver, to, cc",
-        [
-            (_SENDER, [], []),
-            (_MANAGER, [_MANAGER], []),
-            (_MANAGER, [f"{_MANAGER}/"], []),
-        ],
-        ids=["sender", "to", "trailing-slash"],
-    )
-    def test_admits_the_sender_and_each_recipient(self, receiver, to, cc):
-        event = self._event(to, cc)
-        assert unaddressed_copy_refusal(receiver, event, label="Test") is None
-
-    @pytest.mark.spec("HP-01-005")
-    @pytest.mark.spec("OX-08-001")
-    def test_a_cc_value_does_not_make_a_recipient(self):
-        """Only ``to`` addresses a Vultron recipient (ADR-0109): even a stray
-        ``cc`` on the activity is not read."""
-        event = self._event([_OTHER], [_MANAGER])
-        result = unaddressed_copy_refusal(_MANAGER, event, label="Test")
-        assert result is not None
-        assert result.disposition is HandlerDisposition.REFUSED
-
-    @pytest.mark.spec("HP-01-005")
-    def test_refuses_an_event_with_no_activity(self):
-        event = self._event([], [])
-        event.activity = None
-        result = unaddressed_copy_refusal(_BYSTANDER, event, label="Test")
-        assert result is not None
-        assert result.disposition is HandlerDisposition.REFUSED
-        assert "(to=[])" in (result.reason or "")
-
-    @pytest.mark.spec("HP-01-005")
-    def test_refusal_logs_a_warning(self, caplog):
-        event = self._event([_MANAGER], [])
-        with caplog.at_level("WARNING"):
-            unaddressed_copy_refusal(_BYSTANDER, event, label="Test")
-        assert any(
-            r.levelname == "WARNING" and _BYSTANDER in r.getMessage()
-            for r in caplog.records
-        )
 
 
 @pytest.mark.spec("EP-09-010")
@@ -183,12 +173,19 @@ class TestUnaddressedCopyRefusal:
     ids=["accept", "reject"],
 )
 def test_an_answer_naming_no_invite_is_refused_before_any_write(use_case):
-    """The invitee is read from the recorded Invite, so none means no invitee."""
+    """The invitee is read from the recorded Invite, so none means no invitee.
+
+    The refusal comes before any tree: the activity cannot name the Invite
+    whose invitee the sender guard would check (EP-09-010).
+    """
     dl, _actor, _case, embargo = make_embargo_case_with_actor(
         _CASE, _SENDER, case_manager_actor_id=_MANAGER
     )
-    request = _request(embargo, to=[_MANAGER], cc=[])
+    request = MagicMock()
     request.receiving_actor_id = _MANAGER
+    request.actor_id = _SENDER
+    request.case_id = _CASE
+    request.embargo_id = embargo.id_
     request.invite_id = None
     before = _snapshot(dl)
 

@@ -137,6 +137,7 @@ _BODIES: dict[str, dict[str, Any]] = {
     "offer-case-participant-role": {
         "case_id": _CASE,
         "target_actor_id": _OTHER,
+        "role": "vendor",
     },
     "offer-case-ownership-transfer": {
         "case_id": _CASE,

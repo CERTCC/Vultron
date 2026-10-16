@@ -615,15 +615,14 @@
         "type": "object"
       },
       "OfferCaseParticipantRoleRequest": {
-        "description": "Request body for the offer-case-participant-role trigger endpoint (ADR-0039).\n\nEmits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``\nfrom the requesting actor.  ``role`` defaults to ``\"CASE_MANAGER\"`` for\nbackward-compatibility with callers that previously used the deprecated\noffer-case-manager-role endpoint.",
+        "description": "Request body for the offer-case-participant-role trigger endpoint (ADR-0039).\n\nEmits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``\nfrom the requesting actor.  ``role`` is required: it has no default, since\nthe CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER``\nand reads no missing role as a default (CM-33-003).",
         "properties": {
           "case_id": {
             "title": "Case Id",
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/CVDRole",
-            "default": "case_manager"
+            "$ref": "#/components/schemas/CVDRole"
           },
           "target_actor_id": {
             "title": "Target Actor Id",
@@ -632,7 +631,8 @@
         },
         "required": [
           "case_id",
-          "target_actor_id"
+          "target_actor_id",
+          "role"
         ],
         "title": "OfferCaseParticipantRoleRequest",
         "type": "object"
@@ -2543,7 +2543,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/offer-case-participant-role": {
       "post": {
-        "description": "Emits Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) from the requesting actor.  This is the canonical role-delegation wire format introduced by ADR-0039, replacing the deprecated offer-case-manager-role endpoint.  The ``role`` field defaults to ``CASE_MANAGER`` for backward-compatibility.  See SE-08-003.",
+        "description": "Emits Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) from the requesting actor.  This is the canonical role-delegation wire format introduced by ADR-0039, replacing the deprecated offer-case-manager-role endpoint.  The Offer is addressed to the case's CASE_MANAGER, which forwards it to the target.  The ``role`` field is required, and the CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER`` (CM-33-003).  See SE-08-003.",
         "operationId": "actors_trigger_offer_case_participant_role",
         "parameters": [
           {

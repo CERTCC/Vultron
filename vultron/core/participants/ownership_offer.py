@@ -58,6 +58,7 @@ from vultron.core.models.protocol_pair import (
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronNotFoundError
 
 
@@ -154,15 +155,11 @@ class RecordedOwnershipOffer:
 
 def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
     """The case's ``offer_case_ownership_transfer`` entries, oldest first."""
-    entries = [
-        obj
-        for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and obj.case_id == case_id
-        and obj.event_type == OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE
+    return [
+        entry
+        for entry in recorded_entries_for_case(case_id=case_id, dl=dl)
+        if entry.event_type == OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE
     ]
-    entries.sort(key=lambda entry: entry.log_index)
-    return entries
 
 
 def _entry_target(entry: CaseLedgerEntry) -> str | None:

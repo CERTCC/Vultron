@@ -25,6 +25,9 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.use_cases.received.sync import (
+    RejectLedgerEntryReceivedUseCase,
+)
 from vultron.errors import VultronError, VultronValidationError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
@@ -154,14 +157,18 @@ def _make_event(
 
 
 def test_create_reject_log_entry_tree_returns_sequence():
-    tree = create_reject_log_entry_tree(CASE_ID)
+    tree = create_reject_log_entry_tree(
+        CASE_ID,
+        sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+    )
     assert tree.name == "RejectLogEntryReceivedBT"
-    # Intake first (CLP-10-017), the case lookup and sender check, then the
-    # CASE_MANAGER gate holding every effect (BT-17-008).
+    # Intake first (CLP-10-017), the sender guard the factory composes
+    # (HP-01-008, #4696), the case lookup, then the CASE_MANAGER gate holding
+    # every effect (BT-17-008).
     assert [child.name for child in tree.children] == [
         "IntakeReceivedActivityNode",
+        "SenderIsActiveLedgerParticipant",
         "FindCaseActor",
-        "SenderIsActiveParticipant",
         "AnswerRejectIfCaseManager",
     ]
     assert isinstance(tree.children[-1], CaseManagerGate)
@@ -190,7 +197,10 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -236,7 +246,10 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -271,7 +284,10 @@ def test_genesis_reject_queues_announce_vulnerability_case(
         trigger_activity=trigger_activity,
     )
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -313,7 +329,10 @@ def test_genesis_reject_logs_an_unbuildable_announce_at_error(
     )
     with caplog.at_level(logging.WARNING):
         result = bridge.execute_with_setup(
-            tree=create_reject_log_entry_tree(CASE_ID),
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
             actor_id=OWNER_ACTOR_ID,
             activity=event,
             sync_port=sync_port,
@@ -341,7 +360,10 @@ def test_genesis_reject_without_trigger_port_still_succeeds(
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -373,7 +395,10 @@ def test_non_genesis_reject_skips_announce_vulnerability_case(
         trigger_activity=trigger_activity,
     )
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -419,7 +444,10 @@ def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
     for _ in range(10):
         py_trees.blackboard.Blackboard.storage.clear()
         result = bridge.execute_with_setup(
-            tree=create_reject_log_entry_tree(CASE_ID),
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
             actor_id=OWNER_ACTOR_ID,
             activity=_make_event(entries[-1], tail_hash=stuck_hash),
             sync_port=sync_port,
@@ -451,7 +479,10 @@ def test_reject_at_advanced_hash_replays_again(
     for stuck_at in range(3):
         py_trees.blackboard.Blackboard.storage.clear()
         result = bridge.execute_with_setup(
-            tree=create_reject_log_entry_tree(CASE_ID),
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
             actor_id=OWNER_ACTOR_ID,
             activity=_make_event(
                 entries[-1], tail_hash=entries[stuck_at].entry_hash
@@ -480,7 +511,10 @@ def test_unknown_case_reject_leaves_replication_state_unchanged(
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -523,7 +557,10 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
     # The peer is fully caught up; its Reject needs no entries replayed.
     py_trees.blackboard.Blackboard.storage.clear()
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=_make_event(entries[-1], tail_hash=tail_hash),
         sync_port=sync_port,
@@ -540,7 +577,10 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
     # is now three entries behind, so the suffix MUST be replayed.
     py_trees.blackboard.Blackboard.storage.clear()
     result = bridge.execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=_make_event(entries[-1], tail_hash=tail_hash),
         sync_port=sync_port,
@@ -558,7 +598,10 @@ def _sender_refused(datalayer, event) -> Status:
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     ).execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -666,7 +709,10 @@ def test_undecidable_embargo_gate_fails_the_tree_at_the_case_manager(
     datalayer.save(entry)
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
-    tree = create_reject_log_entry_tree(CASE_ID)
+    tree = create_reject_log_entry_tree(
+        CASE_ID,
+        sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+    )
 
     result = BTBridge(
         datalayer=datalayer,
@@ -709,7 +755,10 @@ def test_reject_at_a_participant_replica_sends_and_records_nothing():
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     ).execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=REPLICA_ID,
         activity=_make_event(entry, tail_hash=""),
         sync_port=sync_port,

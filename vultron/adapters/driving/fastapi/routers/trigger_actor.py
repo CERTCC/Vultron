@@ -374,8 +374,10 @@ def trigger_accept_actor_recommendation(
         "Emits Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
         "from the requesting actor.  This is the canonical role-delegation wire "
         "format introduced by ADR-0039, replacing the deprecated "
-        "offer-case-manager-role endpoint.  The ``role`` field defaults to "
-        "``CASE_MANAGER`` for backward-compatibility.  See SE-08-003."
+        "offer-case-manager-role endpoint.  The Offer is addressed to the "
+        "case's CASE_MANAGER, which forwards it to the target.  The ``role`` "
+        "field is required, and the CASE_MANAGER refuses an Offer of "
+        "``CASE_OWNER`` or ``CASE_MANAGER`` (CM-33-003).  See SE-08-003."
     ),
     operation_id="actors_trigger_offer_case_participant_role",
     response_model=RoleOfferResult,

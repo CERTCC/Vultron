@@ -10,7 +10,9 @@ consulted: >-
   specs/parallel-development.yaml PAD-11, PAD-17, PAD-18
 informed: []
 stakeholder_type: [project-contributor]
-partially_superseded_by: 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
+partially_superseded_by:
+  - 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
+  - 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
 ---
 
 # CI Is the Full-Suite Authority After a Pull Request's First Push

@@ -61,6 +61,7 @@ from vultron.core.use_cases.received.actor import (
     TentativeRejectInviteActorToFullCaseReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     HowToGuide,
@@ -139,6 +140,29 @@ ENTRIES: list[SemanticEntry] = [
                 example="recommend_actor",
                 howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
+            ),
+            Occasion(
+                when=("the Case Owner decides to invite an actor to the case"),
+                anchor="request-invite-actor-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Ask the Case Manager to invite an actor",
+                description=(
+                    "Asks the Case Manager to invite the actor named by the "
+                    "object to the case named by the target, with the roles "
+                    "in `suggestedRoles`. For an actor with no record on the "
+                    "case, or an invitee that has not answered, the Case "
+                    "Manager answers with the Stub Invite to that actor, not "
+                    "with an offer to the Case Owner."
+                ),
+                example="request_invite_actor_to_case",
+                howto=HowToGuide.INVITE_ACTOR,
+                usual_senders=(CVDRole.CASE_OWNER,),
+                notes=(
+                    "The wire form is the suggestion a participant sends; "
+                    "the Case Manager tells this request from a suggestion "
+                    "by whether the sender holds the Case Owner role on the "
+                    "case."
+                ),
             ),
         ),
         page=MessagePage.GENERAL,
@@ -235,15 +259,16 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "a Participant offers a CVD role on the case to another "
-                    "actor"
+                    "the Case Owner offers a CVD role on the case to another "
+                    "participant"
                 ),
                 anchor="offer-case-participant-role",
-                addressee=AddresseeSide.PARTICIPANT,
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Offer case participant role",
                 description=(
-                    "Offers one role on the case to the actor named by the "
-                    "target."
+                    "Offers one role on the case to the participant named by"
+                    " the target. The Case Manager records the offer and"
+                    " forwards it to that participant."
                 ),
                 example="offer_case_participant_role",
                 howto=HowToGuide.ROLE_DELEGATION,
@@ -261,13 +286,13 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="an actor accepts a role offered to it on the case",
+                when="a participant accepts a role offered to it on the case",
                 anchor="accept-case-participant-role",
-                addressee=AddresseeSide.PARTICIPANT,
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Accept case participant role",
                 description=(
-                    "Accepts the offered role. The actor holds the role from "
-                    "then on."
+                    "Accepts the offered role. The participant holds the role"
+                    " once the Case Manager records the acceptance."
                 ),
                 example="accept_case_participant_role",
                 howto=HowToGuide.ROLE_DELEGATION,
@@ -285,9 +310,9 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="an actor declines a role offered to it on the case",
+                when="a participant declines a role offered to it on the case",
                 anchor="reject-case-participant-role",
-                addressee=AddresseeSide.PARTICIPANT,
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject case participant role",
                 description=(
                     "Declines the offered role. The roster does not change."

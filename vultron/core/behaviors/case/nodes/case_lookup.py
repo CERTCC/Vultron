@@ -23,6 +23,9 @@ consume, so a tree resolves the case once and every later node reads
 :class:`CaseIdInputPortMixin` is the matching read side, and lives here rather
 than in each consumer's module so the producer/consumer contract for
 ``/case_id`` has exactly one definition.
+
+:class:`CaseResolving` marks a node a received tree may run ahead of its
+sender guard to resolve the case the guard reads (``case_resolution``).
 """
 
 from typing import Any
@@ -34,7 +37,18 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 
 
-class RequireCaseForReport(DataLayerActionWithPorts):
+class CaseResolving:
+    """Marker mixin: this node resolves a case and writes only blackboard keys.
+
+    Carries no behaviour.  ``create_receive_activity_tree`` runs a received
+    tree's ``case_resolution`` steps before the sender guard, so it admits
+    only nodes that carry this marker: a sender with no standing must leave
+    nothing behind (HP-01-006).  Mark a node only when its ``update()``
+    writes no DataLayer record and enqueues no activity.
+    """
+
+
+class RequireCaseForReport(CaseResolving, DataLayerActionWithPorts):
     """Resolve this actor's own case replica for a report and publish ``/case_id``.
 
     This is the single canonical place where a behavior tree asserts "the case

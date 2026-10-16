@@ -235,13 +235,13 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 _HOME = "vultron/core/behaviors/sender_entitlement.py"
 _COMPOSER = "vultron/core/behaviors/sender_guard.py"
 
-#: The only modules that may call ``compose_sender_guard``: the receive-tree
-#: factory and the pre-flight that runs the same guard ahead of a handler's
-#: first write (``rule_refusal``).
+#: The only module that may call ``compose_sender_guard``: the receive-tree
+#: factory.  The pre-flight that ran the same guard ahead of a handler's
+#: first write (``rule_refusal``) was retired once every embargo handler
+#: composed its door guards into its one tree (#4642, ADR-0135).
 COMPOSE_CALLERS = frozenset(
     {
         "vultron/core/behaviors/case/receive_activity_tree.py",
-        "vultron/core/use_cases/received/_sender_preflight.py",
     }
 )
 
@@ -434,44 +434,9 @@ def _live_sites() -> Counter[Site]:
 #: Sender guards a received tree still places itself, each naming the open
 #: issue that moves it into the declared rule the factory composes.  The list
 #: only shrinks: a new entry, or a stale one, fails the test.
-GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {
-    Site(
-        "vultron/core/behaviors/report/prioritize_tree.py",
-        "create_engage_case_tree",
-        "SenderIsParticipantNode",
-    ): Listed(
-        1,
-        "#4696: follows the snapshot steps, which store the sender's own"
-        " participant record when the Engage carries it inline",
-    ),
-    Site(
-        "vultron/core/behaviors/report/received_report_trees.py",
-        "_report_verdict_stages",
-        "SenderIsParticipantNode",
-    ): Listed(
-        1,
-        "#4696: follows RequireCaseForReport, which resolves the case of a"
-        " Close/Invalidate(Report) at run time",
-    ),
-    Site(
-        "vultron/core/behaviors/sync/announce_tree.py",
-        "create_announce_log_entry_tree",
-        "SenderIsCaseManagerNode",
-    ): Listed(
-        2,
-        "#4696: the case comes from the announced entry at run time; each"
-        " role arm checks after its own CASE_MANAGER gate",
-    ),
-    Site(
-        "vultron/core/behaviors/sync/reject_tree.py",
-        "create_reject_log_entry_tree",
-        "SenderIsActiveLedgerParticipantNode",
-    ): Listed(
-        1,
-        "#4696: the case comes from the ledger activity at run time; the"
-        " ledger Reject's own standing (SYNC-03-005)",
-    ),
-}
+#: Empty: #4696 moved the last ones, whose case is resolved at run time, into
+#: the factory, so a new entry is a regression.
+GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {}
 
 #: Standing reads that choose an effect after the declared rule has admitted
 #: the sender, or that read an actor other than the sender.  They admit no
@@ -556,8 +521,8 @@ def test_sender_nodes_are_composed_only_by_the_factory() -> None:
         "These modules name a sender-entitlement node, or compose a sender"
         " guard, outside the receive-tree factory or more often than the"
         " allow-list says (HP-01-007, HP-01-008).  Declare the standing in"
-        " the use case's SenderRule and pass it with a SenderCheckContext;"
-        " a pre-flight asks rule_refusal():\n" + _site_lines(new, listed)
+        " the use case's SenderRule and pass it with a SenderCheckContext"
+        " to the tree's factory:\n" + _site_lines(new, listed)
     )
     assert not fewer, (
         "These allow-list entries count more uses than the site now has;"
@@ -817,7 +782,7 @@ def _rules_built_outside_a_declaration(tree: ast.AST, rel: str) -> list[str]:
 def test_a_sender_rule_is_built_only_as_a_declaration() -> None:
     """A tree or handler passes its declared rule, never one of its own.
 
-    ``sender_rule=`` and ``rule_refusal()`` take a rule as an argument, so a
+    ``sender_rule=`` takes a rule as an argument, so a
     rule built on the spot would compose a guard the use case never
     declared.  Building a ``SenderRule`` is allowed only as the value of a
     class's ``sender_entitlement``.

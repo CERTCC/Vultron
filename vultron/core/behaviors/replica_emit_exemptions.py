@@ -49,6 +49,7 @@ __all__ = [
     "CASE_PROPOSAL",
     "CASE_STATUS",
     "EMBARGO_INVITE_ANSWER",
+    "EMBARGO_INVITE_FAULT",
     "EMBARGO_INVITE_REFUSAL",
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
@@ -79,9 +80,10 @@ OFFER_ROLE: Final = ReplicaEmitExemption(
     name="offer-role",
     reason=(
         "Offer(CaseParticipantRole) is answered by the actor offered the"
-        " role: its Accept or Reject is the executing actor's own answer,"
-        " addressed to the offering vendor, not a CASE_MANAGER act"
-        " (ADR-0039)."
+        " role: the Accept or Reject runs in the participant-replica arm,"
+        " only when the executing actor is the Offer's target, and is that"
+        " actor's own answer to the CASE_MANAGER's forward, addressed to the"
+        " CASE_MANAGER (CM-33-004, PCR-08-001, ADR-0039)."
     ),
     covers=frozenset(
         {
@@ -156,7 +158,23 @@ EMBARGO_INVITE_REFUSAL: Final = ReplicaEmitExemption(
         " actor that sent it the Invite or the Accept (EMB-01-002,"
         " EMB-02-002, EP-09-003, EP-09-010, PCR-08-001)."
     ),
-    covers=frozenset({"SendEmbargoInviteAnswerNode"}),
+    covers=frozenset(
+        {"SendEmbargoInviteAnswerNode", "SendEmbargoProposalRefusalNode"}
+    ),
+)
+
+EMBARGO_INVITE_FAULT: Final = ReplicaEmitExemption(
+    name="embargo-invite-fault",
+    reason=(
+        "A received Invite(EmbargoEvent) that names no embargo, or not"
+        " exactly one to recipient, is received but not understood: the"
+        " receiver answers the Invite's sender with Create(ProcessingFault),"
+        " its own act, whose id derives from the Invite and the failure"
+        " class (MSM-05-001, EP-09-010, ID-04-004).  An Invite to nobody"
+        " names no addressee and may reach a store that is not the case's"
+        " CASE_MANAGER, so there is no gate to put it under."
+    ),
+    covers=frozenset({"EmitEmbargoInviteFaultNode"}),
 )
 
 REPORT_CASE_PROPOSAL: Final = ReplicaEmitExemption(
@@ -210,6 +228,7 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
                 CASE_PROPOSAL,
                 CASE_STATUS,
                 EMBARGO_INVITE_ANSWER,
+                EMBARGO_INVITE_FAULT,
                 EMBARGO_INVITE_REFUSAL,
                 REPORT_CASE_PROPOSAL,
                 REPORTER_INTRODUCTION,
