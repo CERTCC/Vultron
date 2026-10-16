@@ -23,6 +23,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.note.nodes.storage import (
     AttachNoteToCaseNode,
     SaveNoteNode,
+    StoreNoteIfAbsentNode,
 )
 from vultron.core.models.note import VultronNote
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -64,6 +65,27 @@ class TestSaveNoteNode:
         tree = SaveNoteNode(note_obj=note)
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
+
+
+class TestStoreNoteIfAbsentNode:
+    def test_stores_an_absent_note(self, bridge, dl, note):
+        tree = StoreNoteIfAbsentNode(note_obj=note)
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+        assert (
+            getattr(dl.read(NOTE_ID), "content", None) == "Test note content"
+        )
+
+    @pytest.mark.spec("HP-08-006")
+    def test_keeps_a_stored_note_as_stored(self, bridge, dl, note):
+        """A note already stored under the id keeps every field (#4706)."""
+        dl.create(note.model_copy(update={"summary": "stored summary"}))
+        tree = StoreNoteIfAbsentNode(
+            note_obj=note.model_copy(update={"summary": "carried summary"})
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+        assert getattr(dl.read(NOTE_ID), "summary", None) == "stored summary"
 
 
 class TestAttachNoteToCaseNode:

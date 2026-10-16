@@ -40,6 +40,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support.embargo_register import activate, propose
+from test.support.note_wire import assert_add_note_carries_note_inline
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -2270,6 +2271,7 @@ class TestPxaEmInvariantDiagnosticNode:
     @pytest.mark.spec("CSB-18-002")
     @pytest.mark.spec("CSB-18-003")
     @pytest.mark.spec("CSB-18-004")
+    @pytest.mark.spec("VAM-01-010")
     def test_blocked_gate_invariant_violated_note_posted(self):
         """AC-3: AlwaysFail gate — teardown blocked, EM=ACTIVE → violation → Note posted."""
         from vultron.adapters.driven.trigger_activity_adapter import (
@@ -2307,6 +2309,7 @@ class TestPxaEmInvariantDiagnosticNode:
             "PxaEmInvariantDiagnosticNode must post exactly one Note when the"
             " gate blocks teardown and the CSB-18 invariant is still violated"
         )
+        assert_add_note_carries_note_inline(dl, outbox[0], DIAG_CASE_ID)
 
 
 # ---------------------------------------------------------------------------

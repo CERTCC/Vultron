@@ -38,7 +38,7 @@ causal_edges:
       closes the case, and a departure sent after it is not recorded
       (CM-23-013).
   - antecedent: engage_case
-    consequent: create_note
+    consequent: add_note_to_case
     consequent_actor: coordinator
     note: >
       Notes require an active case.
@@ -111,7 +111,7 @@ An `accept_invite_actor_to_case` entry is recorded.
 ### 6. Participants exchange notes
 
 The Finder, Coordinator, and Vendor communicate through case notes.
-Each note is recorded as a `create_note` entry, which attaches it to the case.
+Each note is sent as one `Add(Note)` carrying the note inline, and recorded as an `add_note_to_case` entry, which attaches it to the case.
 
 *Antecedent:* `engage_case` is in the ledger.
 

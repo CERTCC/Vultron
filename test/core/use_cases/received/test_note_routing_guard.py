@@ -117,7 +117,9 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case_ref = as_VulnerabilityCase(id_=CASE_ID)
-        note = as_Note(id_=NOTE_ID, content="Test note content")
+        note = as_Note(
+            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        )
         activity = add_note_to_case_activity(
             note=note,
             target=case_ref,
@@ -148,7 +150,9 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case_ref = as_VulnerabilityCase(id_=CASE_ID)
-        note = as_Note(id_=NOTE_ID, content="Test note content")
+        note = as_Note(
+            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        )
         activity = add_note_to_case_activity(
             note=note,
             target=case_ref,
@@ -184,7 +188,9 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case_ref = as_VulnerabilityCase(id_=CASE_ID)
-        note = as_Note(id_=NOTE_ID, content="Test note content")
+        note = as_Note(
+            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        )
         activity = add_note_to_case_activity(
             note=note,
             target=case_ref,

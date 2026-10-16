@@ -46,12 +46,11 @@ children:
 
 1. `CreateNoteNode` — creates and writes the note to the DataLayer
 2. `AttachNoteFromResultNode` — attaches the note to the case
-3. `SenderSideBT` — enqueues one `Create(Note)` to the CASE_MANAGER. The
-   note's `context` names the case, the `Create` has no `target`, and no
-   `Add(Note)` follows: the CASE_MANAGER attaches the note and commits a
-   `create_note` entry from the `Create` alone, so one note makes one entry
-   (CLP-07-002, #4549). A received `Add(Note, target=Case)` stays supported
-   for attaching a note that already exists.
+3. `SenderSideBT` — enqueues one `Add(Note)` to the CASE_MANAGER, with the
+   case as its `target` and the note inline as its `object`; no
+   `Create(Note)` is sent (VAM-01-010, #4706). The CASE_MANAGER stores and
+   attaches the note and commits one `add_note_to_case` entry, so one note
+   makes one entry (CLP-07-002).
 
 If `SenderSideBT` fails (e.g., no CASE_MANAGER recipient resolved), steps 1
 and 2 have already committed. **The note IS attached to the case locally even
