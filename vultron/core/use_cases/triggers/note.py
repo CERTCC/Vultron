@@ -29,11 +29,9 @@ from vultron.core.behaviors.note.add_note_trigger_tree import (
     add_note_to_case_trigger_bt,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.pending_assertion import (
-    ASSERTED_ACTIVITY_KEY,
-    record_pending_assertion,
-)
+from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.models.use_case_result import NoteResult
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -62,9 +60,11 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
     queueing are delegated to :func:`sender_side_bt` per PCR-08-001.
 
     After successful activity queueing, records the ``Create(Note)`` in the
-    actor's pending-assertion store under ``create_note`` so that duplicate
-    near-term re-emits are suppressed until the matching
-    ``Announce(CaseLedgerEntry)`` arrives (SYNC-11-002, SYNC-11-003).
+    actor's pending-assertion store under ``create_note``; the matching
+    ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-002, SYNC-11-003).
+    Unlike the add-object trigger, this one suppresses no repeat: every run
+    mints a new note, so a second request is a second note, never a repeat
+    of a pending assertion.
 
     The return value extends the base-class ``{"activity": ...}`` dict with
     a ``"note"`` key for the created Note object.
@@ -88,7 +88,10 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
                 to=[case_manager_id],
             )
             self._captured["activity"] = json.loads(create_body)
-            self._result_out[ASSERTED_ACTIVITY_KEY] = create_id
+            # The CASE_MANAGER keeps no pending assertion for its own case:
+            # its commit is the authoritative write (SYNC-11-004).
+            if not same_actor_id(case_manager_id, self._actor_id):
+                self._result_out[ASSERTED_ACTIVITY_KEY] = create_id
             return [create_id]
 
         return add_note_to_case_trigger_bt(
@@ -109,14 +112,9 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
             note_id,
             self._case_id,
         )
-        create_activity_id = self._output_id(ASSERTED_ACTIVITY_KEY)
-        if create_activity_id is not None:
-            record_pending_assertion(
-                self._actor_id,
-                self._case_id,
-                MessageSemantics.CREATE_NOTE.value,
-                create_activity_id,
-            )
+        self._record_asserted_activity(
+            self._case_id, MessageSemantics.CREATE_NOTE.value
+        )
 
     def _build_result(self) -> NoteResult:
         """The activity body plus the note the tree minted."""

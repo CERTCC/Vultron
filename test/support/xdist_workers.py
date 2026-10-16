@@ -91,10 +91,12 @@ def cgroup_memory_limit(root: Path = DEFAULT_CGROUP_ROOT) -> int | None:
 
 def available_cpus() -> int:
     """Return the CPUs this process may be scheduled on."""
-    try:
-        return len(os.sched_getaffinity(0))
-    except AttributeError:  # not on Linux
+    # Linux-only; looked up by name so type checkers on other platforms,
+    # whose ``os`` stubs omit it, do not flag the call (#4762).
+    sched_getaffinity = getattr(os, "sched_getaffinity", None)
+    if sched_getaffinity is None:  # not on Linux
         return os.cpu_count() or 1
+    return len(sched_getaffinity(0))
 
 
 def worker_count(

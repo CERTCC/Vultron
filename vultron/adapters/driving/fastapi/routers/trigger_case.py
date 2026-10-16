@@ -131,8 +131,13 @@ def trigger_defer_case(
     description=(
         "Adds any existing AS2 object (identified by ``object_id``) to a "
         "VulnerabilityCase and queues an Add(object, target=case) activity "
-        "in the actor's outbox for delivery to case participants. "
+        "in the actor's outbox addressed to the case's CASE_MANAGER alone, "
+        "which commits it and replicates it to the participants (PCR-08-005). "
         "The object must already exist in the actor's datalayer. "
+        "Returns 422 and queues nothing when no receiver would route the "
+        "object as an addition to the case, when its type has its own flow "
+        "(EmbargoEvent, CaseParticipant, CaseStatus), or when the case has "
+        "no CASE_MANAGER. "
         "Type-specific convenience triggers (e.g., ``add-report-to-case``) "
         "delegate here after performing type validation (TRIG-10-001)."
     ),
@@ -212,7 +217,9 @@ def trigger_create_case(
     summary="Add a report to an existing case.",
     description=(
         "Links a VulnerabilityReport to an existing VulnerabilityCase and "
-        "queues an AddReportToCaseActivity in the actor's outbox."
+        "queues an AddReportToCaseActivity in the actor's outbox addressed "
+        "to the case's CASE_MANAGER alone (PCR-08-005). Returns 422 and "
+        "queues nothing when the case has no CASE_MANAGER."
     ),
     operation_id="actors_trigger_add_report_to_case",
     response_model=ActivityResult,

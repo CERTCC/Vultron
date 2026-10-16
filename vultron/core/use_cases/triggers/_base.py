@@ -221,6 +221,32 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         response body carries (UCORG-05-005).
         """
 
+    def _record_asserted_activity(
+        self,
+        case_id: str,
+        event_type: str,
+        subject_id: str | None = None,
+    ) -> bool:
+        """Record the activity the tree asserted to the CASE_MANAGER, if any.
+
+        Reads the id the tree's builder wrote under ``ASSERTED_ACTIVITY_KEY``
+        and records it in the actor's pending-assertion store under
+        *event_type*, the key the CASE_MANAGER's commit carries, so the
+        announced commit clears it (SYNC-11-002, SYNC-11-003).  Returns
+        whether anything was recorded.
+        """
+        asserted_id = self._output_id(ASSERTED_ACTIVITY_KEY)
+        if asserted_id is None:
+            return False
+        record_pending_assertion(
+            self._actor_id,
+            case_id,
+            event_type,
+            asserted_id,
+            subject_id=subject_id,
+        )
+        return True
+
     def _with_case_clock_decisions(
         self, tree: py_trees.behaviour.Behaviour
     ) -> py_trees.behaviour.Behaviour:
@@ -321,6 +347,24 @@ class SvcActivityTriggerBase(SvcBTTriggerBase[ActivityResult]):
     def _build_result(self) -> ActivityResult:
         return ActivityResult(**self._activity_fields())
 
+    def _suppressed_repeat(
+        self, case_id: str, event_type: str, subject_id: str
+    ) -> ActivityResult | None:
+        """The no-activity result for a repeat still pending, else ``None``.
+
+        The check half of the pending-assertion pair whose record half is
+        :meth:`_record_asserted_activity`: a request about *subject_id* while
+        an assertion about it under *event_type* is pending is answered
+        without re-emitting it (SYNC-11-002).
+        """
+        reason = suppressed_repeat_reason(
+            self._actor_id, case_id, event_type, subject_id
+        )
+        if reason is None:
+            return None
+        logger.info("%s: %s", type(self).__name__, reason)
+        return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
+
 
 class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
     """Abstract base for embargo trigger use cases.
@@ -371,27 +415,16 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         subject = self._assertion_subject()
         if subject is None:
             return None
-        reason = suppressed_repeat_reason(
-            self._actor_id,
-            self._case.id_,
-            self._asserted_event_type(),
-            subject,
+        return self._suppressed_repeat(
+            self._case.id_, self._asserted_event_type(), subject
         )
-        if reason is None:
-            return None
-        logger.info("%s: %s", type(self).__name__, reason)
-        return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
 
     def _handle_result(self) -> None:
-        asserted_id = self._output_id(ASSERTED_ACTIVITY_KEY)
-        if asserted_id is not None:
-            record_pending_assertion(
-                self._actor_id,
-                self._case.id_,
-                self._asserted_event_type(),
-                asserted_id,
-                subject_id=self._assertion_subject(),
-            )
+        if self._record_asserted_activity(
+            self._case.id_,
+            self._asserted_event_type(),
+            subject_id=self._assertion_subject(),
+        ):
             return
         lifecycle_result = self._result_out.get("lifecycle_result")
         if not isinstance(lifecycle_result, EmbargoLifecycleResult):
