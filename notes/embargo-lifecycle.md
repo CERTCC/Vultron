@@ -192,8 +192,11 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   logic on replay, a **tracked deviation from CM-23-016 (#4789)**: it reads
   only the case file, so replicas still converge, but it evaluates EMB-04-002
   rather than copying. It is the only `_left_to_a_later_entry` override, and
-  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one
-  until #4789 decides how the ledger records that `Reject`.
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one.
+  The target design is decided (MSM-07-009): the CASE_MANAGER commits the
+  `Reject` carrying the `REJECT` step, then its own ET `Remove` carrying
+  `TERMINATE`, both trial-applied before either commits, so the revision ends
+  `REJECTED` and the replica copies both; #4850 builds it and removes the skip.
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -327,7 +330,8 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    the entry's step or row (a `Leave` carries none), and every other row
    arrives as its own CASE_MANAGER entry (ADR-0124). The owner's-rejection
    slot's skip of a `Reject` answered with ET is the one tracked deviation
-   from copy-only (CM-23-016, #4789; see the P/X/A guards above). One path
+   from copy-only until #4850 (CM-23-016, MSM-07-009; see the P/X/A guards
+   above). One path
    still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).

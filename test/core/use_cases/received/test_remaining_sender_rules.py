@@ -459,8 +459,8 @@ def test_invite_echoed_to_the_case_manager_ends_an_overdue_embargo() -> None:
 def test_an_internal_error_asking_for_the_case_owner_is_raised(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The Case Owner pre-flight for a repeated Leave never reads a crash as
-    "not the owner", which would report the Leave SKIPPED."""
+    """The closed-sender door's Case Owner check for a repeated Leave never
+    reads a crash as "not the owner", which would report the Leave SKIPPED."""
     world = _World()
     assert world.leave_from(world.finder.id_, suffix="first").disposition is (
         HandlerDisposition.APPLIED

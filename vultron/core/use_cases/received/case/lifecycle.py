@@ -25,6 +25,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    closed_sender_verdict,
     find_named,
     post_close_refusal,
     reference_edit_verdict,
@@ -40,10 +41,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import (
-    closed_sender_turned_away,
-    sender_guard_refused,
-)
+from vultron.core.behaviors.sender_guard import sender_guard_refused
 
 logger = logging.getLogger(__name__)
 
@@ -220,19 +218,16 @@ class CloseCaseReceivedUseCase:
             # The case is fully closed: nothing was recorded, and the sender
             # got a Reject only under PostCloseReply.REJECT (CM-23-013).
             return refusal
-        if (closed := closed_sender_turned_away(tree)) is not None:
+        closed = closed_sender_verdict(
+            tree, result, closes=True, label="Leave(VulnerabilityCase)"
+        )
+        if closed is not None:
             # A sender already closed repeats a closing act: its effect is in
             # place, so it is SKIPPED whatever its activity id, with nothing
-            # committed or sent (CM-23-018, ID-05-003).
-            verdict_from_bt(
-                tree, result, label="CloseCaseBT"
-            )  # raises on error
-            reason = (
-                f"Leave(VulnerabilityCase): {closed} — a repeat of a closing"
-                " act, nothing to apply (ID-05-003)"
-            )
-            logger.info("CloseCaseReceivedUseCase: %s", reason)
-            return HandlerResult.skipped(reason)
+            # committed or sent (CM-23-018, ID-05-003).  An internal error in
+            # the door's Case Owner check raises instead (ARCH-15-001).
+            logger.info("CloseCaseReceivedUseCase: %s", closed.reason)
+            return closed
         if sender_guard_refused(tree):
             # No standing: refused before the close/decline decision, with
             # nothing committed, declined or sent (HP-01-006).
