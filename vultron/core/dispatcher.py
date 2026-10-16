@@ -129,7 +129,16 @@ class DispatcherBase:
                 event.actor_id,
             )
             return HandlerResult.refused(f"unroutable: {exc.reason}")
-        use_case_class = self._get_use_case(event.semantic_type)
+        try:
+            use_case_class = self._get_use_case(event.semantic_type)
+        except VultronApiHandlerNotFoundError:
+            logger.warning(
+                "No use case found for semantics '%s' (activity_id=%s actor_id=%s)",
+                event.semantic_type,
+                event.activity_id,
+                event.actor_id,
+            )
+            raise
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
@@ -241,7 +250,6 @@ class DispatcherBase:
     def _get_use_case(self, semantics: MessageSemantics) -> type:
         use_case_class = self._use_case_map.get(semantics)
         if use_case_class is None:
-            logger.error("No use case found for semantics '%s'", semantics)
             raise VultronApiHandlerNotFoundError(
                 f"No use case found for semantics '{semantics}'"
             )
