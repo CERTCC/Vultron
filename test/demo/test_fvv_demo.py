@@ -464,7 +464,7 @@ class TestCoverageWaitInsideDemoCheck:
         real_own_closure = closure._verify_own_closure
 
         with (
-            patch.object(ActorSession, "close_case"),
+            patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(closure, "_verify_own_closure", real_own_closure),
             patch.object(closure, "case_manager_ledger", return_value=ledger),
@@ -889,7 +889,7 @@ class TestFvvMilestoneAssertions:
         }
 
         with (
-            patch.object(ActorSession, "close_case"),
+            patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(

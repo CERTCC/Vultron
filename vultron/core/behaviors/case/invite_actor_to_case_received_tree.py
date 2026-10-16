@@ -36,7 +36,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.sender_entitlement import SenderRule
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +93,10 @@ def create_reject_invite_actor_to_case_received_tree(
         case_id=case_id,
         precondition_guards=[],
         sender_rule=sender_rule,
+        # A Reject closes its invitee: the handler reads a repeat from one
+        # the case already records as closed as SKIPPED (CM-23-018,
+        # ID-05-003).
+        closed_sender=ClosedSenderCheck(sender_id=invitee_id or ""),
         sender_context=SenderCheckContext(
             sender_id=invitee_id or "",
             case_id=case_id,

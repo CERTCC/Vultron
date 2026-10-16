@@ -137,12 +137,12 @@ def closed_sender_guard(
 ) -> SenderClosureNotRecordedNode:
     """The CM-23-018 check that the case does not record the sender's closure.
 
-    Built here, beside the kinds' guards, so the closed-sender pre-flight
-    (``vultron.core.use_cases.received._sender_preflight``) never names a
-    sender node itself (HP-01-007).  It is not a kind: it tells a repeated
-    closing act (``SKIPPED``) from any other act of a closed sender
-    (``REFUSED``) before a handler's received tree runs.  The ``CASE_OWNER``
-    kind's guard composes it too, so a closed owner is refused (CM-23-018).
+    Built here, beside the kinds' guards, so no handler names a sender node
+    itself (HP-01-007).  It is not a kind: :func:`closed_sender_door` wraps
+    it as the door guard the receive-tree factory places, and the handler
+    tells a repeated closing act (``SKIPPED``) from any other act of a closed
+    sender (``REFUSED``).  The ``CASE_OWNER`` kind's guard composes it too,
+    so a closed owner is refused (CM-23-018).
     """
     return SenderClosureNotRecordedNode(
         case_id=case_id, sender_actor_id=sender_id
@@ -233,13 +233,13 @@ def closed_sender_turned_away(
 def case_owner_guard(
     case_id: str, sender_id: str
 ) -> py_trees.behaviour.Behaviour:
-    """The ``CASE_OWNER`` check, for a pre-flight that picks a verdict.
+    """The ``CASE_OWNER`` check the closed-sender door asks as its fallback.
 
-    Built here, beside the kinds' guards, so a pre-flight never names a
-    sender node itself (HP-01-007).  It admits no one: the closed-sender
-    pre-flight asks it to tell a Case Owner's redelivered ``Leave``, whose
-    case closure may still be incomplete, from a repeat that changes
-    nothing (CM-23-002, CM-23-018).
+    Built here, beside the kinds' guards, so no handler names a sender node
+    itself (HP-01-007).  It admits no one: :func:`closed_sender_door` asks it
+    to tell a Case Owner's redelivered ``Leave``, whose case closure may
+    still be incomplete, from a repeat that changes nothing (CM-23-002,
+    CM-23-018).
     """
     return SenderIsCaseOwnerNode(sender_actor_id=sender_id, case_id=case_id)
 

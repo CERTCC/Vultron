@@ -24,19 +24,13 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
-    HasCaseStatusesNode,
     IsActiveEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
     ValidateCaseExistsNode,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.em import EM
 from vultron.errors import VultronInvalidStateTransitionError
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 
 class TestValidateCaseExistsNode:
@@ -217,71 +211,6 @@ class TestHasActiveEmbargoNode:
         bt.tick()
 
         assert case.id_ in str(result_out["error"])
-
-
-class TestHasCaseStatusesNode:
-    """Tests for HasCaseStatusesNode."""
-
-    def test_returns_success_when_case_statuses_non_empty(self):
-        """Node returns SUCCESS when case has at least one CaseStatus entry."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/hcs1",
-            case_statuses=[  # type: ignore[arg-type]
-                CaseStatus(
-                    context="https://example.org/cases/hcs1",
-                )
-            ],
-        )
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = HasCaseStatusesNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-
-    def test_returns_failure_when_case_statuses_empty(self):
-        """Node returns FAILURE when case.case_statuses is empty."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/hcs2",
-            case_statuses=[],
-        )
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = HasCaseStatusesNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.FAILURE
-
-    def test_returns_failure_when_case_missing(self):
-        """Node returns FAILURE when the case is not in the DataLayer."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        setup_blackboard(dl)
-
-        node = HasCaseStatusesNode(
-            case_id="https://example.org/cases/nonexistent"
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.FAILURE
 
 
 class TestIsProposedEmbargoNode:
