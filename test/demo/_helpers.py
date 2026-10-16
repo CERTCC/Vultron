@@ -290,11 +290,11 @@ def check_cases_rebuild_from_their_ledgers() -> None:
     """Rebuild every managed case from its ledger alone (#4294 AC-5).
 
     Run before the demo's teardown clears the node.  A case whose rebuild
-    differs from its CASE_MANAGER's is recorded in :data:`REBUILD_FAILURES`
-    rather than raised, because the demo runner would log a raise as a failed
-    demo and hide the difference.  Logging is silenced while it runs: the
-    rebuild's own log lines are not the demo's, and the demo tests fail on any
-    ERROR they capture.
+    differs from its CASE_MANAGER's, or fails in any other way, is recorded in
+    :data:`REBUILD_FAILURES` rather than raised, because the demo runner would
+    log a raise as a failed demo and hide the difference.  Logging is silenced
+    while it runs: the rebuild's own log lines are not the demo's, and the demo
+    tests fail on any ERROR they capture.
     """
     logging.disable(logging.CRITICAL)
     try:
@@ -307,10 +307,19 @@ def check_cases_rebuild_from_their_ledgers() -> None:
             )
             try:
                 assert_rebuilds_from_ledger(dl, case_id)
-            except AssertionError as exc:
-                REBUILD_FAILURES.append(str(exc))
+            except Exception as exc:  # noqa: BLE001 — recorded, then failed
+                REBUILD_FAILURES.append(
+                    f"'{case_id}': {type(exc).__name__}: {exc}"
+                )
     finally:
         logging.disable(logging.NOTSET)
+
+
+def assert_no_rebuild_failures() -> None:
+    """Fail with every recorded rebuild failure, and clear the record."""
+    failures = list(REBUILD_FAILURES)
+    REBUILD_FAILURES.clear()
+    assert not failures, "\n\n".join(failures)
 
 
 @contextlib.contextmanager
@@ -349,8 +358,11 @@ def route_exchange_demo_at_testclient(
         reset = demo_utils.reset_datalayer
 
         def _check_then_reset(client: DataLayerClient) -> dict:
-            check_cases_rebuild_from_their_ledgers()
-            return reset(client=client)
+            try:
+                check_cases_rebuild_from_their_ledgers()
+            finally:
+                result = reset(client=client)
+            return result
 
         # Every exchange demo tears down through ``demo_environment``, which
         # clears the node with this function: check the cases first.

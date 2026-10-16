@@ -25,7 +25,7 @@ both.  The demo tests and the per-actor-store integration tests call it on
 every case their scenarios leave behind.
 
 No replica slot creates the case itself: a replica is seeded with it
-(SYNC-15-002).  So the rebuild seeds the empty store with what the ledger
+(SYNC-15-005).  So the rebuild seeds the empty store with what the ledger
 already carries in full: for a ledger that starts at the case's creation, the
 records its creation entries carry (CLP-07-013, #4440); for a test network
 whose ledger starts on a case built outside it, the case as it stood before
@@ -46,7 +46,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
-from vultron.core.models import ledger_gap_buffer
+from vultron.core.models import ledger_gap_buffer, pending_assertion
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -160,16 +160,21 @@ def rebuild_from_ledger(
     replica = _fresh_store(as_actor)
     for record in creation_records(entries) if seed is None else seed:
         replica.create(record.model_copy(deep=True))
-    # The gap buffer is per actor and process-wide; the rebuild gets its own,
-    # so it neither drains nor fills the buffer of the live store it stands
-    # in for.
-    held_buffer = ledger_gap_buffer._BUFFERS.pop(as_actor, None)
+    # The gap buffer and the pending-assertion store are per actor and
+    # process-wide; the rebuild gets its own of each, so it neither reads nor
+    # changes those of the live store it stands in for.
+    registries: list[dict[str, Any]] = [
+        ledger_gap_buffer._BUFFERS,
+        pending_assertion._STORES,
+    ]
+    held = [registry.pop(as_actor, None) for registry in registries]
     try:
         _replay(replica, entries, manager_id=manager_id, as_actor=as_actor)
     finally:
-        ledger_gap_buffer._BUFFERS.pop(as_actor, None)
-        if held_buffer is not None:
-            ledger_gap_buffer._BUFFERS[as_actor] = held_buffer
+        for registry, live in zip(registries, held, strict=True):
+            registry.pop(as_actor, None)
+            if live is not None:
+                registry[as_actor] = live
     return replica
 
 

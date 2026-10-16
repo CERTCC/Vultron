@@ -729,14 +729,16 @@ def every_demo_case_rebuilds_from_its_ledger():
     when it is rebuilt from its CASE_MANAGER's ledger into an empty store
     (CLP-07-013, CM-23-016); this fails the test that left it.
     """
-    from test.demo._helpers import REBUILD_FAILURES, REBUILT_CASES
+    from test.demo._helpers import (
+        REBUILD_FAILURES,
+        REBUILT_CASES,
+        assert_no_rebuild_failures,
+    )
 
     REBUILD_FAILURES.clear()
     REBUILT_CASES.clear()
     yield
-    failures = list(REBUILD_FAILURES)
-    REBUILD_FAILURES.clear()
-    assert not failures, "\n\n".join(failures)
+    assert_no_rebuild_failures()
 
 
 @pytest.fixture(autouse=True)

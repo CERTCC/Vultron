@@ -65,26 +65,24 @@ def _every_network_rebuilds_from_its_ledger(request, _close_sqlite_datalayers):
     whose test wrote the CASE_MANAGER's store outside the ledger on purpose
     says so with ``bypass_ledger()``.  Runs before the stores are closed.
     """
-    from test.support.ledger_rebuild import assert_rebuilds_from_ledger
-
-    from ._ledger_network import BYSTANDER, MANAGER, NETWORKS
+    from ._ledger_network import NETWORKS, rebuild_every_network
 
     NETWORKS.clear()
     yield
     networks = list(NETWORKS)
     NETWORKS.clear()
-    report = request.node.stash.get(_CALL_REPORT, None)
-    if report is None or not report.passed:
-        return
-    for net in networks:
-        if net.ledger_bypassed or net.rebuild_seed is None:
-            continue
-        assert_rebuilds_from_ledger(
-            net.stores[MANAGER],
-            net.case_id,
-            as_actor=BYSTANDER,
-            seed=net.rebuild_seed,
-        )
+    if call_passed(request.node):
+        rebuild_every_network(networks)
+
+
+def call_passed(item: pytest.Item) -> bool:
+    """Whether *item*'s call phase ran and passed.
+
+    A test that failed already says what is wrong; a rebuild difference on
+    top of it would only add noise.
+    """
+    report = item.stash.get(_CALL_REPORT, None)
+    return report is not None and report.passed
 
 
 class _AnonymousStore:

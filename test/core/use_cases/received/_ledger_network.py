@@ -28,7 +28,10 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
-from test.support.ledger_rebuild import run_use_case
+from test.support.ledger_rebuild import (
+    assert_rebuilds_from_ledger,
+    run_use_case,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import _as_id
@@ -261,4 +264,21 @@ class LedgerNetwork:
     def case(self, actor_id: str) -> VulnerabilityCase:
         return cast(
             VulnerabilityCase, self.stores[actor_id].read(self.case_id)
+        )
+
+
+def rebuild_every_network(networks: list[LedgerNetwork]) -> None:
+    """Rebuild each network's case from its CASE_MANAGER's ledger (#4294 AC-5).
+
+    A network with no entries has nothing to rebuild, and one whose test
+    wrote the CASE_MANAGER's store outside the ledger (``bypass_ledger()``)
+    cannot be; every other must equal the CASE_MANAGER's, rebuilt as
+    ``BYSTANDER`` from the case as it stood before the first entry.
+    """
+    for net in networks:
+        seed = net.rebuild_seed
+        if net.ledger_bypassed or seed is None:
+            continue
+        assert_rebuilds_from_ledger(
+            net.stores[MANAGER], net.case_id, as_actor=BYSTANDER, seed=seed
         )

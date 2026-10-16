@@ -56,3 +56,26 @@ def test_an_embargo_demo_case_is_rebuilt_from_its_ledger(demo_env):
     assert "create_embargo_consent" in event_types
     assert "update_embargo_consent" in event_types
     assert helpers.REBUILD_FAILURES == []
+
+
+@pytest.mark.parametrize(
+    "error", [AssertionError("differs"), ValueError("bad snapshot")]
+)
+def test_any_rebuild_failure_is_recorded_not_raised(monkeypatch, error):
+    """The demo teardown still clears the node; the test fails afterwards."""
+
+    def _fails(*_a, **_k):
+        raise error
+
+    monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([(None, "c")]))
+    monkeypatch.setattr(helpers, "ledger_entries", lambda *_a: [])
+    monkeypatch.setattr(helpers, "assert_rebuilds_from_ledger", _fails)
+
+    helpers.check_cases_rebuild_from_their_ledgers()
+
+    assert [
+        f"'c': {type(error).__name__}: {error}"
+    ] == helpers.REBUILD_FAILURES
+    with pytest.raises(AssertionError, match=str(error)):
+        helpers.assert_no_rebuild_failures()
+    assert helpers.REBUILD_FAILURES == []

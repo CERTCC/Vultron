@@ -64,12 +64,6 @@ _Effect = Callable[
 ]
 
 
-def _stub_reject_effect(
-    case: VulnerabilityCase, record: CaseParticipant, published: datetime
-) -> CaseParticipant | None:
-    return record if apply_stub_reject(case, record, published) else None
-
-
 class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
     """Apply the effect of a stub reply to the replying actor's held record."""
 
@@ -146,4 +140,4 @@ class ApplyInviteAcceptFromLedgerNode(_ApplyStubReplyFromLedgerNode):
 class ApplyInviteRejectFromLedgerNode(_ApplyStubReplyFromLedgerNode):
     """Apply a ``reject_invite_actor_to_case`` entry: consent ``DECLINED``."""
 
-    effect = staticmethod(_stub_reject_effect)
+    effect = staticmethod(apply_stub_reject)

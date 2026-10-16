@@ -212,10 +212,13 @@ class ApplyInviteRejectToParticipantNode(
         # replica runs from the Reject's entry, with the Reject's ``published``
         # as the record's time (ADR-0114).
         case = self.datalayer.read_case(self.case_id)
-        if case is not None and apply_stub_reject(
-            case, participant, published
-        ):
-            self.datalayer.save(participant)
+        declined = (
+            apply_stub_reject(case, participant, published)
+            if case is not None
+            else None
+        )
+        if declined is not None:
+            self.datalayer.save(declined)
             self.logger.info(
                 "%s: applied PEC DECLINED for invitee '%s' (active embargo,"
                 " CM-11-007)",

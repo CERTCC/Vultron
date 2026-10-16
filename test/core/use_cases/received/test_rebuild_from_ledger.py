@@ -22,7 +22,6 @@ missing entry, and its one embargo exclusion (#4748) hides only the
 termination's cause.
 """
 
-import json
 from typing import Any, cast
 
 import pytest
@@ -35,11 +34,6 @@ from test.support.ledger_rebuild import (
     creation_records,
     rebuild_from_ledger,
 )
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.adapters.outbox_sealed_body import dump_outbound_body
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -53,66 +47,25 @@ from vultron.core.states.embargo_register import (
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.wire.as2.factories import em_propose_embargo_activity
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import (
     BYSTANDER,
     MANAGER,
-    OWNER,
-    PROPOSER,
     LedgerNetwork,
+    rebuild_every_network,
 )
-
-
-def _applied(verdict: Any) -> None:
-    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
-
-
-def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
-    """PROPOSER sends a revision to the CASE_MANAGER (EP-09-001)."""
-    revision = as_EmbargoEvent(
-        id_=f"{net.case_id}/embargo_events/{suffix}",
-        content=f"Terms {suffix}",
-        context=net.case_id,
-        end_time=days_from_now_utc(days),
-    )
-    proposal = em_propose_embargo_activity(
-        revision,
-        context=net.case_id,
-        actor=PROPOSER,
-        to=[MANAGER],
-        id_=f"{net.case_id}/embargo_proposals/{suffix}",
-    )
-    _applied(net.receive(MANAGER, json.loads(dump_outbound_body(proposal))))
-    return revision.id_
-
-
-def _answer(net: LedgerNetwork, actor: str) -> None:
-    """*actor* accepts the Invite the CASE_MANAGER relayed to it."""
-    for _type, verdict in net.deliver(MANAGER, to=actor, type_="Invite"):
-        _applied(verdict)
-    (invite,) = net.queued(MANAGER, to=actor, type_="Invite")
-    _, sealed = TriggerActivityAdapter(net.stores[actor]).accept_embargo(
-        proposal_id=invite.id_, case_id=net.case_id, actor=actor, to=[MANAGER]
-    )
-    _applied(net.receive(MANAGER, json.loads(sealed)))
-
-
-def _owner_activates(net: LedgerNetwork, embargo_id: str) -> None:
-    net.deliver(MANAGER, to=OWNER, type_="Invite")
-    _, sealed = TriggerActivityAdapter(net.stores[OWNER]).activate_embargo(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
-    )
-    _applied(net.receive(MANAGER, json.loads(sealed)))
+from .conftest import call_passed
+from .test_embargo_activation_copy import _owner_activates, _propose
+from .test_embargo_proposal_answer_copy import _participant_answers
 
 
 def _negotiated(case_suffix: str) -> tuple[LedgerNetwork, str]:
     """A revision proposed, answered by the bystander, activated by the owner."""
     net = LedgerNetwork(f"https://example.org/cases/rebuild-{case_suffix}")
     revision_id = _propose(net, "shorter", 20)
-    _answer(net, BYSTANDER)
-    _owner_activates(net, revision_id)
+    _participant_answers(net, BYSTANDER, accept=True)
+    verdict = _owner_activates(net, revision_id)
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     return net, revision_id
 
 
@@ -143,24 +96,15 @@ def test_a_negotiated_revision_rebuilds_from_the_ledger_alone():
 @pytest.mark.spec("CLP-07-013")
 def test_a_change_no_entry_records_is_caught():
     """The check is not vacuous: a row written outside the ledger differs."""
-    net, revision_id = _negotiated("unrecorded")
-    manager = net.stores[MANAGER]
-    record = cast(
-        CaseParticipant,
-        manager.read(net.case(MANAGER).actor_participant_index[BYSTANDER]),
-    )
-    record.embargo_consents = [
-        row.model_copy(update={"state": EmbargoConsentState.DECLINED})
-        if row.embargo_id == revision_id
-        else row
-        for row in record.embargo_consents
-    ]
-    manager.save(record)
+    net = _tampered("unrecorded")
     net.bypass_ledger()
 
     with pytest.raises(AssertionError, match="embargo_consents"):
         assert_rebuilds_from_ledger(
-            manager, net.case_id, as_actor=BYSTANDER, seed=_seed(net)
+            net.stores[MANAGER],
+            net.case_id,
+            as_actor=BYSTANDER,
+            seed=_seed(net),
         )
 
 
@@ -247,3 +191,71 @@ def test_creation_records_stop_at_the_first_act():
     (record,) = creation_records(entries)
 
     assert record == case
+
+
+# -- the check every scenario runs (conftest) -------------------------------
+
+
+def _tampered(case_suffix: str) -> LedgerNetwork:
+    """A negotiated network whose CASE_MANAGER holds a row no entry records."""
+    net, revision_id = _negotiated(case_suffix)
+    manager = net.stores[MANAGER]
+    record = cast(
+        CaseParticipant,
+        manager.read(net.case(MANAGER).actor_participant_index[BYSTANDER]),
+    )
+    record.embargo_consents = [
+        row.model_copy(update={"state": EmbargoConsentState.DECLINED})
+        if row.embargo_id == revision_id
+        else row
+        for row in record.embargo_consents
+    ]
+    manager.save(record)
+    return net
+
+
+def test_the_scenario_check_fails_a_network_that_differs():
+    net = _tampered("check-fails")
+
+    with pytest.raises(AssertionError, match="embargo_consents"):
+        rebuild_every_network([net])
+    net.bypass_ledger()  # the test's own write; skip the autouse check
+
+
+def test_the_scenario_check_skips_a_bypassed_network():
+    net = _tampered("check-bypassed")
+    net.bypass_ledger()
+
+    rebuild_every_network([net])
+
+
+def test_the_scenario_check_skips_a_network_with_no_entries():
+    net = LedgerNetwork("https://example.org/cases/rebuild-no-entries")
+
+    assert net.rebuild_seed is None
+    rebuild_every_network([net])
+
+
+class _Item:
+    """A stand-in test item: only its stash is read."""
+
+    def __init__(self, report: Any | None) -> None:
+        self.stash = pytest.Stash()
+        if report is not None:
+            from .conftest import _CALL_REPORT
+
+            self.stash[_CALL_REPORT] = report
+
+
+class _Report:
+    def __init__(self, passed: bool) -> None:
+        self.passed = passed
+
+
+@pytest.mark.parametrize(
+    "report, checked",
+    [(_Report(True), True), (_Report(False), False), (None, False)],
+    ids=["passed", "failed", "never-called"],
+)
+def test_the_scenario_check_runs_only_after_a_passing_call(report, checked):
+    assert call_passed(cast(Any, _Item(report))) is checked

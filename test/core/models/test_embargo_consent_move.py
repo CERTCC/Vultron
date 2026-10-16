@@ -33,6 +33,7 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_move import (
     consent_row_move,
     joiner_agreement,
+    joiner_decline,
     owner_agreement,
 )
 from vultron.core.states.participant_embargo_consent import (
@@ -240,3 +241,38 @@ class TestJoinerAgreement:
 
         with pytest.raises(VultronNotFoundError):
             joiner_agreement(case_file, JOINER)
+
+
+class TestJoinerDecline:
+    @pytest.mark.spec("CM-11-007")
+    @pytest.mark.parametrize(
+        "held", [_S.UNINVITED, _S.INVITED, _S.AGREED, _S.TIMED_OUT]
+    )
+    def test_the_joiner_declines_the_embargo_in_force(self, held):
+        change = joiner_decline(_case_file(joiner={E1: held}), JOINER)
+
+        assert change is not None
+        assert change.verb is ConsentRowVerb.UPDATE
+        assert change.row.embargo_id == E1
+        assert change.row.state is _S.DECLINED
+
+    @pytest.mark.spec("CM-18-003")
+    def test_a_declined_row_moves_nothing(self):
+        assert (
+            joiner_decline(_case_file(joiner={E1: _S.DECLINED}), JOINER)
+            is None
+        )
+
+    def test_no_embargo_in_force_moves_nothing(self):
+        assert joiner_decline(_case_file(active=None), JOINER) is None
+
+    def test_the_row_is_written_by_copying(self):
+        """The change applies through the one apply function (ADR-0124)."""
+        case_file = _case_file(joiner={E1: _S.INVITED})
+        change = joiner_decline(case_file, JOINER)
+        assert change is not None
+
+        applied = apply_embargo_change(case_file, change)
+
+        assert applied.participants[JOINER].consent_for(E1) is _S.DECLINED
+        assert case_file.participants[JOINER].consent_for(E1) is _S.INVITED

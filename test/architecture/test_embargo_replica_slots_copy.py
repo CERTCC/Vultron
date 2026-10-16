@@ -83,6 +83,9 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
     ApplyEmbargoConsentFromLedgerNode,
 )
+from vultron.core.behaviors.sync.nodes.participant_record_effect import (
+    ApplyCreateCaseParticipantFromLedgerNode,
+)
 from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
     ApplyInviteAcceptFromLedgerNode,
     ApplyInviteRejectFromLedgerNode,
@@ -97,6 +100,8 @@ _LIFECYCLE_NAMES = frozenset(
         "EmbargoLifecycle",
         "TransitionMode",
         "apply_pec_transition",
+        "apply_pec_transition_if_legal",
+        "accepts_pec_trigger",
         "write_uninvited_rows",
     }
 )
@@ -127,7 +132,22 @@ _SLOTS = [
     # the stub Invite answers, which carry a joiner's consent (CM-11-016)
     ApplyInviteAcceptFromLedgerNode,
     ApplyInviteRejectFromLedgerNode,
+    # the roster entry, which seats a record carried with all its rows
+    ApplyCreateCaseParticipantFromLedgerNode,
 ]
+
+#: Names whose use marks a slot as writing the register or a consent row:
+#: the one apply function and the model writes behind it, and every
+#: lifecycle name.  A slot of the announce tree that reaches one must be in
+#: :data:`_SLOTS`.
+_WRITER_NAMES = _LIFECYCLE_NAMES | {
+    "apply_embargo_change",
+    "apply_embargo_register_step",
+    "copy_consent_row",
+    "embargo_consents",
+    "embargo_register",
+    "add_participant",
+}
 
 
 def _names_used(obj: object) -> set[str]:
@@ -159,6 +179,17 @@ def _functions_reached(cls: type) -> dict[str, set[str]]:
     its module, to a module-level function this codebase defines, and so on
     from there.  Classes are not followed: a slot's own classes are walked by
     MRO, and a lifecycle-running node class is forbidden by name.
+
+    Methods are not followed either, so a forbidden method is caught where
+    it is called, by name.  That leaves the domain models' own writes behind
+    the one apply function unwalked, on purpose:
+    ``VulnerabilityCase.apply_embargo_register_step`` gives an *inline*
+    participant its ``UNINVITED`` rows so the register assignment validates,
+    and ``VulnerabilityCase.add_participant`` gives a seated record a row
+    for each register entry it lacks.  A carried record already holds every
+    row, so on a replica neither writes one; the rebuild-from-ledger check
+    (``test/support/ledger_rebuild.py``) compares every record whole and
+    would fail if one did.
     """
     reached: dict[str, set[str]] = {}
     pending: list[object] = list(_own_classes(cls))
@@ -244,9 +275,19 @@ def _tree_slot_classes() -> set[type]:
 
 
 def _writes_embargo_state(cls: type) -> bool:
-    """A slot that copies an embargo change, or lives with the embargo nodes."""
-    return issubclass(cls, ApplyEmbargoChangeFromLedgerNode) or (
-        cls.__module__.startswith(f"{embargo_nodes.__name__}.")
+    """A slot that writes embargo state, by what it reaches or where it lives.
+
+    It reaches a writer name, copies through the frame, or lives with the
+    embargo nodes (the store-only relay slots, which write the embargo
+    record itself).
+    """
+    names = set().union(*(_names_used(c) for c in _own_classes(cls)))
+    for reached in _functions_reached(cls).values():
+        names |= reached
+    return bool(
+        names & _WRITER_NAMES
+        or issubclass(cls, ApplyEmbargoChangeFromLedgerNode)
+        or cls.__module__.startswith(f"{embargo_nodes.__name__}.")
     )
 
 
