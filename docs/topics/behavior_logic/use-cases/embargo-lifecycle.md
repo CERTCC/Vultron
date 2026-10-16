@@ -139,7 +139,8 @@ Every change the case manager makes to the embargo register or to a consent row 
 One ledger entry records one activity and its object.
 An act therefore commits its own entry first.
 Each other object the act changes then follows as its own case manager entry, in the order the case manager changes them.
-For embargo acts, those other objects are consent rows, and each one is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, carrying the row in full.
+For embargo acts, those other objects are consent rows.
+Each is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, and it carries the row in full.
 A register change is never an entry of its own: the act's own activity carries it.
 
 The case manager makes every decision before the first commit: who is invited, which signatories carry over, which proposals a termination cancels.
@@ -170,12 +171,15 @@ Every replica, and the case manager itself, writes each register step and consen
 That includes the row a Participant's own answer states, such as a joiner's `AGREED` or `DECLINED` row from its reply to the stub invitation.
 That function checks that the entry fits the case as it stands, then writes what the entry carries.
 It runs no embargo lifecycle logic, creates no ids, and reads no clock.
+
 An entry that does not fit is held as a gap until the missing entries arrive, never patched over.
 The result is that a store rebuilt from the case manager's ledger alone holds the same participant records, consent rows and embargo register as the case manager.
 
 Two limits apply today.
-The `Remove` entry carries what ended the embargo, `EARLY` or `END_TIME_REACHED`, but not the structured cause behind an early end, such as a threat signal, so a replica records that termination as `EARLY` with no cause.
-And when the owner rejects the last open revision after the case went public, the case manager answers with a termination instead (EMB-04-002), and a replica skips the `Reject` entry because the `Remove` that follows cancels the revision.
+The `Remove` entry carries what ended the embargo, `EARLY` or `END_TIME_REACHED`, but not the structured cause behind an early end, such as a threat signal.
+A replica therefore records that termination as `EARLY` with no cause.
+When the owner rejects the last open revision after the case went public, the case manager answers with a termination instead (EMB-04-002).
+A replica then skips the `Reject` entry, because the `Remove` that follows cancels the revision.
 Deciding that skip is the one place a replica decides what an entry changes rather than copying it.
 
 ---
