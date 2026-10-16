@@ -150,10 +150,6 @@ def mapping_status(
 #: The "Sent by" wording for a use case whose sender is not yet checked.
 NOT_YET_CHECKED = "not yet checked"
 
-#: The "Sent by" wording for a use case to which no sender check applies
-#: (a permanent exemption, ``no_sender_check``).
-NOT_CHECKED = "no sender check applies"
-
 
 def _words(type_name: str) -> str:
     """``"CaseProposal"`` → ``"case proposal"``."""
@@ -239,9 +235,7 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
 
     The value is the wording of the side of the sender rule the entry's
     received use case declares that matches the occasion's addressee
-    (:func:`rule_wording`), :data:`NOT_YET_CHECKED` for an exemption that
-    names its tracking issue, or :data:`NOT_CHECKED` for one to which no
-    sender check applies.
+    (:func:`rule_wording`), or :data:`NOT_YET_CHECKED` for an exemption.
     The occasion's usual sender roles, when it has any, follow in
     parentheses: "an active participant (usually: vendor)".
 
@@ -252,8 +246,6 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
         entry.use_case_class, "sender_entitlement", None
     )
     match declared:
-        case SenderExemption(permanent=True):
-            wording = NOT_CHECKED
         case SenderExemption():
             wording = NOT_YET_CHECKED
         case SenderRule():

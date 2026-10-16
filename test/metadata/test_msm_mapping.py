@@ -39,7 +39,6 @@ from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
-    NOT_CHECKED,
     NOT_YET_CHECKED,
     ROW_SPECS,
     MappingStatus,
@@ -265,13 +264,6 @@ def test_sent_by_states_an_exemption_as_not_yet_checked():
     assert sent_by(entry, entry.occasions[0]) == "not yet checked"
 
 
-@pytest.mark.spec("MSM-08-005")
-def test_sent_by_states_a_permanent_exemption_as_no_check():
-    """An exemption naming no issue owes no check, so it is not "not yet"."""
-    entry = _entry(entitlement=no_sender_check("changes nothing"))
-    assert sent_by(entry, entry.occasions[0]) == "no sender check applies"
-
-
 def test_an_exemption_naming_no_issue_must_say_why():
     with pytest.raises(ValueError, match="HP-01-007"):
         no_sender_check("  ")
@@ -494,7 +486,7 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """
     declared = getattr(entry.use_case_class, "sender_entitlement", None)
     if isinstance(declared, SenderExemption):
-        base = NOT_CHECKED if declared.permanent else NOT_YET_CHECKED
+        base = NOT_YET_CHECKED
     else:
         assert isinstance(declared, SenderRule)
         side = getattr(declared, _SIDE_FIELD[occasion.addressee])

@@ -870,6 +870,7 @@ OPEN_EXEMPTION_ISSUES: dict[str, str] = {
     "#4785": "note and Announce(VulnerabilityCase) sender rules",
     "#4702": "role-delegation Offer, routed through the CASE_MANAGER",
     "#4703": "Accept and Reject of a role offer (NAMED_ACTOR)",
+    "#4799": "Create(ProcessingFault), once a case-diverged fault re-seeds",
 }
 
 #: The use cases no sender check applies to, each declared with
@@ -878,7 +879,6 @@ PERMANENT_EXEMPTIONS: frozenset[str] = frozenset(
     {
         "UnknownUseCase",
         "UnresolvableObjectUseCase",
-        "CreateProcessingFaultReceivedUseCase",
     }
 )
 

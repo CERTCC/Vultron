@@ -1207,9 +1207,8 @@ groups:
       sender entitlement that the occasion's received use case declares (HP-01-007,
       HP-01-008) matching the occasion's addressee (MSM-08-009), worded from that side's
       entitlement kinds (MSM-08-010), and MUST state an exempt use case as not yet
-      checked, or, when its exemption names no tracking issue because no sender check
-      applies (HP-01-007), as such. An occasion MAY add the CVD roles that usually send
-      it, which MUST be values of `CVDRole`.
+      checked. An occasion MAY add the CVD roles that usually send it, which MUST be
+      values of `CVDRole`.
     rationale: 'The entitlement is the rule a receiver applies, so it is what another
       implementation must satisfy, and deriving it means it cannot drift from the code.
       It is often broader than the CVD convention: any active participant may announce
@@ -1218,9 +1217,8 @@ groups:
       entitlement kinds (HP-01-009), so they appear in the derived value.'
     verification: >-
       A test asserts that each rendered "Sent by" value equals the wording of the kinds on
-      the declared rule's side for the occasion's addressee, or the not-yet-checked or
-      no-check wording for an exemption, and that every usual-role value is a `CVDRole`
-      member.
+      the declared rule's side for the occasion's addressee, or the not-yet-checked wording
+      for an exemption, and that every usual-role value is a `CVDRole` member.
     lint_suppress:
     - phantom_path_ref
     relationships:

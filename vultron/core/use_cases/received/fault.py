@@ -23,7 +23,7 @@ from typing import ClassVar
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    no_sender_check,
+    exempt,
 )
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.use_case_result import (
@@ -45,17 +45,17 @@ class CreateProcessingFaultReceivedUseCase:
 
     Full ask-register correlation (AC-8) is deferred to issue #2883.
 
-    No sender check applies (HP-01-007): the handler archives the fault, as
+    No sender check gates anything yet: the handler archives the fault, as
     every received tree does before its guards (CLP-10-018), logs it and
-    reports ``SKIPPED``.  It commits, writes and sends nothing, so there is
-    no effect a sender's standing could gate.  A change that makes the fault
-    act on the request it names must declare a sender rule with it
-    (HP-01-006).
+    reports ``SKIPPED``, committing, writing and sending nothing.  The
+    CASE_MANAGER's re-seed on a case-diverged fault (SYNC-16-003) is the first
+    effect a fault will have, and its sender rule lands with it in #4799.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = no_sender_check(
-        "a fault changes nothing: the handler archives and logs it, and"
-        " commits, writes and sends nothing a sender's standing could gate"
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4799",
+        "a fault changes nothing until the case-diverged re-seed (SYNC-16-003)"
+        " acts on it; that issue declares the sender rule",
     )
 
     def __init__(

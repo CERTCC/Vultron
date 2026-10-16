@@ -91,7 +91,7 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| a Participant has received a message it cannot process | `Create(ProcessingFault)` | the case manager | no sender check applies | — | [Create processing fault](../faults_and_acknowledgements.md#create-processing-fault) |
+| a Participant has received a message it cannot process | `Create(ProcessingFault)` | the case manager | not yet checked | — | [Create processing fault](../faults_and_acknowledgements.md#create-processing-fault) |
 
 ## Ledger replication
 

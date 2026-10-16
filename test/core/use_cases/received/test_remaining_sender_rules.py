@@ -264,11 +264,7 @@ def test_use_case_declares_its_sender_rule(
 @pytest.mark.spec("HP-01-007")
 @pytest.mark.parametrize(
     "use_case",
-    [
-        CreateProcessingFaultReceivedUseCase,
-        UnknownUseCase,
-        UnresolvableObjectUseCase,
-    ],
+    [UnknownUseCase, UnresolvableObjectUseCase],
     ids=lambda c: c.__name__,
 )
 def test_use_case_with_nothing_to_gate_declares_no_sender_check(
@@ -279,6 +275,16 @@ def test_use_case_with_nothing_to_gate_declares_no_sender_check(
     assert isinstance(declared, SenderExemption)
     assert declared.permanent
     assert declared.reason.strip()
+
+
+@pytest.mark.spec("HP-01-007")
+@pytest.mark.spec("SYNC-16-003")
+def test_the_fault_exemption_names_the_issue_that_gives_it_an_effect() -> None:
+    """A fault changes nothing yet; the re-seed it will trigger brings the
+    rule (#4799)."""
+    declared = CreateProcessingFaultReceivedUseCase.sender_entitlement
+    assert isinstance(declared, SenderExemption)
+    assert declared.tracking_issue == "#4799"
 
 
 # ---------------------------------------------------------------------------
