@@ -33,7 +33,6 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.services.embargo_lifecycle import TransitionMode
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -89,20 +88,15 @@ def _case(dl: SqliteDataLayer, case_id: str) -> VulnerabilityCase:
 
 @pytest.mark.spec("EP-08-003")
 @pytest.mark.spec("EMB-18-001")
-@pytest.mark.parametrize(
-    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED]
-)
 def test_the_owners_reject_of_a_revision_returns_to_the_prior_terms(
-    dl: SqliteDataLayer, mode: TransitionMode
+    dl: SqliteDataLayer,
 ) -> None:
-    case, active_id, revision_id = _revising_case(dl, f"ej-{mode.value}")
+    case, active_id, revision_id = _revising_case(dl, "ej")
     setup_blackboard(dl, actor_id=OWNER)
 
     status = _tick(
         DecideRejectedEmbargoProposalNode(
-            case_id=case.id_,
-            embargo_id=revision_id,
-            transition_mode=mode,
+            case_id=case.id_, embargo_id=revision_id
         )
     )
 
@@ -175,7 +169,7 @@ def test_a_reject_of_what_is_no_longer_proposed_changes_nothing(
 
 
 @pytest.mark.spec("EMB-04-002")
-def test_strict_ej_with_pxa_set_fails_and_writes_nothing(
+def test_ej_with_pxa_set_fails_and_writes_nothing(
     dl: SqliteDataLayer,
 ) -> None:
     case, _, revision_id = _revising_case(dl, "pxa")
@@ -192,31 +186,6 @@ def test_strict_ej_with_pxa_set_fails_and_writes_nothing(
     assert status is Status.FAILURE
     kept = _case(dl, case.id_)
     assert kept.current_status.em.state == EM.REVISE
-    assert kept.proposed_embargo_ids == [revision_id]
-
-
-@pytest.mark.spec("EMB-04-002")
-@pytest.mark.spec("CM-23-016")
-def test_observed_ej_with_pxa_set_succeeds_and_writes_nothing(
-    dl: SqliteDataLayer,
-) -> None:
-    """On replay the termination entry that follows ends it (ADR-0124)."""
-    case, active_id, revision_id = _revising_case(dl, "pxa-replay")
-    case.append_case_status(pxa=CS_pxa.Pxa)
-    dl.save(case)
-    setup_blackboard(dl, actor_id=OWNER)
-
-    node = DecideRejectedEmbargoProposalNode(
-        case_id=case.id_,
-        embargo_id=revision_id,
-        transition_mode=TransitionMode.OBSERVED,
-    )
-
-    assert _tick(node) is Status.SUCCESS
-    assert "changes nothing" in node.feedback_message
-    kept = _case(dl, case.id_)
-    assert kept.current_status.em.state == EM.REVISE
-    assert kept.active_embargo_id == active_id
     assert kept.proposed_embargo_ids == [revision_id]
 
 

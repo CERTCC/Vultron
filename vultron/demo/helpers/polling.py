@@ -1581,8 +1581,9 @@ def wait_for_reporter_introduction(
     binds that link to the case only on the trusted route, and records the
     receiver as ``case_creator_id`` (CBT-01-001, CBT-01-006).  So a bound link
     naming *receiver_id* is the committed effect of a trusted introduction, read
-    where it commits (EDF-06-002).  An introduction refused on the unanchored
-    route (CBT-01-011) leaves no such link, and this wait times out.
+    where it commits (EDF-06-002).  An introduction refused because no trust
+    anchor names its sender (CBT-01-011) leaves no such link, and this wait
+    times out.
 
     Args:
         client: DataLayerClient connected to the reporter's container.

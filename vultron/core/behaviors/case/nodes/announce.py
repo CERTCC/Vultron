@@ -13,11 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""BT leaf node for received Announce(VulnerabilityCase) activities.
+"""BT leaf nodes for received Announce(VulnerabilityCase) activities.
 
-Provides the action node that seeds a local DataLayer with a
-``VulnerabilityCase`` received from the case's owner/CaseActor, stores
-embedded participants, and links any matching report-case associations.
+Provides :func:`announced_case_id`, which names the case an Announce carries,
+and the action node that seeds a local DataLayer with the announced
+``VulnerabilityCase``, stores embedded participants, and links any matching
+report-case associations.  The sender check is not here: the received tree's
+factory composes it from the use case's declared rule (HP-01-008).
 
 Per ``specs/mpcvd-cases.yaml`` MV-10-003 (create if absent) and
 MV-10-004 (idempotent if already present).
@@ -43,6 +45,33 @@ from vultron.core.services.case_replica_seeding import (
     store_embedded_participants,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
+
+
+def announced_case_id(
+    request: AnnounceVulnerabilityCaseReceivedEvent, case_obj: Any
+) -> str:
+    """The id of the case *request* announces as *case_obj*.
+
+    Raises:
+        VultronValidationError: The event carries no activity, the activity
+            no object, the object is not a ``VulnerabilityCase``, or the case
+            has no id.  The message is the refusal's reason.
+    """
+    if request.activity is None:
+        raise VultronValidationError("Announce carries no activity")
+    if case_obj is None:
+        raise VultronValidationError("Announce carries no case object")
+    if getattr(case_obj, "type_", None) != "VulnerabilityCase":
+        raise VultronValidationError(
+            "Announce object is not a VulnerabilityCase"
+            f" ({type(case_obj).__name__})"
+        )
+    # Read the id itself: ``_as_id`` falls back to ``str(obj)`` and so never
+    # reports a case-typed object that has none.
+    case_id = getattr(case_obj, "id_", None)
+    if not isinstance(case_id, str) or not case_id:
+        raise VultronValidationError("Announced case object has no id")
+    return case_id
 
 
 def _store_embedded_reports(case_obj, datalayer) -> None:

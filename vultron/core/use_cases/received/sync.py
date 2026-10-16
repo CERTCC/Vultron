@@ -28,9 +28,9 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
+from vultron.core.behaviors.sender_guard import sender_guard_refused
 from vultron.core.behaviors.sync.announce_tree import (
-    SENDER_IS_CASE_MANAGER,
-    SENDER_IS_OWN_CASE_MANAGER,
+    AT_CASE_MANAGER,
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
@@ -54,7 +54,7 @@ from vultron.core.models.events.sync import (
 )
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
-    get_ledger_gap_buffer,
+    resolve_ledger_gap_buffer,
 )
 from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
@@ -65,14 +65,11 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.inbox_hand_back import InboxHandBackPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.sync_helpers import _reconstruct_tail_hash
-from vultron.core.use_cases._helpers import (
-    _find_case_actor_id,
-    resolve_receiving_actor_id,
-)
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     named_node_status,
     node_failed,
@@ -80,7 +77,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager_refusal,
     verdict_from_bt,
 )
-from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -91,14 +87,19 @@ def _run_announce_bt(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer | None,
     sync_port: SyncActivityPort | None,
-    wire_render_port: WireRenderPort | None = None,
+    wire_render_port: WireRenderPort | None,
+    inbox_hand_back: InboxHandBackPort | None,
 ) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
     """Run the announce receive BT for *request* with the gap buffer wired.
 
-    Returns the tree along with the result so the caller can tell which
-    branch decided the outcome (#2255).
+    The tree hands a buffered successor back to the inbox through
+    *inbox_hand_back* rather than running it here (SYNC-14-009).  Returns the
+    tree along with the result so the caller can tell which branch decided
+    the outcome (#2255).
     """
-    tree = create_announce_log_entry_tree()
+    tree = create_announce_log_entry_tree(
+        sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+    )
     result = BTBridge(
         datalayer=dl,
         wire_render_port=wire_render_port,
@@ -108,6 +109,7 @@ def _run_announce_bt(
         actor_id=receiving_actor_id,
         activity=request,
         gap_buffer=gap_buffer,
+        inbox_hand_back=inbox_hand_back,
     )
     return tree, result
 
@@ -125,10 +127,9 @@ def _announce_verdict(
     """
     verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
     if verdict.disposition is HandlerDisposition.APPLIED:
-        if (
-            named_node_status(tree, SENDER_IS_OWN_CASE_MANAGER)
-            is Status.SUCCESS
-        ):
+        # Past the sender guard, an announcement the CASE_MANAGER admits is
+        # its own (SYNC-13-006).
+        if named_node_status(tree, AT_CASE_MANAGER) is Status.SUCCESS:
             return HandlerResult.skipped(
                 f"own announcement of ledger entry '{entry.id_}' echoed back;"
                 " delivery confirmed"
@@ -169,15 +170,11 @@ def _refused_announce_verdict(
             f"ledger entry '{entry.id_}' buffered until case"
             f" '{entry.case_id}' is seeded (SYNC-15-004)"
         )
-    if named_node_status(tree, SENDER_IS_OWN_CASE_MANAGER) is Status.FAILURE:
+    if sender_guard_refused(tree):
         return HandlerResult.refused(
-            f"CASE_MANAGER does not accept an announcement of ledger entry"
-            f" '{entry.id_}' from '{request.actor_id}'"
-        )
-    if named_node_status(tree, SENDER_IS_CASE_MANAGER) is Status.FAILURE:
-        return HandlerResult.refused(
-            f"sender '{request.actor_id}' is not the CaseActor for case"
-            f" '{entry.case_id}' (SYNC-13-006)"
+            f"sender '{request.actor_id}' is not the CASE_MANAGER of case"
+            f" '{entry.case_id}', so its announcement of ledger entry"
+            f" '{entry.id_}' is not accepted (SYNC-13-006, HP-01-006)"
         )
     if node_failed(tree, SendRejectLogEntryNode):
         if node_failed(tree, ReconstructChainTailNode):
@@ -191,84 +188,6 @@ def _refused_announce_verdict(
                 " tail; Reject sent (SYNC-03-001)"
             )
     return None
-
-
-def drain_gap_buffer(
-    dl: CaseOutboxPersistence,
-    case_id: str,
-    receiving_actor_id: str,
-    gap_buffer: LedgerGapBuffer,
-    sync_port: SyncActivityPort | None = None,
-    wire_render_port: WireRenderPort | None = None,
-) -> None:
-    """Apply buffered entries that now extend the local chain, in order.
-
-    After each committed entry, look up the buffered successor keyed by the new
-    tail hash and run the announce BT on it — reusing the exact
-    effects-before-persist path (SYNC-12-001).  Cascades until no buffered entry
-    extends the current tail.  A drained entry that fails to apply is re-buffered
-    so a later retry (or CaseActor replay) can pick it up.
-
-    This is the shared drain used both by the ``Announce(CaseLedgerEntry)``
-    receive path (draining forward gaps once a predecessor lands, SYNC-10-004)
-    and by the ``VulnerabilityCase`` seed path (draining *pre-genesis* entries
-    once the case — and therefore the deterministic per-case genesis hash — is
-    present, SYNC-15-005 / #2186).  In the pre-genesis case the first
-    reconstructed tail is ``(genesis_hash, -1)``, so a buffered genesis entry
-    (``prev_log_hash == genesis_hash``) drains first and the rest cascade.
-
-    A synthetic :class:`AnnounceLogEntryReceivedEvent` is constructed per drained
-    entry so this function has no dependency on an inbound request being in
-    flight; ``actor_id`` is resolved to the CaseActor when known, falling back to
-    ``case_id``.
-    """
-    actor_id = _find_case_actor_id(dl, case_id) or case_id
-    while True:
-        try:
-            tail_hash, _ = _reconstruct_tail_hash(case_id, dl)
-        except VultronValidationError:
-            # No genesis anchor yet — nothing can be drained.
-            return
-        successor = gap_buffer.take_next(case_id, tail_hash)
-        if successor is None:
-            return
-
-        logger.info(
-            "sync: draining buffered entry '%s' (log_index=%d) for case "
-            "'%s' now that its predecessor has arrived",
-            successor.id_,
-            successor.log_index,
-            case_id,
-        )
-        drain_event = AnnounceLogEntryReceivedEvent(
-            activity_id=f"urn:vultron:sync:drain:{successor.id_}",
-            actor_id=actor_id,
-            receiving_actor_id=receiving_actor_id,
-            object_=successor,
-        )
-        # _run_announce_bt delegates to BTBridge.execute_with_setup, which
-        # classifies any node error into a FAILURE result rather than raising
-        # (CONCERN-3019), so the FAILURE branch below owns re-buffering.  A raise
-        # here would be an unclassified bridge-contract violation and must
-        # surface loudly rather than be absorbed (CS-23-001).
-        _, result = _run_announce_bt(
-            dl,
-            drain_event,
-            receiving_actor_id,
-            gap_buffer,
-            sync_port,
-            wire_render_port,
-        )
-        if result.status == Status.FAILURE and dl.read(successor.id_) is None:
-            # Application failed and the entry was not persisted; hold it again
-            # so a future arrival or CaseActor replay can retry.
-            gap_buffer.buffer(successor)
-            logger.warning(
-                "sync: buffered entry '%s' failed to apply on drain — "
-                "re-buffered pending retry",
-                successor.id_,
-            )
-            return
 
 
 class AnnounceLedgerEntryReceivedUseCase:
@@ -287,12 +206,17 @@ class AnnounceLedgerEntryReceivedUseCase:
     Out-of-order delivery is tolerated: a received entry whose predecessor has
     not yet arrived is held in an actor-local
     :class:`~vultron.core.models.ledger_gap_buffer.LedgerGapBuffer` rather than
-    dropped, and buffered successors are drained in hash-chain order as soon as
-    the entry that closes the gap is committed.  This makes convergence
-    independent of ``Announce`` delivery order (issue #1556, SYNC-10-004).
+    dropped.  Once the entry that closes the gap is committed, the tree hands
+    the buffered successor back to this actor's inbox through the injected
+    :class:`~vultron.core.ports.inbox_hand_back.InboxHandBackPort`, as an
+    ``Announce(CaseLedgerEntry)`` from the case's CASE_MANAGER and a delivery
+    of its own; that delivery's tree hands back the next one.  This makes
+    convergence independent of ``Announce`` delivery order (issue #1556,
+    SYNC-10-004) while each delivery still runs exactly one tree
+    (SYNC-14-009, CLP-10-005).
 
     Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-10-004,
-    SYNC-11-003, SYNC-12-001.
+    SYNC-11-003, SYNC-12-001, SYNC-14-009.
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
@@ -308,8 +232,10 @@ class AnnounceLedgerEntryReceivedUseCase:
         gap_buffer: LedgerGapBuffer | None = None,
         wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        inbox_hand_back: InboxHandBackPort | None = None,
     ) -> None:
         self._dl = dl
+        self._inbox_hand_back = inbox_hand_back
         # The received baseline supplies the trigger port to every use case;
         # this one runs no tree that builds an activity, so it is unused.
         del trigger_activity
@@ -335,9 +261,9 @@ class AnnounceLedgerEntryReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        gap_buffer = self._gap_buffer
-        if gap_buffer is None and request.receiving_actor_id:
-            gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
+        gap_buffer = resolve_ledger_gap_buffer(
+            self._gap_buffer, request.receiving_actor_id
+        )
 
         logger.info(
             "sync: received log-entry announcement '%s' for case '%s' "
@@ -354,21 +280,8 @@ class AnnounceLedgerEntryReceivedUseCase:
             gap_buffer,
             self._sync_port,
             self._wire_render_port,
+            self._inbox_hand_back,
         )
-
-        # Whenever an entry is committed, its successor may already be waiting
-        # in the gap buffer; drain the contiguous run keyed on the new tail
-        # (SYNC-10-004).  Draining also runs after a mismatch, in case an
-        # earlier-arrived predecessor is somehow already present.
-        if gap_buffer is not None:
-            drain_gap_buffer(
-                self._dl,
-                entry.case_id,
-                receiving_actor_id,
-                gap_buffer,
-                self._sync_port,
-                self._wire_render_port,
-            )
 
         verdict = _announce_verdict(tree, result, request, entry)
         if verdict.disposition is HandlerDisposition.REFUSED:
@@ -461,7 +374,9 @@ class RejectLedgerEntryReceivedUseCase:
             rejected_entry.case_id,
             request.last_accepted_hash,
         )
-        tree = create_reject_log_entry_tree(rejected_entry.case_id)
+        tree = create_reject_log_entry_tree(
+            rejected_entry.case_id, sender_rule=self.sender_entitlement
+        )
         result = BTBridge(
             datalayer=self._dl,
             sync_port=self._sync_port,

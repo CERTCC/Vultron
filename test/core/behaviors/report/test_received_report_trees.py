@@ -18,7 +18,7 @@
 Covers all four report-lifecycle BTs (issue #759 AC-1 through AC-5):
   - ``CreateReportReceivedBT``    — stores report; intake archives activity
   - ``AckReportReceivedBT``      — intake archives activity; forwards own ack
-  - ``CloseReportReceivedBT``    — intake archives activity; RM → CLOSED
+  - ``CloseReportReceivedBT``    — intake archives activity; refuses on a case
   - ``InvalidateReportReceivedBT`` — intake archives activity; RM → INVALID
 
 Each BT is tested at three levels:
@@ -40,7 +40,6 @@ from vultron.core.behaviors.report.nodes.storage import (
 )
 from vultron.core.behaviors.report.received_report_trees import (
     create_ack_report_received_tree,
-    create_close_report_received_tree,
     create_invalidate_report_received_tree,
     create_report_received_tree,
 )
@@ -587,80 +586,17 @@ class TestAckReportReceivedUseCase:
 
 
 # ---------------------------------------------------------------------------
-# CloseReportReceivedBT (tree factory + use case)
+# CloseReportReceivedUseCase (no tree: every Close(Report) is refused)
 # ---------------------------------------------------------------------------
 
 
-class TestCloseReportReceivedTree:
-    def test_archives_activity_but_gates_the_rm_write_at_a_replica(self, dl):
-        """Intake archives the Reject; the RM write is CASE_MANAGER-gated.
-
-        RSH-08-003 (#3814): ``ACTOR_ID`` here is an ordinary participant, not
-        the case's CASE_MANAGER, so the sender's RM → CLOSED does not run — the
-        replica takes it from the ledger instead.  The transition at the
-        CASE_MANAGER is covered by ``test_report_routing_guard.py`` and
-        ``test_receive_tree_ledger_commit.py``.
-        """
-        _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
-        event = _make_close_report_event()
-        tree = create_close_report_received_tree(event, case_id=CASE_ID)
-        bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
-
-        assert result.status == Status.SUCCESS
-        assert _archived_by_intake(dl, ACTIVITY_ID)
-
-        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
-        p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(CaseParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.INVALID
-
-    def test_no_case_fails_after_storing_activity(self, dl, caplog):
-        """No case linked to report → BT FAILURE, but the activity is stored.
-
-        Previously this soft-passed to SUCCESS.  The RM transition never
-        happened, so reporting success hid the fact that this actor's case
-        replica had not arrived yet (ARCH-15-001, ISSUE-2548).  The stored
-        activity from step 1 is what makes a later retry possible.
-        """
-        event = _make_close_report_event()
-        tree = create_close_report_received_tree(event, case_id=None)
-        bridge = BTBridge(datalayer=dl)
-
-        with caplog.at_level(logging.INFO):
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
-            )
-
-        assert result.status == Status.FAILURE
-        msgs = [r.message for r in caplog.records]
-        assert any(
-            "no vulnerabilitycase for report" in m.lower() for m in msgs
-        )
-        assert _archived_by_intake(dl, ACTIVITY_ID)
-
-    def test_idempotent_rm_transition(self, dl):
-        """Already-CLOSED participant stays CLOSED; BT still SUCCESS."""
-        _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
-        event = _make_close_report_event()
-        bridge = BTBridge(datalayer=dl)
-
-        for _ in range(2):
-            tree = create_close_report_received_tree(event, case_id=CASE_ID)
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
-            )
-            assert result.status == Status.SUCCESS
-
-
 class TestCloseReportReceivedUseCase:
-    def test_use_case_archives_activity_but_gates_the_rm_write(self):
-        """Use case delegates to BT; activity stored, RM write CASE_MANAGER-gated.
+    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.spec("CLP-10-018")
+    def test_use_case_archives_and_refuses_a_close_on_a_case(self):
+        """A ``Close(Report)`` for a report a case holds is refused, archived.
 
-        RSH-08-003 (#3814): a non-manager receiver writes no RM state; the
-        transition at the CASE_MANAGER is covered elsewhere.
+        No receiver applies one (CM-23-019), so the sender's RM does not move.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -668,8 +604,9 @@ class TestCloseReportReceivedUseCase:
         )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
-        CloseReportReceivedUseCase(dl, event).execute()
+        result = CloseReportReceivedUseCase(dl, event).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
         assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
@@ -680,12 +617,15 @@ class TestCloseReportReceivedUseCase:
         """Use case ledgers WARNING when no case is found for the report.
 
         The BT now returns FAILURE rather than soft-passing (ISSUE-2548), so the
-        use case's non-SUCCESS branch is what surfaces the diagnostic.
+        use case's non-SUCCESS branch is what surfaces the diagnostic.  The
+        sender is an addressee of the recorded Offer, the pre-case standing
+        (CM-23-019), so the refusal is the unknown case's.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
         )
+        _record_offer_to_sender(dl)
         event = _make_close_report_event()
 
         with caplog.at_level(logging.WARNING):
@@ -716,7 +656,11 @@ class TestInvalidateReportReceivedTree:
         """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, case_id=CASE_ID)
+        tree = create_invalidate_report_received_tree(
+            event,
+            case_id=CASE_ID,
+            sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -739,7 +683,11 @@ class TestInvalidateReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, case_id=None)
+        tree = create_invalidate_report_received_tree(
+            event,
+            case_id=None,
+            sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -762,7 +710,9 @@ class TestInvalidateReportReceivedTree:
 
         for _ in range(2):
             tree = create_invalidate_report_received_tree(
-                event, case_id=CASE_ID
+                event,
+                case_id=CASE_ID,
+                sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
             )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
@@ -812,3 +762,26 @@ class TestInvalidateReportReceivedUseCase:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in warn_msgs
         )
+
+
+def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
+    """An Invalidate(Report) tree resolves the case, checks the sender,
+    then runs the CASE_MANAGER's clock decisions, the embargo end-time check
+    among them, before its guards (HP-01-008, CLP-10-025, EMB-13-003).
+
+    A ``Close(Report)`` tree has no guards to run them before: it refuses
+    every sender on a case (CM-23-019).
+    """
+    tree = create_invalidate_report_received_tree(
+        _make_invalidate_report_event(),
+        case_id=CASE_ID,
+        sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+    )
+    assert [c.name for c in tree.children[:6]] == [
+        "IntakeReceivedActivityNode",
+        "CaseOpenToExternalWrites",
+        "RequireCaseForReport",
+        "SenderIsParticipantNode",
+        "ClockDecisionsIfCaseManager",
+        "PreconditionGuardStage",
+    ]

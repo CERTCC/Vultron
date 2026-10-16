@@ -283,7 +283,7 @@ groups:
       confirm an activation on a public case (P set) is refused before commit, and that
       the CASE_MANAGER answers a participant's acceptance with ER; inspection confirms
       both refusals test all three bits (`pxa_is_embargo_eligible` in the owner's
-      decision, `pxa_embargo_ineligible` on a participant's acceptance), so X or A set
+      decision, `PxaBarsEmbargoNode` on a participant's acceptance), so X or A set
       refuses the activation as P does.
     statement: >-
       A Participant MUST NOT process EA to transition EM to Active when the case is already
@@ -491,6 +491,11 @@ groups:
       shows a recorded P, X or A state tearing down the active embargo, and
       `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_revision_of_a_public_case_is_refused_with_er`
       shows a revision proposal on a public case refused with ER and not adopted.
+      `test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo`, in
+      the same file, covers the race: a revision that reaches the CASE_MANAGER
+      at `ACTIVE` or `REVISE` with P, X or A already recorded is refused
+      (EP-09-001) and ends nothing, and the embargo ends only when the cascade
+      runs, with the threat signal as its cause.
     testable: true
     preconditions:
     - em_state:
@@ -594,8 +599,11 @@ groups:
       immediately rather than reverting to Active.
     rationale: >-
       Reverting to Active is not viable once public disclosure has occurred.
-      VP-11-002 requires termination in these states. Embargo termination takes
-      precedence over the revision rejection.
+      VP-11-002 requires termination in these states. "Rather than reverting"
+      describes where the act ends: EM ends EXITED, never back in Active. Inside
+      the act, the CASE_MANAGER records the rejection as decided (the revision
+      REJECTED) and then terminates the embargo, as two entries a replica copies
+      in order (MSM-07-009, CM-23-016).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
       with a public/exploit/attack CS causes ET to be emitted and EM to transition

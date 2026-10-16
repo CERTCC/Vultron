@@ -21,7 +21,7 @@ This demo script showcases the Report Management (RM) process:
 1. Engage Path: submit → validate → create_case → engage → close
 2. Defer and Re-engage Path: submit → validate → create_case →
    defer → re-engage → close
-3. Invalidate Path: submit → invalidate → close_report
+3. Invalidate Path: submit → invalidate → close the case (Leave)
 
 The manage_case workflow corresponds to:
     docs/howto/activitypub/activities/manage_case.md
@@ -35,7 +35,6 @@ Key activities demonstrated:
 - RmEngageCaseActivity (as:Join) — actor actively engages the case (RM → ACCEPTED)
 - RmDeferCaseActivity (as:Ignore) — actor defers the case (RM → DEFERRED)
 - RmCloseCaseActivity (as:Leave) — actor closes the case (RM → CLOSED)
-- RmCloseReportActivity (as:Reject) — vendor closes an invalid report
 
 Note on re-engagement:
 Per implementation notes, re-engaging a deferred case is done by sending
@@ -48,7 +47,7 @@ When run as a script, this module will:
    - demo_engage_path: submit → validate → create_case → engage → close
    - demo_defer_reengage_path: submit → validate → create_case →
      defer → re-engage → close
-   - demo_invalidate_path: submit → invalidate → close_report
+   - demo_invalidate_path: submit → invalidate → close the case (Leave)
 3. Verify side effects in the data layer for each workflow
 """
 
@@ -61,6 +60,7 @@ from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     submit_validate_and_create_case,
     verify_reporter_trusts_introduction,
+    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -77,7 +77,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.wire.as2.factories import (
     rm_close_case_activity,
-    rm_close_report_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
     rm_invalidate_report_activity,
@@ -269,18 +268,20 @@ def demo_invalidate_path(
     coordinator: as_Actor | None = None,
 ):
     """
-    Demonstrates the invalidation path: submit → invalidate → close_report.
+    Demonstrates the invalidation path: submit → invalidate → close.
 
-    When a report is invalid, a case is not created. Instead the vendor
-    closes the report directly after invalidation.
+    The vendor opened a case for the report on receipt, so once the report is
+    invalid the vendor, as Case Owner, closes that case with
+    ``Leave(VulnerabilityCase)``: no actor sends ``Close(Report)`` for a
+    report a case holds (CM-23-019).  The case is never engaged.
 
     Workflow steps:
     1. Finder submits a report to the vendor
     2. Vendor invalidates the report (RmInvalidateReportActivity — RM → INVALID)
-    3. Vendor closes the report (RmCloseReportActivity — RM → CLOSED)
+    3. Vendor closes the case (RmCloseCaseActivity — as:Leave)
     """
     logger.info("=" * 80)
-    logger.info("DEMO 3: Invalidate Path (submit → invalidate → close_report)")
+    logger.info("DEMO 3: Invalidate Path (submit → invalidate → close case)")
     logger.info("=" * 80)
 
     report = offer = None
@@ -316,15 +317,12 @@ def demo_invalidate_path(
         with demo_check("RmInvalidateReportActivity activity stored"):
             verify_object_stored(client, invalidate.id_)
 
-    with demo_step("Step 3: Vendor closes the report (RmCloseReportActivity)"):
-        close_report = rm_close_report_activity(
-            stored_offer,
-            actor=vendor.id_,
-            content="Report closed — assessed as not a valid vulnerability.",
-        )
-        post_to_inbox_and_wait(client, vendor.id_, close_report)
-        with demo_check("RmCloseReportActivity activity stored"):
-            verify_object_stored(client, close_report.id_)
+    with demo_step("Step 3: Vendor closes the case (RmCloseCaseActivity)"):
+        case = wait_for_case_for_offer(client, stored_offer.id_)
+        close = rm_close_case_activity(case, actor=vendor.id_)
+        post_to_inbox_and_wait(client, vendor.id_, close)
+        with demo_check("RmCloseCaseActivity activity stored"):
+            verify_object_stored(client, close.id_)
 
     # The case was created on receipt (auto_create_case), so the vendor still
     # introduces it to the finder (CBT-01-001); it is never engaged.

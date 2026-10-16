@@ -33,6 +33,9 @@ from test.architecture import _corpus
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 
 _CLOSURE_NAMES = ("rm_closure_path", "RMClosureWriter")
 
@@ -90,7 +93,9 @@ def test_no_ledger_replay_node_walks_the_closure_path() -> None:
     vultron_root = _corpus.REPO_ROOT / "vultron"
     modules = {
         Path(module)
-        for node in create_announce_log_entry_tree().iterate()
+        for node in create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ).iterate()
         if (module := inspect.getsourcefile(type(node))) is not None
         and Path(module).is_relative_to(vultron_root)
     }

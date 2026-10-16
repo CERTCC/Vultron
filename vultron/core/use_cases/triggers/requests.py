@@ -49,12 +49,11 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AddOnBehalfStatusRequest,
     AddReportToCaseRequest,
     CaseTriggerRequest,
-    CloseCaseRequest,
-    CloseReportRequest,
     CreateCaseRequest,
     FullCaseInviteReplyRequest,
     InvalidateReportRequest,
     InviteActorToCaseRequest,
+    LeaveCaseRequest,
     OfferCaseOwnershipTransferRequest,
     OfferCaseParticipantRoleRequest,
     ProposeEmbargoRequest,
@@ -150,10 +149,6 @@ class RejectReportTriggerRequest(OfferTriggerRequest):
     note: NonEmptyString | None = None
 
 
-class CloseReportTriggerRequest(OfferTriggerRequest, CloseReportRequest):
-    pass
-
-
 class SubmitReportTriggerRequest(
     TriggerRequest[OfferResult], SubmitReportRequest
 ):
@@ -177,14 +172,14 @@ class DeferCaseTriggerRequest(
 
 
 class LeaveCaseTriggerRequest(
-    TriggerRequest[ActivityResult], CloseCaseRequest
+    TriggerRequest[ActivityResult], LeaveCaseRequest
 ):
     """Trigger request for an actor to send Leave(VulnerabilityCase).
 
     Routes ``Leave(VulnerabilityCase)`` to the Case Actor inbox so the
     Case Actor can commit a ``close_case`` ledger entry and broadcast it
-    to all participants (ADR-0050).  The demo ``close-case`` route's body is
-    ``CloseCaseRequest``.
+    to all participants (ADR-0050).  The ``leave-case`` route's body is
+    ``LeaveCaseRequest`` (TRIG-13-001).
     """
 
 
@@ -453,7 +448,6 @@ __all__ = [
     "AddParticipantStatusTriggerRequest",
     "AddReportToCaseTriggerRequest",
     "CaseTriggerRequest",
-    "CloseReportTriggerRequest",
     "CreateCaseTriggerRequest",
     "DeferCaseTriggerRequest",
     "RejectFullCaseInviteTriggerRequest",

@@ -26,8 +26,13 @@ from test.core.use_cases.received.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIIngressAdapter,
+)
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
@@ -35,6 +40,7 @@ from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -52,8 +58,10 @@ _OWNER = "https://example.org/actors/case-owner"
 class TestNoteUseCases:
     """Tests for note management handlers."""
 
-    def test_create_note_stores_note(self, monkeypatch, make_payload):
-        """create_note persists the Note to the DataLayer."""
+    @pytest.mark.spec("HP-01-008")
+    def test_create_note_naming_no_case_is_refused(self, make_payload):
+        """No sender has standing outside a case, so a note naming none is
+        refused and not stored (HP-01-006, HP-01-008)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -76,21 +84,28 @@ class TestNoteUseCases:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        assert result.disposition == HandlerDisposition.APPLIED
-
-        stored = dl.get(note.type_.value, note.id_)
-        assert stored is not None
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.get(note.type_.value, note.id_) is None
 
     def test_create_note_idempotent(self, monkeypatch, make_payload):
-        """create_note skips storing a duplicate Note."""
+        """A redelivered Create(Note) stores and attaches the note once."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_cn0",
+            name="Idempotent Create Case",
+            attributed_to="https://example.org/users/vendor",
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_participant(dl, case, "https://example.org/users/finder")
+        dl.create(case)
 
         note = as_Note(
             id_="https://example.org/notes/note2",
             content="Duplicate note",
+            context=case.id_,
         )
         activity = as_Create(
             actor="https://example.org/users/finder",
@@ -98,16 +113,18 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        dl.create(note)
-        CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        for _ in range(2):
+            result = CreateNoteReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+            assert result.disposition == HandlerDisposition.APPLIED
 
-        stored = dl.get(note.type_.value, note.id_)
-        assert stored is not None
+        assert dl.get(note.type_.value, note.id_) is not None
+        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.notes.count(note.id_) == 1
 
     @pytest.mark.spec("CLP-07-013")
     def test_create_note_attaches_to_case_when_context_set(
@@ -128,6 +145,8 @@ class TestNoteUseCases:
         # RSH-08-003/#3814: attaching the note to the case is now
         # CASE_MANAGER-gated, so the store's own actor must hold the role.
         seed_store_owner_as_case_manager(dl, case)
+        # The sender posts as an active participant (CM-23-018).
+        seed_case_participant(dl, case, "https://example.org/users/finder")
         dl.create(case)
 
         note = as_Note(
@@ -173,8 +192,11 @@ class TestNoteUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn2",
             name="Idempotent Case",
+            attributed_to="https://example.org/users/vendor",
             notes=[note_id],
         )
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_participant(dl, case, "https://example.org/users/finder")
         dl.create(case)
 
         note = as_Note(
@@ -188,13 +210,14 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(
+        result = CreateNoteReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+        assert result.disposition == HandlerDisposition.APPLIED
         refreshed = dl.read(case.id_)
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
@@ -233,6 +256,9 @@ class TestNoteUseCases:
         dl.create(case_mgr_participant)
         case.case_participants.append(case_mgr_participant.id_)
         case.actor_participant_index[case_actor_id] = case_mgr_participant.id_
+        # The tests' sender attaches notes as an active participant
+        # (CM-23-018, HP-01-006).
+        seed_case_participant(dl, case, "https://example.org/users/finder")
         dl.create(case)
         return case
 
@@ -272,6 +298,188 @@ class TestNoteUseCases:
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
         assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("VAM-01-010")
+    def test_add_note_to_case_stores_the_inline_note(self, make_payload):
+        """An Add(Note) carrying a note the CASE_MANAGER has never seen
+        stores that note, then attaches it (#4706): the case never names a
+        note its own store cannot read."""
+        case_actor_id = "https://example.org/cases/case_n1b/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1b"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note = as_Note(
+            id_="https://example.org/notes/note3b",
+            content="Carried inline",
+            context=case_id,
+        )
+        assert dl.read(note.id_) is None
+
+        event = make_payload(
+            add_note_to_case_activity(
+                note, target=case, actor="https://example.org/users/finder"
+            ),
+            receiving_actor_id=case_actor_id,
+        )
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        stored = dl.read(note.id_)
+        assert stored is not None
+        assert getattr(stored, "content", None) == "Carried inline"
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note.id_ in refreshed.notes
+
+    @pytest.mark.spec("HP-08-006")
+    def test_add_note_to_case_refuses_to_overwrite_a_different_note(
+        self, make_payload
+    ):
+        """An Add(Note) whose note id already names a different stored note
+        is refused before the commit: the stored note keeps its content, the
+        case does not gain the id, and no ledger entry is written (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1c/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1c"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3c"
+        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        event = make_payload(
+            add_note_to_case_activity(
+                as_Note(id_=note_id, content="Rewritten", context=case_id),
+                target=case,
+                actor="https://example.org/users/finder",
+            ),
+            receiving_actor_id=case_actor_id,
+        )
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert getattr(dl.read(note_id), "content", None) == "Original"
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note_id not in refreshed.notes
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
+    @pytest.mark.spec("HP-08-006")
+    def test_add_note_through_ingress_keeps_the_stored_note(self):
+        """The conflicting Add of the test above, sent through the inbox
+        ingress: ingress keeps the stored note and the rehydrated Add holds
+        it, so the stored note is never replaced (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1d/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1d"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3d"
+        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
+
+        activity = add_note_to_case_activity(
+            as_Note(id_=note_id, content="Rewritten", context=case_id),
+            target=case,
+            actor="https://example.org/users/finder",
+        )
+        ingress = FastAPIIngressAdapter(dl)
+        parsed = ingress.parse(
+            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
+        )
+        assert parsed is not None
+        event = extract_event(ingress.rehydrate(parsed)).model_copy(
+            update={"receiving_actor_id": case_actor_id}
+        )
+        assert isinstance(event, AddNoteToCaseReceivedEvent)
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert getattr(dl.read(note_id), "content", None) == "Original"
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("VAM-01-010")
+    def test_add_reply_note_through_ingress_is_applied(self):
+        """A reply note sent through the inbox ingress is stored and attached
+        with its ``in_reply_to``: the event carries the note as received, so
+        the guard sees the same note ingress stored (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1f/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1f"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3f"
+        replied_to = "https://example.org/notes/note3f-question"
+
+        activity = add_note_to_case_activity(
+            as_Note(
+                id_=note_id,
+                content="An answer",
+                context=case_id,
+                attributed_to="https://example.org/users/finder",
+                in_reply_to=replied_to,
+            ),
+            target=case,
+            actor="https://example.org/users/finder",
+        )
+        ingress = FastAPIIngressAdapter(dl)
+        parsed = ingress.parse(
+            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
+        )
+        assert parsed is not None
+        event = extract_event(ingress.rehydrate(parsed)).model_copy(
+            update={"receiving_actor_id": case_actor_id}
+        )
+        assert isinstance(event, AddNoteToCaseReceivedEvent)
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert _as_id(getattr(dl.read(note_id), "in_reply_to", None)) == (
+            replied_to
+        )
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note_id in refreshed.notes
+
+    @pytest.mark.spec("HP-01-005")
+    def test_add_note_without_an_inline_note_is_refused(self, make_payload):
+        """An Add(Note) event with no note object is refused before any
+        tree runs: there is no note to store or attach (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1e/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1e"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        event = make_payload(
+            add_note_to_case_activity(
+                as_Note(id_="https://example.org/notes/note3e", content="x"),
+                target=case,
+                actor="https://example.org/users/finder",
+            ),
+            receiving_actor_id=case_actor_id,
+        ).model_copy(update={"object_": None})
+
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "inline note" in result.reason
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """CaseActor skips adding a note already in the case (idempotent)."""
@@ -597,15 +805,17 @@ class TestNoteUseCases:
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
-    def test_create_note_for_unknown_case_writes_no_attachment(
-        self, make_payload
-    ):
-        """A Create(Note) whose context names a case this actor lacks attaches
-        nothing: the receiver is not that case's CASE_MANAGER (and does not
-        even hold it), so the attach is gated out (RSH-08-003, #3814).  The
-        Note object is still archived; the attachment, if any, arrives through
-        the case's ledger.  No Regime-1 anomaly is logged for the absent case
-        (manager_case_may_be_absent, ADR-0087 Regime 3)."""
+    @pytest.mark.spec("PCR-03-001")
+    def test_create_note_for_unknown_case_is_refused(self, make_payload):
+        """A Create(Note) whose context names a case this actor lacks is
+        refused: the store cannot tell whether the sender is that case's
+        CASE_MANAGER, from whom alone a replica takes case content
+        (PCR-03-001).  Nothing is stored, and the Create is archived
+        (CLP-10-018)."""
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -627,10 +837,11 @@ class TestNoteUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        # Nothing was attached (the case is absent and the actor is not its
-        # CASE_MANAGER); the tree still succeeds, writing no case state.
-        assert result.disposition == HandlerDisposition.APPLIED
-        assert dl.read("https://example.org/cases/no-such-case") is None
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "holds no case" in result.reason
+        assert dl.read(note.id_) is None
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
     def test_add_note_to_unknown_case_is_refused(self, make_payload):
@@ -694,12 +905,10 @@ class TestNoteUseCases:
             name="Log Entry Cascade Case",
             attributed_to=author_id,
         )
-        case.actor_participant_index[author_id] = (
-            "https://example.org/participants/p-le1-vendor"
-        )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-le1-finder"
-        )
+        # The sender attaches the note as an active participant
+        # (CM-23-018, HP-01-006).
+        seed_case_participant(dl, case, author_id)
+        seed_case_participant(dl, case, participant_id)
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -786,12 +995,10 @@ class TestNoteUseCases:
             name="No Sync Port Case",
             attributed_to=author_id,
         )
-        case.actor_participant_index[author_id] = (
-            "https://example.org/participants/p-le2-vendor"
-        )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-le2-finder"
-        )
+        # The sender attaches the note as an active participant
+        # (CM-23-018, HP-01-006).
+        seed_case_participant(dl, case, author_id)
+        seed_case_participant(dl, case, participant_id)
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (

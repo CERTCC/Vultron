@@ -44,10 +44,18 @@ class CreateProcessingFaultReceivedUseCase:
     """Log a received Create(ProcessingFault) NACK.
 
     Full ask-register correlation (AC-8) is deferred to issue #2883.
+
+    No sender check gates anything yet: the handler archives the fault, as
+    every received tree does before its guards (CLP-10-018), logs it and
+    reports ``SKIPPED``, committing, writing and sending nothing.  The
+    CASE_MANAGER's re-seed on a case-diverged fault (SYNC-16-003) is the first
+    effect a fault will have, and its sender rule lands with it in #4799.
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for fault handling"
+        "#4799",
+        "a fault changes nothing until the case-diverged re-seed (SYNC-16-003)"
+        " acts on it; that issue declares the sender rule",
     )
 
     def __init__(

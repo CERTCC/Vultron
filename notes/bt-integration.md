@@ -234,6 +234,8 @@ Two shapes look like a second tree and are not:
 - **A drained gap-buffer entry** is another delivery: hand it back to the
   receiving actor's inbox, never run its tree inline or from a node — a bridge
   run nested in a node hides the inner tree's internal error (SYNC-14-009).
+  `HandBackBufferedSuccessorNode` does this through `InboxHandBackPort`, passed
+  to the bridge as the `inbox_hand_back` context key; the port only queues.
 
 ### The Received-Side Stages (ADR-0111, ADR-0135)
 
@@ -255,7 +257,8 @@ guards, commit, effects.
    effect node after the guards, because a stored case row *is* the replica
    (PCR-03-004, CBT-01-005).
 2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
-   addressee check (HP-01-005) and the sender guard (HP-01-006).
+   addressee check (HP-01-005), the closed-sender door (CM-23-018) and the
+   sender guard (HP-01-006).
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
    (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
@@ -263,17 +266,33 @@ guards, commit, effects.
    no commit, effect, or emit runs; on every other store it passes, so replicas
    keep applying the closure fan-out. The handler verdict comes from
    `post_close_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
-   `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. The one-node
-   pre-tree runs in `_sender_preflight.py` (`door_refusal`, which runs
-   `post_close_refusal_before_tree`, `unaddressed_copy_refusal` and
-   `rule_refusal` in that order, and `repeat_answer_skip`) are the chained
-   shape CLP-10-005
-   forbids; compose their guard into the tree, never add a caller. A tree
-   opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
-   nodes that answer the refusal; only the close-case tree passes one
-   (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other
-   late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
-   check and the sender guard follow.
+   `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
+   door guard as a one-node tree ahead of the received tree: that is the
+   chained shape CLP-10-005 forbids (ADR-0135). A tree opts out only with a
+   `PostCloseExemption`. `post_close_reply` takes emit-only nodes that answer
+   the refusal; only the close-case tree passes one (`Reject(Leave)` under
+   `ActorConfig.post_close_reply = reject`). Every other late activity is
+   dropped with no reply (ADR-0131, CM-23-017). The addressee check, the
+   closed-sender door and the sender guard follow.
+
+   A tree whose sender may already be closed on the case and whose answer must
+   be told apart (a `Leave`, a stub or full-case Invite reply) passes
+   `closed_sender=ClosedSenderCheck(...)`: the factory places the door after the
+   addressee check, so a sender the case records as closed stops the tree with
+   nothing committed or sent. The handler asks `closed_sender_verdict()`
+   (`_bt_verdict.py`) before reading any other refusal: `SKIPPED` for a repeat of
+   a closing act, `REFUSED` for anything else (CM-23-018, ID-05-003). Declare it
+   on the tree; never run the check as a tree of its own or write it per handler.
+
+   When the case the sender is checked against is resolved at run time, the
+   guard still comes from the factory (HP-01-008). Pass the read-only
+   `CaseResolving` steps that resolve it as `case_resolution`; they run just
+   before the guard, so an unknown case is refused as such (#2255). The report
+   verdicts pass `RequireCaseForReport`. A ledger activity's tree passes a
+   `LedgerActivityContext` instead: its nodes read the case from the entry the
+   activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never
+   place a sender check after a write: a snapshot an activity carries is
+   stored only once its sender is admitted (the Engage tree, HP-01-006).
 3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock
    or policy before judging the activity: an expiry, or the embargo end-time
    check (CLP-10-025). It runs after the door guards, so an unentitled sender
@@ -336,9 +355,11 @@ runs something before intake. A tree that needs a branch ahead of the receipt
 commit uses an outer factory with `case_id=None` (intake, no commit) and an
 inner factory per arm that commits; the inner intake finds the archive and
 writes nothing. Intake archives nothing when the event carries no activity, so
-a semantic-registry entry must set `include_activity=True`. A handler that
-turns a delivery away before it can build its tree uses `refuse_after_intake`
-(`use_cases/received/_intake_only.py`).
+a semantic-registry entry must set `include_activity=True`. An activity that
+lacks a value its tree needs to be built (a case id, a participant id) is
+refused inside the one tree: its factory returns
+`create_incomplete_activity_received_tree` (intake, then an
+`ActivityIncompleteNode` guard), never a separate refusal run (CLP-10-005).
 
 **The factory commits only when given a `case_id`**, and CLP-10-013 requires a
 commit exactly when the received `(type, object)` pair is a canonical payload

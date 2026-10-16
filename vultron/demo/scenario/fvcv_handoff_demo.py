@@ -684,9 +684,9 @@ def _phase_notes_exchange(
 ) -> tuple[as_Note | None, as_Note | None, as_Note | None, as_Note | None]:
     """Run a four-way note exchange among all participants.
 
-    Emits ``create_note`` events into the canonical case ledger,
+    Emits ``add_note_to_case`` events into the canonical case ledger,
     exercising the note-threading path and satisfying the universal
-    ``create_note`` invariant asserted by the case-ledger harness.
+    ``add_note_to_case`` invariant asserted by the case-ledger harness.
     """
     logger.info("─" * 80)
     logger.info("Phase 4b: Notes exchange")

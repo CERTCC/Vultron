@@ -13,13 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A case with a CASE_MANAGER participant, for sender-side trigger tests.
+"""A case with a CASE_MANAGER participant, for tests that need one named.
 
 Triggers routed through ``sender_side_bt`` address the CASE_MANAGER alone
 (PCR-08-005) and fail fast when the case has none, so their tests need a case
 that names one.
 """
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import DataLayer
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -38,6 +39,23 @@ def make_case_with_case_manager(
 ) -> as_VulnerabilityCase:
     """Store and return a case whose only participant is its CASE_MANAGER."""
     case = as_VulnerabilityCase(name="Test Case")
+    add_case_manager_participant(dl, case, case_manager_id)
+    return case
+
+
+def add_case_manager_participant(
+    dl: DataLayer, case: VulnerabilityCase, case_manager_id: str
+) -> None:
+    """Give *case* a CASE_MANAGER participant for *case_manager_id*.
+
+    The participant is new, so it is created (a duplicate id raises); the
+    case may already be stored, so it is saved.
+
+    A replica names its CASE_MANAGER on the roster from the moment it is
+    seeded (CP-09-004), and code that must attribute something to the
+    CASE_MANAGER reads it there, so a test case that stands in for a seeded
+    replica needs the record.
+    """
     participant = as_CaseParticipant(
         attributed_to=case_manager_id,
         context=case.id_,
@@ -45,6 +63,5 @@ def make_case_with_case_manager(
     )
     case.actor_participant_index[case_manager_id] = participant.id_
     case.case_participants.append(participant.id_)
-    dl.create(case)
+    dl.save(case)
     dl.create(participant)
-    return case

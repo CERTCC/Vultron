@@ -157,10 +157,11 @@ def _is_foreign_authority(actor_id: str, base_url: str | None) -> bool:
     """Return ``True`` when *actor_id* is under a different authority than this node.
 
     A foreign-authority id carries a scheme but names a process on another host.
-    ``canonical_actor_uri`` passes these through unchanged
-    (ADR-0073#peer-records-in-knowers-store), but ``POST /actors/`` must
-    reject them: peers are address-book entries in a hosted actor's own store, not
-    hosted actors in their own right (ADR-0081).
+    ``canonical_actor_uri`` strips the trailing slash from any scheme-bearing id
+    (OID-01-005) but preserves the authority (netloc) intact
+    (ADR-0073#peer-records-in-knowers-store).  ``POST /actors/`` must still reject
+    foreign-authority ids: peers are address-book entries in a hosted actor's own
+    store, not hosted actors in their own right (ADR-0081).
 
     Args:
         actor_id: The already-canonicalized actor URI.
@@ -199,11 +200,12 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     ``make_id("actors")`` here did not work: it builds on ``adapters.utils
     .BASE_URL`` rather than ``ServerConfig.base_url``, yielding
     ``…/api/actors/{uuid}`` — no ``v2`` segment — and because that value already
-    carries a scheme, ``canonical_actor_uri`` returns it verbatim instead of
-    adopting it. The record's id then named an endpoint this node does not serve,
-    so its store was reachable under one id and ``GET /actors/{slug}`` resolved to
-    another. Handing the canonicalizer a bare slug is what makes the id and the
-    serving endpoint the same string by construction (ADR-0073#url-segment-computed-not-looked-up).
+    carries a scheme, ``canonical_actor_uri`` normalises it (strips trailing slash)
+    but does not adopt a different base, so the record's id named an endpoint this
+    node does not serve; its store was reachable under one id and
+    ``GET /actors/{slug}`` resolved to another. Handing the canonicalizer a bare
+    slug is what makes the id and the serving endpoint the same string by
+    construction (ADR-0073#url-segment-computed-not-looked-up).
 
     A client-supplied id under a **foreign** authority is rejected with 422.
     Peers are not hosted actors — they are address-book entries inside each hosted

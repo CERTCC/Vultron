@@ -66,6 +66,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import VultronNotFoundError
 
@@ -183,8 +184,12 @@ class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
     FAILURE when :class:`EvaluateInviteExpiryNode`, the Accept tree's clock
     decision, found the invitee's deadline passed: the Accept is late, so the
     normal answer path must not record it, whether or not the expiry entry
-    could be committed (CLP-10-025).  The handler then routes the late
-    Accept by its compatibility with the case's embargo (EMB-17-001).
+    could be committed (CLP-10-025).  The Accept tree's late-Accept
+    diversions route a late Accept by its compatibility with the case's
+    embargo ahead of this guard
+    (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`,
+    EMB-17-001, CLP-10-026); this guard is the backstop that keeps it from
+    being recorded as an answer.
     SUCCESS otherwise, including on a store that is not the CASE_MANAGER,
     where the decision does not run and *result_out* stays unset.
     Read-only.
@@ -242,7 +247,8 @@ class _RecordedActFromLedgerNode(_LedgerEffectNode):
         case = self._resolve_case_replica(entry.case_id)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
-        actor_id = _extract_id_from_field(entry.payload_snapshot.get("actor"))
+        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
+        actor_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         embargo_id = _snapshot_embargo_id(entry.payload_snapshot)
         if not actor_id or not embargo_id:
             self.feedback_message = (
@@ -298,7 +304,7 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
         # accepter is the Accept's own actor (EMB-17-004, CLP-07-013).
         late_accept = entry.payload_snapshot.get("object")
         invitee_id = (
-            _extract_id_from_field(late_accept.get("actor"))
+            snapshot_actor_id(late_accept.get("actor"))
             if isinstance(late_accept, dict)
             else None
         )

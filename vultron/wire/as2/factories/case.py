@@ -313,10 +313,9 @@ def create_note_activity(note: as_Note, **kwargs) -> as_Create:
     """Build a ``Create(Note)``.
 
     The case the note belongs to is the note's own ``context``, so the
-    ``Create`` takes no ``target``: a receiver that holds the case attaches
-    the note from its ``context`` (CM-06).  ``Add(Note, target=Case)``
-    (:func:`add_note_to_case_activity`) is the message for attaching a note
-    that already exists.
+    ``Create`` takes no ``target``.  No emitter in this codebase sends it:
+    a note is sent inline on the single ``Add(Note, target=Case)`` that
+    attaches it (:func:`add_note_to_case_activity`, VAM-01-010).
 
     Args:
         note: The ``as_Note`` being created.
@@ -345,8 +344,13 @@ def add_note_to_case_activity(
 ) -> as_Add:
     """Build an Add(Note, target=as_VulnerabilityCase).
 
+    The note travels inline as the ``Add``'s ``object``: the ``object``
+    field takes an ``as_Note`` and refuses a URI or a ``Link``, so this is
+    the single message that both brings the note to its receiver and
+    attaches it to the case (VAM-07-002, VAM-01-010).
+
     Args:
-        note: The ``as_Note`` to add to the case.
+        note: The ``as_Note`` to add to the case, carried inline.
         target: The ``as_VulnerabilityCase`` (or its URI) to which the
             note is being added.
         **kwargs: Optional AS2 fields forwarded to the constructor

@@ -54,14 +54,15 @@ actor or two (CM-02-010).
 ## A Seeding Announce Needs a Locally Derived Anchor (PCR-03-004)
 
 A participant MUST NOT create a replica from an arbitrary
-`Announce(VulnerabilityCase)`. `_sender_is_trusted()` in
-`vultron/core/use_cases/received/actor/announce.py` admits the sender only
-against an anchor the receiver derived itself:
+`Announce(VulnerabilityCase)`. The use case declares
+`SenderRule.in_case(CASE_MANAGER)`, and the announce tree passes
+`case_manager_anchored=True`, so the composed `SenderIsCaseManagerNode` admits
+the sender only against an anchor the receiver derived itself (HP-01-008):
 
 1. **Report path**: a completed `VultronReportCaseLink` recording
-   `case_manager_id` (written on the creator-signed `Create(VulnerabilityCase)`),
-   or the CASE_MANAGER role-holder on an existing replica (`_find_case_actor_id()`,
-   `vultron/core/use_cases/_helpers.py`).
+   `case_manager_id` (written on the creator-signed `Create(VulnerabilityCase)`).
+   It comes first because ordinary case traffic never replaces it (CBT-02-003).
+   Else the CASE_MANAGER role-holder on an existing replica.
 2. **Invite path**: a `VultronPendingCaseInbox` anchor written when the receiver
    processed `InviteActorToCase` (`RecordInviteTrustAnchorNode`, #4185). It is
    written only if the Invite's `object` is the receiving actor; it binds to the

@@ -20,9 +20,12 @@ type).
 
 **Design note — no autonomous close path**
 
-Case closure in Vultron is always Case Owner-triggered: the Case Owner (or
-Case Manager acting on their behalf) issues a ``Leave(VulnerabilityCase)``
-activity, which flows through :func:`create_close_case_trigger_tree`.
+Case closure in Vultron is always Case Owner-triggered: the Case Owner issues
+a ``Leave(VulnerabilityCase)`` activity through the ``leave-case`` trigger
+(:class:`~vultron.core.use_cases.triggers.case.leave.SvcLeaveCaseUseCase`,
+TRIG-13-001), as does any participant leaving the case.  Calling that trigger
+is the decision ``OtherCloseCriteriaMet`` used to ask for, so the call-out is
+superseded (ADR-0145) and stays here unwired.
 There is no autonomous close path because:
 
 - Standard simulator closure criteria (CS.DEPLOYED, RM.DEFERRED, RM.INVALID)
@@ -37,8 +40,8 @@ objective close conditions are met, and posts an observational note to the
 Case Owner.  The Case Owner then issues the ``Leave`` voluntarily.
 
 ``PreCloseAction`` (the pre-close Actuator) is wired in
-:func:`create_close_case_trigger_tree` (completed in #1854), between the
-``CheckReportNotClosed`` guard and ``TransitionRMtoClosed``.
+:func:`~vultron.core.behaviors.case.leave_case_trigger_tree.create_leave_case_trigger_tree`,
+after its embargo guard and before the Leave is sent (TRIG-13-002).
 
 Nodes hosted here
 -----------------
@@ -81,10 +84,11 @@ def create_close_report_tree(
     injection seam for a future Close Readiness Monitoring Sentinel.  The
     DETERMINISTIC default (``AlwaysFail``) is correct: this tree should not
     fire unless a real Sentinel backend is injected — case closure is always
-    Case Owner-triggered via :func:`create_close_case_trigger_tree`.
+    Case Owner-triggered, through the ``leave-case`` trigger (TRIG-13-001).
 
     The ``pre_close_action_factory`` bundle field is not wired here;
-    ``PreCloseAction`` is wired in :func:`create_close_case_trigger_tree`.
+    ``PreCloseAction`` is wired in the ``leave-case`` trigger tree
+    (TRIG-13-002).
 
     Args:
         case_id: ID of VulnerabilityCase being processed.

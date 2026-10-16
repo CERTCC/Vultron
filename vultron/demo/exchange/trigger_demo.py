@@ -32,7 +32,10 @@ Two demo workflows are shown:
 
 2. **Invalidate and Close**: Finder submits a second report the same way; vendor
    proactively invalidates it via ``POST .../trigger/invalidate-report`` and
-   then closes it via ``POST .../trigger/close-report``.
+   then closes the case it opened for the report via
+   ``POST .../trigger/leave-case``, which sends ``Leave(VulnerabilityCase)``:
+   once a case holds the report, its owner closes the case by ``Leave``, never
+   by ``Close(Report)`` (CM-23-019, TRIG-13-001).
 
 Each demo verifies that the resulting ActivityStreams activity is returned in
 the response body and that the vendor's outbox is updated accordingly.
@@ -42,15 +45,22 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.exchange.embargo_lifecycle import demo_terminate_embargo
+from vultron.demo.helpers.closure import (
+    CaseLeaver,
+    wait_for_owner_replica_embargo_state,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     find_case_for_offer,
     reporter_submits_report,
     verify_reporter_trusts_introduction,
+    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
+    demo_gate,
     demo_step,
     get_offer_from_datalayer,
     setup_demo_logging,
@@ -139,7 +149,7 @@ def demo_validate_and_engage(
 
 
 # ---------------------------------------------------------------------------
-# Demo 2: invalidate-report trigger → close-report trigger
+# Demo 2: invalidate-report trigger → leave-case trigger (Leave)
 # ---------------------------------------------------------------------------
 
 
@@ -154,10 +164,13 @@ def demo_invalidate_and_close(
     Workflow:
     1. Finder submits a report that the vendor deems invalid.
     2. Vendor calls ``POST .../trigger/invalidate-report`` to mark it invalid.
-    3. Vendor calls ``POST .../trigger/close-report`` to close it entirely.
+    3. Vendor ends the case's embargo, which would decline its close
+       (CM-23-011), then calls ``POST .../trigger/leave-case`` to close the case it
+       opened for the report on receipt: a ``Leave(VulnerabilityCase)``, since
+       the case's owner never sends ``Close(Report)`` for it (CM-23-019).
     """
     logger.info("=" * 80)
-    logger.info("TRIGGER DEMO 2: Invalidate Report → Close Report")
+    logger.info("TRIGGER DEMO 2: Invalidate Report → Close Case")
     logger.info("=" * 80)
 
     report = offer = None
@@ -193,29 +206,43 @@ def demo_invalidate_and_close(
             )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
-    with demo_step("Step 3: Vendor triggers close-report"):
-        response = vendor_session.close_report(
-            offer_id=stored_offer.id_,
-            note="Closing report — no valid vulnerability confirmed.",
+    case = wait_for_case_for_offer(client, stored_offer.id_)
+    # The owner's leave-case call is refused while the case's embargo is
+    # active (TRIG-13-003, CM-23-011), so the vendor ends the embargo first.
+    demo_terminate_embargo(vendor_session, case)
+    # The refusal reads the vendor's own replica, which applies the
+    # termination after the CASE_MANAGER commits it (EDF-06-002).
+    with demo_gate("Vendor's replica records the embargo ended"):
+        wait_for_owner_replica_embargo_state(
+            authority_client=client,
+            owner=CaseLeaver(client=client, actor=vendor),
+            case_id=case.id_,
         )
-        logger.info(
-            "close-report response: %s",
-            response.model_dump_json(indent=2),
-        )
-        with demo_check("Response contains activity"):
-            activity = response.activity
-            assert activity is not None, (
-                "Expected 'activity' key in close-report trigger response"
+        with demo_step(
+            "Step 3: Vendor closes the case with leave-case (Leave)"
+        ):
+            response = vendor_session.with_case(case).leave_case()
+            logger.info(
+                "leave-case response: %s",
+                response.model_dump_json(indent=2),
             )
-            logger.info("Resulting activity type: %s", activity.get("type"))
+            with demo_check("Response contains the Leave activity"):
+                activity = response.activity
+                assert activity is not None, (
+                    "Expected 'activity' key in leave-case trigger response"
+                )
+                assert activity.get("type") == "Leave", activity.get("type")
+                logger.info(
+                    "Resulting activity type: %s", activity.get("type")
+                )
 
     # The case was created on receipt, so the vendor still introduces it to
     # the finder (CBT-01-001).
     verify_reporter_trusts_introduction(client, finder, vendor, report)
 
     logger.info(
-        "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and closed "
-        "via trigger endpoints."
+        "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and its case "
+        "closed via trigger endpoints."
     )
 
 

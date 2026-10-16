@@ -2012,21 +2012,23 @@ groups:
       that sets `auto_create_case=False` creates the case in a later, separate
       step (for example `SvcCreateCaseUseCase` with the report's `report_id`);
       once that case is linked to the report, the implementation SHOULD close it
-      through `SvcCloseCaseUseCase` when the operator or user requests closure.
+      through the `leave-case` trigger (the Case Owner's Leave(VulnerabilityCase),
+      TRIG-13-001) when the operator or user requests closure, as with an
+      auto-created case.
     rationale: >-
-      CONCERN-1902 observed that `SvcCloseCaseUseCase` is never reached in the
-      reference process because the case is always auto-created at RM.RECEIVED.
-      ADR-0085 resolves this: the auto-create behaviour is an implementation
-      choice made by the reference/demo process. `SvcCloseCaseUseCase` is the
-      tested closure path for the non-auto-create scenario. It resolves the case
-      through the report link and refuses a report with no linked case, so the
-      case must exist before closure.
+      CONCERN-1902 observed that the report-closing trigger use case was never
+      reached in the reference process because the case is always auto-created at
+      RM.RECEIVED. ADR-0085 resolves this: the auto-create behaviour is an
+      implementation choice made by the reference/demo process. However the case
+      was created, once it holds the report its Case Owner closes it by Leave, and
+      no trigger sends `Close(Report)` for it (CM-23-019, ADR-0145).
     verification: >-
-      Existing unit tests in
-      `test/core/use_cases/triggers/test_close_case_trigger.py` (including
-      `test_close_case_raises_when_no_linked_case`) and
-      `test/core/behaviors/report/test_trigger_report_trees.py` cover the
-      closure path; no new code is required.
+      The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
+      assert the Case Owner's Leave is sent, the reject-report tests in
+      `test/core/use_cases/triggers/test_trignotify.py` assert no `Close(Report)`
+      is sent on a case, and the Leave tests in
+      `test/core/use_cases/received/test_close_case_role_semantics.py` cover the
+      closure path.
     adr:
     - ADR-0085
 - id: CM-16
@@ -4395,10 +4397,15 @@ groups:
       closure (CM-23-004); the guard for that resync request stays the active check
       of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`
       standing defined below. Second, a repeated act that would close that sender,
-      who is already closed (a Leave(VulnerabilityCase), a `Close(Report)`, or a
-      `Reject` of its stub or full-case Invite), MUST be reported `SKIPPED`, with no
-      ledger entry committed and nothing sent, whatever its activity id: its effect is
-      already in place (ID-05-003). The `ACTIVE_PARTICIPANT` sender standing
+      who is already closed (a Leave(VulnerabilityCase), or a `Reject` of its stub or
+      full-case Invite), MUST be reported `SKIPPED`, with no ledger entry committed and
+      nothing sent, whatever its activity id: its effect is already in place
+      (ID-05-003). The Case Owner's Leave(VulnerabilityCase) is not such a repeat
+      while the case is not fully closed: its effect includes the case's closure
+      (CM-23-002), which a failed first delivery may have left part-way, so it is
+      processed again to complete it. A `Close(Report)` closes no sender on a case, so
+      that sender's is refused like every other sender's (CM-23-019). The
+      `ACTIVE_PARTICIPANT` sender standing
       (HP-01-009) MUST mean an active participant (CM-10-004) whose closure is not
       recorded, and every guard that enforces it MUST ask one shared predicate
       (HP-01-007).
@@ -4414,13 +4421,18 @@ groups:
       `ACTIVE_PARTICIPANT` kind assert that a sender at RM.CLOSED, an inert sender and
       a removed sender are refused. A received-use-case test drives an `Add(Note)` and
       a status update from a closed sender and asserts `REFUSED` with no ledger entry
-      and no outbound activity. A test drives a closed sender's
+      and no outbound activity. For every use case whose rule names the `CASE_OWNER`
+      standing, a test composes its guard and asserts a Case Owner whose closure the
+      case records is refused, and received-use-case tests drive an `Add(Report)`, an
+      owner embargo decision and a `Remove(EmbargoEvent)` from a closed owner and
+      assert `REFUSED` with nothing committed or sent. A test drives a closed sender's
       `Reject(CaseLedgerEntry)` and asserts the replay stops at its own closure
       entries, and a unit test asserts the `Reject(CaseLedgerEntry)` use case does
-      not declare the `ACTIVE_PARTICIPANT` standing. Tests drive a second Leave, a
-      repeated `Close(Report)` and a repeated `Reject` of a stub and of a full-case
-      Invite, each with a new activity id, from a closed sender and assert `SKIPPED`
-      with no ledger entry and no outbound activity.
+      not declare the `ACTIVE_PARTICIPANT` standing. Tests drive a second Leave and a
+      repeated `Reject` of a stub and of a full-case Invite, each with a new activity
+      id, from a closed sender and assert `SKIPPED` with no ledger entry and no
+      outbound activity, and drive a closed sender's `Close(Report)` and assert
+      `REFUSED`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-004
@@ -4436,6 +4448,54 @@ groups:
     - ADR-0115
     stories:
     - story_2022_066
+  - id: CM-23-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Once a report belongs to a case, only that case's Case Owner holds the report,
+      and the Case Owner closes the case by Leave(VulnerabilityCase) (CM-23-001,
+      CM-23-002), never by `Close(Report)`. The CASE_MANAGER, and any participant
+      holding a replica of the case, MUST refuse a `Close(Report)` for a report that
+      belongs to the case, from every sender: from the Case Owner it is the wrong
+      closing act, and from any other sender it is a message about a report that
+      sender does not hold. The refusal is the sender guard's, since no sender is
+      entitled to send it to a case actor, so it MUST write no RM state, commit no
+      ledger entry and send nothing, a refusal notice included (CLP-02-005,
+      HP-01-006). An actor MUST NOT send `Close(Report)` for a report that
+      belongs to a case it holds: its closing trigger MUST fail before anything is
+      written or sent. A `Close(Report)` for a report that belongs to no case is
+      unaffected.
+    rationale: >-
+      A `Close(Report)` moved its sender to RM.CLOSED without the Leave round-trip,
+      so a Case Owner could close itself while its case stayed open, keep acting as
+      owner, and leave the case with no `case_fully_closed` (#4746). Turning the
+      owner's `Close(Report)` into a full close would give the case two closing
+      messages, and refusing only a closed owner's later acts would leave the wrong
+      message admitted (ADR-0144).
+    verification: >-
+      `test/core/use_cases/received/test_close_report_on_case.py` drives a
+      `Close(Report)` on an open case from the Case Owner and from a participant that
+      is not the owner, at the CASE_MANAGER and at a participant holding a replica,
+      and asserts `REFUSED`, no RM change, no ledger entry and no outbound activity.
+      Tests in `test/core/use_cases/triggers/test_trignotify.py`,
+      `test/core/use_cases/triggers/test_report_triggers.py`,
+      `test/core/behaviors/report/test_trigger_report_trees.py` and
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` assert that
+      the reject-report trigger fails on a case, from the Case Owner and from a
+      participant that is not the owner, with nothing written or queued, and that
+      it still closes a report that belongs to no case. The `leave-case` tests in
+      `test/core/use_cases/triggers/case/test_leave.py` cover how an actor on a
+      case closes its part in it instead.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-23-018
+    adr:
+    - ADR-0144
+    stories:
+    - story_2022_066
+    - story_2022_067
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
@@ -4601,6 +4661,43 @@ groups:
     - ADR-0109
     stories:
     - story_2022_106
+  - id: CM-24-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER records an activity and then forwards it on its
+      sender's behalf (CM-21-005, CM-33-001), the forward MUST carry the same
+      id on every attempt, derived from the recorded activity. A failure to
+      build or send the forward after the record MUST NOT be reported as a
+      refusal of the sender (HP-01-003). A redelivery of the recorded activity
+      MUST reuse its recorded entry and MUST rebuild and send the forward
+      while the request it carries is still open; holding a copy of the
+      forward MUST NOT be taken as proof that it was sent. Once that request
+      is closed (answered, withdrawn or expired), a redelivery MUST send
+      nothing.
+    rationale: >-
+      The record precedes the forward (CLP-10-006), so a failed forward leaves
+      a recorded request its addressee never got and cannot answer (#4814). A
+      held copy is no proof of sending: it is written before it is queued.
+      One id makes a resend safe: the outbox holds one pending entry per id
+      (OX-06-002), and the addressee takes a repeat it holds as a no-op.
+    verification: >-
+      A test marked `CM-24-007` for each forward fails the forward after the
+      record and asserts the handler raises an internal error, not `REFUSED`;
+      a redelivery then sends one forward under the derived id with no second
+      ledger entry, including when a copy of the forward was stored but never
+      queued; a redelivery after the ownership-transfer Offer was withdrawn
+      or expired sends nothing.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-004
+    - rel_type: depends_on
+      spec_id: OX-06-002
+    - rel_type: depends_on
+      spec_id: CLP-10-006
+    stories:
+    - story_2022_050
+    - story_2022_035
 
 - id: CM-25
   title: Observer Participant Semantics
@@ -6242,19 +6339,21 @@ groups:
     statement: >-
       The CASE_MANAGER MUST refuse a role Offer that carries no readable `CVDRole`, that
       offers `CVDRole.CASE_OWNER` or `CVDRole.CASE_MANAGER`, whose target is not a participant
-      in the case, or whose target already holds the offered role. A refused Offer MUST leave
-      no ledger entry and MUST NOT be forwarded; a missing role MUST NOT be read as any
-      default role.
+      in the case, whose target already holds the offered role, or whose target is the
+      CASE_MANAGER itself. A refused Offer MUST leave no ledger entry and MUST NOT be
+      forwarded; a missing role MUST NOT be read as any default role.
     rationale: >-
       A grant only adds a role, so an accepted CASE_OWNER or CASE_MANAGER offer would leave
       the case with two holders of a role it has exactly one of (CM-21-001, CM-02-001).
       Ownership moves by ownership transfer (CM-21); a CASE_MANAGER handoff moves ledger
-      authority and is not designed (#3362). The received use case once read a missing role
+      authority and is not designed (#3362). The CASE_MANAGER takes on no other role by
+      Offer: the forward of CM-33-001 would be addressed to itself (BT-17-008), and the
+      answer of CM-33-004 would go to itself. The received use case once read a missing role
       as CASE_MANAGER. See #4672.
     verification: >-
       A test marked `CM-33-003` delivers a role Offer for each refused shape, including one
-      whose `CaseParticipantRole` carries no role, and asserts `REFUSED` with no entry
-      committed and nothing queued.
+      whose `CaseParticipantRole` carries no role and one whose target is the CASE_MANAGER,
+      and asserts `REFUSED` with no entry committed and nothing queued.
     stories:
     - story_2022_035
     - story_2022_088

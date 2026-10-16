@@ -36,15 +36,22 @@ from test.core.use_cases.received.conftest import (
 )
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.carried_snapshot import (
+    StoreEmbeddedParticipantsNode,
+)
+from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
+    SenderClosureNotRecordedNode,
     SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
+    SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
@@ -62,10 +69,12 @@ from vultron.core.behaviors.sender_guard import (
     AuthoredCaseProposal,
     AuthoredNote,
     CaseProposalRequest,
+    LedgerActivityContext,
     OwnershipOfferRequest,
     ReportOfferRequest,
     SenderCheckContext,
     compose_sender_guard,
+    sender_guard_refused,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_proposal_admission import (
@@ -75,6 +84,8 @@ from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
 )
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.case import EngageCaseReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
@@ -109,6 +120,19 @@ def _store(receiver: str) -> BTTestScenario:
     seed_case_participant(scenario.dl, case, REPLICA)
     scenario.dl.create(case)
     return scenario
+
+
+def _owner_role_check(
+    guard: py_trees.behaviour.Behaviour | None,
+) -> py_trees.behaviour.Behaviour:
+    """The role check of a composed ``CASE_OWNER`` guard on a case.
+
+    The factory composes the closure check ahead of it (CM-23-018).
+    """
+    assert isinstance(guard, py_trees.composites.Sequence)
+    closure, role = guard.children
+    assert isinstance(closure, SenderClosureNotRecordedNode)
+    return role
 
 
 def _admits(rule: SenderRule, receiver: str, sender: str) -> bool:
@@ -230,7 +254,7 @@ def test_same_kinds_on_both_case_sides_compose_without_a_side_check() -> None:
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
     )
-    assert isinstance(guard, SenderIsCaseOwnerNode)
+    assert isinstance(_owner_role_check(guard), SenderIsCaseOwnerNode)
 
 
 # ---------------------------------------------------------------------------
@@ -449,8 +473,9 @@ def test_case_owner_against_an_ownership_offer_is_the_offerer_check() -> None:
             ),
         ),
     )
-    assert isinstance(guard, SenderIsOwnershipOffererNode)
-    assert guard.guards_kind is Kind.CASE_OWNER
+    role = _owner_role_check(guard)
+    assert isinstance(role, SenderIsOwnershipOffererNode)
+    assert role.guards_kind is Kind.CASE_OWNER
 
 
 @pytest.mark.spec("CM-21-019")
@@ -465,8 +490,9 @@ def test_case_owner_for_a_new_ownership_offer_is_the_offering_owner_check() -> (
             sender_id=OWNER, case_id=CASE_ID, offered_ownership_id=OFFER_ID
         ),
     )
-    assert isinstance(guard, SenderIsOfferingCaseOwnerNode)
-    assert guard.guards_kind is Kind.CASE_OWNER
+    role = _owner_role_check(guard)
+    assert isinstance(role, SenderIsOfferingCaseOwnerNode)
+    assert role.guards_kind is Kind.CASE_OWNER
 
 
 # ---------------------------------------------------------------------------
@@ -934,16 +960,31 @@ def test_factory_takes_no_sender_guard_built_by_a_tree() -> None:
 
 
 def test_factory_rejects_a_context_naming_another_case() -> None:
+    """A tree that commits judges the sender against the case it commits to."""
     with pytest.raises(VultronWiringError, match="names case"):
         create_receive_activity_tree(
             name="RuleTreeBT",
-            case_id=None,
+            case_id=f"{CASE_ID}/other",
             precondition_guards=[],
             sender_rule=ANY_OF,
             sender_context=SenderCheckContext(
                 sender_id=VENDOR, case_id=CASE_ID
             ),
         )
+
+
+def test_a_tree_that_commits_nothing_judges_the_context_case() -> None:
+    """A notice tree (no commit) checks the sender against the case its
+    activity names, as the received ``Announce(EmbargoEvent)`` tree does."""
+    tree = create_receive_activity_tree(
+        name="RuleTreeBT",
+        case_id=None,
+        precondition_guards=[],
+        sender_rule=ANY_OF,
+        sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+    )
+
+    assert len(tree.children) == 3  # intake, post-close, sender guard
 
 
 def test_factory_rejects_a_context_without_a_rule() -> None:
@@ -954,3 +995,293 @@ def test_factory_rejects_a_context_without_a_rule() -> None:
             precondition_guards=[],
             sender_context=SenderCheckContext(sender_id=VENDOR),
         )
+
+
+# ---------------------------------------------------------------------------
+# CM-23-018: a closed Case Owner holds no CASE_OWNER standing
+# ---------------------------------------------------------------------------
+
+
+def _close_owner(scenario: BTTestScenario) -> BTTestScenario:
+    """Record the Case Owner's closure (RM ``CLOSED``) on the open case."""
+    case = scenario.dl.read(CASE_ID)
+    assert isinstance(case, as_VulnerabilityCase)
+    record = scenario.dl.read(case.actor_participant_index[OWNER])
+    assert isinstance(record, CaseParticipant)
+    record.participant_statuses.append(
+        ParticipantStatus(
+            context=CASE_ID,
+            attributed_to=OWNER,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+    )
+    scenario.dl.save(record)
+    return scenario
+
+
+#: Every shape of ``CASE_OWNER`` check the factory composes on a case.
+_OWNER_CONTEXTS = {
+    "role": SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
+    "new-ownership-offer": SenderCheckContext(
+        sender_id=OWNER, case_id=CASE_ID, offered_ownership_id=OFFER_ID
+    ),
+    "ownership-offer-withdrawal": SenderCheckContext(
+        sender_id=OWNER,
+        case_id=CASE_ID,
+        request=OwnershipOfferRequest(offer_id=OFFER_ID, reply_id=REPLY_ID),
+    ),
+}
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    "rule",
+    [
+        SenderRule.in_case(Kind.CASE_OWNER),
+        SenderRule.to_case_manager(Kind.CASE_OWNER),
+    ],
+    ids=["in-case", "to-case-manager"],
+)
+@pytest.mark.parametrize("label", list(_OWNER_CONTEXTS))
+def test_a_closed_case_owner_is_refused(rule: SenderRule, label: str) -> None:
+    """An owner whose closure the case records may act on nothing (#4746)."""
+    guard = compose_sender_guard(rule, _OWNER_CONTEXTS[label])
+    assert guard is not None
+    result = _close_owner(_store(MANAGER)).run(
+        guard, activity=SimpleNamespace(actor_id=OWNER)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+    assert "already closed" in BTBridge.get_failure_reason(guard)
+
+
+@pytest.mark.spec("CM-23-018")
+def test_an_open_case_owner_is_still_admitted() -> None:
+    assert _admits(SenderRule.in_case(Kind.CASE_OWNER), MANAGER, OWNER)
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("HP-01-008")
+def test_a_closed_owner_holding_another_kind_is_refused_naming_every_kind() -> (
+    None
+):
+    """In an any-of side the closed owner falls through to the last arm."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.CASE_OWNER, Kind.CASE_MANAGER),
+        SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
+    )
+    assert guard is not None
+    result = _close_owner(_store(MANAGER)).run(
+        guard, activity=SimpleNamespace(actor_id=OWNER)
+    )
+    assert result.status == Status.FAILURE
+    assert "none of the standings" in BTBridge.get_failure_reason(guard)
+
+
+@pytest.mark.spec("RSH-01-002")
+@pytest.mark.spec("CM-23-003")
+def test_the_case_owner_standing_read_still_asks_the_role_alone() -> None:
+    """``SenderIsCaseOwnerNode`` is unchanged: the Leave, suggest-actor,
+    status and embargo trees read it to pick an arm, closed owner or not."""
+    node = SenderIsCaseOwnerNode(sender_actor_id=OWNER, case_id=CASE_ID)
+    result = _close_owner(_store(MANAGER)).run(node)
+    assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# A case resolved at run time (#4696)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("HP-01-008", "SYNC-13-006", "SYNC-03-005")
+@pytest.mark.parametrize(
+    ("kind", "node_type"),
+    [
+        (Kind.CASE_MANAGER, SenderIsCaseManagerNode),
+        (Kind.LEDGER_PEER, SenderIsActiveLedgerParticipantNode),
+    ],
+)
+def test_ledger_context_composes_the_in_case_guard(
+    kind: SenderEntitlementKind, node_type: type
+) -> None:
+    """A ledger activity's guard is the in-case side's, not ``outside_case``:
+    its node reads the case from the entry the activity carries."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(kind), LedgerActivityContext()
+    )
+    assert isinstance(guard, node_type)
+    assert getattr(guard, "_case_id", None) is None
+
+
+@pytest.mark.spec("HP-01-008")
+def test_ledger_context_refuses_a_kind_that_needs_the_case_at_build_time() -> (
+    None
+):
+    with pytest.raises(VultronWiringError, match="read from a ledger"):
+        compose_sender_guard(
+            SenderRule.in_case(Kind.PARTICIPANT), LedgerActivityContext()
+        )
+
+
+@pytest.mark.spec("HP-01-008")
+def test_ledger_context_refuses_a_two_sided_rule() -> None:
+    with pytest.raises(VultronWiringError, match="same kinds"):
+        compose_sender_guard(TWO_SIDED, LedgerActivityContext())
+
+
+def test_factory_rejects_a_ledger_context_on_a_tree_with_a_case() -> None:
+    with pytest.raises(VultronWiringError, match="names case"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=SenderRule.in_case(Kind.CASE_MANAGER),
+            sender_context=LedgerActivityContext(),
+        )
+
+
+class _ResolveCase(CaseResolving, py_trees.behaviour.Behaviour):
+    """A read-only step standing in for a case resolution."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("HP-01-008", "CLP-10-010")
+def test_case_resolution_runs_just_before_the_sender_guard() -> None:
+    """The steps that resolve the case run after the post-close guard and
+    before the guard composed from the rule, so an activity about a case
+    this store lacks is refused as such (#2255)."""
+    resolve = _ResolveCase(name="ResolveCase")
+    tree = create_receive_activity_tree(
+        name="RuleTreeBT",
+        case_id=CASE_ID,
+        precondition_guards=[],
+        sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+        sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+        case_resolution=[resolve],
+    )
+    names = [child.name for child in tree.children]
+    at = names.index("ResolveCase")
+    assert names[at - 1] == "CaseOpenToExternalWrites"
+    assert names[at + 1] == "SenderIsParticipantNode"
+
+
+def test_factory_rejects_a_case_resolution_without_a_rule() -> None:
+    with pytest.raises(VultronWiringError, match="only with a sender_rule"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            case_resolution=[_ResolveCase(name="ResolveCase")],
+        )
+
+
+@pytest.mark.spec("HP-01-006")
+def test_factory_rejects_a_case_resolution_that_writes() -> None:
+    """The steps run before the sender guard, so a write there would let an
+    unentitled sender leave state behind."""
+    writer = StoreEmbeddedParticipantsNode(
+        as_VulnerabilityCase(id_=CASE_ID, name="snapshot"), CASE_ID
+    )
+    with pytest.raises(VultronWiringError, match="may only read"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+            sender_context=SenderCheckContext(
+                sender_id=VENDOR, case_id=CASE_ID
+            ),
+            case_resolution=[writer],
+        )
+
+
+class _ResolvingEmitter(
+    CaseResolving, EmitCapable, py_trees.behaviour.Behaviour
+):
+    """A step marked as resolving that can also emit."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+class _UnmarkedStep(py_trees.behaviour.Behaviour):
+    """A step without the CaseResolving marker, such as an unmarked writer."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    "step",
+    [
+        _ResolvingEmitter(name="Emitter"),
+        _UnmarkedStep(name="Unmarked"),
+        py_trees.composites.Sequence(
+            name="Wrapped", memory=False, children=[_UnmarkedStep(name="U")]
+        ),
+    ],
+    ids=["emitter", "unmarked-leaf", "unmarked-leaf-in-a-composite"],
+)
+def test_factory_admits_only_read_only_case_resolving_steps(
+    step: py_trees.behaviour.Behaviour,
+) -> None:
+    """Not every writer is marked, so a step is admitted by its marker."""
+    with pytest.raises(VultronWiringError, match="may only read"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+            sender_context=SenderCheckContext(
+                sender_id=VENDOR, case_id=CASE_ID
+            ),
+            case_resolution=[step],
+        )
+
+
+class _Refuse(py_trees.behaviour.Behaviour):
+    """A precondition guard that refuses."""
+
+    def update(self) -> Status:
+        return Status.FAILURE
+
+
+def _participant_tree(
+    sender: str, guards: list[py_trees.behaviour.Behaviour]
+) -> py_trees.composites.Sequence:
+    return create_receive_activity_tree(
+        name="RuleTreeBT",
+        case_id=CASE_ID,
+        precondition_guards=guards,
+        sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+        sender_context=SenderCheckContext(sender_id=sender, case_id=CASE_ID),
+    )
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    ("sender", "guards", "refused"),
+    [
+        (STRANGER, [], True),
+        (VENDOR, [], False),
+        (VENDOR, [_Refuse(name="Refuse")], False),
+    ],
+    ids=["unentitled-sender", "entitled-sender", "a-later-guard-refuses"],
+)
+def test_sender_guard_refused_names_only_the_sender_guards_refusal(
+    sender: str, guards: list[py_trees.behaviour.Behaviour], refused: bool
+) -> None:
+    tree = _participant_tree(sender, guards)
+    event = EngageCaseReceivedEvent(
+        activity_id="https://example.org/activities/engage-guard",
+        actor_id=sender,
+        object_=as_VulnerabilityCase(id_=CASE_ID, name="Sender rule case"),
+        semantic_type=MessageSemantics.ENGAGE_CASE,
+    )
+    result = _store(MANAGER).run(tree, activity=event)
+    assert result.status == Status.FAILURE
+    assert sender_guard_refused(tree) is refused

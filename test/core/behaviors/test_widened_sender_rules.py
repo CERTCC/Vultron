@@ -38,7 +38,6 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
 from vultron.core.behaviors.report.received_report_trees import (
-    create_close_report_received_tree,
     create_invalidate_report_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
@@ -79,7 +78,6 @@ from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.report import (
-    CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
@@ -292,22 +290,24 @@ CASES = [
         marks=("HP-01-008", "EP-09-003", "PCR-03-001"),
         label="embargo-announce",
     ),
-    # Any participant record on the case, on both sides, as the trees
-    # checked (PARTICIPANT).
+    # A participant suggests an actor to the CASE_MANAGER; at a replica only
+    # the CASE_MANAGER relays it (PCR-03-001).
     *_cases(
         OfferActorToCaseReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(VENDOR, STRANGER),
-        at_participant=(VENDOR, STRANGER),
-        marks=("HP-01-008", "CM-16-001"),
+        at_participant=(MANAGER, VENDOR),
+        marks=("HP-01-008", "CM-16-001", "PCR-03-001"),
         label="offer-actor",
     ),
+    # A participant sends a status update to the CASE_MANAGER; at a replica
+    # only the CASE_MANAGER relays it (PCR-03-001).
     *_cases(
         AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(VENDOR, STRANGER),
-        at_participant=(VENDOR, STRANGER),
-        marks=("HP-01-008", "CM-10-004"),
+        at_participant=(MANAGER, VENDOR),
+        marks=("HP-01-008", "PCR-03-001"),
         label="add-participant-status",
     ),
 ]
@@ -350,14 +350,13 @@ def test_an_inert_participant_holds_participant_but_not_active_participant(
 
 #: Declarations relabelled from ``ACTIVE_PARTICIPANT`` to ``PARTICIPANT``
 #: (#4437): each tree admitted any participant the case lists, and still does.
+#: ``offer-actor`` and ``add-participant-status`` are not here because they
+#: use ``to_case_manager`` rather than ``in_case`` (#4646).
 RELABELLED = {
     "validate-report": ValidateReportReceivedUseCase,
     "invalidate-report": InvalidateReportReceivedUseCase,
-    "close-report": CloseReportReceivedUseCase,
     "engage-case": EngageCaseReceivedUseCase,
     "defer-case": DeferCaseReceivedUseCase,
-    "offer-actor": OfferActorToCaseReceivedUseCase,
-    "add-participant-status": AddParticipantStatusToParticipantReceivedUseCase,
 }
 
 
@@ -382,9 +381,55 @@ def test_relabelled_declaration_admits_any_listed_participant(
     assert _admits(rule, _plain, receiver, sender) is admitted
 
 
-def _hand_placed_trees() -> dict[str, tuple[type, Callable[[], object]]]:
-    """The relabelled use cases whose tree places its own sender guard
-    instead of composing it from the declaration."""
+# ---------------------------------------------------------------------------
+# PCR-03-001: replica admits only the CASE_MANAGER (fix #4646).
+# ---------------------------------------------------------------------------
+
+_PCR03_CASES = [
+    pytest.param(
+        OfferActorToCaseReceivedUseCase,
+        id="offer-actor",
+    ),
+    pytest.param(
+        AddParticipantStatusToParticipantReceivedUseCase,
+        id="add-participant-status",
+    ),
+]
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.parametrize("use_case", _PCR03_CASES)
+def test_replica_refuses_listed_non_manager_for_case_update(
+    use_case: type,
+) -> None:
+    """A listed non-manager participant is refused at a replica (#4646).
+
+    Both ``Offer(Actor)`` and ``Add(ParticipantStatus)`` declare
+    ``to_case_manager(PARTICIPANT)``, so at a participant replica any sender
+    other than the CASE_MANAGER is refused even when the case lists them.
+    """
+    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
+    assert not _admits(rule, _plain, REPLICA, VENDOR)
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.parametrize("use_case", _PCR03_CASES)
+def test_replica_admits_case_manager_for_case_update(
+    use_case: type,
+) -> None:
+    """The CASE_MANAGER is admitted at a replica for both use cases (#4646).
+
+    ``to_case_manager(PARTICIPANT)`` sets the participant side to
+    ``{CASE_MANAGER}``, so the CASE_MANAGER is the only entitled sender
+    at a replica.
+    """
+    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
+    assert _admits(rule, _plain, REPLICA, MANAGER)
+
+
+def _relabelled_trees() -> dict[str, tuple[type, Callable[[], object]]]:
+    """The relabelled use cases whose tree once placed its own sender guard
+    and now takes it from the factory (#4696)."""
     request = SimpleNamespace(
         actor_id=VENDOR,
         report_id="https://example.org/reports/r",
@@ -393,25 +438,29 @@ def _hand_placed_trees() -> dict[str, tuple[type, Callable[[], object]]]:
     return {
         "engage-case": (
             EngageCaseReceivedUseCase,
-            lambda: create_engage_case_tree(case_id=CASE_ID, actor_id=VENDOR),
-        ),
-        "close-report": (
-            CloseReportReceivedUseCase,
-            lambda: create_close_report_received_tree(request, CASE_ID),  # type: ignore[arg-type]
+            lambda: create_engage_case_tree(
+                case_id=CASE_ID,
+                actor_id=VENDOR,
+                sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+            ),
         ),
         "invalidate-report": (
             InvalidateReportReceivedUseCase,
-            lambda: create_invalidate_report_received_tree(request, CASE_ID),  # type: ignore[arg-type]
+            lambda: create_invalidate_report_received_tree(
+                request,  # type: ignore[arg-type]
+                CASE_ID,
+                sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+            ),
         ),
     }
 
 
 @pytest.mark.spec("HP-01-008")
-@pytest.mark.parametrize("label", list(_hand_placed_trees()))
-def test_hand_placed_guard_checks_the_declared_kind(label: str) -> None:
-    """A tree that places its own sender guard checks the kind its use case
-    declares, so the declaration and the tree cannot drift apart."""
-    use_case, build = _hand_placed_trees()[label]
+@pytest.mark.parametrize("label", list(_relabelled_trees()))
+def test_relabelled_tree_guard_checks_the_declared_kind(label: str) -> None:
+    """The guard the factory composes for the tree checks the kind its use
+    case declares, so the declaration and the tree cannot drift apart."""
+    use_case, build = _relabelled_trees()[label]
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
     tree = build()
     kinds = {

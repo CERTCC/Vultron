@@ -117,6 +117,7 @@ Pick the closure activity that matches what exists.
 
 - If a case exists, send `Leave(VulnerabilityCase)`.
   The formal message set has no name for this closure, even though ADR-0050 makes it the canonical one.
+  The `leave-case` trigger sends it for you, after running your pre-close integration step.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/close-case.md" %}
 

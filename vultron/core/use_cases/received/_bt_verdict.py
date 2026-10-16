@@ -51,8 +51,15 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
+)
+from vultron.core.behaviors.case.nodes.diversion_stage import DiversionStage
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
 )
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
@@ -67,8 +74,17 @@ from vultron.core.behaviors.case.nodes.post_close import (
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
+from vultron.core.behaviors.case.nodes.role_offer_guard import (
+    RoleOfferAdmissibleNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
+)
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
+)
+from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
+    EmbargoInviteNotYetRefusedNode,
 )
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     IsWithdrawableEmbargoNode,
@@ -77,6 +93,7 @@ from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
+from vultron.core.behaviors.sender_guard import closed_sender_turned_away
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -130,7 +147,7 @@ def named_node_status(
     """The last status of the node called *name* in *tree*.
 
     For nodes that share a class and differ only by their place in the tree,
-    such as the two CASE_MANAGER sender checks of the announce tree.
+    such as the role checks of the announce tree's two arms.
 
     Raises:
         VultronWiringError: *tree* has no node called *name*, so the caller's
@@ -171,6 +188,30 @@ def node_succeeded(
 ) -> bool:
     """True when any node of *node_type* ran and returned ``SUCCESS``."""
     return _any_with_status(tree, node_type, Status.SUCCESS)
+
+
+def door_guards_admitted(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> bool:
+    """True when the run got past every door guard of its tree (CLP-10-010).
+
+    The intake, the post-close guard, the addressee check and the sender
+    guard all ran and succeeded, so the delivery reached its clock decisions
+    and precondition guards, whatever those then decided.  Asked of the
+    factory's record of its door guards, so the answer does not depend on
+    which guard the tree runs first.
+
+    Raises:
+        VultronWiringError: *tree* was not built by
+            :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
+    """
+    root = _root(tree)
+    if not isinstance(root, ReceivedActivityTree):
+        raise VultronWiringError(
+            f"door_guards_admitted: '{root.name}' is not a received-activity"
+            " tree, so it has no door guards to ask about (CLP-10-010)"
+        )
+    return root.door_guards_admitted
 
 
 def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
@@ -351,6 +392,33 @@ def ownership_offer_verdict(
     )
 
 
+def role_offer_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered role Offer as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferAdmissibleNode`
+    sets ``is_redelivery`` when the CASE_MANAGER's ledger already records the
+    Offer (HP-01-003).  It fails when the forward is already stored, so
+    nothing runs, and admits the run when it is not, so the run finishes the
+    forward with the recorded entry reused (OX-06-002).  Either reads as
+    ``SKIPPED``; when the guard admitted the run, a later refusal or failure
+    keeps its own verdict.
+    """
+    guard = find_node(tree, RoleOfferAdmissibleNode)
+    if guard is None or not guard.is_redelivery:
+        return verdict
+    if (
+        guard.status is Status.FAILURE
+        or verdict.disposition is HandlerDisposition.APPLIED
+    ):
+        return HandlerResult.skipped(
+            guard.feedback_message or "role Offer redelivered"
+        )
+    return verdict
+
+
 def rm_declaration_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     verdict: HandlerResult,
@@ -371,6 +439,154 @@ def rm_declaration_verdict(
             f"{label}: the declared RM state is already recorded for the sender"
         )
     return verdict
+
+
+def closed_sender_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    result: BTExecutionResult,
+    *,
+    closes: bool,
+    label: str,
+) -> HandlerResult | None:
+    """The verdict owed a sender the tree's closed-sender door turned away.
+
+    The door (``closed_sender`` on the receive-tree factory) stops the tree
+    when the case already records the sender's closure, with nothing
+    committed or sent (CM-23-018):
+
+    - an act that would close it again (*closes*: a ``Leave``, a ``Reject``
+      of a stub or full-case Invite) changes nothing, so it is ``SKIPPED``,
+      whatever its activity id (ID-05-003);
+    - any other act is ``REFUSED``: the sender may act on nothing further.
+
+    ``None`` when the run did not end at the door.  The handler asks this
+    before any other reading of the run's failure.
+
+    A door that found the closure but whose run failed on an internal error
+    (the Case Owner check of a ``case_owner_completes`` door crashing, say)
+    raises: a crash is never read as a repeat or a refusal (ARCH-15-001).
+
+    Raises:
+        VultronWiringError: *tree* was not built by
+            :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
+        VultronBTInternalError: The door found the closure, but the run
+            failed on an internal error.
+    """
+    root = _root(tree)
+    if not isinstance(root, ReceivedActivityTree):
+        raise VultronWiringError(
+            f"closed_sender_verdict: '{root.name}' is not a"
+            " received-activity tree, so it has no closed-sender door"
+            " (CM-23-018)"
+        )
+    closed = closed_sender_turned_away(root)
+    if closed is None:
+        return None
+    if result.internal_error:
+        raise VultronBTInternalError(f"{label}: {result.feedback_message}")
+    if closes:
+        return HandlerResult.skipped(
+            f"{label}: {closed} — a repeat of a closing act,"
+            " nothing to apply (ID-05-003)"
+        )
+    return HandlerResult.refused(
+        f"{label}: {closed} — it may act on nothing further"
+    )
+
+
+def guard_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    node_type: type[py_trees.behaviour.Behaviour],
+) -> HandlerResult | None:
+    """``REFUSED`` with the guard's own reason when a *node_type* guard failed.
+
+    ``None`` when no such guard ran and failed.  For a guard whose message
+    is the whole refusal, so the reason carries no tree label:
+    :class:`~vultron.core.behaviors.case.nodes.incomplete_activity.ActivityIncompleteNode`
+    and the announce tree's trusted-sender guard.  A guard that never ran (a
+    leadership skip, or the post-close guard refused first) is ``None``, so
+    the handler falls through to :func:`verdict_from_bt`.  So does a guard
+    that failed because it was composed without a dependency (a
+    ``WIRING_UNAVAILABLE_MESSAGES`` reason): that is our fault, not the
+    sender's, and :func:`verdict_from_bt` raises it (ADR-0095).
+    """
+    node = find_node(tree, node_type)
+    if node is None or node.status != Status.FAILURE:
+        return None
+    if node.feedback_message in WIRING_UNAVAILABLE_MESSAGES:
+        return None
+    return HandlerResult.refused(
+        node.feedback_message or f"{node.name} refused the activity"
+    )
+
+
+def addressee_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal of a copy not addressed to this receiver (HP-01-005).
+
+    ``None`` unless the tree's
+    :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`
+    door guard refused; the reason is the guard's own, naming the receiver,
+    the activity and its ``to``.
+    """
+    return guard_refusal(tree, ActivityAddressedToReceiverNode)
+
+
+def taken_diversion(
+    tree: py_trees.behaviour.Behaviour | _HasRoot, name: str
+) -> DiversionStage | None:
+    """The diversion stage *name* when it diverted the delivery, else ``None``.
+
+    See :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
+    (CLP-10-026): a taken diversion answered the delivery itself, so the
+    tree's ``FAILURE`` is not a refusal of its own and the handler reads the
+    stage instead.
+    """
+    for node in _root(tree).iterate():
+        if (
+            isinstance(node, DiversionStage)
+            and node.name == name
+            and node.taken
+        ):
+            return node
+    return None
+
+
+def pxa_refusal_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    name: str,
+    answered: str,
+) -> HandlerResult | None:
+    """The verdict of a delivery the P/X/A refusal *name* diverted, else ``None``.
+
+    ``SKIPPED`` when the ER *answered* names was already sent, so the
+    redelivery is not refused twice (HP-01-003); otherwise ``REFUSED`` for
+    the condition's reason (EMB-01-002, EMB-02-002), whether or not the ER
+    could be sent.
+    """
+    stage = taken_diversion(tree, name)
+    if stage is None:
+        return None
+    if node_failed(stage, EmbargoInviteNotYetRefusedNode):
+        return HandlerResult.skipped(
+            f"{answered} not refused again: the ER was already sent"
+            " (HP-01-003)"
+        )
+    return HandlerResult.refused(
+        stage.condition.feedback_message or f"{name}: P/X/A set"
+    )
+
+
+def incomplete_activity_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal of an activity its handler's tree could not be built for.
+
+    See :func:`guard_refusal` and
+    :func:`~vultron.core.behaviors.case.intake_only_received_tree.create_incomplete_activity_received_tree`.
+    """
+    return guard_refusal(tree, ActivityIncompleteNode)
 
 
 def failure_reason(
@@ -420,6 +636,10 @@ def verdict_from_bt(
 ) -> HandlerResult:
     """The default ``HandlerResult`` for a finished received-side BT run.
 
+    The post-close refusal and an incomplete activity's refusal
+    (:func:`incomplete_activity_refusal`) are read first and keep their
+    guard's own reason; any other refusal is prefixed with *label*.
+
     Args:
         tree: The tree that ran (or its ``BehaviourTree`` wrapper).
         result: What ``BTBridge`` returned for it.
@@ -433,6 +653,9 @@ def verdict_from_bt(
     if result.leader_skipped:
         return HandlerResult.skipped("not the replication leader")
     if (refusal := post_close_refusal(tree)) is not None:
+        return refusal
+    if (refusal := incomplete_activity_refusal(tree)) is not None:
+        # The guard's message is the whole reason, with no label (CLP-10-018).
         return refusal
     if result.internal_error:
         raise VultronBTInternalError(f"{label}: {result.feedback_message}")
@@ -507,16 +730,24 @@ def applied_or_raise(
 
 
 __all__ = [
+    "addressee_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
+    "closed_sender_verdict",
+    "door_guards_admitted",
     "failure_reason",
     "find_named",
     "find_node",
+    "guard_refusal",
+    "incomplete_activity_refusal",
     "intake_verdict",
     "node_failed",
     "node_succeeded",
     "not_case_manager",
     "not_case_manager_refusal",
     "post_close_refusal",
+    "pxa_refusal_verdict",
+    "rm_declaration_verdict",
+    "taken_diversion",
     "verdict_from_bt",
 ]

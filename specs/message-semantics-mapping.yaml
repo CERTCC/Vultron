@@ -1038,8 +1038,8 @@ groups:
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
       owner's decision for the case, so neither meaning depends on who sent the message
       (ADR-0122). Refusing a doomed activation before the commit keeps the ledger free of an
-      entry that replicas, replaying in OBSERVED mode, would apply without the CASE_MANAGER's
-      P/X/A check.
+      entry that replicas, copying its step, would apply without the CASE_MANAGER's P/X/A
+      check (CM-23-016).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
       Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
@@ -1066,9 +1066,13 @@ groups:
       stays ACTIVE with the prior terms in force (EJ) once no other proposal is open, and
       stays PROPOSED or REVISE while another is (EP-08-001); it MUST NOT change any
       participant's consent rows, the owner's included. When it rejects the last open
-      revision while CS is public, exploited or attacked, the embargo MUST be terminated
-      instead (EMB-04-002). It MUST be refused before it is committed when the named embargo
-      is not an open proposal of the case.
+      revision while CS is public, exploited or attacked, the embargo MUST also be
+      terminated in the same act (EMB-04-002): the CASE_MANAGER decides both steps together,
+      trial-applying both before committing either, and commits the Reject's entry carrying
+      the REJECT step followed by its own ET `Remove(EmbargoEvent)` entry carrying the
+      TERMINATE step, so the revision ends REJECTED and EM EXITED, and a refused termination
+      commits neither. It MUST be refused before it is committed when the named embargo is
+      not an open proposal of the case.
     rationale: >-
       The owner's rejection decides the proposal for the case; whether the owner, as a
       participant, also refuses those terms is a separate Reject of the Invite (MSM-07-004).
@@ -1077,9 +1081,11 @@ groups:
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
       Reject(EmbargoEvent, target=Case) at the CASE_MANAGER rejects the proposal with no
-      consent row changed, leaves another open proposal open, terminates the embargo when it
-      rejects the last revision after disclosure, and that a non-owner sender or a non-open
-      proposal is refused with nothing committed.
+      consent row changed, leaves another open proposal open, rejects the last revision after
+      disclosure and then terminates the embargo with the revision REJECTED on the
+      CASE_MANAGER and on a replica that copies both entries, the Reject's entry committed
+      before the termination entry, that a refused termination commits neither entry, and
+      that a non-owner sender or a non-open proposal is refused with nothing committed.
     relationships:
     - rel_type: derives_from
       spec_id: EP-09-005
@@ -1152,21 +1158,31 @@ groups:
   - id: MSM-08-002
     priority: MUST
     kind: process
-    statement: An occasion's distinguisher MUST be either a field value or a state
-      context. A field value MUST be a member of that field's enum, and a state context
-      MUST name a state machine and states that are members of that machine's state
-      enum.
+    statement: An occasion's distinguisher MUST be a field value, a state context or a
+      sender standing. A field value MUST be a member of that field's enum, a state
+      context MUST name a state machine and states that are members of that machine's
+      state enum, and a sender standing MUST name a `SenderEntitlementKind` member and
+      whether the sender holds it.
     rationale: '"Distinguished by" is what tells two occasions of one wire activity
       apart when they share an addressee (MSM-08-009), such as vendor awareness and fix
       ready on `Add(ParticipantStatus)`. A free-text distinguisher can name a value no
       implementation sends. Typing it against the enums makes a renamed or retired
-      state fail at construction.'
+      state fail at construction. Some occasions differ only in who sends them: the
+      Case Owner''s request to invite an actor and a participant''s suggestion are one
+      `Offer(Actor)`, and the CASE_MANAGER answers them differently (CM-17-007,
+      CM-16-003). The sender''s standing is typed by the entitlement kinds a receiver
+      already checks (HP-01-009), so it has one vocabulary and its wording comes from
+      the kind (MSM-08-010).'
     verification: >-
       A unit test asserts that an occasion whose field value is not a member of the
-      field's enum, or whose state context names a state outside its machine's enum,
-      fails at construction.
+      field's enum, whose state context names a state outside its machine's enum, or
+      whose sender standing names no `SenderEntitlementKind` member, fails at
+      construction.
     lint_suppress:
     - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-08-010
     adr:
     - ADR-0128
   - id: MSM-08-003
@@ -1179,9 +1195,9 @@ groups:
       group was planned, the vendor awareness, fix readiness and fix deployed sections
       rendered the same example, which dispatches correctly and carries the vendor
       awareness `vfState`, so the other two showed a value that is not theirs. Each
-      occasion needs an example that shows what makes it that occasion. A state
-      context is the receiver's state, not part of the payload, so no example can
-      carry it.
+      occasion needs an example that shows what makes it that occasion. No example
+      can carry a state context, such as the receiver's EM state or the CASE_MANAGER's
+      register status of the named embargo.
     verification: >-
       A parametrized test over every occasion asserts that its example matches exactly
       the occasion's own entry pattern and, for an occasion with a field-value
@@ -1360,3 +1376,32 @@ groups:
       spec_id: HP-01-009
     adr:
     - ADR-0129
+  - id: MSM-08-011
+    priority: MUST
+    kind: process
+    statement: Each occasion that shares a `SEMANTIC_REGISTRY` entry and an addressee
+      with another occasion MUST declare a distinguisher, and the distinguishers of such
+      occasions MUST differ. Two such distinguishers of one kind on one field, state
+      machine or entitlement kind MUST NOT overlap. They MUST share no field value or
+      state, and two sender standings MUST differ in whether the sender holds the
+      kind. Construction of a registry that breaks this MUST fail.
+    rationale: The lookup table is how a receiver finds which occasion an activity is.
+      Two same-addressee occasions with no distinguisher render as two rows only prose
+      separates, as on `Offer(Actor)` and `Announce(Event)` (#4821). Distinguishers
+      that overlap, such as EM `NONE` and `PROPOSED` against `PROPOSED`, still let one
+      activity match two rows. Different fields or machines are not compared, since
+      one activity may carry both values by design.
+    verification: >-
+      A unit test asserts that a registry with two occasions on one entry and one
+      addressee fails when either has no distinguisher, when both declare the same
+      one, or when both are state contexts on one machine that share a state, and
+      that `msm-occasions --check` passes on `SEMANTIC_REGISTRY`.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-08-002
+    - rel_type: depends_on
+      spec_id: MSM-08-009
+    adr:
+    - ADR-0128

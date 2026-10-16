@@ -59,12 +59,16 @@ from vultron.core.behaviors.case.nodes import (
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
+from vultron.core.behaviors.case.nodes.submit_report import (
+    submit_report_received_effects,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.replica_emit_exemptions import (
     REPORT_CASE_PROPOSAL,
 )
+from vultron.core.models.events.report import SubmitReportReceivedEvent
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +166,7 @@ def create_receive_report_case_tree(
     return root
 
 
-def create_keep_offer_without_report_tree(
+def create_offer_received_without_report_tree(
     received_effects: Sequence[py_trees.behaviour.Behaviour],
 ) -> py_trees.behaviour.Behaviour:
     """Create the tree for an ``Offer`` that names no report.
@@ -175,4 +179,35 @@ def create_keep_offer_without_report_tree(
         case_id=None,
         precondition_guards=[],
         replica_effects=list(received_effects),
+    )
+
+
+def create_submit_report_received_tree(
+    request: SubmitReportReceivedEvent,
+    actor_config: ActorConfig | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Create the one tree for a received ``Offer(VulnerabilityReport)``.
+
+    Both arms keep what the Offer carried, behind the addressing guard
+    (:func:`~vultron.core.behaviors.case.nodes.submit_report.submit_report_received_effects`).
+    An Offer that names a report then goes on to propose its case
+    (:func:`create_receive_report_case_tree`); one that names none has no
+    case to propose, so its tree ends there
+    (:func:`create_offer_received_without_report_tree`).  Either way the
+    delivery runs this one tree (CLP-10-005, ADR-0135).
+
+    Args:
+        request: The received ``Offer(VulnerabilityReport)`` event.
+        actor_config: The receiver's configuration, for the
+            ``auto_create_case`` policy gate (CM-15-001).
+    """
+    received_effects = submit_report_received_effects(request)
+    if not request.report_id:
+        return create_offer_received_without_report_tree(received_effects)
+    return create_receive_report_case_tree(
+        report_id=request.report_id,
+        offer_id=request.activity_id,
+        reporter_actor_id=request.actor_id,
+        actor_config=actor_config,
+        received_effects=received_effects,
     )

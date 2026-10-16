@@ -8,8 +8,8 @@ from pydantic import field_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.primitives import normalise_actor_id
 
 logger = logging.getLogger(__name__)
 

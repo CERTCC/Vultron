@@ -16,7 +16,6 @@
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.use_cases.triggers.report import (
     SvcAckReportUseCase,
-    SvcCloseCaseUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
     SvcSubmitReportUseCase,
@@ -24,7 +23,6 @@ from vultron.core.use_cases.triggers.report import (
 )
 from vultron.core.use_cases.triggers.requests import (
     AckReportTriggerRequest,
-    CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
@@ -80,17 +78,6 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=(*_COMMON, "TRIG-03-004"),
-    ),
-    # ``close-report`` closes the *report* behind an offer; the use case kept
-    # its historical name (ADR-0110 § Named exceptions and cleanups).
-    TriggerEntry(
-        verb="close-report",
-        request_model=CloseReportTriggerRequest,
-        use_case_class=SvcCloseCaseUseCase,
-        result_type=ActivityResult,
-        exposure=TriggerExposure.GENERAL_PURPOSE,
-        bt_backed=True,
-        spec_ids=(*_COMMON, "TRIG-03-003"),
     ),
     TriggerEntry(
         verb="submit-report",

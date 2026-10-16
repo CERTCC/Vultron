@@ -60,7 +60,7 @@ class CheckReportClosable(DataLayerConditionWithPorts):
                 edge from the report's state, a
                 ``VultronInvalidStateTransitionError`` is written to
                 ``result_out["error"]`` so the calling use case re-raises it
-                (HTTP 409), as ``CheckReportNotClosed`` does for a repeat close.
+                (HTTP 409).
             name: Optional custom node name.
         """
         super().__init__(name=name or self.__class__.__name__)
@@ -107,3 +107,67 @@ class CheckReportClosable(DataLayerConditionWithPorts):
             current_rm.name,
         )
         return Status.SUCCESS
+
+
+class CheckReportHasNoCase(DataLayerConditionWithPorts):
+    """Check that no case in this store holds the report (CM-23-019).
+
+    Once a report belongs to a case, only the case's Case Owner holds it, and
+    the Case Owner closes the case by ``Leave(VulnerabilityCase)``; no actor
+    sends a ``Close(Report)`` for it, and the CASE_MANAGER would refuse one.
+    So a trigger that would emit ``Close(Report)`` fails closed here, before
+    any RM write or emit, when this actor's store holds a case for the
+    report.  A report that belongs to no case passes: closing it is the
+    pre-case path, unchanged.
+
+    Returns SUCCESS when the store holds no case for the report; FAILURE
+    otherwise, writing a :class:`~vultron.errors.VultronInvalidStateTransitionError`
+    to ``result_out["error"]`` so the calling use case re-raises it (HTTP 409),
+    as ``CheckReportClosable`` does.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        result_out: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        """Initialize CheckReportHasNoCase.
+
+        Args:
+            report_id: ID of the VulnerabilityReport the trigger would close.
+            result_out: Optional mutable dict that receives the domain error
+                on FAILURE.
+            name: Optional custom node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        """Succeed when no case in this store holds the report.
+
+        Returns:
+            SUCCESS when the report belongs to no case here; FAILURE when the
+            DataLayer is unavailable or a case holds the report
+            (+ ``result_out["error"]``).
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case = self.datalayer.find_case_by_report_id(self.report_id)
+        if case is None:
+            return Status.SUCCESS
+
+        error = VultronInvalidStateTransitionError(
+            f"Report '{self.report_id}' belongs to case '{case.id_}': an"
+            " actor closes its part in the case by Leave(VulnerabilityCase)"
+            " (leave-case), and no actor sends Close(Report) for it"
+            " (CM-23-019)"
+        )
+        if self._result_out is not None:
+            self._result_out["error"] = error
+        self.feedback_message = str(error)
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE

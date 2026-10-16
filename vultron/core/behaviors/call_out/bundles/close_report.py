@@ -47,8 +47,12 @@ def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
 class CloseReportCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the report closure domain (BT-23-003).
 
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.report.close_report_tree.create_close_report_tree`.
+    ``other_close_criteria_factory`` feeds
+    :func:`~vultron.core.behaviors.report.close_report_tree.create_close_report_tree`
+    (unwired, superseded by the ``leave-case`` trigger, ADR-0145);
+    ``pre_close_action_factory`` feeds
+    :func:`~vultron.core.behaviors.case.leave_case_trigger_tree.create_leave_case_trigger_tree`
+    (TRIG-13-002).
     """
 
     other_close_criteria_factory: CallOutBackendFactory = field(

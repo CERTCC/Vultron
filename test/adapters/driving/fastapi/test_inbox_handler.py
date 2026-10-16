@@ -1377,3 +1377,49 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
 
     assert isinstance(event, InviteToEmbargoOnCaseReceivedEvent)
     assert event.rsvp_deadline == published + timedelta(days=14)
+
+
+@pytest.mark.spec("SYNC-14-009")
+def test_make_dispatcher_gives_ledger_hand_back_semantics_the_inbox_port(
+    monkeypatch,
+):
+    """The two received paths that can make a buffered entry appliable get an
+    ``InboxHandBackPort`` writing to the receiving actor's own store, and no
+    other semantic does: the port is not part of every use case's signature
+    (SYNC-14-009, SYNC-15-005)."""
+    import inspect
+
+    from vultron.adapters.driven.inbox_hand_back_adapter import (
+        InboxHandBackAdapter,
+    )
+    from vultron.core.models.events import MessageSemantics
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    hand_back_semantics = {
+        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+    }
+    for sem, use_case in use_case_map().items():
+        port = captured["port_factories"][sem](real_dl).get("inbox_hand_back")
+        if sem in hand_back_semantics:
+            assert isinstance(port, InboxHandBackAdapter), sem.name
+            assert port._dl is real_dl
+            assert "inbox_hand_back" in inspect.signature(use_case).parameters
+        else:
+            assert port is None, f"{sem.name} was given an inbox hand-back"

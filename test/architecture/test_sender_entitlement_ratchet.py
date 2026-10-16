@@ -235,13 +235,16 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 _HOME = "vultron/core/behaviors/sender_entitlement.py"
 _COMPOSER = "vultron/core/behaviors/sender_guard.py"
 
-#: The only modules that may call ``compose_sender_guard``: the receive-tree
-#: factory and the pre-flight that runs the same guard ahead of a handler's
-#: first write (``rule_refusal``).
+#: The only module that may call the composer's public builders
+#: (:data:`_COMPOSE`): the receive-tree factory.  The pre-flights that ran
+#: the same guards ahead of a handler's tree as a tree of their own were
+#: retired once each handler composed its door guards into its one tree:
+#: ``rule_refusal`` by #4642, and ``closed_sender_preflight`` by #4773, whose
+#: callers pass ``closed_sender`` to the factory instead (CLP-10-005,
+#: ADR-0135).
 COMPOSE_CALLERS = frozenset(
     {
         "vultron/core/behaviors/case/receive_activity_tree.py",
-        "vultron/core/use_cases/received/_sender_preflight.py",
     }
 )
 
@@ -303,7 +306,15 @@ def _annotation_nodes(tree: ast.AST) -> set[int]:
     return {id(sub) for root in roots for sub in ast.walk(root)}
 
 
-_COMPOSE = "compose_sender_guard"
+#: The composer's public builders, which only :data:`COMPOSE_CALLERS` call.
+_COMPOSE = frozenset(
+    {
+        "compose_sender_guard",
+        "closed_sender_guard",
+        "closed_sender_door",
+        "case_owner_guard",
+    }
+)
 
 
 def _composer_builders() -> frozenset[str]:
@@ -324,11 +335,11 @@ def _from_composer(module: str | None) -> bool:
 
 
 def _tracked(name: str, from_composer: bool) -> bool:
-    """*name* is a sender node or ``compose_sender_guard``, or a private
+    """*name* is a sender node or a public composer builder, or a private
     builder reached through the composer module."""
     return (
         name in SENDER_NODES
-        or name == _COMPOSE
+        or name in _COMPOSE
         or (name in COMPOSER_BUILDERS and from_composer)
     )
 
@@ -341,7 +352,7 @@ def _import_aliases(tree: ast.AST) -> tuple[dict[str, str], set[str]]:
     they come from; a private builder only when imported from the composer,
     so a module's own helper of the same name is not mistaken for it.
     """
-    aliases = {name: name for name in SENDER_NODES | {_COMPOSE}}
+    aliases = {name: name for name in SENDER_NODES | _COMPOSE}
     modules: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -370,7 +381,7 @@ def _named_sender_node(
 ) -> str | None:
     """The sender node or composer function *node* names, or ``None``.
 
-    ``compose_sender_guard`` is not reported in :data:`COMPOSE_CALLERS`.
+    A public composer builder is not reported in :data:`COMPOSE_CALLERS`.
     """
     named: str | None = None
     if isinstance(node, ast.Name):
@@ -379,7 +390,7 @@ def _named_sender_node(
         node.attr, _is_composer_module(node.value, modules)
     ):
         named = node.attr
-    if named == _COMPOSE and rel in COMPOSE_CALLERS:
+    if named in _COMPOSE and rel in COMPOSE_CALLERS:
         return None
     return named
 
@@ -391,7 +402,7 @@ def _sender_references(tree: ast.AST, rel: str) -> Counter[Site]:
     class or the composer bound to another name first, or reached through
     its module (``sender_entitlement.SenderIsX``), is still seen.  An import
     alias is followed; a name inside a type annotation composes nothing and
-    is skipped.  ``compose_sender_guard`` counts outside
+    is skipped.  A public composer builder counts outside
     :data:`COMPOSE_CALLERS`, and the composer's private builders count
     everywhere.  A site is scoped by its enclosing classes and functions.
     """
@@ -420,7 +431,7 @@ def _live_sites() -> Counter[Site]:
     found: Counter[Site] = Counter()
     for path, tree in _corpus.files_mentioning(
         "sender_entitlement",
-        "compose_sender_guard",
+        *_COMPOSE,
         "sender_guard",
         *SENDER_NODES,
         under=_corpus.REPO_ROOT / "vultron",
@@ -434,44 +445,9 @@ def _live_sites() -> Counter[Site]:
 #: Sender guards a received tree still places itself, each naming the open
 #: issue that moves it into the declared rule the factory composes.  The list
 #: only shrinks: a new entry, or a stale one, fails the test.
-GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {
-    Site(
-        "vultron/core/behaviors/report/prioritize_tree.py",
-        "create_engage_case_tree",
-        "SenderIsParticipantNode",
-    ): Listed(
-        1,
-        "#4696: follows the snapshot steps, which store the sender's own"
-        " participant record when the Engage carries it inline",
-    ),
-    Site(
-        "vultron/core/behaviors/report/received_report_trees.py",
-        "_report_verdict_stages",
-        "SenderIsParticipantNode",
-    ): Listed(
-        1,
-        "#4696: follows RequireCaseForReport, which resolves the case of a"
-        " Close/Invalidate(Report) at run time",
-    ),
-    Site(
-        "vultron/core/behaviors/sync/announce_tree.py",
-        "create_announce_log_entry_tree",
-        "SenderIsCaseManagerNode",
-    ): Listed(
-        2,
-        "#4696: the case comes from the announced entry at run time; each"
-        " role arm checks after its own CASE_MANAGER gate",
-    ),
-    Site(
-        "vultron/core/behaviors/sync/reject_tree.py",
-        "create_reject_log_entry_tree",
-        "SenderIsActiveLedgerParticipantNode",
-    ): Listed(
-        1,
-        "#4696: the case comes from the ledger activity at run time; the"
-        " ledger Reject's own standing (SYNC-03-005)",
-    ),
-}
+#: Empty: #4696 moved the last ones, whose case is resolved at run time, into
+#: the factory, so a new entry is a regression.
+GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {}
 
 #: Standing reads that choose an effect after the declared rule has admitted
 #: the sender, or that read an actor other than the sender.  They admit no
@@ -493,11 +469,13 @@ STANDING_READS: dict[Site, Listed] = {
         "SenderIsCaseOwnerNode",
     ): Listed(2, "picks the owner's or a participant's Leave arm (CM-23-003)"),
     Site(
-        "vultron/core/behaviors/case/receive_close_case_tree.py",
-        "create_close_case_received_tree._decline_decision_guards",
+        "vultron/core/behaviors/case/owner_close_embargo_guards.py",
+        "owner_close_blocked_by_embargo_guards",
         "SenderIsCaseOwnerNode",
     ): Listed(
-        1, "decides whether a live embargo declines the close (CM-23-011)"
+        1,
+        "decides whether a live embargo blocks the closer's Leave, on receipt"
+        " and in the leave-case trigger (CM-23-011, TRIG-13-003)",
     ),
     Site(
         "vultron/core/behaviors/status/add_participant_status_tree.py",
@@ -520,11 +498,6 @@ STANDING_READS: dict[Site, Listed] = {
     ): Listed(
         2, "reads the local invitee answering on its replica (EP-09-005)"
     ),
-    Site(
-        "vultron/core/behaviors/report/trigger_report_trees.py",
-        "create_close_case_trigger_tree",
-        "SenderIsCaseOwnerNode",
-    ): Listed(1, "a trigger tree: reads the triggering actor's own standing"),
 }
 
 
@@ -556,8 +529,8 @@ def test_sender_nodes_are_composed_only_by_the_factory() -> None:
         "These modules name a sender-entitlement node, or compose a sender"
         " guard, outside the receive-tree factory or more often than the"
         " allow-list says (HP-01-007, HP-01-008).  Declare the standing in"
-        " the use case's SenderRule and pass it with a SenderCheckContext;"
-        " a pre-flight asks rule_refusal():\n" + _site_lines(new, listed)
+        " the use case's SenderRule and pass it with a SenderCheckContext"
+        " to the tree's factory:\n" + _site_lines(new, listed)
     )
     assert not fewer, (
         "These allow-list entries count more uses than the site now has;"
@@ -587,7 +560,9 @@ def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
 
 #: Sender checks defined outside the sender-entitlement module, each naming
 #: the open issue that retires it (HP-01-007: the module has no twin).
-#: Empty: #4472 deleted the last one, so a new entry is a regression.
+#: Empty: #4785 retired the last one, the Announce(VulnerabilityCase)
+#: trust-anchor guard, when that use case declared its sender rule.  An entry
+#: needs an open issue that retires it.
 SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {}
 
 
@@ -661,6 +636,24 @@ _VIOLATIONS = {
         "    build = sender_guard.compose_sender_guard\n"
         "    return build(rule, ctx)\n"
     ),
+    "handler-closed-sender-guard": (
+        "from vultron.core.behaviors.sender_guard import"
+        " closed_sender_guard\n"
+        "def execute(case_id, sender_id):\n"
+        "    return closed_sender_guard(case_id, sender_id)\n"
+    ),
+    "handler-closed-sender-door": (
+        "from vultron.core.behaviors.sender_guard import"
+        " closed_sender_door\n"
+        "def execute(case_id, check):\n"
+        "    return closed_sender_door(case_id, check)\n"
+    ),
+    "handler-case-owner-guard": (
+        "from vultron.core.behaviors.sender_guard import"
+        " case_owner_guard\n"
+        "def execute(case_id, sender_id):\n"
+        "    return case_owner_guard(case_id, sender_id)\n"
+    ),
     "private-builder": (
         "from vultron.core.behaviors.sender_guard import _kind_node\n"
         "def build(kind, ctx):\n"
@@ -709,6 +702,8 @@ def test_the_scan_skips_annotations_and_the_sanctioned_callers() -> None:
     assert not _sender_references(annotated, "vultron/x.py")
     composed = _corpus.parse_inline(
         "def stage(rule, ctx):\n    return compose_sender_guard(rule, ctx)\n"
+        "def closing(case_id, check):\n"
+        "    return closed_sender_door(case_id, check)\n"
     )
     for caller in COMPOSE_CALLERS:
         assert not _sender_references(composed, caller)
@@ -807,7 +802,7 @@ def _rules_built_outside_a_declaration(tree: ast.AST, rel: str) -> list[str]:
 def test_a_sender_rule_is_built_only_as_a_declaration() -> None:
     """A tree or handler passes its declared rule, never one of its own.
 
-    ``sender_rule=`` and ``rule_refusal()`` take a rule as an argument, so a
+    ``sender_rule=`` takes a rule as an argument, so a
     rule built on the spot would compose a guard the use case never
     declared.  Building a ``SenderRule`` is allowed only as the value of a
     class's ``sender_entitlement``.
@@ -856,3 +851,63 @@ def test_the_rule_scan_admits_a_declaration() -> None:
         "        K.INVITEE\n    )\n"
     )
     assert not _rules_built_outside_a_declaration(tree, "vultron/x.py")
+
+
+# ---------------------------------------------------------------------------
+# HP-01-007: an exemption names an open issue, or says no check applies
+# ---------------------------------------------------------------------------
+
+#: The open issues that own a not-yet-checked use case's sender rule.  The
+#: list only shrinks: an exemption naming any other issue fails, and so does
+#: an issue no exemption names any more.  That each is still open is checked
+#: when an entry is added or reviewed, since the suite runs offline.
+OPEN_EXEMPTION_ISSUES: dict[str, str] = {
+    "#4703": "Accept and Reject of a role offer (NAMED_ACTOR)",
+    "#4799": "Create(ProcessingFault), once a case-diverged fault re-seeds",
+}
+
+#: The use cases no sender check applies to, each declared with
+#: ``no_sender_check``: nothing they do is gated on a sender's standing.
+PERMANENT_EXEMPTIONS: frozenset[str] = frozenset(
+    {
+        "UnknownUseCase",
+        "UnresolvableObjectUseCase",
+    }
+)
+
+
+def _exemptions() -> dict[str, SenderExemption]:
+    return {
+        entry.use_case_class.__name__: declared
+        for entry in SEMANTIC_REGISTRY
+        if isinstance(
+            declared := getattr(
+                entry.use_case_class, "sender_entitlement", None
+            ),
+            SenderExemption,
+        )
+    }
+
+
+@pytest.mark.spec("HP-01-007")
+def test_every_exemption_names_an_open_issue_or_no_check_applies() -> None:
+    exemptions = _exemptions()
+    permanent = {name for name, e in exemptions.items() if e.permanent}
+    assert permanent == PERMANENT_EXEMPTIONS, (
+        "A use case to which no sender check applies is listed here, so"
+        " no_sender_check does not spread: found"
+        f" {sorted(permanent ^ PERMANENT_EXEMPTIONS)}"
+    )
+    tracked = {
+        e.tracking_issue
+        for e in exemptions.values()
+        if e.tracking_issue is not None
+    }
+    assert tracked <= set(OPEN_EXEMPTION_ISSUES), (
+        "These exemptions name an issue not on the open list; point them at"
+        f" the open issue that owns the check: {sorted(tracked - set(OPEN_EXEMPTION_ISSUES))}"
+    )
+    assert set(OPEN_EXEMPTION_ISSUES) <= tracked, (
+        "No exemption names these issues any more; drop them so the list"
+        f" only shrinks: {sorted(set(OPEN_EXEMPTION_ISSUES) - tracked)}"
+    )

@@ -106,9 +106,13 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(Note, Case)`` activity.
+        """Create and persist an ``Add(Note, target=Case)`` activity.
 
-        Returns ``(activity_id, activity_dict)``.
+        The ``Add`` carries the stored note *note_id* inline as its
+        ``object`` (VAM-01-010).  The id is derived from *actor* and the
+        note, so a re-run names the same activity (ID-04-004).
+
+        Returns ``(activity_id, activity_body)``, the body as sealed JSON.
         """
         ...
 
@@ -141,7 +145,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(Offer)`` close-report activity.
+        """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity.
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -862,12 +866,19 @@ class TriggerActivityPort(Protocol):
         target_actor_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
+        in_reply_to: str | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
 
         Canonical role-delegation wire format (ADR-0039).  ``role`` is the
         :class:`CVDRole` being offered; ``target_actor_id`` is the Actor URI
         receiving the offer; ``case_id`` supplies the VulnerabilityCase context.
+        The Case Owner addresses its Offer to the CASE_MANAGER (CM-33-001).
+        The CASE_MANAGER's forward to the target passes ``attributed_to`` (the
+        Case Owner, CM-24-005), ``in_reply_to`` (the recorded Offer's id) and
+        a derived ``id_``, so a retry rebuilds the same forward (OX-06-002).
 
         Returns ``(activity_id, activity_dict)``.
         """

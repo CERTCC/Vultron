@@ -65,18 +65,30 @@ class TestCanonicalActorUri:
         canonical = f"{_BASE}/{ACTORS_SEGMENT}/vendor"
         assert canonical_actor_uri(canonical, _BASE) == canonical
 
-    def test_returns_a_foreign_authority_uri_unchanged(self):
+    def test_returns_a_foreign_authority_uri_with_authority_intact(self):
         """ADR-0073#peer-records-in-knowers-store: a peer's id is the URL delivery posts to.
 
-        ``canonical_actor_uri`` passes any scheme-bearing id through unchanged so
-        that outbound delivery can POST to the peer's real address.  This remains
-        correct after ADR-0081 — the fix for the phantom-store problem is to
-        reject foreign ids at ``POST /actors/`` rather than here, because this
-        function is also called on the GET side (inbox resolution) where the peer
-        address must survive intact.
+        The *authority* (netloc) of a foreign id is preserved so that outbound
+        delivery can POST to the peer's real address.  Stripping only a trailing
+        slash is safe and gives every id one canonical spelling (OID-01-005).
+        The rejection of foreign-authority ids at ``POST /actors/`` is enforced
+        there (ADR-0081), not here, so the GET side can resolve peers intact.
         """
         foreign = "http://vendor:7999/api/v2/actors/vendor"
         assert canonical_actor_uri(foreign, _BASE) == foreign
+
+    def test_strips_trailing_slash_from_an_absolute_local_uri(self):
+        """An absolute id ending in '/' is normalised (OID-01-005, AC-1 of #4795)."""
+        canonical = f"{_BASE}/{ACTORS_SEGMENT}/vendor"
+        assert canonical_actor_uri(canonical + "/", _BASE) == canonical
+
+    def test_strips_trailing_slash_from_a_foreign_authority_uri(self):
+        """Slash-normalisation applies to foreign ids too (OID-01-005)."""
+        foreign = "http://vendor:7999/api/v2/actors/vendor/"
+        assert (
+            canonical_actor_uri(foreign, _BASE)
+            == "http://vendor:7999/api/v2/actors/vendor"
+        )
 
     def test_rejects_an_empty_segment(self):
         with pytest.raises(ValueError, match="must not be empty"):
@@ -92,6 +104,32 @@ class TestCanonicalActorUri:
         """
         with pytest.raises(ValueError, match="names no actor"):
             canonical_actor_uri(bad, _BASE)
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "http://localhost:7999/",
+            "http://localhost:7999//",
+            f"{_BASE}/{ACTORS_SEGMENT}",
+            f"{_BASE}/{ACTORS_SEGMENT}/",
+            f"{_BASE}/{ACTORS_SEGMENT}//",
+        ],
+    )
+    def test_rejects_an_absolute_id_that_names_no_actor(self, bad):
+        """An authority alone, or this node's actors collection, names no
+        actor once its trailing slash is stripped (#4795).
+
+        Returned, it would be slugged after the authority or ``actors`` and
+        open a store for a phantom actor.
+        """
+        with pytest.raises(ValueError, match="names no actor"):
+            canonical_actor_uri(bad, _BASE)
+
+    def test_keeps_an_actor_whose_slug_is_actors(self):
+        """Only the collection itself is refused, not an actor named
+        ``actors`` under it."""
+        actor = f"{_BASE}/{ACTORS_SEGMENT}/{ACTORS_SEGMENT}"
+        assert canonical_actor_uri(actor + "/", _BASE) == actor
 
     def test_falls_back_to_configured_base_url(self):
         with patch.object(actor_hosts, "get_config") as get_config:
@@ -233,6 +271,17 @@ class TestLocalActorId:
     def test_passes_an_absolute_configured_id_through(self, monkeypatch):
         monkeypatch.setenv(
             "VULTRON_ACTOR_ID", "http://vendor:7999/api/v2/actors/vendor"
+        )
+        assert (
+            local_actor_id(_BASE) == "http://vendor:7999/api/v2/actors/vendor"
+        )
+
+    def test_strips_trailing_slash_from_an_absolute_configured_id(
+        self, monkeypatch
+    ):
+        """A configured id with a trailing slash is normalised (OID-01-005)."""
+        monkeypatch.setenv(
+            "VULTRON_ACTOR_ID", "http://vendor:7999/api/v2/actors/vendor/"
         )
         assert (
             local_actor_id(_BASE) == "http://vendor:7999/api/v2/actors/vendor"

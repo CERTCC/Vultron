@@ -45,12 +45,14 @@ from vultron.core.use_cases.received.actor.ownership import (
     RejectCaseOwnershipTransferReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     undo_case_ownership_transfer_activity,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -1018,6 +1020,46 @@ def test_redelivered_answered_offer_is_skipped_while_a_newer_one_is_open(
     assert late.disposition is HandlerDisposition.SKIPPED
     assert _event_types(dl) == entries_before
     assert trigger_activity.offer_case_ownership_transfer.call_count == 2
+
+
+@pytest.mark.spec("CM-24-007")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "#4859: ForwardOfferToTransfereeNode reports a post-commit fault as"
+        " REFUSED, and NoOpenOwnershipOfferNode skips the redelivery before"
+        " the forward runs"
+    ),
+)
+def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
+    make_payload,
+):
+    """The fault is the CASE_MANAGER's, not a refusal; a redelivery sends it."""
+    case_id = "https://example.org/cases/case_ot_forward_fails"
+    dl, _, trigger_activity = _ownership_offer_harness(make_payload, case_id)
+    trigger_activity.offer_case_ownership_transfer.side_effect = [
+        RuntimeError("down"),
+        ("https://example.org/activities/forwarded", {}),
+    ]
+    offer = offer_case_ownership_transfer_activity(
+        cast(VulnerabilityCase, dl.read(case_id)),
+        target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+        actor=_VENDOR_ID,
+        to=[_CASE_ACTOR_ID],
+        id_="https://example.org/activities/offer_fails",
+    )
+
+    with pytest.raises(VultronBTInternalError):
+        _redeliver_offer(dl, make_payload, offer, trigger_activity)
+    entries_after_first = _event_types(dl)
+
+    again = _redeliver_offer(dl, make_payload, offer, trigger_activity)
+
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries_after_first
+    calls = trigger_activity.offer_case_ownership_transfer.call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs["id_"] == calls[1].kwargs["id_"]
 
 
 @pytest.mark.spec("CM-21-016")
@@ -2568,3 +2610,91 @@ def test_a_closed_transferees_answer_is_refused(make_payload, answer):
     assert _owner(dl, case_id) == _VENDOR_ID
     assert _event_types(dl) == entries_before
     assert list(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_spelled_transferee_is_forwarded_to_canonically(make_payload):
+    """The Offer's ``target`` is extracted as the transferee without its
+    trailing slash: the forward names the actor the roster stores."""
+    case_id = "https://example.org/cases/case_ot_slash_transferee"
+    _dl, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, case_id
+    )
+
+    disposition, _ = deliver(_COORDINATOR_ID + "/", f"{case_id}/offer")
+
+    assert disposition is HandlerDisposition.APPLIED
+    kwargs = trigger_activity.offer_case_ownership_transfer.call_args.kwargs
+    assert kwargs["transferee_id"] == _COORDINATOR_ID
+    assert kwargs["to"] == [_COORDINATOR_ID]
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-24-002")
+def test_a_slash_spelled_delegated_offer_is_taken_and_filed_as_received(
+    make_payload, caplog
+):
+    """The transferee takes the CASE_MANAGER's delegated forward whose
+    ``attributed_to`` carries a trailing slash, and files it as received.
+
+    The delegated author is recognised (no "ignoring attributed_to"
+    warning), and the stored Offer keeps the sender's spelling: only what is
+    extracted from it is normalised (OID-01-006).  The offerer the use case
+    extracts is read only by the CASE_MANAGER's forward, which a delegated
+    Offer never reaches, so this store's record is its observable outcome.
+    """
+    case_id = "https://example.org/cases/case_ot_slash_delegated"
+    dl, case = _transferee_replica(case_id)
+    forward = offer_case_ownership_transfer_activity(
+        case,
+        target=_COORDINATOR_ID,
+        actor=_CASE_ACTOR_ID,
+        to=[_COORDINATOR_ID],
+        attributed_to=_VENDOR_ID + "/",
+        id_=f"{case_id}/forward",
+    )
+
+    with caplog.at_level("WARNING"):
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(forward, receiving_actor_id=_COORDINATOR_ID),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    stored = dl.read(forward.id_)
+    assert stored is not None
+    assert getattr(stored, "attributed_to", None) == _VENDOR_ID + "/"
+    assert not any(
+        "ignoring attributed_to" in r.message for r in caplog.records
+    )
+    assert _owner(dl, case_id) == _VENDOR_ID
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("CM-21-011")
+def test_accept_of_the_forward_of_a_slash_spelled_transferee_is_applied(
+    make_payload,
+):
+    """The owner names the transferee with a trailing slash; the ledgered
+    Offer keeps it, the forward names the transferee canonically, and the
+    transferee's Accept of the forward still finds the recorded Offer and
+    makes it the owner, stored without the slash."""
+    case_id = "https://example.org/cases/case_ot_slash_accept"
+    dl, deliver = _forward_harness(make_payload, case_id)
+    disposition, offer = deliver(
+        _COORDINATOR_ID + "/", "https://example.org/activities/offer_slash"
+    )
+    assert disposition is HandlerDisposition.APPLIED
+    forwarded = _forward_of(dl, offer.id_)
+
+    result = _accept(dl, make_payload, forwarded)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _owner(dl, case_id) == _COORDINATOR_ID
+    roles = _owner_roles(dl, case_id)
+    assert roles[_COORDINATOR_ID] is True
+    assert _COORDINATOR_ID + "/" not in roles
+    assert roles[_VENDOR_ID] is False

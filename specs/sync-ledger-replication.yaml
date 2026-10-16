@@ -451,10 +451,9 @@ groups:
       `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`,
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_the_full_case_invite_is_recorded_after_the_accepts_entries`,
       `test/core/behaviors/embargo/nodes/test_relay.py::TestRelayEmbargoInviteToEachNode::test_each_invite_is_queued_before_it_is_committed`,
-      `test/core/use_cases/triggers/embargo/test_terminate.py::test_manager_teardown_is_queued_before_it_is_committed`,
-      `test/core/use_cases/triggers/case/test_create.py::TestCreateCaseTriggerLedger::test_the_create_is_queued_before_the_creation_entries`
+      `test/core/use_cases/triggers/embargo/test_terminate.py::test_manager_teardown_is_queued_before_it_is_committed`
       and
-      `test/core/behaviors/case/nodes/test_delegation.py::TestAnswerAtTheCaseManager::test_the_answer_is_queued_then_committed`
+      `test/core/use_cases/triggers/case/test_create.py::TestCreateCaseTriggerLedger::test_the_create_is_queued_before_the_creation_entries`
       record each outbox write and each commit in order and assert that every sent
       activity is queued before the entry recording it.
     adr:
@@ -680,7 +679,7 @@ groups:
     kind: protocol
     statement: >-
       A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
-      that records outbound assertion activities (e.g., Create(Note)) emitted toward the
+      that records outbound assertion activities (e.g., Add(Note)) emitted toward the
       CASE_MANAGER but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
       the suppression window is configurable and zero disables suppression
   - id: SYNC-11-002

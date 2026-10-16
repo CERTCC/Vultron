@@ -357,7 +357,7 @@ groups:
       not written as ledger entries. Freshness-gate and tail-reconstruction helpers
       operate on the ledger directly and therefore require no disposition filter.
     verification: '`test/core/test_sync_helpers.py` confirms that `is_ledger_fresh_for_case`
-      and `_reconstruct_tail_hash` return correct results with a ledger containing
+      and `reconstruct_tail_hash` return correct results with a ledger containing
       only canonical entries, and that no `disposition` field exists on
       `HashChainLedgerRecord` or `CaseLedgerEntry`.'
     stories:
@@ -604,6 +604,41 @@ groups:
       spec_id: CLP-04-006
     adr:
     - ADR-0124
+    stories:
+    - story_2022_045
+  - id: CLP-07-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an embargo act's own entry is committed and an entry the act's
+      consequences require is not, the CASE_MANAGER MUST commit the entries it
+      still owes, unchanged from what it decided before the act's first commit and
+      in that order, before any later embargo act on the case reads a consent row.
+      An act whose own entry is not committed owes nothing.
+    rationale: >-
+      The entries after an act's own are committed one at a time, so a failed commit
+      leaves the act committed without its consent rows, a state no single act
+      produces: a proposal in the register that some participant holds no row for,
+      or an invitee whose row never moved to its invitation (ADR-0122). Nothing else
+      re-commits them, because a repeated trigger starts a new act and a redelivered
+      act is stopped by its idempotency guard (#4764). Re-deciding the entries later
+      could decide a different row once the clock or local policy has moved, so the
+      entries are the ones already decided (ADR-0146). The stored plan is case
+      bookkeeping read only to commit those entries unchanged, never to decide a
+      case-file value, so CLP-07-014 still holds.
+    verification: >-
+      A test fails an act's second commit, then runs a CASE_MANAGER embargo tree for
+      the case, and asserts the owed entries are committed in their planned order and
+      the case file equals the one a run with no failure produces; a test stores a
+      plan whose act's own entry did not commit, runs the finishing step, and asserts
+      it commits nothing and discards the plan.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-07-013
+    - rel_type: depends_on
+      spec_id: CLP-07-014
+    adr:
+    - ADR-0146
     stories:
     - story_2022_045
   - id: CLP-07-003
@@ -1203,9 +1238,11 @@ groups:
       post-close write boundary (CM-23-013), the addressee check (HP-01-005) and
       the sender guard (HP-01-006), (3) clock decisions
       (CLP-10-025), (4) precondition guards, (5) commit, (6) all protocol effects.
-      Clock decisions are the only commits before stage (5). Refusal effects
-      (CLP-10-022) belong to stage (4): they run only after a precondition guard
-      refuses, and the tree then ends without reaching (5) or (6).'
+      Clock decisions are the only commits before stage (5), other than a
+      diversion (CLP-10-026), which answers its delivery in place of stages (5)
+      and (6). Refusal effects (CLP-10-022) belong to stage (4): they run only
+      after a precondition guard refuses, and the tree then ends without
+      reaching (5) or (6).'
     rationale: Intake records what arrived. The canonical case ledger records the cause
       (the received activity the CASE_MANAGER accepted) and replicates it to all
       participants, so cause precedes effects. A clock decision is the CASE_MANAGER's
@@ -1657,7 +1694,7 @@ groups:
       (EMB-13-003), MUST be a clock decision of every receive-side tree that
       names a case and has a sender guard and the post-close boundary, with no
       argument from the tree; a tree still exempt from a sender check takes it
-      once it declares its sender rule (ISSUE-4522). A clock decision MUST
+      once it declares its sender rule (HP-01-007). A clock decision MUST
       commit only
       CASE_MANAGER-authored entries, one for each AS2 activity needed to express
       what it decided, and the case-file changes those entries record, and
@@ -1720,6 +1757,53 @@ groups:
       spec_id: CLP-10-010
     - rel_type: refines
       spec_id: CLP-07-013
+    adr:
+    - ADR-0135
+  - id: CLP-10-026
+    priority: MUST
+    kind: project
+    statement: >-
+      A receive-side tree some of whose deliveries are answered by an act of the
+      receiver's own instead of committing the received activity, such as the
+      CASE_MANAGER's answer to a late embargo `Accept` (EMB-17) or a receiver's
+      ER once P/X/A is set (EMB-01-002, EMB-02-002), MUST pass each such answer
+      to `create_receive_activity_tree` as a diversion among its precondition
+      guards, so the tree, not the use case, chooses the answer (CLP-10-005).
+      A diversion MUST have a read-only condition; when the condition holds,
+      the diversion's effects MUST answer the delivery and the tree MUST then
+      end before the received activity's commit, so that commit and the
+      admitted path's effects never run for it. A diversion MUST NOT commit the
+      received activity. A diversion that commits or writes case state MUST run
+      only at the case's CASE_MANAGER (BT-17-001) and MUST commit only its own
+      CASE_MANAGER-authored entry and the change that entry records. A
+      diversion that answers as the receiver wherever the door guards admitted
+      the delivery MUST write no case or participant state (RSH-08-003) — it
+      MAY store the activity it answers so its answer can be built from it —
+      and every emit in it MUST be covered by a named exemption (BT-17-008). A
+      tree with diversions MUST NOT take refusal effects (CLP-10-022): a
+      diverted delivery has already been answered.
+    rationale: >-
+      The late-Accept routing and the P/X/A refusal were alternative trees the
+      use case chose and ran after or before the main one, which the one-tree
+      rule forbids (ADR-0135). Neither fits a refusal effect: the late-Accept
+      answers commit and write consent, and the P/X/A ER is owed by a
+      participant too and is idempotent by its own sealed record (ID-04-005),
+      not by the archive. A diversion keeps each answer in the one tree, where
+      the ratchets and a reader can see it (ISSUE-4642).
+    verification: >-
+      `test/core/behaviors/case/nodes/test_diversion_stage.py` asserts a
+      diversion that does not hold lets the tree continue, one that holds runs
+      its effects and ends the tree before the commit, a CASE_MANAGER
+      diversion never diverts at another store, and the factory refuses an
+      ill-formed diversion; `test_receive_side_bt_commit_ordering.py` accepts a
+      commit ahead of the guarded commit only inside the clock-decision stage
+      or a CASE_MANAGER diversion; the embargo Accept and Invite handler tests
+      assert each diverted delivery's verdict and effects.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    - rel_type: refines
+      spec_id: CLP-10-010
     adr:
     - ADR-0135
 - id: CLP-11

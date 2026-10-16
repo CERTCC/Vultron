@@ -238,9 +238,9 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
 
 @pytest.mark.spec("CLP-10-017")
 def test_intake_with_no_wire_activity_archives_nothing_and_succeeds(scenario):
-    """A drain event carries an object and no activity: nothing to fail on."""
+    """An event built with no wire activity has nothing to archive or fail on."""
     event = CreateNoteReceivedEvent(
-        activity_id="urn:vultron:drain:1",
+        activity_id="urn:vultron:no-wire:1",
         actor_id=SENDER,
         object_=_rich_note(),
     )
@@ -329,9 +329,10 @@ def test_shared_factory_runs_intake_first_even_when_a_guard_refuses(scenario):
 def test_refused_participant_status_leaves_the_archive_readable():
     """``Add(ParticipantStatus)`` from a stranger is REFUSED by the sender guard.
 
-    ``SenderIsParticipantNode`` refuses a sender who is not on the
-    case; intake ran first, so the activity is archived in the receiver's
-    store afterwards.
+    The receiver is not the CASE_MANAGER, so the guard takes the update from
+    the CASE_MANAGER alone (PCR-03-001); the case names none, so the sender
+    is refused.  Intake ran first, so the activity is archived in the
+    receiver's store afterwards.
     """
     receiver = "https://example.org/users/vendor-intake"
     stranger = "https://example.org/users/stranger-intake"

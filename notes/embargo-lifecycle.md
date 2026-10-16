@@ -162,8 +162,8 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   owner changing its answer, so its row moves straight to `AGREED`, in either
   mode, with one ledger entry (MSM-07-008). The received owner-decision trees
   check P/X/A with a read-only guard ahead of the commit
-  (`OwnerMayActivateEmbargoNode`), because replay runs `OBSERVED` and does not
-  re-check.
+  (`OwnerMayActivateEmbargoNode`), because a replica copies the step and does
+  not re-check.
 - A repeat of a recorded Accept or Reject is `SKIPPED` before the commit
   (`EmbargoAnswerNotRecordedNode`, CM-13-005); a `DECLINED` actor's Reject of
   an unknown embargo stays `REFUSED` (HP-01-003). An Accept after a Reject is
@@ -173,8 +173,9 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
-- **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
-  and replay nodes not yet copying, #4716): it skips the P/X/A
+- **`OBSERVED`** follows the CASE_MANAGER's committed assertion. Only the
+  paused replica's CM-31-010 notice path still runs it
+  (`ending_notice_replica.py`, outside the ledger): it skips the P/X/A
   guards, records a proposal a replica never saw before activating it, and
   logs and skips a refused step — it never forces the register into a state
   its rules refuse. A copying replay node runs no lifecycle mode at all: it
@@ -183,9 +184,19 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
   never blocked. `reject_embargo_proposal()` raises when it would return a
   `REVISE` case to the prior terms with P/X/A set — the correct path is to
-  terminate the embargo (ET, `terminate_embargo_bt`). That guard holds in
-  `OBSERVED` too, so manager and replicas both end with the revision
-  `CANCELLED` (#4364).
+  terminate the embargo (ET, `terminate_embargo_bt`). The CASE_MANAGER still
+  commits that `Reject`, so the replica slot skips it under the same condition
+  (`rejection_ends_embargo`, `vultron/core/predicates/embargo.py`) and the
+  `Remove` entry that follows cancels the revision: manager and replicas both
+  end with it `CANCELLED` (#4364, #4784). Deciding that skip is lifecycle
+  logic on replay, a **tracked deviation from CM-23-016 (#4789)**: it reads
+  only the case file, so replicas still converge, but it evaluates EMB-04-002
+  rather than copying. It is the only `_left_to_a_later_entry` override, and
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one.
+  The target design is decided (MSM-07-009): the CASE_MANAGER commits the
+  `Reject` carrying the `REJECT` step, then its own ET `Remove` carrying
+  `TERMINATE`, both trial-applied before either commits, so the revision ends
+  `REJECTED` and the replica copies both; #4850 builds it and removes the skip.
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -243,9 +254,13 @@ catch-up fetch or deferral, refuse instead.
 
 ## Refusing an Invite at P/X/A (EMB-01-002)
 
-- The P/X/A refusal of a received Invite runs `RefuseEmbargoInviteBT`
-  (`vultron/core/behaviors/embargo/refusal_tree.py`). It stores the Invite and
-  its `EmbargoEvent` first (the ER factory needs the proposal) and answers where
+- The P/X/A refusal of a received Invite or Accept is a `RECEIVER`
+  diversion of the received tree (`pxa_invite_refusal`, `pxa_accept_refusal`
+  in `vultron/core/behaviors/embargo/refusal_tree.py`, CLP-10-026), never a
+  refusal effect: refusal effects run only at the CASE_MANAGER and are skipped
+  on a redelivery, and a participant owes the ER too and re-queues an ER
+  sealed but never queued (ID-04-005). It stores the Invite and its
+  `EmbargoEvent` first (the ER factory needs the proposal) and answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
   terms by URI only is still answered (ADR-0123).
@@ -257,15 +272,17 @@ catch-up fetch or deferral, refuse instead.
   actor and the Invite, a tree node queues it (CLP-10-020), and the sealed ER is
   written before the queue append (ID-04-005), so a redelivery is `SKIPPED`.
 - An Invite naming no `to` recipient, several, or no embargo is answered with
-  `Create(ProcessingFault)`, not ER (EP-09-010, MSM-05-001).
+  `Create(ProcessingFault)`, not ER (EP-09-010, MSM-05-001), by the one tree
+  `received_embargo_invite_tree` builds for it (`invite_received_tree.py`),
+  after the post-close boundary.
 
 **A participant answers a revision on a P/X/A case with ER, never ET**
 (EMB-03-003, ADR-0118). Termination belongs to the owner, or to the
 CASE_MANAGER when delegated (EP-09-008); a participant's ET would write shared
 EM state it does not own. The duty binds only the addressee: every received
-embargo use case first runs `unaddressed_copy_refusal()`
-(`vultron/core/use_cases/_helpers.py`), so an unaddressed copy is answered by
-nobody.
+embargo tree passes `addressee_check` to `create_receive_activity_tree`, whose
+`ActivityAddressedToReceiverNode` door guard refuses an unaddressed copy before
+anything answers it (HP-01-005, CLP-10-010).
 
 ## P/X/A Teardown
 
@@ -309,11 +326,14 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    open proposal and writes no consent (MSM-07-006). Callers do none of this
    by hand.
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
-   teardown, withdrawal, activation and expiry slots copy the entry's step or
-   row (a `Leave` carries none), and every other row arrives as its own
-   CASE_MANAGER entry (ADR-0124). Two paths still pass
-   `transition_mode=TransitionMode.OBSERVED`: the owner's-rejection replica
-   slot (`activation_effect.py`, #4784), and a paused replica applying a
+   teardown, withdrawal, activation, owner's-rejection and expiry slots copy
+   the entry's step or row (a `Leave` carries none), and every other row
+   arrives as its own CASE_MANAGER entry (ADR-0124). The owner's-rejection
+   slot's skip of a `Reject` answered with ET is the one tracked deviation
+   from copy-only until #4850 (CM-23-016, MSM-07-009; see the P/X/A guards
+   above). One path
+   still passes
+   `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
@@ -390,10 +410,9 @@ every other participant learns the result from the ledger.
    actor policy, a call-out point. The Invites are not a vote: they gather the
    consent rows that decide who stays bound when terms lengthen (EP-05-001).
 6. Only the CASE_MANAGER evaluates expiry (CM-28-014). Replay nodes copy the
-   proposal's `PROPOSE` step and every consent row the CASE_MANAGER commits as
-   its own entry; the decision slot still reconstructs via
-   `EmbargoLifecycle(OBSERVED)` until #4716 (EP-09-007, RSH-08-004, ADR-0124);
-   the slot table is in
+   proposal's `PROPOSE` step, the owner's `ACTIVATE` or `REJECT`, and every
+   consent row the CASE_MANAGER commits as its own entry (EP-09-007,
+   RSH-08-004, ADR-0124); the slot table is in
    `notes/case-communication-model.md` § "What the participant and its replica
    do".
 
@@ -500,10 +519,10 @@ listed (`PARTICIPANT`). The invitee rows use `SenderIsInviteeNode`.
 - **The invitee comes from the store, never from the reply**, so a reply
   embedding a doctored Invite cannot name itself the invitee; an Invite the store
   never recorded names no invitee and is refused.
-- **A handler that writes before its tree runs checks first** through
-  `rule_refusal()`, which composes the same guard from the declared rule, the
-  invitee rows included; the tree carries the guard as well, in the factory's
-  sender stage. A handler never builds a sender node of its own (HP-01-007).
+- **The sender guard is the tree's, in the factory's sender stage**, composed
+  from the declared rule, the invitee rows included; no embargo handler checks
+  the sender ahead of its tree, and none builds a sender node of its own
+  (HP-01-007, CLP-10-005).
 
 The `Remove` row at the CASE_MANAGER is not stated by a spec; it
 follows EP-09-005 (the owner decides) and the ER-never-ET rule above.

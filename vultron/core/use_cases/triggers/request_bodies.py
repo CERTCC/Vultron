@@ -32,10 +32,9 @@ The models are declared as classes, not built with ``create_model``: FastAPI
 renders each class docstring as the component schema ``description``, and
 ``create_model`` would drop it.
 
-CS-09-002: ValidateReportRequest, InvalidateReportRequest, and
-CloseReportRequest share a common base (ReportTriggerRequest) because they
-have identical fields.  RejectReportRequest also uses offer_id but requires
-a non-optional note field.
+CS-09-002: ValidateReportRequest and InvalidateReportRequest share a common
+base (ReportTriggerRequest) because they have identical fields.
+RejectReportRequest also uses offer_id but requires a non-optional note field.
 """
 
 import logging
@@ -89,16 +88,6 @@ class ValidateReportRequest(ReportTriggerRequest):
 
 class InvalidateReportRequest(ReportTriggerRequest):
     """Request body for the invalidate-report trigger endpoint."""
-
-
-class CloseReportRequest(ReportTriggerRequest):
-    """
-    Request body for the close-report trigger endpoint.
-
-    Distinction from reject-report: close-report closes a report after the
-    RM lifecycle has proceeded (RM → C transition; emits RC message), while
-    reject-report hard-rejects an incoming offer before validation completes.
-    """
 
 
 class RejectReportRequest(BaseModel):
@@ -407,13 +396,13 @@ class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
     """Request body for the offer-case-participant-role trigger endpoint (ADR-0039).
 
     Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
-    from the requesting actor.  ``role`` defaults to ``"CASE_MANAGER"`` for
-    backward-compatibility with callers that previously used the deprecated
-    offer-case-manager-role endpoint.
+    from the requesting actor.  ``role`` is required: it has no default, since
+    the CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER``
+    and reads no missing role as a default (CM-33-003).
     """
 
     target_actor_id: UriString
-    role: CVDRole = CVDRole.CASE_MANAGER
+    role: CVDRole
 
     @field_validator("role", mode="before")
     @classmethod
@@ -581,10 +570,12 @@ class NotifyPublishedRequest(CaseTriggerRequest):
     """
 
 
-class CloseCaseRequest(CaseTriggerRequest):
-    """Request body for the close-case demo trigger.
+class LeaveCaseRequest(CaseTriggerRequest):
+    """Request body for the leave-case trigger.
 
-    Signals that the actor is closing the case (RM → CLOSED).
+    Names the case the actor leaves by sending Leave(VulnerabilityCase) to its
+    CASE_MANAGER (TRIG-13-001).  For the Case Owner the Leave closes the case;
+    for any other participant the case stays open (CM-23-002, CM-23-003).
     TRIG-03-002: Unknown fields are silently ignored.
     """
 

@@ -202,8 +202,12 @@ def add_participant_status_tree(
         name="AddParticipantStatusBT",
         case_id=tree_case_id,
         sender_rule=sender_rule,
+        # A replica takes the update from the CASE_MANAGER alone, so with no
+        # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).
         sender_context=SenderCheckContext(
-            sender_id=actor_id, case_id=tree_case_id
+            sender_id=actor_id,
+            case_id=tree_case_id,
+            case_manager_required=True,
         ),
         precondition_guards=[
             FilterParticipantStatusDimensionsNode(

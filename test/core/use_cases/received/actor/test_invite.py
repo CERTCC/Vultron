@@ -69,9 +69,9 @@ def _seed_ledger_entry(
     """
     from vultron.core.models.case_ledger import HashChainLedgerRecord
     from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-    from vultron.core.sync_helpers import _reconstruct_tail_hash
+    from vultron.core.sync_helpers import reconstruct_tail_hash
 
-    tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
+    tail_hash, tail_index = reconstruct_tail_hash(case_id, dl)
     chain_entry = HashChainLedgerRecord(
         case_id=case_id,
         log_index=tail_index + 1,

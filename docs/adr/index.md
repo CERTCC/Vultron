@@ -235,19 +235,23 @@ General information about architectural decision records is available at <https:
 - [ADR-0137 Case Records and Notes Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(revision 2)* *(provisional)*
 - [ADR-0141 A Refused Assertion Is Answered With a Reject of the Refused Activity](0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md) *(provisional)*
 - [ADR-0142 A Diverged Replica Is Repaired by a Fresh Case Copy That Names Its Ledger Position](0142-a-diverged-replica-is-repaired-by-a-fresh-case-copy-that-names-its-ledger-position.md) *(provisional)*
+- [ADR-0144 Once a Report Belongs to a Case, Only Its Owner Closes It, by Leave](0144-once-a-report-belongs-to-a-case-only-its-owner-closes-it-by-leave.md) *(provisional)*
+- [ADR-0145 A Case Is Left Through the Leave-Case Trigger, Whose Actor Runs Its Pre-Close Step First](0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md) *(provisional)*
 
 ## Proposed ADRs
 
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)*
 - [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)*
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
-- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
+- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
 - [ADR-0136 Organize the Site's Top Level by Subject and Reader, Not Diátaxis Type](0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md) *(revision 2)* — partially supersedes 0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md
 - [ADR-0138 A Pushed Pull Request Is Merged Locally Only on Conflict](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)
 - [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md)
+- [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
+- [ADR-0146 An Embargo Act Stores Its Planned Entries Before It Commits, and the Next Run Finishes Them](0146-an-embargo-act-stores-its-planned-entries-and-the-next-run-finishes-them.md)
 
 ## Rejected ADRs
 

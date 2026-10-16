@@ -145,11 +145,11 @@ Sections marked `[N]` are normative. Sections marked `[I]` are informative.
 Sections marked `[N/I]` contain a mix; normative requirements are explicitly
 flagged.
 
-**State names.** This specification writes state names in full, in prose form:
-*Received*, *Active*, *Signatory*, *Fix Ready*. Where the name of a specific
-enumerated value matters — for example when citing an implementation's
-enumeration — the value is written in code font with its machine as a prefix, as
-in `RM.RECEIVED` or `PEC.SIGNATORY`. The two forms name the same state.
+**State names.** This specification writes state names in full, in prose form: *Received*, *Active*, *Agreed*, *Fix Ready*.
+Where the name of a specific enumerated value matters, for example when citing an implementation's enumeration, the value is written in code font with its machine as a prefix, as in `RM.RECEIVED` or `EM.ACTIVE`.
+The two forms name the same state.
+Consent row states and embargo register statuses are written in code font without a prefix (`AGREED`, `PROPOSED`); where a word names both an EM state and a register status, the text says which.
+Some positions the specification names are reads of state rather than states: a participant is a *signatory* when its consent to the embargo in force is *Agreed* ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
 
 **Case-state notation.** The Case State axes use one letter per condition. A
 lowercase letter means the condition is not met; an uppercase letter means it is.

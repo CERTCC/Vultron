@@ -21,8 +21,8 @@ entry.  :func:`grant_role_to_target` is the one place that entry becomes case
 state — it adds the offered ``CVDRole`` to the target participant's
 ``case_roles`` on a given replica.  The CASE_MANAGER applies it to its own
 replica via
-:class:`~vultron.core.behaviors.case.nodes.delegation.GrantCaseParticipantRoleNode`,
-the ``manager_effects`` node of the offer-received tree that commits the accept;
+:class:`~vultron.core.behaviors.case.nodes.delegation.GrantCaseParticipantRoleNode`
+when it commits the target's accept (CM-33-006, #4703), never on the Offer;
 every other participant applies it by replaying the entry through
 :class:`ApplyCaseParticipantRoleGrantFromLedgerNode` in
 ``create_announce_log_entry_tree`` (CM-02-016, RSH-08-004, ADR-0124).
@@ -35,16 +35,14 @@ from typing import ClassVar
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
-    _LedgerEffectNode,
-)
+from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SingleEventTypeNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.enums.roles import CVDRole, validate_roles
 
 logger = logging.getLogger(__name__)
@@ -69,7 +67,9 @@ def role_and_target_from_accept_snapshot(
     offer = snapshot.get("object")
     if not isinstance(offer, dict):
         return None
-    target_actor_id = _extract_id_from_field(offer.get("target"))
+    # The snapshot keeps the sender's spelling; the participant index is
+    # keyed canonically, so the target is normalised here (OID-01-006).
+    target_actor_id = snapshot_actor_id(offer.get("target"))
     role_obj = offer.get("object")
     raw_role = role_obj.get("role") if isinstance(role_obj, dict) else None
     if not target_actor_id or not raw_role:

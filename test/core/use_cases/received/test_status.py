@@ -18,11 +18,18 @@ from typing import cast
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_participant,
     seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
+    SenderEntitlementKind,
+    SenderRule,
+)
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.dimensions import (
@@ -78,6 +85,8 @@ class TestStatusUseCases:
         # so the store's own actor must hold the role for the write to run,
         # which also runs the guarded commit (sync_port injected below).
         seed_store_owner_as_case_manager(dl, case)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, "https://example.org/users/vendor")
         dl.create(case)
         dl.create(status)
 
@@ -179,6 +188,8 @@ class TestStatusUseCases:
             em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
+        # The sender holds standing, so its content is refused, not it.
+        seed_case_participant(dl, case, sender_id)
         dl.create(case)
 
         bad_status = as_CaseStatus(
@@ -330,7 +341,10 @@ class TestStatusUseCases:
         "rejected" to KEY_OUTCOME_STATUS and surfaces a rejected InboxOutcome
         rather than a silent 202 Accepted / processed (HP-01-003).
         """
-        receiver_id = "https://example.org/users/vendor-ps-ac2"
+        # The filter runs at the CASE_MANAGER: a replica takes the update
+        # from the CASE_MANAGER alone and refuses this sender first
+        # (PCR-03-001).
+        receiver_id = "https://example.org/users/case-manager-ps-ac2"
         sender_id = "https://example.org/users/vendor-ps-ac2"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
 
@@ -356,6 +370,7 @@ class TestStatusUseCases:
         )
         case.case_participants.append(participant.id_)
         case.actor_participant_index[sender_id] = participant.id_
+        seed_case_manager_participant(dl, case, receiver_id)
         dl.create(case)
 
         # A backward RM with no other change — filter will refuse it in full
@@ -1149,3 +1164,22 @@ class TestParticipantStatusLogEntryCascade:
         assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "add_participant_status_to_participant"
         )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "RSH-04-005: Add(CaseStatus) is still exempt from a sender check."
+        " Tracked by #4851."
+    ),
+)
+@pytest.mark.spec("RSH-04-005")
+def test_add_case_status_admits_only_the_case_manager_at_a_participant():
+    rule = AddCaseStatusToCaseReceivedUseCase.sender_entitlement
+
+    assert isinstance(rule, SenderRule)
+    assert rule.side(AddresseeSide.PARTICIPANT) == frozenset(
+        {SenderEntitlementKind.CASE_MANAGER}
+    )
+    assert rule.side(AddresseeSide.CASE_MANAGER) == frozenset()
+    assert rule.side(AddresseeSide.OUTSIDE_CASE) == frozenset()
