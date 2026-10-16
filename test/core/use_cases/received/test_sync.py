@@ -854,4 +854,4 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert self._IMPOSTER_URI in result.reason
-        assert "does not accept an announcement" in result.reason
+        assert "is not the CASE_MANAGER" in result.reason

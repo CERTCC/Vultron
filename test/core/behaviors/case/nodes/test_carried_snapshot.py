@@ -14,6 +14,9 @@ from vultron.core.behaviors.case.nodes.carried_snapshot import (
 from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
+from vultron.core.use_cases.received.case.engage_defer import (
+    EngageCaseReceivedUseCase,
+)
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
 )
@@ -86,8 +89,17 @@ def _node_types(tree: py_trees.behaviour.Behaviour) -> list[type]:
 def test_engage_tree_keeps_the_snapshot_only_when_one_arrived():
     case = as_VulnerabilityCase(id_=_CASE_ID, name="snapshot")
 
-    with_case = create_engage_case_tree(_CASE_ID, _SENDER, case_obj=case)
-    without = create_engage_case_tree(_CASE_ID, _SENDER)
+    with_case = create_engage_case_tree(
+        _CASE_ID,
+        _SENDER,
+        case_obj=case,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    without = create_engage_case_tree(
+        _CASE_ID,
+        _SENDER,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
 
     assert HoldCarriedEmbargoNode in _node_types(with_case)
     assert StoreEmbeddedParticipantsNode in _node_types(with_case)

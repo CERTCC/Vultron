@@ -45,6 +45,9 @@ from vultron.core.models.participant_event_types import (
     UPDATE_CASE_OWNER_EVENT_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -166,7 +169,11 @@ def test_report_replicated_to_post_transfer_participant(
     After (2), the VulnerabilityReport MUST be readable from the replica's
     DataLayer, otherwise validate-report 404s (#2193).
     """
-    tree = create_announce_log_entry_tree
+
+    def tree():
+        return create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
 
     # --- Step 1: ownership transfer entry (chains from the genesis anchor).
     transfer_record = _ownership_transfer_record(case_replica.genesis_hash)
