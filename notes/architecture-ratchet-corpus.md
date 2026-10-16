@@ -47,8 +47,11 @@ literal substring.
 
 The corpus also caches `docs/**/*.md` text for ratchets that assert
 documentation prose against code: `docs_mentioning(*fragments)` and `all_docs()`,
-mirroring `sources_mentioning` / `all_sources`. No TB-13 entry governs this tier
-yet; it is convention.
+mirroring `sources_mentioning` / `all_sources`. `all_prose()` does the same for
+the authored non-Python text elsewhere — `specs/` YAML, `notes/` Markdown, and the
+Markdown, YAML and text beside the code in `vultron/` — for terminology ratchets
+that scan every authored word (`test_ledger_verdict_wording.py`, CLP-02-012). No
+TB-13 entry governs these tiers yet; they are convention.
 
 - **No lazy tier.** These ratchets match text and never parse, and reading every
   page at import time is an order of magnitude cheaper than the Python cold parse.

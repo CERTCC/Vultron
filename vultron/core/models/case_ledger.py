@@ -51,8 +51,8 @@ Append-only enforcement:
   entries.  New entries are appended via :meth:`CaseLedger.append`.
 
 **Canonical entries only**: the case ledger records protocol-significant
-assertions that the CASE_MANAGER accepted.  Rejected or locally-scoped
-markers are not ledger entries — they are logging events.  See
+assertions that the CASE_MANAGER admitted.  Refused assertions and
+locally-scoped markers are not ledger entries — they are logging events.  See
 ``notes/case-ledger-authority.md`` and CLP-04-007.
 
 Per ``specs/sync-ledger-replication.yaml`` SYNC-01, SYNC-07,
@@ -322,9 +322,9 @@ class CaseLedger:
     - **Monotonically increasing** ``log_index`` values scoped to the case
       (SYNC-01-002).
 
-    Every entry in the ledger is a canonical accepted assertion.  The ledger
-    records only what happened, not what was rejected.  Rejection outcomes are
-    surfaced through Python logging, not ledger entries (CLP-04-007).
+    Every entry in the ledger is a canonical admitted assertion.  The ledger
+    records only what happened, not what was refused.  Refusals are surfaced
+    through Python logging, not ledger entries (CLP-04-007).
 
     Usage example::
 

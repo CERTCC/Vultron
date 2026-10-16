@@ -68,7 +68,7 @@ def reject_case_ledger_entry():
 
     Sent by a participant to the CaseActor when the incoming
     ``prev_log_hash`` does not match the local ledger tail (SYNC-03-001).
-    The ``context`` field carries the last accepted entry hash so the
+    The ``context`` field carries the last applied entry hash so the
     CaseActor can determine the replay window (SYNC-03-002).
     """
     entry = _example_ledger_entry()

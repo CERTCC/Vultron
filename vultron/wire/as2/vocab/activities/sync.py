@@ -57,12 +57,12 @@ class _RejectLogEntryActivity(as_Reject):
     participant's local tail hash.
 
     The ``context`` field (inherited from ``as_Object``) carries the
-    last accepted entry hash as a plain string so the CaseActor can
+    last applied entry hash as a plain string so the CaseActor can
     determine which entries need to be replayed (SYNC-03-001).
 
     object_: :class:`~vultron.wire.as2.vocab.objects.case_ledger_entry.as_CaseLedgerEntry`
-        that was rejected.
-    context: Last accepted entry hash string.
+        the receiver could not apply.
+    context: Last applied entry hash string.
 
     Spec: SYNC-03-001, SYNC-03-002.
     """
