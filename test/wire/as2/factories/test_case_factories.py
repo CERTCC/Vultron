@@ -75,7 +75,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Undo,
     as_Update,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Person
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -408,6 +408,19 @@ def test_offer_ownership_transfer_target_is_set(sample_case, sample_actor):
         case=sample_case, target=sample_actor, actor=_ACTOR_URI
     )
     assert result.target == sample_actor
+
+
+@pytest.mark.spec("DL-08-003")
+def test_offer_ownership_transfer_wraps_a_bare_transferee_id(sample_case):
+    """A transferee named by URI travels inline as an Actor (#4843)."""
+    transferee = "https://example.org/actors/transferee"
+    result = offer_case_ownership_transfer_activity(
+        case=sample_case, target=transferee, actor=_ACTOR_URI
+    )
+    assert isinstance(result.target, as_Actor)
+    assert result.target.id_ == transferee
+    wire = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert wire["target"]["id"] == transferee
 
 
 @pytest.mark.spec("AF-04-001")
