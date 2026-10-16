@@ -33,9 +33,9 @@ Two demo workflows are shown:
 2. **Invalidate and Close**: Finder submits a second report the same way; vendor
    proactively invalidates it via ``POST .../trigger/invalidate-report`` and
    then closes the case it opened for the report via
-   ``POST .../demo/close-case``, which sends ``Leave(VulnerabilityCase)``: once
-   a case holds the report, its owner closes the case by ``Leave``, never by
-   ``Close(Report)`` (CM-23-019).
+   ``POST .../trigger/leave-case``, which sends ``Leave(VulnerabilityCase)``:
+   once a case holds the report, its owner closes the case by ``Leave``, never
+   by ``Close(Report)`` (CM-23-019, TRIG-13-001).
 
 Each demo verifies that the resulting ActivityStreams activity is returned in
 the response body and that the vendor's outbox is updated accordingly.
@@ -144,7 +144,7 @@ def demo_validate_and_engage(
 
 
 # ---------------------------------------------------------------------------
-# Demo 2: invalidate-report trigger → close-case trigger (Leave)
+# Demo 2: invalidate-report trigger → leave-case trigger (Leave)
 # ---------------------------------------------------------------------------
 
 
@@ -160,7 +160,7 @@ def demo_invalidate_and_close(
     1. Finder submits a report that the vendor deems invalid.
     2. Vendor calls ``POST .../trigger/invalidate-report`` to mark it invalid.
     3. Vendor ends the case's embargo, which would decline its close
-       (CM-23-011), then calls ``POST .../demo/close-case`` to close the case it
+       (CM-23-011), then calls ``POST .../trigger/leave-case`` to close the case it
        opened for the report on receipt: a ``Leave(VulnerabilityCase)``, since
        the case's owner never sends ``Close(Report)`` for it (CM-23-019).
     """
@@ -202,19 +202,19 @@ def demo_invalidate_and_close(
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     case = wait_for_case_for_offer(client, stored_offer.id_)
-    # The owner's Leave is declined while the case's embargo is active
-    # (CM-23-011), so the vendor ends the embargo first.
+    # The owner's leave-case call is refused while the case's embargo is
+    # active (TRIG-13-003, CM-23-011), so the vendor ends the embargo first.
     demo_terminate_embargo(vendor_session, case)
-    with demo_step("Step 3: Vendor closes the case with close-case (Leave)"):
-        response = vendor_session.with_case(case).close_case()
+    with demo_step("Step 3: Vendor closes the case with leave-case (Leave)"):
+        response = vendor_session.with_case(case).leave_case()
         logger.info(
-            "close-case response: %s",
+            "leave-case response: %s",
             response.model_dump_json(indent=2),
         )
         with demo_check("Response contains the Leave activity"):
             activity = response.activity
             assert activity is not None, (
-                "Expected 'activity' key in close-case trigger response"
+                "Expected 'activity' key in leave-case trigger response"
             )
             assert activity.get("type") == "Leave", activity.get("type")
             logger.info("Resulting activity type: %s", activity.get("type"))

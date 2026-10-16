@@ -255,4 +255,4 @@ def _leave(leaver: CaseLeaver, case: as_VulnerabilityCase) -> None:
     with demo_step(f"Actor {ref_id(leaver.actor)} closes case"):
         ActorSession(client=leaver.client, actor=leaver.actor).with_case(
             case
-        ).quiet().close_case()
+        ).quiet().leave_case()

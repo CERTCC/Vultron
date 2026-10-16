@@ -458,11 +458,13 @@ STANDING_READS: dict[Site, Listed] = {
         "SenderIsCaseOwnerNode",
     ): Listed(2, "picks the owner's or a participant's Leave arm (CM-23-003)"),
     Site(
-        "vultron/core/behaviors/case/receive_close_case_tree.py",
-        "create_close_case_received_tree._decline_decision_guards",
+        "vultron/core/behaviors/case/owner_close_embargo_guards.py",
+        "owner_close_blocked_by_embargo_guards",
         "SenderIsCaseOwnerNode",
     ): Listed(
-        1, "decides whether a live embargo declines the close (CM-23-011)"
+        1,
+        "decides whether a live embargo blocks the closer's Leave, on receipt"
+        " and in the leave-case trigger (CM-23-011, TRIG-13-003)",
     ),
     Site(
         "vultron/core/behaviors/status/add_participant_status_tree.py",
@@ -485,11 +487,6 @@ STANDING_READS: dict[Site, Listed] = {
     ): Listed(
         2, "reads the local invitee answering on its replica (EP-09-005)"
     ),
-    Site(
-        "vultron/core/behaviors/report/trigger_report_trees.py",
-        "create_close_case_trigger_tree",
-        "SenderIsCaseOwnerNode",
-    ): Listed(1, "a trigger tree: reads the triggering actor's own standing"),
 }
 
 

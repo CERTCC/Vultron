@@ -1067,7 +1067,7 @@ class TestActorClosesCase:
         result = (
             ActorSession(client=vendor_client, actor=vendor)
             .with_case(case)
-            .close_case()
+            .leave_case()
         )
         assert result is not None
 
@@ -1159,10 +1159,10 @@ class TestWaitForAllParticipantsRmClosed:
         # records nothing (CM-23-013, CM-23-015).
         ActorSession(client=finder_client, actor=finder).with_case(
             case
-        ).close_case()
+        ).leave_case()
         ActorSession(client=vendor_client, actor=vendor).with_case(
             case
-        ).close_case()
+        ).leave_case()
         store_client, store_id = case_manager_store(vendor_client, case.id_)
         assert store_id is not None, "the CaseActor is co-hosted in this test"
         manager_client = store_client.model_copy(update={"actor_id": store_id})
@@ -1933,9 +1933,9 @@ def completed_workflow(
     with demo.demo_step("finder closes case"):
         ActorSession(client=finder_client, actor=finder_in_finder).with_case(
             case
-        ).close_case()
+        ).leave_case()
     with demo.demo_step("vendor closes case"):
-        vendor_session.close_case()
+        vendor_session.leave_case()
 
     # Final refresh to pick up any post-closure case-actor state.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
@@ -2311,7 +2311,7 @@ class TestFvMilestoneAssertions:
         }
 
         with (
-            patch.object(ActorSession, "close_case"),
+            patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(
@@ -2355,7 +2355,7 @@ class TestFvMilestoneAssertions:
         with (
             patch.object(
                 ActorSession,
-                "close_case",
+                "leave_case",
                 autospec=True,
                 side_effect=record_close,
             ),

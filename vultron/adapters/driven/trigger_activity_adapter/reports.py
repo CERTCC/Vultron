@@ -187,7 +187,7 @@ class _ReportsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(Offer)`` close-report activity."""
+        """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity."""
         offer = self._resolve_offer(offer_id)
         activity = rm_close_report_activity(offer=offer, actor=actor, to=to)
         return _create_and_seal(self._dl, activity, "close_report")
