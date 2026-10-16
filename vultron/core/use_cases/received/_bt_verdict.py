@@ -705,6 +705,7 @@ __all__ = [
     "addressee_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
+    "closing_act_repeat",
     "door_guards_admitted",
     "failure_reason",
     "find_named",
@@ -718,6 +719,7 @@ __all__ = [
     "not_case_manager_refusal",
     "post_close_refusal",
     "pxa_refusal_verdict",
+    "rm_declaration_verdict",
     "taken_diversion",
     "verdict_from_bt",
 ]

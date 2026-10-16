@@ -58,7 +58,8 @@ def _context(case_id: str | None = CASE_ID) -> SenderCheckContext:
 
 
 def _closing_tree(
-    case_id: str | None = CASE_ID, **kwargs: object
+    case_id: str | None = CASE_ID,
+    case_resolution: list[py_trees.behaviour.Behaviour] | None = None,
 ) -> ReceivedActivityTree:
     return create_receive_activity_tree(
         name="ClosingBT",
@@ -67,11 +68,13 @@ def _closing_tree(
         sender_rule=RULE,
         sender_context=_context(case_id),
         closing_act=True,
-        **kwargs,  # type: ignore[arg-type]
+        case_resolution=case_resolution,
     )
 
 
-def _checks(tree: py_trees.behaviour.Behaviour) -> list:
+def _checks(
+    tree: py_trees.behaviour.Behaviour,
+) -> list[SenderClosureNotRecordedNode]:
     return [
         n
         for n in tree.iterate()

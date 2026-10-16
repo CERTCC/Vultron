@@ -123,6 +123,7 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.behaviors.sender_guard import (
     LedgerActivityContext,
+    SenderCheckContext,
     SenderContext,
     closed_sender_guard,
     compose_sender_guard,
@@ -729,12 +730,13 @@ def _closing_act_stage(
             check at build time.
     """
     where = f"create_receive_activity_tree({name})"
-    if not sender_guarded or isinstance(sender_context, LedgerActivityContext):
+    if not sender_guarded or not isinstance(
+        sender_context, SenderCheckContext
+    ):
         raise VultronWiringError(
             f"{where}: closing_act needs a sender_rule and a"
             " SenderCheckContext naming the sender and its case (CM-23-018)"
         )
-    assert sender_context is not None
     if sender_context.case_id is None:
         return None
     return closed_sender_guard(
