@@ -60,6 +60,7 @@ from vultron.demo.helpers.workflow import (
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
+    demo_gate,
     demo_step,
     get_offer_from_datalayer,
     setup_demo_logging,
@@ -211,25 +212,29 @@ def demo_invalidate_and_close(
     demo_terminate_embargo(vendor_session, case)
     # The refusal reads the vendor's own replica, which applies the
     # termination after the CASE_MANAGER commits it (EDF-06-002).
-    with demo_check("Vendor's replica records the embargo ended"):
+    with demo_gate("Vendor's replica records the embargo ended"):
         wait_for_owner_replica_embargo_state(
             authority_client=client,
             owner=CaseLeaver(client=client, actor=vendor),
             case_id=case.id_,
         )
-    with demo_step("Step 3: Vendor closes the case with leave-case (Leave)"):
-        response = vendor_session.with_case(case).leave_case()
-        logger.info(
-            "leave-case response: %s",
-            response.model_dump_json(indent=2),
-        )
-        with demo_check("Response contains the Leave activity"):
-            activity = response.activity
-            assert activity is not None, (
-                "Expected 'activity' key in leave-case trigger response"
+        with demo_step(
+            "Step 3: Vendor closes the case with leave-case (Leave)"
+        ):
+            response = vendor_session.with_case(case).leave_case()
+            logger.info(
+                "leave-case response: %s",
+                response.model_dump_json(indent=2),
             )
-            assert activity.get("type") == "Leave", activity.get("type")
-            logger.info("Resulting activity type: %s", activity.get("type"))
+            with demo_check("Response contains the Leave activity"):
+                activity = response.activity
+                assert activity is not None, (
+                    "Expected 'activity' key in leave-case trigger response"
+                )
+                assert activity.get("type") == "Leave", activity.get("type")
+                logger.info(
+                    "Resulting activity type: %s", activity.get("type")
+                )
 
     # The case was created on receipt, so the vendor still introduces it to
     # the finder (CBT-01-001).

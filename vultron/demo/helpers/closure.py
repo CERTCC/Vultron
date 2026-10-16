@@ -162,8 +162,9 @@ def close_case_owner_last(
         departed.append(leaver.actor.id_)
 
     with demo_gate(
-        "every other participant's departure recorded before the Case Owner"
-        " leaves (CM-23-015)"
+        "every other participant's departure recorded, and the Case Owner's"
+        " replica caught up with the canonical EM state, before the Case"
+        " Owner leaves (CM-23-015, TRIG-13-003)"
     ):
         manager = _case_manager_reader(authority_client, case.id_)
         for leaver in others:
