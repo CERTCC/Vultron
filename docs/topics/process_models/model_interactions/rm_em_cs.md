@@ -340,7 +340,7 @@ That said,
 
 !!! note ""
 
-    Exploit Publishers who *are* Participants in pre-public CVD cases ($q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$) SHOULD comply with the protocol described here, especially when they also fulfill other roles (e.g., Finder, Reporter, Coordinator, Vendor) in the process.
+    Exploit Publishers who *are* Participants in pre-public CVD cases ($q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$) SHOULD comply with the protocol described here, especially when they also fulfill other roles (e.g., Reporter, Coordinator, Vendor) in the process.
 
 For example, as described in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}, the preference for $\mathbf{P} \prec \mathbf{X}$ dictates that
 
