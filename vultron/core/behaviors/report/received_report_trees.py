@@ -411,6 +411,9 @@ def create_close_report_received_tree(
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
         case_resolution=stages.case_resolution,
+        # A Close declares the sender CLOSED: a repeat from one the case
+        # already records as closed changes nothing (CM-23-018, ID-05-003).
+        closing_act=True,
         precondition_guards=stages.guards,
         manager_effects=stages.effects if case_id is not None else None,
         manager_case_id=case_id if case_id is not None else None,

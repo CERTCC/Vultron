@@ -42,6 +42,7 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    closing_act_repeat,
     failure_reason,
     find_node,
     node_failed,
@@ -49,9 +50,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     post_close_refusal,
     rm_declaration_verdict,
     verdict_from_bt,
-)
-from vultron.core.use_cases.received._sender_preflight import (
-    closed_sender_preflight,
 )
 from vultron.errors import (
     VultronBTInternalError,
@@ -484,21 +482,6 @@ class CloseReportReceivedUseCase:
         )
         # The case the sender guard and the RM adjudication read.
         case_id = _case_id_for_report(self._dl, request.report_id)
-        # A Close from a sender the case already records as closed would
-        # close it again: its effect is in place, so it is SKIPPED with
-        # nothing committed or sent, whatever its id (CM-23-018, ID-05-003).
-        skip = closed_sender_preflight(
-            self._dl,
-            receiving_actor_id,
-            request,
-            case_id=case_id,
-            sender_actor_id=request.actor_id,
-            closes=True,
-            label="CloseReportReceivedBT",
-            sync_port=self._sync_port,
-        )
-        if skip is not None:
-            return skip
         tree = create_close_report_received_tree(
             request, case_id=case_id, sender_rule=self.sender_entitlement
         )
@@ -513,6 +496,12 @@ class CloseReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
+        # A Close from a sender the case already records as closed would
+        # close it again: its effect is in place, so the tree's closing-act
+        # check stops it as SKIPPED with nothing committed or sent, whatever
+        # its id (CM-23-018, ID-05-003).
+        if (repeat := closing_act_repeat(tree)) is not None:
+            return repeat
         return rm_declaration_verdict(
             tree,
             _log_refusal(

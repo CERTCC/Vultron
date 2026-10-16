@@ -440,6 +440,32 @@ def rm_declaration_verdict(
     return verdict
 
 
+def closing_act_repeat(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """``SKIPPED`` when the run was a repeat of a closing act, else ``None``.
+
+    The factory's closing-act check stops the tree when the case already
+    records the sender's closure, so the act that would close it again
+    changes nothing: nothing is committed or sent, and the benign no-op is
+    ``SKIPPED``, whatever its activity id (CM-23-018, ID-05-003).  The
+    handler asks this before any other reading of the run's failure.
+
+    Raises:
+        VultronWiringError: *tree* was not built by
+            :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
+    """
+    root = _root(tree)
+    if not isinstance(root, ReceivedActivityTree):
+        raise VultronWiringError(
+            f"closing_act_repeat: '{root.name}' is not a"
+            " received-activity tree, so it has no closing-act check"
+            " (CM-23-018)"
+        )
+    reason = root.repeated_closing_act
+    return None if reason is None else HandlerResult.skipped(reason)
+
+
 def guard_refusal(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     node_type: type[py_trees.behaviour.Behaviour],

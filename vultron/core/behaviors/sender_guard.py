@@ -269,11 +269,11 @@ def closed_sender_guard(
 ) -> SenderClosureNotRecordedNode:
     """The CM-23-018 check that the case does not record the sender's closure.
 
-    Built here, beside the kinds' guards, so the closed-sender pre-flight
-    (``vultron.core.use_cases.received._sender_preflight``) never names a
-    sender node itself (HP-01-007).  It is not a kind: it tells a repeated
-    closing act (``SKIPPED``) from any other act of a closed sender
-    (``REFUSED``) before a handler's received tree runs.
+    Built here, beside the kinds' guards, so the receive-tree factory never
+    names a sender node itself (HP-01-007).  It is not a kind: the factory
+    places it just before the sender guard of a tree whose act would close
+    its sender (``closing_act``), so a repeat of that act is ``SKIPPED``
+    rather than refused by the guard (ID-05-003).
     """
     return SenderClosureNotRecordedNode(
         case_id=case_id, sender_actor_id=sender_id

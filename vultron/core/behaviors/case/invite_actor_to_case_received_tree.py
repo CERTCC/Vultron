@@ -90,6 +90,9 @@ def create_reject_invite_actor_to_case_received_tree(
         case_id=case_id,
         precondition_guards=[],
         sender_rule=sender_rule,
+        # A Reject closes its invitee: a repeat from one the case already
+        # records as closed changes nothing (CM-23-018, ID-05-003).
+        closing_act=True,
         sender_context=SenderCheckContext(
             sender_id=invitee_id or "",
             case_id=case_id,

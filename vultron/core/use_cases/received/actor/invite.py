@@ -34,13 +34,11 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    closing_act_repeat,
     intake_verdict,
     node_failed,
     not_case_manager_refusal,
     verdict_from_bt,
-)
-from vultron.core.use_cases.received._sender_preflight import (
-    closed_sender_preflight,
 )
 
 if TYPE_CHECKING:
@@ -192,26 +190,13 @@ class AcceptInviteActorToCaseReceivedUseCase:
         actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        # An invitee the case already records as closed (its stub Reject was
-        # applied) may act on nothing further: its Accept would join a
-        # participant whose RM is terminal.  REFUSED before the tree, with
-        # nothing committed or sent (CM-23-018, CM-11-015, RMB-14-006).
-        refusal = closed_sender_preflight(
-            self._dl,
-            actor_id,
-            request,
-            case_id=case_id,
-            sender_actor_id=invitee_id,
-            closes=False,
-            label="AcceptInviteActorToCaseBT",
-            sync_port=self._sync_port,
-        )
-        if refusal is not None:
-            return refusal
-
         # The reply's sender is the invitee: the tree's sender guard refuses
         # any sender that is not the recorded Invite's invitee, so the
-        # participant is never taken from the embedded copy (CM-11-017).
+        # participant is never taken from the embedded copy (CM-11-017).  It
+        # also refuses an invitee the case already records as closed (its
+        # stub Reject was applied): its Accept would join a participant whose
+        # RM is terminal, so nothing is committed or sent (CM-23-018,
+        # CM-11-015, RMB-14-006).
         tree = create_accept_invite_actor_to_case_tree(
             case_id=case_id,
             invitee_id=invitee_id,
@@ -308,21 +293,6 @@ class RejectInviteActorToCaseReceivedUseCase:
         actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        # A Reject from an invitee the case already records as closed would
-        # close it again: SKIPPED, nothing committed or sent (CM-23-018).
-        skip = closed_sender_preflight(
-            self._dl,
-            actor_id,
-            request,
-            case_id=case_id,
-            sender_actor_id=request.actor_id,
-            closes=True,
-            label="RejectInviteActorToCaseReceivedBT",
-            sync_port=self._sync_port,
-        )
-        if skip is not None:
-            return skip
-
         tree = create_reject_invite_actor_to_case_received_tree(
             case_id=case_id,
             invite_id=request.invite_id,
@@ -339,6 +309,11 @@ class RejectInviteActorToCaseReceivedUseCase:
             actor_id=actor_id,
             activity=request,
         )
+        # A Reject from an invitee the case already records as closed would
+        # close it again: the tree's closing-act check stops it with nothing
+        # committed or sent, so it is SKIPPED (CM-23-018, ID-05-003).
+        if (repeat := closing_act_repeat(tree)) is not None:
+            return repeat
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteActorToCaseReceivedBT"
         )

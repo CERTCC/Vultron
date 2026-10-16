@@ -134,6 +134,9 @@ def create_full_case_invite_reply_received_tree(
         name=name,
         case_id=case_id,
         sender_rule=sender_rule,
+        # A Reject (RC) closes its sender: a repeat from one the case
+        # already records as closed changes nothing (CM-23-018, ID-05-003).
+        closing_act=rm_state is RM.CLOSED,
         sender_context=SenderCheckContext(
             sender_id=replier_id,
             case_id=case_id,

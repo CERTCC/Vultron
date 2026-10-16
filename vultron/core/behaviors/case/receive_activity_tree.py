@@ -117,10 +117,14 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
     ReplicaEmitExemption,
 )
-from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_entitlement import (
+    SenderClosureNotRecordedNode,
+    SenderRule,
+)
 from vultron.core.behaviors.sender_guard import (
     LedgerActivityContext,
     SenderContext,
+    closed_sender_guard,
     compose_sender_guard,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
@@ -497,9 +501,12 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
     """The one tree a received activity runs (CLP-10-005, ADR-0135).
 
     A plain ``Sequence`` that also remembers which of its children are the
-    door guards (intake, the post-close guard, the addressee check and the
-    sender guard, CLP-10-010), so a handler can ask whether the delivery got
-    past them without knowing which guard the tree runs first.
+    door guards (intake, the post-close guard, the addressee check, the
+    closing-act check and the sender guard, CLP-10-010), so a handler can ask
+    whether the delivery got past them without knowing which guard the tree
+    runs first.  It also keeps the closing-act check, when the tree has one,
+    so a handler can tell a repeat of a closing act (``SKIPPED``) from a
+    refusal without naming a sender node (HP-01-007).
     """
 
     def __init__(
@@ -507,11 +514,13 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         name: str,
         children: list[py_trees.behaviour.Behaviour],
         door_guards: Sequence[py_trees.behaviour.Behaviour],
+        closing_act_check: SenderClosureNotRecordedNode | None = None,
     ) -> None:
         super().__init__(name=name, memory=False, children=children)
         self.door_guards: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
             door_guards
         )
+        self._closing_act_check = closing_act_check
 
     @property
     def door_guards_admitted(self) -> bool:
@@ -519,6 +528,27 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         return all(
             guard.status == py_trees.common.Status.SUCCESS
             for guard in self.door_guards
+        )
+
+    @property
+    def repeated_closing_act(self) -> str | None:
+        """Why the last run was a repeat of a closing act, else ``None``.
+
+        Set when the tree's closing-act check found the sender's closure
+        already recorded: the act would close it again, so it changes
+        nothing and the handler reports ``SKIPPED``, whatever its activity
+        id (CM-23-018, ID-05-003).
+        """
+        check = self._closing_act_check
+        if (
+            check is None
+            or check.status != py_trees.common.Status.FAILURE
+            or not check.sender_closed
+        ):
+            return None
+        return (
+            f"{self.name}: {check.feedback_message} — a repeat of a closing"
+            " act, nothing to apply (ID-05-003)"
         )
 
 
@@ -677,6 +707,41 @@ def _sender_guard_stage(
     return compose_sender_guard(sender_rule, sender_context)
 
 
+def _closing_act_stage(
+    name: str,
+    sender_context: SenderContext | None,
+    *,
+    sender_guarded: bool,
+) -> SenderClosureNotRecordedNode | None:
+    """The closing-act check, run just before the sender guard (CM-23-018).
+
+    For a tree whose act would close its sender (a ``Close(Report)``, a
+    ``Reject`` of a stub or full-case Invite).  When the case already records
+    the sender's closure, the act changes nothing: the check fails the tree
+    with ``sender_closed`` set, before the sender guard could refuse the
+    closed sender, so nothing is committed or sent and the handler reports
+    ``SKIPPED`` (ID-05-003).  An act on no case has no closure to repeat, so
+    a context that names no case composes no check.
+
+    Raises:
+        VultronWiringError: the tree has no sender guard, or its sender is
+            read from a ledger activity, so there is no sender and case to
+            check at build time.
+    """
+    where = f"create_receive_activity_tree({name})"
+    if not sender_guarded or isinstance(sender_context, LedgerActivityContext):
+        raise VultronWiringError(
+            f"{where}: closing_act needs a sender_rule and a"
+            " SenderCheckContext naming the sender and its case (CM-23-018)"
+        )
+    assert sender_context is not None
+    if sender_context.case_id is None:
+        return None
+    return closed_sender_guard(
+        sender_context.case_id, sender_context.sender_id
+    )
+
+
 def _case_resolution_stage(
     name: str,
     steps: list[py_trees.behaviour.Behaviour],
@@ -747,6 +812,7 @@ def create_receive_activity_tree(
     post_close_exemption: PostCloseExemption | None = None,
     post_close_reply: list[py_trees.behaviour.Behaviour] | None = None,
     clock_decisions: list[py_trees.behaviour.Behaviour] | None = None,
+    closing_act: bool = False,
 ) -> ReceivedActivityTree:
     """Compose a receive-side BT with the CLP-10-010 stages in order.
 
@@ -755,6 +821,7 @@ def create_receive_activity_tree(
 
         Intake → CaseOpenToExternalWrites → [addressee check]
             → [*case_resolution]
+            → [closing-act check]
             → [sender guard]
             → [CaseManagerGate[ClockDecisionStage[
                    *case_clock_decisions, *clock_decisions]]]
@@ -777,6 +844,16 @@ def create_receive_activity_tree(
     entry; a ``RECEIVER`` diversion writes no case state and its emits need a
     registered exemption.  A tree with diversions takes no
     ``refusal_effects``.
+
+    ``closing_act`` marks a tree whose act would close its sender (a
+    ``Close(Report)``, a ``Reject`` of a stub or full-case Invite).  The
+    factory places the closing-act check just before the sender guard: when
+    the case already records the sender's closure, the act would close it
+    again and changes nothing, so the tree stops with nothing committed or
+    sent, and the handler reads
+    :attr:`ReceivedActivityTree.repeated_closing_act` to report ``SKIPPED``,
+    whatever the activity id (CM-23-018, ID-05-003).  Any other act of a
+    closed sender is the sender guard's to refuse (CM-23-018).
 
     ``clock_decisions`` are decisions the CASE_MANAGER takes from its own
     clock or local policy before it judges the activity, such as an expiry
@@ -944,6 +1021,9 @@ def create_receive_activity_tree(
         clock_decisions: The CASE_MANAGER's own decisions from its clock or
             policy, run after the door guards and before the precondition
             guards, at the CASE_MANAGER only (CLP-10-025).
+        closing_act: The act would close its sender, so a repeat from a
+            sender whose closure is recorded stops the tree as a no-op
+            (CM-23-018, ID-05-003); requires ``sender_rule``.
 
     Raises:
         VultronWiringError: ``manager_effects`` has no ``manager_case_id``, a
@@ -961,7 +1041,8 @@ def create_receive_activity_tree(
             ``refusal_effects`` (CLP-10-026), or ``clock_decisions`` name no
             case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's commit
-            (CLP-10-025).
+            (CLP-10-025), or ``closing_act`` is set without a sender guard
+            that names its case at build time (CM-23-018).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, CLP-10-025, CLP-10-026,
@@ -1001,6 +1082,15 @@ def create_receive_activity_tree(
             name, case_resolution or [], sender_guarded=guard is not None
         )
     )
+    closing_check = (
+        _closing_act_stage(
+            name, sender_context, sender_guarded=guard is not None
+        )
+        if closing_act
+        else None
+    )
+    if closing_check is not None:
+        children.append(closing_check)
     if guard is not None:
         children.append(guard)
     door_guards = list(children)
@@ -1063,5 +1153,8 @@ def create_receive_activity_tree(
             )
         )
     return ReceivedActivityTree(
-        name=name, children=children, door_guards=door_guards
+        name=name,
+        children=children,
+        door_guards=door_guards,
+        closing_act_check=closing_check,
     )

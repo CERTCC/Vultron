@@ -265,13 +265,20 @@ guards, commit, effects.
    `post_close_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
    door guard as a one-node tree ahead of the received tree: that is the
-   chained shape CLP-10-005 forbids (ADR-0135), and `closed_sender_preflight`
-   (`_sender_preflight.py`) is the last one left (#4773), so add no caller. A tree
+   chained shape CLP-10-005 forbids (ADR-0135). A tree
    opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
    nodes that answer the refusal; only the close-case tree passes one
    (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other
    late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
    check and the sender guard follow.
+
+   A tree whose act would close its sender (`Close(Report)`, a `Reject` of a
+   stub or full-case Invite) passes `closing_act=True`: the factory places the
+   closing-act check just before the sender guard, so a repeat from a sender
+   the case records as closed stops the tree, and the handler reports it
+   `SKIPPED` via `closing_act_repeat()` before reading any refusal (CM-23-018,
+   ID-05-003). Declare it on the tree; never write the check per handler. Any
+   other act of a closed sender is the sender guard's to refuse.
 
    When the case the sender is checked against is resolved at run time, the
    guard still comes from the factory (HP-01-008). Pass the read-only
