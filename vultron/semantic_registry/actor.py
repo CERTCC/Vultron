@@ -61,6 +61,7 @@ from vultron.core.use_cases.received.actor import (
     TentativeRejectInviteActorToFullCaseReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     HowToGuide,
@@ -139,6 +140,27 @@ ENTRIES: list[SemanticEntry] = [
                 example="recommend_actor",
                 howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
+            ),
+            Occasion(
+                when=("the Case Owner decides to invite an actor to the case"),
+                anchor="request-invite-actor-to-case",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Ask the Case Manager to invite an actor",
+                description=(
+                    "Asks the Case Manager to invite the actor named by the "
+                    "object to the case named by the target, with the roles "
+                    "in `suggestedRoles`. The Case Manager answers with the "
+                    "Stub Invite to that actor, not with an offer to the Case "
+                    "Owner."
+                ),
+                example="request_invite_actor_to_case",
+                howto=HowToGuide.INVITE_ACTOR,
+                usual_senders=(CVDRole.CASE_OWNER,),
+                notes=(
+                    "The wire form is the suggestion a participant sends; "
+                    "the Case Manager tells the two apart by whether the "
+                    "sender holds the Case Owner role on the case."
+                ),
             ),
         ),
         page=MessagePage.GENERAL,

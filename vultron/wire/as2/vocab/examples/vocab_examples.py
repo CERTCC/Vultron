@@ -56,6 +56,7 @@ from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
     recommend_actor,
     reject_actor_recommendation,
     reject_case_participant_offer,
+    request_invite_actor_to_case,
 )
 from vultron.wire.as2.vocab.examples.case import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
@@ -88,6 +89,7 @@ from vultron.wire.as2.vocab.examples.embargo import (
     accept_embargo_revision,
     activate_embargo,
     announce_embargo,
+    announce_embargo_termination,
     embargo_event,
     notify_embargo_termination,
     propose_embargo,
@@ -404,8 +406,10 @@ def main(outdir=None):
         add_exploit_public_to_case,
         add_attacks_observed_to_case,
         propose_embargo_revision,
+        request_invite_actor_to_case,
         relay_embargo_proposal,
         notify_embargo_termination,
+        announce_embargo_termination,
         accept_embargo_revision,
         reject_embargo_revision,
         remove_note_from_case,

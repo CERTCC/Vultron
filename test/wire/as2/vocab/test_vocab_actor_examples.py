@@ -47,6 +47,7 @@ from vultron.wire.as2.vocab.examples.actor import (
     recommend_actor,
     reject_actor_recommendation,
     reject_case_participant_offer,
+    request_invite_actor_to_case,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
@@ -73,6 +74,27 @@ class TestRecommendActor(unittest.TestCase):
 
     def test_target_is_case(self):
         self.assertEqual(self.activity.target, self.case.id_)
+
+
+class TestRequestInviteActorToCase(unittest.TestCase):
+    """The Case Owner's own Offer(Actor) to the CASE_MANAGER (CM-17-007)."""
+
+    def setUp(self):
+        self.activity = request_invite_actor_to_case()
+
+    def test_wire_form_is_the_recommendation(self):
+        self.assertIsInstance(self.activity, _RecommendActorActivity)
+
+    def test_sent_by_the_case_owner_to_the_case_manager(self):
+        self.assertEqual(self.activity.actor, vendor().id_)
+        self.assertEqual(self.activity.to, _CASE_ACTOR.id_)
+
+    def test_names_the_invitee_and_the_case(self):
+        self.assertEqual(self.activity.object_, _COORDINATOR)
+        self.assertEqual(self.activity.target, case().id_)
+
+    def test_carries_the_offered_roles(self):
+        self.assertEqual(self.activity.suggested_roles, ["coordinator"])
 
 
 class TestAcceptActorRecommendation(unittest.TestCase):

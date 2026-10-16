@@ -24,6 +24,10 @@ The General shorthands cover messages not tied to a specific state change.
 
 {% include-markdown "./_occasions/sections/suggest-actor-to-case.md" heading-offset=1 %}
 
+{% include-markdown "./_occasions/sections/request-invite-actor-to-case.md" heading-offset=1 %}
+
+The CASE_MANAGER sends the Stub Invite directly, because the Case Owner who would decide on a suggestion is the sender (CM-17-007).
+
 {% include-markdown "./_occasions/sections/offer-case-participant.md" heading-offset=1 %}
 
 The original recommendation's ID is carried in the Offer's `origin`.

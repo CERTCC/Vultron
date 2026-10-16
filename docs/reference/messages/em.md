@@ -32,11 +32,14 @@ This implementation's inbox refuses one as an unrecognized activity and changes 
 
 {% include-markdown "./_occasions/sections/announce-embargo.md" %}
 
-`Announce(Event)` also carries notice of a change significant enough to warrant attention beyond the corresponding `CaseStatus` message, such as an embargo being removed from a case.
-
 When the CASE_MANAGER activates a revision that ends no later than the embargo it replaces, it sends `Announce(Event)` with the new terms directly to each bound signatory that no longer receives ledger entries (removed, or at Report Management (RM) `CLOSED`).
 That participant applies the new terms only when the CASE_MANAGER sent them.
 A revision that ends later sends no such notice, because those participants never agreed to it.
+
+{% include-markdown "./_occasions/sections/announce-embargo-termination.md" %}
+
+- **Recipient:** every active participant other than the CASE_MANAGER, after the CASE_MANAGER applies the termination (BT-17-008).
+  A bound signatory that no longer receives ledger entries gets the CASE_MANAGER's own `Remove(Event)` instead (CM-31-009).
 
 {% include-markdown "./_occasions/sections/embargo-proposal-rejection.md" %}
 

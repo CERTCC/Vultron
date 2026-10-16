@@ -133,6 +133,28 @@ ENTRIES: list[SemanticEntry] = [
                 example="announce_embargo",
                 howto=HowToGuide.MANAGE_EMBARGO,
             ),
+            Occasion(
+                when=(
+                    "the Case Manager has applied an Embargo Termination to "
+                    "the active embargo"
+                ),
+                anchor="announce-embargo-termination",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Announce embargo termination",
+                description=(
+                    "Tells the active participants other than the Case "
+                    "Manager that the embargo it names is terminated. It "
+                    "proposes nothing."
+                ),
+                example="announce_embargo_termination",
+                howto=HowToGuide.MANAGE_EMBARGO,
+                notes=(
+                    "The wire form is the announcement of the embargo in "
+                    "force; the embargo it names, which the case's embargo "
+                    "register records as terminated, makes it a termination "
+                    "announcement."
+                ),
+            ),
         ),
         page=MessagePage.EM,
     ),

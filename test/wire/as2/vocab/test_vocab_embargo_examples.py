@@ -133,6 +133,19 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         self.assertEqual(activity.object_, embargo)
         self.assertIsNotNone(activity.to)
 
+    def test_announce_embargo_termination(self):
+        """The CASE_MANAGER's announcement after it applies a termination."""
+        activity = examples.announce_embargo_termination()
+        self.assertIsInstance(activity, as_Announce)
+
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(
+            activity.to,
+            [examples.coordinator().id_, examples.finder().id_],
+        )
+        self.assertEqual(activity.context, examples.case().id_)
+        self.assertEqual(activity.object_, examples.embargo_event(90))
+
     def test_remove_embargo(self):
         activity = examples.remove_embargo()
         self.assertIsInstance(activity, as_Activity)
