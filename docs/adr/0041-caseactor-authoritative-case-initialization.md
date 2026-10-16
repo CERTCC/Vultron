@@ -254,8 +254,8 @@ stands:
 - "What is removed" listed the `Offer(CaseManagerRole)` accept path and
   `CreateCaseActorNode` without qualification, conflicting with MUST-level
   DEMOMA-08 specs and with the then-live `create_tree.py` use of the node
-  (that factory had no production caller and was deleted, #4330; #4353 tracks
-  deleting the node). Both entries are now scoped to the report-receipt path.
+  (that factory had no production caller and was deleted, #4330; the node was
+  deleted in #4353). Both entries are now scoped to the report-receipt path.
 - The Issue #1767 consequence claimed removal of the back-fill was sufficient on
   its own. It is sufficient only for multi-actor deployments.
 
