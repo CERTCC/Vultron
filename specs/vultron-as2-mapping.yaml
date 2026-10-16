@@ -270,9 +270,11 @@ groups:
       `CLOSE_REPORT` MUST be represented as `Reject(Offer(VulnerabilityReport))`. This
       is the direct report recipient's RC; a participant that joined through an Invite
       sends RC as the full-case Invite reply of VAM-04-014.
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `CloseReportPattern`
-      is registered as `Reject(Offer(VulnerabilityReport))`; `test/wire/as2/factories/test_report_factories.py`
-      builds that wire form, and `test/core/use_cases/received/test_close_report_on_case.py` receives it.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `CloseReportPattern` is registered as `Reject(Offer(VulnerabilityReport))`;
+      `test/wire/as2/factories/test_report_factories.py` builds that wire form, and
+      `test/core/use_cases/received/test_close_report_on_case.py` receives it.
     relationships:
     - rel_type: satisfies
       spec_id: MSM-01-006
