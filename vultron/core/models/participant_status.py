@@ -35,7 +35,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.wire_keys import input_keys
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM, is_rm_write_permitted
-from vultron.enums.roles import CVDRole
+from vultron.enums.roles import CVDRole, parse_role
 from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
@@ -48,7 +48,7 @@ def coerce_cvd_roles(value: object) -> list[CVDRole]:
     if isinstance(value, CVDRole):
         return [value]
     if isinstance(value, str):
-        return [CVDRole(value.lower())]
+        return [parse_role(value)]
     if isinstance(value, list):
         if not value:
             return [CVDRole.OBSERVER]
@@ -58,7 +58,7 @@ def coerce_cvd_roles(value: object) -> list[CVDRole]:
                 roles.append(item)
                 continue
             if isinstance(item, str):
-                roles.append(CVDRole(item.lower()))
+                roles.append(parse_role(item))
                 continue
             raise TypeError(
                 f"Unsupported cvd_role item type: {type(item).__name__}"
@@ -96,21 +96,23 @@ class ParticipantStatus(CoreObject):
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     # Each dimension serializes to its bare state value (ARCH-25-005, ADR-0099), so
     # the alias alone produces the flat wire shape the AS2 form has always used:
-    # ``rm`` -> ``{"rmState": "START"}``.  ``AliasChoices`` keeps the legacy flat
-    # spellings accepted on input so no caller has to change.
+    # ``rm`` -> ``{"rmState": "START"}``.  ``AliasChoices`` accepts the wire
+    # spelling and the field name on input; the retired flat snake_case spellings
+    # (``rm_state``, ``vf_state``, ``d_state``) are refused by ``extra="forbid"``
+    # (SDO-03-003, SDO-03-005).
     rm: RmDimension = Field(
         default_factory=RmDimension,
-        validation_alias=AliasChoices("rmState", "rm_state", "rm"),
+        validation_alias=AliasChoices("rmState", "rm"),
         serialization_alias="rmState",
     )
     vf: VfDimension | None = Field(
         default=None,
-        validation_alias=AliasChoices("vfState", "vf_state", "vf"),
+        validation_alias=AliasChoices("vfState", "vf"),
         serialization_alias="vfState",
     )
     d: DDimension | None = Field(
         default=None,
-        validation_alias=AliasChoices("dState", "d_state", "d"),
+        validation_alias=AliasChoices("dState", "d"),
         serialization_alias="dState",
     )
     case_engagement: bool = True
@@ -138,19 +140,20 @@ class ParticipantStatus(CoreObject):
         ),
     )
 
-    # There is deliberately no ``_migrate_flat_fields`` before-validator any
-    # more.  It hand-translated the flat ``rm_state`` / ``rmState`` spellings
-    # into the nested ``{"state": ...}`` form, and was the only AS2 spelling in
-    # this module outside an alias.  Both mechanisms ARCH-25-005 (ADR-0099) introduced
-    # now cover its whole job with nothing hand-written: the ``AliasChoices``
-    # above accept all three spellings, and ``_ScalarDimension``'s
-    # ``_accept_bare_state`` accepts the bare state value the flat form carries.
+    # There is deliberately no ``_migrate_flat_fields`` before-validator and no
+    # flat ``rm_state`` / ``vf_state`` / ``d_state`` property (SDO-03-003).  The
+    # ``AliasChoices`` above accept the wire spelling and the field name, and
+    # ``_ScalarDimension``'s ``_accept_bare_state`` accepts the bare state value
+    # the wire form carries (ARCH-25-005, ADR-0099).  Readers and writers use the
+    # dimension: ``status.rm.state``, ``status.vf.state``, ``status.d.state``.
 
     # Nor is there a retired-key reject-guard for ``vfd_state``/``vfdState``
-    # (ADR-0075).  ``extra="forbid"`` refuses it on in-process and stored data
-    # (SDO-03-005), and on inbound data the parse edge refuses it by name from
-    # the wire-side list ``vultron.wire.as2.unknown_keys.RETIRED_NAMES``
-    # (MV-11-002, MV-11-004).
+    # (ADR-0075), or for the flat snake_case spellings above.
+    # ``extra="forbid"`` refuses them on in-process and stored data
+    # (SDO-03-005).  On inbound data the parse edge refuses ``vfd_state`` by
+    # name from the wire-side list ``vultron.wire.as2.unknown_keys.RETIRED_NAMES``,
+    # and each flat spelling as a near miss of its wire spelling (``rm_state`` of
+    # ``rmState``), so it needs no entry there (MV-11-002, MV-11-004).
 
     @model_validator(mode="before")
     @classmethod
@@ -225,44 +228,6 @@ class ParticipantStatus(CoreObject):
     def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
         return coerce_cvd_roles(v)
 
-    # Flat views onto the dimensions (``CaseStatus`` no longer carries its own,
-    # SDO-03-003; these go with #4377).  The deleted ``as_ParticipantStatus`` carried
-    # ``rm_state``/``vf_state``/``d_state`` as real fields, so callers read and
-    # assigned them; the dimension remains the owner of the state machine
-    # (ADR-0036) and the flat spelling is only how it serializes (ARCH-25-005,
-    # ADR-0099).
-    #
-    # ``vf`` and ``d`` are legitimately absent for a participant whose role does
-    # not carry them (ADR-0075), so those two views are optional in both
-    # directions rather than fabricating an initial state on read.
-
-    @property
-    def rm_state(self) -> RM:
-        """The RM state value. A view onto ``rm.state``."""
-        return self.rm.state
-
-    @rm_state.setter
-    def rm_state(self, value: RM) -> None:
-        self.rm = RmDimension(state=value)
-
-    @property
-    def vf_state(self) -> CS_vf | None:
-        """The VF state value, or ``None`` when this participant has no VF."""
-        return self.vf.state if self.vf is not None else None
-
-    @vf_state.setter
-    def vf_state(self, value: CS_vf | None) -> None:
-        self.vf = VfDimension(state=value) if value is not None else None
-
-    @property
-    def d_state(self) -> CS_d | None:
-        """The D state value, or ``None`` when this participant has no D."""
-        return self.d.state if self.d is not None else None
-
-    @d_state.setter
-    def d_state(self, value: CS_d | None) -> None:
-        self.d = DDimension(state=value) if value is not None else None
-
     @model_validator(mode="after")
     def _set_name(self) -> "ParticipantStatus":
         """Derive the human-readable ``name`` label from the dimension states.
@@ -292,10 +257,10 @@ def participant_status_rm_state(status: object) -> RM:
     """Return the RM state of a single ``ParticipantStatus``.
 
     This is the canonical RM-dimension reader.  Core :class:`ParticipantStatus`
-    carries a nested ``rm: RmDimension`` (ADR-0036, SDO-03-002); the wire
-    projection ``as_ParticipantStatus`` carries a flat ``rm_state: RM`` and no
-    ``rm`` attribute at all.  Reading ``rm`` off a wire-shaped status therefore
-    yields ``None``, and every caller that tolerated that ``None`` silently
+    carries a nested ``rm: RmDimension`` (ADR-0036, SDO-03-002).  The former
+    wire projection ``as_ParticipantStatus`` carried a flat ``rm_state: RM`` and
+    no ``rm`` attribute at all, so reading ``rm`` off a wire-shaped status
+    yielded ``None``, and every caller that tolerated that ``None`` silently
     took a wrong branch — the defect behind issue #2232.
 
     A status object always has an RM state in the canonical shape (``rm`` has a

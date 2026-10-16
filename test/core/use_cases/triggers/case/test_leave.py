@@ -21,7 +21,7 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -68,7 +68,7 @@ def _make_case_with_case_manager(
         WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
     )
 
-    finder_participant = FinderParticipant(
+    finder_participant = ReporterParticipant(
         attributed_to=finder_id,
         context=case.id_,
     )

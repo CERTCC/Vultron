@@ -159,7 +159,7 @@ def test_materialise_builds_a_valid_object_from_bare_ids(
         "id": "https://example.org/participants/p-10",
         "attributedTo": OTHER_PARTICIPANT,
         "context": CASE_ID,
-        "case_roles": [CVDRole.FINDER.value],
+        "case_roles": [CVDRole.REPORTER.value],
         "participant_statuses": [status.id_],
     }
     with pytest.raises(ValidationError):
@@ -304,7 +304,7 @@ def test_refusal_does_not_leave_a_bare_string_behind() -> None:
                 "id": "https://example.org/participants/p-98",
                 "attributedTo": OTHER_PARTICIPANT,
                 "context": CASE_ID,
-                "case_roles": [CVDRole.FINDER.value],
+                "case_roles": [CVDRole.REPORTER.value],
                 "participant_statuses": [MISSING_ID],
             },
             FakeDataLayer().as_port(),
@@ -429,7 +429,7 @@ def test_nested_object_list_slot_is_covered_too() -> None:
             "id": "https://example.org/participants/p-2",
             "attributedTo": OTHER_PARTICIPANT,
             "context": CASE_ID,
-            "case_roles": [CVDRole.FINDER.value],
+            "case_roles": [CVDRole.REPORTER.value],
             "participant_statuses": [status.id_],
         },
         dl.as_port(),
@@ -543,7 +543,7 @@ def test_slot_supplied_under_its_as2_alias_is_materialised(
         "id": "https://example.org/participants/p-20",
         "attributedTo": OTHER_PARTICIPANT,
         "context": CASE_ID,
-        "case_roles": [CVDRole.FINDER.value],
+        "case_roles": [CVDRole.REPORTER.value],
         "participantStatuses": [status.id_],
     }
 

@@ -424,9 +424,9 @@ def test_closed_participant_ledger_cutoff_is_its_last_own_closure_entry(
 def test_reporter_introduction_reaches_only_active_open_reporters(
     dl: SqliteDataLayer,
 ) -> None:
-    """The receiver introduces only active, open REPORTER/FINDER participants.
+    """The receiver introduces only active, open REPORTER participants.
 
-    An inert finder, a closed reporter, and a participant holding neither
+    An inert reporter, a closed reporter, and a participant holding neither
     role are left out; the excluded receiver and CASE_MANAGER are too.
     """
     case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
@@ -438,7 +438,7 @@ def test_reporter_introduction_reaches_only_active_open_reporters(
         case,
         _INVITED,
         consent=EmbargoConsentState.INVITED,
-        roles=(CVDRole.FINDER,),
+        roles=(CVDRole.REPORTER,),
     )
     _seat(dl, case, _CLOSED, rm_state=RM.CLOSED, roles=(CVDRole.REPORTER,))
     _seat(dl, case, _UNJOINED, roles=(CVDRole.VENDOR,))

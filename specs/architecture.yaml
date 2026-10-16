@@ -323,7 +323,7 @@ groups:
       drifts. The #2232 hazard this requirement once cited against the generator was a key
       matching *no* field and being silently discarded, not a key having two spellings: a
       reader that accepts several spellings for the *same* field on the *same* class, as
-      `ParticipantStatus.rm` does with `AliasChoices("rmState", "rm_state", "rm")`, never
+      `ParticipantStatus.rm` does with `AliasChoices("rmState", "rm")`, never
       decides what the data means. ARCH-25-007 is where that argument attaches (ADR-0099, as
       amended in #3888 and #3900), and `extra="forbid"` is its enforcement on the in-process and
       stored side: Pydantic v2 defaults to `extra="ignore"`, so without it a wire-shaped payload

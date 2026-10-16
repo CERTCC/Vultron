@@ -51,6 +51,9 @@ from vultron.core.behaviors.case.case_clock_decisions import (
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
 )
+from vultron.core.behaviors.embargo.embargo_clock_decisions import (
+    embargo_clock_decisions,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
@@ -221,6 +224,32 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         response body carries (UCORG-05-005).
         """
 
+    def _record_asserted_activity(
+        self,
+        case_id: str,
+        event_type: str,
+        subject_id: str | None = None,
+    ) -> bool:
+        """Record the activity the tree asserted to the CASE_MANAGER, if any.
+
+        Reads the id the tree's builder wrote under ``ASSERTED_ACTIVITY_KEY``
+        and records it in the actor's pending-assertion store under
+        *event_type*, the key the CASE_MANAGER's commit carries, so the
+        announced commit clears it (SYNC-11-002, SYNC-11-003).  Returns
+        whether anything was recorded.
+        """
+        asserted_id = self._output_id(ASSERTED_ACTIVITY_KEY)
+        if asserted_id is None:
+            return False
+        record_pending_assertion(
+            self._actor_id,
+            case_id,
+            event_type,
+            asserted_id,
+            subject_id=subject_id,
+        )
+        return True
+
     def _with_case_clock_decisions(
         self, tree: py_trees.behaviour.Behaviour
     ) -> py_trees.behaviour.Behaviour:
@@ -238,30 +267,43 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         decision may be stale by then, so a trigger's tree re-reads the case
         state it acts on in its nodes: the register and the lifecycle refuse
         a change the decision forbade, such as activating a revision the
-        termination cancelled.  Unchanged when the trigger opts out
-        (:attr:`_takes_case_clock_decisions`), names no case, or names one
+        termination cancelled.  Unchanged when the trigger takes no clock
+        decision (:meth:`_clock_decisions`), names no case, or names one
         this store does not hold, which the trigger reports itself.
         """
         request = self._request
-        if not (
-            self._takes_case_clock_decisions
-            and isinstance(request, CaseTriggerRequest)
-        ):
+        if not isinstance(request, CaseTriggerRequest):
             return tree
         try:
             case_id = resolve_case(request.case_id, self._dl).id_
         except VultronNotFoundError:
             return tree
+        decisions = self._clock_decisions(case_id)
+        if not decisions:
+            return tree
         return py_trees.composites.Sequence(
             name=f"CaseClockDecisionsThen{tree.name}",
             memory=True,
             children=[
-                create_clock_decision_gate(
-                    case_id, case_clock_decisions(case_id)
-                ),
+                create_clock_decision_gate(case_id, decisions),
                 tree,
             ],
         )
+
+    def _clock_decisions(
+        self, case_id: str
+    ) -> list[py_trees.behaviour.Behaviour]:
+        """The clock decisions this trigger's tree takes first for *case_id*.
+
+        The case-wide decisions (the end-time check, EMB-13-003), unless the
+        trigger opts out of them (:attr:`_takes_case_clock_decisions`); a
+        trigger family whose acts read more of the case's clock extends the
+        list, as the embargo triggers add the overdue-invitation sweep
+        (CM-28-015).  An empty list runs the trigger's own tree alone.
+        """
+        if not self._takes_case_clock_decisions:
+            return []
+        return case_clock_decisions(case_id)
 
     def _activity_fields(self) -> dict[str, Any]:
         """The two keys every :class:`ActivityResult` body carries.
@@ -321,6 +363,24 @@ class SvcActivityTriggerBase(SvcBTTriggerBase[ActivityResult]):
     def _build_result(self) -> ActivityResult:
         return ActivityResult(**self._activity_fields())
 
+    def _suppressed_repeat(
+        self, case_id: str, event_type: str, subject_id: str
+    ) -> ActivityResult | None:
+        """The no-activity result for a repeat still pending, else ``None``.
+
+        The check half of the pending-assertion pair whose record half is
+        :meth:`_record_asserted_activity`: a request about *subject_id* while
+        an assertion about it under *event_type* is pending is answered
+        without re-emitting it (SYNC-11-002).
+        """
+        reason = suppressed_repeat_reason(
+            self._actor_id, case_id, event_type, subject_id
+        )
+        if reason is None:
+            return None
+        logger.info("%s: %s", type(self).__name__, reason)
+        return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
+
 
 class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
     """Abstract base for embargo trigger use cases.
@@ -349,6 +409,24 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
 
     _case: VulnerabilityCase
 
+    def _clock_decisions(
+        self, case_id: str
+    ) -> list[py_trees.behaviour.Behaviour]:
+        """The case-wide decisions, then the overdue-invitation sweep.
+
+        An embargo act reads the consent rows, so the CASE_MANAGER expires
+        every overdue invitation of the case first, and the case owner's
+        decision on a proposal is taken knowing of each timeout (CM-28-015,
+        EP-09-008).  The sweep runs even when the trigger opts out of the
+        case-wide decisions, as terminate-embargo does: the sweep never
+        pre-empts what the trigger answers for.  The stage runs only on the
+        actor holding ``CVDRole.CASE_MANAGER``; elsewhere it is skipped.
+        """
+        return [
+            *super()._clock_decisions(case_id),
+            *embargo_clock_decisions(case_id),
+        ]
+
     def _asserted_event_type(self) -> str:
         """The ledger ``event_type`` this run asserts.
 
@@ -371,27 +449,16 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         subject = self._assertion_subject()
         if subject is None:
             return None
-        reason = suppressed_repeat_reason(
-            self._actor_id,
-            self._case.id_,
-            self._asserted_event_type(),
-            subject,
+        return self._suppressed_repeat(
+            self._case.id_, self._asserted_event_type(), subject
         )
-        if reason is None:
-            return None
-        logger.info("%s: %s", type(self).__name__, reason)
-        return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
 
     def _handle_result(self) -> None:
-        asserted_id = self._output_id(ASSERTED_ACTIVITY_KEY)
-        if asserted_id is not None:
-            record_pending_assertion(
-                self._actor_id,
-                self._case.id_,
-                self._asserted_event_type(),
-                asserted_id,
-                subject_id=self._assertion_subject(),
-            )
+        if self._record_asserted_activity(
+            self._case.id_,
+            self._asserted_event_type(),
+            subject_id=self._assertion_subject(),
+        ):
             return
         lifecycle_result = self._result_out.get("lifecycle_result")
         if not isinstance(lifecycle_result, EmbargoLifecycleResult):

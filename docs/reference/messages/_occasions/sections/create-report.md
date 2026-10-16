@@ -7,7 +7,7 @@ Mints the vulnerability report object. It precedes the Offer that submits the re
 - **When…** a Reporter has written up a vulnerability and is about to submit the report
 - **Send:** `Create(VulnerabilityReport)`
 - **Send to:** an actor outside any case
-- **Sent by:** any actor (usually: finder, reporter)
+- **Sent by:** any actor (usually: reporter)
 - **Seen in:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 

@@ -37,6 +37,7 @@ from vultron.demo.helpers.polling import (
     PARTICIPANT_JOIN_TIMEOUT,
     _received_activity,
     _received_activity_id,
+    _wait_for_participant_status_field,
     assert_received_from,
     case_manager_store,
     find_case_invite_for_actor,
@@ -1265,3 +1266,21 @@ def test_wait_for_reporter_introduction_matches_the_expected_case():
             timeout_seconds=0.05,
             poll_interval=0.01,
         )
+
+
+@pytest.mark.parametrize("dimension", ["vf_state", "rm_state", "rmState", "x"])
+def test_participant_status_poll_refuses_unknown_dimension(dimension):
+    """A misspelled dimension raises at once rather than polling to timeout."""
+    client = MagicMock()
+    with patch("vultron.demo.helpers.polling._fetch_participant") as fetch:
+        with pytest.raises(ValueError, match="Unknown participant status"):
+            _wait_for_participant_status_field(
+                client,
+                CASE_ID,
+                ACTOR_A,
+                dimension,  # type: ignore[arg-type]
+                {"anything"},
+                timeout_seconds=5.0,
+                poll_interval=0.01,
+            )
+    fetch.assert_not_called()

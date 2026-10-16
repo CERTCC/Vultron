@@ -74,7 +74,7 @@ from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -126,7 +126,7 @@ def _build_case_with_two_open_proposals(
         context=case.id_,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
-    participant = FinderParticipant(
+    participant = ReporterParticipant(
         attributed_to=participant_id,
         context=case.id_,
         embargo_consents=[
@@ -228,7 +228,7 @@ def _build_case_with_one_open_proposal(
         context=case.id_,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
-    participant = FinderParticipant(
+    participant = ReporterParticipant(
         attributed_to=participant_id,
         context=case.id_,
         embargo_consents=[

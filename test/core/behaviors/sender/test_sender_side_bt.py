@@ -33,7 +33,7 @@ from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -66,7 +66,7 @@ def _make_case_with_case_manager(
     actor_id: str,
 ) -> as_VulnerabilityCase:
     case = as_VulnerabilityCase(name="Test Case")
-    finder_participant = FinderParticipant(
+    finder_participant = ReporterParticipant(
         attributed_to=actor_id,
         context=case.id_,
     )
@@ -133,7 +133,7 @@ class TestSenderSideBT:
     def test_bt_failure_when_case_manager_absent(self, dl, bridge):
         store, actor = dl
         case = as_VulnerabilityCase(name="No Manager")
-        participant = FinderParticipant(
+        participant = ReporterParticipant(
             attributed_to=actor.id_,
             context=case.id_,
         )
@@ -177,7 +177,7 @@ class TestSenderSideStaleKeyRegression:
         # CASE_MANAGER participant, so ResolveCaseManagerNode takes its no-op
         # path.  BT-17-003 requires it to clear /case_manager_id to None.
         case2 = as_VulnerabilityCase(name="No Manager Case")
-        participant2 = FinderParticipant(
+        participant2 = ReporterParticipant(
             attributed_to=actor.id_,
             context=case2.id_,
         )

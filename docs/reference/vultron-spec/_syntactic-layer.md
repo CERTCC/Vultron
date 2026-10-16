@@ -200,7 +200,7 @@ Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) �
 - The CASE_MANAGER MUST record a case-scoped message in the case ledger before
   sending it on to the other participants.
 - `Announce` of a `CaseLedgerEntry` is the **only** mechanism by which a
-  participant learns of an accepted change to shared case state.
+  participant learns of an admitted change to shared case state.
 
 There are exactly **two** exceptions, both confined to case bootstrap, both
 occurring before a CASE_MANAGER exists to route through

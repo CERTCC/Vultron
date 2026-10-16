@@ -59,7 +59,7 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError, VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 
@@ -83,7 +83,7 @@ def _case_managed_by_someone_else(
         context=case.id_,
     )
     manager.add_role(CVDRole.CASE_MANAGER)
-    finder = FinderParticipant(
+    finder = ReporterParticipant(
         attributed_to=finder_id,
         context=case.id_,
     )

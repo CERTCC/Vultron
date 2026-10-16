@@ -138,11 +138,14 @@ groups:
     statement: >-
       When a participant actor receives `Announce(VulnerabilityCase)` and already has a local
       replica for that case ID, it MUST apply the received case state as an authoritative
-      update, subject to PCR-03-001.
+      update, subject to PCR-03-001 and to the ledger-tail comparison of SYNC-16-006.
+    rationale: >-
+      An update is safe only when the copy names the ledger position it reflects, because
+      an old copy can arrive late over an unordered transport (ADR-0142).
     verification: >-
-      A unit test confirms that receiving `Announce(VulnerabilityCase)` when a
-      local replica already exists causes the participant actor to replace the
-      existing replica with the received state.
+      `test/core/behaviors/sync/test_divergence_recovery.py` confirms that an
+      `Announce(VulnerabilityCase)` from the CASE_MANAGER replaces an existing replica's
+      case file.
     stories:
     - story_2022_088
     - story_2022_045

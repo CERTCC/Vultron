@@ -23,7 +23,13 @@ from enum import StrEnum
 
 import pytest
 
-from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
+from vultron.enums.roles import (
+    RETIRED_ROLE_VALUES,
+    CVDRole,
+    parse_role,
+    serialize_roles,
+    validate_roles,
+)
 
 
 def test_cvdrole_is_str_enum():
@@ -34,7 +40,6 @@ def test_cvdrole_is_str_enum():
 def test_atomic_roles_exist():
     """All expected atomic roles must exist."""
     expected = {
-        "FINDER",
         "REPORTER",
         "VENDOR",
         "DEPLOYER",
@@ -107,26 +112,29 @@ def test_name_value_relationship():
 
 def test_string_equality():
     """CVDRole members compare equal to their string values."""
-    assert CVDRole.FINDER == "finder"
+    assert CVDRole.REPORTER == "reporter"
     assert CVDRole.VENDOR == "vendor"
     assert CVDRole.CASE_OWNER == "case_owner"
 
 
 def test_lookup_by_value():
     """CVDRole can be looked up by lowercase string value."""
-    assert CVDRole("finder") is CVDRole.FINDER
+    assert CVDRole("reporter") is CVDRole.REPORTER
     assert CVDRole("vendor") is CVDRole.VENDOR
     assert CVDRole("case_owner") is CVDRole.CASE_OWNER
 
 
 def test_lookup_by_name():
     """CVDRole can be looked up by name."""
-    assert CVDRole["FINDER"] is CVDRole.FINDER
+    assert CVDRole["REPORTER"] is CVDRole.REPORTER
     assert CVDRole["VENDOR"] is CVDRole.VENDOR
 
 
 def test_no_combination_aliases():
-    """CVDRole must not have combination aliases like FINDER_REPORTER."""
+    """CVDRole must not have combination aliases like FINDER_REPORTER.
+
+    The names are those of the legacy ``CVDRolesFlag`` bitmask combinations.
+    """
     assert not hasattr(CVDRole, "FINDER_REPORTER")
     assert not hasattr(CVDRole, "FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR")
 
@@ -138,8 +146,8 @@ def test_no_no_role():
 
 def test_list_membership():
     """list[CVDRole] membership check works correctly."""
-    roles = [CVDRole.FINDER, CVDRole.VENDOR]
-    assert CVDRole.FINDER in roles
+    roles = [CVDRole.REPORTER, CVDRole.VENDOR]
+    assert CVDRole.REPORTER in roles
     assert CVDRole.VENDOR in roles
     assert CVDRole.COORDINATOR not in roles
 
@@ -159,8 +167,8 @@ def test_serialize_roles_single():
 
 def test_serialize_roles_multiple():
     """serialize_roles emits all role values in order."""
-    roles = [CVDRole.FINDER, CVDRole.COORDINATOR]
-    assert serialize_roles(roles) == ["finder", "coordinator"]
+    roles = [CVDRole.REPORTER, CVDRole.COORDINATOR]
+    assert serialize_roles(roles) == ["reporter", "coordinator"]
 
 
 # --- validate_roles ---
@@ -168,14 +176,14 @@ def test_serialize_roles_multiple():
 
 def test_validate_roles_from_enum_members():
     """validate_roles passes CVDRole members through unchanged."""
-    roles = [CVDRole.FINDER, CVDRole.VENDOR]
-    assert validate_roles(roles) == [CVDRole.FINDER, CVDRole.VENDOR]
+    roles = [CVDRole.REPORTER, CVDRole.VENDOR]
+    assert validate_roles(roles) == [CVDRole.REPORTER, CVDRole.VENDOR]
 
 
 def test_validate_roles_from_strings():
     """validate_roles coerces lowercase string values to CVDRole."""
-    result = validate_roles(["finder", "vendor"])
-    assert result == [CVDRole.FINDER, CVDRole.VENDOR]
+    result = validate_roles(["reporter", "vendor"])
+    assert result == [CVDRole.REPORTER, CVDRole.VENDOR]
 
 
 def test_validate_roles_empty():
@@ -191,7 +199,7 @@ def test_validate_roles_none_returns_empty():
 def test_validate_roles_non_list_raises():
     """validate_roles raises ValueError for non-list, non-None input."""
     with pytest.raises(ValueError, match="must be a list"):
-        validate_roles("finder")  # type: ignore[arg-type]
+        validate_roles("reporter")  # type: ignore[arg-type]
 
 
 def test_validate_roles_invalid_value():
@@ -202,7 +210,7 @@ def test_validate_roles_invalid_value():
 
 def test_roundtrip():
     """serialize_roles -> validate_roles roundtrip preserves roles."""
-    original = [CVDRole.FINDER, CVDRole.COORDINATOR, CVDRole.CASE_OWNER]
+    original = [CVDRole.REPORTER, CVDRole.COORDINATOR, CVDRole.CASE_OWNER]
     serialized = serialize_roles(original)
     assert validate_roles(serialized) == original
 
@@ -217,3 +225,42 @@ def test_validate_roles_error_names_the_field():
     """The error names the field the caller validates, not a fixed config key."""
     with pytest.raises(ValueError, match=r"^proposerCaseRoles must be a list"):
         validate_roles("vendor", field_name="proposerCaseRoles")
+
+
+# --- retired roles (ADR-0078) ---
+
+
+def test_finder_is_not_a_role():
+    """FINDER is retired (ADR-0078): an actor who found and reported holds REPORTER."""
+    assert not hasattr(CVDRole, "FINDER")
+    assert "finder" not in {role.value for role in CVDRole}
+
+
+def test_retired_values_are_not_members():
+    """No retired wire value names a live CVDRole member."""
+    live = {role.value for role in CVDRole}
+    assert set(RETIRED_ROLE_VALUES).isdisjoint(live)
+
+
+@pytest.mark.parametrize("value", ["finder", "FINDER", "Finder"])
+def test_parse_role_refuses_finder_with_its_retirement_reason(value):
+    """A stored or inbound "finder" is refused with the reason, never aliased."""
+    with pytest.raises(ValueError, match="ADR-0078"):
+        parse_role(value)
+
+
+def test_validate_roles_refuses_finder():
+    """validate_roles refuses a role list carrying the retired "finder" value."""
+    with pytest.raises(ValueError, match="retired"):
+        validate_roles(["finder", "reporter"])
+
+
+def test_parse_role_is_case_insensitive_for_live_roles():
+    """parse_role lowercases before lookup, as validate_roles always has."""
+    assert parse_role("Reporter") is CVDRole.REPORTER
+
+
+def test_parse_role_refuses_unknown_value():
+    """An unknown role string is refused."""
+    with pytest.raises(ValueError):
+        parse_role("no_role")

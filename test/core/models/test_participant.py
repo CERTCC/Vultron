@@ -57,7 +57,8 @@ class TestRolesProperty:
 
     def test_roles_returns_list_of_cvdrole(self):
         """roles property items are CVDRole instances."""
-        p = _make_participant(roles=[CVDRole.FINDER, CVDRole.REPORTER])
+        p = _make_participant(roles=[CVDRole.REPORTER, CVDRole.VENDOR])
+        assert len(p.roles) == 2
         for role in p.roles:
             assert isinstance(role, CVDRole)
 
@@ -145,9 +146,9 @@ class TestAddRole:
     def test_add_role_multiple_distinct_roles(self):
         """add_role() can add multiple distinct roles."""
         p = _make_participant()
-        p.add_role(CVDRole.FINDER)
+        p.add_role(CVDRole.VENDOR)
         p.add_role(CVDRole.REPORTER)
-        assert CVDRole.FINDER in p.roles
+        assert CVDRole.VENDOR in p.roles
         assert CVDRole.REPORTER in p.roles
         assert len(p.roles) == 2
 

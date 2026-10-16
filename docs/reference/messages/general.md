@@ -43,7 +43,7 @@ For the `CVDRole` delegation that uses a dedicated object type, see [Offer case 
 
 {% include-markdown "./_occasions/sections/remove-note-from-case.md" heading-offset=1 %}
 
-- **Who may send:** the CASE_MANAGER accepts `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
+- **Who may send:** the CASE_MANAGER admits `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
   Any other sender is refused, and the note stays in the case.
   A participant replica accepts it only from the CASE_MANAGER, because replicas learn of the change from the ledger entry the CASE_MANAGER fans out.
 

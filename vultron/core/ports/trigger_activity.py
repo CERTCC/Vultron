@@ -49,6 +49,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
@@ -245,13 +246,43 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def add_object_to_case_semantics(
+        self,
+        object_id: str,
+        case_id: str,
+    ) -> MessageSemantics:
+        """Return what a receiver would read ``Add(object, Case)`` as.
+
+        Classifies the ``Add`` that :meth:`add_object_to_case` would build
+        for the stored object against the receive-side patterns, without
+        persisting it.  The add-object trigger asks this
+        before its tree runs so it can refuse an object the CASE_MANAGER
+        could not route, and the answer names the ledger ``event_type`` the
+        CASE_MANAGER's commit of the ``Add`` will carry (TRIG-10-001,
+        SYNC-11-002).
+
+        Raises:
+            VultronNotFoundError: when the case or the object is not stored.
+            VultronActivityConstructionError: when the object has no wire
+                representation or cannot be carried in an ``Add``.
+            VultronValidationError: when no receive-side pattern routes the
+                ``Add`` as an addition to the case, or when the object is of
+                a type whose addition the protocol carries by its own flow
+                (``EmbargoEvent``, ``CaseParticipant``, ``CaseStatus``).
+        """
+        ...
+
     def add_object_to_case(
         self,
         actor: str,
         object_id: str,
         case_id: str,
+        to: list[str],
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(object, Case)`` activity.
+        """Create and persist an ``Add(object, Case)`` activity addressed to *to*.
+
+        *to* is the CASE_MANAGER alone: the ``Add`` is a participant asking
+        the case to take the object (PCR-08-005).
 
         Returns ``(activity_id, activity_dict)``.
         """

@@ -109,7 +109,8 @@ def expiry_payload_snapshot(
     *published* is the invitee's own claimed time when it answered late — not
     the CASE_MANAGER's clock: mixing the two inside one actor's claimed stream
     is what CLP-15-003 reads as a regression.  The owner-close settle step
-    (CM-23-014) has no answer to take a time from, so it passes its own.
+    (CM-23-014) and the overdue-invitation sweep (CM-28-015) have no answer
+    to take a time from, so they pass the CASE_MANAGER's own.
 
     The Invite carries no ``id`` when *invite_id* is ``None`` or empty: a
     blank id is not an id (CS-08-002), and the replica apply node reads only
@@ -165,12 +166,14 @@ def create_commit_and_record_expiry_tree(
     """Commit one expired invitation and its ``TIMED_OUT`` row, then apply it.
 
     The commit → effect half of the CM-28-009 expiry, shared by the lazy
-    late-Accept evaluation (:func:`invite_expiry_decision`) and the
-    owner-close settle step (CM-23-014), and the one expiry path a sweep of
-    overdue invitations reuses.  The caller decides *that* the invitation
-    has expired; this node commits the expired-invitation entry, then the
-    CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the row, and only
-    then writes it, so a failed commit leaves the invitee unchanged
+    late-Accept evaluation (:func:`invite_expiry_decision`), the
+    owner-close settle step (CM-23-014) and the overdue-invitation sweep
+    (CM-28-015), which both reach it through
+    :class:`~vultron.core.behaviors.embargo.nodes.invitation_expiry.ExpireInvitationsNode`.
+    The caller decides *that* the invitation has expired; this node commits
+    the expired-invitation entry, then the CASE_MANAGER's
+    ``Update(EmbargoConsent)`` carrying the row, and only then writes it,
+    so a failed commit leaves the invitee unchanged
     (CLP-07-013, ADR-0124).  It is not gated: the caller places it behind
     the CASE_MANAGER role gate (CM-28-014, BT-17-001).
 

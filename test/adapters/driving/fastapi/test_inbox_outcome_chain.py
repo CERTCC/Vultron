@@ -391,15 +391,19 @@ def _retired_create_activities() -> list[Any]:
     ]
 
 
-@pytest.mark.spec("CLP-07-013", "CLP-02-013", "VAM-01-011")
+@pytest.mark.spec("CLP-07-013", "CLP-02-013", "VAM-01-010", "VAM-01-011")
 @pytest.mark.parametrize("activity", _retired_create_activities())
 def test_received_create_of_a_case_record_is_refused_case_unchanged(
     dl, activity
 ):
-    """#4598: this implementation does not support these received ``Create``s.
+    """A received ``Create`` of a case record is not a protocol message (VAM-01-010, VAM-01-011).
 
-    Each once stored its object with no ledger entry, which CLP-07-013 rules
-    out.  The wire classes stay (a CASE_MANAGER-authored entry carries
+    The protocol names one form for each act: ``Add(CaseStatus)``,
+    ``Add(ParticipantStatus)``, ``Invite(Event)``, and the CASE_MANAGER's
+    own consequence for a ``CaseParticipant`` (ADR-0137).
+    Each of these ``Create`` forms once stored its object with no ledger
+    entry, which CLP-07-013 rules out (#4598).
+    The wire classes stay (a CASE_MANAGER-authored entry carries
     ``Create(CaseParticipant)``), but no pattern routes one that
     arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and
     the inbox refuses it, leaving the case, the ledger and the outbox as they

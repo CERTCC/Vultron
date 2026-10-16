@@ -54,7 +54,7 @@ Ownership can move: a vendor that opened a case can hand it to a coordinator, an
 
 The **Case Manager** keeps the case's authoritative history and passes case messages between participants, acting on the Case Owner's behalf ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
 It is the one participant that writes the shared record of the case.
-Every other participant holds a copy of that record, and the Case Manager sends each accepted change to all of them.
+Every other participant holds a copy of that record, and the Case Manager sends each admitted change to all of them.
 In practice the Case Owner's own system usually holds this role, and the owner may delegate it, for example to a coordinator that hosts cases for others ([§11.1 Role Assignment](../../reference/vultron-spec/interactions.md#111-role-assignment-n)).
 
 The practical consequence is the one that matters to a practitioner: there is exactly one history of what happened in the case, and everyone in the case holds the same copy of it.
@@ -68,7 +68,7 @@ The Case Manager role is held per case, so a different case can route through a 
 ## What you see
 
 Your system holds its own copy of the case, assembled from the messages that have reached it ([§3.1 Coordination Model](../../reference/vultron-spec/introduction.md#31-coordination-model)).
-Because every accepted change comes from the Case Manager and goes to every participant, your copy and your partners' copies show the same case history, once the messages have arrived.
+Because every admitted change comes from the Case Manager and goes to every participant, your copy and your partners' copies show the same case history, once the messages have arrived.
 
 The table below lists what that copy tells you, whose state each item is, and who can change it.
 

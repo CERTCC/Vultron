@@ -35,7 +35,9 @@ does this through `freshen-branch.sh` (ISSUE-1518).
 ## Sync a Worktree Through `sync-check.sh`, Not a Raw Rebase
 
 Run `.agents/skills/shared/sync-check.sh`, which uses the `manage-worktree`
-`ensure-synced` flow (ancestry-checked) when it is installed. Raw
+`ensure-synced` flow (ancestry-checked) when it is installed. That flow refuses
+a repo that keeps its own `start-dev.sh`; on that refusal alone the script
+falls back to its plain fetch-and-count check. Raw
 `git rebase origin/main` in a worktree can trip pre-commit hooks mid-rebase.
 Never rebase a branch with an open PR: merge `main` into it (PAD-11-001). See
 [parallel-development](parallel-development.md).

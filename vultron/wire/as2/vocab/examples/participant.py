@@ -108,8 +108,8 @@ def vendor_participant() -> as_CaseParticipant:
 
 
 def finder_participant() -> as_CaseParticipant:
-    """The finder's participant record; the finder is also the reporter here."""
-    return _participant_for(finder(), [CVDRole.FINDER, CVDRole.REPORTER])
+    """The finder's participant record; having reported, it holds REPORTER."""
+    return _participant_for(finder(), [CVDRole.REPORTER])
 
 
 def add_vendor_participant_to_case() -> as_Add:
