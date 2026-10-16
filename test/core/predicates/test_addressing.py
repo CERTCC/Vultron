@@ -18,6 +18,7 @@ from vultron.core.predicates.addressing import (
     distinct_recipients,
     is_addressed_to,
     normalise_actor_id,
+    participant_id_for_actor,
     same_actor_id,
 )
 
@@ -91,3 +92,22 @@ def test_distinct_recipients(
     recipients: list[str | None], expected: list[str]
 ) -> None:
     assert distinct_recipients(recipients) == expected
+
+
+@pytest.mark.parametrize(
+    ("index", "expected"),
+    [
+        ({VENDOR: "p-1"}, "p-1"),
+        ({VENDOR + "/": "p-1"}, "p-1"),
+        ({"https://example.org/actors/finder": "p-2"}, None),
+        ({"vendor": "p-3"}, None),
+        ({}, None),
+    ],
+    ids=["exact", "trailing-slash-key", "another-actor", "slug", "empty"],
+)
+@pytest.mark.spec("CLP-10-021")
+def test_participant_id_for_actor(
+    index: dict[str, str], expected: str | None
+) -> None:
+    """The index key is matched with ``same_actor_id`` (#4772)."""
+    assert participant_id_for_actor(index, VENDOR) == expected

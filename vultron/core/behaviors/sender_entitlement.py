@@ -182,6 +182,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
     distinct_recipients,
     is_addressed_to,
+    participant_id_for_actor,
     same_actor_id,
 )
 from vultron.core.predicates.roles import has_case_owner_role
@@ -548,13 +549,8 @@ def _holds_case_owner_role(
     datalayer: CasePersistence, case: VulnerabilityCase, actor_id: str
 ) -> bool:
     """Return ``True`` when *actor_id*'s participant record holds CASE_OWNER."""
-    participant_id = next(
-        (
-            pid
-            for aid, pid in case.actor_participant_index.items()
-            if same_actor_id(aid, actor_id)
-        ),
-        None,
+    participant_id = participant_id_for_actor(
+        case.actor_participant_index, actor_id
     )
     if participant_id is None:
         return False
