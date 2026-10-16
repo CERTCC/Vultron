@@ -674,19 +674,16 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                 name=getattr(obj, "name", None),
                 context=ctx,
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                rm=RmDimension(
-                    state=_coerce_rm(getattr(obj, "rm_state", None))
-                ),
+                rm=RmDimension(state=_coerce_rm(dimension_state(obj, "rm"))),
                 vf=(
                     VfDimension(state=_vf)
-                    if (_vf := _coerce_vf(getattr(obj, "vf_state", None)))
+                    if (_vf := _coerce_vf(dimension_state(obj, "vf")))
                     is not None
                     else None
                 ),
                 d=(
                     DDimension(state=_d)
-                    if (_d := _coerce_d(getattr(obj, "d_state", None)))
-                    is not None
+                    if (_d := _coerce_d(dimension_state(obj, "d"))) is not None
                     else None
                 ),
                 cvd_role=coerce_cvd_roles(

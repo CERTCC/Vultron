@@ -29,6 +29,7 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -198,17 +199,14 @@ class TestSubmitReportCreatesCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        all_statuses = dl.get_all("ParticipantStatus")
+        statuses = [
+            ParticipantStatus.model_validate(row["data_"])
+            for row in dl.get_all("ParticipantStatus")
+        ]
         finder_accepted = [
             s
-            for s in all_statuses
-            if (s.get("data_", {}) or {}).get("attributed_to")
-            == self.FINDER_ID
-            and (
-                (s.get("data_", {}) or {}).get("rm_state") == RM.ACCEPTED.value
-                or (s.get("data_", {}) or {}).get("rm", {}).get("state")
-                == RM.ACCEPTED.value
-            )
+            for s in statuses
+            if s.attributed_to == self.FINDER_ID and s.rm.state == RM.ACCEPTED
         ]
         assert len(finder_accepted) == 0, (
             "ADR-0041: vendor must not create finder ParticipantStatus records"

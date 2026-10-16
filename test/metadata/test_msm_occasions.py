@@ -448,7 +448,7 @@ def test_own_shorthand_with_a_heading_fails():
 def test_distinguished_by_renders_a_field_value():
     occasion = _occasion(
         distinguisher=FieldValue(
-            object_type=ParticipantStatus, field="vf_state", value=CS_vf.VF
+            object_type=ParticipantStatus, field="vf", value=CS_vf.VF
         )
     )
     assert distinguished_by(occasion) == "`vfState` = `VF`"

@@ -289,6 +289,36 @@ def test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling(
     assert declared in message
 
 
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("SDO-03-003")
+@pytest.mark.parametrize(
+    "flat,declared,value",
+    [
+        ("rm_state", "rmState", "RECEIVED"),
+        ("vf_state", "vfState", "Vf"),
+        ("d_state", "dState", "D"),
+    ],
+)
+def test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling(
+    flat: str, declared: str, value: str
+) -> None:
+    """``rm_state``/``vf_state``/``d_state`` are refused as near misses (#4377).
+
+    ``ParticipantStatus`` no longer declares the flat snake_case spellings, so
+    each normalises to its wire spelling and the near-miss rule refuses it with
+    no ``RETIRED_NAMES`` entry: the field is not retired, only that spelling.
+    """
+    from vultron.wire.as2.unknown_keys import RETIRED_NAMES
+
+    assert flat not in RETIRED_NAMES
+    body = _with_inline_object(_inline_participant_status(**{flat: value}))
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert flat in message
+    assert declared in message
+
+
 CONSENT_RETIRED_KEYS = [
     ("emConsentState", "SIGNATORY"),
     ("em_consent_state", "SIGNATORY"),

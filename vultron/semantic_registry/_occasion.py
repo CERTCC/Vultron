@@ -4,7 +4,7 @@ An **occasion** is a situation in a case that a sender conveys by sending a
 particular wire activity, sometimes narrowed by a distinguishing field value or
 state context (glossary, ADR-0128).  One ``SemanticEntry`` carries one or more
 occasions: three situations — vendor awareness, fix ready, fix deployed — share
-``Add(ParticipantStatus)``, told apart by ``vf_state`` and ``d_state``.
+``Add(ParticipantStatus)``, told apart by its ``vf`` and ``d`` dimensions.
 
 This module holds the value objects only.  An occasion records what only a
 human can supply; everything derivable from it (the mapping status, the
@@ -27,6 +27,8 @@ Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007, MSM-08-009.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import functools
+import operator
 import types
 import typing
 from enum import Enum, StrEnum
@@ -189,25 +191,37 @@ def _enum_classes(annotation: object) -> list[type[Enum]]:
     return []
 
 
+def _state_annotation(annotation: object) -> object:
+    """Resolve a dimension annotation to its ``state`` annotation.
+
+    A status dimension travels as its bare state value (ARCH-25-005,
+    ADR-0099), so ``PxaDimension`` resolves to ``CS_pxa``.  An optional
+    dimension (``VfDimension | None``, absent for a participant whose role
+    does not carry it, ADR-0075) resolves member by member.  Any other
+    annotation is returned unchanged.
+    """
+    if is_dimension_model(annotation):
+        dimension = typing.cast(type[BaseModel], annotation)
+        return dimension.model_fields[DIMENSION_STATE_FIELD].annotation
+    origin = typing.get_origin(annotation)
+    if origin is typing.Union or origin is types.UnionType:
+        members = [
+            _state_annotation(arg) for arg in typing.get_args(annotation)
+        ]
+        return functools.reduce(operator.or_, members)
+    return annotation
+
+
 def _field_annotation(object_type: type, field_name: str) -> object:
     """Return the annotation of *field_name* on *object_type*, or raise.
 
-    A field may be a declared Pydantic field or a read property.  A status
-    dimension field (``CaseStatus.pxa``) is typed by its dimension object,
-    which travels as its bare state value (ARCH-25-005, ADR-0099), so it
-    resolves to the annotation of the dimension's ``state``.
+    *field_name* is a declared Pydantic field.  A status dimension field
+    (``CaseStatus.pxa``, ``ParticipantStatus.vf``) resolves to the
+    annotation of the dimension's ``state`` (:func:`_state_annotation`).
     """
-    attribute = getattr(object_type, field_name, None)
-    if isinstance(attribute, property) and attribute.fget is not None:
-        hints = typing.get_type_hints(attribute.fget)
-        if "return" in hints:
-            return hints["return"]
     model_fields = getattr(object_type, "model_fields", {})
     if field_name in model_fields:
-        annotation = model_fields[field_name].annotation
-        if is_dimension_model(annotation):
-            return annotation.model_fields[DIMENSION_STATE_FIELD].annotation
-        return annotation
+        return _state_annotation(model_fields[field_name].annotation)
     raise ValueError(
         f"{object_type.__name__} has no typed field {field_name!r}"
     )
@@ -217,12 +231,10 @@ def wire_spelling(object_type: type[BaseModel], field_name: str) -> str:
     """Return how *field_name* on *object_type* is spelled on the wire.
 
     A declared field travels under its own AS2 spelling (``CaseStatus.pxa``
-    as ``pxaState``); a read property under its name camel-cased
-    (``ParticipantStatus.vf_state`` as ``vfState``), the same rule
+    as ``pxaState``, ``ParticipantStatus.vf`` as ``vfState``), the rule
     :func:`~vultron.core.models.wire_keys.wire_key` applies.
     """
-    declared = field_name in object_type.model_fields
-    return wire_key(field_name, object_type if declared else None)
+    return wire_key(field_name, object_type)
 
 
 _FROZEN = ConfigDict(frozen=True, strict=True, arbitrary_types_allowed=True)
@@ -237,7 +249,7 @@ class FieldValue(BaseModel):
     Attributes:
         object_type: The class of the activity's ``object`` that carries the
             field, e.g. ``ParticipantStatus``.
-        field: The field name, e.g. ``"vf_state"``.
+        field: The field name, e.g. ``"vf"``.
         value: The enum member the occasion's payload carries.
     """
 

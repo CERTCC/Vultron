@@ -276,8 +276,8 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `vf_state` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
-| `Add(ParticipantStatus)[target=CaseParticipant]`, `vf_state` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
+| `Add(ParticipantStatus)[target=CaseParticipant]`, `vfState` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
+| `Add(ParticipantStatus)[target=CaseParticipant]`, `vfState` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
 
 ### What happens
 

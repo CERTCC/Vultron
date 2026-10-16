@@ -251,12 +251,13 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   WARNING. `SendEmbargoInviteAnswerNode` fails by raising, so a broken accept never
   falls through to the reject arm.
 - **The ledger entries.** Each is applied by one slot of `AnnounceLogEntryReceivedBT`
-  (EP-09-007, RSH-08-004). The proposal, relay, answer and re-invite slots copy
-  (ADR-0124): an answer's entry carries the row it states, and every other
+  (EP-09-007, RSH-08-004). Every slot copies (ADR-0124, CM-23-016): an act's
+  entry carries its register step or the row it states, and every other
   consent row those acts change is the CASE_MANAGER's own
   `Create`/`Update(EmbargoConsent)` entry, which the `EmbargoConsent` slot copies, as
-  are the rows a withdrawal declines. The rest still run `EmbargoLifecycle` in
-  `OBSERVED` mode until #4716:
+  are the rows a withdrawal declines. The one tracked deviation is the
+  owner's-rejection slot deciding to skip a `Reject` the CASE_MANAGER answered
+  with ET, which is lifecycle logic on replay (CM-23-016, #4789):
 
 | Entry (`event_type`) | Slot | Replica effect |
 |---|---|---|
@@ -266,8 +267,8 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `reject_invite_to_embargo_on_case` | `EmbargoRejection` | stores B; copies the `DECLINED` row the Reject states; no register change |
 | `withdraw_from_embargo_on_case` (`Leave(EmbargoEvent)`) | `EmbargoWithdrawal` | stores the embargo if absent; writes no row: each row it declines follows as its own `update_embargo_consent` (MSM-07-010) |
 | `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed; a no-op when the seed is past it, else refuses it into the gap buffer |
-| `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | `activate_embargo`: B `ACTIVE`, A `SUPERSEDED`, owner `AGREE`, `CARRY_OVER` to a shorter B |
-| `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | `reject_embargo_proposal`: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent |
+| `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
+| `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. A no-op when the CASE_MANAGER answered it with ET (EMB-04-002): the teardown entry that follows cancels B. The replica decides that skip itself, a tracked deviation from CM-23-016 (#4789) |
 | `invite_to_embargo_on_case_expired` | `InviteExpiry` | invitee PEC `TIME_OUT` on that invitation's row; no deadline re-evaluated (CM-28-014) |
 | `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → AGREED` (EMB-17-001, EMB-17-002) |
 | `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |

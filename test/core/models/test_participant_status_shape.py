@@ -22,11 +22,13 @@
 - **wire** (``vultron/wire/as2/vocab/objects/case_status.py``) — flat
   ``rm_state: RM``, and no ``rm`` attribute at all.
 
-ARCH-25-003 (ADR-0099) collapsed the pair, so there is one shape: the flat spelling is
-an alias of the dimension (ARCH-25-005), and ``as_ParticipantStatus`` is the core
-class. The tests below are kept because the *failure modes* they document were
-real and their fixes still have to hold — but read them knowing the second shape
-no longer exists.
+ARCH-25-003 (ADR-0099) collapsed the pair, so there is one shape: the dimension
+serializes as its bare state under ``rmState`` (ARCH-25-005), and
+``as_ParticipantStatus`` is the core class.  The flat ``rm_state`` spelling was
+an input alias for a while, and is now refused (SDO-03-003, #4377).  The tests
+below are kept because the *failure modes* they document were real and their
+fixes still have to hold — but read them knowing the second shape no longer
+exists.
 
 Two silent-failure modes followed from the split, both reproduced here:
 
@@ -172,15 +174,16 @@ class TestParticipantStatusRmStateHelper:
         )
         assert participant_status_rm_state(status) is RM.RECEIVED
 
-    def test_flat_rm_state_is_read_into_the_dimension(self):
-        """A flat ``rm_state`` input populates ``rm`` rather than leaving it unset.
+    def test_wire_class_status_reads_through_the_dimension(self):
+        """The wire-layer name reads its RM state through ``rm``.
 
         This asserted the opposite: that ``as_ParticipantStatus(rm_state=...)``
         had **no** ``rm`` attribute at all, and that reading it had to raise.
         That was true while ``as_ParticipantStatus`` was a separate wire class
-        holding a flat field. ARCH-25-003 (ADR-0099) collapsed the pair, so the flat
-        spelling is now an alias of the dimension (ARCH-25-005) and there is no
-        shape mismatch left to raise about — the value is simply read.
+        holding a flat field. ARCH-25-003 (ADR-0099) collapsed the pair, so there
+        is no shape mismatch left to raise about — the value is simply read.
+        The flat ``rm_state`` spelling itself is retired (SDO-03-003, #4377):
+        see ``TestParticipantStatusCarriesNoFlatShim``.
 
         The guard itself is still covered, by
         ``test_raises_on_object_without_rm`` below: an object that genuinely has
@@ -382,6 +385,79 @@ class TestStatusCarriesNoConsent:
     def test_retired_keys_are_refused(self, key):
         with pytest.raises(ValidationError):
             ParticipantStatus.model_validate({"context": _CONTEXT, key: "X"})
+
+
+# ---------------------------------------------------------------------------
+# The flat rm_state / vf_state / d_state shims are retired (SDO-03-003, #4377)
+# ---------------------------------------------------------------------------
+
+_FLAT_SHIMS = [
+    ("rm_state", "RECEIVED"),
+    ("vf_state", "Vf"),
+    ("d_state", "D"),
+]
+
+
+class TestParticipantStatusCarriesNoFlatShim:
+    """SDO-03-003 / SDO-03-005: the flat ``*_state`` spellings are gone."""
+
+    @pytest.mark.spec("SDO-03-003")
+    @pytest.mark.parametrize("flat", [flat for flat, _ in _FLAT_SHIMS])
+    def test_participant_status_defines_no_flat_property(self, flat):
+        """No getter, setter or field survives under the flat name (SDO-03-003)."""
+        assert not hasattr(ParticipantStatus, flat)
+        assert flat not in ParticipantStatus.model_fields
+        assert not hasattr(ParticipantStatus(context=_CONTEXT), flat)
+
+    @pytest.mark.spec("SDO-03-003")
+    @pytest.mark.spec("SDO-03-005")
+    @pytest.mark.parametrize("flat, value", _FLAT_SHIMS)
+    def test_flat_input_key_is_refused_by_extra_forbid(self, flat, value):
+        """A flat key raises through ``extra="forbid"`` (SDO-03-005)."""
+        with pytest.raises(ValidationError) as excinfo:
+            ParticipantStatus.model_validate(
+                {"context": _CONTEXT, flat: value}
+            )
+        assert [e["type"] for e in excinfo.value.errors()] == [
+            "extra_forbidden"
+        ]
+        assert [e["loc"] for e in excinfo.value.errors()] == [(flat,)]
+
+    @pytest.mark.parametrize(
+        "key, value, read",
+        [
+            ("rmState", "RECEIVED", lambda s: s.rm.state),
+            ("rm", "RECEIVED", lambda s: s.rm.state),
+            ("vfState", "Vf", lambda s: s.vf.state),
+            ("vf", "Vf", lambda s: s.vf.state),
+            ("dState", "D", lambda s: s.d.state),
+            ("d", "D", lambda s: s.d.state),
+        ],
+    )
+    def test_wire_and_field_spellings_are_accepted(self, key, value, read):
+        """The wire key and the field name stay accepted for each dimension."""
+        status = ParticipantStatus.model_validate(
+            {"context": _CONTEXT, key: value}
+        )
+        assert read(status).name == value
+
+    @pytest.mark.spec("SDO-03-005")
+    def test_no_reject_guard_validator(self):
+        """The refusal is ``extra="forbid"``, not a before-validator (SDO-03-005).
+
+        The one own before-validator is the role/dimension invariant (ADR-0075),
+        which seeds a missing ``vf``/``d`` and refuses nothing.
+        """
+        validators = ParticipantStatus.__pydantic_decorators__.model_validators
+        own_before = [
+            name
+            for name, v in validators.items()
+            if v.info.mode == "before"
+            and getattr(v.func, "__qualname__", "").startswith(
+                "ParticipantStatus."
+            )
+        ]
+        assert own_before == ["_enforce_role_dimension_invariant"]
 
 
 class TestParticipantStatusBackwardRMValidator:

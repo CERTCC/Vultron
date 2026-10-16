@@ -91,7 +91,7 @@ class TestInputKeys:
             (
                 ParticipantStatus,
                 "rm",
-                ("rmState", "rm_state", "rm"),
+                ("rmState", "rm"),
             ),
             (CaseStatus, "em", ("emState", "em")),
             (CaseStatus, "pxa", ("pxaState", "pxa")),
