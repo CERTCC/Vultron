@@ -24,10 +24,10 @@ CLP-10-013, not an oversight.  Only the CASE_MANAGER sends this Announce, and
 the sender guard admits it only from the CASE_MANAGER the receiver already
 knows (PCR-03-001, PCR-03-004), so the receiver is a participant replica, not
 the manager the commit stage is gated on (a manager's self-Announce would only
-duplicate the entry it already holds).  A replica learns of case state from the ledger
-fan-out (SYNC-02-002).  The commit gate here could only ever skip, and the
-effect node cannot move ahead of a commit as a guard: seeding the case is
-itself the write.
+duplicate the entry it already holds).  A replica learns of case state from
+the ledger fan-out (SYNC-02-002).  The commit gate here could only ever skip,
+and the effect node cannot move ahead of a commit as a guard: seeding the
+case is itself the write.
 """
 
 import logging

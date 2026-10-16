@@ -52,8 +52,14 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
 )
+from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+    ClockDecision,
+    ClockDecisionStage,
+)
+from vultron.core.behaviors.note.create_note_tree import create_note_tree
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
+    SenderIsCaseManagerNode,
     SenderRule,
 )
 from vultron.core.models._helpers import now_utc
@@ -67,6 +73,7 @@ from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
+from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import (
@@ -338,6 +345,41 @@ def test_create_note_at_a_replica_from_a_non_manager_stores_no_note() -> None:
     assert world.dl.read(note_id) is None
 
 
+@pytest.mark.spec("PCR-03-001")
+def test_create_note_at_a_replica_from_the_manager_is_stored() -> None:
+    """The other side of the replica rule: the CASE_MANAGER's ``Create(Note)``
+    passes the sender guard and the replica keeps the note (CLP-10-017)."""
+    world = _World(store_owner="finder")
+
+    result, note_id = world.create_note_from(world.manager.id_)
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert world.dl.read(note_id) is not None
+    assert world.outbox() == []
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.spec("HP-01-005")
+def test_add_note_at_a_replica_from_the_manager_passes_the_sender_guard() -> (
+    None
+):
+    """The CASE_MANAGER's ``Add(Note)`` passes a replica's sender guard; the
+    replica is not the CASE_MANAGER, so it attaches nothing and reports the
+    missing role, never a sender refusal (HP-01-005)."""
+    world = _World(store_owner="finder")
+    before = world.ledger_size()
+
+    result, note_id = world.add_note_from(world.manager.id_)
+
+    reason = result.reason or ""
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert reason.startswith("not the CASE_MANAGER of case")
+    assert "HP-01-006" not in reason
+    assert note_id not in world.notes()
+    assert world.ledger_size() == before
+    assert world.outbox() == []
+
+
 @pytest.mark.spec("CM-23-018")
 @pytest.mark.parametrize("send", _NOTE_SENDS)
 def test_note_from_an_active_participant_is_attached(send) -> None:
@@ -374,10 +416,15 @@ class _Replica:
     recorded that CASE_MANAGER's address on the completed ``ReportCaseLink``
     (CBT-01-006).  With *roster_manager*, the replica's roster has since come
     to name that actor as CASE_MANAGER instead, while the link still names
-    the one the bootstrap trusted.
+    the one the bootstrap trusted.  Without *roster_names_manager*, the
+    roster names no CASE_MANAGER at all, so only the link names one.
     """
 
-    def __init__(self, roster_manager: str | None = None) -> None:
+    def __init__(
+        self,
+        roster_manager: str | None = None,
+        roster_names_manager: bool = True,
+    ) -> None:
         self.manager_id = "https://example.org/actors/case-actor"
         self.receiver_id = "https://example.org/actors/finder"
         self.dl = SqliteDataLayer(
@@ -387,10 +434,18 @@ class _Replica:
             name="Bootstrapped case", attributed_to=self.manager_id
         )
         holder = roster_manager or self.manager_id
-        manager_p = CaseParticipant(
-            attributed_to=holder,
-            context=case.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
+        manager_p = (
+            CaseParticipant(
+                attributed_to=holder,
+                context=case.id_,
+                case_roles=[CVDRole.CASE_MANAGER],
+            )
+            if roster_names_manager
+            else CaseParticipant(
+                attributed_to=self.receiver_id,
+                context=case.id_,
+                case_roles=[CVDRole.REPORTER],
+            )
         )
         case.add_participant(manager_p)
         self.case_id = case.id_
@@ -434,9 +489,10 @@ class _Replica:
 @pytest.mark.spec("PCR-03-001")
 @pytest.mark.spec("CBT-01-006")
 def test_announce_from_the_report_case_link_address_is_admitted() -> None:
-    """The address the completed ``ReportCaseLink`` records is the CASE_MANAGER
-    the bootstrapped replica names, so its Announce is applied."""
-    replica = _Replica()
+    """The address the completed ``ReportCaseLink`` records is trusted on its
+    own: the roster names no CASE_MANAGER and no stub Invite recorded an
+    anchor, so the link is the only source that admits the Announce."""
+    replica = _Replica(roster_names_manager=False)
     link = replica.dl.read(VultronReportCaseLink.build_id(_REPORT_ID))
     assert isinstance(link, VultronReportCaseLink)
     assert link.case_manager_id == replica.manager_id
@@ -503,6 +559,23 @@ def test_announce_tree_takes_no_clock_decision() -> None:
         sender_rule=AnnounceVulnerabilityCaseReceivedUseCase.sender_entitlement,
     )
 
-    names = [child.name for child in tree.children]
-    assert "ClockDecisionsIfCaseManager" not in names
-    assert "SenderIsCaseManagerNode" in names
+    assert not any(
+        isinstance(node, (ClockDecisionStage, ClockDecision))
+        for node in tree.iterate()
+    )
+    assert any(
+        isinstance(node, SenderIsCaseManagerNode) for node in tree.iterate()
+    )
+
+    # The probe finds the stage where the factory composes one: a note tree.
+    world = _World()
+    note = VultronNote(content="A note", context=world.case_id)
+    note_tree = create_note_tree(
+        note_obj=note,
+        case_id=world.case_id,
+        sender_id=world.finder.id_,
+        sender_rule=CreateNoteReceivedUseCase.sender_entitlement,
+    )
+    assert any(
+        isinstance(node, ClockDecisionStage) for node in note_tree.iterate()
+    )

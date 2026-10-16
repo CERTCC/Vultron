@@ -220,7 +220,9 @@ class TestCreateNoteTree:
         assert isinstance(gate.gated_branch, AttachNoteToCaseNode)
 
     def test_note_naming_no_case_has_no_commit(self, note):
-        """A note that names no case changes no case file: no commit stage."""
+        """A note that names no case has no case to commit to: the sender
+        guard refuses it (``case_manager_required``), and the tree has no
+        commit stage."""
         tree = _tree(note, None)
         assert not any(isinstance(c, CaseManagerGate) for c in tree.children)
 

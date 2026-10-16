@@ -57,9 +57,11 @@ def create_invite_actor_to_full_case_received_tree(
     archive that intake writes (CLP-10-017); the tree logs the receipt
     (SL-04-006).
 
-    The sender must be the case's CASE_MANAGER: the replica's, else the one
-    recorded as the trust anchor from the stub Invite, else the Invite is
-    refused (``anchored``, PCR-03-004, HP-01-006, ADR-0115)::
+    The sender must be the CASE_MANAGER this receiver has trusted for the
+    case: the one its bootstrap recorded on a completed ``ReportCaseLink``
+    (CBT-02-003), else the replica's, else the one recorded as the trust
+    anchor from the stub Invite, else the Invite is refused (``anchored``,
+    PCR-03-004, HP-01-006, ADR-0115)::
 
         InviteActorToFullCaseReceivedBT (Sequence)
         ├── Intake
