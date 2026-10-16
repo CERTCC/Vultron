@@ -82,18 +82,19 @@ class AddCaseStatusToCaseReceivedUseCase:
 
     A participant reports case-level evidence (public awareness, a public
     exploit, observed attacks) to the CASE_MANAGER, which adjudicates each
-    dimension and adopts what it accepts (RSH-05-015).  The sender must hold
-    a participant record on the case whose closure is not recorded, as for
-    ``Add(ParticipantStatus)``, wherever the status arrives: a participant
-    replica writes no case state from it (RSH-08-003), but a peer's P/X/A
-    status still makes it ask the CASE_MANAGER for a teardown (RSH-03-004,
-    EP-09-008).  An unentitled sender is ``REFUSED`` before anything is
-    committed, written or sent (HP-01-006).
+    dimension and adopts what it accepts (RSH-05-015).  At the CASE_MANAGER
+    the sender must hold a participant record on the case whose closure is
+    not recorded, as for ``Add(ParticipantStatus)``.  A participant replica
+    takes case state from the CASE_MANAGER alone (PCR-03-001), which alone
+    emits ``Add(CaseStatus)`` (RSH-04-001), and a participant sends its
+    case-scoped messages only to the CASE_MANAGER (PCR-08-001).  An
+    unentitled sender is ``REFUSED`` before anything is committed, written
+    or sent (HP-01-006).
     """
 
-    # A participant reports P/X/A evidence; a replica that receives it writes
-    # no case state but may ask for a teardown (RSH-05-015, RSH-03-004).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # A participant reports to the CASE_MANAGER; a replica takes the status
+    # from the CASE_MANAGER alone (RSH-05-015, RSH-04-001, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.PARTICIPANT
     )
 

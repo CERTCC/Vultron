@@ -294,9 +294,12 @@ def closed_sender_preflight(
         owned = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
             tree=owner, actor_id=receiving_actor_id, activity=request
         )
-        if owned.internal_error:
-            verdict_from_bt(owner, owned, label="ClosingCaseOwnerPreflight")
-        if owned.status == py_trees.common.Status.SUCCESS:
+        # Raises on an internal error; a sender that is not the Case Owner
+        # is the repeat below.
+        is_owner = verdict_from_bt(
+            owner, owned, label="ClosingCaseOwnerPreflight"
+        )
+        if is_owner.disposition is HandlerDisposition.APPLIED:
             return None
     if closes:
         return HandlerResult.skipped(

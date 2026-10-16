@@ -123,6 +123,21 @@ def test_pending_link_selects_the_trusted_route(dl, make_payload):
     assert bound.case_id == _CASE_ID
 
 
+@pytest.mark.spec("CBT-01-005")
+def test_a_sender_id_differing_by_a_trailing_slash_is_the_anchored_creator(
+    dl, make_payload
+):
+    """The guard and the route compare actor ids the same way, so the one
+    actor written two ways takes the trusted route (#4522)."""
+    dl.save(_link())
+
+    _, result, route, _ = _run(dl, make_payload, f"{_CREATOR}/", _case())
+
+    assert result.status == Status.SUCCESS
+    assert route.name == "trusted"
+    assert isinstance(dl.read(_CASE_ID), VulnerabilityCase)
+
+
 def test_route_is_chosen_before_the_trusted_write_changes_the_answer(
     dl, make_payload
 ):

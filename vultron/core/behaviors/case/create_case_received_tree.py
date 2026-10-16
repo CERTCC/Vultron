@@ -25,7 +25,6 @@ Structure (after intake, which the shared factory supplies first)::
     └─ BootstrapRoute (Selector)
        ├─ TrustedBootstrap (Sequence)       # CBT-01-005 / CBT-01-006
        │  ├─ BootstrapRouteIs_trusted
-       │  ├─ CheckTrustedCreatorNode
        │  ├─ CheckReportReferenceNode       # CBT-01-005
        │  ├─ CheckInlineParticipantsNode
        │  ├─ HoldCarriedEmbargoNode
@@ -81,7 +80,6 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     BootstrapRouteName,
     CheckInlineParticipantsNode,
     CheckReportReferenceNode,
-    CheckTrustedCreatorNode,
     ClassifyBootstrapRouteNode,
     RefuseBootstrapNode,
     SeedCaseReplicaNode,
@@ -132,7 +130,6 @@ def create_create_case_received_tree(
         memory=False,
         children=[
             BootstrapRouteIsNode(route, "trusted"),
-            CheckTrustedCreatorNode(route, sender_id, case_id),
             CheckReportReferenceNode(route, report_ids, case_id),
             CheckInlineParticipantsNode(case_obj, case_id),
             HoldCarriedEmbargoNode(case_obj, case_id),

@@ -2372,11 +2372,14 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
     """``add_case_status_tree`` gives the branch the status's sender, so at a
     replica a P/X/A status the CASE_MANAGER declared tears nothing down and
     asks for nothing (RSH-03-004, #4149); the manager's committed entry
-    carries the teardown.  The same tree at a replica still asks when the
-    status came from anyone else.
+    carries the teardown.  A peer's status never reaches the branch at a
+    replica: the replica takes case state from the CASE_MANAGER alone, so
+    the sender guard refuses it (PCR-03-001, RSH-04-001, HP-01-006).
     """
 
-    def _run(self, sender: str) -> SqliteDataLayer:
+    def _run(
+        self, sender: str, expected: Status = Status.SUCCESS
+    ) -> SqliteDataLayer:
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
@@ -2426,7 +2429,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         result = bridge.execute_with_setup(
             tree=tree, actor_id=REPLICA_ID, activity=event
         )
-        assert result.status == Status.SUCCESS, result.feedback_message
+        assert result.status == expected, result.feedback_message
         return dl
 
     @pytest.mark.spec("RSH-03-004")
@@ -2438,13 +2441,12 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
         assert [a.type_ for a in queued] == [], [a.type_ for a in queued]
 
-    @pytest.mark.spec("RSH-03-004")
-    @pytest.mark.spec("EP-09-008")
-    def test_a_peers_declaration_still_asks_at_a_replica(self):
-        dl = self._run(sender=PEER_ID)
+    @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_peers_declaration_is_refused_at_a_replica(self):
+        """Even from a participant: only the CASE_MANAGER emits it."""
+        dl = self._run(sender=PEER_ID, expected=Status.FAILURE)
 
         updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
-        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
-        asks = [a for a in queued if DIAG_CM_ID in (a.to or [])]
-        assert asks, [a.type_ for a in queued]
+        assert dl.outbox_list() == []

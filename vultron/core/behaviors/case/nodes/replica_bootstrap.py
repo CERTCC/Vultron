@@ -135,49 +135,6 @@ class BootstrapRouteIsNode(py_trees.behaviour.Behaviour):
         )
 
 
-class CheckTrustedCreatorNode(DataLayerActionWithPorts):
-    """Trusted route: the sender must be the creator the link expects.
-
-    CBT-01-005.  A link with no recorded ``case_creator_id`` accepts
-    unchecked, with a warning.
-    """
-
-    def __init__(
-        self,
-        route: BootstrapRoute,
-        sender_id: str,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.route = route
-        self.sender_id = sender_id
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        link = self.route.link
-        if link is None:
-            self.feedback_message = "no pending ReportCaseLink to check"
-            return Status.FAILURE
-        if link.case_creator_id is None:
-            self.logger.warning(
-                "%s: no case_creator_id in link for case '%s'; accepting"
-                " bootstrap unchecked",
-                self.name,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        if self.sender_id != link.case_creator_id:
-            self.feedback_message = (
-                f"bootstrap of case '{self.case_id}' rejected: sender"
-                f" '{self.sender_id}' is not the trusted case creator"
-                " (CBT-01-005)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return Status.SUCCESS
-
-
 class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
     """Trusted route: the case must name the report the link was written for.
 

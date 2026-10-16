@@ -160,35 +160,45 @@ def _words(type_name: str) -> str:
     return " ".join(re.findall(r"[A-Z][a-z0-9]*", type_name)).lower()
 
 
+def _request_words(request: object, entry: SemanticEntry) -> str:
+    """Word one request: its object type, and its verb when it is itself an
+    activity (``Offer(VulnerabilityCase)`` → "vulnerability case offer").
+
+    Raises:
+        ValueError: When *request* names no object type.
+    """
+    verb = ""
+    if isinstance(request, ActivityPattern):
+        verb = f" {_words(str(request.activity_))}"
+        request = request.object_
+    if request is None or isinstance(request, ActivityPattern):
+        raise ValueError(
+            f"{entry.semantics.name}: the pattern names no object type to"
+            " word an addressee from (MSM-08-005)"
+        )
+    return f"{_words(str(request))}{verb}"
+
+
 def answered_request(entry: SemanticEntry) -> str:
     """Name the request or object *entry*'s activity answers or changes.
 
     The name is taken from the object type of the activity being answered
     (MSM-08-010).  ``Accept(CaseProposal)`` answers a case proposal and
-    ``Remove(Note)`` changes a note.  An entry whose pattern does not nest
-    the request it answers names it in ``SemanticEntry.answers``: a bootstrap
-    ``Create(VulnerabilityCase)`` answers a case proposal.  When the
-    answered activity is itself nested, as in
-    ``Accept(Offer(VulnerabilityCase))``, the request is that inner activity,
-    named by its object type and its verb: a vulnerability case offer.
+    ``Remove(Note)`` changes a note.  When the answered activity is itself
+    nested, as in ``Accept(Offer(VulnerabilityCase))``, the request is that
+    inner activity, named by its object type and its verb: a vulnerability
+    case offer.  An entry whose pattern does not nest the request it answers
+    names each request it may answer in ``SemanticEntry.answers``, joined
+    with "or": a bootstrap ``Create(VulnerabilityCase)`` answers a case
+    proposal or a vulnerability report offer.
 
     Raises:
         ValueError: When the entry's pattern names no object type.
     """
-    if entry.answers is not None:
-        return _words(str(entry.answers))
+    if entry.answers:
+        return " or ".join(_request_words(r, entry) for r in entry.answers)
     pattern = entry.pattern
-    obj = None if pattern is None else pattern.object_
-    verb = ""
-    if isinstance(obj, ActivityPattern):
-        verb = f" {_words(str(obj.activity_))}"
-        obj = obj.object_
-    if obj is None or isinstance(obj, ActivityPattern):
-        raise ValueError(
-            f"{entry.semantics.name}: the pattern names no object type to"
-            " word an addressee from (MSM-08-005)"
-        )
-    return f"{_words(str(obj))}{verb}"
+    return _request_words(None if pattern is None else pattern.object_, entry)
 
 
 def _kind_wording(kind: SenderEntitlementKind, entry: SemanticEntry) -> str:

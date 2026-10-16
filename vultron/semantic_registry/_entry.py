@@ -58,12 +58,13 @@ class SemanticEntry:
         page: The ``docs/reference/messages/`` page that owns the entry
             (MSM-06-002).  Required, except on a dispatcher fallback, which
             has none.
-        answers: The object type of the request this entry's activity
-            answers, when its pattern does not nest that request: a bootstrap
-            ``Create(VulnerabilityCase)`` answers the ``CaseProposal`` that
-            asked for the case.  The addressee kind's "Sent by" wording names
-            the request from it (MSM-08-010).  ``None`` (the default) reads
-            the request from the pattern.
+        answers: The requests this entry's activity may answer, when its
+            pattern does not nest them: each an object type, or an activity
+            pattern for a request that is itself an activity.  A bootstrap
+            ``Create(VulnerabilityCase)`` answers the ``CaseProposal`` or the
+            ``Offer(VulnerabilityReport)`` that asked for the case.  The
+            addressee kind's "Sent by" wording names them (MSM-08-010).  Empty
+            (the default) reads the request from the pattern.
 
     Raises:
         TypeError: At construction, when ``occasions`` is not a tuple or
@@ -83,7 +84,9 @@ class SemanticEntry:
     include_activity: bool = field(default=False)
     occasions: tuple[Occasion, ...] = field(default=())
     page: MessagePage | None = field(default=None)
-    answers: VultronObjectType | None = field(default=None)
+    answers: tuple[VultronObjectType | ActivityPattern, ...] = field(
+        default=()
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.occasions, tuple):

@@ -45,6 +45,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderExemption,
+    SenderIsCaseOwnerNode,
     SenderRule,
 )
 from vultron.core.models._helpers import now_utc
@@ -80,6 +81,7 @@ from vultron.core.use_cases.received.unknown import (
     UnresolvableObjectUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
@@ -227,7 +229,7 @@ def _overdue() -> datetime:
     [
         pytest.param(
             AddCaseStatusToCaseReceivedUseCase,
-            SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+            SenderRule.to_case_manager(SenderEntitlementKind.PARTICIPANT),
             id="add-case-status",
         ),
         pytest.param(
@@ -303,16 +305,19 @@ def test_case_status_from_a_stranger_is_refused_and_changes_nothing() -> None:
     assert world.outbox() == []
 
 
-@pytest.mark.spec("HP-01-006")
-@pytest.mark.spec("RSH-03-004")
-def test_case_status_at_a_replica_from_a_stranger_is_refused() -> None:
-    """A replica asks for a teardown only on a participant's status."""
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.spec("RSH-04-001")
+def test_case_status_at_a_replica_from_a_non_manager_is_refused() -> None:
+    """A replica takes case state from the CASE_MANAGER alone; a peer
+    participant's status is refused too (``test_add_case_status_bt``)."""
     world = _World(store_owner="finder")
+    statuses = list(world.case().case_statuses)
 
     result = world.case_status_from(world.stranger.id_)
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert world.stranger.id_ in (result.reason or "")
+    assert "CASE_MANAGER" in (result.reason or "")
+    assert list(world.case().case_statuses) == statuses
     assert world.outbox() == []
 
 
@@ -426,3 +431,23 @@ def test_invite_echoed_to_the_case_manager_ends_an_overdue_embargo() -> None:
     world.invite_from(world.manager.id_)
 
     assert world.case().em_state is EM.EXITED
+
+
+@pytest.mark.spec("ARCH-15-001")
+def test_an_internal_error_asking_for_the_case_owner_is_raised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Case Owner pre-flight for a repeated Leave never reads a crash as
+    "not the owner", which would report the Leave SKIPPED."""
+    world = _World()
+    assert world.leave_from(world.finder.id_, suffix="first").disposition is (
+        HandlerDisposition.APPLIED
+    )
+
+    def _crash(self: SenderIsCaseOwnerNode) -> Any:
+        raise RuntimeError("owner lookup crashed")
+
+    monkeypatch.setattr(SenderIsCaseOwnerNode, "update", _crash)
+
+    with pytest.raises(VultronBTInternalError):
+        world.leave_from(world.finder.id_, suffix="second")

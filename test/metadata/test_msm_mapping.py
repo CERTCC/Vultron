@@ -97,7 +97,7 @@ def _entry(
     semantics: MessageSemantics = MessageSemantics.CREATE_NOTE,
     entitlement: SenderEntitlement | None = _CASE_OWNER_RULE,
     pattern: ActivityPattern | None = None,
-    answers: VOtype | None = None,
+    answers: tuple[VOtype | ActivityPattern, ...] = (),
 ) -> SemanticEntry:
     return SemanticEntry(
         semantics=semantics,
@@ -278,19 +278,24 @@ def test_an_exemption_naming_no_issue_must_say_why():
 
 
 @pytest.mark.spec("MSM-08-010")
-def test_sent_by_names_a_request_the_pattern_does_not_nest():
-    """A bootstrap ``Create(VulnerabilityCase)`` answers a case proposal."""
+def test_sent_by_names_each_request_the_pattern_does_not_nest():
+    """A bootstrap ``Create(VulnerabilityCase)`` answers either request that
+    asked for the case: a case proposal or a report offer."""
     pattern = ActivityPattern(
         activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
     )
     entry = _entry(
         entitlement=SenderRule.in_case(SenderEntitlementKind.NAMED_ACTOR),
         pattern=pattern,
-        answers=VOtype.CASE_PROPOSAL,
+        answers=(
+            VOtype.CASE_PROPOSAL,
+            ActivityPattern(
+                activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_REPORT
+            ),
+        ),
     )
-    assert (
-        sent_by(entry, entry.occasions[0])
-        == "the addressee of the case proposal"
+    assert sent_by(entry, entry.occasions[0]) == (
+        "the addressee of the case proposal or vulnerability report offer"
     )
 
 

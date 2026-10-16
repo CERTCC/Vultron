@@ -175,7 +175,7 @@ groups:
     when: the Case Manager has opened a case for a submitted report
     send: Create(VulnerabilityCase)
     send_to: a participant
-    sent_by: the addressee of the case proposal
+    sent_by: the addressee of the case proposal or vulnerability report offer
     semantics: create_case
     status: none
     description: Mints the vulnerability case, seats its initial participants and links the

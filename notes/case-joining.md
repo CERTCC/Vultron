@@ -127,7 +127,10 @@ from its role (CLP-09).
   `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A repeat of an act that would
   close it again (`Leave`, `Close(Report)`, a `Reject` of its Invite) is `SKIPPED`,
   with no entry, whatever its activity id: `closed_sender_preflight()` asks
-  `closure_recorded()` before the tree runs. Any other invitee reply from it is
+  `closure_recorded()` before the tree runs. The Case Owner's `Leave` is the
+  exception until `case_fully_closed`: it closes the case too, so its redelivery
+  runs again to finish a closure a failed first delivery left part-way
+  (`case_owner_completes=True`, CM-23-002). Any other invitee reply from it is
   `REFUSED` there too, since its guard is `INVITEE`, not the shared predicate.
 - **A repeat is decided by its effect, not its id (ID-05-003).** An act whose effect
   is already in place is a no-op, even under a new activity id: you cannot leave
