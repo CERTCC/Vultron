@@ -24,6 +24,7 @@ from vultron.adapters.driven.inbox_hand_back_adapter import (
     InboxHandBackAdapter,
     hand_back_activity_id,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -56,16 +57,7 @@ def entry() -> CaseLedgerEntry:
         payload_snapshot={"k": "v"},
         prev_log_hash="0" * 64,
     )
-    return CaseLedgerEntry(
-        case_id=record.case_id,
-        log_index=record.log_index,
-        term=record.term,
-        log_object_id=record.object_id,
-        event_type=record.event_type,
-        payload_snapshot=dict(record.payload_snapshot),
-        prev_log_hash=record.prev_log_hash,
-        entry_hash=record.entry_hash,
-    )
+    return _to_persistable_entry(record)
 
 
 def test_adapter_satisfies_the_port(dl):
@@ -108,12 +100,16 @@ def test_queued_announce_routes_like_any_ledger_entry_delivery(dl, entry):
 
 
 def test_handing_the_same_entry_back_twice_names_one_delivery(dl, entry):
+    """Both hand-backs carry the same derived id (ID-04-004).
+
+    The inbox queue keeps no dedup of its own, so the id is queued twice; the
+    second delivery finds the entry stored and is a no-op (SYNC-03).
+    """
     adapter = InboxHandBackAdapter(dl)
     for _ in range(2):
         adapter.hand_back_ledger_entry(
             entry, case_manager_id=_CASE_MANAGER, receiving_actor_id=_RECEIVER
         )
 
-    assert set(dl.inbox_list()) == {
-        hand_back_activity_id(_RECEIVER, entry.id_)
-    }
+    expected = hand_back_activity_id(_RECEIVER, entry.id_)
+    assert dl.inbox_list() == [expected, expected]

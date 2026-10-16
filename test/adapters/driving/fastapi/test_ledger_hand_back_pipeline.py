@@ -43,6 +43,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -104,16 +105,7 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
             payload_snapshot={"index": index},
             prev_log_hash=prev,
         )
-        entry = CaseLedgerEntry(
-            case_id=record.case_id,
-            log_index=record.log_index,
-            term=record.term,
-            log_object_id=record.object_id,
-            event_type=record.event_type,
-            payload_snapshot=dict(record.payload_snapshot),
-            prev_log_hash=record.prev_log_hash,
-            entry_hash=record.entry_hash,
-        )
+        entry = _to_persistable_entry(record)
         entries.append(entry)
         prev = entry.entry_hash
     return entries

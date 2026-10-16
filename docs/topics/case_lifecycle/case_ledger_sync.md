@@ -297,9 +297,7 @@ A run of ten entries that arrived in reverse order clicks into place in one casc
 
 Three properties make the drain safe:
 
-- **Same path.** A drained entry goes through the same processing as an entry
-  that arrived in order — no separate code path with its own behavior
-  ([SYNC-14-008](../../reference/specs/protocol.md#sync-14-008)).
+- **Same path.** A drained entry goes through the same processing as an entry that arrived in order — no separate code path with its own behavior ([SYNC-14-008](../../reference/specs/protocol.md#sync-14-008)).
   In this implementation that holds by construction, because each held entry reaches the announce receive behavior tree as an ordinary inbox delivery.
 - **Effects before storage.** The entry's consequences — an embargo ending, a
   participant joining, a status changing — are applied first, and the entry is

@@ -238,9 +238,9 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
 
 @pytest.mark.spec("CLP-10-017")
 def test_intake_with_no_wire_activity_archives_nothing_and_succeeds(scenario):
-    """A drain event carries an object and no activity: nothing to fail on."""
+    """An event built with no wire activity has nothing to archive or fail on."""
     event = CreateNoteReceivedEvent(
-        activity_id="urn:vultron:drain:1",
+        activity_id="urn:vultron:no-wire:1",
         actor_id=SENDER,
         object_=_rich_note(),
     )

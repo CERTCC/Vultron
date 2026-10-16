@@ -46,7 +46,10 @@ def make_case_with_case_manager(
 def add_case_manager_participant(
     dl: DataLayer, case: VulnerabilityCase, case_manager_id: str
 ) -> None:
-    """Give *case* a CASE_MANAGER participant for *case_manager_id*; save both.
+    """Give *case* a CASE_MANAGER participant for *case_manager_id*.
+
+    The participant is new, so it is created (a duplicate id raises); the
+    case may already be stored, so it is saved.
 
     A replica names its CASE_MANAGER on the roster from the moment it is
     seeded (CP-09-004), and code that must attribute something to the
@@ -61,4 +64,4 @@ def add_case_manager_participant(
     case.actor_participant_index[case_manager_id] = participant.id_
     case.case_participants.append(participant.id_)
     dl.save(case)
-    dl.save(participant)
+    dl.create(participant)

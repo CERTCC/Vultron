@@ -65,6 +65,13 @@ OWNER = "https://example.org/users/vendor-a"
 BYSTANDER = "https://example.org/users/vendor-b"
 
 
+def _received_event(activity: Any, receiver: str) -> Any:
+    """The event the inbox routes for *activity* delivered to *receiver*."""
+    return extract_event(activity).model_copy(
+        update={"receiving_actor_id": receiver}
+    )
+
+
 class LedgerNetwork:
     """One store per actor, and the outbox items each has delivered."""
 
@@ -147,9 +154,7 @@ class LedgerNetwork:
 
         *without* names ports the receiver is composed without.
         """
-        event = extract_event(parse_activity(body)).model_copy(
-            update={"receiving_actor_id": receiver}
-        )
+        event = _received_event(parse_activity(body), receiver)
         return self.receive_event(receiver, event, without=without)
 
     def receive_event(
@@ -181,9 +186,9 @@ class LedgerNetwork:
         }
         verdict = use_case(dl, event, **ports).execute()
         while (queued_id := dl.inbox_pop()) is not None:
-            handed_back = extract_event(
-                cast(as_Activity, rehydrate(queued_id, dl=dl))
-            ).model_copy(update={"receiving_actor_id": receiver})
+            handed_back = _received_event(
+                cast(as_Activity, rehydrate(queued_id, dl=dl)), receiver
+            )
             self.receive_event(receiver, handed_back, without=without)
         return verdict
 

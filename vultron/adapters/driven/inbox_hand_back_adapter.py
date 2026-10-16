@@ -23,11 +23,12 @@ and appends its id to the actor's inbox queue.
 
 That queue is the inbox's existing scheduling path: the delivery that made the
 entry appliable is still running when the port is called, and once it ends
-the inbox loop that ran it (``run_inbox_pipeline``, or ``inbox_handler``) pops
-the queued id and runs it through ``process_payload`` under the same actor
-lock (IO-02-003, BT-11-001).  No new concurrency mechanism is involved, and the
-handed-back entry takes the same parse, route and tree path as any delivery
-(SYNC-14-008).  The entry itself is stored inline in the Announce, never on its
+``run_inbox_pipeline`` pops the queued id and runs it through
+``process_payload`` under the same actor lock (IO-02-003, BT-11-001).  The
+older ``inbox_handler`` queue worker also drains the queue, through its own
+dispatch step rather than ``process_payload``.  No new concurrency mechanism is
+involved, and the handed-back entry takes the same parse, route and tree path
+as any delivery (SYNC-14-008).  The entry itself is stored inline in the Announce, never on its
 own: only the replica's ``PersistReceivedLogEntry`` step writes a ledger entry
 (SYNC-13-002).
 """
@@ -110,7 +111,7 @@ class InboxHandBackAdapter:
         )
         self._dl.save(announce)
         self._dl.inbox_append(announce.id_)
-        logger.info(
+        logger.debug(
             "inbox hand-back: queued Announce(CaseLedgerEntry) '%s' for"
             " ledger entry '%s' (log_index=%d) from '%s' to actor '%s'",
             announce.id_,
