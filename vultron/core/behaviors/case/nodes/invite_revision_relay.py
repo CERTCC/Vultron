@@ -43,12 +43,12 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import invitation_recipients
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -183,16 +183,17 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
                 " proposer is unknown"
             )
         snapshot = entry.payload_snapshot
-        proposer = _as_id(
+        # The snapshot keeps the proposer's own spelling; the relay names
+        # it as the case stores it (OID-01-006).
+        proposer = snapshot_actor_id(
             snapshot.get(wire_key("attributed_to"))
-            or snapshot.get(wire_key("actor"))
-        )
+        ) or snapshot_actor_id(snapshot.get(wire_key("actor")))
         if not proposer:
             raise RuntimeError(
                 f"{self.name}: proposal entry '{proposal_id}' names no"
                 " proposer"
             )
-        return cast(str, proposer)
+        return proposer
 
 
 __all__ = ["RelayOpenProposalsToJoinerNode"]

@@ -1080,13 +1080,14 @@ def _reply_entry(
     log_index: int,
     prev_hash: str,
     published: datetime | None = _REPLIED_AT,
+    actor: str = INVITEE_ACTOR_ID,
 ) -> CaseLedgerEntry:
     """The entry for the invitee's own reply message: its actor, the stub
     Invite it answers, and its ``published``, verbatim."""
     snapshot: dict[str, object] = {
         "type": activity_type,
         "id": f"urn:uuid:reply-{log_index}",
-        "actor": INVITEE_ACTOR_ID,
+        "actor": actor,
         "object": {
             "type": "Invite",
             "id": "https://example.org/invites/1",
@@ -1195,6 +1196,33 @@ class TestAnnounceLogEntryAppliesStubPath:
         assert [s.vf.state for s in held.participant_statuses if s.vf] == [
             CS_vf.vf
         ]
+
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("CM-31-012")
+    def test_a_slash_spelled_accept_reaches_the_canonical_record(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The Accept's snapshot keeps the invitee's trailing slash; the
+        replica's index names it canonically, and the reply still lands."""
+        self._embargoed_case(datalayer, case_obj)
+        create = self._seat(bridge, datalayer, case_actor, case_obj)
+        accept = _reply_entry(
+            "accept_invite_actor_to_case",
+            "Accept",
+            1,
+            create.entry_hash,
+            actor=INVITEE_ACTOR_ID + "/",
+        )
+
+        assert (
+            self._announce(bridge, case_actor, accept).status == Status.SUCCESS
+        )
+
+        held = self._held(datalayer)
+        assert held.joined is True
+        assert held.consent_for(ACTIVE_EMBARGO_ID) == (
+            EmbargoConsentState.AGREED
+        )
 
     @pytest.mark.spec("CM-11-007")
     def test_the_reject_entry_declines_the_embargo_in_force(

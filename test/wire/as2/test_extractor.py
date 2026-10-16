@@ -960,3 +960,31 @@ def test_ownership_offer_without_end_time_has_no_deadline():
 
     assert event.answer_deadline is None
     assert event.activity.end_time is None
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("OID-01-007")
+def test_extract_intent_normalises_slash_spelled_sender_id():
+    """The event's sender id loses its trailing slash; the snapshot keeps it.
+
+    File the activity as received, normalise what is extracted from it: the
+    stored activity and the ledger postmark are built from the snapshot, so
+    they keep the sender's spelling, while core acts on one spelling (#4775).
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    canonical = "https://example.org/alice"
+    note = as_Note(
+        content="Note body",
+        attributed_to=canonical + "/",
+        context="https://example.org/cases/1",
+    )
+    activity = as_Create(actor=canonical + "/", object_=note)
+    event = extract_event(activity)
+
+    assert event.actor_id == canonical
+    assert event.activity is not None
+    assert event.activity.actor == canonical + "/"

@@ -392,6 +392,23 @@ def test_own_closure_entries_never_widen_entitlement(
 
 
 @pytest.mark.spec("CM-23-004")
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_spelled_leave_still_records_the_leavers_own_closure(
+    dl: SqliteDataLayer,
+) -> None:
+    """The ``close_case`` snapshot keeps the leaver's trailing slash; the
+    roster names it canonically, and the two are one actor."""
+    case = _embargoed_case(dl)
+    closed = dl.read(case.actor_participant_index[_CLOSED])
+    assert isinstance(closed, CaseParticipant)
+    entry = _close_case_entry(5, _CLOSED + "/")
+    assert entry_records_own_closure(entry, _CLOSED, closed)
+    assert not entry_records_own_closure(
+        _close_case_entry(6, _SIGNATORY + "/"), _CLOSED, closed
+    )
+
+
+@pytest.mark.spec("CM-23-004")
 def test_closed_participant_ledger_cutoff_is_its_last_own_closure_entry(
     dl: SqliteDataLayer,
 ) -> None:

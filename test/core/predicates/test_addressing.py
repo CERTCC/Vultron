@@ -20,6 +20,7 @@ from vultron.core.predicates.addressing import (
     normalise_actor_id,
     participant_id_for_actor,
     same_actor_id,
+    snapshot_actor_id,
 )
 
 VENDOR = "https://example.org/actors/vendor"
@@ -111,3 +112,46 @@ def test_participant_id_for_actor(
 ) -> None:
     """The index key is matched with ``same_actor_id`` (#4772)."""
     assert participant_id_for_actor(index, VENDOR) == expected
+
+
+class _WithId:
+    def __init__(self, id_: object) -> None:
+        self.id_ = id_
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (VENDOR, VENDOR),
+        (VENDOR + "/", VENDOR),
+        ({"id": VENDOR + "/", "type": "Person"}, VENDOR),
+        ({"id_": VENDOR}, VENDOR),
+        (_WithId(VENDOR + "/"), VENDOR),
+        (None, None),
+        ("", None),
+        ("   ", None),
+        ({"type": "Person"}, None),
+        (_WithId(None), None),
+        (42, None),
+        ("/", None),
+    ],
+    ids=[
+        "bare-id",
+        "bare-id-slash",
+        "inline-dict-id",
+        "inline-dict-id_",
+        "object-id_",
+        "none",
+        "empty",
+        "blank",
+        "dict-without-id",
+        "object-without-id",
+        "not-an-id",
+        "only-a-slash",
+    ],
+)
+@pytest.mark.spec("OID-01-006")
+def test_snapshot_actor_id(value: object, expected: str | None) -> None:
+    """A snapshot actor field is read as a normalised id, or ``None`` —
+    never the ``str()`` of an object."""
+    assert snapshot_actor_id(value) == expected

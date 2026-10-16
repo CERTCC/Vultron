@@ -231,6 +231,26 @@ def test_removal_naming_another_actor_than_the_record_is_refused(
     assert removal.ledger() == []
 
 
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-31-007")
+def test_removal_naming_the_record_actor_with_a_trailing_slash_is_applied(
+    removal: _RemovalCase,
+) -> None:
+    """The inline ``attributedTo`` is extracted without its trailing slash,
+    so a removal spelling the record's own actor that way names it."""
+    spelled = removal.participant(VENDOR).model_copy(
+        update={"attributed_to": VENDOR + "/"}
+    )
+    activity = remove_participant_from_case_activity(
+        spelled, target=CASE_ID, actor=OWNER
+    )
+
+    result = removal.route(activity)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert removal.participant(VENDOR).removed
+
+
 class _NoticeFailsAdapter(TriggerActivityAdapter):
     """A trigger-activity port whose removal notice cannot be built."""
 

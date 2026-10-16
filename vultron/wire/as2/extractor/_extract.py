@@ -26,6 +26,7 @@ from vultron.core.models.rsvp_deadline import (
     resolve_rsvp_deadline,
 )
 from vultron.enums.object_types import VultronObjectType as VOtype
+from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
@@ -75,7 +76,11 @@ def extract_intent(
     Returns:
         A concrete VultronEvent subclass discriminated by MessageSemantics.
     """
+    # The sender id as written, for the activity snapshot: the stored
+    # activity and the ledger postmark keep the sender's spelling.  The event
+    # gets the normalised id (OID-01-006, OID-01-007).
     actor_id = _get_id(getattr(activity, "actor", None)) or ""
+    sender_id = normalise_actor_id(actor_id)
     obj = getattr(activity, "object_", None)
     target = getattr(activity, "target", None)
     context = getattr(activity, "context", None)
@@ -159,7 +164,7 @@ def extract_intent(
             semantic_type=semantics,
             activity_id=activity.id_,
             activity_type=str(activity.type_) if activity.type_ else None,
-            actor_id=actor_id,
+            actor_id=sender_id,
             # object_ comes from extra_kwargs if a typed domain object was built;
             # otherwise fall back to a minimal CoreObject wrapper.
             object_=extra_kwargs.pop("object_", None) or _to_domain_obj(obj),

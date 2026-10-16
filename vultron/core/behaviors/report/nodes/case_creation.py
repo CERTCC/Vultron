@@ -25,6 +25,10 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.predicates.addressing import (
+    normalise_actor_id,
+    same_actor_id,
+)
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -62,8 +66,13 @@ def _collect_create_case_addressees(
         offer_record.offer_actor_id if offer_record is not None else None,
     ):
         _append_addressee_ids(addressees, value)
+    # The ids come from different writers in different spellings, so each is
+    # normalised: an actor named twice is addressed once, and the executing
+    # actor is left out however the report spelled it (OID-01-006).
     return [
-        addressee for addressee in set(addressees) if addressee != actor_id
+        addressee
+        for addressee in {normalise_actor_id(a) for a in addressees}
+        if not same_actor_id(addressee, actor_id)
     ]
 
 
