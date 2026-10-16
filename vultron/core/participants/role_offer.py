@@ -54,6 +54,10 @@ from vultron.errors import VultronNotFoundError
 #: The ``event_type`` of the entry that records an admitted role Offer.
 OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE = "offer_case_participant_role"
 
+#: The ``event_type`` of the entry that records the target's Accept: the
+#: grant (CM-02-016).
+ACCEPT_CASE_PARTICIPANT_ROLE = "accept_case_participant_role"
+
 
 def recorded_role_offer_entries(
     dl: CasePersistence, case_id: str
@@ -241,6 +245,7 @@ def answered_role_offer(
 
 
 __all__ = [
+    "ACCEPT_CASE_PARTICIPANT_ROLE",
     "OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE",
     "RecordedRoleOffer",
     "answered_role_offer",

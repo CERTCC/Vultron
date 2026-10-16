@@ -64,64 +64,29 @@ from vultron.enums.roles import CVDRole
 logger = logging.getLogger(__name__)
 
 
-def _answer_tree(
-    name: str,
+def _answer_guards(
     case_id: str,
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
     carried_role: CVDRole | None,
     carried_target_id: str | None,
-    sender_rule: SenderRule,
-    grants_role: bool,
-) -> py_trees.composites.Sequence:
-    """The received tree both answers share; the Accept adds the grant.
-
-    The grant takes the carried role and target, which the open-Offer guard
-    checks against the recorded Offer before the commit, so the CASE_MANAGER
-    grants what every replica grants from the entry.  An answer that carries
-    no role or target has nothing to grant, and the guard refuses it.
-    """
-    manager_effects: list[py_trees.behaviour.Behaviour] | None = (
-        [
-            GrantCaseParticipantRoleNode(
-                case_id=case_id,
-                role=carried_role,
-                target_actor_id=carried_target_id,
-            )
-        ]
-        if grants_role and carried_role is not None and carried_target_id
-        else None
-    )
-    tree = create_receive_activity_tree(
-        name=name,
+) -> tuple[SenderCheckContext, list[py_trees.behaviour.Behaviour]]:
+    """The sender context and guards both answers pass the factory."""
+    context = SenderCheckContext(
+        sender_id=sender_id,
         case_id=case_id,
-        sender_rule=sender_rule,
-        sender_context=SenderCheckContext(
-            sender_id=sender_id,
-            case_id=case_id,
-            request=RoleOfferRequest(offer_id=offer_id),
-            case_manager_required=True,
-        ),
-        precondition_guards=[
-            RoleOfferOpenNode(
-                case_id=case_id,
-                offer_id=offer_id,
-                reply_id=answer_id,
-                carried_role=carried_role,
-                carried_target_id=carried_target_id,
-            )
-        ],
-        manager_effects=manager_effects,
-        manager_case_id=case_id if manager_effects else None,
-        manager_gate_name="GrantRoleIfCaseManager"
-        if manager_effects
-        else None,
+        request=RoleOfferRequest(offer_id=offer_id),
+        case_manager_required=True,
     )
-    logger.debug(
-        "Created %s for case='%s' offer='%s'", name, case_id, offer_id
+    guard = RoleOfferOpenNode(
+        case_id=case_id,
+        offer_id=offer_id,
+        reply_id=answer_id,
+        carried_role=carried_role,
+        carried_target_id=carried_target_id,
     )
-    return tree
+    return context, [guard]
 
 
 def create_accept_case_participant_role_tree(
@@ -151,17 +116,45 @@ def create_accept_case_participant_role_tree(
         carried_target_id: The target the Offer the Accept carries names.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    return _answer_tree(
-        "AcceptCaseParticipantRoleReceivedBT",
+    context, guards = _answer_guards(
         case_id,
         offer_id,
         sender_id,
         answer_id,
         carried_role,
         carried_target_id,
-        sender_rule,
-        grants_role=True,
     )
+    # The grant takes the carried role and target, which the open-Offer guard
+    # checks against the recorded Offer before the commit, so the
+    # CASE_MANAGER grants what every replica grants from the entry.  An
+    # answer that carries no role or target is refused by that guard.
+    grant: list[py_trees.behaviour.Behaviour] | None = (
+        [
+            GrantCaseParticipantRoleNode(
+                case_id=case_id,
+                role=carried_role,
+                target_actor_id=carried_target_id,
+            )
+        ]
+        if carried_role is not None and carried_target_id
+        else None
+    )
+    tree = create_receive_activity_tree(
+        name="AcceptCaseParticipantRoleReceivedBT",
+        case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=context,
+        precondition_guards=guards,
+        manager_effects=grant,
+        manager_case_id=case_id if grant else None,
+        manager_gate_name="GrantRoleIfCaseManager" if grant else None,
+    )
+    logger.debug(
+        "Created AcceptCaseParticipantRoleReceivedBT for case='%s' offer='%s'",
+        case_id,
+        offer_id,
+    )
+    return tree
 
 
 def create_reject_case_participant_role_tree(
@@ -191,17 +184,27 @@ def create_reject_case_participant_role_tree(
         carried_target_id: The target the Offer the Reject carries names.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    return _answer_tree(
-        "RejectCaseParticipantRoleReceivedBT",
+    context, guards = _answer_guards(
         case_id,
         offer_id,
         sender_id,
         answer_id,
         carried_role,
         carried_target_id,
-        sender_rule,
-        grants_role=False,
     )
+    tree = create_receive_activity_tree(
+        name="RejectCaseParticipantRoleReceivedBT",
+        case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=context,
+        precondition_guards=guards,
+    )
+    logger.debug(
+        "Created RejectCaseParticipantRoleReceivedBT for case='%s' offer='%s'",
+        case_id,
+        offer_id,
+    )
+    return tree
 
 
 __all__ = [

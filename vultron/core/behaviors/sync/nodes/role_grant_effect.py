@@ -44,12 +44,11 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.role_offer import ACCEPT_CASE_PARTICIPANT_ROLE
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole, validate_roles
 
 logger = logging.getLogger(__name__)
-
-_ACCEPT_CASE_PARTICIPANT_ROLE_EVENT = "accept_case_participant_role"
 
 
 def role_and_target_from_accept_snapshot(
@@ -114,7 +113,7 @@ class IsAcceptCaseParticipantRoleEventNode(_SingleEventTypeNode):
     ``RoleGrant`` effect slot of ``AnnounceLogEntryReceivedBT`` (BTND-08-001).
     """
 
-    matched_event_type: ClassVar[str] = _ACCEPT_CASE_PARTICIPANT_ROLE_EVENT
+    matched_event_type: ClassVar[str] = ACCEPT_CASE_PARTICIPANT_ROLE
 
 
 class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):

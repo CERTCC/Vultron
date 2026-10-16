@@ -302,7 +302,6 @@ def _redelivery_verdict(
         type[OwnershipOfferOpenNode]
         | type[NoOpenOwnershipOfferNode]
         | type[IsWithdrawableEmbargoNode]
-        | type[RoleOfferOpenNode]
     ),
     verdict: HandlerResult,
     fallback: str,
@@ -393,6 +392,31 @@ def ownership_offer_verdict(
     )
 
 
+def _resumable_redelivery_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    guard_type: type[RoleOfferAdmissibleNode] | type[RoleOfferOpenNode],
+    verdict: HandlerResult,
+    fallback: str,
+) -> HandlerResult:
+    """``SKIPPED`` for a redelivery, whether *guard_type* ended or resumed it.
+
+    The guard sets ``is_redelivery`` and fails when the redelivery has
+    nothing left to do, or admits it when an effect failed after the commit,
+    so the run finishes that effect with the recorded entry reused.  Either
+    reads as ``SKIPPED``; when the guard admitted the run, a later refusal or
+    failure keeps its own verdict.
+    """
+    guard = find_node(tree, guard_type)
+    if guard is None or not guard.is_redelivery:
+        return verdict
+    if (
+        guard.status is Status.FAILURE
+        or verdict.disposition is HandlerDisposition.APPLIED
+    ):
+        return HandlerResult.skipped(guard.feedback_message or fallback)
+    return verdict
+
+
 def role_offer_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     verdict: HandlerResult,
@@ -403,21 +427,11 @@ def role_offer_verdict(
     sets ``is_redelivery`` when the CASE_MANAGER's ledger already records the
     Offer (HP-01-003).  It fails when the forward is already stored, so
     nothing runs, and admits the run when it is not, so the run finishes the
-    forward with the recorded entry reused (OX-06-002).  Either reads as
-    ``SKIPPED``; when the guard admitted the run, a later refusal or failure
-    keeps its own verdict.
+    forward with the recorded entry reused (OX-06-002).
     """
-    guard = find_node(tree, RoleOfferAdmissibleNode)
-    if guard is None or not guard.is_redelivery:
-        return verdict
-    if (
-        guard.status is Status.FAILURE
-        or verdict.disposition is HandlerDisposition.APPLIED
-    ):
-        return HandlerResult.skipped(
-            guard.feedback_message or "role Offer redelivered"
-        )
-    return verdict
+    return _resumable_redelivery_verdict(
+        tree, RoleOfferAdmissibleNode, verdict, "role Offer redelivered"
+    )
 
 
 def role_offer_answer_verdict(
@@ -427,12 +441,12 @@ def role_offer_answer_verdict(
     """Report a redelivered answer to a role Offer as ``SKIPPED``.
 
     :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferOpenNode`
-    fails with ``is_redelivery`` set when the answer is the one already
-    ledgered as closing its Offer, so nothing is committed or granted again.
-    That is the benign no-op of a redelivery, not a refusal (HP-01-003,
-    CM-33-005).
+    sets ``is_redelivery`` when the answer is the one already ledgered as
+    closing its Offer (HP-01-003, CM-33-005).  It fails when nothing is left
+    to do, and admits a redelivered Accept whose grant failed after the
+    commit, so the run finishes the grant with the recorded entry reused.
     """
-    return _redelivery_verdict(
+    return _resumable_redelivery_verdict(
         tree, RoleOfferOpenNode, verdict, "role Offer answer redelivered"
     )
 

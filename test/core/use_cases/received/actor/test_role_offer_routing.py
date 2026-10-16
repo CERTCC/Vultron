@@ -950,3 +950,89 @@ def test_open_offer_guard_flags_a_vanished_offer_as_internal(make_payload):
     )
 
     assert result.internal_error
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CM-02-016")
+def test_a_grant_that_fails_after_the_commit_is_applied_on_redelivery(
+    make_payload, monkeypatch
+):
+    """The fault is ours; the redelivered Accept finishes the grant."""
+    from vultron.core.behaviors.case.nodes import delegation
+
+    dl = _store(_CASE_MANAGER_ID)
+    offer = _offer()
+    _deliver_offer(dl, make_payload, offer)
+    answer_id = "https://example.org/activities/role-offer/accept"
+
+    def _down(*_args, **_kwargs):
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(delegation, "grant_role_to_target", _down)
+    with pytest.raises(VultronBTInternalError):
+        _deliver_answer(
+            dl,
+            make_payload,
+            offer,
+            accept=True,
+            sender=_TARGET_ID,
+            answer_id=answer_id,
+        )
+    monkeypatch.undo()
+    entries = _event_types(dl)
+    assert entries.count("accept_case_participant_role") == 1
+    assert not _target_holds(dl, CVDRole.VENDOR)
+
+    result = _deliver_answer(
+        dl,
+        make_payload,
+        offer,
+        accept=True,
+        sender=_TARGET_ID,
+        answer_id=answer_id,
+    )
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries
+    assert _target_holds(dl, CVDRole.VENDOR)
+
+
+@pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("HP-01-003")
+def test_a_forged_redelivery_does_not_resume_the_grant(
+    make_payload, monkeypatch
+):
+    """Only a redelivery carrying the recorded role and target resumes it."""
+    from vultron.core.behaviors.case.nodes import delegation
+
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    answer_id = "https://example.org/activities/role-offer/accept"
+    monkeypatch.setattr(
+        delegation,
+        "grant_role_to_target",
+        MagicMock(side_effect=RuntimeError("down")),
+    )
+    with pytest.raises(VultronBTInternalError):
+        _deliver_answer(
+            dl,
+            make_payload,
+            _offer(),
+            accept=True,
+            sender=_TARGET_ID,
+            answer_id=answer_id,
+        )
+    monkeypatch.undo()
+
+    result = _deliver_answer(
+        dl,
+        make_payload,
+        _offer(role=CVDRole.COORDINATOR),
+        accept=True,
+        sender=_TARGET_ID,
+        answer_id=answer_id,
+    )
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert not _target_holds(dl, CVDRole.COORDINATOR)
+    assert not _target_holds(dl, CVDRole.VENDOR)
