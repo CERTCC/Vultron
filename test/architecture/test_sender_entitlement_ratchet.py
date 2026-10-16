@@ -434,44 +434,9 @@ def _live_sites() -> Counter[Site]:
 #: Sender guards a received tree still places itself, each naming the open
 #: issue that moves it into the declared rule the factory composes.  The list
 #: only shrinks: a new entry, or a stale one, fails the test.
-GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {
-    Site(
-        "vultron/core/behaviors/report/prioritize_tree.py",
-        "create_engage_case_tree",
-        "SenderIsParticipantNode",
-    ): Listed(
-        1,
-        "#4696: follows the snapshot steps, which store the sender's own"
-        " participant record when the Engage carries it inline",
-    ),
-    Site(
-        "vultron/core/behaviors/report/received_report_trees.py",
-        "_report_verdict_stages",
-        "SenderIsParticipantNode",
-    ): Listed(
-        1,
-        "#4696: follows RequireCaseForReport, which resolves the case of a"
-        " Close/Invalidate(Report) at run time",
-    ),
-    Site(
-        "vultron/core/behaviors/sync/announce_tree.py",
-        "create_announce_log_entry_tree",
-        "SenderIsCaseManagerNode",
-    ): Listed(
-        2,
-        "#4696: the case comes from the announced entry at run time; each"
-        " role arm checks after its own CASE_MANAGER gate",
-    ),
-    Site(
-        "vultron/core/behaviors/sync/reject_tree.py",
-        "create_reject_log_entry_tree",
-        "SenderIsActiveLedgerParticipantNode",
-    ): Listed(
-        1,
-        "#4696: the case comes from the ledger activity at run time; the"
-        " ledger Reject's own standing (SYNC-03-005)",
-    ),
-}
+#: Empty: #4696 moved the last ones, whose case is resolved at run time, into
+#: the factory, so a new entry is a regression.
+GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {}
 
 #: Standing reads that choose an effect after the declared rule has admitted
 #: the sender, or that read an actor other than the sender.  They admit no
@@ -587,8 +552,18 @@ def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
 
 #: Sender checks defined outside the sender-entitlement module, each naming
 #: the open issue that retires it (HP-01-007: the module has no twin).
-#: Empty: #4472 deleted the last one, so a new entry is a regression.
-SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {}
+#: #4472 deleted the last pre-existing one; an entry needs that issue.
+#: The announce guard is not new: it is the trust-anchor check that ran in
+#: ``AnnounceVulnerabilityCaseReceivedUseCase.execute()`` ahead of its tree,
+#: moved into the tree by #4643 (CLP-10-005).  It reads the ReportCaseLink
+#: anchor the declared CASE_MANAGER rule does not, so it stays its own node
+#: until #4522 declares the announce rule.
+SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {
+    (
+        "vultron/core/behaviors/case/nodes/announce.py",
+        "AnnounceSenderTrustedNode",
+    ): "#4522: the announce use case declares its sender rule",
+}
 
 
 @pytest.mark.spec("HP-01-007")

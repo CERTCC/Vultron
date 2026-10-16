@@ -11,6 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
@@ -28,25 +29,45 @@ from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     _COORDINATOR,
     case,
+    case_actor,
     finder,
     vendor,
 )
 
 
 def recommend_actor() -> as_Offer:
+    """A participant suggests an actor to the CASE_MANAGER (PCR-08-001)."""
     _case = case()
     _finder = finder()
-    _vendor = vendor()
     _coordinator = _COORDINATOR
     _activity = recommend_actor_activity(
         _coordinator,
         actor=_finder.id_,
         context=_case.id_,
         target=_case.id_,
-        to=_vendor.id_,
+        to=case_actor().id_,
         content=f"I'm recommending we add {_coordinator.name} to the case.",
     )
     return _activity
+
+
+def request_invite_actor_to_case() -> as_Offer:
+    """The Case Owner asks the CASE_MANAGER to invite an actor (CM-17-007).
+
+    The vendor, as Case Owner, sends its own ``Offer(Actor)`` to the
+    CASE_MANAGER with the roles it offers in ``suggestedRoles``.  The wire
+    form is a participant's suggestion; the CASE_MANAGER answers it with the
+    stub Invite because the sender holds the Case Owner role.
+    """
+    _case = case()
+    return recommend_actor_activity(
+        _COORDINATOR,
+        actor=vendor().id_,
+        context=_case.id_,
+        target=_case.id_,
+        to=case_actor().id_,
+        suggested_roles=[CVDRole.COORDINATOR.value],
+    )
 
 
 def accept_actor_recommendation() -> as_Accept:

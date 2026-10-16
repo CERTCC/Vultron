@@ -260,8 +260,9 @@ OfferCaseParticipantRolePattern = ActivityPattern(
 AcceptCaseParticipantRolePattern = ActivityPattern(
     description=(
         "Accept(Offer(CaseParticipantRole, ...)) — acceptance of the canonical "
-        "role-delegation wire format (ADR-0039). Received by the offering actor "
-        "when the target actor accepts the role. See SE-08-003."
+        "role-delegation wire format (ADR-0039). Received by the case's "
+        "CASE_MANAGER when the target actor accepts the role (CM-33-004). "
+        "See SE-08-003."
     ),
     activity_=TAtype.ACCEPT,
     object_=OfferCaseParticipantRolePattern,
@@ -269,8 +270,9 @@ AcceptCaseParticipantRolePattern = ActivityPattern(
 RejectCaseParticipantRolePattern = ActivityPattern(
     description=(
         "Reject(Offer(CaseParticipantRole, ...)) — rejection of the canonical "
-        "role-delegation wire format (ADR-0039). Received by the offering actor "
-        "when the target actor declines the role. See SE-08-003."
+        "role-delegation wire format (ADR-0039). Received by the case's "
+        "CASE_MANAGER when the target actor declines the role (CM-33-004). "
+        "See SE-08-003."
     ),
     activity_=TAtype.REJECT,
     object_=OfferCaseParticipantRolePattern,

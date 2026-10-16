@@ -71,8 +71,10 @@ first item and the *SHOULD* in the second is derived from the reasoning
 given in the [CS model](../cs/cs_model.md)
 , where we describe the CS model's transition function.
 Embargo termination is the set of transitions described in the [EM formal model](formal_model.md#terminate-embargo).
-When an embargo terminates, every Participant's [embargo consent](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) moves to the terminal *Unbound (exited)*, because there is no longer an embargo to agree to, and a terminated embargo cannot be re-joined ([§7.3 Relationship to Embargo Consent in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#73-relationship-to-embargo-consent)).
-A Participant who wants to be bound by a later embargo must agree to it afresh.
+A termination ends the embargo in force and cancels every proposal still open, in one step on the case's embargo register.
+No Participant's [embargo consent](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) is written when an embargo terminates.
+Each Participant's position follows from the register: with no embargo in force, nobody is bound by one, and every consent row for the ended and canceled embargoes stays as it stood ([§7.3 Relationship to Embargo Consent in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#73-relationship-to-embargo-consent)).
+Once a case's embargo has terminated, its register takes no further change, so the case cannot be put under a new embargo.
 
 ## Recording Why an Embargo Ended
 
@@ -81,7 +83,8 @@ The termination message carries that reason, and every Participant records it.
 The Case Manager also records why the embargo ended when it knows.
 An embargo ended by public awareness, a public exploit or observed attacks is recorded as `EARLY`, caused by that threat signal.
 Other causes of an early end, such as the ones above, are not yet named, and the set of causes is left open to grow.
-The cause stays with the Case Manager's record and is not sent in the termination message.
+The cause is recorded on the ended embargo's entry in the case's embargo register, beside the reason, and is not sent in the termination message.
+A Participant that learns of the termination from that message therefore records the reason alone.
 
 ## When the End Time Passes
 
@@ -127,4 +130,4 @@ those that are not ($q^{cs} \in \cdot f \cdot \cdot \cdot \cdot$)
 ## Doing It on the Wire
 
 - [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — end an active embargo, early or at its agreed time.
-- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — put a case back under embargo, where the case is still embargo-eligible.
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose and activate an embargo on a case that has not yet had one end.

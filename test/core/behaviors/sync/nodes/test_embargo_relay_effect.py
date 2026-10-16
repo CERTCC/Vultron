@@ -53,6 +53,9 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
@@ -778,7 +781,12 @@ class TestApplyEmbargoAnswers:
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("RSH-08-004")
 def test_announce_tree_carries_a_slot_per_relay_event_type():
-    names = {node.name for node in create_announce_log_entry_tree().iterate()}
+    names = {
+        node.name
+        for node in create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ).iterate()
+    }
     for label in (
         "EmbargoProposal",
         "EmbargoInviteRelay",

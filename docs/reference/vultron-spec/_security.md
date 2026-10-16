@@ -40,10 +40,9 @@ the `CP` (public awareness) message will trigger the embargo teardown cascade
 The protocol has no built-in penalty for defection; enforcement is an
 out-of-band organizational matter.
 
-**Confidentiality gate.** Sensitive case content is gated on embargo consent
-([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)). A participant that has not achieved `PEC.SIGNATORY` does not receive
-full case details. This is the primary technical lever the protocol provides
-against inadvertent over-disclosure to non-consenting parties.
+**Confidentiality gate.** Sensitive case content is gated on embargo consent ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+While an embargo is in force, a participant that is not a signatory to it, because its consent row for that embargo is not `AGREED`, does not receive full case details.
+This is the primary technical lever the protocol provides against inadvertent over-disclosure to non-consenting parties.
 
 ### 14.3 Replay and Idempotency
 

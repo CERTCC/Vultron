@@ -56,6 +56,7 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.engage_defer import (
     DeferCaseReceivedUseCase,
+    EngageCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 
@@ -343,15 +344,18 @@ def test_create_engage_case_tree_returns_sequence(
     case_with_participant, actor_id
 ):
     tree = create_engage_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
     # RSH-08-003 (#3814): the RM write, gap note and broadcast now sit inside
     # one CASE_MANAGER gate, so the top level is intake, the post-close guard
-    # (CM-23-013), the guard stage, the guarded commit, and that gate.
-    assert len(tree.children) == 5
+    # (CM-23-013), the sender guard (HP-01-008, #4696), the clock decisions
+    # (CLP-10-025), the guard stage, the guarded commit, and that gate.
+    assert len(tree.children) == 7
 
 
 @pytest.mark.spec("BT-06-002")
@@ -374,27 +378,32 @@ def test_create_defer_case_tree_returns_sequence(
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
     tree = create_engage_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
     # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
     assert tree.children[0].name == "IntakeReceivedActivityNode"
-    # The guards sit in the refusal-effects stage (CLP-10-022): the sender
-    # must be a participant (HP-01-006), and its declaration is adjudicated
-    # before the commit (RSH-06-006); a refused regression is still noted.
     assert tree.children[1].name == "CaseOpenToExternalWrites"
-    stage = tree.children[2]
+    # The sender must be a participant (HP-01-006), checked by the guard the
+    # factory composes from the declared rule (HP-01-008, #4696) ...
+    assert tree.children[2].name == "SenderIsParticipantNode"
+    assert tree.children[3].name == "ClockDecisionsIfCaseManager"
+    # ... and its declaration is adjudicated before the commit (RSH-06-006),
+    # inside the refusal-effects stage (CLP-10-022); a refused regression is
+    # still noted.
+    stage = tree.children[4]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
-        "SenderIsParticipantNode",
         "AdjudicateRMDeclarationNode",
     ]
     assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[3].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[5].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write, its gap note and the broadcast all run
     # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
     # the move from the ledger fan-out.
-    gate = tree.children[4]
+    gate = tree.children[6]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EngageEffectsIfCaseManager"
     body = gate.gated_branch
@@ -469,7 +478,11 @@ def test_engage_case_tree_success(
     """
     case = case_with_manager_in_cm_store
     request = _make_engage_request(case, actor_id)
-    tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_id)
+    tree = create_engage_case_tree(
+        case_id=case.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
     result = BTBridge(
         datalayer=case_manager_datalayer,
         trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
@@ -497,7 +510,9 @@ def test_engage_case_tree_fails_no_participant(
     """EngageCaseBT fails when actor has no CaseParticipant in the case."""
     request = _make_engage_request(case_without_participant, actor_id)
     tree = create_engage_case_tree(
-        case_id=case_without_participant.id_, actor_id=actor_id
+        case_id=case_without_participant.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
     result = bridge.execute_with_setup(
         tree=tree, actor_id=actor_id, activity=request
@@ -517,7 +532,9 @@ def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     )
     request = _make_engage_request(case, actor_id)
     tree = create_engage_case_tree(
-        case_id="https://example.org/cases/nonexistent", actor_id=actor_id
+        case_id="https://example.org/cases/nonexistent",
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
     result = bridge.execute_with_setup(
         tree=tree, actor_id=actor_id, activity=request
@@ -672,7 +689,11 @@ def test_engage_only_affects_target_actor(
     dl.create(case)
 
     request = _make_engage_request(case, actor_a)
-    tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_a)
+    tree = create_engage_case_tree(
+        case_id=case.id_,
+        actor_id=actor_a,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
     result = BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
@@ -713,7 +734,11 @@ def test_engage_case_tree_idempotent(
 
     def _run() -> Status:
         request = _make_engage_request(case, actor_id)
-        tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_id)
+        tree = create_engage_case_tree(
+            case_id=case.id_,
+            actor_id=actor_id,
+            sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+        )
         return (
             BTBridge(
                 datalayer=case_manager_datalayer,
@@ -824,7 +849,9 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
     case_with_manager = case_with_manager_in_cm_store
     request = _make_engage_request(case_with_manager, actor_id)
     tree = create_engage_case_tree(
-        case_id=case_with_manager.id_, actor_id=actor_id
+        case_id=case_with_manager.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
     result = BTBridge(
         datalayer=case_manager_datalayer,

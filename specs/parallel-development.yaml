@@ -1315,58 +1315,70 @@ groups:
           implementation-PR path before its push step and stops on a non-zero
           `exit:` line, and runs linters only on its docs-PR path.
       - id: PAD-18-002
+        adr:
+        - ADR-0126
+        - ADR-0143
         priority: MUST
         kind: process
         statement: >-
           After a Pull Request's first push, a fix commit MUST be gated locally
           by the linters plus the targeted test set for the branch diff: every
           test file that imports a changed symbol, the mirror test file of
-          every changed module, every changed test file itself, and
-          `test/architecture/`. The run MUST select those files with the
-          integration marker enabled, so that marker-bearing tests among them
-          are not deselected. A conflict merge with no fix in it is not a fix
-          commit; PAD-18-004 sets its gate.
+          every changed module, every changed test file itself,
+          `test/architecture/`, and `test/metadata/`. The run MUST select
+          those files with the integration marker enabled, so that
+          marker-bearing tests among them are not deselected. A conflict
+          merge with no fix in it is not a fix commit; PAD-18-004 sets its
+          gate.
         rationale: >-
-          A full local run after a one-line fix costs about seven minutes on a
-          2-CPU slot; CI then runs the full suite again in about five. The
-          targeted set catches a broken fix before that round trip at a
-          fraction of the cost. A changed test file is named explicitly
-          because the import index cannot reach it: no `vultron` symbol
-          changed, and the mirror lookup covers only `vultron/` paths. The
-          marker clause is needed because `addopts` carries
+          A full local run after a one-line fix costs nine to eighteen minutes
+          on a 2-CPU slot; CI then runs the full suite again in six to nine.
+          The targeted set catches a broken fix before that round trip at a
+          fraction of the cost. `test/architecture/` and `test/metadata/` are
+          named because their ratchets and generated-file checks read the
+          tree rather than import a symbol, and they were where nearly every
+          red local full run failed (ADR-0143). A changed test file is named
+          explicitly because the import index cannot reach it: no `vultron`
+          symbol changed, and the mirror lookup covers only `vultron/` paths.
+          The marker clause is needed because `addopts` carries
           `-m 'not integration'`, dropping those tests from a file list.
         verification: >-
           Inspection: `pr-execute` gates post-first-push fixes with the
           targeted-test command, not the full suite, and the command it runs
           overrides the `not integration` default.
       - id: PAD-18-003
+        adr:
+        - ADR-0143
         priority: MUST
         kind: process
         statement: >-
           The fix-commit gate of PAD-18-002 MUST escalate from the targeted
           set to the full unit and integration suites when the branch diff
-          touches shared test
-          infrastructure (`conftest.py`, test fixtures or factories,
-          `pyproject.toml`, `uv.lock`), or any of the integration-bearing
-          paths (`vultron/demo/`, `integration_tests/`, `vultron/adapters/`,
-          `vultron/core/behaviors/`, `vultron/core/use_cases/`,
-          `vultron/wire/as2/extractor/`), or when it fixes a CI failure in a
-          test the targeted set does not include.
+          touches shared test infrastructure (`conftest.py`, test fixtures,
+          factories, helpers or data files outside the directories PAD-18-002
+          always selects, `pyproject.toml`, `uv.lock`, `vultron/__init__.py`),
+          and MUST NOT escalate for any other path. When the fix is for a CI
+          failure in a test the targeted set does not include, that test's
+          file MUST be added to the gate.
         rationale: >-
           The import index cannot see tests that reach a change through
-          fixtures or configuration, and a CI failure outside the targeted set
-          is evidence the set missed something. The integration-bearing paths
-          are the ones `pr-execute`'s `needs_integration_tests` detection
-          already escalates on; carrying them forward keeps PAD-18 from
-          dropping local integration coverage. Keying on the branch diff, not
-          the fix commit, means a fix landing on top of a `conftest.py` change
-          still escalates. The list does not govern the gate after a conflict
-          merge (PAD-18-004): applied to the post-merge branch diff it sent
-          most conflict merges to the full suite for paths the merge never
-          touched (ADR-0138).
+          fixtures or configuration, so only those paths need the whole suite.
+          An integration-bearing layer (`vultron/core/behaviors/`,
+          `vultron/adapters/`, and the like) is gated by its importers like
+          any other code, integration-marked ones included; escalating on it
+          sent most code Pull Requests to a full local run on every fix
+          commit, which repeated, more slowly, the full run CI makes on the
+          push (ADR-0143). A CI failure outside the set is answered by running
+          that test, not the whole suite: CI runs the rest again on the push.
+          Keying on the branch diff, not the fix commit, means a fix landing
+          on top of a `conftest.py` change still escalates. The list does not
+          govern the gate after a conflict merge (PAD-18-004): applied to the
+          post-merge branch diff it sent most conflict merges to the full
+          suite for paths the merge never touched (ADR-0138).
         verification: >-
           Inspection: the targeted-test command reports `full` for a branch
-          diff that touches any listed path.
+          diff that touches any listed path, and a targeted set for a branch
+          diff that touches only integration-bearing paths.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-002
@@ -1374,6 +1386,7 @@ groups:
         adr:
         - ADR-0126
         - ADR-0138
+        - ADR-0143
         priority: MUST
         kind: process
         statement: >-
@@ -1386,10 +1399,10 @@ groups:
           Files changed on both sides without a conflict MUST NOT cause a
           merge. After resolving a conflict, the agent MUST gate the merge
           with the linters plus the targeted set for the conflicted files
-          alone, each treated as wholly changed, plus `test/architecture/`,
-          escalating to the full suite only when a conflicted file is a
-          `conftest.py`, `pyproject.toml`, `uv.lock`, or
-          `vultron/__init__.py`.
+          alone, each treated as wholly changed, plus `test/architecture/`
+          and `test/metadata/`, escalating to the full suite only when a
+          conflicted file is a `conftest.py`, `pyproject.toml`, `uv.lock`,
+          or `vultron/__init__.py`.
         rationale: >-
           CI already tests the merge of the PR into its base as of each push,
           and no repository rule requires branches to be up to date. A
