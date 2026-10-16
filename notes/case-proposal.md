@@ -18,6 +18,7 @@ related_specs:
   - specs/semantic-extraction.yaml
   - specs/case-ledger-processing.yaml
   - specs/handler-protocol.yaml
+  - specs/object-ids.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
@@ -252,9 +253,10 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   inline profile, a proposal-keyed record the guard also reads, a case stored before
   #4772 in the slash spelling) with `same_actor_id`, and look up
   `actor_participant_index` with `participant_id_for_actor`, never `==` or `in`: a
-  trailing-slash redelivery otherwise re-runs native initialization (#4772). Only
-  the proposal tree normalises; other received use cases still get the sender's
-  raw spelling.
+  trailing-slash redelivery otherwise re-runs native initialization (#4772). The
+  extractor is to normalise every received sender id (OID-01-007); a store written
+  in the slash spelling before that is unsupported, so do not extend these tolerant
+  checks to it.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its
