@@ -310,6 +310,12 @@ def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
     )
 
     assert second.disposition is HandlerDisposition.SKIPPED, second.reason
+    assert (second.reason or "").startswith(
+        "RejectInviteActorToCaseReceivedBT: "
+    ), second.reason
+    assert (second.reason or "").endswith(
+        "— a repeat of a closing act, nothing to apply (ID-05-003)"
+    ), second.reason
     assert len(_ledger_tail(joining_case)) == entries_before
     assert list(joining_case.dl.outbox_list()) == outbox_before
 
@@ -340,6 +346,12 @@ def test_an_accept_from_the_closed_invitee_is_refused(joining_case) -> None:
 
     assert accept.disposition is HandlerDisposition.REFUSED, accept.reason
     assert "CM-23-018" in (accept.reason or "")
+    assert (accept.reason or "").startswith("AcceptInviteActorToCaseBT: "), (
+        accept.reason
+    )
+    assert (accept.reason or "").endswith("— it may act on nothing further"), (
+        accept.reason
+    )
     assert len(_ledger_tail(joining_case)) == entries_before
     assert list(joining_case.dl.outbox_list()) == outbox_before
     record = joining_case.participant()

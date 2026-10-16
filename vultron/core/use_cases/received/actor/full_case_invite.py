@@ -37,13 +37,11 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    closed_sender_verdict,
     intake_verdict,
     not_case_manager_refusal,
     rm_declaration_verdict,
     verdict_from_bt,
-)
-from vultron.core.use_cases.received._sender_preflight import (
-    closed_sender_preflight,
 )
 
 if TYPE_CHECKING:
@@ -176,22 +174,6 @@ class _FullCaseInviteReplyReceivedUseCase:
         actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        # A sender the case already records as closed may act on nothing
-        # further; a Reject would close it again, so it is SKIPPED, and any
-        # other reply is REFUSED, before the rule runs and with nothing
-        # committed or sent (CM-23-018, RSH-06-006, ID-05-003).
-        preflight = closed_sender_preflight(
-            self._dl,
-            actor_id,
-            request,
-            case_id=case_id,
-            sender_actor_id=request.actor_id,
-            closes=self.rm_state is RM.CLOSED,
-            label=self.tree_name,
-            sync_port=self._sync_port,
-        )
-        if preflight is not None:
-            return preflight
         tree = self._tree()
         result = BTBridge(
             datalayer=self._dl,
@@ -201,9 +183,21 @@ class _FullCaseInviteReplyReceivedUseCase:
         ).execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request, case_id=case_id
         )
-        # A restated reply (the RM state is already recorded) changes nothing
-        # but the receipt, so it reads SKIPPED like every other RM
-        # declaration (RSH-08-002).
+        # A sender the case already records as closed may act on nothing
+        # further: the tree's closed-sender door stops it before the rule
+        # runs, with nothing committed or sent.  Its Reject would close it
+        # again, so it is SKIPPED, and any other reply is REFUSED (CM-23-018,
+        # RSH-06-006, ID-05-003).  A restated reply (the RM state is already
+        # recorded) changes nothing but the receipt, so it reads SKIPPED like
+        # every other RM declaration (RSH-08-002).
+        closed = closed_sender_verdict(
+            tree,
+            result,
+            closes=self.rm_state is RM.CLOSED,
+            label=self.tree_name,
+        )
+        if closed is not None:
+            return closed
         verdict = rm_declaration_verdict(
             tree,
             verdict_from_bt(tree, result, label=self.tree_name),

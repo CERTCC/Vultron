@@ -36,7 +36,10 @@ from vultron.core.behaviors.report.rm_declaration_tree import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
+)
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.rm import RM
 
@@ -134,6 +137,10 @@ def create_full_case_invite_reply_received_tree(
         name=name,
         case_id=case_id,
         sender_rule=sender_rule,
+        # A replier the case already records as closed may answer nothing
+        # further; the handler reads a repeated Reject as SKIPPED
+        # (CM-23-018, ID-05-003).
+        closed_sender=ClosedSenderCheck(sender_id=replier_id),
         sender_context=SenderCheckContext(
             sender_id=replier_id,
             case_id=case_id,
