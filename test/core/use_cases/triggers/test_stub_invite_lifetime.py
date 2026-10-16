@@ -40,11 +40,13 @@ from test.core.use_cases.triggers.test_case_joining_trigger import (
     _participant_of,
     _send_stub_invite,
 )
+from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import (
     activate,
     propose,
     terminate as terminate_register,
 )
+from test.support.ledger import ledger_entries
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -813,3 +815,38 @@ class TestExpired:
         stub = _stub("a", minutes=0, end_time=deadline)
         assert stub_invite_expired(stub, deadline)
         assert not stub_invite_expired(stub, deadline - timedelta(seconds=1))
+
+
+@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("CLP-10-025")
+def test_the_end_time_decision_commits_the_reissued_stub_invite_last(
+    actor_store,
+) -> None:
+    """The end-time clock decision commits one CASE_MANAGER entry per AS2
+    activity: the ``Remove``, the ``Add(CaseStatus)``, then the stub
+    ``Invite`` re-issued with the ended embargo's terms gone."""
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+    # The embargo's end time passes while the stub is still outstanding.
+    case = dl.read_case(case.id_)
+    assert case is not None and case.active_embargo_id is not None
+    embargo = dl.read(case.active_embargo_id)
+    assert isinstance(embargo, as_EmbargoEvent)
+    dl.save(embargo.model_copy(update={"end_time": now_utc()}))
+    before = {e.id_ for e in ledger_entries(dl, case.id_)}
+
+    run_end_time_check(dl, case.id_, owner.id_)
+
+    added = [e for e in ledger_entries(dl, case.id_) if e.id_ not in before]
+    assert [e.payload_snapshot["type"] for e in added] == [
+        "Remove",
+        "Add",
+        "Invite",
+    ]
+    assert all(e.payload_snapshot["actor"] == owner.id_ for e in added)
+    assert added[-1].payload_snapshot["inReplyTo"] == original["id"]

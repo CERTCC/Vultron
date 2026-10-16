@@ -55,7 +55,9 @@ class AcceptCaseParticipantRoleReceivedUseCase:
         trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
-        self._trigger_activity = trigger_activity
+        # The received baseline supplies the trigger port to every use case;
+        # this one runs no tree that builds an activity, so it is unused.
+        del trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: AcceptCaseParticipantRoleReceivedEvent = request
@@ -102,7 +104,9 @@ class RejectCaseParticipantRoleReceivedUseCase:
         trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
-        self._trigger_activity = trigger_activity
+        # The received baseline supplies the trigger port to every use case;
+        # this one runs no tree that builds an activity, so it is unused.
+        del trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: RejectCaseParticipantRoleReceivedEvent = request

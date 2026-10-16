@@ -434,15 +434,34 @@ def test_a_trigger_naming_an_unknown_case_runs_its_own_tree_alone():
     assert _built_tree(uc).name == "own-tree"
 
 
+#: Case-scoped trigger verbs that take no case-wide clock decision, and why.
+_NO_CASE_CLOCK_DECISION = {
+    # Its own tree takes the end-time path and answers for it.
+    "terminate-embargo",
+    # Runs no tree and changes no case state (BT-15-003).
+    "offer-case-participant-role",
+}
+
+
 @pytest.mark.spec("EMB-13-003")
-def test_only_terminate_embargo_takes_no_case_clock_decision():
-    """Terminate's own tree takes the end-time path and answers for it."""
+@pytest.mark.spec("BT-15-003")
+def test_every_case_scoped_trigger_takes_the_clock_decisions_or_is_listed():
+    """A case-scoped trigger opts out of the end-time check only by name:
+    terminate-embargo, whose own tree takes the end-time path, and the one
+    trigger that runs no tree."""
+    from vultron.core.use_cases.triggers.request_bodies import (
+        CaseTriggerRequest,
+    )
     from vultron.trigger_registry import entries
 
+    case_scoped = [
+        e for e in entries() if issubclass(e.request_model, CaseTriggerRequest)
+    ]
     opted_out = {
-        e.use_case_class.__name__
-        for e in entries()
-        if e.bt_backed and not e.use_case_class._takes_case_clock_decisions
+        e.verb
+        for e in case_scoped
+        if not (e.bt_backed and e.use_case_class._takes_case_clock_decisions)
     }
 
-    assert opted_out == {"SvcTerminateEmbargoUseCase"}
+    assert case_scoped
+    assert opted_out == _NO_CASE_CLOCK_DECISION

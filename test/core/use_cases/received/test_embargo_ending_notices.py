@@ -471,9 +471,7 @@ def test_case_manager_termination_sends_et_without_attribution(
 
 
 @pytest.mark.spec("CM-31-009")
-def test_termination_on_or_after_the_agreed_end_is_expiry_and_sends_nothing() -> (
-    None
-):
+def test_expiry_on_or_after_the_agreed_end_sends_no_unreached_notice() -> None:
     """Expiry on the agreed date owes no notice: the signatory knows it.
 
     The CASE_MANAGER ends the expired embargo with its own end-time check
