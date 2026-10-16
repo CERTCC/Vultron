@@ -96,9 +96,11 @@ groups:
   - id: OID-01-006
     priority: MUST
     kind: project
-    statement: A receiver MUST store and ledger a received activity as received, and MUST normalise with
-      `normalise_actor_id` (`vultron/core/predicates/addressing.py`) every actor id it extracts from that activity to act
-      on — to look up, compare with a stored id, or store as a key — at the point of extraction
+    statement: >-
+      A receiver MUST store and ledger a received activity as received, and MUST
+      normalise every actor id it extracts from that activity to act on — to look up,
+      compare with a stored id, or store as a key — at the point of extraction, by
+      stripping a trailing slash
     rationale: >-
       File the letter as received; normalise what you copy out of it. The stored activity
       and the ledger postmark are evidence of what the sender wrote (ADR-0107), so they
@@ -107,20 +109,26 @@ groups:
       its id with a trailing slash stopped matching its own CASE_OWNER records once the
       proposal tree stored the canonical spelling (#4775). Normalising where the value is
       extracted, not where it is compared, lets core trust one spelling (ADR-0032).
-    verification: A received activity whose actor ids carry a trailing slash is stored with the slash, and the case
+    verification: >-
+      A received activity whose actor ids carry a trailing slash is stored with the
+      slash, its ledger entry's `payloadSnapshot.actor` keeps the slash, and the case
       records the use case writes from it hold the ids without one.
     relationships:
     - rel_type: refines
       spec_id: OID-01-005
-      note: Extends normalisation at first establishment to ids extracted from received activities.
+      note: >-
+        Extends normalisation at first establishment to ids extracted from received
+        activities.
     adr:
     - ADR-0032
     - ADR-0107
   - id: OID-01-007
     priority: MUST
     kind: project
-    statement: The wire extractor MUST normalise a received activity's sender id before it builds the received event, and
-      a received event MUST refuse at construction a sender id that `normalise_actor_id` would change
+    statement: >-
+      The wire extractor MUST normalise a received activity's sender id before it
+      builds the received event, and a received event MUST refuse at construction a
+      sender id that ends in a trailing slash
     rationale: >-
       The sender id reaches every received use case, so normalising it once at the edge
       replaces a trailing-slash-tolerant comparison at each of its uses. Refusing an
@@ -128,14 +136,20 @@ groups:
       test fixture) fail where it builds the event instead of storing the other spelling
       (ARCH-10-001). An id the sender wrote elsewhere in the activity keeps its spelling
       until it is extracted (OID-01-006), so comparing it with the sender id still needs
-      `same_actor_id` (CLP-10-021).
-    verification: An extractor unit test shows a sender id written with a trailing slash reaches the event without it,
-      and a model test shows constructing a received event with such a sender id raises a validation error.
+      `same_actor_id` (CLP-10-021). The normalising function must be importable from
+      `vultron/wire/` and `vultron/core/models/`, which may not import
+      `vultron/core/predicates/` (ARCH-22-001).
+    verification: >-
+      An extractor unit test shows a sender id written with a trailing slash reaches
+      the event without it, and a model test shows constructing a received event with
+      such a sender id raises a validation error.
     relationships:
     - rel_type: refines
       spec_id: OID-01-006
     - rel_type: depends_on
       spec_id: ARCH-10-001
+    - rel_type: depends_on
+      spec_id: ARCH-22-001
     adr:
     - ADR-0032
 - id: OID-02

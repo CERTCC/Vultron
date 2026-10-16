@@ -33,6 +33,7 @@ related_notes:
   - notes/configuration.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
+  - vultron/wire/as2/extractor
   - vultron/core/models/events
   - vultron/core/use_cases/received
   - vultron/core/behaviors/case
@@ -250,13 +251,13 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   factory normalises `proposer_uri` with `normalise_actor_id`, and `report_author_id`
   does the same for the reporter, so the records, participant keys and ledger
   snapshots the tree writes hold one spelling. Compare an id written elsewhere (the
-  inline profile, a proposal-keyed record the guard also reads, a case stored before
-  #4772 in the slash spelling) with `same_actor_id`, and look up
-  `actor_participant_index` with `participant_id_for_actor`, never `==` or `in`: a
-  trailing-slash redelivery otherwise re-runs native initialization (#4772). The
-  extractor is to normalise every received sender id (OID-01-007); a store written
-  in the slash spelling before that is unsupported, so do not extend these tolerant
-  checks to it.
+  inline profile, a proposal-keyed record the guard also reads) with
+  `same_actor_id`, and look up `actor_participant_index` with
+  `participant_id_for_actor`, never `==` or `in`: a trailing-slash redelivery
+  otherwise re-runs native initialization (#4772). Outside this tree the sender id
+  still arrives as the sender spelled it until the extractor normalises it
+  (OID-01-007, #4794). A store written in the slash spelling before #4772 is
+  unsupported: keep the tree's existing tolerant checks, but add none for it.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its
