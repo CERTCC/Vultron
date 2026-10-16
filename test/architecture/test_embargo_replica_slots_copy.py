@@ -90,6 +90,9 @@ from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
     ApplyInviteAcceptFromLedgerNode,
     ApplyInviteRejectFromLedgerNode,
 )
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 
 #: Names a copying slot must never reach for (CM-23-016, CM-18-005).
 #: ``TransitionMode`` catches a slot that passes a lifecycle mode on; a
@@ -269,7 +272,9 @@ def _tree_slot_classes() -> set[type]:
     """Every apply node class ``AnnounceLogEntryReceivedBT`` runs."""
     return {
         type(node)
-        for node in create_announce_log_entry_tree().iterate()
+        for node in create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ).iterate()
         if type(node).__name__.startswith("Apply")
     }
 
