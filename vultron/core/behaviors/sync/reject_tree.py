@@ -24,12 +24,14 @@ def create_reject_log_entry_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for inbound ``Reject(CaseLedgerEntry)`` handling.
 
-    Answering a rejection is the CASE_MANAGER's act alone (SYNC-03-005): it
-    holds the canonical ledger, the per-peer replication state is its own,
-    and the replay is sent in its name.  So every effect sits in
-    ``manager_effects``, gated by the factory on the case's CASE_MANAGER
-    role (BT-17-001, BT-17-008); a replica that receives a ``Reject`` sends
-    nothing and records nothing, and the use case reports it ``REFUSED``.
+    Answering a peer's ``Reject(CaseLedgerEntry)`` — a redelivery request
+    about the ledger, not a case event (CLP-02-013) — is the CASE_MANAGER's
+    act alone (SYNC-03-005): it holds the canonical ledger, the per-peer
+    replication state is its own, and the replay is sent in its name.  So
+    every effect sits in ``manager_effects``, gated by the factory on the
+    case's CASE_MANAGER role (BT-17-001, BT-17-008); a replica that receives
+    a ``Reject`` sends nothing and records nothing, and the use case reports
+    it ``REFUSED``.
     The role is resolved **from the case** rather than compared against the
     address ``FindCaseActorNode`` looks up: the authority is a role, and its
     holder may be any Actor type (CLP-09 precedent; see ADR-0073).
@@ -48,8 +50,8 @@ def create_reject_log_entry_tree(
     (:class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`).
 
     Args:
-        case_id: The case the rejected entry belongs to, whose CASE_MANAGER
-            gates the answer.
+        case_id: The case of the entry the peer's ``Reject`` names, whose
+            CASE_MANAGER gates the answer.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
     # The envelope is never a canonical entry (CLP-10-004): no commit stage.
@@ -61,7 +63,7 @@ def create_reject_log_entry_tree(
         precondition_guards=[],
         post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
         # Sender entitlement (SYNC-03-005, HP-01-006): only an active
-        # participant's rejection is acted on, and the check precedes any
+        # participant's ``Reject`` is acted on, and the check precedes any
         # write so a stranger leaves no replication state.
         sender_rule=sender_rule,
         sender_context=LedgerActivityContext(),

@@ -207,6 +207,13 @@ A deadline past that end, whether sent explicitly or computed from the policy wi
 The floor gives way to the ceiling: the minimum is 72 hours or the time left in the embargo, whichever is shorter (EP-07-002).
 On day 28 of a 30-day embargo, the invitee has until day 30 to answer, not seven days.
 
+The case manager runs no timer; it notices a passed deadline the next time it handles an embargo activity for the case.
+At that point it moves each overdue `INVITED` row on an open proposal or the embargo in force to `TIMED_OUT`, and records each move in the case ledger (CM-28-015).
+It does so before it records the case owner's decision on a proposal, and before every other embargo activity it receives or sends.
+The case owner learns of each expiry from that ledger entry, so it decides on the embargo knowing who never answered.
+The case manager checks only once it knows the sender may send the activity, and before it judges the activity itself, so the expiry is recorded even when the activity is then refused.
+One exception: when the case manager refuses an Invite or an `Accept` because the vulnerability is already public, exploited or attacked (EMB-02-002), it does not check for overdue invitations; the next embargo activity it admits does.
+
 A late `Accept` is never refused merely for being late (EMB-17-001).
 The case manager instead asks whether the accepted embargo is still the case's current one, and the three answers are all different:
 

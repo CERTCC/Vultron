@@ -101,7 +101,7 @@ class SyncActivityAdapter:
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
-        The activity id is derived from the rejected entry, the tail hash
+        The activity id is derived from the unapplied entry, the tail hash
         and the recipients, so a redelivery of the same mismatching entry
         builds no new activity and reuses the same id (ID-04-004).  If that
         Reject is sealed but no longer pending, it is queued once more under

@@ -30,6 +30,7 @@ from vultron.core.models.case_participant import (
     CaseParticipant,
     CaseParticipant as CoreCaseParticipant,
 )
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -90,7 +91,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
             PS(
                 context=_CASE_ID,
                 attributed_to=_FINDER_ID,
-                rm_state=RM.ACCEPTED,  # type: ignore[call-arg]
+                rm=RmDimension(state=RM.ACCEPTED),
             )
         ],
     )

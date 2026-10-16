@@ -257,6 +257,27 @@ The genesis position (`last_accepted_hash == ""`) SHOULD use a shorter
 cooldown than a mid-chain stall, to avoid starving the initial bootstrap
 while still preventing amplification.
 
+### 5.5 Divergence Recovery
+
+A participant can refuse an entry whose predecessor it already holds, because the entry's starting state does not match its case.
+An entry whose content is invalid in itself, such as an impossible participant status, takes its own fault instead (RSH-05-021).
+No replay fills that gap: the participant's case has diverged from the CASE_MANAGER's, and a replay resends the same refused entry.
+
+- The participant MUST send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` to the CASE_MANAGER, and MUST keep holding the refused entry. (SYNC-16-001)
+- The fault MUST NOT be committed to the case ledger by either side: it reports on replication, as `Reject(CaseLedgerEntry)` does. (SYNC-16-002)
+- The CASE_MANAGER MUST answer the fault from an active participant with `Announce(VulnerabilityCase)` of its current case, and MUST refuse it from any other sender. (SYNC-16-003)
+- The CASE_MANAGER MUST bound the rate at which it re-seeds a peer. (SYNC-16-004)
+
+A case copy carries the sender's **ledger tail**: the index and hash of the last entry the copy reflects, computed from the ledger when the case is read or sent. (SYNC-16-005)
+A participant that already holds the case compares the tail with its own chain. (SYNC-16-006)
+
+- If its chain is already past the tail, the copy is stale and the participant leaves its case unchanged.
+- If it holds a different entry at the tail's index, the chains conflict and the participant leaves its case unchanged.
+- Otherwise it replaces its case with the copy.
+  If its chain falls short of the tail, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before the tail, replayed or drained from its gap buffer, as a no-op. (SYNC-16-007)
+
+A divergence fault for an entry the last re-seed already reflected means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
+
 ---
 
 ## 6. Ordering Guarantees and Out-of-Order Delivery [N]
@@ -550,6 +571,14 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-15-009 | §5.4 | Reject at unchanged position within cooldown MUST NOT trigger replay |
 | SYNC-15-010 | §5.4 | Reject at advanced position MUST always trigger replay |
 | SYNC-15-011 | §5.4 | Zero-entry replay MUST NOT update recorded position |
+| SYNC-16-001 | §5.5 | Participant MUST report a refused entry that extends its chain as a divergence fault |
+| SYNC-16-002 | §5.5 | A fault about applying an entry MUST NOT be ledgered |
+| SYNC-16-003 | §5.5 | CASE_MANAGER MUST re-seed an active participant that reports divergence |
+| SYNC-16-004 | §5.5 | CASE_MANAGER MUST bound the re-seed rate per peer |
+| SYNC-16-005 | §5.5 | A case copy MUST carry the sender's ledger tail |
+| SYNC-16-006 | §5.5 | Participant MUST NOT replace its case with a stale or conflicting copy |
+| SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's tail |
+| SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after a re-seed as an error |
 
 ---
 

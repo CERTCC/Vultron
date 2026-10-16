@@ -122,8 +122,9 @@ its other arm sends nothing at all (EMB-16-002), so it passes
 
 The propose and answer arms (`_propose_arms`, `_answer_arms`), the received
 proposal, relay and answer effects, the manager's policy consent and the stub
-re-issue (#4715), termination (#4714) and the received withdrawal (#4717) are
-converted; activation on the received path and expiry follow in #4716. A
+re-issue (#4715), termination (#4714), the received withdrawal (#4717),
+activation on the received path and expiry (#4716), and the owner's-rejection
+replica slot (#4784) are converted. A
 converted CASE_MANAGER arm decides first (guards, `EmbargoLifecycle` checks,
 policy), then hands the result to `commit_and_apply_embargo_entries()`
 (`copy_commit.py`) as `PlannedEmbargoEntry` values in commit order:

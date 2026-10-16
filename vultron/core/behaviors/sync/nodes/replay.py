@@ -96,7 +96,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
     reject tree's authority gate is the CASE_MANAGER gate the factory wraps
     around its effects (``create_reject_log_entry_tree``, ARCH-24-005).
 
-    ``case_id`` is an output so a later node can read the case the rejected
+    ``case_id`` is an output so a later node can read the case the unapplied
     entry names from the blackboard (CLP-09); ``CheckIsCaseManagerNode`` falls
     back to it when it is built without a case id.  The reject tree's gate is
     built with one, but the output stays part of the node's contract.

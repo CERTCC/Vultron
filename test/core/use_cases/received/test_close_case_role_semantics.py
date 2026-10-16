@@ -887,7 +887,7 @@ class TestOwnerCloseSettlesPendingInvites:
         dl = _make_full_dl()
         embargo_id = _seed_pending_invite(dl)
         monkeypatch.setattr(
-            "vultron.core.behaviors.case.nodes.leave.settle"
+            "vultron.core.behaviors.embargo.nodes.invitation_expiry"
             ".create_commit_and_record_expiry_tree",
             lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
         )

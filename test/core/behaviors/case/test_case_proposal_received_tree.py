@@ -2870,7 +2870,7 @@ class TestCaseActorRMLifecycleBootstrap:
 
         # Each CaseLedgerEntry for add_participant_status_to_participant has
         # payload_snapshot["object"]["attributedTo"] = the actor URI and
-        # payload_snapshot["object"]["rmState"] (or "rm_state") for RM state.
+        # payload_snapshot["object"]["rmState"] for RM state.
         entries = list(dl.list_objects("CaseLedgerEntry"))
         case_actor_rm_states = set()
         for entry in entries:
@@ -2882,13 +2882,7 @@ class TestCaseActorRMLifecycleBootstrap:
             attributed = obj.get("attributedTo") or obj.get("attributed_to")
             if attributed != _CASE_ACTOR_URI:
                 continue
-            rm_val = obj.get("rmState") or obj.get("rm_state")
-            if rm_val is None:
-                # Try nested dimension object: {"rm": {"state": "..."}}
-                rm_dim = obj.get("rm") or {}
-                rm_val = (
-                    rm_dim.get("state") if isinstance(rm_dim, dict) else None
-                )
+            rm_val = obj.get("rmState")
             if rm_val is not None:
                 try:
                     case_actor_rm_states.add(RM(rm_val))

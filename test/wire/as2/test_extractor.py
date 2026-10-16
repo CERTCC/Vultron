@@ -350,7 +350,7 @@ def test_extract_intent_case_status_name():
 
 @pytest.mark.spec("VAM-08-004")
 def test_extract_intent_participant_status_vf_state():
-    """vf_state is extracted and populated on the core ParticipantStatus (ADR-0075)."""
+    """The vf dimension is extracted onto the core ParticipantStatus (ADR-0075)."""
     from vultron.core.states.cs import CS_vf
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Add,
@@ -371,6 +371,35 @@ def test_extract_intent_participant_status_vf_state():
     s = cast(Any, event).status
     assert s is not None
     assert s.vf.state == CS_vf.Vf
+
+
+@pytest.mark.spec("VAM-08-004")
+def test_extract_intent_participant_status_rm_and_d():
+    """The rm and d dimensions are extracted onto the core ParticipantStatus."""
+    from vultron.core.models.dimensions import DDimension, RmDimension
+    from vultron.core.states.cs import CS_d
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Add,
+    )
+    from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+
+    ps = as_ParticipantStatus(
+        context="https://example.org/cases/1",
+        rm=RmDimension(state=RM.RECEIVED),
+        d=DDimension(state=CS_d.D),
+    )
+    activity = as_Add(
+        actor="https://example.org/alice",
+        object_=ps,
+        target="https://example.org/cases/1/participants/alice",
+    )
+    event = extract_event(activity)
+
+    s = cast(Any, event).status
+    assert s is not None
+    assert s.rm.state == RM.RECEIVED
+    assert s.d.state == CS_d.D
 
 
 # ---------------------------------------------------------------------------

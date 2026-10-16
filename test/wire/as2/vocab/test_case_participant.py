@@ -334,8 +334,9 @@ class TestParticipantStatusProperty(unittest.TestCase):
         latest = participant.participant_status
         self.assertIsNotNone(latest)
         assert latest is not None  # narrow for type checker
-        self.assertEqual(self.CS_vf.Vf, latest.vf_state)
-        self.assertEqual(self.RM.ACCEPTED, latest.rm_state)
+        assert latest.vf is not None
+        self.assertEqual(self.CS_vf.Vf, latest.vf.state)
+        self.assertEqual(self.RM.ACCEPTED, latest.rm.state)
 
     def test_returns_none_when_empty(self):
         """participant_status returns None when the list is empty."""

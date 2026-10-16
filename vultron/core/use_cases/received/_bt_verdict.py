@@ -16,7 +16,7 @@
 """Turn a received-side BT run into the handler's ``HandlerResult`` (#2255).
 
 A tree's root status says only whether it succeeded. A handler has to report
-more than that (HP-01-003, ADR-0095): a benign no-op is ``SKIPPED``, a rejected
+more than that (HP-01-003, ADR-0095): a benign no-op is ``SKIPPED``, a refused
 assertion is ``REFUSED``, and a programming error is neither — it propagates.
 
 :func:`verdict_from_bt` applies the default reading of a finished run:

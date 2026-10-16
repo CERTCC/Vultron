@@ -26,10 +26,15 @@ Import constraints
 - This module MUST NOT import from ``vultron.core.behaviors``,
   ``vultron.core.use_cases``, or ``vultron.core.services``.
 
-Spec references: EMB-01-002, EMB-02-002.
+Spec references: EMB-01-002, EMB-02-002, EMB-04-002.
 """
 
+from typing import TYPE_CHECKING
+
 from vultron.core.states.cs import CS_pxa
+
+if TYPE_CHECKING:
+    from vultron.core.models.case import VulnerabilityCase
 
 
 def pxa_is_embargo_eligible(pxa_state: CS_pxa) -> bool:
@@ -61,4 +66,22 @@ def pxa_is_embargo_eligible(pxa_state: CS_pxa) -> bool:
     return pxa_state == CS_pxa.pxa
 
 
-__all__ = ["pxa_is_embargo_eligible"]
+def rejection_ends_embargo(case: "VulnerabilityCase", embargo_id: str) -> bool:
+    """True when rejecting *embargo_id* must end the embargo instead (EMB-04-002).
+
+    The case is in ``REVISE`` (an embargo is in force and *embargo_id* is
+    its last open revision, EP-08-001) and CS is public, exploited or
+    attacked.  Rejecting the revision would return the case to the prior
+    terms, which is not allowed then: the rejection is answered with ET,
+    whose ``TERMINATE`` step cancels the revision (EP-08-004).  The one
+    condition the CASE_MANAGER's decision, its lifecycle refusal and the
+    replica slot all read (MSM-07-009).
+    """
+    return (
+        case.proposed_embargo_ids == [embargo_id]
+        and case.active_embargo_id is not None
+        and not pxa_is_embargo_eligible(case.current_status.pxa.state)
+    )
+
+
+__all__ = ["pxa_is_embargo_eligible", "rejection_ends_embargo"]

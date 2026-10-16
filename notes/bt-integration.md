@@ -308,8 +308,11 @@ guards, commit, effects.
    not run before the decision writes (HP-01-006, CM-23-013). The ownership
    Offer expiry (`ExpireOverdueOwnershipOfferNode`,
    [ownership-transfer-close-paths](ownership-transfer-close-paths.md)) and
-   the embargo Invite expiry (`invite_expiry_decision`) are clock decisions;
-   never run one as a tree of its own before the received tree.
+   the embargo Invite expiry (`invite_expiry_decision`) are clock decisions,
+   as is the overdue-invitation sweep (`embargo_clock_decisions`, CM-28-015),
+   which every received embargo tree passes and `SvcEmbargoTriggerBase` adds
+   to its triggers' stage; never run one as a tree of its own before the
+   received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).
@@ -321,12 +324,12 @@ guards, commit, effects.
    guard's reason, so nothing commits and the handler reads `REFUSED`. A refusal
    effect must be `EmitCapable` and hold no `StateWriteCapable` node. Do not
    hand-build a `Selector[guard, emit]`: the emit would run ahead of the commit
-   on an accepted delivery.
+   on an admitted delivery.
 5. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
    postmark on the envelope (ADR-0107, CLP-07-011); it never rebuilds the
    assertion from processed state. Every commit goes through
    `CommitCaseLedgerEntryNode`; a received `execute()` never commits (BT-06-006).
-6. **Effects** — apply the accepted assertion to the local replica and enqueue
+6. **Effects** — apply the admitted assertion to the local replica and enqueue
    cascades. `replica_effects` run on every replica; `manager_effects` run only
    at the CASE_MANAGER, inside the gate the factory adds (BT-17-008; see
    `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From
@@ -366,7 +369,7 @@ refusing nodes in `precondition_guards`, so a refused activity leaves no entry.
 
 The BTBridge requirement applies equally to trigger-side `execute()` methods.
 RM transitions, `EmbargoLifecycle` calls, and `ParticipantStatus` writes with a
-specific `rm_state` are protocol-significant (BT-15-001, BT-06-006): they live in
+specific `rm` state are protocol-significant (BT-15-001, BT-06-006): they live in
 BT leaf nodes run via `bridge.execute_with_setup()`, never inline in
 `execute()`. On a non-`SUCCESS` status the trigger raises with
 `BTBridge.get_failure_reason(tree)`.
@@ -431,14 +434,14 @@ for the **outgoing direction**: the local actor deciding whether to engage or
 defer a validated report. The receive-side `EngageCaseBT` and `DeferCaseBT`
 (`report/prioritize_tree.py`) do not use it; they record the **sender's
 already-made decision** in the sender's
-`CaseParticipant.participant_status[].rm_state`. Activities are state-change
+`CaseParticipant.participant_statuses[].rm.state`. Activities are state-change
 notifications, not commands, so a received `Join`/`Ignore(VulnerabilityCase)`
 needs no policy evaluation.
 
 ## RM Is Participant-Specific
 
 Each `CaseParticipant` carries its own RM state in
-`participant_status[].rm_state`. Handlers such as engage/defer update
+`participant_statuses[].rm.state`. Handlers such as engage/defer update
 participant-level RM state; there is no case-level or flat report RM status. The
 CASE_MANAGER creates the case and its participants from the report receiver's
 `Create(as_CaseProposal)` (ADR-0041; `notes/case-proposal.md`).

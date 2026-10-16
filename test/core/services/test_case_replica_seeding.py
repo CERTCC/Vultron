@@ -206,13 +206,9 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
         )
         latest = stored.participant_statuses[-1]
         assert latest.rm.state == RM.RECEIVED
-        # ``not hasattr(latest, "rm_state")`` used to stand in for "this is the
-        # core shape, not the wire one". That proxy is retired: ``rm_state`` is now
-        # a deliberate read/write view onto the dimension (ARCH-25-005, ADR-0099), so
-        # its presence says nothing about shape. The shape itself is asserted
-        # directly by the isinstance check above; what is worth adding is that the
-        # view and the dimension cannot disagree.
-        assert latest.rm_state == latest.rm.state
+        # The shape itself is asserted directly by the isinstance check above;
+        # the core status carries no flat ``rm_state`` view (SDO-03-003).
+        assert not hasattr(latest, "rm_state")
 
     def test_regression_guard_still_protects_a_local_core_participant(
         self, dl
