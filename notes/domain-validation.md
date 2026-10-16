@@ -169,7 +169,7 @@ recurses until `RecursionError`, which masks every other failure (ARCH-21-004).
 ```python
 # Wrong: assignment re-runs this validator.
 @model_validator(mode="after")
-def _set_role(self) -> ReporterParticipant:
+def _set_role(self) -> ExampleParticipant:
     self.case_roles = []
     ...
 
