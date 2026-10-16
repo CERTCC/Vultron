@@ -133,8 +133,7 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   runs it as the first, CASE_MANAGER-gated step of every case-scoped trigger's tree
   (BT-15-003). It commits one entry per AS2 activity — the `Remove`, whose register
   step cancels every open proposal, then the `Add(CaseStatus)` and re-issued stubs —
-  and a split of the cancels into entries of their own must keep the register from
-  showing `TERMINATED` beside `PROPOSED` at any prefix (EP-08-004). A Sentinel reaches
+  so no prefix of them shows `TERMINATED` beside `PROPOSED` (EP-08-004). A Sentinel reaches
   the path through the terminate trigger with `reason=END_TIME_REACHED`. That trigger
   sets `_takes_case_clock_decisions = False`: it takes the end-time path itself once
   the end time has passed, an `EARLY` request included, so the lazy check never

@@ -37,8 +37,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+    create_clock_decision_gate,
+)
 from vultron.core.behaviors.embargo.end_time_tree import (
-    end_embargo_if_end_time_passed,
+    end_time_clock_decision,
 )
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
@@ -152,15 +155,19 @@ def _trigger(net: LedgerNetwork) -> py_trees.common.Status:
 
 
 def _lazy_end_time_check(net: LedgerNetwork) -> None:
+    """Run the end-time check as the clock-decision stage runs it."""
     dl = net.stores[MANAGER]
-    end_embargo_if_end_time_passed(
+    BTBridge(
         datalayer=dl,
-        case_id=net.case_id,
-        actor_id=MANAGER,
-        now=now_utc(),
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+    ).execute_with_setup(
+        tree=create_clock_decision_gate(
+            net.case_id,
+            [end_time_clock_decision(case_id=net.case_id, now=now_utc())],
+        ),
+        actor_id=MANAGER,
     )
 
 

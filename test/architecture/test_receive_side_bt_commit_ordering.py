@@ -287,7 +287,8 @@ def _commit_node_types() -> tuple[type, ...]:
     activity they build themselves in a nested tree only they can see, so
     they are named here to be checked: ``ExpireOverdueOwnershipOfferNode``
     (the Offer expiry, which Offer is known only when it runs),
-    ``_CommitCaseManagerActivityBase`` (the termination ``Remove``),
+    ``_CommitCaseManagerActivityBase`` (the termination ``Remove``,
+    ``CommitAndApplyEmbargoTerminationNode``),
     ``EmitCaseStatusUpdateNode`` (the ``Add(CaseStatus)`` that follows an EM
     change) and ``ReissueStubInvitesNode`` (each re-issued stub ``Invite``).
     """
@@ -404,7 +405,7 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
     assert {
         "CreateLogEntryNode",
         "ExpireOverdueOwnershipOfferNode",
-        "CommitEmbargoTeardownNode",
+        "CommitAndApplyEmbargoTerminationNode",
         "EmitCaseStatusUpdateNode",
         "ReissueStubInvitesNode",
     } <= staged
@@ -520,7 +521,7 @@ class TestEarlyCommitDetector:
         found = _early_commits(self._tree(self._end_time_decision()))
 
         assert sorted(found) == [
-            "CommitEmbargoTeardownNode (outside)",
+            "CommitAndApplyEmbargoTerminationNode (outside)",
             "EmitCaseStatusUpdateNode (outside)",
             "ReissueStubInvitesNode (outside)",
         ]

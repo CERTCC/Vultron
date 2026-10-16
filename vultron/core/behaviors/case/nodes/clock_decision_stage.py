@@ -46,7 +46,8 @@ should raise what it cannot attribute to the protocol.
 A clock decision commits one CASE_MANAGER entry for each AS2 activity
 needed to express what it decided, and nothing about the received activity
 (CLP-10-025): an expiry is one entry, an end-time termination the
-``Remove`` and each status update and re-issued stub ``Invite`` it needs.
+``Remove`` (whose register step cancels every open proposal) and each
+status update and re-issued stub ``Invite`` it needs.
 
 The factory owns this structure; a tree supplies only the decisions.  A
 case-scoped trigger composes the same gated stage ahead of its own tree

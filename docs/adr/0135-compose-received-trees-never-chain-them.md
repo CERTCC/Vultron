@@ -73,8 +73,8 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
    This partially supersedes ADR-0111 detail 1, whose four stages put no commit ahead of the guarded commit: the CASE_MANAGER's own clock decisions are the one exception.
 4. **The stage is narrow.** A clock decision runs only at the CASE_MANAGER and commits only the CASE_MANAGER's own entries and the changes they record, never anything about the received activity.
    A case ledger entry is one AS2 activity and its object, and the CASE_MANAGER does only what AS2 activities can express, ledgering each one.
-   So a clock decision commits one entry for each AS2 activity needed to express what it decided, with no fixed count: an expiry is one entry, and an embargo's end-time termination is the `Remove` plus each proposal cancellation, status update and re-issued stub Invite it needs.
-   The entries are ordered so that no prefix of them leaves the embargo register showing an entry terminated while another is still proposed (EP-08-004, ADR-0122).
+   So a clock decision commits one entry for each AS2 activity needed to express what it decided, with no fixed count: an expiry is one entry, and an embargo's end-time termination is the `Remove` plus each status update and re-issued stub Invite it needs.
+   The entries are ordered so that no prefix of them leaves the embargo register showing an entry terminated while another is still proposed (EP-08-004, ADR-0122): the `Remove` carries the whole register step, the cancellation of every open proposal included.
    It decides from the CASE_MANAGER's clock, its local policy and the case's ledger and file.
    The received activity may prompt it, but is never its evidence.
    The entry may still carry the activity's claimed `published` time as received, because that time records when the activity claims to have been sent and decides nothing.

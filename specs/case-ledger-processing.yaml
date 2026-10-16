@@ -1660,11 +1660,12 @@ groups:
       CASE_MANAGER-authored entries, one for each AS2 activity needed to express
       what it decided, and the case-file changes those entries record, and
       nothing about the received activity: an expiry is one entry, and an
-      end-time termination is the `Remove(EmbargoEvent)` and each proposal
-      cancellation, status update and re-issued stub Invite it needs. Its
-      entries MUST be ordered so that no prefix of them leaves the embargo
-      register showing an entry `TERMINATED` while another is still `PROPOSED`
-      (EP-08-004, ADR-0122). It MUST decide from the
+      end-time termination is the `Remove(EmbargoEvent)` and each status
+      update and re-issued stub Invite it needs. Its entries MUST be ordered
+      so that no prefix of them leaves the embargo register showing an entry
+      `TERMINATED` while another is still `PROPOSED` (EP-08-004, ADR-0122);
+      the `Remove` carries the whole register step, the cancellation of every
+      open proposal included. It MUST decide from the
       CASE_MANAGER's clock, its local policy and the case's ledger and file; the
       received activity MAY prompt the decision and name what it concerns, but
       MUST NOT be its evidence; the entry MAY carry the activity's claimed
