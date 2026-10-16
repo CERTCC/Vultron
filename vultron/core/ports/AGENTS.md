@@ -64,6 +64,17 @@ of wire imports.
 activities. The adapter implementation (`TriggerActivityAdapter`) is the
 sole translation point for trigger-side domain->wire construction.
 
+### `InboxHandBackPort`
+
+`InboxHandBackPort` (`inbox_hand_back.py`) hands a buffered ledger entry
+back to the receiving actor's own inbox as a delivery of its own
+(SYNC-14-009, ADR-0135). The adapter (`InboxHandBackAdapter`) only queues:
+it stores an `Announce(CaseLedgerEntry)` from the CASE_MANAGER and appends
+its id to the actor's inbox queue, which the running inbox loop drains
+through `process_payload`. Reason: running the entry inline makes one
+delivery run two trees (CLP-10-005). A missing port is a
+`VultronWiringError`, never an inline fallback.
+
 ### Server-Level Inbox: Deferred Design Decision
 
 A server-level inbox is recognized as a future option, but current

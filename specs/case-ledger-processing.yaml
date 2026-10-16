@@ -357,7 +357,7 @@ groups:
       not written as ledger entries. Freshness-gate and tail-reconstruction helpers
       operate on the ledger directly and therefore require no disposition filter.
     verification: '`test/core/test_sync_helpers.py` confirms that `is_ledger_fresh_for_case`
-      and `_reconstruct_tail_hash` return correct results with a ledger containing
+      and `reconstruct_tail_hash` return correct results with a ledger containing
       only canonical entries, and that no `disposition` field exists on
       `HashChainLedgerRecord` or `CaseLedgerEntry`.'
     stories:

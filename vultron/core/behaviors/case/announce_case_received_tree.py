@@ -47,6 +47,9 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sync.nodes.hand_back import (
+    HandBackBufferedSuccessorNode,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -72,7 +75,8 @@ def create_announce_vulnerability_case_received_tree(
         ├── IntakeReceivedActivityNode        # intake
         ├── CaseOpenToExternalWrites          # post-close boundary
         ├── SenderIsCaseManagerNode           # sender guard (anchored)
-        └── SeedAnnouncedCaseNode             # effect
+        ├── SeedAnnouncedCaseNode             # effect
+        └── HandBackBufferedSuccessorNode     # effect (SYNC-14-009)
 
     An Announce that carries no ``VulnerabilityCase`` with an id is refused
     by the same tree's guard instead
@@ -118,7 +122,14 @@ def create_announce_vulnerability_case_received_tree(
                 case_id=case_id,
                 case_obj=case_obj,
                 request=request,
-            )
+            ),
+            # Seeding anchors the genesis hash, so an entry buffered in the
+            # pre-genesis window may now extend the chain: hand it back to
+            # this actor's inbox as a delivery of its own (SYNC-15-005,
+            # SYNC-14-009).
+            HandBackBufferedSuccessorNode(
+                case_id=case_id, name="HandBackPreGenesisEntry"
+            ),
         ],
     )
     logger.debug("Created %s for case='%s'", _NAME, case_id)

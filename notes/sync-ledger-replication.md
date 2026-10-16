@@ -228,8 +228,21 @@ does not re-queue an `Announce` the outbox already holds for that peer
 - **On mismatch**, a genuine forward gap (`log_index > tail_index + 1`) is
   buffered, and a `Reject(CaseLedgerEntry)` is **still always sent** as the loss
   backstop. At-or-behind-tail entries go straight to the reject.
-- **On commit**, `AnnounceLedgerEntryReceivedUseCase` drains the buffer through
-  the same effects-before-persist path (SYNC-12-001), cascading.
+- **On commit**, `HandBackBufferedSuccessorNode` (`sync/nodes/hand_back.py`, last
+  in the participant arm) hands the one successor of the new tail back to the
+  actor's own inbox through `InboxHandBackPort`, wrapped as an
+  `Announce(CaseLedgerEntry)` from the CASE_MANAGER (SYNC-14-009). That delivery's
+  tree hands back the next, so the cascade needs no loop and runs the in-order
+  path by construction (SYNC-14-008). Reason: running the successor inline made
+  one delivery run several trees (CLP-10-005, ADR-0135).
+- **The adapter queues, it never processes.** `InboxHandBackAdapter` saves the
+  Announce and calls `inbox_append`; the inbox loop that ran the delivery pops it
+  afterwards and runs `process_payload` under the same actor lock. A missing port
+  is a `VultronWiringError`, never an inline apply, and an unresolvable
+  CASE_MANAGER leaves the entry held; the drain never guesses a sender.
+- **Hand back only after success.** The node runs after the entry is stored (or
+  found stored), never on a refusal: an entry refused into the buffer is keyed on
+  the current tail, so handing back on failure would loop it into itself.
 - **Bounded**: a full buffer evicts the entry farthest ahead with a WARNING; the
   Reject already sent recovers it.
 
@@ -281,10 +294,10 @@ own buffer (ADR-0059):
   `ReconstructOrRejectOnMissingCase` fallback, under `FailureIsSuccess` so the
   genesis Reject still fires. It applies no forward-gap check.
 - Seeding the case is enough to anchor the chain, because the genesis hash comes
-  from the case object alone (CLP-08). `drain_gap_buffer(...)`
-  (`vultron/core/use_cases/received/sync.py`) is shared by the announce path and
-  the drain-on-seed hook in `AnnounceVulnerabilityCaseReceivedUseCase`, starting
-  from tail `(genesis_hash, -1)`.
+  from the case object alone (CLP-08). The `Announce(VulnerabilityCase)` tree ends
+  in the same `HandBackBufferedSuccessorNode` the announce path uses, which finds
+  the entry keyed on the genesis hash and hands it back (SYNC-15-005,
+  SYNC-14-009).
 
 ## Reject/Replay Amplification (SYNC-15-003)
 

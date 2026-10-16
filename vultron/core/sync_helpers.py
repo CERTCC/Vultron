@@ -125,7 +125,7 @@ def is_ledger_fresh_for_case(
     return True, ""
 
 
-def _reconstruct_tail_hash(
+def reconstruct_tail_hash(
     case_id: str, dl: CasePersistence
 ) -> tuple[str, int]:
     """Return the hash and index of the last stored entry for *case_id*.
@@ -182,9 +182,9 @@ def ledger_tail_position(case_id: str, dl: CasePersistence) -> LedgerPosition:
 
     Raises:
         VultronValidationError: When the ledger is empty and the case's
-            genesis hash is unavailable (see :func:`_reconstruct_tail_hash`).
+            genesis hash is unavailable (see :func:`reconstruct_tail_hash`).
     """
-    tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
+    tail_hash, tail_index = reconstruct_tail_hash(case_id, dl)
     return LedgerPosition(log_index=tail_index, entry_hash=tail_hash)
 
 

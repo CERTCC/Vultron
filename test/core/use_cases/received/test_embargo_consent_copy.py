@@ -29,7 +29,6 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo import copy_commit
 from vultron.core.behaviors.embargo.copy_commit import (
@@ -53,8 +52,9 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.core.use_cases.received.sync import drain_gap_buffer
 from vultron.errors import VultronEntryRefusedError
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import announce_vulnerability_case_activity
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -353,7 +353,10 @@ class TestReplicaCopies:
         """The gap buffer retries a refused entry; it is never dropped.
 
         Once this replica's case is where the entry starts (here the
-        diverged row is put back), the next drain applies and stores it.
+        diverged row is put back), the CASE_MANAGER's fresh
+        ``Announce(VulnerabilityCase)`` (SYNC-16) seeds nothing new, but its
+        tree hands the held entry back to the inbox, and that delivery applies
+        and stores it (SYNC-14-009, SYNC-16-007).
         """
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
@@ -375,12 +378,17 @@ class TestReplicaCopies:
         restored.copy_consent_row(_row_change(net, BYSTANDER, _S.AGREED).row)
         replica.save(restored)
         assert _rows(restored) == agreed
-        drain_gap_buffer(
-            replica,
-            net.case_id,
-            BYSTANDER,
-            get_ledger_gap_buffer(BYSTANDER),
-            wire_render_port=As2WireRenderAdapter(),
+        seed = announce_vulnerability_case_activity(
+            net.case(MANAGER), actor=MANAGER, to=[BYSTANDER]
+        )
+        assert (
+            net.receive_event(
+                BYSTANDER,
+                extract_event(seed).model_copy(
+                    update={"receiving_actor_id": BYSTANDER}
+                ),
+            ).disposition
+            is HandlerDisposition.APPLIED
         )
 
         assert replica.read(entry_id) is not None
