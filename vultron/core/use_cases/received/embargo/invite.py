@@ -19,7 +19,6 @@ from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
 )
 from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
-    EmbargoInviteNotYetRefusedNode,
     ReceiverIsInviteeNode,
 )
 from vultron.core.behaviors.embargo.refusal_tree import PXA_INVITE_REFUSAL
@@ -46,7 +45,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     addressee_refusal,
     node_failed,
-    taken_diversion,
+    pxa_refusal_verdict,
     verdict_from_bt,
 )
 from vultron.errors import VultronProtocolViolationError
@@ -177,6 +176,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             return EmbargoInviteFault(
                 failure_class=VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO,
                 reason=f"Invite(EmbargoEvent) '{invite_id}' names no embargo",
+                addressed=True,
             )
         # The invitee is a subject the message names, not the actor whose
         # replica this is (ADR-0022): the Invite's sole `to` recipient.  An
@@ -246,6 +246,8 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         if isinstance(subjects, EmbargoInviteFault):
             if verdict.disposition is HandlerDisposition.APPLIED:
                 verdict = HandlerResult.refused(subjects.reason)
+            elif (refusal := addressee_refusal(tree)) is not None:
+                verdict = refusal
         elif verdict.disposition is HandlerDisposition.REFUSED:
             verdict = self._refusal(tree, verdict, case_id, subjects)
         if verdict.disposition is not HandlerDisposition.APPLIED:
@@ -266,22 +268,19 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         invite_id = self._request.activity_id
         if (refusal := addressee_refusal(tree)) is not None:
             return refusal
-        if taken_diversion(tree, PXA_INVITE_REFUSAL) is not None:
-            if node_failed(tree, EmbargoInviteNotYetRefusedNode):
-                return HandlerResult.skipped(
-                    f"Invite(EmbargoEvent) '{invite_id}' on case '{case_id}'"
-                    " not refused again: the ER was already sent (HP-01-003)"
-                )
-            reason = (
-                f"EMB-01-002: P/X/A set on case '{case_id}'; embargo"
-                " proposal rejected"
+        if (
+            refusal := pxa_refusal_verdict(
+                tree,
+                PXA_INVITE_REFUSAL,
+                f"Invite(EmbargoEvent) '{invite_id}' on case '{case_id}'",
             )
+        ) is not None:
             if node_failed(tree, ReceiverIsInviteeNode):
                 return HandlerResult.refused(
-                    f"{reason}; no ER sent, the Invite is addressed to"
-                    f" '{subjects.invitee_id}' (EP-09-010)"
+                    f"{refusal.reason}; no ER sent, the Invite is addressed"
+                    f" to '{subjects.invitee_id}' (EP-09-010)"
                 )
-            return HandlerResult.refused(reason)
+            return refusal
         if node_failed(tree, EmbargoProposalNotYetRecordedNode):
             # The same Invite, delivered again (CLP-13-001, HP-01-003).
             return HandlerResult.skipped(

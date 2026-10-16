@@ -59,7 +59,9 @@ Replicas replay the re-invite through
 :class:`~vultron.core.behaviors.embargo.nodes.relay_effect.ApplyEmbargoReinviteFromLedgerNode`.
 """
 
+from collections.abc import Mapping
 from datetime import datetime
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 import py_trees
@@ -292,11 +294,13 @@ def invite_expiry_decision(
     )
 
 
-#: The names of the late-Accept diversions, honour, re-invite, acknowledge.
-LATE_ACCEPT_DIVERSIONS: tuple[str, str, str] = (
-    "HonourLateAccept",
-    "ReinviteLateAccepter",
-    "AcknowledgeLateAccept",
+#: The name of the late-Accept diversion that takes each route.
+LATE_ACCEPT_DIVERSIONS: Mapping[LateAcceptRoute, str] = MappingProxyType(
+    {
+        LateAcceptRoute.HONOUR: "HonourLateAccept",
+        LateAcceptRoute.REINVITE: "ReinviteLateAccepter",
+        LateAcceptRoute.ACKNOWLEDGE: "AcknowledgeLateAccept",
+    }
 )
 
 
@@ -388,7 +392,7 @@ def late_accept_diversions(
         )
 
     honour = Diversion(
-        name=LATE_ACCEPT_DIVERSIONS[0],
+        name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.HONOUR],
         condition=condition(LateAcceptRoute.HONOUR),
         effects=(
             create_commit_log_entry_tree(
@@ -412,7 +416,7 @@ def late_accept_diversions(
         ),
     )
     reinvite = Diversion(
-        name=LATE_ACCEPT_DIVERSIONS[1],
+        name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.REINVITE],
         condition=condition(LateAcceptRoute.REINVITE),
         effects=(
             ReinviteLateAccepterNode(
@@ -424,7 +428,7 @@ def late_accept_diversions(
         ),
     )
     acknowledge = Diversion(
-        name=LATE_ACCEPT_DIVERSIONS[2],
+        name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.ACKNOWLEDGE],
         condition=condition(LateAcceptRoute.ACKNOWLEDGE),
         effects=(
             CommitLateAcceptAcknowledgementNode(

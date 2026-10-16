@@ -74,6 +74,9 @@ from vultron.core.behaviors.case.nodes.reference_list import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
 )
+from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
+    EmbargoInviteNotYetRefusedNode,
+)
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     IsWithdrawableEmbargoNode,
 )
@@ -431,6 +434,31 @@ def taken_diversion(
     return None
 
 
+def pxa_refusal_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    name: str,
+    answered: str,
+) -> HandlerResult | None:
+    """The verdict of a delivery the P/X/A refusal *name* diverted, else ``None``.
+
+    ``SKIPPED`` when the ER *answered* names was already sent, so the
+    redelivery is not refused twice (HP-01-003); otherwise ``REFUSED`` for
+    the condition's reason (EMB-01-002, EMB-02-002), whether or not the ER
+    could be sent.
+    """
+    stage = taken_diversion(tree, name)
+    if stage is None:
+        return None
+    if node_failed(stage, EmbargoInviteNotYetRefusedNode):
+        return HandlerResult.skipped(
+            f"{answered} not refused again: the ER was already sent"
+            " (HP-01-003)"
+        )
+    return HandlerResult.refused(
+        stage.condition.feedback_message or f"{name}: P/X/A set"
+    )
+
+
 def failure_reason(
     tree: py_trees.behaviour.Behaviour | _HasRoot, result: BTExecutionResult
 ) -> str:
@@ -578,6 +606,7 @@ __all__ = [
     "not_case_manager",
     "not_case_manager_refusal",
     "post_close_refusal",
+    "pxa_refusal_verdict",
     "taken_diversion",
     "verdict_from_bt",
 ]

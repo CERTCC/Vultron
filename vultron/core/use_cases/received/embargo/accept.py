@@ -25,9 +25,6 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
 from vultron.core.behaviors.embargo.expiry_tree import (
     LATE_ACCEPT_DIVERSIONS,
 )
-from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
-    EmbargoInviteNotYetRefusedNode,
-)
 from vultron.core.behaviors.embargo.refusal_tree import PXA_ACCEPT_REFUSAL
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -50,8 +47,8 @@ from vultron.core.use_cases.received._bt_verdict import (
     addressee_refusal,
     embargo_answer_repeat_verdict,
     failure_reason,
-    node_failed,
     not_case_manager_refusal,
+    pxa_refusal_verdict,
     taken_diversion,
     verdict_from_bt,
 )
@@ -185,17 +182,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             return self._applied_verdict(tree, verdict, case_id)
         if (refusal := addressee_refusal(tree)) is not None:
             return refusal
-        if taken_diversion(tree, PXA_ACCEPT_REFUSAL) is not None:
-            if node_failed(tree, EmbargoInviteNotYetRefusedNode):
-                return HandlerResult.skipped(
-                    f"EA for Invite '{invite_id}' on case '{case_id}' not"
-                    " refused again: the ER was already sent (HP-01-003)"
-                )
-            return HandlerResult.refused(
-                f"EMB-02-002: P/X/A set on case '{case_id}'; embargo"
-                " acceptance rejected"
+        if (
+            refusal := pxa_refusal_verdict(
+                tree,
+                PXA_ACCEPT_REFUSAL,
+                f"EA for Invite '{invite_id}' on case '{case_id}'",
             )
-        for name in LATE_ACCEPT_DIVERSIONS:
+        ) is not None:
+            return refusal
+        for name in LATE_ACCEPT_DIVERSIONS.values():
             if (stage := taken_diversion(tree, name)) is None:
                 continue
             if not stage.effects_succeeded:

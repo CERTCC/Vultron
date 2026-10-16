@@ -1710,10 +1710,11 @@ groups:
       only at the case's CASE_MANAGER (BT-17-001) and MUST commit only its own
       CASE_MANAGER-authored entry and the change that entry records. A
       diversion that answers as the receiver wherever the door guards admitted
-      the delivery MUST write no case state (RSH-08-003), and every emit in it
-      MUST be covered by a named exemption (BT-17-008). A tree with diversions
-      MUST NOT take refusal effects (CLP-10-022): a diverted delivery has
-      already been answered.
+      the delivery MUST write no case or participant state (RSH-08-003) — it
+      MAY store the activity it answers so its answer can be built from it —
+      and every emit in it MUST be covered by a named exemption (BT-17-008). A
+      tree with diversions MUST NOT take refusal effects (CLP-10-022): a
+      diverted delivery has already been answered.
     rationale: >-
       The late-Accept routing and the P/X/A refusal were alternative trees the
       use case chose and ran after or before the main one, which the one-tree

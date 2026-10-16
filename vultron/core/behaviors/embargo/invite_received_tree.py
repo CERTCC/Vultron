@@ -30,9 +30,10 @@ invitee to answer it (EP-09-010).  It still runs one tree,
 
 No ledger entry is committed and no state changes: the handler reports the
 delivery ``REFUSED``.  The fault is the receiver's own answer to the sender.
-A misrouted Invite names no addressee for the addressee check to admit, so
-the fault tree carries neither that check nor the sender guard; the emit is
-covered by :data:`~vultron.core.behaviors.replica_emit_exemptions.EMBARGO_INVITE_FAULT`.
+An Invite that names no embargo is first checked at the addressee door guard,
+so a store it was not addressed to answers nothing (HP-01-005); a misrouted
+Invite names no single addressee for that check to admit, so its tree has
+none.  Neither carries the sender guard.  The emit is covered by :data:`~vultron.core.behaviors.replica_emit_exemptions.EMBARGO_INVITE_FAULT`.
 """
 
 from dataclasses import dataclass
@@ -70,10 +71,15 @@ class EmbargoInviteFault:
     Attributes:
         failure_class: The ``ProcessingFault`` failure class (MSM-05-001).
         reason: The refusal's reason.
+        addressed: The Invite names its recipients, so a store it was not
+            addressed to refuses it at the addressee door guard and answers
+            nothing (HP-01-005); ``False`` for a misrouting, which names no
+            single addressee to check.
     """
 
     failure_class: str
     reason: str
+    addressed: bool = False
 
 
 @dataclass(frozen=True)
@@ -92,17 +98,20 @@ class EmbargoInviteSubjects:
 
 
 def embargo_invite_fault_tree(
-    failure_class: str, case_id: str | None
+    failure_class: str, case_id: str | None, *, addressed: bool = False
 ) -> py_trees.composites.Sequence:
     """Build the tree that archives a malformed Invite and answers it.
 
     Args:
         failure_class: The ``ProcessingFault`` failure class.
         case_id: The case the Invite names, if any; the fault's context.
+        addressed: Refuse a copy not addressed to this store before the
+            fault, unanswered (HP-01-005); see :class:`EmbargoInviteFault`.
     """
     return create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=None,
+        addressee_check="Invite(EmbargoEvent)" if addressed else None,
         precondition_guards=[],
         replica_effects=[
             EmitEmbargoInviteFaultNode(
@@ -136,7 +145,9 @@ def received_embargo_invite_tree(
     """
     if isinstance(subjects, EmbargoInviteFault):
         return embargo_invite_fault_tree(
-            subjects.failure_class, case_id or None
+            subjects.failure_class,
+            case_id or None,
+            addressed=subjects.addressed,
         )
     return invite_to_embargo_on_case_tree(
         case_id=case_id,

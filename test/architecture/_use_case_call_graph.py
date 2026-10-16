@@ -88,7 +88,7 @@ def _is_dl_mutation_call(node: ast.AST) -> bool:
 
 
 def _is_execute_with_setup_call(node: ast.Call) -> bool:
-    """True for a ``….execute_with_setup(...)`` or bare ``execute_with_setup(...)``."""
+    """True for a call of ``execute_with_setup``, bare or as a method."""
     func = node.func
     return (
         isinstance(func, ast.Attribute) and func.attr == "execute_with_setup"

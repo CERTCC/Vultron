@@ -76,10 +76,12 @@ def late_accept_route(
 class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
     """Condition: a late Accept of *embargo_id* takes the *route* arm.
 
-    Reads the case's EM state through ``ReadEmStateNode`` (AC-1, #1474) and
-    its embargo in force when the node runs, after the Invite expiry has been
-    recorded.  SUCCESS when :func:`late_accept_route` names *route*, logged
-    at INFO; FAILURE otherwise.  Read-only.  A case the CASE_MANAGER cannot
+    Reads the case's EM state through
+    :func:`~vultron.core.behaviors.embargo.nodes.em_state.read_case_em_state`
+    (AC-1, #1474) and its embargo in force when the node runs, after the
+    Invite expiry has been recorded.  SUCCESS when
+    :func:`late_accept_route` names *route*, logged at INFO; FAILURE
+    otherwise.  Read-only.  A case the CASE_MANAGER cannot
     read raises: it holds its own case (Regime 1, ADR-0087), and a guess
     here would route the Accept to the wrong arm.
     """
