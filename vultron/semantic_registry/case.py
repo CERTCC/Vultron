@@ -42,6 +42,7 @@ from vultron.core.use_cases.received.case_proposal import (
     CreateCaseProposalReceivedUseCase,
     RejectCaseProposalReceivedUseCase,
 )
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
@@ -151,6 +152,8 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created the case",
         wire_activity_class=_CreateCaseActivity,
         include_activity=True,
+        # The bootstrap answers the request that asked for the case (CBT-01-005).
+        answers=VOtype.CASE_PROPOSAL,
         occasions=(
             Occasion(
                 when=(

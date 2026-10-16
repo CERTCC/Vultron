@@ -19,7 +19,9 @@ Structure (after intake, which the shared factory supplies first)::
 
     CreateCaseReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
-    ├─ ClassifyBootstrapRouteNode           # trusted | redelivery | unanchored
+    ├─ CaseOpenToExternalWrites
+    ├─ SenderIsExpectedCaseCreatorNode      # sender guard (CBT-01-011, HP-01-008)
+    ├─ ClassifyBootstrapRouteNode           # trusted | redelivery
     └─ BootstrapRoute (Selector)
        ├─ TrustedBootstrap (Sequence)       # CBT-01-005 / CBT-01-006
        │  ├─ BootstrapRouteIs_trusted
@@ -34,10 +36,14 @@ Structure (after intake, which the shared factory supplies first)::
        ├─ RedeliveredBootstrap (Sequence)   # already accepted
        │  ├─ BootstrapRouteIs_redelivery
        │  └─ IntroduceCaseManagerToReporterNode   # retry a failed introduction
-       ├─ UnanchoredBootstrap (Sequence)    # CBT-01-011, ADR-0132
-       │  ├─ BootstrapRouteIs_unanchored
-       │  └─ RefuseUnanchoredBootstrapNode
        └─ RefuseBootstrapNode               # carries the chosen route's reason
+
+The sender guard is composed by the factory from the use case's declared
+rule (HP-01-007, HP-01-008): the sender must be the actor a report case link
+this receiver wrote expects the case from, or the creator of a bootstrap it
+already accepted.  Any other sender is refused before anything is stored,
+whatever its snapshot claims (CBT-01-011, ADR-0132).  The classifier then
+only chooses between the two routes an admitted sender can take.
 
 On the trusted route the receiver may be the report receiver, which then
 introduces the CASE_MANAGER to the reporter with its own
@@ -78,7 +84,6 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     CheckTrustedCreatorNode,
     ClassifyBootstrapRouteNode,
     RefuseBootstrapNode,
-    RefuseUnanchoredBootstrapNode,
     SeedCaseReplicaNode,
 )
 from vultron.core.behaviors.case.nodes.reporter_introduction import (
@@ -90,11 +95,20 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.replica_emit_exemptions import (
     REPORTER_INTRODUCTION,
 )
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    CaseBootstrapRequest,
+    SenderCheckContext,
+)
 from vultron.core.services.case_replica_seeding import report_ids_of
 
 
 def create_create_case_received_tree(
-    case_obj: Any, case_id: str, sender_id: str
+    case_obj: Any,
+    case_id: str,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Build the bootstrap tree for a received ``Create(VulnerabilityCase)``.
 
@@ -102,6 +116,10 @@ def create_create_case_received_tree(
         case_obj: The ``VulnerabilityCase`` the sender created.
         case_id: Its id.
         sender_id: The actor that sent the Create.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).  The receiver
+            holds no case yet, so the guard is the rule's side for an
+            activity that names no case this store holds.
 
     Returns:
         The tree root; the chosen route is on its
@@ -133,19 +151,9 @@ def create_create_case_received_tree(
             IntroduceCaseManagerToReporterNode(case_id, retry=True),
         ],
     )
-    # No anchor the receiver wrote names the sender: refuse, store nothing.
-    unanchored = py_trees.composites.Sequence(
-        name="UnanchoredBootstrap",
-        memory=False,
-        children=[
-            BootstrapRouteIsNode(route, "unanchored"),
-            RefuseUnanchoredBootstrapNode(sender_id, case_id),
-        ],
-    )
     arms: dict[BootstrapRouteName, py_trees.behaviour.Behaviour] = {
         "trusted": trusted,
         "redelivery": redelivered,
-        "unanchored": unanchored,
     }
     choose = py_trees.composites.Selector(
         name="BootstrapRoute",
@@ -153,7 +161,6 @@ def create_create_case_received_tree(
         children=[
             trusted,
             redelivered,
-            unanchored,
             RefuseBootstrapNode(route, arms),
         ],
     )
@@ -161,6 +168,13 @@ def create_create_case_received_tree(
         name="CreateCaseReceivedBT",
         case_id=None,
         precondition_guards=[],
+        # The receiver holds no case yet, so the context names none (the
+        # tree commits nothing either); the anchor the guard reads is keyed
+        # on the case the bootstrap creates (CBT-01-005).
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, request=CaseBootstrapRequest(case_id=case_id)
+        ),
         replica_effects=[
             ClassifyBootstrapRouteNode(route, sender_id, case_id, report_ids),
             choose,

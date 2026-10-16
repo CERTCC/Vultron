@@ -773,7 +773,8 @@ class TestClockDecisionStage:
             clock_decisions=[_effect("Expiry")],
             manager_effects=[_Emitter()],
             manager_case_id=CASE_ID,
-            **_sender_args(case_id=None),
+            # The sender is checked on the case the CASE_MANAGER writes for.
+            **_sender_args(case_id=CASE_ID),
         )
 
         gate = next(c for c in tree.children if c.name == CLOCK_GATE)
@@ -783,6 +784,23 @@ class TestClockDecisionStage:
             if isinstance(n, CheckIsCaseManagerNode)
         ]
         assert [c._case_id for c in checks] == [CASE_ID]
+
+    @pytest.mark.spec("HP-01-008")
+    def test_a_tree_with_no_commit_checks_its_sender_on_the_manager_case(
+        self,
+    ) -> None:
+        """A tree that commits nothing at its own level (the close-case tree)
+        still checks its sender on the case whose CASE_MANAGER it writes
+        for; a context naming no case is a wiring fault there."""
+        with pytest.raises(VultronWiringError, match="HP-01-008"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=None,
+                precondition_guards=[],
+                manager_effects=[_Emitter()],
+                manager_case_id=CASE_ID,
+                **_sender_args(case_id=None),
+            )
 
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.spec("EMB-13-003")

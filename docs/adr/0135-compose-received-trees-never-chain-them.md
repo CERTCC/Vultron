@@ -82,7 +82,7 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
    One whose commit the ledger refuses logs a warning and does not end the tree, because the guards still refuse what the unrecorded decision forbids (CLP-10-025).
    An internal error still ends the tree as an internal error (ADR-0095).
 5. **A decision about the case runs whatever the entry point.** The embargo end-time check (EMB-13-003) is a fact about the case, not about any one activity, so it is a clock decision of every received tree that names a case and has both door guards, with no argument from the tree.
-   A tree with no sender guard takes it once it declares its sender rule (the handlers still exempt from a sender check are ISSUE-4522), because the decision writes and a sender with no standing must never make the CASE_MANAGER write.
+   A tree with no sender guard takes it once it declares its sender rule (each handler still exempt from a sender check names the open issue that declares its rule), because the decision writes and a sender with no standing must never make the CASE_MANAGER write.
    A tree exempt from the post-close boundary never takes it.
    The check runs in no dispatcher hook ahead of the tree.
    Scope note: this record governs received trees, but the same reason holds for a case-scoped trigger, which composes the same CASE_MANAGER-gated stage as the first step of its own one tree (BT-15-003).

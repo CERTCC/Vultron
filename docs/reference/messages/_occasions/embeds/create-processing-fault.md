@@ -7,7 +7,7 @@
     - **When…** a Participant has received a message it cannot process
     - **Send:** `Create(ProcessingFault)`
     - **Send to:** the case manager
-    - **Sent by:** not yet checked
+    - **Sent by:** no sender check applies
     - **Reference:** [Create processing fault](../../faults_and_acknowledgements.md#create-processing-fault)
 
     ??? example "Example activity"

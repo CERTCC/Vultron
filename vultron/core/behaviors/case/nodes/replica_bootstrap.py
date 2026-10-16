@@ -17,15 +17,18 @@
 
 A ``Create(VulnerabilityCase)`` tells the receiver that *someone else* made
 the case.  Whether to trust that depends on how the receiver came to expect it,
-so the tree picks one of three routes (CBT-01-005, CBT-01-006, CBT-01-011):
+so the tree picks one of two routes (CBT-01-005, CBT-01-006):
 
 - ``trusted``: the receiver sent a report to the sender and holds a pending
   :class:`~vultron.core.models.report_case_link.VultronReportCaseLink` for it;
 - ``redelivery``: a link already binds the case to the sender, so the
-  bootstrap was accepted before;
-- ``unanchored``: no anchor the receiver wrote names the sender, so the
-  bootstrap is refused and nothing is stored.  A snapshot naming its sender
-  CASE_MANAGER is not an anchor: the sender wrote it (ADR-0132).
+  bootstrap was accepted before.
+
+A sender no anchor the receiver wrote names never reaches the routes: the
+sender guard the factory composes from the use case's declared rule refuses
+it first and nothing is stored (CBT-01-011, HP-01-008,
+``SenderIsExpectedCaseCreatorNode``).  A snapshot naming its sender
+CASE_MANAGER is not an anchor: the sender wrote it (ADR-0132).
 
 :class:`ClassifyBootstrapRouteNode` makes that choice once and records it on a
 shared :class:`BootstrapRoute`.  It cannot be re-derived later: the trusted
@@ -59,7 +62,7 @@ from vultron.core.services.case_replica_seeding import (
 )
 from vultron.errors import VultronAlreadyExistsError
 
-BootstrapRouteName = Literal["trusted", "redelivery", "unanchored"]
+BootstrapRouteName = Literal["trusted", "redelivery"]
 
 
 @dataclass
@@ -76,7 +79,9 @@ class ClassifyBootstrapRouteNode(DataLayerActionWithPorts):
 
     Always ``SUCCESS`` once the DataLayer is available: the choice is not a
     verdict.  The order is the order of trust: a pending link first, then a
-    redelivery; with neither, no anchor names the sender.
+    redelivery.  The sender guard has already admitted the sender, so one of
+    them names it; were neither to, no route is chosen and
+    :class:`RefuseBootstrapNode` refuses.
     """
 
     def __init__(
@@ -106,8 +111,6 @@ class ClassifyBootstrapRouteNode(DataLayerActionWithPorts):
             self.datalayer, self.sender_id, self.case_id
         ):
             self.route.name = "redelivery"
-        else:
-            self.route.name = "unanchored"
         return Status.SUCCESS
 
 
@@ -241,35 +244,6 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
             f"Bootstrap Create(VulnerabilityCase) for case '{self.case_id}'"
             f" contains {len(bare)} bare-URI participant reference(s);"
             f" inline typed objects required (CBT-01-012, CBT-05-009, CBT-05-008)"
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-
-class RefuseUnanchoredBootstrapNode(py_trees.behaviour.Behaviour):
-    """Unanchored route: refuse a bootstrap no local anchor vouches for.
-
-    Always ``FAILURE``.  The receiver wrote no record naming the sender, so it
-    has nothing to check the sender against; the roster in the snapshot is the
-    sender's own claim and does not count (CBT-01-011, ADR-0132).
-    """
-
-    logger: logging.Logger  # type: ignore[assignment]
-
-    def __init__(
-        self, sender_id: str, case_id: str, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.sender_id = sender_id
-        self.case_id = case_id
-        self.logger = node_logger(self)  # type: ignore[assignment]
-
-    def update(self) -> Status:
-        self.feedback_message = (
-            f"bootstrap of case '{self.case_id}' refused: no trust anchor"
-            f" this actor wrote names '{self.sender_id}', and a snapshot"
-            " naming its sender CASE_MANAGER does not make it trusted"
-            " (CBT-01-011)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

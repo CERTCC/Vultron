@@ -4396,7 +4396,10 @@ groups:
       who is already closed (a Leave(VulnerabilityCase), a `Close(Report)`, or a
       `Reject` of its stub or full-case Invite), MUST be reported `SKIPPED`, with no
       ledger entry committed and nothing sent, whatever its activity id: its effect is
-      already in place (ID-05-003). The `ACTIVE_PARTICIPANT` sender standing
+      already in place (ID-05-003). The Case Owner's Leave(VulnerabilityCase) is not
+      such a repeat while the case is not fully closed: its effect includes the case's
+      closure (CM-23-002), which a failed first delivery may have left part-way, so it
+      is processed again to complete it. The `ACTIVE_PARTICIPANT` sender standing
       (HP-01-009) MUST mean an active participant (CM-10-004) whose closure is not
       recorded, and every guard that enforces it MUST ask one shared predicate
       (HP-01-007).

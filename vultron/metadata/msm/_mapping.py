@@ -150,6 +150,10 @@ def mapping_status(
 #: The "Sent by" wording for a use case whose sender is not yet checked.
 NOT_YET_CHECKED = "not yet checked"
 
+#: The "Sent by" wording for a use case to which no sender check applies
+#: (a permanent exemption, ``no_sender_check``).
+NOT_CHECKED = "no sender check applies"
+
 
 def _words(type_name: str) -> str:
     """``"CaseProposal"`` → ``"case proposal"``."""
@@ -161,14 +165,18 @@ def answered_request(entry: SemanticEntry) -> str:
 
     The name is taken from the object type of the activity being answered
     (MSM-08-010).  ``Accept(CaseProposal)`` answers a case proposal and
-    ``Remove(Note)`` changes a note.  When the answered activity is itself
-    nested, as in ``Accept(Offer(VulnerabilityCase))``, the request is that
-    inner activity, named by its object type and its verb: a vulnerability
-    case offer.
+    ``Remove(Note)`` changes a note.  An entry whose pattern does not nest
+    the request it answers names it in ``SemanticEntry.answers``: a bootstrap
+    ``Create(VulnerabilityCase)`` answers a case proposal.  When the
+    answered activity is itself nested, as in
+    ``Accept(Offer(VulnerabilityCase))``, the request is that inner activity,
+    named by its object type and its verb: a vulnerability case offer.
 
     Raises:
         ValueError: When the entry's pattern names no object type.
     """
+    if entry.answers is not None:
+        return _words(str(entry.answers))
     pattern = entry.pattern
     obj = None if pattern is None else pattern.object_
     verb = ""
@@ -221,7 +229,9 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
 
     The value is the wording of the side of the sender rule the entry's
     received use case declares that matches the occasion's addressee
-    (:func:`rule_wording`), or :data:`NOT_YET_CHECKED` for an exemption.
+    (:func:`rule_wording`), :data:`NOT_YET_CHECKED` for an exemption that
+    names its tracking issue, or :data:`NOT_CHECKED` for one to which no
+    sender check applies.
     The occasion's usual sender roles, when it has any, follow in
     parentheses: "an active participant (usually: vendor)".
 
@@ -232,6 +242,8 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
         entry.use_case_class, "sender_entitlement", None
     )
     match declared:
+        case SenderExemption(permanent=True):
+            wording = NOT_CHECKED
         case SenderExemption():
             wording = NOT_YET_CHECKED
         case SenderRule():

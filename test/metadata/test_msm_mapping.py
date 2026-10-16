@@ -33,11 +33,13 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
     any_of,
     exempt,
+    no_sender_check,
 )
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
+    NOT_CHECKED,
     NOT_YET_CHECKED,
     ROW_SPECS,
     MappingStatus,
@@ -95,6 +97,7 @@ def _entry(
     semantics: MessageSemantics = MessageSemantics.CREATE_NOTE,
     entitlement: SenderEntitlement | None = _CASE_OWNER_RULE,
     pattern: ActivityPattern | None = None,
+    answers: VOtype | None = None,
 ) -> SemanticEntry:
     return SemanticEntry(
         semantics=semantics,
@@ -104,6 +107,7 @@ def _entry(
         phrase="{actor} did a thing",
         occasions=occasions or (_occasion(),),
         page=MessagePage.GENERAL,
+        answers=answers,
     )
 
 
@@ -259,6 +263,35 @@ def test_sent_by_words_each_kind(kind: SenderEntitlementKind, wording: str):
 def test_sent_by_states_an_exemption_as_not_yet_checked():
     entry = _entry(entitlement=exempt("#0000", "stub"))
     assert sent_by(entry, entry.occasions[0]) == "not yet checked"
+
+
+@pytest.mark.spec("MSM-08-005")
+def test_sent_by_states_a_permanent_exemption_as_no_check():
+    """An exemption naming no issue owes no check, so it is not "not yet"."""
+    entry = _entry(entitlement=no_sender_check("changes nothing"))
+    assert sent_by(entry, entry.occasions[0]) == "no sender check applies"
+
+
+def test_an_exemption_naming_no_issue_must_say_why():
+    with pytest.raises(ValueError, match="HP-01-007"):
+        no_sender_check("  ")
+
+
+@pytest.mark.spec("MSM-08-010")
+def test_sent_by_names_a_request_the_pattern_does_not_nest():
+    """A bootstrap ``Create(VulnerabilityCase)`` answers a case proposal."""
+    pattern = ActivityPattern(
+        activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
+    )
+    entry = _entry(
+        entitlement=SenderRule.in_case(SenderEntitlementKind.NAMED_ACTOR),
+        pattern=pattern,
+        answers=VOtype.CASE_PROPOSAL,
+    )
+    assert (
+        sent_by(entry, entry.occasions[0])
+        == "the addressee of the case proposal"
+    )
 
 
 @pytest.mark.spec("MSM-08-010")
@@ -456,7 +489,7 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """
     declared = getattr(entry.use_case_class, "sender_entitlement", None)
     if isinstance(declared, SenderExemption):
-        base = NOT_YET_CHECKED
+        base = NOT_CHECKED if declared.permanent else NOT_YET_CHECKED
     else:
         assert isinstance(declared, SenderRule)
         side = getattr(declared, _SIDE_FIELD[occasion.addressee])

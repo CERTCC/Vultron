@@ -51,11 +51,10 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
+from vultron.core.behaviors.sender_guard import sender_guard_refused
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +78,23 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 
 
 class AddCaseStatusToCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check defined for case status update"
+    """Process a received ``Add(CaseStatus, VulnerabilityCase)`` (CP, CX, CA).
+
+    A participant reports case-level evidence (public awareness, a public
+    exploit, observed attacks) to the CASE_MANAGER, which adjudicates each
+    dimension and adopts what it accepts (RSH-05-015).  The sender must hold
+    a participant record on the case whose closure is not recorded, as for
+    ``Add(ParticipantStatus)``, wherever the status arrives: a participant
+    replica writes no case state from it (RSH-08-003), but a peer's P/X/A
+    status still makes it ask the CASE_MANAGER for a teardown (RSH-03-004,
+    EP-09-008).  An unentitled sender is ``REFUSED`` before anything is
+    committed, written or sent (HP-01-006).
+    """
+
+    # A participant reports P/X/A evidence; a replica that receives it writes
+    # no case state but may ask for a teardown (RSH-05-015, RSH-03-004).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -114,7 +128,11 @@ class AddCaseStatusToCaseReceivedUseCase:
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
         )
-        tree = add_case_status_tree(request=request, **call_out_kwargs)
+        tree = add_case_status_tree(
+            request=request,
+            sender_rule=self.sender_entitlement,
+            **call_out_kwargs,
+        )
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
@@ -154,6 +172,10 @@ class AddCaseStatusToCaseReceivedUseCase:
                 request.activity_id,
                 verdict.reason,
             )
+            if sender_guard_refused(tree):
+                # A sender with no standing is owed no answer about the
+                # content it sent: nothing is sent (HP-01-006).
+                return verdict
             if self._trigger_activity is not None and request.actor_id:
                 self._trigger_activity.emit_processing_fault(
                     actor=resolve_receiving_actor_id(

@@ -215,6 +215,28 @@ def is_bootstrap_accepted(
     )
 
 
+def expected_case_creators(dl: CasePersistence, case_id: str) -> list[str]:
+    """Every actor a ``ReportCaseLink`` this store wrote expects *case_id* from.
+
+    The trust anchors a bootstrap ``Create(VulnerabilityCase)`` is checked
+    against (CBT-01-005, CBT-01-011): the expected creator of every link
+    still awaiting a bootstrap, and the creator of every link already bound
+    to *case_id* (a redelivery, CBT-01-006).  A sender is trusted exactly
+    when :func:`find_pending_report_case_link` or :func:`is_bootstrap_accepted`
+    finds a link for it.
+    """
+    creators: list[str] = []
+    for link in dl.list_objects("ReportCaseLink"):
+        if not isinstance(link, VultronReportCaseLink):
+            continue
+        creator = link.case_creator_id
+        if creator is None or creator in creators:
+            continue
+        if link.case_id is None or link.case_id == case_id:
+            creators.append(creator)
+    return creators
+
+
 def find_case_create_sent_by(
     dl: CasePersistence, actor_id: str, case_id: str
 ) -> str | None:

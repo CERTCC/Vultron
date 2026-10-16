@@ -58,12 +58,14 @@ from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderClosureNotRecordedNode,
+    SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
     SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
+    SenderIsExpectedCaseCreatorNode,
     SenderIsInviteeNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
@@ -84,6 +86,8 @@ __all__ = [
     "AuthoredCaseProposal",
     "AuthoredNote",
     "AuthoredObject",
+    "CaseBootstrapRequest",
+    "case_owner_guard",
     "CaseProposalRequest",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
@@ -91,6 +95,7 @@ __all__ = [
     "closed_sender_guard",
     "compose_sender_guard",
     "embargo_sender_context",
+    "sender_guard_refused",
 ]
 
 
@@ -137,9 +142,28 @@ class OwnershipOfferRequest:
     reply_id: str
 
 
+@dataclass(frozen=True)
+class CaseBootstrapRequest:
+    """The request is the one that asked for a case, recorded on this
+    store's report case links.
+
+    A bootstrap ``Create(VulnerabilityCase)`` answers it: the vendor's
+    ``CaseProposal`` or the reporter's report ``Offer``, each recorded with
+    the actor expected to create the case (CBT-01-005, CBT-01-011).
+
+    Attributes:
+        case_id: The case the bootstrap creates.
+    """
+
+    case_id: str
+
+
 #: The record that holds the request a ``NAMED_ACTOR`` sender answers.
 AddresseeRequest = (
-    CaseProposalRequest | ReportOfferRequest | OwnershipOfferRequest
+    CaseProposalRequest
+    | ReportOfferRequest
+    | OwnershipOfferRequest
+    | CaseBootstrapRequest
 )
 
 
@@ -245,6 +269,49 @@ def closed_sender_guard(
     )
 
 
+#: The names :func:`compose_sender_guard` gives the composites it builds.
+_RULE_GUARD = "SenderRuleGuard"
+_ANY_OF = "AnyOfSenderKinds"
+
+
+def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
+    """*node* is a guard :func:`compose_sender_guard` returns: one kind's
+    node, an any-of selector, or the per-side dispatch."""
+    return node.name in {_RULE_GUARD, _ANY_OF} or isinstance(
+        node, (SenderEntitlementConditionNode, SenderIsParticipantNode)
+    )
+
+
+def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
+    """True when a received tree's run ended at its composed sender guard.
+
+    The factory places the guard as one child of the tree's root Sequence
+    (HP-01-008); the run ended there when the first child that failed is
+    that guard.  A sender node deeper in the tree, which picks an effect
+    after admission, is not it.  A handler that answers a refused assertion
+    (a processing fault, say) asks this first: a sender with no standing is
+    owed no answer about its content (HP-01-006).
+    """
+    for child in root.children:
+        if child.status is py_trees.common.Status.FAILURE:
+            return _is_composed_guard(child)
+    return False
+
+
+def case_owner_guard(
+    case_id: str, sender_id: str
+) -> py_trees.behaviour.Behaviour:
+    """The ``CASE_OWNER`` check, for a pre-flight that picks a verdict.
+
+    Built here, beside the kinds' guards, so a pre-flight never names a
+    sender node itself (HP-01-007).  It admits no one: the closed-sender
+    pre-flight asks it to tell a Case Owner's redelivered ``Leave``, whose
+    case closure may still be incomplete, from a repeat that changes
+    nothing (CM-23-002, CM-23-018).
+    """
+    return SenderIsCaseOwnerNode(sender_actor_id=sender_id, case_id=case_id)
+
+
 def _addressee_node(
     ctx: SenderCheckContext,
 ) -> SenderIsRequestAddresseeNode:
@@ -257,6 +324,10 @@ def _addressee_node(
     if isinstance(request, ReportOfferRequest):
         return SenderIsOfferAddresseeNode(
             offer_id=request.offer_id, sender_actor_id=ctx.sender_id
+        )
+    if isinstance(request, CaseBootstrapRequest):
+        return SenderIsExpectedCaseCreatorNode(
+            case_id=request.case_id, sender_actor_id=ctx.sender_id
         )
     if isinstance(request, OwnershipOfferRequest):
         return SenderIsOwnershipTransfereeNode(
@@ -397,7 +468,7 @@ def _any_of(
     # The last arm fails naming every kind, so the refusal reason is the
     # side's whole rule rather than the last kind tried (BT-13-001).
     return py_trees.composites.Selector(
-        name="AnyOfSenderKinds",
+        name=_ANY_OF,
         memory=False,
         children=[*nodes, SenderHoldsNoneOfNode(kinds)],
     )
@@ -452,7 +523,7 @@ def compose_sender_guard(
         "AtParticipant",
     )
     return py_trees.composites.Sequence(
-        name="SenderRuleGuard",
+        name=_RULE_GUARD,
         memory=False,
         children=[
             py_trees.composites.Selector(

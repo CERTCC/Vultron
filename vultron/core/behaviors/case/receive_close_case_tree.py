@@ -40,6 +40,12 @@ status entries and never works out a closure path itself; applying
   fanned out and no one advances (CM-23-013).  Under
   ``PostCloseReply.REJECT`` the sender gets ``Reject(Leave(VulnerabilityCase))``;
   under the default ``DROP`` it gets nothing (ADR-0131).
+- **A Leave from a sender with no standing**: the sender guard the factory
+  composes from the use case's declared rule refuses it before the
+  close/decline decision, so nothing is committed, declined or sent
+  (HP-01-006, HP-01-008).  A Leave from a sender whose closure the case
+  already records never reaches this tree: the use case reports it
+  ``SKIPPED`` first (CM-23-018, ID-05-003).
 
 The role check is performed by :class:`~vultron.core.behaviors.case.nodes
 .vfd_role_guards.SenderIsCaseOwnerNode` as a tree-level condition node, per
@@ -80,8 +86,11 @@ from vultron.core.behaviors.embargo.nodes import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +166,8 @@ def create_close_case_received_tree(
     sender_actor_id: str | None = None,
     receiving_actor_id: str | None = None,
     post_close_reply: PostCloseReply = DEFAULT_POST_CLOSE_REPLY,
+    *,
+    sender_rule: SenderRule | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Single-BT received-side tree for CloseCaseReceived (ADR-0022).
 
@@ -189,6 +200,8 @@ def create_close_case_received_tree(
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
         │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
+        ├── SenderRuleGuard                             # composed from sender_rule (HP-01-008)
+        ├── ClockDecisions (CaseManagerGate)            # embargo end-time check (CLP-10-025)
         └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
             └── CloseOrDecline (Selector)               # close unless declined
                 ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
@@ -279,6 +292,11 @@ def create_close_case_received_tree(
             arrives after ``case_fully_closed`` (``ActorConfig.post_close_reply``,
             CM-23-013).  ``REJECT`` answers it with
             ``Reject(Leave(VulnerabilityCase))``; ``DROP`` sends nothing.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it, on the case, ahead of the
+            close/decline decision (HP-01-008).  A sender with no standing
+            is refused before the CASE_MANAGER writes, declines or replies
+            to anything (HP-01-006).  Required with ``sender_actor_id``.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
             ``case_actor_id`` argument of :class:`AdvanceCaseActorToRMClosedNode`
             and the closing actor of its :class:`CommitRMClosureEntriesNode`, so that on owner Leave
@@ -295,6 +313,11 @@ def create_close_case_received_tree(
             name="CloseCaseBT",
             case_id=case_id,
             precondition_guards=[],
+        )
+    if sender_rule is None:
+        raise VultronWiringError(
+            "create_close_case_received_tree: a Leave with a sender needs the"
+            " use case's sender_rule (HP-01-007, HP-01-008)"
         )
 
     # CM-23-002 step 3: the CASE_MANAGER's own Update(VulnerabilityCase)
@@ -527,6 +550,10 @@ def create_close_case_received_tree(
         name="CloseCaseBT",
         case_id=None,
         precondition_guards=[],
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id, case_id=case_id
+        ),
         post_close_reply=late_leave_reply,
         manager_effects=[
             py_trees.composites.Selector(

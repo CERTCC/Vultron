@@ -29,6 +29,9 @@ from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
 from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
+from vultron.core.use_cases.received.case.lifecycle import (
+    CloseCaseReceivedUseCase,
+)
 
 CASE_ID = "https://example.org/cases/c-close-tree"
 OWNER_ID = "https://example.org/actors/owner-close-tree"
@@ -49,6 +52,7 @@ def test_case_fully_closed_commit_guards_the_sync_port_before_persisting():
         activity_id="https://example.org/activities/leave-1",
         sender_actor_id=OWNER_ID,
         receiving_actor_id="https://example.org/actors/case-actor",
+        sender_rule=CloseCaseReceivedUseCase.sender_entitlement,
     )
 
     commit = _find(tree, "CommitCaseFullyClosedBT")

@@ -23,7 +23,7 @@ from typing import ClassVar
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    no_sender_check,
 )
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.use_case_result import (
@@ -44,10 +44,18 @@ class CreateProcessingFaultReceivedUseCase:
     """Log a received Create(ProcessingFault) NACK.
 
     Full ask-register correlation (AC-8) is deferred to issue #2883.
+
+    No sender check applies (HP-01-007): the handler archives the fault, as
+    every received tree does before its guards (CLP-10-018), logs it and
+    reports ``SKIPPED``.  It commits, writes and sends nothing, so there is
+    no effect a sender's standing could gate.  A change that makes the fault
+    act on the request it names must declare a sender rule with it
+    (HP-01-006).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for fault handling"
+    sender_entitlement: ClassVar[SenderEntitlement] = no_sender_check(
+        "a fault changes nothing: the handler archives and logs it, and"
+        " commits, writes and sends nothing a sender's standing could gate"
     )
 
     def __init__(

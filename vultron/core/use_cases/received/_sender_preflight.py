@@ -54,6 +54,7 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
+    case_owner_guard,
     closed_sender_guard,
     compose_sender_guard,
 )
@@ -241,6 +242,7 @@ def closed_sender_preflight(
     closes: bool,
     label: str,
     sync_port: SyncActivityPort | None = None,
+    case_owner_completes: bool = False,
 ) -> HandlerResult | None:
     """The verdict owed to a sender whose closure the case records, or ``None``.
 
@@ -249,13 +251,20 @@ def closed_sender_preflight(
     invitee's reply), or whose act may close its sender.  When the case
     already records the sender's closure (CM-23-018):
 
-    - an act that would close it again (*closes*: ``Close(Report)``, a
-      ``Reject`` of a stub or full-case Invite) changes nothing, so it is
-      ``SKIPPED``, whatever its activity id (ID-05-003);
+    - an act that would close it again (*closes*: a
+      ``Leave(VulnerabilityCase)``, a ``Close(Report)``, a ``Reject`` of a
+      stub or full-case Invite) changes nothing, so it is ``SKIPPED``,
+      whatever its activity id (ID-05-003);
     - any other act is ``REFUSED``.
 
     Either way nothing is committed or sent.  Otherwise ``None``, and the
-    handler runs its tree.  A *case_id* this store does not resolve records
+    handler runs its tree.
+
+    With *case_owner_completes*, a closing act from the case's Case Owner is
+    not a repeat: its effect is the case's closure too, which a failed first
+    delivery may have left incomplete, so its redelivery runs the tree to
+    complete it (a ``Leave``, CM-23-002).  A fully closed case is the
+    post-close boundary's, as above.  A *case_id* this store does not resolve records
     no closure.  The post-close boundary is asked first: on a fully closed
     case the act is left to the tree, which drops it (CM-23-013).
 
@@ -276,6 +285,19 @@ def closed_sender_preflight(
     verdict_from_bt(tree, result, label="ClosedSenderPreflight")
     if not guard.sender_closed:
         return None
+    if closes and case_owner_completes:
+        owner = py_trees.composites.Sequence(
+            name="ClosingCaseOwnerPreflight",
+            memory=False,
+            children=[case_owner_guard(case_id, sender_actor_id)],
+        )
+        owned = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
+            tree=owner, actor_id=receiving_actor_id, activity=request
+        )
+        if owned.internal_error:
+            verdict_from_bt(owner, owned, label="ClosingCaseOwnerPreflight")
+        if owned.status == py_trees.common.Status.SUCCESS:
+            return None
     if closes:
         return HandlerResult.skipped(
             f"{label}: {guard.feedback_message} — a repeat of a closing act,"

@@ -444,9 +444,8 @@ def _case_and_tree_decisions(
     every tree that names a case, has a sender guard and keeps the
     post-close boundary, because both door guards must run before the
     CASE_MANAGER writes (HP-01-006, CM-23-013).  A tree with no sender guard
-    takes them once it declares its sender rule (HP-01-008; the remaining
-    exempt handlers are #4522); a tree exempt from the post-close boundary
-    never does.  The tree's own
+    takes them once it declares its sender rule (HP-01-008); a tree exempt
+    from the post-close boundary never does.  The tree's own
     decisions are returned as given, so :func:`_clock_decision_stage`
     refuses them on a tree where they cannot run.
     """
@@ -461,7 +460,12 @@ def _sender_guard_stage(
     sender_rule: SenderRule | None,
     sender_context: SenderCheckContext | None,
 ) -> py_trees.behaviour.Behaviour | None:
-    """The tree's sender guard, composed from the declared rule (HP-01-008)."""
+    """The tree's sender guard, composed from the declared rule (HP-01-008).
+
+    *case_id* is the tree's case: its commit case, else the case whose
+    CASE_MANAGER gates its effects (a tree that commits nothing at its own
+    level, such as the close-case tree, still checks its sender there).
+    """
     if sender_rule is None:
         if sender_context is not None:
             raise VultronWiringError(
@@ -637,7 +641,8 @@ def create_receive_activity_tree(
         sender_rule: The use case's declared sender rule; the factory
             composes the guard from it (HP-01-008).
         sender_context: The sender and the records the rule's kinds are
-            checked against; required with ``sender_rule``.
+            checked against; required with ``sender_rule``.  It names the
+            tree's case: ``case_id``, else ``manager_case_id``.
         replica_effects: Ungated effects, run on every replica after the
             commit.
         replica_emit_exemption: The registered decision that lets an
@@ -670,8 +675,8 @@ def create_receive_activity_tree(
             ``post_close_reply`` (CM-23-013), or the sender arguments are
             inconsistent: ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
-            ``sender_context`` naming another case than ``case_id``
-            (HP-01-008), or ``clock_decisions`` name no case, come without
+            ``sender_context`` naming another case than ``case_id`` (else
+            ``manager_case_id``) (HP-01-008), or ``clock_decisions`` name no case, come without
             a ``sender_rule`` or with a ``post_close_exemption``, or hold
             the received activity's commit (CLP-10-025).
 
@@ -704,7 +709,9 @@ def create_receive_activity_tree(
             post_close_reply or [],
         )
     )
-    guard = _sender_guard_stage(name, case_id, sender_rule, sender_context)
+    guard = _sender_guard_stage(
+        name, case_id or manager_case_id, sender_rule, sender_context
+    )
     if guard is not None:
         children.append(guard)
     decisions = _case_and_tree_decisions(

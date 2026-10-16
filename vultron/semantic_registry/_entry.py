@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.enums.object_types import VultronObjectType
 from vultron.semantic_registry._occasion import MessagePage, Occasion
 from vultron.wire.as2.extractor import ActivityPattern
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -57,6 +58,12 @@ class SemanticEntry:
         page: The ``docs/reference/messages/`` page that owns the entry
             (MSM-06-002).  Required, except on a dispatcher fallback, which
             has none.
+        answers: The object type of the request this entry's activity
+            answers, when its pattern does not nest that request: a bootstrap
+            ``Create(VulnerabilityCase)`` answers the ``CaseProposal`` that
+            asked for the case.  The addressee kind's "Sent by" wording names
+            the request from it (MSM-08-010).  ``None`` (the default) reads
+            the request from the pattern.
 
     Raises:
         TypeError: At construction, when ``occasions`` is not a tuple or
@@ -76,6 +83,7 @@ class SemanticEntry:
     include_activity: bool = field(default=False)
     occasions: tuple[Occasion, ...] = field(default=())
     page: MessagePage | None = field(default=None)
+    answers: VultronObjectType | None = field(default=None)
 
     def __post_init__(self) -> None:
         if not isinstance(self.occasions, tuple):

@@ -76,9 +76,12 @@ lookup table is mostly links.
   term to a glossary row. A position's wording names its object with an
   `{object}` placeholder ("the addressee of the case proposal", "the note's
   author"), and a nested request by its object and verb ("the addressee of the
-  vulnerability case offer"); an exemption reads "not yet checked". About half
-  the received use cases are exempt today, so the column fills in only as
-  exemptions close; never paper over that with hand-written values.
+  vulnerability case offer"); an exemption reads "not yet checked", and one that
+  names no issue because no sender check applies (`no_sender_check`) reads "no
+  sender check applies". A request the pattern does not nest is named on the
+  entry (`SemanticEntry.answers`): the bootstrap `Create(VulnerabilityCase)`
+  answers a case proposal (MSM-08-010). The column fills in only as exemptions
+  close; never paper over that with hand-written values.
 - **Positions are entitlement kinds, not roles and not a second list**
   (HP-01-009). "The invitee" holds that position only within one exchange, and a
   report precedes any case, so no position joins `CVDRole`. A separate
