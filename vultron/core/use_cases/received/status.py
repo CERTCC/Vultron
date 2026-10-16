@@ -172,7 +172,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:
-    1. Verify sender is a known case participant.
+    1. Verify the sender: at the CASE_MANAGER, a known case participant;
+       at a participant replica, the CASE_MANAGER alone (PCR-03-001).
     2. Append the ParticipantStatus to the CaseParticipant record.
     3. If the new status signals public awareness (CS.P) and the sender
        holds the CASE_OWNER role, initiate embargo teardown.
