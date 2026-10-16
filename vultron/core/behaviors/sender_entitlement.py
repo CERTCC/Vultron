@@ -1985,6 +1985,8 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     before a handler's received tree
     (:func:`vultron.core.use_cases.received._sender_preflight.closed_sender_preflight`),
     built by :func:`vultron.core.behaviors.sender_guard.closed_sender_guard`.
+    The factory also composes it ahead of the ``CASE_OWNER`` kind's role
+    check, which asks the role alone.
 
     SUCCESS when the sender is not at RM ``CLOSED`` here, or when this store
     holds no such case: the received tree decides what the act means.

@@ -15,8 +15,8 @@
 
 """The activity-typed RM handlers apply the RM rule of Add(ParticipantStatus).
 
-Report valid / invalid / closed and engage / defer each declare one RM state
-for their sender.  The CASE_MANAGER adjudicates that declaration exactly as it
+Report valid / invalid and engage / defer each declare one RM state for their
+sender.  The CASE_MANAGER adjudicates that declaration exactly as it
 adjudicates the ``rmState`` of an ``Add(ParticipantStatus)``: a forward move is
 recorded, a non-adjacent one included and flagged with the RSH-06-004 note; a
 backward one is refused and the recorded state kept (RSH-06-006).
@@ -27,7 +27,9 @@ the ``Add(ParticipantStatus)`` path against, so the two paths are asserted
 against the same rows (#3813 AC-4).
 
 The handlers run as the CASE_MANAGER, in its store; the subject of every write
-is the sender (RSH-08-001).
+is the sender (RSH-08-001).  ``Close(Report)`` declares no RM state the
+CASE_MANAGER adjudicates: on a case every sender's is refused (CM-23-019,
+``test/core/use_cases/received/test_close_report_on_case.py``).
 """
 
 import logging
@@ -86,7 +88,6 @@ from vultron.core.use_cases.received.case.engage_defer import (
     EngageCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.report import (
-    CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
@@ -95,7 +96,6 @@ from vultron.core.use_cases.received.status import (
 )
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
-    rm_close_report_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
     rm_invalidate_report_activity,
@@ -143,11 +143,6 @@ _HANDLERS: dict[RM, _Handler] = {
         RM.INVALID,
         InvalidateReportReceivedUseCase,
         lambda actor: rm_invalidate_report_activity(_offer(), actor=actor),
-    ),
-    RM.CLOSED: _Handler(
-        RM.CLOSED,
-        CloseReportReceivedUseCase,
-        lambda actor: rm_close_report_activity(_offer(), actor=actor),
     ),
     RM.ACCEPTED: _Handler(
         RM.ACCEPTED,
@@ -266,16 +261,14 @@ class TestClosedSenderIsRefusedBeforeTheRule:
     """A sender at RM CLOSED may not act, so the rule never runs (CM-23-018).
 
     Its declaration is refused by the sender guard: nothing is recorded,
-    nothing is committed, and no RSH-06-004 note is sent.  A repeated Close
-    would close it again, so it is SKIPPED instead, with the same nothing
-    recorded, committed or sent (ID-05-003).
+    nothing is committed, and no RSH-06-004 note is sent.
     """
 
     @pytest.mark.spec("CM-23-018")
     @pytest.mark.parametrize(
         "case", cases_declaring(*_HANDLERS, sender_closed=True)
     )
-    def test_closed_sender_is_refused_or_skipped_with_nothing_sent(
+    def test_closed_sender_is_refused_with_nothing_sent(
         self, case: RMDeclarationCase, store_for, make_payload
     ):
         dl = store_for(CASE_MANAGER_ID)
@@ -287,12 +280,7 @@ class TestClosedSenderIsRefusedBeforeTheRule:
 
         result = _deliver(dl, case.declared, make_payload)
 
-        expected = (
-            HandlerDisposition.SKIPPED
-            if case.declared is RM.CLOSED
-            else HandlerDisposition.REFUSED
-        )
-        assert result.disposition is expected, result.reason
+        assert result.disposition is HandlerDisposition.REFUSED, result.reason
         assert "CM-23-018" in (result.reason or ""), result.reason
         assert list(dl.outbox_list()) == outbox_before
         assert recorded_rm(dl) == RM.CLOSED

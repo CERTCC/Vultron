@@ -38,7 +38,6 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
 from vultron.core.behaviors.report.received_report_trees import (
-    create_close_report_received_tree,
     create_invalidate_report_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
@@ -79,7 +78,6 @@ from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.report import (
-    CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
@@ -357,7 +355,6 @@ def test_an_inert_participant_holds_participant_but_not_active_participant(
 RELABELLED = {
     "validate-report": ValidateReportReceivedUseCase,
     "invalidate-report": InvalidateReportReceivedUseCase,
-    "close-report": CloseReportReceivedUseCase,
     "engage-case": EngageCaseReceivedUseCase,
     "defer-case": DeferCaseReceivedUseCase,
 }
@@ -445,14 +442,6 @@ def _relabelled_trees() -> dict[str, tuple[type, Callable[[], object]]]:
                 case_id=CASE_ID,
                 actor_id=VENDOR,
                 sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
-            ),
-        ),
-        "close-report": (
-            CloseReportReceivedUseCase,
-            lambda: create_close_report_received_tree(
-                request,  # type: ignore[arg-type]
-                CASE_ID,
-                sender_rule=CloseReportReceivedUseCase.sender_entitlement,
             ),
         ),
         "invalidate-report": (
