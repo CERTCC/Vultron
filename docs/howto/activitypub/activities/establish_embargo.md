@@ -71,7 +71,7 @@ The same activity carries a revision, Embargo Revision Proposal (EV); a receiver
 
 1. Send `Invite(Event)` with the proposed `EmbargoEvent` inline as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
-   The protocol names `Invite(Event)` as the one form; a received `Create(Event)` is not a protocol message, and an inbox refuses it (VAM-01-011).
+   The protocol names `Invite(Event)` as the one form; a received `Create(Event)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
 
