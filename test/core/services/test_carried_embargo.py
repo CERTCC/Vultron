@@ -26,7 +26,11 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.services.carried_embargo import store_carried_embargo
+from vultron.core.services.carried_embargo import (
+    carried_entry_embargo,
+    entry_embargo,
+    store_carried_embargo,
+)
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
@@ -152,3 +156,139 @@ def test_read_embargo_event_returns_the_held_record(
 def test_read_embargo_event_refuses_an_unheld_id(dl: SqliteDataLayer) -> None:
     with pytest.raises(VultronNotFoundError):
         read_embargo_event(dl, f"{_CASE}/embargo_events/missing")
+
+
+def _snapshot(**overrides: object) -> dict[str, object]:
+    embargo = _embargo()
+    return {
+        "type": "EmbargoEvent",
+        "id": embargo.id_,
+        "context": _CASE,
+        "endTime": embargo.end_time.isoformat(),
+        **overrides,
+    }
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize("key", ["id", "id_"])
+def test_an_entrys_inline_embargo_is_returned_unstored(
+    dl: SqliteDataLayer, key: str
+) -> None:
+    snapshot = _snapshot()
+    embargo_id = _embargo().id_
+    del snapshot["id"]
+    snapshot[key] = embargo_id
+
+    embargo = carried_entry_embargo(dl, _CASE, snapshot)
+
+    assert isinstance(embargo, EmbargoEvent)
+    assert embargo.id_ == embargo_id
+    assert dl.read(embargo_id) is None
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entrys_embargo_the_store_holds_needs_nothing(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    embargo = _embargo()
+    dl.create(embargo)
+    data: object = embargo.id_ if as_reference else _snapshot()
+
+    assert carried_entry_embargo(dl, _CASE, data) is None
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize("data", [None, "", {}, {"id": ""}, {"type": "x"}])
+def test_an_entry_naming_no_embargo_is_refused(
+    dl: SqliteDataLayer, data: object
+) -> None:
+    with pytest.raises(VultronValidationError, match="names no embargo"):
+        carried_entry_embargo(dl, _CASE, data)
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_an_entrys_bare_reference_the_store_lacks_is_refused(
+    dl: SqliteDataLayer,
+) -> None:
+    missing = f"{_CASE}/embargo_events/missing"
+
+    with pytest.raises(VultronNotFoundError) as excinfo:
+        carried_entry_embargo(dl, _CASE, missing)
+
+    assert excinfo.value.resource_id == missing
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_an_entrys_malformed_inline_embargo_is_refused(
+    dl: SqliteDataLayer,
+) -> None:
+    with pytest.raises(VultronValidationError, match="malformed"):
+        carried_entry_embargo(dl, _CASE, _snapshot(endTime="not a time"))
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.spec("EMB-18-004")
+def test_an_entrys_inline_embargo_of_another_case_is_refused(
+    dl: SqliteDataLayer,
+) -> None:
+    other_case = "https://example.org/cases/other"
+
+    with pytest.raises(VultronValidationError, match=other_case):
+        carried_entry_embargo(dl, _CASE, _snapshot(context=other_case))
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_an_entry_naming_a_held_non_embargo_record_is_refused(
+    dl: SqliteDataLayer,
+) -> None:
+    report = VulnerabilityReport(
+        id_="https://example.org/reports/r2", name="r", content="c"
+    )
+    dl.create(report)
+
+    with pytest.raises(VultronValidationError):
+        carried_entry_embargo(dl, _CASE, report.id_)
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.spec("CM-23-016")
+def test_an_entrys_inline_embargo_is_copied_as_carried_not_as_held(
+    dl: SqliteDataLayer,
+) -> None:
+    """The register copies the CASE_MANAGER's record, not a local copy."""
+    held = _embargo()
+    dl.create(held)
+
+    embargo = entry_embargo(dl, _CASE, _snapshot(content="Terms"))
+
+    assert embargo.content == "Terms"
+    assert held.content is None
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_an_entrys_bare_reference_reads_the_held_embargo(
+    dl: SqliteDataLayer,
+) -> None:
+    held = _embargo()
+    dl.create(held)
+
+    assert entry_embargo(dl, _CASE, held.id_).id_ == held.id_
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_an_entrys_unheld_bare_reference_is_not_found(
+    dl: SqliteDataLayer,
+) -> None:
+    with pytest.raises(VultronNotFoundError):
+        entry_embargo(dl, _CASE, f"{_CASE}/embargo_events/missing")
+
+
+@pytest.mark.spec("EMB-18-004")
+def test_an_entrys_copied_embargo_of_another_case_is_refused(
+    dl: SqliteDataLayer,
+) -> None:
+    other_case = "https://example.org/cases/other"
+
+    with pytest.raises(VultronValidationError, match=other_case):
+        entry_embargo(dl, _CASE, _snapshot(context=other_case))

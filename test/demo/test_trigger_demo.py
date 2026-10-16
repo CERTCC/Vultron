@@ -18,9 +18,15 @@ does) and asserted on its own settled outcome *before* teardown resets the
 stores, rather than only on "no ERROR SUMMARY" (#2241).
 """
 
+import logging
+
 import pytest
 
-from test.demo._helpers import make_client, route_exchange_demo_at_testclient
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    make_client,
+    route_exchange_demo_at_testclient,
+)
 from vultron.adapters.driven.datalayer_sqlite import get_datalayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -41,15 +47,21 @@ def demo_env(client):
         yield base
 
 
-def _run(base: str, demo_fn):
+def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
     """Run *demo_fn*; return ``(link, vendor_rm)`` read before teardown.
 
     *link* is the vendor's report link; *vendor_rm* is the vendor's RM state as
     a participant of the linked case, or ``None`` when there is no such case.
+    The finder must take the vendor's case introduction on the trusted route
+    (CBT-01-005, #4675).
     """
     reset_demo_failures()
     client = make_client(base)
-    with demo_environment(client) as (finder, vendor, coordinator):
+    with (
+        caplog.at_level(logging.WARNING),
+        expect_trusted_introductions(caplog),
+        demo_environment(client) as (finder, vendor, coordinator),
+    ):
         demo_fn(client, finder, vendor, coordinator)
         assert_demo_success()
         dl = get_datalayer(vendor.id_)
@@ -70,15 +82,15 @@ def _run(base: str, demo_fn):
         return link, vendor_rm
 
 
-def test_validate_and_engage_settles_on_an_accepted_case(demo_env):
+def test_validate_and_engage_settles_on_an_accepted_case(demo_env, caplog):
     """Validate then engage: the report is VALID and the vendor ACCEPTED a case."""
-    link, vendor_rm = _run(demo_env, demo.demo_validate_and_engage)
+    link, vendor_rm = _run(demo_env, demo.demo_validate_and_engage, caplog)
     assert link.rm_state == RM.VALID
     assert link.case_id is not None
     assert vendor_rm == RM.ACCEPTED
 
 
-def test_invalidate_and_close_settles_closed(demo_env):
+def test_invalidate_and_close_settles_closed(demo_env, caplog):
     """Invalidate then close: the report is RM.CLOSED, never engaged.
 
     The CaseActor still creates the case when the report arrives (the vendor's
@@ -88,7 +100,7 @@ def test_invalidate_and_close_settles_closed(demo_env):
     (CLP-10-013) and the vendor's replica replays that entry, so its own
     participant ends ``RM.CLOSED`` too.
     """
-    link, vendor_rm = _run(demo_env, demo.demo_invalidate_and_close)
+    link, vendor_rm = _run(demo_env, demo.demo_invalidate_and_close, caplog)
     assert link.rm_state == RM.CLOSED
     assert link.case_id is not None
     assert vendor_rm == RM.CLOSED

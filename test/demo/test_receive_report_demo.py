@@ -13,7 +13,10 @@
 
 import pytest
 
-from test.demo._helpers import route_exchange_demo_at_testclient
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    route_exchange_demo_at_testclient,
+)
 from vultron.demo.exchange import receive_report_demo as demo
 
 
@@ -24,12 +27,15 @@ def demo_env(client):
         yield
 
 
+# By name, looked up at run time: another module's fixture reloads ``demo``
+# on teardown, and a function object captured at collection then matches no
+# entry of the reloaded ``_ALL_DEMOS``, so ``main`` would silently run nothing.
 @pytest.mark.parametrize(
-    "demo_fn",
+    "demo_name",
     [
-        demo.demo_validate_report,
-        demo.demo_invalidate_report,
-        demo.demo_invalidate_and_close_report,
+        "demo_validate_report",
+        "demo_invalidate_report",
+        "demo_invalidate_and_close_report",
     ],
     ids=[
         "validate_report",
@@ -37,7 +43,7 @@ def demo_env(client):
         "invalidate_and_close_report",
     ],
 )
-def test_demo(demo_env, demo_fn, caplog):
+def test_demo(demo_env, demo_name, caplog):
     """
     Tests that each demo workflow completes successfully with no errors.
 
@@ -47,11 +53,19 @@ def test_demo(demo_env, demo_fn, caplog):
 
     Regression test for bug: setup_clean_environment does not clear ACTOR_IO_STORE,
     causing demos 2 and 3 to fail with KeyError when re-initializing actor IOs.
+
+    The finder submits through its own ``submit-report`` trigger, so it takes
+    the vendor's case introduction on the trusted route (CBT-01-005, #4675).
     """
     import logging
 
-    with caplog.at_level(logging.ERROR):
-        demo.main(skip_health_check=True, demos=[demo_fn])
+    # WARNING, not ERROR: a refused case introduction (CBT-01-011) is logged
+    # at WARNING, and the run must log none (#4675).
+    with (
+        caplog.at_level(logging.WARNING),
+        expect_trusted_introductions(caplog),
+    ):
+        demo.main(skip_health_check=True, demos=[getattr(demo, demo_name)])
 
     assert "ERROR SUMMARY" not in caplog.text, (
         "Expected demo to succeed, but got errors:\n" + caplog.text

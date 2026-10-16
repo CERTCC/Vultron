@@ -176,10 +176,11 @@ embargo *in force* inside a proposal path is a defect: coverage never breaks
 during a revision, and a rejected revision must not strand its signatories.
 
 **A revision Invite lands on the revision's own row** (EP-09-004). It cannot
-touch the `AGREED` row that binds a signatory. The `INVITE` write belongs to the
-CASE_MANAGER's commit of each relayed Invite (`RelayEmbargoInviteToEachNode`)
-and its replica replay (`ApplyEmbargoInviteFromLedgerNode`), both through
-`EmbargoLifecycle.record_embargo_invite()`. That uses
+touch the `AGREED` row that binds a signatory. The `INVITE` is decided at the
+CASE_MANAGER's commit of each relayed Invite (`RelayEmbargoInviteToEachNode`),
+through `EmbargoLifecycle.record_embargo_invite()` on a staged store, and is
+committed as its own `Update(EmbargoConsent)` entry right after the Invite's,
+which every replica copies (the Invite's own slot writes no row). The decision uses
 `apply_pec_transition_if_legal()`, the one sanctioned "apply where legal" shape:
 an `AGREED` or already-`INVITED` row is a recorded no-op; every other caller
 stays fail-closed. Re-inviting a row still `INVITED` replaces its deadline
@@ -272,7 +273,27 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   reported deferred, never patched over. An entry whose result the replica
   already holds (saved, but not yet stored, before a stop) is an idempotent
   no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
-  entry that would change nothing.
+  entry that would change nothing. So is a refused entry the case file is
+  already past (`case_file_is_past()`): a joiner's seed is taken after entries
+  it then replays from genesis, so replay moves forward only (CM-23-016,
+  ADR-0114). A missing register entry, participant or row stays a refusal.
+- **Decide on a stage, record by diff** (#4715). An arm whose decision is an
+  existing `EmbargoLifecycle` operation runs it on a `StagedCasePersistence`
+  and lets `decided_entries.py` turn what it would have written into the
+  entries: the act's register step, then one row entry per changed row, in
+  roster order. The proposal's rows are `Create`s (the proposer's `AGREED`,
+  every other `UNINVITED`); a relayed Invite's, the manager's policy
+  consent's and a re-issued stub's are `Update`s. A participant's
+  `Accept`/`Reject(Invite(EmbargoEvent))` is the exception ADR-0122 names: its
+  own entry carries the row it states (`ConsentRowChange.answer()`), so no
+  second entry follows, and a received answer that would record nothing the
+  case can take is refused among its guards (`EmbargoAnswerAppliesNode`)
+  before it is committed. A decision that wrote anything no entry carries
+  raises `VultronBTInternalError`.
+- **Fan-out follows the commit.** Every entry of an act is committed before
+  the act is applied, so each is fanned out to the participants entitled
+  before the act: a signatory that an activation lapses still receives the
+  activation's entries, as on the received path.
 
 ---
 
@@ -340,17 +361,19 @@ ledger entries (`vultron/core/models/rsvp_deadline.py`, trees in
 
 | Situation | Behaviour |
 |---|---|
-| `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `TIME_OUT` on that row only (CM-28-005) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: row → `AGREED`, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
+| `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-014) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: entry `HONOUR_LATE_ACCEPT_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
 | Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | acknowledge as a no-op; rows and case participation unchanged (EMB-17-004) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
-to coordinate. Each entry follows guard → commit → effect (CLP-10-006): a failed
-commit leaves the row `INVITED`. A non-manager writes nothing and gets `REFUSED`
-from the gate. Replicas replay each entry through the same service method the
-manager used (`honour_late_accept()`, `record_invite_expiry()`), reading no
-clock: a replica learns an expiry and never computes one.
+to coordinate. Each decision follows decide → commit → apply (CLP-10-006,
+ADR-0124): the CASE_MANAGER decides the row first, commits the act's entry and
+then the row's own `Update(EmbargoConsent)` entry, and only then writes the row
+through the one apply function, so a failed commit leaves the row `INVITED`. A
+non-manager writes nothing and gets `REFUSED` from the gate. A replica copies
+the row from its `Update` entry and treats the act's entry as a record, reading
+no clock: a replica learns an expiry and never computes one (CM-23-016).
 
 ### Sweep due expiries before the owner decides (CM-28-015)
 
@@ -448,9 +471,12 @@ The owner's decision and each participant's consent are different messages
   marks the sender's row for that embargo `AGREED` and moves no register entry.
 - `WithdrawFromEmbargoOnCaseReceivedUseCase` (`Leave(EmbargoEvent)`) declines
   the sender's `AGREED` row for the embargo in force and its agreed revisions,
-  and moves no register entry. Its guard sits ahead of the commit, so a refused
-  Leave is never ledgered; the withdrawer's replica still receives the entry,
-  because the fan-out runs at the commit, before the effect makes it inactive.
+  and moves no register entry. Its guards sit ahead of the commit, the
+  CASE_MANAGER's staged decision among them, so a refused Leave is never
+  ledgered. The Leave's entry carries no row: each declined row follows as the
+  CASE_MANAGER's own `Update(EmbargoConsent)` entry, which every replica copies
+  (ADR-0124, #4717). The withdrawer's replica still receives the Leave and every
+  row entry, because each is committed before the rows make it inactive.
   A redelivery of a Leave the ledger already records is `SKIPPED`, not
   refused (HP-01-003); a new Leave after the withdrawal is still refused.
 - `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,

@@ -17,8 +17,7 @@
 
 ``TerminationIsTimelyNode`` and ``EmbargoEndTimePassedNode`` compare a
 claimed time with the end time of the embargo in force (ADR-0122,
-EMB-13-003); ``CommitEmbargoTeardownNode`` reads the recorded termination
-back from the register (EMB-13-004).
+EMB-13-003).
 """
 
 import logging
@@ -35,16 +34,12 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.end_time_tree import (
     EmbargoEndTimePassedNode,
 )
-from vultron.core.behaviors.embargo.nodes.manager_commit import (
-    CommitEmbargoTeardownNode,
-)
 from vultron.core.behaviors.embargo.nodes.teardown import (
     TerminationIsTimelyNode,
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import EmbargoTermination
-from vultron.errors import BtNodePreconditionError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 ACTOR = "https://example.org/actors/manager"
@@ -134,11 +129,40 @@ def test_end_time_passed_node_never_ends_an_embargo_it_cannot_read(
     )
 
 
-@pytest.mark.spec("EMB-13-004")
-def test_teardown_commit_refuses_to_build_before_the_register_write() -> None:
-    dl, case = _store(end_time=now_utc())
-    node = CommitEmbargoTeardownNode(case_id=case.id_)
-    node.datalayer = dl
+@pytest.mark.spec("CLP-10-006")
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.parametrize("trial_refuses", [False, True])
+def test_timely_guard_trial_applies_the_step_the_remove_names(
+    trial_refuses: bool,
+) -> None:
+    """With the named embargo in force, the guard runs the ``TERMINATE``
+    step through the one apply function before intake commits (ADR-0124):
+    a refused step refuses the act."""
+    from unittest.mock import patch
 
-    with pytest.raises(BtNodePreconditionError, match="records no embargo"):
-        node._recorded_termination()
+    from vultron.core.behaviors.embargo.nodes import teardown
+    from vultron.errors import VultronEntryRefusedError
+
+    dl, case = _store(end_time=now_utc() + timedelta(days=1))
+    node = TerminationIsTimelyNode(
+        case_id=case.id_,
+        termination=EmbargoTermination.early(),
+        terminated_at=None,
+        embargo_id=f"{case.id_}/embargo_events/e1",
+    )
+
+    with patch.object(
+        teardown,
+        "trial_apply",
+        wraps=teardown.trial_apply,
+        side_effect=(
+            VultronEntryRefusedError("does not apply")
+            if trial_refuses
+            else None
+        ),
+    ) as trial:
+        status = _tick(node, dl)
+
+    trial.assert_called_once()
+    assert status == (Status.FAILURE if trial_refuses else Status.SUCCESS)
+    assert cast(VulnerabilityCase, dl.read(case.id_)).em_state.name == "ACTIVE"

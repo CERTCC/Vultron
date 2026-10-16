@@ -114,6 +114,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   A re-invite of a participant that has closed is refused.
   When the active embargo is activated, revised or terminated while a stub Invite is outstanding, the CASE_MANAGER sends a replacement with the current terms and a new deadline.
   The replacement names the Invite it supersedes in the standard AS2 `inReplyTo` property.
+  The replacement is also an invitation to the embargo now in force: the CASE_MANAGER marks the invitee's consent row for that embargo `INVITED` with the replacement's deadline, and records the row as its own ledger entry after the replacement's.
+  With no embargo in force, no consent row changes.
   An `Accept` of the superseded Invite is refused, naming the replacement, and a `Reject` of it is honored ([CM-11-016](../specs/protocol.md#cm-11-016)).
 - **Ask kind:** the Invite closes on `Accept` or `Reject` of it (`INVITE_ACTOR_TO_CASE_REPLY_TYPES`), and its expiry is stale: a late reply is still processed ([ASK-03-008](../specs/protocol.md#ask-03-008)).
 - **Example artifact:** [invite_to_case.json](../examples/invite_to_case.json).

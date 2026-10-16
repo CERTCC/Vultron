@@ -21,28 +21,47 @@ them to the canonical case.  :class:`ApplyEmbargoActivationFromLedgerNode`
 and :class:`ApplyEmbargoProposalRejectionFromLedgerNode` apply the same
 decision on a participant replica from the committed entry, so the replica's
 embargo register follows the CASE_MANAGER's without the activity reaching the
-replica directly (PCR-03-001).  Like ``ApplyEmbargoTeardownNode`` they go
-through ``EmbargoLifecycle`` in ``OBSERVED`` mode (EMB-18-001): the
-CASE_MANAGER already decided, so the replica syncs to the decision rather
-than re-adjudicating it.
+replica directly (PCR-03-001).
+
+The activation copies (ADR-0124, CM-23-016): the ``Accept`` entry is the
+whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in force
+included, and the owner's agreement it states, applied through the one apply
+function the CASE_MANAGER uses.  Each ``CARRY_OVER`` row is its own
+CASE_MANAGER ``Update(EmbargoConsent)`` entry, which the consent slot copies.
+The rejection still goes through ``EmbargoLifecycle`` in ``OBSERVED`` mode
+(EMB-18-001) until its arm is converted (#4715).
 """
 
 from __future__ import annotations
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.lifecycle import SetEmbargoActiveNode
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     _EmbargoRelayEffectNode,
 )
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
+    ApplyEmbargoChangeFromLedgerNode,
+)
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SingleEventTypeNode,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.embargo_apply import (
+    EmbargoCaseFile,
+    EmbargoChange,
+    RegisterStep,
+    RegisterStepKind,
+)
+from vultron.core.models.embargo_consent_move import owner_agreement
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.services.carried_embargo import carried_entry_embargo
 from vultron.core.services.embargo_lifecycle import TransitionMode
+from vultron.errors import VultronError
 
 #: Ledger ``event_type`` of the case owner's committed activation.
 EMBARGO_ACTIVATION_EVENT_TYPE = MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value
@@ -76,46 +95,67 @@ class IsRejectEmbargoProposalEventNode(_SingleEventTypeNode):
     matched_event_type = EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE
 
 
-class ApplyEmbargoActivationFromLedgerNode(_EmbargoRelayEffectNode):
-    """Activate the entry's embargo on the replica (EM → ACTIVE).
+class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
+    """Copy the owner's activation onto the replica (EM → ACTIVE or REVISE).
 
-    Stores the ``EmbargoEvent`` the entry carries inline when the replica does
-    not hold it (EMB-18-003), then runs ``SetEmbargoActiveNode`` in
-    ``OBSERVED`` mode, which calls ``EmbargoLifecycle.activate_embargo``: the
-    register activates the embargo, the owner's agreement is recorded, and
-    signatories carry over to a revision that ends no later (EP-05-001).  An
-    embargo already in force is a no-op, so a re-delivered entry changes
-    nothing.
+    The entry's ``object`` names the embargo.  The change is the
+    ``ACTIVATE`` step (with the ``SUPERSEDE`` of the embargo in force), then
+    the owner's ``AGREED`` row the ``Accept`` states, decided from the case
+    file as the step leaves it, exactly as the CASE_MANAGER decided it
+    (:func:`~vultron.core.models.embargo_consent_move.owner_agreement`).  No
+    carry-over is computed here: each is its own entry (EP-05-001).
 
-    SUCCESS with nothing written when the replica holds no copy of the case
-    (Regime 2, ADR-0087).  FAILURE, so the entry is not persisted
-    (SYNC-12-001), when the entry names no embargo, names one the replica can
-    neither find nor reconstruct, or the activation fails.
+    The embargo's record is stored from the copy the entry carries when this
+    replica does not hold it, once the step has applied (EMB-18-003); a bare
+    id it does not hold, or a copy that belongs to another case, fails.
+    An embargo already activated is in place, so a re-delivered entry changes
+    nothing.  An entry naming an embargo that is not an open proposal here
+    is refused into the gap buffer (ADR-0124); one that names no embargo
+    fails, so it is not persisted (SYNC-12-001).  SUCCESS with nothing
+    written when the replica holds no copy of the case (Regime 2, ADR-0087).
     """
 
     def update(self) -> Status:
+        # The register entry this activates names an embargo this store must
+        # hold (EMB-18-003).  The entry carries it inline: check it here,
+        # store it once the step has applied, so a refused entry stores
+        # nothing.
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         entry = self._get_entry()
-        resolved = self._resolve(entry.payload_snapshot.get("object"))
-        if isinstance(resolved, Status):
-            return resolved
-        case, embargo_id = resolved
-        status = self._delegate(
-            SetEmbargoActiveNode(
-                case_id=case.id_,
-                embargo_id=embargo_id,
-                transition_mode=TransitionMode.OBSERVED,
-                name=f"{self.name}.SetEmbargoActive",
-            )
-        )
-        if status == Status.SUCCESS:
-            self.logger.info(
-                "%s: replayed activation of embargo '%s' on case '%s'"
-                " (RSH-08-004)",
-                self.name,
-                embargo_id,
-                case.id_,
-            )
+        pending: EmbargoEvent | None = None
+        if self._resolve_case_replica(entry.case_id) is not None:
+            try:
+                pending = carried_entry_embargo(
+                    self.datalayer,
+                    entry.case_id,
+                    entry.payload_snapshot.get("object"),
+                )
+            except VultronError as exc:
+                self.feedback_message = f"{self.name}: {exc}"
+                self.logger.warning("%s", self.feedback_message)
+                return Status.FAILURE
+        status = super().update()
+        if status == Status.SUCCESS and pending is not None:
+            self.datalayer.save(pending)
         return status
+
+    def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
+        embargo_id = _extract_id_from_field(
+            entry.payload_snapshot.get("object")
+        )
+        if not embargo_id:
+            raise TypeError("the Accept names no EmbargoEvent")
+        return RegisterStep(kind=RegisterStepKind.ACTIVATE, embargo=embargo_id)
+
+    def _stated_changes(
+        self, entry: CaseLedgerEntry, after: EmbargoCaseFile
+    ) -> list[EmbargoChange]:
+        change = self._change(entry)
+        assert isinstance(change, RegisterStep)
+        agreement = owner_agreement(after, change.embargo_id)
+        return [agreement] if agreement is not None else []
 
 
 class ApplyEmbargoProposalRejectionFromLedgerNode(_EmbargoRelayEffectNode):

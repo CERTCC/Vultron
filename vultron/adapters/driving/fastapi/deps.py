@@ -64,7 +64,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.ledger_stream import SHUTDOWN_STATE_KEY
-from vultron.core.behaviors.embargo.end_time_tree import end_time_case_upkeep
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
@@ -252,20 +251,9 @@ def get_trigger_dispatcher(
     (``vultron/core/ports/AGENTS.md``).
     """
     cop = outbox_store(dl)
-    trigger_activity = TriggerActivityAdapter(cop)
-    wire_render_port = As2WireRenderAdapter()
-    sync_port = SyncActivityAdapter(cop)
-    ports = {
-        "trigger_activity": trigger_activity,
-        "wire_render_port": wire_render_port,
-        "sync_port": sync_port,
-    }
     return RegistryTriggerDispatcher(
         trigger_registry_entries(),
-        trigger_activity=trigger_activity,
-        wire_render_port=wire_render_port,
-        sync_port=sync_port,
-        # The CASE_MANAGER's lazy end-time check runs before each trigger it
-        # handles for a case, as before each inbound activity (EMB-13-003).
-        case_upkeep=(end_time_case_upkeep(lambda _dl: ports),),
+        trigger_activity=TriggerActivityAdapter(cop),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(cop),
     )

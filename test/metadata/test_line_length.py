@@ -215,12 +215,13 @@ class TestMarkdownlintConfig:
         assert _markdownlint_config(rel_dir) == {"config": {"MD013": False}}
 
     def test_no_other_directory_overrides_the_root_config(self):
+        # Parts relative to the root: a checkout inside an agent worktree
+        # (``.claude/worktrees/...``) must not exclude every file.
         found = {
             p.parent.relative_to(REPO_ROOT).as_posix()
             for p in REPO_ROOT.glob("**/.markdownlint-cli2.yaml")
-            if ".venv" not in p.parts
-            and "node_modules" not in p.parts
-            and ".claude" not in p.parts
+            if not {".venv", "node_modules", ".claude"}
+            & set(p.relative_to(REPO_ROOT).parts)
         }
         assert found == {".", *MD013_EXEMPT_DIRS}
 

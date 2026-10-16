@@ -23,11 +23,16 @@ what a missing reporter costs; the lookup is shared.
 
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 
 def report_author_id(dl: CasePersistence, report_id: str) -> str:
     """Return the actor id the stored report *report_id* is attributed to.
+
+    The id is the report author's spelling, so it is returned normalised with
+    :func:`normalise_actor_id`: the reporter is then the same participant key
+    as a proposer that names the same actor (#4772).
 
     Raises:
         VultronNotFoundError: If no ``VulnerabilityReport`` is stored under
@@ -42,7 +47,7 @@ def report_author_id(dl: CasePersistence, report_id: str) -> str:
         raise BtNodePreconditionError(
             f"report '{report_id}' has no attributed_to"
         )
-    return author
+    return normalise_actor_id(author)
 
 
 __all__ = ["report_author_id"]

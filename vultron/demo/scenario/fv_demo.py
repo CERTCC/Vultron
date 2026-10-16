@@ -226,7 +226,7 @@ def finder_submits_report(
     vendor_client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    finder_client: DataLayerClient | None = None,
+    finder_client: DataLayerClient,
 ) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Scenario alias for :func:`~vultron.demo.helpers.workflow.reporter_submits_report`.
 

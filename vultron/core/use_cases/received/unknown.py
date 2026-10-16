@@ -21,6 +21,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
@@ -45,8 +46,12 @@ class UnknownUseCase:
         request: UnknownReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        # The received baseline supplies the trigger port to every use case;
+        # this one runs no tree that builds an activity, so it is unused.
+        del trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: UnknownReceivedEvent = request
@@ -74,8 +79,10 @@ class UnresolvableObjectUseCase:
         request: UnresolvableObjectReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request = request
@@ -93,6 +100,7 @@ class UnresolvableObjectUseCase:
         tree = create_store_dead_letter_tree(request=request)
         bridge = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )

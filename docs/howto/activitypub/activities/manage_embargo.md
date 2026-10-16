@@ -158,7 +158,8 @@ It is not an answer to an Invite, so you need no `Invite(Event)` to withdraw: a 
    The trigger reads the embargo in force from your copy of the case.
 2. The trigger sends `Leave(Event)` to the CASE_MANAGER.
    The CASE_MANAGER marks your consent row for the embargo in force `DECLINED`, and also every row you had marked `AGREED` for an open revision, because each open revision replaces the embargo you left.
-   It commits the withdrawal to the case ledger, and your own copy of the case changes when that entry reaches you.
+   It commits the withdrawal to the case ledger, then each consent row it declines as an entry of its own.
+   Your own copy of the case changes when those entries reach you.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-withdrawal.md" %}
 
