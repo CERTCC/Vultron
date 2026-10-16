@@ -6,7 +6,8 @@ level: 400
 # How to Post a Status Update or a Case Note
 
 Use this guide to tell the other participants something: that your fix is ready, that the vulnerability is now public, or anything that needs narrative rather than a state change.
-A status update is one `as:Add` that carries the new status inline and attaches it, and a note is one `as:Add` that carries the note inline and attaches it.
+A status update is one `as:Add` that carries the new status inline and attaches it.
+A note is sent the same way: one `as:Add` that carries the note inline.
 You finish with the update committed to the case ledger and replicated to every participant.
 
 ---

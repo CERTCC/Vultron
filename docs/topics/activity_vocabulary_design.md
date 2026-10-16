@@ -141,7 +141,7 @@ flowchart TB
     AddNoteToCase -.-> AddStatusToCase
 ```
 
-The diagram shows a note being posted with the note inline, a received `Create(Note)` that also attaches a note, and each status being attached with the status inline.
+The diagram shows a note posted with the note inline, a received `Create(Note)` that also attaches a note, and each status attached inline.
 The dotted arrows show attachments that can follow from one another: a participant status update can lead to a case status update, and a note can lead to either.
 
 ### ActivityStreams does not force the split
