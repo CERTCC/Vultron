@@ -2081,8 +2081,10 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     A participant whose closure the case records (RM ``CLOSED``) may act on
     nothing further, except that a repeat of an act that would close it
     again changes nothing and is reported ``SKIPPED``, whatever its activity
-    id (ID-05-003).  This node is the check the closed-sender pre-flight runs
-    before a handler's received tree
+    id (ID-05-003).  This node is the closed-sender door guard the
+    receive-tree factory places
+    (:func:`vultron.core.behaviors.sender_guard.closed_sender_door`), and the
+    check the closed-sender pre-flight still runs before some handlers' trees
     (:func:`vultron.core.use_cases.received._sender_preflight.closed_sender_preflight`),
     built by :func:`vultron.core.behaviors.sender_guard.closed_sender_guard`.
 

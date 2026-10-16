@@ -22,12 +22,16 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.sender_entitlement import (
+    SenderClosureNotRecordedNode,
     SenderEntitlementKind,
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
     SenderCheckContext,
     case_owner_guard,
+    closed_sender_door,
+    closed_sender_turned_away,
     compose_sender_guard,
     sender_guard_refused,
 )
@@ -126,3 +130,39 @@ def test_a_failing_sender_node_at_the_root_that_was_not_composed_is_not_the_guar
     _ran(own_check, Status.FAILURE)
 
     assert not sender_guard_refused(_root(guard, own_check))
+
+
+@pytest.mark.spec("CM-23-018")
+def test_a_run_that_ended_at_the_closed_sender_door_names_the_closure() -> (
+    None
+):
+    door = closed_sender_door(CASE_ID, ClosedSenderCheck(sender_id=SENDER_ID))
+    guard = next(
+        n
+        for n in door.iterate()
+        if isinstance(n, SenderClosureNotRecordedNode)
+    )
+    _ran(door, Status.FAILURE)
+    guard.sender_closed = True
+    guard.feedback_message = "closed (CM-23-018)"
+
+    root = _root(door)
+    assert closed_sender_turned_away(root) == "closed (CM-23-018)"
+    assert not sender_guard_refused(root)
+
+
+@pytest.mark.spec("CM-23-018")
+def test_a_run_that_failed_elsewhere_did_not_end_at_the_closed_sender_door() -> (
+    None
+):
+    door = closed_sender_door(
+        CASE_ID,
+        ClosedSenderCheck(sender_id=SENDER_ID, case_owner_completes=True),
+    )
+    guard = _guard(SenderRule.in_case(SenderEntitlementKind.PARTICIPANT))
+    _ran(door, Status.SUCCESS)
+    _ran(guard, Status.FAILURE)
+
+    root = _root(door, guard)
+    assert closed_sender_turned_away(root) is None
+    assert sender_guard_refused(root)

@@ -36,6 +36,7 @@ __all__ = [
     "AuthoredObject",
     "CaseBootstrapRequest",
     "CaseProposalRequest",
+    "ClosedSenderCheck",
     "LedgerActivityContext",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
@@ -200,6 +201,26 @@ class LedgerActivityContext:
 
 #: Either kind of context :func:`compose_sender_guard` composes a guard for.
 SenderContext = SenderCheckContext | LedgerActivityContext
+
+
+@dataclass(frozen=True)
+class ClosedSenderCheck:
+    """A door guard: the case must not record the sender's closure (CM-23-018).
+
+    The receive-tree factory builds it on the tree's case, after the
+    post-close boundary and before the sender guard, for a tree whose act may
+    close its sender.
+
+    Attributes:
+        sender_id: The activity's sender.
+        case_owner_completes: The act closes the case as well, so the Case
+            Owner's repeat is not a repeat: it runs again to complete a
+            closure a failed first delivery left part-way (CM-23-002), and
+            the check passes for it.
+    """
+
+    sender_id: str
+    case_owner_completes: bool = False
 
 
 def embargo_sender_context(

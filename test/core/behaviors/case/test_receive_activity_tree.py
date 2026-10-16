@@ -47,9 +47,13 @@ from vultron.core.behaviors.replica_emit_exemptions import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
+    SenderIsParticipantNode,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
@@ -1001,3 +1005,39 @@ class TestClockDecisionOutcomes:
         assert result.status is Status.FAILURE
         assert result.internal_error is True
         assert after.ran == 0
+
+
+class TestClosedSenderStage:
+    """The closed-sender door guard (CM-23-018) is placed by the factory."""
+
+    @pytest.mark.spec("CM-23-018")
+    def test_it_follows_the_post_close_guard_and_precedes_the_sender_guard(
+        self,
+    ) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            closed_sender=ClosedSenderCheck(sender_id="https://example.org/a"),
+            sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+            sender_context=SenderCheckContext(
+                sender_id="https://example.org/a", case_id=CASE_ID
+            ),
+        )
+        names = [child.name for child in tree.children]
+        door = names.index("SenderClosureNotRecordedNode")
+        assert names.index(POST_CLOSE) < door
+        assert tree.children[door] in tree.door_guards
+        assert isinstance(tree.children[door + 1], SenderIsParticipantNode)
+
+    @pytest.mark.spec("CM-23-018")
+    def test_a_tree_with_no_case_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="closed_sender"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=None,
+                precondition_guards=[],
+                closed_sender=ClosedSenderCheck(
+                    sender_id="https://example.org/a"
+                ),
+            )

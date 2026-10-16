@@ -30,9 +30,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     reference_edit_verdict,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._sender_preflight import (
-    closed_sender_preflight,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -43,7 +40,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import sender_guard_refused
+from vultron.core.behaviors.sender_guard import (
+    closed_sender_turned_away,
+    sender_guard_refused,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,26 +192,6 @@ class CloseCaseReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # A sender already closed repeats a closing act: its effect is in
-        # place, so it is SKIPPED whatever its activity id, with nothing
-        # committed or sent (CM-23-018, ID-05-003).
-        repeat = closed_sender_preflight(
-            self._dl,
-            receiving_actor_id,
-            request,
-            case_id=case_id,
-            sender_actor_id=request.actor_id,
-            closes=True,
-            label="Leave(VulnerabilityCase)",
-            sync_port=self._sync_port,
-            # A Case Owner's redelivered Leave completes a case closure a
-            # failed first delivery left part-way (CM-23-002).
-            case_owner_completes=True,
-        )
-        if repeat is not None:
-            logger.info("CloseCaseReceivedUseCase: %s", repeat.reason)
-            return repeat
-
         logger.info(
             "Actor '%s' is closing case '%s'",
             request.actor_id,
@@ -240,6 +220,19 @@ class CloseCaseReceivedUseCase:
             # The case is fully closed: nothing was recorded, and the sender
             # got a Reject only under PostCloseReply.REJECT (CM-23-013).
             return refusal
+        if (closed := closed_sender_turned_away(tree)) is not None:
+            # A sender already closed repeats a closing act: its effect is in
+            # place, so it is SKIPPED whatever its activity id, with nothing
+            # committed or sent (CM-23-018, ID-05-003).
+            verdict_from_bt(
+                tree, result, label="CloseCaseBT"
+            )  # raises on error
+            reason = (
+                f"Leave(VulnerabilityCase): {closed} — a repeat of a closing"
+                " act, nothing to apply (ID-05-003)"
+            )
+            logger.info("CloseCaseReceivedUseCase: %s", reason)
+            return HandlerResult.skipped(reason)
         if sender_guard_refused(tree):
             # No standing: refused before the close/decline decision, with
             # nothing committed, declined or sent (HP-01-006).

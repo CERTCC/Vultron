@@ -266,7 +266,9 @@ guards, commit, effects.
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
    door guard as a one-node tree ahead of the received tree: that is the
    chained shape CLP-10-005 forbids (ADR-0135), and `closed_sender_preflight`
-   (`_sender_preflight.py`) is the last one left (#4773), so add no caller. A tree
+   (`_sender_preflight.py`) is the last one left (#4773), so add no caller: pass
+   `closed_sender=ClosedSenderCheck(...)` to the factory instead, which places
+   the check after the addressee check (the close-case tree does). A tree
    opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
    nodes that answer the refusal; only the close-case tree passes one
    (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other

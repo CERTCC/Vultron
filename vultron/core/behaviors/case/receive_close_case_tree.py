@@ -88,7 +88,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
+)
 from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
 from vultron.errors import VultronWiringError
 
@@ -550,6 +553,12 @@ def create_close_case_received_tree(
         name="CloseCaseBT",
         case_id=None,
         precondition_guards=[],
+        # A sender whose closure the case records repeats a closing act; the
+        # Case Owner's Leave also closes the case, so its repeat runs again
+        # to finish a closure left part-way (CM-23-018, CM-23-002).
+        closed_sender=ClosedSenderCheck(
+            sender_id=sender_actor_id, case_owner_completes=True
+        ),
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id

@@ -56,8 +56,9 @@ names no case is refused under a rule with no ``outside_case`` side; ``ANY_ACTOR
 no node, so a rule that admits any actor composes no guard at all.
 
 The context records live in :mod:`vultron.core.behaviors.sender_check_context`
-and are re-exported here.  Beside the composer sit the two pre-flight builders
-(:func:`closed_sender_guard`, :func:`case_owner_guard`) and
+and are re-exported here.  Beside the composer sit the closed-sender door
+(:func:`closed_sender_door`, built from :func:`closed_sender_guard` and
+:func:`case_owner_guard`, read back by :func:`closed_sender_turned_away`) and
 :func:`sender_guard_refused`, which tells a handler its run ended at the
 composed guard.
 """
@@ -75,6 +76,7 @@ from vultron.core.behaviors.sender_check_context import (
     AuthoredObject,
     CaseBootstrapRequest,
     CaseProposalRequest,
+    ClosedSenderCheck,
     LedgerActivityContext,
     OwnershipOfferRequest,
     ReportOfferRequest,
@@ -115,12 +117,15 @@ __all__ = [
     "CaseBootstrapRequest",
     "case_owner_guard",
     "CaseProposalRequest",
+    "ClosedSenderCheck",
     "LedgerActivityContext",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
     "SenderCheckContext",
     "SenderContext",
+    "closed_sender_door",
     "closed_sender_guard",
+    "closed_sender_turned_away",
     "compose_sender_guard",
     "embargo_sender_context",
     "sender_guard_refused",
@@ -172,6 +177,56 @@ def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
         if child.status is Status.FAILURE:
             return _is_composed_guard(child)
     return False
+
+
+#: The attribute :func:`closed_sender_door` sets on the door it returns,
+#: holding the closure check inside it.
+_CLOSED_SENDER_MARK = "_vultron_closed_sender_check"
+
+
+def closed_sender_door(
+    case_id: str, check: ClosedSenderCheck
+) -> py_trees.behaviour.Behaviour:
+    """The closed-sender door guard the receive-tree factory places.
+
+    It fails when the case records the sender's closure (CM-23-018), unless
+    *check* lets the Case Owner complete the case's closure and the sender
+    is its Case Owner (CM-23-002).  :func:`closed_sender_turned_away` reads
+    whether a run ended there.
+    """
+    guard = closed_sender_guard(case_id, check.sender_id)
+    door: py_trees.behaviour.Behaviour = guard
+    if check.case_owner_completes:
+        door = py_trees.composites.Selector(
+            name="SenderOpenOrClosingCaseOwner",
+            memory=False,
+            children=[guard, case_owner_guard(case_id, check.sender_id)],
+        )
+    setattr(door, _CLOSED_SENDER_MARK, guard)
+    return door
+
+
+def closed_sender_turned_away(
+    root: py_trees.behaviour.Behaviour,
+) -> str | None:
+    """Why a received tree's run ended at its closed-sender door, or ``None``.
+
+    The factory places the door as one child of the tree's root Sequence; the
+    run ended there when the first child that failed is that door and its
+    check found the sender's closure recorded.  The reason names the sender
+    and the case (CM-23-018); the handler reports a repeated closing act as
+    ``SKIPPED`` (ID-05-003).
+    """
+    for child in root.children:
+        if child.status is Status.FAILURE:
+            guard = getattr(child, _CLOSED_SENDER_MARK, None)
+            if (
+                isinstance(guard, SenderClosureNotRecordedNode)
+                and guard.sender_closed
+            ):
+                return guard.feedback_message
+            return None
+    return None
 
 
 def case_owner_guard(
