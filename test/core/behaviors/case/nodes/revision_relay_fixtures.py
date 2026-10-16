@@ -90,7 +90,7 @@ def seed(
     records = [
         participant(MANAGER, CVDRole.CASE_MANAGER),
         participant(OWNER, CVDRole.VENDOR),
-        participant(REPORTER, CVDRole.FINDER),
+        participant(REPORTER, CVDRole.REPORTER),
     ]
     case = VulnerabilityCase(
         id_=CASE_ID,

@@ -16,6 +16,7 @@ related_specs:
   - specs/meta-specifications.yaml
 related_notes:
   - notes/demo-interactive-ui.md
+  - notes/demo-scenario-tree.md
   - notes/demo-ci-invariants.md
   - notes/demo-ci-diagnostics.md
   - notes/demo-ci-scenario-coverage.md
@@ -48,12 +49,9 @@ either resolves or fails a check (DEMOCI-11-003). If a scenario cannot satisfy a
 convention, change the convention or rename the file: an override field re-opens
 the drift channel for every scenario.
 
-**Planned: a scenario's place in the scenario tree.** The ADR-0098 amendment of
-2026-10-15 adds one more self-known fact: each scenario declares its branch on
-`@scenario` (parent, branch point, choice), and the scenario-tree index is a
-derived artifact of those declarations (#4726, #4727). Composition, where a
-branching story is written once as shared steps then one continuation per
-choice, is the target that retires the declarations (#4736). Not built yet.
+A scenario's place in the scenario tree, its full path, is the one further
+self-known fact the decorator will carry (DEMOCI-11-014). The design is planned
+in [demo-scenario-tree.md](demo-scenario-tree.md) and is not built yet.
 
 ## Registration means built; planned scenarios live in the other register
 

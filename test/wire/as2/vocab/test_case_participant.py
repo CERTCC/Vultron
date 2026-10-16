@@ -37,7 +37,7 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.objects.case_participant import (
     CoordinatorParticipant,
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
     as_CaseParticipant,
 )
@@ -185,7 +185,7 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
     def test_embargo_consents_present_in_subclasses(self):
         """embargo_consents is inherited by as_CaseParticipant subclasses."""
         for cls in [
-            FinderParticipant,
+            ReporterParticipant,
             VendorParticipant,
             CoordinatorParticipant,
         ]:
@@ -334,8 +334,9 @@ class TestParticipantStatusProperty(unittest.TestCase):
         latest = participant.participant_status
         self.assertIsNotNone(latest)
         assert latest is not None  # narrow for type checker
-        self.assertEqual(self.CS_vf.Vf, latest.vf_state)
-        self.assertEqual(self.RM.ACCEPTED, latest.rm_state)
+        assert latest.vf is not None
+        self.assertEqual(self.CS_vf.Vf, latest.vf.state)
+        self.assertEqual(self.RM.ACCEPTED, latest.rm.state)
 
     def test_returns_none_when_empty(self):
         """participant_status returns None when the list is empty."""

@@ -117,7 +117,8 @@ done < <( { git diff -z --no-renames --name-only "${rbase}" "${rhead}"
 echo "artifact=${artifact}"
 echo "reviewed_lines=${reviewed}"
 echo "delta_lines=${delta}"
-for f in "${delta_files[@]}"; do echo "delta_file=${f}"; done
+# ${arr[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under -u.
+for f in ${delta_files[@]+"${delta_files[@]}"}; do echo "delta_file=${f}"; done
 if [ "${reviewed}" -eq 0 ]; then
   echo "mode=full"
   echo "reason=the reviewed diff is empty"

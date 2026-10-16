@@ -251,7 +251,7 @@ class TestGetActionRulesUseCase:
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             context=CASE_ID,
-            case_roles=[CVDRole.FINDER],
+            case_roles=[CVDRole.REPORTER],
             participant_statuses=[],
         )
         layer.create(participant)

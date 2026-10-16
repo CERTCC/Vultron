@@ -67,9 +67,11 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.triggers.case import SvcAddObjectToCaseUseCase
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
+    AddObjectToCaseTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
@@ -89,6 +91,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -639,6 +644,85 @@ def test_add_note_trigger_makes_one_create_note_entry():
     assert "create_note" in _replay(net, BYSTANDER)
     assert not pending.is_suppressed(net.case_id, "create_note", create_id)
     assert [_as_id(n) for n in net.case(BYSTANDER).notes].count(note_id) == 1
+
+
+@pytest.mark.spec("SYNC-11-002")
+@pytest.mark.spec("SYNC-11-003")
+@pytest.mark.spec("TRIG-10-001")
+@pytest.mark.parametrize(
+    ("sender", "make_object", "event_type"),
+    [
+        pytest.param(
+            OWNER,
+            lambda: as_VulnerabilityReport(
+                id_="https://example.org/reports/trigger-add-object",
+                name="Report",
+                content="details",
+            ),
+            "add_report_to_case",
+            id="report-from-owner",
+        ),
+        pytest.param(
+            BYSTANDER,
+            lambda: as_Note(
+                id_="https://example.org/notes/trigger-add-object",
+                content="Written here",
+                attributed_to=BYSTANDER,
+            ),
+            "add_note_to_case",
+            id="note-from-author",
+        ),
+    ],
+)
+def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
+    sender: str, make_object: Any, event_type: str
+):
+    """The add-object trigger's pending assertion is keyed the way the
+    CASE_MANAGER commits the Add, so the commit's Announce clears it and the
+    same object may be added again (#4041, #4761)."""
+    net = _owned(
+        LedgerNetwork(
+            f"https://example.org/cases/trigger-add-object-{event_type}",
+            em_state=EM.NONE,
+        )
+    )
+    dl = net.stores[sender]
+    if dl.read(sender) is None:
+        dl.create(as_Service(id_=sender, name="Sender"))
+    obj = make_object()
+    dl.create(obj)
+
+    def _add() -> Any:
+        return SvcAddObjectToCaseUseCase(
+            dl,
+            AddObjectToCaseTriggerRequest(
+                actor_id=sender, case_id=net.case_id, object_id=obj.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+    first = _add()
+    assert first.activity is not None
+    add_id: str = first.activity["id"]
+    pending = get_pending_assertion_store(sender)
+    assert pending.is_suppressed(net.case_id, event_type, add_id)
+    assert _add().activity is None  # a repeat while pending is suppressed
+
+    verdicts = net.deliver(sender, to=MANAGER)
+    assert [(type_, v.disposition) for type_, v in verdicts] == [
+        ("Add", HandlerDisposition.APPLIED)
+    ]
+    entries = [
+        cast(CaseLedgerEntry, e)
+        for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
+        if getattr(e, "case_id", None) == net.case_id
+        and cast(CaseLedgerEntry, e).event_type == event_type
+    ]
+    assert [e.log_object_id for e in entries] == [add_id]
+
+    assert event_type in _replay(net, sender)
+    assert not pending.is_suppressed(net.case_id, event_type, add_id)
+    assert _add().activity is not None
 
 
 @pytest.mark.spec("CLP-07-013")

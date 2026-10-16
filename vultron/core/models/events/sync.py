@@ -45,7 +45,7 @@ class AnnounceLogEntryReceivedEvent(VultronEvent):
 class RejectLogEntryReceivedEvent(VultronEvent):
     """Participant rejected an ``Announce(CaseLedgerEntry)`` due to hash-chain mismatch.
 
-    The ``context`` field of the wire activity carries the last accepted hash
+    The ``context`` field of the wire activity carries the last applied hash
     as a plain string.  The extractor wraps it in a minimal ``CoreObject``
     whose ``id_`` is the hash string, so ``event.context_id`` returns it.
 
@@ -65,7 +65,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
 
     @property
     def last_accepted_hash(self) -> str:
-        """Return the last accepted hash reported by the peer.
+        """Return the last applied hash reported by the peer.
 
         Falls back to ``""`` (empty string) when no context is present,
         signalling that the peer has not acknowledged any entry yet and

@@ -53,9 +53,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._intake_only import (
-    refuse_after_intake,
-)
 from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
@@ -111,17 +108,6 @@ class _CaseOwnerParticipantMoveUseCase[
         self._trigger_activity = trigger_activity
         self._request: MoveEvent = request
 
-    def _refuse(self, reason: str) -> HandlerResult:
-        logger.warning("%s: %s", self._LABEL, reason)
-        return refuse_after_intake(
-            self._dl,
-            self._request,
-            reason,
-            name=self._LABEL,
-            sync_port=self._sync_port,
-            wire_render_port=self._wire_render_port,
-        )
-
     def _claimed_actor_id(self) -> str | None:
         """The actor the inline participant names, when it names one."""
         participant = self._request.participant
@@ -130,21 +116,19 @@ class _CaseOwnerParticipantMoveUseCase[
         return None
 
     def _build_tree(
-        self, participant_id: str, case_id: str
+        self, participant_id: str | None, case_id: str | None
     ) -> py_trees.behaviour.Behaviour:
-        """The move's received tree; subclasses implement it."""
+        """The move's received tree; subclasses implement it.
+
+        The tree refuses a move naming no participant or no case itself
+        (CLP-10-005), so the ids may be ``None`` here.
+        """
         raise NotImplementedError
 
     def execute(self) -> HandlerResult:
         request = self._request
         participant_id = request.participant_id
         case_id = request.case_id
-        if participant_id is None or case_id is None:
-            return self._refuse(
-                f"{self._MESSAGE} is missing its participant id or case id"
-            )
-        if self._dl.read_case(case_id) is None:
-            return self._refuse(f"unknown case '{case_id}'")
         tree = self._build_tree(participant_id, case_id)
         result = BTBridge(
             datalayer=self._dl,
@@ -161,6 +145,9 @@ class _CaseOwnerParticipantMoveUseCase[
             ),
             activity=request,
         )
+        if participant_id is None or case_id is None:
+            # The tree refused the incomplete move itself (CLP-10-018).
+            return verdict_from_bt(tree, result, label=self._LABEL)
         return self._verdict(tree, result, participant_id, case_id)
 
     def _verdict(
@@ -197,6 +184,7 @@ class _CaseOwnerParticipantMoveUseCase[
             if (
                 refusal := case_manager_absence_refusal(self._dl, case_id)
             ) is not None:
+                logger.warning("%s: %s", label, refusal.reason)
                 return refusal
             # Only the CASE_MANAGER's notice passes the replica's sender
             # guard; the replica stored it and applies the move from the
@@ -260,7 +248,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
     )
 
     def _build_tree(
-        self, participant_id: str, case_id: str
+        self, participant_id: str | None, case_id: str | None
     ) -> py_trees.behaviour.Behaviour:
         return create_add_case_participant_received_tree(
             participant_id=participant_id,
@@ -317,7 +305,7 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
     )
 
     def _build_tree(
-        self, participant_id: str, case_id: str
+        self, participant_id: str | None, case_id: str | None
     ) -> py_trees.behaviour.Behaviour:
         return create_remove_case_participant_received_tree(
             participant_id=participant_id,

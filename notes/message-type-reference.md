@@ -51,7 +51,7 @@ before claiming a shorthand maps to a wire form.
 
 - **RM moves have two wire expressions, and that is not an anomaly (ADR-0108).**
   The *act* is the report-scoped activity (`Accept(Offer(Report))` = `RV`); the
-  *declaration of resulting state* is `rm_state` on a participant-status
+  *declaration of resulting state* is `rmState` on a participant-status
   broadcast. A disagreement is flagged (RSH-06), not resolved by preferring one
   (RSH-08-002). Do not propose retiring either form.
 - **`EP` is `Invite(Event)[context=VulnerabilityCase]` and nothing else**

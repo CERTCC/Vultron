@@ -137,7 +137,7 @@ ENTRIES: list[SemanticEntry] = [
                 example="add_vendor_awareness_to_participant",
                 distinguisher=FieldValue(
                     object_type=ParticipantStatus,
-                    field="vf_state",
+                    field="vf",
                     value=CS_vf.Vf,
                 ),
                 howto=HowToGuide.STATUS_UPDATES,
@@ -155,7 +155,7 @@ ENTRIES: list[SemanticEntry] = [
                 example="add_fix_readiness_to_participant",
                 distinguisher=FieldValue(
                     object_type=ParticipantStatus,
-                    field="vf_state",
+                    field="vf",
                     value=CS_vf.VF,
                 ),
                 howto=HowToGuide.STATUS_UPDATES,
@@ -173,7 +173,7 @@ ENTRIES: list[SemanticEntry] = [
                 example="add_fix_deployment_to_participant",
                 distinguisher=FieldValue(
                     object_type=ParticipantStatus,
-                    field="d_state",
+                    field="d",
                     value=CS_d.D,
                 ),
                 howto=HowToGuide.STATUS_UPDATES,

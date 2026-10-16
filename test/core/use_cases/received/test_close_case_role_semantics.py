@@ -170,7 +170,7 @@ def _make_full_dl(
     owner_participant = as_CaseParticipant(
         attributed_to=owner_id,
         context=CASE_ID,
-        case_roles=[CVDRole.CASE_OWNER, CVDRole.FINDER],
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.REPORTER],
     )
     dl.create(owner_participant)
     case.case_participants.append(owner_participant.id_)
@@ -884,7 +884,7 @@ class TestOwnerCloseSettlesPendingInvites:
         dl = _make_full_dl()
         embargo_id = _seed_pending_invite(dl)
         monkeypatch.setattr(
-            "vultron.core.behaviors.case.nodes.leave.settle"
+            "vultron.core.behaviors.embargo.nodes.invitation_expiry"
             ".create_commit_and_record_expiry_tree",
             lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
         )

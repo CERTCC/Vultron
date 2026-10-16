@@ -37,7 +37,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -96,7 +96,7 @@ def _make_case(
     case.actor_participant_index = {owner_id: owner_participant.id_}
 
     for pid in extra_participant_ids or []:
-        p = FinderParticipant(
+        p = ReporterParticipant(
             attributed_to=pid,
             context=case.id_,
         )

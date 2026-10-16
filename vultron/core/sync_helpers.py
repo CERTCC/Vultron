@@ -127,7 +127,7 @@ def is_ledger_fresh_for_case(
 def _reconstruct_tail_hash(
     case_id: str, dl: CasePersistence
 ) -> tuple[str, int]:
-    """Return the hash and index of the last accepted log entry for *case_id*.
+    """Return the hash and index of the last stored entry for *case_id*.
 
     When no entries are stored locally for *case_id*, returns the per-case
     genesis hash (looked up from the DataLayer) and index ``-1``.  If the

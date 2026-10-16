@@ -319,7 +319,9 @@ def record_pending_assertion(
 
     The one entry point every trigger that asks the manager instead of
     writing shared state uses (SYNC-11-002, ASK-04-008): the note trigger,
-    the five embargo triggers and the received P/X/A cascade's teardown ask
+    the add-object and add-report triggers, the five embargo triggers (all
+    through ``SvcBTTriggerBase._record_asserted_activity``) and the received
+    P/X/A cascade's teardown ask
     (``SendTerminateEmbargoActivityNode``).  The matching
     ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-003).
     """

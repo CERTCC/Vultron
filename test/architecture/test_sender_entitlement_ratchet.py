@@ -587,8 +587,18 @@ def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
 
 #: Sender checks defined outside the sender-entitlement module, each naming
 #: the open issue that retires it (HP-01-007: the module has no twin).
-#: Empty: #4472 deleted the last one, so a new entry is a regression.
-SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {}
+#: #4472 deleted the last pre-existing one; an entry needs that issue.
+#: The announce guard is not new: it is the trust-anchor check that ran in
+#: ``AnnounceVulnerabilityCaseReceivedUseCase.execute()`` ahead of its tree,
+#: moved into the tree by #4643 (CLP-10-005).  It reads the ReportCaseLink
+#: anchor the declared CASE_MANAGER rule does not, so it stays its own node
+#: until #4522 declares the announce rule.
+SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {
+    (
+        "vultron/core/behaviors/case/nodes/announce.py",
+        "AnnounceSenderTrustedNode",
+    ): "#4522: the announce use case declares its sender rule",
+}
 
 
 @pytest.mark.spec("HP-01-007")

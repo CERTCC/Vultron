@@ -117,7 +117,7 @@ Evidence"; #3742).
 accepted through `AliasChoices` as several spellings of one declared field.
 
 A key matching no field must raise, never be dropped: under Pydantic's default
-`extra="ignore"` a lost `rm_state` silently resets `rm.state` to `RM.START`, a
+`extra="ignore"` a lost `rmState` silently resets `rm.state` to `RM.START`, a
 whole RM ladder lost with no error (#2232). `CoreObject`'s `extra="forbid"`
 (ARCH-12-003) is the guarantee SDO-03-005 requires. Do not add a per-class
 `model_validator(mode="before")` reject-guard for those keys; SDO-03-005 forbids

@@ -1496,10 +1496,13 @@ groups:
       (#3892). Covering every event type of the relay is what makes the participant-side
       embargo trees gateable with no further work.
     note: >-
-      The owner's decision and expiry slots still reconstruct their register step
-      through `EmbargoLifecycle` in `OBSERVED` mode until they copy too (#4716); the
-      consent rows those acts change already arrive as their own entries wherever the
-      CASE_MANAGER's arm commits them. A withdrawal's `Leave(EmbargoEvent)` (EP-09-013)
+      The owner's decision and expiry slots copy their entry's register step or
+      row too (#4716, #4784), and the consent rows those acts change arrive as
+      their own entries. The owner's Reject the CASE_MANAGER answers with ET
+      (EMB-04-002) changes nothing on a replica: the termination entry that
+      follows cancels the revision. The replica decides that skip itself, a
+      tracked deviation from CM-23-016 until #4789 decides how the ledger
+      records that Reject. A withdrawal's `Leave(EmbargoEvent)` (EP-09-013)
       carries no row: each row it declines is the CASE_MANAGER's own
       `Update(EmbargoConsent)` entry, which the consent slot copies (#4717).
     verification: >-

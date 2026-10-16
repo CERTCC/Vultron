@@ -12,7 +12,7 @@ groups:
     when: a Reporter has written up a vulnerability and is about to submit the report
     send: Create(VulnerabilityReport)
     send_to: an actor outside any case
-    sent_by: 'any actor (usually: finder, reporter)'
+    sent_by: 'any actor (usually: reporter)'
     semantics: create_report
     status: none
     description: Mints the vulnerability report object. It precedes the Offer that submits

@@ -137,21 +137,21 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
     """
 
     def test_vf_state_unknown_raises_validation_error(self):
-        """as_ParticipantStatus with bogus vf_state raises ValidationError."""
+        """as_ParticipantStatus with bogus vf raises ValidationError."""
         with pytest.raises(ValidationError):
             as_ParticipantStatus(
                 attributed_to=ACTOR_ID,
                 context=CASE_ID,
-                vf_state="BOGUS_VF",  # type: ignore[arg-type]
+                vf="BOGUS_VF",  # type: ignore[arg-type]
             )
 
     def test_d_state_unknown_raises_validation_error(self):
-        """as_ParticipantStatus with bogus d_state raises ValidationError."""
+        """as_ParticipantStatus with bogus d raises ValidationError."""
         with pytest.raises(ValidationError):
             as_ParticipantStatus(
                 attributed_to=ACTOR_ID,
                 context=CASE_ID,
-                d_state="BOGUS_D",  # type: ignore[arg-type]
+                d="BOGUS_D",  # type: ignore[arg-type]
             )
 
     def test_pxa_state_unknown_raises_validation_error(self):
@@ -160,12 +160,12 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
             as_CaseStatus(pxa="BOGUS_PXA")  # type: ignore[arg-type]
 
     def test_rm_state_unknown_raises_validation_error(self):
-        """as_ParticipantStatus with bogus rm_state raises ValidationError."""
+        """as_ParticipantStatus with bogus rm raises ValidationError."""
         with pytest.raises(ValidationError):
             as_ParticipantStatus(
                 attributed_to=ACTOR_ID,
                 context=CASE_ID,
-                rm_state="BOGUS_RM",  # type: ignore[arg-type]
+                rm="BOGUS_RM",  # type: ignore[arg-type]
             )
 
     def test_retired_consent_key_raises_validation_error(self):
@@ -199,7 +199,7 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
         self.assertEqual(self._FIXED_TIME, rebuilt.published)
 
     def test_as2_round_trip_preserves_cvd_role(self):
-        expected_roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        expected_roles = [CVDRole.REPORTER, CVDRole.VENDOR]
         core = CoreParticipantStatus(
             context=CASE_ID,
             attributed_to=ACTOR_ID,

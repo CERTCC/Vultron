@@ -49,7 +49,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -74,7 +74,7 @@ def _proposer_with_pending_proposal() -> tuple[
     )
     manager.add_role(CVDRole.CASE_MANAGER)
     finders = [
-        FinderParticipant(
+        ReporterParticipant(
             attributed_to=actor_id,
             context=case.id_,
         )

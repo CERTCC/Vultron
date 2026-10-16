@@ -1290,3 +1290,215 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
+- id: SYNC-16
+  title: Divergence Recovery
+  description: >-
+    Under the copy model (ADR-0124) a replica applies each entry through one apply
+    function that refuses an entry whose starting state does not match the replica's
+    case file. When the refused entry already extends the replica's stored chain, no
+    replay can fill the gap: the replica's case file has diverged from the
+    CASE_MANAGER's, and the reject and replay path resends the same refused entry
+    forever. A divergence is a defect, not a steady state, so the replica reports it and
+    the CASE_MANAGER repairs it with a fresh case copy that names the ledger position it
+    reflects. The fault is replication signalling, like the gap Reject, and is never
+    ledgered. Rationale: ADR-0142.
+  specs:
+  - id: SYNC-16-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant refuses a `CaseLedgerEntry` whose `prev_log_hash` matches its
+      chain tail because the entry's starting state does not match its case file, and its
+      case file is not already past the entry, it MUST send `Create(ProcessingFault)`
+      with failure class `LedgerEntryRefused/CaseDiverged` to the case's CASE_MANAGER,
+      naming the refused `Announce(CaseLedgerEntry)` by reference. It MUST keep holding
+      the refused entry as SYNC-14-001 holds a forward gap.
+    rationale: >-
+      The entry was received but could not be processed, which MSM-05-001 assigns to a
+      processing fault. Without it the CASE_MANAGER sees only gap Rejects, and its
+      replay resends the entry the replica refuses. An entry whose content is invalid
+      in itself, such as the impossible participant status of RSH-05-021, is not a
+      divergence: a fresh copy cannot repair it, so it takes that requirement's fault
+      instead of this one.
+    relationships:
+    - rel_type: refines
+      spec_id: ASK-07-001
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` drives a refused copy entry
+      that extends the chain and asserts the replica queues the fault to the
+      CASE_MANAGER.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A processing fault that reports a failure to apply a `CaseLedgerEntry` MUST NOT be
+      committed to the case ledger, by the participant or by the CASE_MANAGER. It MUST
+      be surfaced through structured logging, and the CASE_MANAGER's response to it is
+      per-peer replication state (SYNC-04).
+    rationale: >-
+      It reports on replication, as `Reject(CaseLedgerEntry)` does. Ledgering it loops:
+      the diverged replica cannot apply the entry that records its own fault, and a
+      failure to apply that entry would be another fault to ledger.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-04-007
+    - rel_type: constrains
+      spec_id: RSH-05-021
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts no case ledger
+      gains an entry when the fault is sent or received.
+    stories:
+    - story_2022_045
+  - id: SYNC-16-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER receives the SYNC-16-001 fault from an active participant of
+      the case (CM-10-004), it MUST send that participant `Announce(VulnerabilityCase)`
+      of its current case. From any other sender it MUST report `REFUSED`, send nothing
+      and record no replication state for the sender.
+    rationale: >-
+      The CASE_MANAGER's case is authoritative (PCR-03-001), and a copy carrying its
+      ledger tail (SYNC-16-005) lets the replica replace its case file and backfill
+      (SYNC-16-006, SYNC-16-007). The sender gate is the one the gap Reject uses
+      (SYNC-03-005).
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-16-005
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts the CASE_MANAGER
+      answers the fault from an active participant with the case, and refuses it from
+      any other sender.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST bound the rate at which it re-seeds a peer under
+      SYNC-16-003. It MUST record, per peer, the time and ledger tail of the last
+      re-seed, and a fault received within the cooldown MUST NOT trigger another
+      re-seed; a fault after it MUST.
+    rationale: >-
+      A diverged replica faults once per replayed entry it refuses. A rate limit stops a
+      re-seed storm without stranding a peer whose re-seed was lost, which a permanent
+      suppression would (SYNC-15-003 makes the same choice for replay).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-16-003
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts a second fault
+      within the cooldown sends no case, and one after it does.
+    stories:
+    - story_2022_045
+  - id: SYNC-16-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The wire form of a `VulnerabilityCase` MUST carry the sender's ledger tail for
+      that case: the `log_index` and `entry_hash` of the last entry the sender had
+      committed, or had stored as a replica, when the case was read; for an empty
+      ledger, index -1 and the per-case genesis hash. The tail MUST be computed from the
+      ledger each time the case is read or sent and MUST NOT be stored as a value of the
+      case file, so filling it in is not a change to the case file under CLP-07-013.
+    rationale: >-
+      A case copy is the case as applying the ledger up to some entry leaves it
+      (ADR-0124); the tail names that entry, so a receiver can tell a current copy from
+      a stale one. Computing it from the ledger means it can never disagree with the
+      ledger it points into.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-02-001
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts a case read after a
+      commit carries that commit's index and hash.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant that receives `Announce(VulnerabilityCase)` from the case's
+      CASE_MANAGER for a case it already holds MUST compare the copy's ledger tail
+      (SYNC-16-005) with its own chain. If its chain is already past the tail it MUST
+      leave its case file unchanged and report `SKIPPED`. If it holds an entry at the
+      tail's index whose hash differs, it MUST leave its case file unchanged, report
+      `REFUSED` and log the conflict at ERROR. Otherwise it MUST replace its case file
+      with the copy.
+    rationale: >-
+      The transport is unordered and the outbox retries, so an old copy can arrive late;
+      replacing with it would drop the effects of the entries the replica already holds
+      past the copy. A different entry at the same index means the chains themselves
+      disagree, which no copy repairs.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-02-004
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` covers the stale,
+      conflicting and current copy.
+    stories:
+    - story_2022_088
+  - id: SYNC-16-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After replacing its case file under SYNC-16-006 with a copy whose tail is ahead of
+      its chain, a participant MUST send `Reject(CaseLedgerEntry)` carrying its own
+      tail, and MUST store each entry it applies at or before the copy's tail, whether
+      replayed or drained from its gap buffer (SYNC-14-003), as an idempotent no-op, not
+      refuse it.
+    rationale: >-
+      Those entries are already reflected in the copy. The refused entry the replica
+      held under SYNC-16-001 drains first, before any replay arrives, so a rule that
+      covered only replayed entries would refuse it again. Storing them advances the chain
+      to the copy's position, after which the entries that follow apply normally, so the
+      replica ends where seed-plus-replay leaves it (ADR-0114).
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-16-006
+    - rel_type: refines
+      spec_id: SYNC-03-002
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` replaces a short replica's
+      case and asserts its chain reaches the CASE_MANAGER's tail with matching case
+      files.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-16-008
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER SHOULD log at ERROR a SYNC-16-001 fault for an entry at or before
+      the tail of the last re-seed it sent that peer.
+    rationale: >-
+      Such an entry is already reflected in the copy the peer was sent, so a refusal of
+      it means the CASE_MANAGER's own case disagrees with its ledger. That is a defect,
+      not recovery, and must not read as routine.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-16-004
+    adr:
+    - ADR-0142
+    verification: >-
+      `test/core/behaviors/sync/test_divergence_recovery.py` asserts the ERROR record.
+    stories:
+    - story_2022_045

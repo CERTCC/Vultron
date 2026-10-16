@@ -31,6 +31,9 @@ import py_trees
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.embargo_clock_decisions import (
+    embargo_clock_decisions,
+)
 from vultron.core.behaviors.embargo.nodes import (
     IsWithdrawableEmbargoNode,
     RecordParticipantWithdrawalNode,
@@ -57,6 +60,7 @@ def withdraw_from_embargo_on_case_tree(
         WithdrawFromEmbargoOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode
         ├─ <sender guard>                        # composed from sender_rule
+        ├─ ClockDecisionsIfCaseManager           # overdue invites (CM-28-015)
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
         │                                        # and redelivery (HP-01-003)
         ├─ EmbargoWithdrawalApplies (CASE_MANAGER gate)  # staged decision
@@ -98,6 +102,7 @@ def withdraw_from_embargo_on_case_tree(
         sender_context=SenderCheckContext(
             sender_id=withdrawing_actor_id, case_id=case_id
         ),
+        clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             IsWithdrawableEmbargoNode(
                 case_id=case_id,

@@ -30,7 +30,7 @@ from typing import TypeAlias
 from pydantic import Field, field_serializer, field_validator
 
 from vultron.enums.object_types import VultronObjectType as VO_type
-from vultron.enums.roles import CVDRole
+from vultron.enums.roles import CVDRole, parse_role
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
@@ -77,7 +77,7 @@ class as_CaseParticipantRole(as_VultronObject):
     def validate_role(cls, value: object) -> CVDRole:
         if isinstance(value, CVDRole):
             return value
-        return CVDRole(str(value))
+        return parse_role(str(value))
 
 
 as_CaseParticipantRoleRef: TypeAlias = ActivityStreamRef[

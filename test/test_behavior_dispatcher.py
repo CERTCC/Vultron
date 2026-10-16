@@ -475,6 +475,33 @@ def test_dispatch_refuses_a_semantics_with_no_registered_use_case():
         dispatcher.dispatch(_create_report_event(), MagicMock())
 
 
+@pytest.mark.spec("SL-03-001")
+def test_dispatch_logs_no_use_case_found_at_warning_with_context(caplog):
+    """No use case found is logged at WARNING with semantic, activity_id, actor_id.
+
+    A recognized semantic type with no handler is a valid message the receiver
+    does not process: a signal of an implementation gap, not a failure. The log
+    is at WARNING, not ERROR (AC-1), and names the semantic type, activity_id,
+    and actor_id so the missing handler is attributable.
+    """
+    caplog.set_level(logging.DEBUG, logger="vultron.core.dispatcher")
+    dispatcher = DirectActivityDispatcher(use_case_map={})
+    event = _create_report_event()
+
+    with pytest.raises(VultronApiHandlerNotFoundError):
+        dispatcher.dispatch(event, MagicMock())
+
+    # Find the "No use case found" log record
+    records = [r for r in caplog.records if "No use case found" in r.message]
+    assert len(records) == 1, "Expected exactly one 'No use case found' log"
+
+    record = records[0]
+    assert record.levelname == "WARNING", "Expected WARNING level, not ERROR"
+    assert str(event.semantic_type) in record.message
+    assert event.activity_id in record.message
+    assert event.actor_id in record.message
+
+
 @pytest.mark.spec("HP-06-001")
 def test_dispatch_logs_handler_entry_at_debug_with_handler_name(caplog):
     """Handler entry is one DEBUG record naming the handler class and activity."""

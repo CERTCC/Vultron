@@ -292,8 +292,11 @@ def _commit_node_types() -> tuple[type, ...]:
     ``TIMED_OUT`` row, decided first so the row is written only once both
     commit, ADR-0124), ``CommitAndApplyHonourLateAcceptNode`` (the late-Accept
     honour and its ``AGREED`` row, a CASE_MANAGER diversion's commit,
-    CLP-10-026), ``_CommitCaseManagerActivityBase`` (the termination
-    ``Remove``, ``CommitAndApplyEmbargoTerminationNode``),
+    CLP-10-026), ``ExpireInvitationsNode`` (the overdue-invitation
+    sweep and the owner-close settle step, each running that expiry per row
+    in a nested tree, CM-28-015, CM-23-014),
+    ``_CommitCaseManagerActivityBase`` (the termination ``Remove``,
+    ``CommitAndApplyEmbargoTerminationNode``),
     ``EmitCaseStatusUpdateNode`` (the ``Add(CaseStatus)`` that follows an EM
     change) and ``ReissueStubInvitesNode`` (each re-issued stub ``Invite``).
     """
@@ -316,11 +319,15 @@ def _commit_node_types() -> tuple[type, ...]:
         CommitAndApplyHonourLateAcceptNode,
         CommitAndApplyInviteExpiryNode,
     )
+    from vultron.core.behaviors.embargo.nodes.invitation_expiry import (
+        ExpireInvitationsNode,
+    )
     from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 
     return (
         CommitAndApplyHonourLateAcceptNode,
         CommitAndApplyInviteExpiryNode,
+        ExpireInvitationsNode,
         CommitCaseLedgerEntryNode,
         CreateLogEntryNode,
         ExpireOverdueOwnershipOfferNode,
@@ -436,11 +443,12 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
-    # Both expiries and every entry of the end-time termination are seen
-    # committing inside the stage, so the walk covers the nested committers
-    # that decide first.
+    # Every expiry, the sweep included, and every entry of the end-time
+    # termination are seen committing inside the stage, so the walk covers
+    # the nested committers that decide first.
     assert {
         "CommitAndApplyInviteExpiryNode",
+        "ExpireOverdueInvitesNode",
         "ExpireOverdueOwnershipOfferNode",
         "CommitAndApplyEmbargoTerminationNode",
         "EmitCaseStatusUpdateNode",

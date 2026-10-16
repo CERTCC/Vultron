@@ -22,10 +22,12 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.authority import (
+    case_manager_address,
+    resolve_case_manager_id,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.core.use_cases._helpers import _find_case_actor_id
 
 
 class _EmitCaseActorReportActivityBase(_EmitSingleActivityBase):
@@ -229,12 +231,12 @@ def _compute_report_addressees(
         # The case's own participant list is authoritative once bootstrap has
         # populated it.  Before that it is empty, so fall back to the trust
         # anchor recorded on the ``ReportCaseLink`` — the same resolution
-        # `_find_case_actor_id` performs for every other case-scoped path, and
+        # `case_manager_address` performs for every other case-scoped path, and
         # the reason it exists (CBT-01-006).  Without the fallback a case created
         # before its participants are registered has no addressable manager, and
         # the report activity fails as unroutable.
         case_manager_id = resolve_case_manager_id(case, dl) or (
-            _find_case_actor_id(dl, case.id_)
+            case_manager_address(dl, case.id_)
         )
         if case_manager_id:
             return [case_manager_id]

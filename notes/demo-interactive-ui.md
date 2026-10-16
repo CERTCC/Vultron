@@ -11,6 +11,7 @@ tracks:
   - "#4726"
   - "#4730"
   - "#4733"
+  - "#4759"
 description: >
   Design for the Vultron interactive demo UI: a React dashboard for stakeholder
   presentations that shows only what the real system did. Live, it watches each
@@ -22,6 +23,7 @@ description: >
 related_notes:
   - notes/demo-future-ideas.md
   - notes/demo-scenario-registry.md
+  - notes/demo-scenario-tree.md
   - notes/demo-scenario-authoring.md
   - notes/case-ledger-authority.md
   - notes/configuration.md
@@ -128,9 +130,9 @@ exporters to the files they write.
 | State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built (EM read from the EM transition table since #4427) |
 | Semantic registry table | registry exporter (#4725) | ledger parser and mapper | drift test | planned |
 | Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
-| Scenario-tree index | `@scenario` branch declarations (#4726, #4727) | offline mode, live branch points | drift test; shared-prefix check | planned |
+| Scenario-tree index | branch-point table and `@scenario` path declarations (#4727; design in `demo-scenario-tree.md`) | offline mode, live branch points | drift test; isomorphic shared-prefix check | planned |
 | Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |
-| Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}`) | live mode (#3643) | — | planned |
+| Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}` and `/actors/{id}/demo/{behavior}`) | live mode (#3643) | — | planned |
 
 Rules for the TypeScript side:
 
@@ -292,10 +294,11 @@ they block wait for them.
 1. **Vocabulary.** Concern #4723 (AS2 shapes for ledger-only acts) →
    #4724 (the registry labels every ledger entry) → #4725 (export the registry
    table to `ui/`).
-2. **Recordings and the tree.** #3901 (deterministic recordings) and Idea
-   #4726 (scenario-tree design) → #4727 (tree index and shared-prefix check);
-   #4736 (Finder → Reporter) after #4726 and #2677; Idea #4733 (scenarios as
-   composition) after #4727, producing one Task per scenario family.
+2. **Recordings and the tree.** Idea #4726 (scenario-tree design) → #4736
+   (Finder → Reporter) → #4759 (path declarations) → #4727 (tree index and
+   shared-prefix check, also after #3901, deterministic recordings); Idea #4733
+   (scenarios as composition) after #4727, producing one Task per scenario
+   family.
 3. **UI correctness.** #4728 (tooling baseline) → #4729 (Log Replay reads the
    current ledger, golden tests over the recordings).
 4. **Offline mode.** Idea #4730 (presentation design) → #4731 (offline

@@ -41,8 +41,9 @@ moves forward only (CM-23-016, ADR-0114;
 CASE_MANAGER's ``Create(EmbargoConsent)`` and ``Update(EmbargoConsent)``
 entries, each carrying one consent row in full.  The register-step slots of
 the embargo acts subclass the same frame: the proposal's ``PROPOSE``
-(``relay_effect.py``) and the abandonment's ``CANCEL`` (``abandon.py``),
-with #4716 converting the rest (teardown was #4714).  A withdrawal's
+(``relay_effect.py``), the abandonment's ``CANCEL`` (``abandon.py``), the
+teardown's ``TERMINATE`` (``teardown.py``), and the owner's ``ACTIVATE`` and
+``REJECT`` (``activation_effect.py``).  A withdrawal's
 ``Leave`` carries no row, so its slot (``withdrawal.py``) copies nothing
 itself: each row it declines is a consent entry this module's slot copies
 (#4717).
@@ -137,6 +138,22 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         """
         return []
 
+    def _left_to_a_later_entry(
+        self, before: EmbargoCaseFile, change: EmbargoChange
+    ) -> bool:
+        """True when the CASE_MANAGER answered this entry with a later one.
+
+        Checked before the apply, after :func:`change_is_in_place`: the
+        entry then changes nothing here, because the change the
+        CASE_MANAGER made in its place arrives as its own entry.  The
+        owner's ``Reject`` of the last revision after disclosure is the one
+        such entry (EMB-04-002).  False by default.
+
+        An override decides on the replica instead of copying, a tracked
+        deviation from CM-23-016 (#4789); no other slot may override it.
+        """
+        return False
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -159,6 +176,16 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             self.logger.debug(
                 "%s: '%s' entry '%s' is already in place on case '%s' —"
                 " idempotent no-op",
+                self.name,
+                entry.event_type,
+                entry.id_,
+                entry.case_id,
+            )
+            return Status.SUCCESS
+        if self._left_to_a_later_entry(before, change):
+            self.logger.info(
+                "%s: '%s' entry '%s' on case '%s' was answered by a later"
+                " entry, which carries the change — no-op",
                 self.name,
                 entry.event_type,
                 entry.id_,

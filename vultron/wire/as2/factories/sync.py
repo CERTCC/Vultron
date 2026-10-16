@@ -85,15 +85,15 @@ def reject_log_entry_activity(
     participant's local tail hash (SYNC-03-001).
 
     Args:
-        entry: The ``CaseLedgerEntry`` that was rejected.
-        context: The last accepted entry hash string, so the CaseActor
+        entry: The ``CaseLedgerEntry`` the receiver could not apply.
+        context: The last applied entry hash string, so the CaseActor
             can determine which entries need to be replayed.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Reject`` whose ``object_`` is the rejected log entry and
-        ``context`` carries the last accepted hash.
+        An ``as_Reject`` whose ``object_`` is the unapplied log entry and
+        ``context`` carries the last applied hash.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.

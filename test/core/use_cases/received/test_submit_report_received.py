@@ -29,6 +29,7 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -198,17 +199,14 @@ class TestSubmitReportCreatesCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        all_statuses = dl.get_all("ParticipantStatus")
+        statuses = [
+            ParticipantStatus.model_validate(row["data_"])
+            for row in dl.get_all("ParticipantStatus")
+        ]
         finder_accepted = [
             s
-            for s in all_statuses
-            if (s.get("data_", {}) or {}).get("attributed_to")
-            == self.FINDER_ID
-            and (
-                (s.get("data_", {}) or {}).get("rm_state") == RM.ACCEPTED.value
-                or (s.get("data_", {}) or {}).get("rm", {}).get("state")
-                == RM.ACCEPTED.value
-            )
+            for s in statuses
+            if s.attributed_to == self.FINDER_ID and s.rm.state == RM.ACCEPTED
         ]
         assert len(finder_accepted) == 0, (
             "ADR-0041: vendor must not create finder ParticipantStatus records"
@@ -877,6 +875,54 @@ class TestSubmitReportDisposition:
     def test_no_report_id_is_skipped(self):
         result, _ = self._run(to=[self.VENDOR_ID], report=False)
         assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("CLP-10-005")
+    @pytest.mark.parametrize("report", [True, False], ids=["report", "none"])
+    def test_offer_runs_one_tree(self, tree_runs, report):
+        """Proposing and keeping a report-less Offer are one tree (#4643)."""
+        self._run(to=[self.VENDOR_ID], report=report)
+        assert len(tree_runs) == 1
+
+    @pytest.mark.spec("CM-23-013")
+    def test_post_close_refusal_is_refused_before_either_arm(self):
+        """The post-close guard's refusal is ``REFUSED``, never raised.
+
+        The one verdict reads it before it looks at the report id, so the
+        report-proposing arm reports it the way the report-less arm always
+        did (CM-23-013, ADR-0095).  Pinned on the verdict itself: a report
+        Offer names no case, so no fully closed case can reach either arm
+        end to end.
+        """
+        from unittest.mock import MagicMock
+
+        import py_trees
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTExecutionResult
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+        from vultron.core.use_cases.received.report import (
+            _submit_report_verdict,
+        )
+
+        guard = CaseOpenToExternalWritesNode(case_id=None)
+        guard.status = Status.FAILURE
+        guard.feedback_message = "case is fully closed (CM-23-013)"
+        tree = py_trees.composites.Sequence(
+            name="Root", memory=False, children=[guard]
+        )
+        request = MagicMock(report_id=self.REPORT_ID)
+
+        verdict = _submit_report_verdict(
+            tree,
+            BTExecutionResult(status=Status.FAILURE),
+            request,
+            self.VENDOR_ID,
+        )
+
+        assert verdict.disposition == HandlerDisposition.REFUSED
+        assert verdict.reason == "case is fully closed (CM-23-013)"
 
     @pytest.mark.spec("HP-01-003")
     def test_proposal_flow_failure_raises(self, monkeypatch):

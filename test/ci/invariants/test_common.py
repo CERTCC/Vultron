@@ -293,7 +293,7 @@ def test_check_no_rm_state_oscillation_detects_post_closed_transition():
                 "object": {
                     "attributedTo": actor_id,
                     "rmState": "CLOSED",
-                    "cvdRole": ["FINDER"],
+                    "cvdRole": ["REPORTER"],
                 }
             },
         ),
@@ -306,7 +306,7 @@ def test_check_no_rm_state_oscillation_detects_post_closed_transition():
                 "object": {
                     "attributedTo": actor_id,
                     "rmState": "ACCEPTED",  # post-CLOSED → oscillation
-                    "cvdRole": ["FINDER"],
+                    "cvdRole": ["REPORTER"],
                 }
             },
         ),
@@ -333,7 +333,7 @@ def test_check_rm_closed_termination_detects_open_participant():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "ACCEPTED",  # not CLOSED
-                "cvdRole": ["FINDER"],
+                "cvdRole": ["REPORTER"],
             }
         },
     )
@@ -538,7 +538,7 @@ def test_check_cs_state_transitions_observed_detects_missing_fix_ready():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "VALID",
-                "cvdRole": ["FINDER"],
+                "cvdRole": ["REPORTER"],
                 "vfState": "vf",  # never VF
                 "caseStatus": {"pxaState": "Pxa"},
             }
@@ -1234,7 +1234,7 @@ def _status_entry(
             "object": {
                 "attributedTo": actor_id,
                 "rmState": rm_state,
-                "cvdRole": ["FINDER"],
+                "cvdRole": ["REPORTER"],
                 "vfState": vf_state,
                 "caseStatus": {"pxaState": pxa_state},
             }

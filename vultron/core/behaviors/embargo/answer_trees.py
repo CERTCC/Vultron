@@ -40,6 +40,9 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.embargo_clock_decisions import (
+    embargo_clock_decisions,
+)
 from vultron.core.behaviors.embargo.expiry_tree import (
     invite_expiry_decision,
     late_accept_diversions,
@@ -165,7 +168,9 @@ def accept_invite_to_embargo_tree(
                 published=published,
                 now=now,
                 result_out=expiry_out,
-            )
+            ),
+            # Then every other overdue invitation of the case (CM-28-015).
+            *embargo_clock_decisions(case_id, now),
         ],
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
@@ -250,6 +255,7 @@ def reject_invite_to_embargo_tree(
         ├─ CaseOpenToExternalWrites           # door: post-close (CM-23-013)
         ├─ ActivityAddressedToReceiverNode    # door: addressee (HP-01-005)
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
+        ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
@@ -291,6 +297,7 @@ def reject_invite_to_embargo_tree(
         sender_context=SenderCheckContext(
             sender_id=rejecting_actor_id, case_id=case_id, invite_id=invite_id
         ),
+        clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             IsRejectableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and

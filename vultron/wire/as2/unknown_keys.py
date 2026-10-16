@@ -70,8 +70,8 @@ OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 _UNEXAMINED_KEYS = OPAQUE_PAYLOAD_KEYS | {CONTEXT_KEY}
 
 _VFD_RETIRED = (
-    "vfd_state/vfdState is retired (ADR-0075); use vf_state for vendor"
-    " participants and d_state for deployer participants instead"
+    "vfd_state/vfdState is retired (ADR-0075); use vfState for vendor"
+    " participants and dState for deployer participants instead"
 )
 
 #: Names the protocol once read and no longer does, mapped to the replacement

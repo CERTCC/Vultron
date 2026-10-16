@@ -35,9 +35,11 @@ spellings, all of which occur in real devlogs. A consumer that misses one report
   nested `caseStatus` / `case_status`, and each item of a case's
   `caseStatuses` list.
 - **Spelling**: the bare value (`{"rm": "ACCEPTED"}`, ADR-0099), the one-key
-  mapping (`{"rm": {"state": "ACCEPTED"}}`, ADR-0036), and the flat legacy keys
-  (`rmState`, `rm_state`). Logs older than ADR-0075's VF/D split carry
-  `vfd_state`, which nothing translates.
+  mapping (`{"rm": {"state": "ACCEPTED"}}`, ADR-0036), and the flat keys
+  (`rmState`, and the legacy `rm_state`). `ParticipantStatus` no longer accepts
+  `rm_state` (SDO-03-003), but a log reader still tolerates it, consistent with
+  DRPT-02-003. Logs older than ADR-0075's VF/D split carry `vfd_state`, which
+  nothing translates.
 
 Confirm the current shape with `model_dump(by_alias=True)` on the status model
 instead of guessing.

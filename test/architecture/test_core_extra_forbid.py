@@ -102,11 +102,11 @@ def test_participant_status_does_not_drop_wire_spelled_rm_state() -> None:
     back to ``RM.START`` with no error.  Two distinct outcomes prevent that, and
     this pins both so neither can regress into a drop:
 
-    * ``rm_state``/``rmState`` are declared ``AliasChoices`` on the field, so the
-      value is *interpreted* rather than dropped.  (Removing those aliases so the
-      flat spellings raise instead is #2289; until then "rejected" is the wrong
-      assertion — see ``notes/wire-core-boundary.md``.)
-    * a spelling that is **not** an alias is rejected by ``extra="forbid"``.
+    * ``rmState`` is a declared ``AliasChoices`` entry on the field, so the
+      value is *interpreted* rather than dropped.
+    * a spelling that is **not** an alias is rejected by ``extra="forbid"`` --
+      including the flat ``rm_state`` shim spelling retired by #4377
+      (SDO-03-003), which now raises instead of being interpreted.
 
     Note the required ``context`` is supplied deliberately: without it every
     input here raises on the missing field, so the test would pass while
@@ -115,13 +115,18 @@ def test_participant_status_does_not_drop_wire_spelled_rm_state() -> None:
     from vultron.core.models.participant_status import ParticipantStatus
     from vultron.core.states.rm import RM
 
-    for spelling in ("rm_state", "rmState"):
-        status = ParticipantStatus.model_validate(
-            {"context": "urn:uuid:case-2232", spelling: "RECEIVED"}
-        )
-        assert status.rm.state == RM.RECEIVED, (
-            f"{spelling} was dropped instead of interpreted — the #2232 "
-            "silent-loss defect"
+    status = ParticipantStatus.model_validate(
+        {"context": "urn:uuid:case-2232", "rmState": "RECEIVED"}
+    )
+    assert status.rm.state == RM.RECEIVED, (
+        "rmState was dropped instead of interpreted — the #2232 "
+        "silent-loss defect"
+    )
+
+    # The retired flat spelling raises rather than being silently dropped.
+    with pytest.raises(ValidationError):
+        ParticipantStatus.model_validate(
+            {"context": "urn:uuid:case-2232", "rm_state": "RECEIVED"}
         )
 
     # A non-alias wire spelling has nowhere to land, so forbid rejects it.
