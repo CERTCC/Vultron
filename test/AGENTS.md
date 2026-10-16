@@ -187,20 +187,14 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 - **Coverage shape** — one test per distinct lookup path when consolidating
   helpers; trigger use cases need per-use-case tests
   ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
-- **The timeout *method* sets what a trip costs; the ceiling only sets how
-  often** — raising a ceiling never reduces the severity of `thread`'s
-  whole-session kill, which is why the real dial went untouched for six
-  re-diagnoses (#3603).
+- **The timeout *method* sets what a trip costs; the ceiling only how often**
+  — a higher ceiling never softens `thread`'s whole-session kill (#3603).
 - **A marker sweep that counts declarations misses a directory hook** — grepping
   `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
   what collected items carry via a `trylast` probe. A tier assertion over
   `FakeItem`s or a synthetic `pytester` session misses the real collection (#3604).
-- **A rebuild-from-ledger error at teardown** — every `LedgerNetwork` test under
-  `test/core/use_cases/received/` and every exchange demo is rebuilt from the
-  CASE_MANAGER's ledger when it ends (#4294). A difference is a write with no
-  entry; a test that writes the CASE_MANAGER's store directly as setup calls
-  `net.bypass_ledger()`
-  ([`notes/case-ledger-authority.md`](../notes/case-ledger-authority.md)).
 - **SYNC replication test setup** —
   [`notes/sync-ledger-replication.md`](../notes/sync-ledger-replication.md)
-  § "SYNC Replication Test Patterns".
+  § "SYNC Replication Test Patterns". A `LedgerNetwork` test is rebuilt from its
+  ledger at teardown; direct CASE_MANAGER writes as setup call `bypass_ledger()`
+  ([`notes/case-ledger-authority.md`](../notes/case-ledger-authority.md)).
