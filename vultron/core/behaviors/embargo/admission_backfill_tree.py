@@ -15,17 +15,12 @@
 
 """The CASE_MANAGER's admission backfill after an embargo effect (CM-10-006).
 
-:func:`embargo_admission_backfill_tree` is a standalone follow-on tree, not a
-received-activity tree: it is given no activity and sends what the ledger
-fan-out withheld once the embargo gate admits a participant.
-``AcceptInviteToEmbargoOnCaseReceivedUseCase`` runs it on its own.
-The ``Add(EmbargoEvent)`` and ``Remove(EmbargoEvent)`` trees run the same
-nodes, :func:`embargo_admission_backfill_nodes`, in their ``manager_effects``,
-whose gate they take from the factory.
-It lives outside the received-tree modules for the same reason the expiry
-trees do: BT-17-008 binds received trees, which take their CASE_MANAGER gate
-from ``create_receive_activity_tree``, and this tree has none of its own to
-build (``test/architecture/test_received_tree_case_manager_gate.py``).
+:func:`embargo_admission_backfill_nodes` sends what the ledger fan-out
+withheld once the embargo gate admits a participant, then re-issues the stub
+Invites that carry stale terms.  A received tree runs them behind the
+CASE_MANAGER gate it takes from the factory: the ``Add(EmbargoEvent)`` and
+``Remove(EmbargoEvent)`` trees in their ``manager_effects``, and the Invite
+Accept tree in its late-Accept honour diversion (CLP-10-026).
 """
 
 import py_trees
@@ -33,9 +28,6 @@ import py_trees
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     ReissueStubInvitesNode,
-)
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
@@ -46,10 +38,16 @@ def embargo_admission_backfill_nodes(
     case_id: str,
     actor_config: ActorConfig | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """The backfill and the stub re-issue, for a caller that gates them itself.
+    """The backfill, then the stub re-issue (CM-10-006, CM-11-016).
 
-    See :func:`embargo_admission_backfill_tree`; a received tree passes these
-    as ``manager_effects`` (BT-17-008).
+    The admitting entry was committed and fanned out before the effect ran,
+    so the fan-out withheld it; the backfill sends it, and everything else
+    withheld.  The same effect may have changed the embargo in force, so the
+    stub Invites still outstanding with the old terms are re-issued; a no-op
+    when none are.  The caller runs them behind the CASE_MANAGER gate
+    (BT-17-001, BT-17-008): the pause records, the canonical ledger and the
+    stub Invites live in its store.  *actor_config* sets the replacements'
+    RSVP window; ``None`` applies the ``ActorConfig`` defaults.
     """
     return [
         BackfillAdmittedParticipantsNode(case_id=case_id),
@@ -57,30 +55,4 @@ def embargo_admission_backfill_nodes(
     ]
 
 
-def embargo_admission_backfill_tree(
-    case_id: str,
-    actor_config: ActorConfig | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Backfill what an embargo effect admitted, then re-issue stale stubs.
-
-    The admitting entry was committed and fanned out before the effect ran, so
-    the fan-out withheld it; this sends it, and everything else withheld, once
-    the gate admits the participant (CM-10-006).  The same effect may have
-    activated, revised or terminated the active embargo, so it then re-issues
-    the stub Invites that are outstanding and carry the old terms; a no-op when
-    none are (CM-11-016).  CASE_MANAGER only (BT-17-001): the pause records,
-    the canonical ledger and the stub Invites live in its store.
-    *actor_config* sets the replacements' RSVP window; ``None`` applies the
-    ``ActorConfig`` defaults.
-    """
-    return create_case_manager_gated_tree(
-        name="EmbargoAdmissionBackfill",
-        case_id=case_id,
-        children=embargo_admission_backfill_nodes(case_id, actor_config),
-    )
-
-
-__all__ = [
-    "embargo_admission_backfill_nodes",
-    "embargo_admission_backfill_tree",
-]
+__all__ = ["embargo_admission_backfill_nodes"]

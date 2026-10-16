@@ -263,12 +263,10 @@ guards, commit, effects.
    no commit, effect, or emit runs; on every other store it passes, so replicas
    keep applying the closure fan-out. The handler verdict comes from
    `post_close_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
-   `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. The one-node
-   pre-tree runs in `_sender_preflight.py` (`door_refusal`, which runs
-   `post_close_refusal_before_tree`, `unaddressed_copy_refusal` and
-   `rule_refusal` in that order, and `repeat_answer_skip`) are the chained
-   shape CLP-10-005
-   forbids; compose their guard into the tree, never add a caller. A tree
+   `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
+   door guard as a one-node tree ahead of the received tree: that is the
+   chained shape CLP-10-005 forbids (ADR-0135), and `closed_sender_preflight`
+   (`_sender_preflight.py`) is the last one left (#4773), so add no caller. A tree
    opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
    nodes that answer the refusal; only the close-case tree passes one
    (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other

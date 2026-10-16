@@ -25,17 +25,12 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
-from py_trees.common import Status
 
 from test.support.embargo_register import terminate
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.expiry_tree import (
-    create_reinvite_stale_accepter_tree,
-)
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
@@ -435,28 +430,6 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     assert after.current_status.em.state == em_before
     assert list(after.proposed_embargo_ids) == proposals_before
     assert after.active_embargo_id == active_before
-
-
-@pytest.mark.spec("EMB-17-003")
-@pytest.mark.spec("CLP-10-020")
-def test_a_reinvite_is_not_committed_by_a_store_that_is_not_the_manager():
-    """The gate is the tree's: a non-manager tree writes and sends nothing."""
-    net = _Network("https://example.org/cases/answer-reinvite-gated")
-    _propose(net, "gated", 90)
-    revision = net.case(MANAGER).active_embargo_id
-    assert revision is not None
-    dl = net.stores[OWNER]
-    tree = create_reinvite_stale_accepter_tree(
-        case_id=net.case_id, embargo_id=revision, invitee_id=BYSTANDER
-    )
-
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute_with_setup(tree=tree, actor_id=OWNER)
-
-    assert result.status == Status.SUCCESS
-    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 0
 
 
 @pytest.mark.spec("EMB-17-003")

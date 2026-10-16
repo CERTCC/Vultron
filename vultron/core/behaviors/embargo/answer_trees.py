@@ -36,10 +36,14 @@ from datetime import datetime
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.embargo.expiry_tree import invite_expiry_decision
+from vultron.core.behaviors.embargo.expiry_tree import (
+    invite_expiry_decision,
+    late_accept_diversions,
+)
 from vultron.core.behaviors.embargo.nodes import (
     IsRejectableEmbargoNode,
     RecordParticipantAcceptanceNode,
@@ -51,6 +55,7 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
 from vultron.core.behaviors.embargo.nodes.expiry import InviteNotExpiredNode
+from vultron.core.behaviors.embargo.refusal_tree import pxa_accept_refusal
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
@@ -74,7 +79,9 @@ def accept_invite_to_embargo_tree(
     sender_rule: SenderRule,
     now: datetime,
     published: str,
-    expiry_out: dict[str, object],
+    accept_id: str | None = None,
+    expiry_out: dict[str, object] | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting an embargo invitation.
 
@@ -88,12 +95,31 @@ def accept_invite_to_embargo_tree(
     the backfill still runs because a participant that accepts the embargo in
     force becomes a signatory the fan-out of this entry withheld (CM-10-006).
 
+    One tree for every delivery (CLP-10-005, ADR-0135)::
+
+        AcceptInviteToEmbargoBT (Sequence)
+        ├─ Intake → CaseOpenToExternalWrites
+        ├─ ActivityAddressedToReceiverNode     # door: HP-01-005
+        ├─ <sender guard>                       # door: the Invite's invitee
+        ├─ ClockDecisionsIfCaseManager          # the Invite expiry (CM-28-009)
+        ├─ ValidateCaseExistsNode
+        ├─ EmbargoAnswerNotRecorded (gated)     # repeat → SKIPPED (CM-13-005)
+        ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → ER (EMB-02-002)
+        ├─ HonourLateAccept / ReinviteLateAccepter / AcknowledgeLateAccept
+        │                                       # late Accept arms (EMB-17)
+        ├─ InviteNotExpiredNode                 # a late Accept is no answer
+        ├─ GuardedCommitCaseLedgerEntryBT
+        └─ RecordEmbargoAcceptance (CaseManagerGate)
+
     The CASE_MANAGER first evaluates the Invite's RSVP deadline, a clock
     decision the factory runs after the door guards (CLP-10-025, CM-28-014):
-    an expired invitation is ledgered ``TIMED_OUT`` (CM-28-009) and
-    :class:`~vultron.core.behaviors.embargo.nodes.expiry.InviteNotExpiredNode`
-    then refuses the Accept as an answer, so the handler routes it as a late
-    Accept (EMB-17-001), reading *expiry_out*.
+    an expired invitation is ledgered ``TIMED_OUT`` (CM-28-009) before the
+    Accept is judged.  A repeat of a recorded Accept then stops the tree.
+    Once P/X/A is set the receiver answers with ER instead of recording the
+    Accept (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`).
+    A late Accept is routed by its compatibility with the case's embargo
+    (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`,
+    EMB-17-001) and is never recorded as an answer.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -106,16 +132,22 @@ def accept_invite_to_embargo_tree(
             against.
         published: The Accept's claimed ``published`` time, carried as
             received on the expiry entry (CLP-15-003); it decides nothing.
+        accept_id: The Accept's own id; a re-invite's id derives from it,
+            so a redelivery rebuilds the same Invite (OX-06-002).
         expiry_out: Receives the expiry decision's ``IS_EXPIRED_KEY`` and
-            ``NEEDS_APPLY_KEY`` at the CASE_MANAGER; the handler reads it to
-            route a late Accept.
+            ``NEEDS_APPLY_KEY`` at the CASE_MANAGER, read by the late-Accept
+            arms; a fresh dict when omitted.
+        actor_config: The CASE_MANAGER's configuration: the re-invite's RSVP
+            window and the stub re-issue after an honoured late Accept.
 
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
     """
+    expiry_out = {} if expiry_out is None else expiry_out
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
         case_id=case_id,
+        addressee_check="Accept(Invite(EmbargoEvent))",
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=accepting_actor_id, case_id=case_id, invite_id=invite_id
@@ -133,13 +165,6 @@ def accept_invite_to_embargo_tree(
         ],
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
-            # A late Accept is not an answer: the handler routes it by its
-            # compatibility with the case's embargo (EMB-17-001).
-            InviteNotExpiredNode(
-                result_out=expiry_out,
-                invitee_id=accepting_actor_id,
-                case_id=case_id,
-            ),
             # A repeat of an Accept already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-003).
             case_manager_admits_embargo_answer_guard(
@@ -147,6 +172,30 @@ def accept_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 answering_actor_id=accepting_actor_id,
                 answer=EmbargoConsentState.AGREED,
+            ),
+            # EMB-02-002: with P/X/A set the Accept moves nothing; ER.
+            pxa_accept_refusal(
+                case_id=case_id,
+                invite_id=invite_id,
+                accepting_actor_id=accepting_actor_id,
+            ),
+            # A late Accept is routed by its compatibility with the case's
+            # embargo (EMB-17-001).
+            *late_accept_diversions(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
+                invite_id=invite_id,
+                published=published,
+                answers=accept_id,
+                result_out=expiry_out,
+                actor_config=actor_config,
+            ),
+            # Backstop: a late Accept is never recorded as an answer.
+            InviteNotExpiredNode(
+                result_out=expiry_out,
+                invitee_id=accepting_actor_id,
+                case_id=case_id,
             ),
         ],
         manager_effects=[
@@ -188,6 +237,8 @@ def reject_invite_to_embargo_tree(
 
         RejectInviteToEmbargoBT (Sequence)
         ├─ IntakeReceivedActivityNode
+        ├─ CaseOpenToExternalWrites           # door: post-close (CM-23-013)
+        ├─ ActivityAddressedToReceiverNode    # door: addressee (HP-01-005)
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
@@ -224,6 +275,7 @@ def reject_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,
+        addressee_check="Reject(Invite(EmbargoEvent))",
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=rejecting_actor_id, case_id=case_id, invite_id=invite_id

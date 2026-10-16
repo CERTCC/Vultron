@@ -14,6 +14,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     reject_invite_to_embargo_tree,
 )
+from vultron.core.behaviors.embargo.nodes import IsRejectableEmbargoNode
 from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -22,19 +23,18 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
-)
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    addressee_refusal,
     embargo_answer_repeat_verdict,
+    node_failed,
+    node_succeeded,
     not_case_manager_refusal,
     verdict_from_bt,
 )
 from vultron.core.use_cases.received._pending_refusal import (
     close_refused_embargo_proposal,
 )
-from vultron.core.use_cases.received._sender_preflight import rule_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -43,7 +43,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
 
 logger = logging.getLogger(__name__)
 
@@ -67,19 +66,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Door check before any tree or write: an unaddressed copy is
-        # refused (HP-01-005, ADR-0118).
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id,
-                request,
-                label="Reject(Invite(EmbargoEvent))",
-            )
-        ) is not None:
-            return refusal
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id
 
@@ -112,32 +101,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
                 "Reject(Invite(EmbargoEvent)) is missing its Invite id"
             )
 
-        # The sender must be the recorded Invite's invitee before anything is
-        # written, closing the pending ask included (EP-09-010, HP-01-006,
-        # ADR-0115).
-        if (
-            refusal := rule_refusal(
-                self._dl,
-                receiving_actor_id,
-                self.sender_entitlement,
-                SenderCheckContext(
-                    sender_id=rejecting_actor_id,
-                    case_id=case_id,
-                    invite_id=invite_id,
-                ),
-                request,
-                label="Reject(Invite(EmbargoEvent))",
-                sync_port=self._sync_port,
-            )
-        ) is not None:
-            return refusal
-
-        logger.info(
-            "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
-        )
-
-        close_refused_embargo_proposal(self._dl, request)  # EP-09-008
-
+        # One tree: its door guards refuse a closed case, an unaddressed copy
+        # (HP-01-005, ADR-0118) and a sender that is not the recorded Invite's
+        # invitee (EP-09-010, HP-01-006, ADR-0115) before anything is written.
         tree = reject_invite_to_embargo_tree(
             case_id=case_id,
             rejecting_actor_id=rejecting_actor_id,
@@ -161,6 +127,18 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             activity=request,
         )
 
+        if node_failed(tree, IsRejectableEmbargoNode) or node_succeeded(
+            tree, IsRejectableEmbargoNode
+        ):
+            # The door guards admitted the Reject — the first precondition
+            # guard ran — so the sender has standing, and a CASE_MANAGER's
+            # Reject closes the proposer's pending ask, whatever the tree then
+            # decided about the consent (EP-09-008).
+            logger.info(
+                "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
+            )
+            close_refused_embargo_proposal(self._dl, request)
+
         # A repeat of a Reject already recorded is refused by the tree's
         # repeat guard before the commit, and reported SKIPPED (CM-13-005,
         # HP-01-003).
@@ -168,6 +146,8 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             tree,
             verdict_from_bt(tree, result, label="RejectInviteToEmbargoBT"),
         )
+        if (refusal := addressee_refusal(tree)) is not None:
+            verdict = refusal
         if verdict.disposition is HandlerDisposition.APPLIED:
             # Only the CASE_MANAGER records an answer; a replica learns it
             # from the ledger broadcast (BT-17-001, HP-01-005).

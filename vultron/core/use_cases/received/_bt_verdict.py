@@ -51,9 +51,13 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.nodes.diversion_stage import DiversionStage
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -373,6 +377,60 @@ def rm_declaration_verdict(
     return verdict
 
 
+def guard_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    node_type: type[py_trees.behaviour.Behaviour],
+) -> HandlerResult | None:
+    """``REFUSED`` with the guard's own reason when a *node_type* guard failed.
+
+    ``None`` when no such guard ran and failed.  For a guard whose message
+    is the whole refusal, so the reason carries no tree label:
+    :class:`~vultron.core.behaviors.case.nodes.incomplete_activity.ActivityIncompleteNode`
+    and the announce tree's trusted-sender guard.  A guard that never ran (a
+    leadership skip, or the post-close guard refused first) is ``None``, so
+    the handler falls through to :func:`verdict_from_bt`.
+    """
+    node = find_node(tree, node_type)
+    if node is None or node.status != Status.FAILURE:
+        return None
+    return HandlerResult.refused(
+        node.feedback_message or f"{node.name} refused the activity"
+    )
+
+
+def addressee_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal of a copy not addressed to this receiver (HP-01-005).
+
+    ``None`` unless the tree's
+    :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`
+    door guard refused; the reason is the guard's own, naming the receiver,
+    the activity and its ``to``.
+    """
+    return guard_refusal(tree, ActivityAddressedToReceiverNode)
+
+
+def taken_diversion(
+    tree: py_trees.behaviour.Behaviour | _HasRoot, name: str
+) -> DiversionStage | None:
+    """The diversion stage *name* when it diverted the delivery, else ``None``.
+
+    See :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
+    (CLP-10-026): a taken diversion answered the delivery itself, so the
+    tree's ``FAILURE`` is not a refusal of its own and the handler reads the
+    stage instead.
+    """
+    for node in _root(tree).iterate():
+        if (
+            isinstance(node, DiversionStage)
+            and node.name == name
+            and node.taken
+        ):
+            return node
+    return None
+
+
 def failure_reason(
     tree: py_trees.behaviour.Behaviour | _HasRoot, result: BTExecutionResult
 ) -> str:
@@ -507,16 +565,19 @@ def applied_or_raise(
 
 
 __all__ = [
+    "addressee_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
     "failure_reason",
     "find_named",
     "find_node",
+    "guard_refusal",
     "intake_verdict",
     "node_failed",
     "node_succeeded",
     "not_case_manager",
     "not_case_manager_refusal",
     "post_close_refusal",
+    "taken_diversion",
     "verdict_from_bt",
 ]

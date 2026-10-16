@@ -71,6 +71,8 @@ _RECEIVE = "create_receive_activity_tree"
 _GATE = "create_case_manager_gated_tree"
 _LEGACY_KEYWORD = "effect_nodes"
 _EXEMPTION_KEYWORD = "replica_emit_exemption"
+_DIVERSION = "Diversion"
+_DIVERSION_EXEMPTION_KEYWORD = "emit_exemption"
 
 #: Callables that put an activity id in an actor's outbox.  A class whose
 #: methods call one of them is an emitter.
@@ -121,10 +123,10 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 #    ownership-transfer Offer tree's one-open-Offer guard and its replies'
 #    open-Offer guard): they
 #    hold no effect and no emit, which is all BT-17-008 governs (#4301
-#    keeps their direct gate).  The admission backfill is a CM-10-006
-#    follow-on that the embargo Accept use case runs on its own, given no
-#    activity; the Add and Remove(EmbargoEvent) trees run the same nodes
-#    (embargo_admission_backfill_nodes) in their manager_effects (#4323).
+#    keeps their direct gate).  The admission backfill nodes
+#    (embargo_admission_backfill_nodes) run in the Remove(EmbargoEvent)
+#    tree's manager_effects and the late-Accept honour diversion, whose gate
+#    the factory builds (#4323, #4642).
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (binds received-side trees only; #4301 keeps these)
 GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
@@ -133,19 +135,11 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "vultron/adapters/driving/fastapi/pending_retry.py",
             "_relay_pending_revision",
         ),
-        (
-            f"{_E}/admission_backfill_tree.py",
-            "embargo_admission_backfill_tree",
-        ),
-        (f"{_E}/expiry_tree.py", "create_honour_late_accept_tree"),
-        (f"{_E}/expiry_tree.py", "create_noop_ledger_entry_tree"),
-        (f"{_E}/expiry_tree.py", "create_reinvite_stale_accepter_tree"),
         # The CASE_MANAGER's lazy end-time check (ADR-0122): its own act,
         # run by the dispatcher before the received tree.
         (f"{_E}/end_time_tree.py", "end_embargo_if_end_time_passed_tree"),
         (f"{_E}/nodes/relay_guards.py", "case_manager_admits_proposal_guard"),
-        # The repeat guard for an answer to an embargo Invite (CM-13-005),
-        # also run by the Accept handler before its pre-tree paths.
+        # The repeat guard for an answer to an embargo Invite (CM-13-005).
         (
             f"{_E}/nodes/answer_repeat.py",
             "case_manager_admits_embargo_answer_guard",
@@ -264,9 +258,16 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             "invite_to_embargo_on_case_tree",
         ),
         (
+            "EMBARGO_INVITE_FAULT",
+            f"{_E}/invite_received_tree.py",
+            "embargo_invite_fault_tree",
+        ),
+        # A diversion of the Invite and Accept trees (CLP-10-026), built by
+        # the one helper both refusals share.
+        (
             "EMBARGO_INVITE_REFUSAL",
             f"{_E}/refusal_tree.py",
-            "embargo_invite_refusal_tree",
+            "_pxa_refusal",
         ),
         (
             "OFFER_ROLE",
@@ -354,11 +355,31 @@ def _legacy_effect_nodes_sites() -> frozenset[_Site]:
     )
 
 
+def _diversion_calls() -> Iterator[tuple[str, str, ast.Call]]:
+    """Every ``Diversion(...)`` built under behaviors (CLP-10-026)."""
+    for path, tree in _corpus.files_mentioning(
+        _DIVERSION, under=_BEHAVIORS_ROOT
+    ):
+        rel = _rel(path)
+        for scope in _top_level_scopes(tree):
+            for call, name in _calls(scope):
+                if name == _DIVERSION:
+                    yield rel, scope.name, call
+
+
 def _exemption_uses() -> frozenset[tuple[str, str, str]]:
+    """Each named exemption a received tree, or a diversion of one, passes."""
     uses: set[tuple[str, str, str]] = set()
-    for rel, scope, call in _receive_calls():
+    sites = [
+        (rel, scope, call, _EXEMPTION_KEYWORD)
+        for rel, scope, call in _receive_calls()
+    ] + [
+        (rel, scope, call, _DIVERSION_EXEMPTION_KEYWORD)
+        for rel, scope, call in _diversion_calls()
+    ]
+    for rel, scope, call, keyword in sites:
         for kw in call.keywords:
-            if kw.arg == _EXEMPTION_KEYWORD:
+            if kw.arg == keyword:
                 assert isinstance(kw.value, ast.Name), (
                     f"{rel}:{scope}: pass a named exemption constant from"
                     " replica_emit_exemptions, not an inline value"

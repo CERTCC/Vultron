@@ -116,6 +116,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
 )
+from vultron.core.behaviors.embargo.refusal_tree import pxa_invite_refusal
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
@@ -255,6 +256,7 @@ def remove_embargo_from_case_tree(
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
+        addressee_check="Remove(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
         precondition_guards=[
@@ -379,8 +381,15 @@ def invite_to_embargo_on_case_tree(
     ``actor`` with the proposer in ``attributedTo`` (CM-24), committing each
     emission and applying the invitee's PEC ``INVITE`` where CM-18-003 allows
     it (EP-09-004).  A case whose EM state admits no proposal (``EXITED``) is
-    refused by a read-only guard ahead of the commit (CLP-10-009); the P/X/A
-    refusal with ER (EMB-01-002, EMB-03-003) is the use case's pre-flight.
+    refused by a read-only guard ahead of the commit (CLP-10-009).
+
+    **The door guards and the P/X/A refusal precede both arms**: a copy not
+    addressed to this receiver is refused (HP-01-005), then a sender without
+    standing (HP-01-006).  Once P/X/A is set, the Invite is refused with ER
+    (EMB-01-002, EMB-03-003) by a diversion of the tree
+    (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_invite_refusal`,
+    CLP-10-026): its invitee answers the CASE_MANAGER, the CASE_MANAGER the
+    proposer, and neither arm runs.
     The CM-24 authorship pair comes from the shared ``delegated_authorship``
     helper (CM-24-005): the relay runs only under the role gate, so ``actor``
     is the role holder, and ``attributedTo`` is the proposer.
@@ -468,11 +477,21 @@ def invite_to_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=case_id,
+        addressee_check="Invite(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
         precondition_guards=[
             EmbargoProposalNotYetRecordedNode(
                 case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
+            ),
+            # EMB-01-002: with P/X/A set the Invite is answered with ER and
+            # moves nothing, at the CASE_MANAGER and at a participant alike.
+            pxa_invite_refusal(
+                case_id=case_id,
+                invite_id=invite_id,
+                invitee_id=invitee_id,
+                sender_id=sender_actor_id,
+                embargo=embargo,
             ),
             case_manager_admits_proposal_guard(case_id=case_id),
         ],

@@ -283,7 +283,7 @@ groups:
       confirm an activation on a public case (P set) is refused before commit, and that
       the CASE_MANAGER answers a participant's acceptance with ER; inspection confirms
       both refusals test all three bits (`pxa_is_embargo_eligible` in the owner's
-      decision, `pxa_embargo_ineligible` on a participant's acceptance), so X or A set
+      decision, `PxaBarsEmbargoNode` on a participant's acceptance), so X or A set
       refuses the activation as P does.
     statement: >-
       A Participant MUST NOT process EA to transition EM to Active when the case is already

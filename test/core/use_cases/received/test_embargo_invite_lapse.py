@@ -1889,7 +1889,7 @@ class TestLateAcceptHandling:
         """Run a late Accept whose expiry commit-and-apply is *commit_node*.
 
         Returns the store, the case and embargo ids, and the list that
-        records each call of the EMB-17 routing.
+        records each EMB-17 route the tree took.
         """
         from vultron.core.behaviors.embargo import expiry_tree as _et_module
 
@@ -1916,20 +1916,24 @@ class TestLateAcceptHandling:
             "create_commit_and_record_expiry_tree",
             lambda **_: commit_node,
         )
+        from py_trees.common import Status as _Status
+
+        from vultron.core.behaviors.embargo.nodes.late_accept import (
+            LateAcceptRouteIsNode,
+        )
+
         routed: list[str] = []
-        original = (
-            AcceptInviteToEmbargoOnCaseReceivedUseCase._handle_emb17_routing
-        )
+        original = LateAcceptRouteIsNode.update
 
-        def _spy(self, **kwargs):
-            routed.append(kwargs["case_id"])
-            return original(self, **kwargs)
+        def _spy(self):
+            status = original(self)
+            if status is _Status.SUCCESS:
+                routed.append(self._case_id)
+            return status
 
-        monkeypatch.setattr(
-            AcceptInviteToEmbargoOnCaseReceivedUseCase,
-            "_handle_emb17_routing",
-            _spy,
-        )
+        # The late-Accept arms are diversions of the one tree (CLP-10-026);
+        # a route is taken when its condition holds.
+        monkeypatch.setattr(LateAcceptRouteIsNode, "update", _spy)
         use_case = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             _make_accept_event(proposal, case, _INVITEE, make_payload),

@@ -35,27 +35,27 @@ A failed commit leaves the invitee unchanged; ``RecordInviteExpiryNode`` only
 runs after a successful commit.
 
 A store that is not the CASE_MANAGER runs nothing and leaves ``result_out``
-unset; the Accept tree's expiry guard and the caller read ``IS_EXPIRED_KEY``
-as False, and the Accept's own effects are gated on the CASE_MANAGER too
-(BT-17-001, HP-01-005).
+unset; the Accept tree's late-Accept arms and its expiry guard read
+``IS_EXPIRED_KEY`` as False, and the Accept's own effects are gated on the
+CASE_MANAGER too (BT-17-001, HP-01-005).
 The entry's replica apply node is
 :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyInviteExpiryFromLedgerNode`.
 
-The honour-late-accept tree (EMB-17-001) similarly follows guard → commit →
-effect::
+A late Accept is then answered by one of three CASE_MANAGER diversions of the
+Accept tree (:func:`late_accept_diversions`, EMB-17, CLP-10-026), each
+following commit → effect::
 
-    HonourLateAcceptBT (CASE_MANAGER-gated Sequence)
-    └─ HonourLateAccept (Sequence)
-       ├─ CommitLogEntryBT             # commit HONOUR_LATE_ACCEPT_EVENT_TYPE
-       └─ HonourLateAcceptNode         # EFFECT: apply TIMED_OUT/DECLINED → AGREED
+    HonourLateAccept (DiversionStage)
+    ├─ LateAcceptHonour: Inverter(InviteNotExpired), LateAcceptRouteIs(HONOUR)
+    └─ CommitLogEntryBT → HonourLateAcceptNode → backfill → stub re-issue
+    ReinviteLateAccepter (DiversionStage)
+    ├─ LateAcceptReinvite: …, LateAcceptRouteIs(REINVITE)
+    └─ ReinviteLateAccepterNode  # stamp → build → outbox → commit → PEC INVITE
+    AcknowledgeLateAccept (DiversionStage)
+    ├─ LateAcceptAcknowledge: …, LateAcceptRouteIs(ACKNOWLEDGE)
+    └─ CommitLateAcceptAcknowledgementNode   # the CASE_MANAGER's Ignore
 
-The re-invite of a stale accepter (EMB-17-003) is a CASE_MANAGER-gated commit →
-effect node of the relay's frame::
-
-    ReinviteStaleAccepterBT (CASE_MANAGER-gated)
-    └─ ReinviteStaleAccepterNode     # stamp → build → outbox → commit → PEC INVITE
-
-Replicas replay it through
+Replicas replay the re-invite through
 :class:`~vultron.core.behaviors.embargo.nodes.relay_effect.ApplyEmbargoReinviteFromLedgerNode`.
 """
 
@@ -64,8 +64,9 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
+from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
+from vultron.core.behaviors.embargo.admission_backfill_tree import (
+    embargo_admission_backfill_nodes,
 )
 from vultron.core.behaviors.embargo.nodes.expiry import (
     IS_EXPIRED_KEY,
@@ -73,13 +74,16 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
     EvaluateInviteExpiryNode,
     HonourLateAcceptNode,
     InviteExpiryNeedsApplyNode,
+    InviteNotExpiredNode,
     RecordInviteExpiryNode,
 )
 from vultron.core.behaviors.embargo.nodes.late_accept import (
     CommitLateAcceptAcknowledgementNode,
+    LateAcceptRoute,
+    LateAcceptRouteIsNode,
 )
 from vultron.core.behaviors.embargo.nodes.reinvite import (
-    ReinviteStaleAccepterNode,
+    ReinviteLateAccepterNode,
 )
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -288,37 +292,105 @@ def invite_expiry_decision(
     )
 
 
-def create_honour_late_accept_tree(
+#: The names of the late-Accept diversions, honour, re-invite, acknowledge.
+LATE_ACCEPT_DIVERSIONS: tuple[str, str, str] = (
+    "HonourLateAccept",
+    "ReinviteLateAccepter",
+    "AcknowledgeLateAccept",
+)
+
+
+def _late_accept_condition(
     *,
     case_id: str,
+    embargo_id: str,
+    accepting_actor_id: str,
+    route: LateAcceptRoute,
+    result_out: dict[str, Any],
+) -> py_trees.behaviour.Behaviour:
+    """The Invite expired, and its late Accept takes the *route* arm."""
+    return py_trees.composites.Sequence(
+        name=f"LateAccept{route.value.title()}",
+        memory=False,
+        children=[
+            py_trees.decorators.Inverter(
+                name="InviteExpired",
+                child=InviteNotExpiredNode(
+                    result_out=result_out,
+                    invitee_id=accepting_actor_id,
+                    case_id=case_id,
+                ),
+            ),
+            LateAcceptRouteIsNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
+                route=route,
+            ),
+        ],
+    )
+
+
+def late_accept_diversions(
+    *,
+    case_id: str,
+    embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
-    embargo_id: str,
     published: str,
-) -> py_trees.behaviour.Behaviour:
-    """Build the CASE_MANAGER-gated honour-late-accept tree (EMB-17-001).
+    answers: str | None,
+    result_out: dict[str, Any],
+    actor_config: "ActorConfig | None" = None,
+) -> list[Diversion]:
+    """The CASE_MANAGER's three answers to a late embargo Accept (EMB-17).
 
-    The tree follows the commit → effect pattern (CLP-10-006):
-    the commit node persists the :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE` entry,
-    and only then
-    :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
-    applies ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED``.
+    The Invite Accept tree passes them among its precondition guards, after
+    its repeat guard and P/X/A refusal and before the guard that keeps a late
+    Accept from being recorded as an answer.  Each is a ``CASE_MANAGER``
+    diversion (CLP-10-026) whose condition is the Invite expiry's finding
+    (*result_out*, written by :func:`invite_expiry_decision`) and the arm
+    :class:`~vultron.core.behaviors.embargo.nodes.late_accept.LateAcceptRouteIsNode`
+    reads from the case; the three conditions are exclusive, so one answer
+    runs at most, and the late Accept itself is never committed.
 
-    Replicas learn the honour decision via
-    :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`
-    in ``AnnounceLogEntryReceivedBT`` (RSH-08-004, ADR-0118).
+    - **Honour** (EMB-17-002, EMB-17-009): commit the honour entry, then move
+      the accepter's row to ``AGREED`` (CLP-10-006), then send what the
+      embargo gate withheld from it and re-issue stale stub Invites
+      (CM-10-006, CM-11-016).  Replicas replay the entry through
+      :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`
+      (RSH-08-004, ADR-0118).
+    - **Re-invite** (EMB-17-003, EMB-17-011): invite the accepter to the
+      embargo in force; the node stamps a fresh deadline, queues the Invite,
+      commits it once queued and applies PEC ``INVITE`` (ADR-0119,
+      CM-28-013).
+    - **Acknowledge** (EMB-17-004, EMB-17-010): commit the CASE_MANAGER's
+      ``Ignore`` of the late Accept and change no consent row.
 
     Args:
         case_id: The case the Invite was for.
-        accepting_actor_id: The participant whose late Accept is honoured.
-        invite_id: The answered Invite; the entry's object id.
-        embargo_id: The active embargo being accepted.
-        published: The answer's claimed time.
+        embargo_id: The embargo the late Accept names.
+        accepting_actor_id: The late accepter.
+        invite_id: The answered Invite; the honour entry's object id.
+        published: The Accept's claimed time, carried on the honour entry.
+        answers: The late Accept's id; the re-invite's id derives from it.
+        result_out: The Invite expiry decision's findings.
+        actor_config: The CASE_MANAGER's configuration (RSVP window, stub
+            re-issue).
     """
-    honour_sequence = py_trees.composites.Sequence(
-        name="HonourLateAccept",
-        memory=False,
-        children=[
+
+    def condition(route: LateAcceptRoute) -> py_trees.behaviour.Behaviour:
+        return _late_accept_condition(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            accepting_actor_id=accepting_actor_id,
+            route=route,
+            result_out=result_out,
+        )
+
+    honour = Diversion(
+        name=LATE_ACCEPT_DIVERSIONS[0],
+        condition=condition(LateAcceptRoute.HONOUR),
+        effects=(
             create_commit_log_entry_tree(
                 case_id=case_id,
                 object_id=invite_id or case_id,
@@ -336,92 +408,41 @@ def create_honour_late_accept_tree(
                 actor_id=accepting_actor_id,
                 embargo_id=embargo_id,
             ),
-        ],
+            *embargo_admission_backfill_nodes(case_id, actor_config),
+        ),
     )
-    return create_case_manager_gated_tree(
-        name="HonourLateAcceptBT",
-        case_id=case_id,
-        children=[honour_sequence],
-        body_name="HonourLateAcceptBody",
-    )
-
-
-def create_noop_ledger_entry_tree(
-    *,
-    case_id: str,
-) -> py_trees.behaviour.Behaviour:
-    """Build the CASE_MANAGER-gated no-op acknowledgement tree (EMB-17-004).
-
-    Commits :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_EVENT_TYPE`
-    with the CASE_MANAGER's factory-built ``Ignore`` of the late ``Accept``
-    as its snapshot (CLP-07-013, VM-08-003), so replicas can replay the
-    acknowledgement without writing a commit from a non-manager store
-    (BT-17-001, RSH-08-004, ADR-0118).  The late Accept is read from
-    ``/activity``; the bridge needs the trigger-activity factory and the
-    wire-render port.
-
-    Args:
-        case_id: The case the Invite was for.
-    """
-    return create_case_manager_gated_tree(
-        name="CommitNoopLedgerEntryBT",
-        case_id=case_id,
-        children=[
-            CommitLateAcceptAcknowledgementNode(
-                case_id=case_id, name="CommitLateAcceptAcknowledgement"
-            )
-        ],
-        body_name="CommitNoopLedgerEntry",
-    )
-
-
-def create_reinvite_stale_accepter_tree(
-    *,
-    case_id: str,
-    embargo_id: str,
-    invitee_id: str,
-    actor_config: "ActorConfig | None" = None,
-    answers: str | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Build the CASE_MANAGER-gated EMB-17-003 re-invite tree.
-
-    The gate is the role guard; the node queues the re-invite, commits it as
-    a canonical entry once queued (ADR-0119, BT-17-001) and then applies PEC
-    ``INVITE`` to the invitee, recording the fresh deadline the Invite carries
-    (CM-28-013).  Replicas learn both from the entry.
-
-    Args:
-        case_id: The case the late Accept was for.
-        embargo_id: The case's *current* embargo, which the re-invite carries.
-        invitee_id: The accepting participant being asked again.
-        actor_config: The manager's configuration; sets the RSVP window.
-        answers: The late Accept's id; the re-invite's id is derived from it.
-    """
-    return create_case_manager_gated_tree(
-        name="ReinviteStaleAccepterBT",
-        case_id=case_id,
-        children=[
-            ReinviteStaleAccepterNode(
+    reinvite = Diversion(
+        name=LATE_ACCEPT_DIVERSIONS[1],
+        condition=condition(LateAcceptRoute.REINVITE),
+        effects=(
+            ReinviteLateAccepterNode(
                 case_id=case_id,
-                embargo_id=embargo_id,
-                invitee_id=invitee_id,
+                invitee_id=accepting_actor_id,
                 actor_config=actor_config,
                 answers=answers,
-            )
-        ],
-        body_name="ReinviteStaleAccepter",
+            ),
+        ),
     )
+    acknowledge = Diversion(
+        name=LATE_ACCEPT_DIVERSIONS[2],
+        condition=condition(LateAcceptRoute.ACKNOWLEDGE),
+        effects=(
+            CommitLateAcceptAcknowledgementNode(
+                case_id=case_id, name="CommitLateAcceptAcknowledgement"
+            ),
+        ),
+    )
+    return [honour, reinvite, acknowledge]
 
 
 __all__ = [
     "CONSENT_CHANGED_KEY",
     "IS_EXPIRED_KEY",
+    "LATE_ACCEPT_DIVERSIONS",
     "NEEDS_APPLY_KEY",
     "create_commit_and_record_expiry_tree",
-    "create_honour_late_accept_tree",
-    "create_noop_ledger_entry_tree",
-    "create_reinvite_stale_accepter_tree",
     "expiry_payload_snapshot",
     "honour_late_accept_payload_snapshot",
     "invite_expiry_decision",
+    "late_accept_diversions",
 ]

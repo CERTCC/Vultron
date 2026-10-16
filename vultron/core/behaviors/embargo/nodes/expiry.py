@@ -374,8 +374,9 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
 class HonourLateAcceptNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply the CASE_MANAGER's honour decision after the commit (EMB-17-001).
 
-    This is the **effect** node in
-    :func:`~vultron.core.behaviors.embargo.expiry_tree.create_honour_late_accept_tree`.
+    This is the **effect** node of the honour diversion that
+    :func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`
+    builds.
     Called after the ledger entry is committed, it applies
     ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED`` by
     delegating to

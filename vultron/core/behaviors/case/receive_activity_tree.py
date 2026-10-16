@@ -17,9 +17,10 @@
 
 :func:`create_receive_activity_tree` is the one way to build a received-side
 BT.
-It fixes the stage order intake → door guards (post-close guard, sender
-guard) → clock decisions → precondition guards → guarded commit → protocol
-effects (CLP-10-006, CLP-10-010, CLP-10-025, ADR-0115, CM-23-013) and
+It fixes the stage order intake → door guards (post-close guard, addressee
+check, sender guard) → clock decisions → precondition guards → guarded commit
+→ protocol effects (CLP-10-006, CLP-10-010, CLP-10-025, ADR-0115, CM-23-013,
+HP-01-005) and
 supplies the shared intake node and the post-close write-boundary guard
 itself (CLP-10-017, ADR-0131), so no handler opts out of recording what
 arrived or forgets the closed-case boundary.
@@ -27,18 +28,23 @@ A tree whose CASE_MANAGER must record a decision from its own clock before
 it judges the activity (an expiry) passes ``clock_decisions``: the factory
 runs them at the CASE_MANAGER only, after the door guards, and a refused
 commit there never ends the tree (CLP-10-025).
+A tree some of whose deliveries are answered by an act of the receiver's own
+instead of a commit passes a ``Diversion`` among its precondition guards: the
+factory builds its stage there, so the choice of arm is tree structure, never
+the use case's (CLP-10-026, ADR-0135).
 A tree that owes the sender feedback when its guards refuse passes
 ``refusal_effects``: the factory runs them only on that refusal, at the
 CASE_MANAGER, once per received activity, and the tree still fails before
 the commit (CLP-10-022).
 
 When ``sender_rule`` is provided, the factory composes the sender guard from
-it and places it immediately after the post-close guard and before the
-caller's ``precondition_guards``.
+it and places it immediately after the post-close guard (and the addressee
+check, when the tree asks for one) and before the caller's
+``precondition_guards``.
 A failed sender guard ends the tree with ``REFUSED`` and nothing is written
 or sent (HP-01-006, HP-01-008, ADR-0115).  A tree cannot pass a guard of its
-own: the factory and the embargo pre-flight are the only places a sender
-guard is composed (HP-01-007, #4437).
+own: the factory is the only place a sender guard is composed (HP-01-007,
+#4437).
 
 The factory is also the one place a received tree acquires the CASE_MANAGER
 gate (BT-17-008): it wraps ``manager_effects`` in
@@ -62,11 +68,21 @@ sits at the area root as BTND-07-003 requires.
 """
 
 import logging
+from collections.abc import Sequence
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     ClockDecisionStage,
+)
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.nodes.diversion_stage import (
+    Diversion,
+    DiversionGate,
+    DiversionStage,
 )
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
@@ -432,13 +448,135 @@ def _clock_decision_stage(
     )
 
 
+def _node_types(
+    roots: list[py_trees.behaviour.Behaviour],
+    marker: type | tuple[type, ...],
+) -> list[str]:
+    """Sorted class names of every *marker* node in *roots*, gated or not."""
+    return sorted(
+        {
+            type(n).__name__
+            for root in roots
+            for n in root.iterate()
+            if isinstance(n, marker)
+        }
+    )
+
+
+def _diversion_stage(
+    name: str, diversion: Diversion, case_id: str | None
+) -> DiversionStage:
+    """Build the stage for one :class:`Diversion` (CLP-10-026).
+
+    A ``CASE_MANAGER`` diversion checks the role before its condition and
+    runs its effects inside the CASE_MANAGER gate on *case_id* (BT-17-001).
+    A ``RECEIVER`` diversion is the receiver's own answer: its emits must be
+    covered by its registered exemption and it may write no case state
+    (BT-17-008, RSH-08-003).
+
+    Raises:
+        VultronWiringError: the condition emits, writes state or commits; an
+            effect holds the received activity's commit, which a diverted
+            delivery never makes; a ``CASE_MANAGER`` diversion names no
+            case; or a ``RECEIVER`` diversion writes case state or has an
+            uncovered emit.
+    """
+    where = f"create_receive_activity_tree({name}): diversion {diversion.name}"
+    condition = [diversion.condition]
+    if offenders := _node_types(
+        condition, (EmitCapable, StateWriteCapable, CommitCaseLedgerEntryNode)
+    ):
+        raise VultronWiringError(
+            f"{where}: its condition must be read-only; found {offenders}"
+            " (CLP-10-026)"
+        )
+    effects = list(diversion.effects)
+    if commits := _node_types(effects, CommitCaseLedgerEntryNode):
+        raise VultronWiringError(
+            f"{where}: a diverted delivery is never committed as received;"
+            f" found {commits} (CLP-10-026)"
+        )
+    if diversion.gate is DiversionGate.RECEIVER:
+        if writers := _node_types(effects, StateWriteCapable):
+            raise VultronWiringError(
+                f"{where}: a receiver's own answer writes no case state;"
+                f" found {writers} (RSH-08-003, CLP-10-026)"
+            )
+        _check_replica_effects(name, effects, diversion.emit_exemption)
+        body: py_trees.behaviour.Behaviour = py_trees.composites.Sequence(
+            name=f"{diversion.name}Answer", memory=False, children=effects
+        )
+        return DiversionStage(diversion.name, diversion.condition, body)
+    if case_id is None:
+        raise VultronWiringError(
+            f"{where}: a CASE_MANAGER diversion needs the tree's case_id or"
+            " manager_case_id (BT-17-001)"
+        )
+    if diversion.emit_exemption is not None:
+        raise VultronWiringError(
+            f"{where}: a CASE_MANAGER diversion's emits are gated; drop its"
+            " emit exemption (BT-17-008)"
+        )
+    gated_condition = py_trees.composites.Sequence(
+        name=f"{diversion.name}IfCaseManager",
+        memory=False,
+        children=[
+            CheckIsCaseManagerNode(case_id=case_id, case_may_be_absent=True),
+            diversion.condition,
+        ],
+    )
+    return DiversionStage(
+        diversion.name,
+        gated_condition,
+        create_case_manager_gated_tree(
+            name=f"{diversion.name}Answer",
+            case_id=case_id,
+            children=effects,
+        ),
+    )
+
+
+def _precondition_guards(
+    name: str,
+    guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
+    case_id: str | None,
+    *,
+    with_refusal_effects: bool,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The tree's precondition guards, each :class:`Diversion` built in place.
+
+    Raises:
+        VultronWiringError: a diversion is passed with ``refusal_effects``:
+            a diverted delivery answers itself, so refusal effects would
+            answer it a second time (CLP-10-022, CLP-10-026).
+    """
+    built: list[py_trees.behaviour.Behaviour] = []
+    for guard in guards:
+        if not isinstance(guard, Diversion):
+            built.append(guard)
+            continue
+        if with_refusal_effects:
+            raise VultronWiringError(
+                f"create_receive_activity_tree({name}): diversion"
+                f" {guard.name} cannot share a tree with refusal_effects"
+                " (CLP-10-022, CLP-10-026)"
+            )
+        built.append(_diversion_stage(name, guard, case_id))
+    return built
+
+
 def _sender_guard_stage(
     name: str,
     case_id: str | None,
     sender_rule: SenderRule | None,
     sender_context: SenderCheckContext | None,
 ) -> py_trees.behaviour.Behaviour | None:
-    """The tree's sender guard, composed from the declared rule (HP-01-008)."""
+    """The tree's sender guard, composed from the declared rule (HP-01-008).
+
+    A tree that commits (``case_id`` set) must judge the sender against that
+    case; a tree that commits nothing judges it against the case its
+    *sender_context* names.
+    """
     if sender_rule is None:
         if sender_context is not None:
             raise VultronWiringError(
@@ -449,7 +587,7 @@ def _sender_guard_stage(
         raise VultronWiringError(
             f"{name}: sender_rule needs a sender_context (HP-01-008)"
         )
-    if sender_context.case_id != case_id:
+    if case_id is not None and sender_context.case_id != case_id:
         raise VultronWiringError(
             f"{name}: sender_context names case {sender_context.case_id!r}"
             f" but the tree's case is {case_id!r} (HP-01-008)"
@@ -460,9 +598,10 @@ def _sender_guard_stage(
 def create_receive_activity_tree(
     name: str,
     case_id: str | None,
-    precondition_guards: list[py_trees.behaviour.Behaviour],
+    precondition_guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
     case_may_be_absent: bool = False,
     *,
+    addressee_check: str | None = None,
     sender_rule: SenderRule | None = None,
     sender_context: SenderCheckContext | None = None,
     replica_effects: list[py_trees.behaviour.Behaviour] | None = None,
@@ -482,10 +621,28 @@ def create_receive_activity_tree(
     Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
     ADR-0135, BT-17-008, CM-23-013)::
 
-        Intake → CaseOpenToExternalWrites → [sender guard]
+        Intake → CaseOpenToExternalWrites → [addressee check]
+            → [sender guard]
             → [CaseManagerGate[ClockDecisionStage[*clock_decisions]]]
             → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
+
+    ``addressee_check`` names the activity in the HP-01-005 refusal: when it
+    is given, :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`
+    follows the post-close guard and refuses a copy whose ``to`` does not
+    name the receiver, unless the receiver sent it.  Intake has archived the
+    copy; nothing else runs (CLP-10-010, CLP-10-018).
+
+    A :class:`~vultron.core.behaviors.case.nodes.diversion_stage.Diversion`
+    among ``precondition_guards`` becomes a
+    :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
+    at its place: when its read-only condition holds, its effects answer the
+    delivery and the tree stops before the commit (CLP-10-026).  A
+    ``CASE_MANAGER`` diversion runs only at the case's CASE_MANAGER, inside
+    the gate on ``case_id`` (else ``manager_case_id``), and may commit its own
+    entry; a ``RECEIVER`` diversion writes no case state and its emits need a
+    registered exemption.  A tree with diversions takes no
+    ``refusal_effects``.
 
     ``clock_decisions`` are decisions the CASE_MANAGER takes from its own
     clock or local policy before it judges the activity, such as an expiry
@@ -600,9 +757,13 @@ def create_receive_activity_tree(
     Args:
         name: Name for the root ``Sequence`` node.
         case_id: Case URI for the guarded-commit stage; ``None`` omits it.
-        precondition_guards: Read-only guard nodes after the sender guard.
+        precondition_guards: Read-only guard nodes after the sender guard,
+            and any diversions, in order.
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
+        addressee_check: The activity's label, e.g.
+            ``"Accept(Invite(EmbargoEvent))"``; given, the addressee door
+            guard refuses an unaddressed copy (HP-01-005).
         sender_rule: The use case's declared sender rule; the factory
             composes the guard from it (HP-01-008).
         sender_context: The sender and the records the rule's kinds are
@@ -640,12 +801,15 @@ def create_receive_activity_tree(
             inconsistent: ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
             ``sender_context`` naming another case than ``case_id``
-            (HP-01-008), or ``clock_decisions`` name no case, come without
-            a ``sender_rule`` or with a ``post_close_exemption``, or hold
-            the received activity's commit (CLP-10-025).
+            (HP-01-008), or a diversion is ill-formed or shares the tree
+            with ``refusal_effects`` (CLP-10-026), or ``clock_decisions``
+            name no case, come without a ``sender_rule`` or with a
+            ``post_close_exemption``, or hold the received activity's commit
+            (CLP-10-025).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
-    CLP-10-017, CLP-10-022, CLP-10-025, ``specs/behavior-tree-integration.yaml``
+    CLP-10-017, CLP-10-022, CLP-10-025, CLP-10-026,
+    ``specs/behavior-tree-integration.yaml``
     BT-17-008 and ``specs/case-management.yaml`` CM-23-013.
     """
     replica = replica_effects or []
@@ -673,6 +837,8 @@ def create_receive_activity_tree(
             post_close_reply or [],
         )
     )
+    if addressee_check is not None:
+        children.append(ActivityAddressedToReceiverNode(label=addressee_check))
     guard = _sender_guard_stage(name, case_id, sender_rule, sender_context)
     if guard is not None:
         children.append(guard)
@@ -686,18 +852,24 @@ def create_receive_activity_tree(
                 post_close_exemption=post_close_exemption,
             )
         )
+    guards = _precondition_guards(
+        name,
+        precondition_guards,
+        case_id or manager_case_id,
+        with_refusal_effects=bool(refusal_effects),
+    )
     if refusal_effects:
         children.append(
             _refusal_stage(
                 name,
                 intake,
-                precondition_guards,
+                guards,
                 refusal_effects,
                 case_id,
             )
         )
     else:
-        children.extend(precondition_guards)
+        children.extend(guards)
     if case_id is not None:
         children.append(
             create_guarded_commit_case_ledger_entry_tree(

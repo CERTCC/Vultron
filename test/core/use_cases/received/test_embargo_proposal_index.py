@@ -746,13 +746,13 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         assert result.disposition is HandlerDisposition.APPLIED
 
         # The use case takes the case and embargo from the event, never from
-        # a re-read of the Invite.  The only reads of the recorded Invite are
-        # the two sender guards' lookups of its invitee: the handler's
-        # pre-flight and the tree's sender stage (EP-09-010).
-        assert dl_read_calls.count(proposal.id_) == 2, (
+        # a re-read of the Invite.  The only read of the recorded Invite is
+        # the tree's sender guard looking up its invitee (EP-09-010): the
+        # door checks are in the one tree, so nothing reads it ahead of it.
+        assert dl_read_calls.count(proposal.id_) == 1, (
             f"dl.read({proposal.id_!r}) was called"
-            f" {dl_read_calls.count(proposal.id_)} times — only the two"
-            " sender guards may read the recorded Invite"
+            f" {dl_read_calls.count(proposal.id_)} times — only the sender"
+            " guard may read the recorded Invite"
         )
 
         assert event.case_id == case.id_

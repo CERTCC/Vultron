@@ -12,9 +12,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-graph resolution through the use-case package for the mutation ratchet.
+"""Call-graph resolution through the use-case package for the use-case ratchets.
 
-Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020): the classes
+Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020) and
+``test_embargo_received_one_tree.py`` (CLP-10-005): the classes
 here index every module of ``vultron/core/use_cases/`` — and of
 ``vultron/core/services/``, the neutral home of helpers a use case shares with
 a BT node (BT-22-005), so moving a helper there does not hide its writes — and
@@ -84,6 +85,14 @@ def _is_dl_mutation_call(node: ast.AST) -> bool:
         return True
     # dl.METHOD (local variable)
     return bool(isinstance(recv, ast.Name) and recv.id in _DL_RECEIVER_ATTRS)
+
+
+def _is_execute_with_setup_call(node: ast.Call) -> bool:
+    """True for a ``….execute_with_setup(...)`` or bare ``execute_with_setup(...)``."""
+    func = node.func
+    return (
+        isinstance(func, ast.Attribute) and func.attr == "execute_with_setup"
+    ) or (isinstance(func, ast.Name) and func.id == "execute_with_setup")
 
 
 def _walk_own_scope(node: ast.AST) -> Iterator[ast.AST]:
@@ -242,6 +251,45 @@ class _UseCaseCorpus:
             ):
                 return True
         return False
+
+    def tree_runs_per_execute(self, module: str) -> dict[str, int]:
+        """``execute_with_setup()`` calls each ``execute()`` in *module* reaches.
+
+        Keyed by class.  Calls are summed along every path through the
+        indexed packages, so a helper called twice counts twice and two
+        calls on alternative branches count as two (CLP-10-005).  A cycle is
+        not followed a second time.
+        """
+        index = self._modules[module]
+        return {
+            cls: self._count_tree_runs(module, cls, execute, ())
+            for cls, methods in index.methods.items()
+            if (execute := methods.get("execute")) is not None
+        }
+
+    def _count_tree_runs(
+        self,
+        module: str,
+        cls: str | None,
+        func: _FunctionDef,
+        stack: tuple[_Callee, ...],
+    ) -> int:
+        total = 0
+        for node in _walk_own_scope(func):
+            if not isinstance(node, ast.Call):
+                continue
+            if _is_execute_with_setup_call(node):
+                total += 1
+                continue
+            callee = self._resolve(module, cls, node.func)
+            if callee is None or callee in stack:
+                continue
+            target = self._definition(*callee)
+            if target is not None:
+                total += self._count_tree_runs(
+                    callee[0], callee[1], target, (*stack, callee)
+                )
+        return total
 
     def _reaches_mutation(
         self,

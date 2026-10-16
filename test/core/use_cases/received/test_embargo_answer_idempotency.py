@@ -457,7 +457,7 @@ def test_the_repeat_guard_admits_an_answer_with_no_recorded_one(
 
 @pytest.mark.spec("CM-13-005")
 def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
-    """The in-tree guard catches a repeat even without the handler preflight."""
+    """The in-tree guard is the one repeat check: no handler check precedes it."""
     net = LedgerNetwork("https://example.org/cases/answer-guard-tree")
     embargo_id, invite_id = _invited(net, BYSTANDER, "guard-tree")
     first = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
