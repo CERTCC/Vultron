@@ -1113,7 +1113,8 @@ def _is_ownership_transfer_offer_for(
     to the transferee (CM-21-005).  The forwarded Offer has::
 
         type   = "Offer"
-        target = transferee_id      # the actor being offered ownership
+        target = transferee_id      # the actor being offered ownership,
+                                    # inline Actor or its id (DL-08-003)
         object = case_id            # the VulnerabilityCase being transferred
 
     The original Vendor Offer (addressed to the CaseActor, target=case_actor_id)
@@ -1150,7 +1151,8 @@ def find_ownership_transfer_offer_for_actor(
     because the original Offer is only stored in the CaseActor's DataLayer.
 
     This helper scans *client*'s DataLayer for any
-    ``Offer(target=transferee_id, object=case_id)`` and returns its ID so the
+    ``Offer(target=transferee_id, object=case_id)`` (``target`` an inline Actor
+    or its id) and returns its ID so the
     demo can drive the ``accept-case-ownership-transfer`` trigger with the correct
     (forwarded) offer ID.
 
