@@ -74,8 +74,8 @@ The shape guard lives on the *type*, not the write path (ARCH-12-003, ADR-0082).
 `CoreObject` sets `extra="forbid"`, so handing a wire-shaped payload to a core
 type raises a pydantic `ValidationError` instead of silently dropping every
 snake_case-only key. A wire-shaped row in a core-typed slot is not cosmetic:
-core `ParticipantStatus` nests `rm: RmDimension` where wire carries a flat
-`rm_state`, so the wrong shape makes `status.rm.state` read `None`.
+core `ParticipantStatus` once nested `rm: RmDimension` where wire carried a flat
+`rm_state`, so the wrong shape made `status.rm.state` read `None`.
 
 - **Writes store verbatim.** `Record.from_obj()` and `_storable_to_record()` do
   not project; a row is persisted in the shape it arrived in. Do not add a
@@ -89,9 +89,9 @@ core `ParticipantStatus` nests `rm: RmDimension` where wire carries a flat
 
 Two caveats before touching this path:
 
-- `extra="forbid"` rejects *unknown* keys only. A flat `rm_state`/`rmState` on
-  `ParticipantStatus` is a declared `AliasChoices` spelling, so it is
-  *interpreted*, not rejected.
+- `extra="forbid"` rejects *unknown* keys only. `rmState` on `ParticipantStatus`
+  is a declared `AliasChoices` spelling, so it is *interpreted*, not rejected.
+  The flat `rm_state` is not declared, so it is rejected (SDO-03-003, #4377).
 - Persisted rows use wire-facing identity keys (`id`, `type`, `@context`):
   `Record.from_obj()` applies `_rekey_wire_identity()` after `_dehydrate_data()`
   (ARCH-23-005).

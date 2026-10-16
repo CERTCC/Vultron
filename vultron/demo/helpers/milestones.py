@@ -450,7 +450,7 @@ def verify_case_closed(
             # participant; excluded from the "all closed" check
             # (parallel to _all_fetchable_participants_rm_closed)
         latest = p.participant_status
-        rm = latest.rm_state if latest is not None else None
+        rm = latest.rm.state if latest is not None else None
         if rm != RM.CLOSED:
             open_actors.append(f"'{a_id}' at {rm!r}")
     if open_actors:

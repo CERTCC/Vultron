@@ -333,7 +333,7 @@ groups:
     kind: protocol
     statement: RM state MUST be participant-specific
     verification: Inspection of `vultron/core/` confirms that RM state is stored on
-      `ParticipantStatus.rm_state`, a per-participant field, not on a shared case-level
+      `ParticipantStatus.rm`, a per-participant field, not on a shared case-level
       structure.
     relationships:
     - rel_type: implements
@@ -389,7 +389,7 @@ groups:
     kind: protocol
     statement: VFD (Vendor Fix Deployment) state MUST be participant-specific
     verification: Inspection of `vultron/core/` confirms that VFD state is stored on a
-      per-participant `ParticipantStatus.vfd_state` field.
+      per-participant `ParticipantStatus.vf` or `ParticipantStatus.d` field (ADR-0075).
     stories:
     - story_2022_107
     - story_2022_088
@@ -419,9 +419,10 @@ groups:
   - id: CM-04-001
     priority: MUST
     kind: protocol
-    statement: Handlers processing RM state transitions MUST update `ParticipantStatus.rm_state` for the sending actor's CaseParticipant
+    statement: Handlers processing RM state transitions MUST update
+      `ParticipantStatus.rm` for the sending actor's CaseParticipant
     verification: Integration tests in `test/demo/` confirm that processing an RM status message
-      updates the sender's `CaseParticipant` with a new `ParticipantStatus.rm_state` entry.
+      updates the sender's `CaseParticipant` with a new `ParticipantStatus.rm` entry.
     relationships:
     - rel_type: implements
       spec_id: VP-02-002
@@ -436,10 +437,11 @@ groups:
   - id: CM-04-002
     priority: MUST
     kind: protocol
-    statement: Handlers processing VFD state transitions MUST update `ParticipantStatus.vfd_state` for the sending actor's
+    statement: Handlers processing VFD state transitions MUST update
+      `ParticipantStatus.vf` or `ParticipantStatus.d` for the sending actor's
       CaseParticipant
     verification: Integration tests in `test/demo/` confirm that processing a VFD status message
-      updates the sender's `ParticipantStatus.vfd_state`.
+      updates the sender's `ParticipantStatus.vf` or `ParticipantStatus.d`.
     stories:
     - story_2022_107
     - story_2022_062
@@ -3752,7 +3754,7 @@ groups:
   description: >-
     Requirements for the canonical RM case closure path: Leave(VulnerabilityCase)
     is the sole mechanism for advancing a participant's RM state to CLOSED.
-    Add(ParticipantStatus, rm_state=RM.CLOSED) is not a valid closure trigger.
+    Add(ParticipantStatus, rmState=CLOSED) is not a valid closure trigger.
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
 
@@ -3769,7 +3771,7 @@ groups:
     statement: >-
       RM case closure MUST be triggered by Leave(VulnerabilityCase), and the
       CASE_MANAGER's ledger commits are the authority for it.  A participant-sent
-      Add(ParticipantStatus, rm_state=RM.CLOSED) MUST NOT be used as a closure
+      Add(ParticipantStatus, rmState=CLOSED) MUST NOT be used as a closure
       trigger.  The CASE_MANAGER MUST commit a close_case entry recording the
       received Leave, and then, in the order it writes them, one
       add_participant_status_to_participant entry for each RM transition it
@@ -3795,7 +3797,7 @@ groups:
       no entry backs (#4091).  See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that RM closure flows through
       `Leave(VulnerabilityCase)` -> CASE_MANAGER ledger commit -> broadcast, and that
-      `Add(ParticipantStatus, rm_state=RM.CLOSED)` is not used as a closure trigger.
+      `Add(ParticipantStatus, rmState=CLOSED)` is not used as a closure trigger.
       Unit tests confirm that a Leave from RM.VALID commits the close_case entry and
       then a VALID -> DEFERRED and a DEFERRED -> CLOSED status entry, in that order;
       that a replica which accepts each of those entries ends with the same per-actor
@@ -3895,7 +3897,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT send a participant whose closure an earlier ledger
-      entry already records (its status entry with rm_state=RM.CLOSED) any case
+      entry already records (its status entry with rmState=CLOSED) any case
       content: no CaseLedgerEntry announcements, no Announce(VulnerabilityCase), no
       status broadcasts and no embargo announcements.  The entries that record a
       participant's own closure, the close_case entry and the status entries that
@@ -3929,7 +3931,7 @@ groups:
       closure the ledger records is left out of every case-content send except the
       entries recording its own closure.  Integration tests in `test/demo/` confirm
       that `Announce(CaseLedgerEntry)` fan-out skips a participant once a ledger
-      entry has recorded its `rm_state=RM.CLOSED`, that the leaving participant's
+      entry has recorded its `rmState=CLOSED`, that the leaving participant's
       replica still receives the `close_case` entry and every status entry up to and
       including the one that reaches `RM.CLOSED`, but not the later
       `case_fully_closed` entry, and that the CASE_MANAGER's store holds every
@@ -4385,7 +4387,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST refuse every activity for a case from a sender whose
-      closure that case's ledger records (its status entry with rm_state=RM.CLOSED),
+      closure that case's ledger records (its status entry with rmState=CLOSED),
       with no ledger entry committed and nothing sent: the refusal is the sender
       guard's, so it gets no refusal notice (CLP-05-001, HP-01-006). There are two
       exceptions. First, it MUST answer that sender's

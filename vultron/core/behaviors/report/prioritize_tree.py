@@ -22,7 +22,7 @@ and RmDeferCaseActivity (Ignore(VulnerabilityCase)) activities.
 
 Background: RM is a participant-specific state machine. Each CaseParticipant
 wraps an Actor within a case and carries its own RM state via
-CaseParticipant.participant_status[].rm_state. The trees here update that
+CaseParticipant.participant_statuses[].rm.state. The trees here update that
 state when an actor notifies us they have engaged or deferred the case.
 
 Per specs/behavior-tree-integration.yaml BT-06 requirements.

@@ -197,7 +197,11 @@ groups:
       defines no `em_state` or `pxa_state` property or field and refuses either key on input through `extra="forbid"`;
       `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` and `test_retired_name_on_inline_object_is_refused`
       in `test/wire/as2/test_unknown_key_disposition.py` pin the parse-edge refusal of the flat CaseStatus spellings and
-      of `vfd_state`. The `ParticipantStatus.rm_state` shim is retired by #4377.'
+      of `vfd_state`. `TestParticipantStatusCarriesNoFlatShim` in
+      `test/core/models/test_participant_status_shape.py`
+      and `test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling`
+      pin the same for the
+      `ParticipantStatus` spellings `rm_state`, `vf_state` and `d_state` (#4377).'
     rationale: Keeping both representations creates an extended half-migrated state and perpetuates the flat-enum problem.
       See ADR-0036.
     adr:

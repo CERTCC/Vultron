@@ -592,7 +592,7 @@ groups:
       `execute()` methods confirms no domain lifecycle method or direct status write is
       called outside a BT execution context.
     statement: Trigger-side execute() methods MUST NOT call domain lifecycle methods (e.g., EmbargoLifecycle, direct
-      ParticipantStatus writes with rm_state/em_state) outside a BT execution context.
+      ParticipantStatus writes of rm/em state) outside a BT execution context.
     rationale: Direct lifecycle calls in execute() make protocol transitions invisible to BT-level audit and observability
       tooling. The BTBridge pattern (instantiate BT → execute_with_setup() → introspect result) is the required contract for
       all use-case execute() methods that perform state transitions.

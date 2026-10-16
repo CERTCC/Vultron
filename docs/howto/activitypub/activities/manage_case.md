@@ -160,12 +160,12 @@ What your closure does to the case depends on whether you are the Case Owner.
 
 | What you sent | What to confirm |
 |---|---|
-| `Join(VulnerabilityCase)` | Your participant record shows `rm_state` = `ACCEPTED`. |
-| `Ignore(VulnerabilityCase)` | Your participant record shows `rm_state` = `DEFERRED`. |
-| `Leave(VulnerabilityCase)` | Your participant record shows `rm_state` = `CLOSED`. Your replica holds no ledger entry after the last entry that records your closure. A Case Owner does not receive the `case_fully_closed` entry, because it is already closed when the CASE_MANAGER writes it; that entry is in the CASE_MANAGER's ledger. |
+| `Join(VulnerabilityCase)` | Your participant record shows `rmState` = `ACCEPTED`. |
+| `Ignore(VulnerabilityCase)` | Your participant record shows `rmState` = `DEFERRED`. |
+| `Leave(VulnerabilityCase)` | Your participant record shows `rmState` = `CLOSED`. Your replica holds no ledger entry after the last entry that records your closure. A Case Owner does not receive the `case_fully_closed` entry, because it is already closed when the CASE_MANAGER writes it; that entry is in the CASE_MANAGER's ledger. |
 | `Reject(Offer(VulnerabilityReport))` | Your RM state is `CLOSED` and no case was created. |
 
-Each transition is committed to the case ledger, so the same `rm_state` should be visible on the replica of every participant that has not closed, not only your own.
+Each transition is committed to the case ledger, so the same `rmState` should be visible on the replica of every participant that has not closed, not only your own.
 A participant that has already closed does not receive later transitions (CM-23-004).
 
 ---

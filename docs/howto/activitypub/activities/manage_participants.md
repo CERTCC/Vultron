@@ -125,7 +125,7 @@ Which one you are sending is determined by the field you set, not by a different
 See [How to Post a Status Update or a Case Note](status_updates.md) for the field that selects each.
 
 Send `Add(ParticipantStatus)`, targeting the participant record, with the new status inline as its `object`.
-The status carries the participant's `rm_state` and, for a Vendor or Deployer, its `vf_state` and `d_state`.
+The status carries the participant's `rmState` and, for a Vendor or Deployer, its `vfState` and `dState`.
 This implementation does not support a separate `Create(ParticipantStatus)` ahead of the `Add`.
 
 If the status is known when you seat the participant, carry it inline on the `CaseParticipant` object instead of sending the `Add`.
