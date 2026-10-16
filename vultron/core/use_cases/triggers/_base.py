@@ -234,7 +234,11 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         after their door guards, as the first step of its one tree
         (BT-15-001, CLP-10-005).  A decision whose commit is refused is
         logged and the trigger's own tree still runs, and judges the case
-        as it stands (CLP-10-025).  Unchanged when the trigger opts out
+        as it stands (CLP-10-025).  What :meth:`_prepare` read before the
+        decision may be stale by then, so a trigger's tree re-reads the case
+        state it acts on in its nodes: the register and the lifecycle refuse
+        a change the decision forbade, such as activating a revision the
+        termination cancelled.  Unchanged when the trigger opts out
         (:attr:`_takes_case_clock_decisions`), names no case, or names one
         this store does not hold, which the trigger reports itself.
         """

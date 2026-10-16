@@ -1654,7 +1654,9 @@ groups:
       (BT-17-001). A decision about the case itself, the embargo end-time check
       (EMB-13-003), MUST be a clock decision of every receive-side tree that
       names a case and has a sender guard and the post-close boundary, with no
-      argument from the tree. A clock decision MUST commit only
+      argument from the tree; a tree still exempt from a sender check takes it
+      once it declares its sender rule (ISSUE-4522). A clock decision MUST
+      commit only
       CASE_MANAGER-authored entries, one for each AS2 activity needed to express
       what it decided, and the case-file changes those entries record, and
       nothing about the received activity: an expiry is one entry, and an

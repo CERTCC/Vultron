@@ -431,7 +431,7 @@ def _clock_decision_stage(
     return create_clock_decision_gate(case_id, decisions)
 
 
-def _decisions_for(
+def _case_and_tree_decisions(
     case_id: str | None,
     tree_decisions: list[py_trees.behaviour.Behaviour],
     *,
@@ -444,7 +444,9 @@ def _decisions_for(
     every tree that names a case, has a sender guard and keeps the
     post-close boundary, because both door guards must run before the
     CASE_MANAGER writes (HP-01-006, CM-23-013).  A tree with no sender guard
-    takes them once it declares its sender rule (HP-01-008).  The tree's own
+    takes them once it declares its sender rule (HP-01-008; the remaining
+    exempt handlers are #4522); a tree exempt from the post-close boundary
+    never does.  The tree's own
     decisions are returned as given, so :func:`_clock_decision_stage`
     refuses them on a tree where they cannot run.
     """
@@ -705,7 +707,7 @@ def create_receive_activity_tree(
     guard = _sender_guard_stage(name, case_id, sender_rule, sender_context)
     if guard is not None:
         children.append(guard)
-    decisions = _decisions_for(
+    decisions = _case_and_tree_decisions(
         case_id or manager_case_id,
         clock_decisions or [],
         sender_guarded=guard is not None,
