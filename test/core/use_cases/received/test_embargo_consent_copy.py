@@ -216,7 +216,7 @@ class TestCaseManagerCommitsThenApplies:
     @pytest.mark.spec("CLP-07-015")
     @pytest.mark.xfail(
         strict=True,
-        reason="CLP-07-015: no step finishes an act's owed entries yet. #4764.",
+        reason="CLP-07-015: no step finishes an act's owed entries yet. #4855.",
     )
     def test_the_next_run_commits_the_entries_a_failed_commit_left_owed(
         self, monkeypatch
