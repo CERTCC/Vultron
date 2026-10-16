@@ -174,7 +174,7 @@ It does not treat the message as a harmless duplicate.
 The second check is about the sender: *may this sender make this assertion?*
 The first check tells nothing about the second ([HP-01-006](../../reference/specs/protocol.md#hp-01-006), [ADR-0115](../../adr/0115-received-handlers-check-sender-entitlement.md)).
 Each kind of message has its own sender rule.
-The CASE_MANAGER accepts a reply to an invitation only from the actor that the invitation named ([CM-11-017](../../reference/specs/protocol.md#cm-11-017)).
+The CASE_MANAGER admits a reply to an invitation only from the actor that the invitation named ([CM-11-017](../../reference/specs/protocol.md#cm-11-017)).
 It accepts a reply to an ownership offer only from the named transferee.
 It accepts a request to remove a participant only from the Case Owner.
 
