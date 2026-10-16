@@ -79,7 +79,8 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
 
     Args:
         segment: Final path segment from the request URL (e.g. ``"vendor"``), or
-            an already-absolute actor URI, which is returned unchanged.
+            an already-absolute actor URI whose trailing slash is stripped and
+            the normalised URI returned.
         base_url: Node base URL. Defaults to ``ServerConfig.base_url``.
 
     Returns:
