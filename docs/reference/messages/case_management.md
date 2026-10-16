@@ -65,11 +65,21 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
 
 {% include-markdown "./_occasions/sections/accept-case-participant-role.md" %}
 
+- **Routing:** the `Accept` goes to the CASE_MANAGER only, never to the Case Owner that made the offer ([CM-33-004](../specs/protocol.md#cm-33-004)).
+  Its `object` is the CASE_MANAGER's forward, which the CASE_MANAGER matches to the recorded offer through the forward's `inReplyTo`, never through the copy the `Accept` carries.
+- **Who may send:** the target of the recorded offer only, and only while that offer is open: until the CASE_MANAGER records an `Accept` or `Reject` of it ([CM-33-005](../specs/protocol.md#cm-33-005)).
+  The CASE_MANAGER refuses an `Accept` from any other sender, one to an offer that is no longer open, and one whose carried offer names another role or target, with no ledger entry and no role change.
+  A redelivery of the `Accept` that closed the offer changes nothing.
+- **Effect:** the CASE_MANAGER records the `Accept` in the ledger as `accept_case_participant_role`, grants the role on its own copy of the case, and announces the entry to every participant, each of which grants the role when it replays the entry ([CM-33-006](../specs/protocol.md#cm-33-006), [CM-02-016](../specs/project.md#cm-02-016)).
 - **Triggering transition:** none — roster action.
 - **Example artifact:** [accept_case_participant_role.json](../examples/accept_case_participant_role.json).
 
 {% include-markdown "./_occasions/sections/reject-case-participant-role.md" %}
 
+- **Routing:** as for the `Accept`, the `Reject` goes to the CASE_MANAGER only, and names the forward it answers ([CM-33-004](../specs/protocol.md#cm-33-004)).
+- **Who may send:** as for the `Accept`, the target of the recorded offer only, while that offer is open ([CM-33-005](../specs/protocol.md#cm-33-005)).
+- **Effect:** the CASE_MANAGER records the `Reject` in the ledger as `reject_case_participant_role` and announces the entry to every participant ([CM-33-006](../specs/protocol.md#cm-33-006)).
+  The entry closes the offer; no role changes.
 - **Triggering transition:** none — roster action.
 - **Example artifact:** [reject_case_participant_role.json](../examples/reject_case_participant_role.json).
 

@@ -76,6 +76,7 @@ from vultron.core.behaviors.case.nodes.reference_list import (
 )
 from vultron.core.behaviors.case.nodes.role_offer_guard import (
     RoleOfferAdmissibleNode,
+    RoleOfferOpenNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
@@ -301,6 +302,7 @@ def _redelivery_verdict(
         type[OwnershipOfferOpenNode]
         | type[NoOpenOwnershipOfferNode]
         | type[IsWithdrawableEmbargoNode]
+        | type[RoleOfferOpenNode]
     ),
     verdict: HandlerResult,
     fallback: str,
@@ -416,6 +418,23 @@ def role_offer_verdict(
             guard.feedback_message or "role Offer redelivered"
         )
     return verdict
+
+
+def role_offer_answer_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered answer to a role Offer as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferOpenNode`
+    fails with ``is_redelivery`` set when the answer is the one already
+    ledgered as closing its Offer, so nothing is committed or granted again.
+    That is the benign no-op of a redelivery, not a refusal (HP-01-003,
+    CM-33-005).
+    """
+    return _redelivery_verdict(
+        tree, RoleOfferOpenNode, verdict, "role Offer answer redelivered"
+    )
 
 
 def rm_declaration_verdict(

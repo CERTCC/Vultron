@@ -216,7 +216,7 @@ groups:
     when: a participant accepts a role offered to it on the case
     send: Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: the addressee of the case participant role offer
     semantics: accept_case_participant_role
     status: none
     description: Accepts the offered role. The participant holds the role once the Case Manager
@@ -230,7 +230,7 @@ groups:
     when: a participant declines a role offered to it on the case
     send: Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: the addressee of the case participant role offer
     semantics: reject_case_participant_role
     status: none
     description: Declines the offered role. The roster does not change.

@@ -46,11 +46,14 @@ sequenceDiagram
     note over T: Consider role offer
     alt Accept
         T -->> M: Accept(Offer(CaseParticipantRole))
-        note over M: Record the acceptance<br/>Target now holds the role
+        note over M: Check the sender is the target of an open offer<br/>Record the acceptance in the ledger<br/>Grant the role on its own copy
     else Reject
         T -->> M: Reject(Offer(CaseParticipantRole))
-        note over M: Record the refusal<br/>Roles unchanged
+        note over M: Check the sender is the target of an open offer<br/>Record the refusal in the ledger<br/>Roles unchanged
     end
+    M -->> O: Announce(CaseLedgerEntry)
+    M -->> T: Announce(CaseLedgerEntry)
+    note over O,T: Replay the entry<br/>On an Accept, the target now holds the role
 ```
 
 ---
@@ -105,6 +108,15 @@ Reply to the Case Manager only, never to the Case Owner, with the forwarded `Off
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/reject-case-participant-role.md" %}
 
+The Case Manager acts on your answer only if you are the target of a role offer it recorded, and only while that offer is open ([CM-33-005](../../../reference/specs/protocol.md#cm-33-005)).
+The offer is open until the Case Manager records an `Accept` or `Reject` of it.
+An answer that names the forward is matched to the recorded offer through the forward's `inReplyTo`, never through the copy of the offer your answer carries.
+That copy must still name the offered role and you as the target, because every participant grants the role from it.
+The Case Manager refuses an answer from anyone else, an answer to an offer that is no longer open, and an answer whose copy names another role or target, and records nothing for it.
+If your answer is delivered again after the Case Manager recorded it, the Case Manager changes nothing.
+
+When it admits your answer, the Case Manager records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/specs/protocol.md#cm-33-006)).
+On an `Accept`, the Case Manager grants the role on its own copy of the case, and every other participant grants it when it replays the entry.
 You hold the role once the Case Manager records your `Accept` in the case ledger ([CM-02-016](../../../reference/specs/project.md#cm-02-016)).
 Consider what the role obliges you to do before accepting.
 
@@ -115,11 +127,12 @@ Consider what the role obliges you to do before accepting.
 | What you sent | What to confirm |
 |---|---|
 | `Offer(CaseParticipantRole)` | The Case Manager's ledger holds an `offer_case_participant_role` entry, and the target holds the Case Manager's forward. |
-| `Accept(Offer(CaseParticipantRole))` | The Case Manager holds your `Accept`. |
-| `Reject(Offer(CaseParticipantRole))` | Your roles are unchanged and the Case Manager holds your `Reject`. |
+| `Accept(Offer(CaseParticipantRole))` | The Case Manager's ledger holds an `accept_case_participant_role` entry, and the role appears on your participant record once the Case Manager's entry is replayed on your copy of the case. |
+| `Reject(Offer(CaseParticipantRole))` | The Case Manager's ledger holds a `reject_case_participant_role` entry, and your roles are unchanged. |
 
 Only the Case Manager writes to the case ledger.
-Your answer adds no entry to your own copy of the ledger; the Case Manager records it and sends the entry to every participant.
+Your answer adds no entry to your own copy of the ledger; the Case Manager records it and announces the entry to every participant.
+The role appears only once the Case Manager's entry is replayed, never from your `Accept` itself.
 
 ---
 

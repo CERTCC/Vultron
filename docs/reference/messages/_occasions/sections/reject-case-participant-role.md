@@ -7,7 +7,7 @@ Declines the offered role. The roster does not change.
 - **When…** a participant declines a role offered to it on the case
 - **Send:** `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
 - **Send to:** the case manager
-- **Sent by:** not yet checked
+- **Sent by:** the addressee of the case participant role offer
 - **Seen in:** [How to Delegate a Role to Another Participant](../../../../howto/activitypub/activities/role_delegation.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 

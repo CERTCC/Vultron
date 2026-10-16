@@ -13,13 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The checks a role Offer must pass before it is recorded (CM-33-003).
+"""The checks a role Offer and its answer must pass before either is recorded.
 
-Provides :class:`RoleOfferAdmissibleNode`, the precondition guard of the
-``Offer(CaseParticipantRole)`` received tree (ADR-0039).  It runs after the
-sender guard, which has established that the CASE_MANAGER got the Offer from
-the Case Owner, or that a participant got it from the CASE_MANAGER
-(CM-33-002, CM-33-004).
+Provides:
+
+- :class:`RoleOfferAdmissibleNode` — the precondition guard of the
+  ``Offer(CaseParticipantRole)`` received tree (ADR-0039, CM-33-003).  It runs
+  after the sender guard, which has established that the CASE_MANAGER got the
+  Offer from the Case Owner, or that a participant got it from the
+  CASE_MANAGER (CM-33-002, CM-33-004).
+- :class:`RoleOfferOpenNode` — the precondition guard of the target's
+  ``Accept`` or ``Reject`` received trees (CM-33-005).  It runs after the
+  sender guard, which has established that the sender is the target of a role
+  Offer the CASE_MANAGER recorded.
 """
 
 from typing import ClassVar
@@ -27,10 +33,13 @@ from typing import ClassVar
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import (
+    RecordedRoleOffer,
+    answered_role_offer,
     entry_names_role_offer,
     recorded_role_offer,
     role_offer_forward_id,
@@ -40,6 +49,7 @@ from vultron.core.predicates.addressing import (
     same_actor_id,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 
 class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
@@ -185,4 +195,131 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-__all__ = ["RoleOfferAdmissibleNode"]
+class RoleOfferOpenNode(DataLayerConditionWithPorts):
+    """Guard: the role Offer an answer names is open, and the answer is to it.
+
+    Runs right after the answer's sender check, which has established that
+    the sender is the target of a role Offer the CASE_MANAGER recorded
+    (:class:`~vultron.core.behaviors.sender_entitlement.SenderIsRoleOfferTargetNode`),
+    so only the target learns the Offer's state.  The Offer and its state are
+    read from this store's ledger
+    (:func:`~vultron.core.participants.role_offer.answered_role_offer`).
+
+    - A **redelivery** of the answer that closed the Offer is not a refusal
+      (HP-01-003), but it must change nothing: the guard sets
+      :attr:`is_redelivery` and fails, so nothing downstream runs, and the
+      handler reports the run as ``SKIPPED``.
+    - An answer to an Offer another answer already closed is refused, with no
+      entry and no role change (CM-33-005).
+    - An answer whose carried Offer names another role or target than the
+      recorded Offer is refused.  The entry the CASE_MANAGER commits is the
+      answer as received, and every replica grants the role that entry's
+      carried Offer names (CM-02-016), so a carried copy that disagrees with
+      the recorded Offer would grant on the replicas what the CASE_MANAGER
+      never offered.
+
+    Read-only; the sender guard admits no sender at any store but the
+    CASE_MANAGER, so only the CASE_MANAGER runs it.
+
+    Spec: CM-33-005, CM-02-016, HP-01-003.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str | None,
+        reply_id: str,
+        carried_role: CVDRole | None,
+        carried_target_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the answer names.
+            offer_id: The Offer the answer names.
+            reply_id: The answer's own id, so a redelivery is recognised.
+            carried_role: The role the Offer the answer carries names.
+            carried_target_id: The target the Offer the answer carries names.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.offer_id = offer_id
+        self.reply_id = reply_id
+        self.carried_role = carried_role
+        self.carried_target_id = carried_target_id
+        self.is_redelivery = False
+        """``True`` when the last run found the answer already ledgered as
+        the one that closed the Offer: a benign no-op, not a refusal."""
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (CM-33-005)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _recorded_offer(self, case: VulnerabilityCase) -> RecordedRoleOffer:
+        """The Offer the answer names, as the CASE_MANAGER recorded it.
+
+        Raises:
+            VultronBTInternalError: The Offer the sender check found is not
+                recorded, a local anomaly rather than the sender's refusal.
+        """
+        assert self.datalayer is not None
+        # The sender check ran first and found this Offer, so its absence now
+        # is a local anomaly, not the sender's refusal: raise, so the bridge
+        # flags an internal error instead of a REFUSED verdict.
+        manager_id = resolve_case_manager_id(case, self.datalayer)
+        if manager_id is None or self.offer_id is None:
+            raise VultronBTInternalError(
+                f"{self.name}: the role Offer the sender check found is gone"
+                f" (offer {self.offer_id}, case '{self.case_id}', manager"
+                f" {manager_id})"
+            )
+        try:
+            return answered_role_offer(
+                self.datalayer, self.case_id, self.offer_id, manager_id
+            )
+        except VultronNotFoundError as exc:
+            raise VultronBTInternalError(
+                f"{self.name}: the role Offer the sender check found is gone"
+                f" ({exc})"
+            ) from exc
+
+    def update(self) -> Status:
+        """Check the Offer is open; see the class docstring."""
+        self.is_redelivery = False
+        if (f := self._require_datalayer()) is not None:
+            return f
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the sender check found this case
+        offer = self._recorded_offer(case)
+        if offer.answer_id == self.reply_id:
+            self.is_redelivery = True
+            self.feedback_message = (
+                f"answer '{self.reply_id}' already closed role Offer"
+                f" '{offer.offer_id}' — redelivery, nothing to apply"
+                " (HP-01-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if offer.answer_id is not None:
+            return self._refuse(
+                f"role Offer '{offer.offer_id}' for case '{self.case_id}' was"
+                f" already closed by '{offer.answer_id}'"
+                f" ({offer.closed_by_event_type})"
+            )
+        if self.carried_role is None or not entry_names_role_offer(
+            offer.entry, self.carried_role, self.carried_target_id
+        ):
+            return self._refuse(
+                f"answer '{self.reply_id}' carries an Offer naming role"
+                f" {self.carried_role} for '{self.carried_target_id}', not"
+                f" the role and target of recorded role Offer"
+                f" '{offer.offer_id}'"
+            )
+        return Status.SUCCESS
+
+
+__all__ = ["RoleOfferAdmissibleNode", "RoleOfferOpenNode"]

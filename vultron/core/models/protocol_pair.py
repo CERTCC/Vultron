@@ -35,6 +35,9 @@ Named constants for known request/reply pairs:
 - :data:`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES` — closes when the joined
   participant sends ``Accept``, ``TentativeReject`` or ``Reject`` of the
   full-case ``Invite(Actor)[target=Case]``.
+- :data:`CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES` — closes when the target's
+  ``Accept`` or ``Reject`` of a role ``Offer(CaseParticipantRole)`` is
+  ledgered (CM-33-005).
 - :data:`OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` — closes when the
   transferee's ``Accept`` or ``Reject`` of an ownership-transfer
   ``Offer(VulnerabilityCase)``, or the offerer's ``Undo`` of it, is ledgered
@@ -105,6 +108,19 @@ OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
         "reject_case_ownership_transfer",
         UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
         OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+    }
+)
+
+
+#: Event types that close a role ``Offer(CaseParticipantRole)`` once the
+#: CASE_MANAGER ledgers them: the target's ``Accept`` or ``Reject``
+#: (CM-33-005, CM-33-006).  A case may hold several role Offers open at once,
+#: so a reply closes only the Offer it answers
+#: (``vultron.core.participants.role_offer``).
+CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES: frozenset[str] = frozenset(
+    {
+        "accept_case_participant_role",
+        "reject_case_participant_role",
     }
 )
 
@@ -204,6 +220,7 @@ class ProtocolPair:
 
 __all__ = [
     "AskExpiry",
+    "CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES",
     "INVITE_ACTOR_TO_CASE_EXPIRY",
     "INVITE_TO_EMBARGO_EXPIRY",
     "ProtocolPair",

@@ -83,6 +83,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsProposalAddresseeNode,
     SenderIsProposalAuthorNode,
     SenderIsRequestAddresseeNode,
+    SenderIsRoleOfferTargetNode,
     SenderRule,
     in_declaration_order,
 )
@@ -97,6 +98,7 @@ __all__ = [
     "LedgerActivityContext",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
+    "RoleOfferRequest",
     "SenderCheckContext",
     "SenderContext",
     "closed_sender_guard",
@@ -153,9 +155,28 @@ class OwnershipOfferRequest:
     reply_id: str
 
 
+@dataclass(frozen=True)
+class RoleOfferRequest:
+    """The request is a role ``Offer(CaseParticipantRole)``, recorded in the
+    case ledger by the CASE_MANAGER of :attr:`SenderCheckContext.case_id`.
+
+    A ``NAMED_ACTOR`` sender must be its target (CM-33-005).
+
+    Attributes:
+        offer_id: The Offer the answer names, the recorded Offer or the
+            CASE_MANAGER's forward of it; ``None`` when it names none, which
+            refuses.
+    """
+
+    offer_id: str | None
+
+
 #: The record that holds the request a ``NAMED_ACTOR`` sender answers.
 AddresseeRequest = (
-    CaseProposalRequest | ReportOfferRequest | OwnershipOfferRequest
+    CaseProposalRequest
+    | ReportOfferRequest
+    | OwnershipOfferRequest
+    | RoleOfferRequest
 )
 
 
@@ -296,6 +317,12 @@ def _addressee_node(
     if isinstance(request, OwnershipOfferRequest):
         return SenderIsOwnershipTransfereeNode(
             case_id=_case_of(ctx, "an ownership-transfer Offer"),
+            offer_id=request.offer_id,
+            sender_actor_id=ctx.sender_id,
+        )
+    if isinstance(request, RoleOfferRequest):
+        return SenderIsRoleOfferTargetNode(
+            case_id=_case_of(ctx, "a role Offer"),
             offer_id=request.offer_id,
             sender_actor_id=ctx.sender_id,
         )

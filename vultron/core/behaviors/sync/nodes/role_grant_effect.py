@@ -22,7 +22,7 @@ state — it adds the offered ``CVDRole`` to the target participant's
 ``case_roles`` on a given replica.  The CASE_MANAGER applies it to its own
 replica via
 :class:`~vultron.core.behaviors.case.nodes.delegation.GrantCaseParticipantRoleNode`
-when it commits the target's accept (CM-33-006, #4703), never on the Offer;
+when it commits the target's accept (CM-33-006), never on the Offer;
 every other participant applies it by replaying the entry through
 :class:`ApplyCaseParticipantRoleGrantFromLedgerNode` in
 ``create_announce_log_entry_tree`` (CM-02-016, RSH-08-004, ADR-0124).

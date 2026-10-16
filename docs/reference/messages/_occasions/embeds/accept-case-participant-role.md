@@ -7,7 +7,7 @@
     - **When…** a participant accepts a role offered to it on the case
     - **Send:** `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
     - **Send to:** the case manager
-    - **Sent by:** not yet checked
+    - **Sent by:** the addressee of the case participant role offer
     - **Reference:** [Accept case participant role](../../case_management.md#accept-case-participant-role)
 
     ??? example "Example activity"

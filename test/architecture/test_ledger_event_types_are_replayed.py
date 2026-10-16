@@ -216,12 +216,7 @@ NO_REPLICA_EFFECT: dict[str, str] = {
 }
 
 #: Classified ahead of the commit that will produce them (event type → issue).
-#: The target's answer to a role Offer goes to the CASE_MANAGER, which does
-#: not yet commit it on receipt (CM-33-006); #4703 builds that commit.
-AWAITING_COMMIT: dict[str, str] = {
-    "accept_case_participant_role": "#4703",
-    "reject_case_participant_role": "#4703",
-}
+AWAITING_COMMIT: dict[str, str] = {}
 
 
 def test_the_derivation_finds_both_commit_paths():

@@ -181,8 +181,10 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
 
     The target is a participant, never the CASE_MANAGER (the CASE_MANAGER
     refuses an Offer that names itself), and a participant never commits
-    (CLP-09-001): its answer goes out with no entry in its own ledger.  The
-    CASE_MANAGER commits it on receipt (CM-33-006), which #4703 builds.
+    (CLP-09-001): its answer goes out with no entry in its own ledger, and
+    this node tries no commit.  The CASE_MANAGER commits the answer on
+    receipt and announces the entry (CM-33-006,
+    ``vultron.core.behaviors.case.role_offer_answer_tree``).
 
     The outbox write is not caught: once the answer is queued a FAILURE would
     let the Selector send the contradictory answer after it, so a fault
@@ -332,8 +334,9 @@ class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
 
     The grant is the CASE_MANAGER's committed ``accept_case_participant_role``
     entry, never the Offer's receipt (CM-33-001, CM-02-016), so no tree
-    composes this node on the Offer; the target's Accept does once the
-    CASE_MANAGER commits it (CM-33-006, #4703).  It runs as a
+    composes this node on the Offer; the target's Accept tree does, after the
+    CASE_MANAGER commits the Accept (CM-33-006,
+    ``vultron.core.behaviors.case.role_offer_answer_tree``).  It runs as a
     ``manager_effects`` entry, so the factory's CASE_MANAGER gate (BT-17-008)
     fires it only at the CASE_MANAGER — the ledger holder, which excludes
     itself from the ``Announce`` fan-out and so never replays its own

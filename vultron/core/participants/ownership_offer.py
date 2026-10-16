@@ -56,6 +56,10 @@ from vultron.core.models.protocol_pair import (
     ProtocolPair,
 )
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.participants.offer_forward import (
+    entry_target,
+    forwarded_offer_entry,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.sync_helpers import recorded_entries_for_case
@@ -162,11 +166,6 @@ def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
     ]
 
 
-def _entry_target(entry: CaseLedgerEntry) -> str | None:
-    """The transferee the ledgered Offer names (its ``target``)."""
-    return _as_id(entry.payload_snapshot.get("target"))
-
-
 def _entry_actor(entry: CaseLedgerEntry) -> str | None:
     """The ledgered Offer's sender (its ``actor``)."""
     return _as_id(entry.payload_snapshot.get("actor"))
@@ -187,56 +186,6 @@ def _entry_end_time(entry: CaseLedgerEntry) -> datetime | None:
     ledgered, so only a hand-made entry could hold one.
     """
     return parse_published(entry.payload_snapshot.get(wire_key("end_time")))
-
-
-def _type_name(obj: object) -> str | None:
-    """The activity type of a stored object, read by name.
-
-    The store may hand back the wire class registered for the activity rather
-    than the core one, so the type is compared by its AS2 name, not by class.
-    """
-    type_ = getattr(obj, "type_", None)
-    value = getattr(type_, "value", type_)
-    return value if isinstance(value, str) else None
-
-
-def _forwarded_entry(
-    dl: CasePersistence,
-    case_id: str,
-    offer_id: str,
-    issuer_id: str,
-    entries: list[CaseLedgerEntry],
-) -> CaseLedgerEntry | None:
-    """The recorded Offer that *offer_id* forwards, if it is a forward.
-
-    A forward is an Offer in this store that *issuer_id* (the CASE_MANAGER)
-    sent, for *case_id*, naming a transferee.  It names the recorded Offer it
-    forwards in ``inReplyTo`` (CM-21-018); the entry returned is the one whose
-    ``log_object_id`` is that link and whose ``target`` is the forward's
-    transferee.  A forward with no link, or a link to no such entry, stands
-    for no recorded Offer, and nothing else is tried: matching by time would
-    let a late answer to one Offer close a newer one (#4565).
-    """
-    forward = dl.read(offer_id)
-    if forward is None or _type_name(forward) != "Offer":
-        return None
-    if _as_id(getattr(forward, "actor", None)) != issuer_id:
-        return None
-    if _as_id(getattr(forward, "object_", None)) != case_id:
-        return None
-    transferee_id = _as_id(getattr(forward, "target", None))
-    linked_id = _as_id(getattr(forward, "in_reply_to", None))
-    if transferee_id is None or linked_id is None:
-        return None
-    return next(
-        (
-            entry
-            for entry in entries
-            if entry.log_object_id == linked_id
-            and _entry_target(entry) == transferee_id
-        ),
-        None,
-    )
 
 
 def recorded_ownership_offer(
@@ -264,7 +213,14 @@ def recorded_ownership_offer(
     entries = _offer_entries(dl, case_id)
     entry = next(
         (e for e in entries if e.log_object_id == offer_id), None
-    ) or _forwarded_entry(dl, case_id, offer_id, issuer_id, entries)
+    ) or forwarded_offer_entry(
+        dl,
+        case_id=case_id,
+        forward_id=offer_id,
+        issuer_id=issuer_id,
+        entries=entries,
+        case_field="object_",
+    )
     if entry is None:
         raise VultronNotFoundError(
             f"Ownership-transfer Offer recorded for case '{case_id}'",
@@ -281,7 +237,7 @@ def _recorded(
     Raises:
         VultronNotFoundError: the recorded Offer names no transferee.
     """
-    transferee_id = _entry_target(entry)
+    transferee_id = entry_target(entry)
     if transferee_id is None:
         raise VultronNotFoundError(
             f"Transferee of recorded ownership-transfer Offer for case"
@@ -362,7 +318,7 @@ def open_ownership_offer(
             recorded Offer is an earlier one.
     """
     for entry in reversed(_offer_entries(dl, case_id)):
-        if _entry_target(entry) is None:
+        if entry_target(entry) is None:
             continue
         offer = _recorded(dl, case_id, entry)
         if offer.answer_id is None:
