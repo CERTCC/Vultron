@@ -125,7 +125,7 @@ def _invited(
         id_=f"{case.id_}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=case.id_,
-        case_roles=[CVDRole.FINDER],
+        case_roles=[CVDRole.REPORTER],
         embargo_consents=[
             EmbargoConsent(
                 embargo_id=embargo_id,

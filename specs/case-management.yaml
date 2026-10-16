@@ -5223,17 +5223,12 @@ groups:
       owner's own trigger runs on the actor that holds `CVDRole.CASE_MANAGER`
       (EP-09-008), and to every other embargo trigger that actor runs.
     rationale: >-
-      Expiry evaluated only on a late `Accept` and at owner close (CM-23-014) never
-      records an invitee that does not answer: its row stays `INVITED` until the case
-      closes, so the case owner, who learns of a timeout from the expiry entry's fan-out
-      (MSM-07-007), decides on the embargo without knowing about it (EP-09-006). The
-      owner's decision is the moment the timeout matters, and embargo activities are the
-      acts that read the consent rows (CM-28-007), so sweeping there keeps expiry lazy
-      and needs no scheduler (CM-28-008). An overdue row is a fact from the
-      CASE_MANAGER's own clock and ledger, not evidence from the activity, so it is
-      recorded whatever the activity's fate, as the late-`Accept` expiry and the
-      end-time check are (ADR-0135); the door guards still keep a sender with no
-      standing from making the CASE_MANAGER write (ISSUE-4640).
+      Expiry checked only on a late `Accept` and at owner close (CM-23-014) never
+      records an invitee that does not answer, so the case owner decides without knowing
+      of the timeout (EP-09-006, MSM-07-007). Embargo activities read the consent rows
+      (CM-28-007), so sweeping there keeps expiry lazy (CM-28-008). An overdue row is a
+      fact from the CASE_MANAGER's clock, not evidence from the activity, so it is
+      recorded whatever the activity's fate (ADR-0135, ISSUE-4640).
     verification: >-
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` lets an
       invitation pass its deadline unanswered, then delivers to the CASE_MANAGER, in
