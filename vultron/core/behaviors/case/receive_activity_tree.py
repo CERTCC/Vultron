@@ -18,9 +18,9 @@
 :func:`create_receive_activity_tree` is the one way to build a received-side
 BT.
 It fixes the stage order intake → door guards (post-close guard, addressee
-check, closed-sender check, sender guard) → clock decisions → precondition guards → guarded commit
-→ protocol effects (CLP-10-006, CLP-10-010, CLP-10-025, ADR-0115, CM-23-013,
-HP-01-005) and
+check, closed-sender check, sender guard) → clock decisions → precondition
+guards → guarded commit → protocol effects (CLP-10-006, CLP-10-010,
+CLP-10-025, ADR-0115, CM-23-013, HP-01-005) and
 supplies the shared intake node and the post-close write-boundary guard
 itself (CLP-10-017, ADR-0131), so no handler opts out of recording what
 arrived or forgets the closed-case boundary.
