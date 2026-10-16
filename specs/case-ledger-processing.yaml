@@ -611,8 +611,9 @@ groups:
     kind: protocol
     statement: The `payloadSnapshot.actor` field of a `CaseLedgerEntry(recorded)`
       MUST preserve the original asserting actor's identity. `payloadSnapshot.actor`
-      MUST equal the inbound activity's `actor_id` as received; any mismatch indicates
-      identity substitution. The CASE_MANAGER's identity appears on the transport
+      MUST equal the inbound activity's `actor_id` once both are normalised with
+      `same_actor_id`; any other mismatch indicates identity substitution. The
+      CASE_MANAGER's identity appears on the transport
       envelope and in recording metadata; it MUST NOT be substituted for a participant-asserter's
       identity. When the CASE_MANAGER also holds a participant role in the case, their
       identity in `payloadSnapshot.actor` is the correct asserter identity and is not
@@ -628,7 +629,8 @@ groups:
       avoids false positives that a commit-boundary identity comparison cannot distinguish.
     verification: A unit test in `test/core/behaviors/case/nodes/` verifies that
       `lifecycle.CommitCaseLedgerEntryNode` raises `VultronCanonicalEntryError` when
-      `payloadSnapshot.actor` does not match the inbound activity's `actor_id`. A
+      `payloadSnapshot.actor` does not match the inbound activity's `actor_id`, and
+      commits without error when the two differ only by a trailing slash. A
       companion test confirms that a CASE_MANAGER who also participates in a case can
       add entries (e.g. `Add(Note)`) without error. A further test confirms that the
       status entries committed after a `close_case` entry carry the CASE_MANAGER as
