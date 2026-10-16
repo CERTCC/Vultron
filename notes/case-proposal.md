@@ -249,9 +249,12 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   factory normalises `proposer_uri` with `normalise_actor_id`, and `report_author_id`
   does the same for the reporter, so the records, participant keys and ledger
   snapshots the tree writes hold one spelling. Compare an id written elsewhere (the
-  inline profile, a proposal-keyed record the guard also reads) with `same_actor_id`,
-  never `==`: a trailing-slash redelivery otherwise re-runs native initialization
-  (#4772).
+  inline profile, a proposal-keyed record the guard also reads, a case stored before
+  #4772 in the slash spelling) with `same_actor_id`, and look up
+  `actor_participant_index` with `participant_id_for_actor`, never `==` or `in`: a
+  trailing-slash redelivery otherwise re-runs native initialization (#4772). Only
+  the proposal tree normalises; other received use cases still get the sender's
+  raw spelling.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its

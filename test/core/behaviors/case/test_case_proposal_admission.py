@@ -58,6 +58,10 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
     CaseProposalCallOutBundle,
 )
+from vultron.core.behaviors.case import (
+    case_proposal_received_tree,
+    report_author,
+)
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     CLOSED_CASE_DECLINE_REASON,
     create_case_proposal_received_tree,
@@ -1977,6 +1981,49 @@ def test_a_proposer_who_reported_with_a_trailing_slash_is_one_participant(dl):
     (case,) = _cases(dl)
     assert len(_participants_of(dl, str(case.id_), _VENDOR_URI)) == 1
     assert _participants_of(dl, str(case.id_), _VENDOR_URI + "/") == []
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.parametrize(
+    ("proposer_uri", "reporter_uri"),
+    [
+        pytest.param(_VENDOR_URI + "/", _REPORTER_URI, id="proposer-slash"),
+        pytest.param(_VENDOR_URI, _REPORTER_URI + "/", id="reporter-slash"),
+    ],
+)
+def test_a_store_written_before_normalisation_is_answered_on_redelivery(
+    dl, monkeypatch: pytest.MonkeyPatch, proposer_uri: str, reporter_uri: str
+):
+    """A case stored before #4772 keeps the sender's trailing-slash spelling.
+
+    A same-spelling redelivery is answered with the stored ``Accept`` alone:
+    the participant and ledger lookups match the stored spelling with
+    ``same_actor_id``, so no second participant or ledger entry is written.
+    """
+    with monkeypatch.context() as legacy:
+        legacy.setattr(
+            case_proposal_received_tree, "normalise_actor_id", lambda a: a
+        )
+        legacy.setattr(report_author, "normalise_actor_id", lambda a: a)
+        assert (
+            _run_tree(dl, proposer_uri=proposer_uri, reporter_uri=reporter_uri)
+            == Status.SUCCESS
+        )
+    (case,) = _cases(dl)
+    assert proposer_uri in case.actor_participant_index
+    assert reporter_uri in case.actor_participant_index
+    _drain_outbox(dl)
+    state, ledger = _case_state(dl), _ledger_count(dl)
+
+    status = _run_tree(
+        dl, proposer_uri=proposer_uri, reporter_uri=reporter_uri
+    )
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Accept"]
+    assert [c.id_ for c in _cases(dl)] == [case.id_]
+    assert _case_state(dl) == state
+    assert _ledger_count(dl) == ledger
 
 
 def _case_rows(dl, case_id: str) -> list[str]:
