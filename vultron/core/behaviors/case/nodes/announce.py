@@ -37,7 +37,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -73,8 +72,10 @@ def announced_case_id(
             "Announce object is not a VulnerabilityCase"
             f" ({type(case_obj).__name__})"
         )
-    case_id = _as_id(case_obj)
-    if case_id is None:
+    # Read the id itself: ``_as_id`` falls back to ``str(obj)`` and so never
+    # reports a case-typed object that has none.
+    case_id = getattr(case_obj, "id_", None)
+    if not isinstance(case_id, str) or not case_id:
         raise VultronValidationError("Announced case object has no id")
     return case_id
 

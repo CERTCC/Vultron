@@ -886,12 +886,14 @@ class TestSubmitReportDisposition:
         assert len(tree_runs) == 1
 
     @pytest.mark.spec("CM-23-013")
-    @pytest.mark.parametrize("report", [True, False], ids=["report", "none"])
-    def test_post_close_refusal_is_refused_on_either_arm(self, report):
+    def test_post_close_refusal_is_refused_before_either_arm(self):
         """The post-close guard's refusal is ``REFUSED``, never raised.
 
-        Read first by the one verdict, so the report-proposing arm reports it
-        the way the report-less arm always did (CM-23-013, ADR-0095).
+        The one verdict reads it before it looks at the report id, so the
+        report-proposing arm reports it the way the report-less arm always
+        did (CM-23-013, ADR-0095).  Pinned on the verdict itself: a report
+        Offer names no case, so no fully closed case can reach either arm
+        end to end.
         """
         from unittest.mock import MagicMock
 
@@ -912,7 +914,7 @@ class TestSubmitReportDisposition:
         tree = py_trees.composites.Sequence(
             name="Root", memory=False, children=[guard]
         )
-        request = MagicMock(report_id=self.REPORT_ID if report else None)
+        request = MagicMock(report_id=self.REPORT_ID)
 
         verdict = _submit_report_verdict(
             tree,

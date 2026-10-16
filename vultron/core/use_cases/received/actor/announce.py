@@ -34,7 +34,6 @@ from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     guard_refusal,
-    incomplete_activity_refusal,
     verdict_from_bt,
 )
 from vultron.core.use_cases.received.sync import drain_gap_buffer
@@ -93,8 +92,6 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             activity=request,
         )
         # The guards' own reasons are the refusal (PCR-03-004, CLP-10-018).
-        if (refusal := incomplete_activity_refusal(tree)) is not None:
-            return refusal
         if (
             refusal := guard_refusal(tree, AnnounceSenderTrustedNode)
         ) is not None:

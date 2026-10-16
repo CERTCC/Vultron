@@ -227,11 +227,12 @@ class SubmitReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        logger.info(
-            "Actor '%s' receiving report '%s' — running case-creation BT",
-            receiving_actor_id,
-            request.report_id,
-        )
+        if request.report_id:
+            logger.info(
+                "Actor '%s' receiving report '%s' — running case-creation BT",
+                receiving_actor_id,
+                request.report_id,
+            )
         tree = receive_report_case_tree.create_submit_report_received_tree(
             request, actor_config=self._actor_config
         )

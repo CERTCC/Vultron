@@ -85,7 +85,6 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_node,
-    incomplete_activity_refusal,
     node_succeeded,
     verdict_from_bt,
 )
@@ -289,10 +288,14 @@ class CreateCaseProposalReceivedUseCase:
             # The proposer's inline profile is the only source of the
             # CASE_OWNER's actor default (CP-01-010).
             owner_profile=request.proposer_profile,
-            **sender_embargo_proposal_inputs(request),
+            # A proposal with no id is refused in-tree, so its terms are
+            # never read (CLP-10-018).
+            **(
+                sender_embargo_proposal_inputs(request)
+                if proposal_id is not None
+                else {}
+            ),
         )
-        if (refusal := incomplete_activity_refusal(tree)) is not None:
-            return refusal
         verdict = verdict_from_bt(
             tree, result, label="CreateCaseProposalReceivedBT"
         )

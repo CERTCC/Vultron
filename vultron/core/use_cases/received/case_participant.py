@@ -49,7 +49,6 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_absence_refusal,
     failure_reason,
-    incomplete_activity_refusal,
     node_failed,
     not_case_manager,
     verdict_from_bt,
@@ -148,9 +147,6 @@ class _CaseOwnerParticipantMoveUseCase[
         )
         if participant_id is None or case_id is None:
             # The tree refused the incomplete move itself (CLP-10-018).
-            refusal = incomplete_activity_refusal(tree)
-            if refusal is not None:
-                return refusal
             return verdict_from_bt(tree, result, label=self._LABEL)
         return self._verdict(tree, result, participant_id, case_id)
 

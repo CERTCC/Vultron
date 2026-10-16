@@ -20,6 +20,7 @@ in that tree, and the refused Announce is still archived (CLP-10-018).
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
@@ -40,6 +41,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _CASE_ID = "https://example.org/cases/case-one-tree"
+
+
+class _IdlessCase(BaseModel):
+    """A case-typed object whose id resolves to nothing."""
+
+    type_: str = "VulnerabilityCase"
+    id_: str | None = None
 
 
 @pytest.fixture()
@@ -78,8 +86,12 @@ def _anchor(dl: SqliteDataLayer) -> None:
             {"object_": as_VulnerabilityReport(name="Not a case")},
             "Announce object is not a VulnerabilityCase (VulnerabilityReport)",
         ),
+        (
+            {"object_": _IdlessCase()},
+            "Announced case object has no id",
+        ),
     ],
-    ids=["no-activity", "no-object", "not-a-case"],
+    ids=["no-activity", "no-object", "not-a-case", "no-case-id"],
 )
 def test_incomplete_announce_is_refused_in_one_tree(
     dl, event, tree_runs, activity_update, reason

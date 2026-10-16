@@ -387,10 +387,15 @@ def guard_refusal(
     :class:`~vultron.core.behaviors.case.nodes.incomplete_activity.ActivityIncompleteNode`
     and the announce tree's trusted-sender guard.  A guard that never ran (a
     leadership skip, or the post-close guard refused first) is ``None``, so
-    the handler falls through to :func:`verdict_from_bt`.
+    the handler falls through to :func:`verdict_from_bt`.  So does a guard
+    that failed because it was composed without a dependency (a
+    ``WIRING_UNAVAILABLE_MESSAGES`` reason): that is our fault, not the
+    sender's, and :func:`verdict_from_bt` raises it (ADR-0095).
     """
     node = find_node(tree, node_type)
     if node is None or node.status != Status.FAILURE:
+        return None
+    if node.feedback_message in WIRING_UNAVAILABLE_MESSAGES:
         return None
     return HandlerResult.refused(
         node.feedback_message or f"{node.name} refused the activity"
@@ -455,6 +460,10 @@ def verdict_from_bt(
 ) -> HandlerResult:
     """The default ``HandlerResult`` for a finished received-side BT run.
 
+    The post-close refusal and an incomplete activity's refusal
+    (:func:`incomplete_activity_refusal`) are read first and keep their
+    guard's own reason; any other refusal is prefixed with *label*.
+
     Args:
         tree: The tree that ran (or its ``BehaviourTree`` wrapper).
         result: What ``BTBridge`` returned for it.
@@ -468,6 +477,9 @@ def verdict_from_bt(
     if result.leader_skipped:
         return HandlerResult.skipped("not the replication leader")
     if (refusal := post_close_refusal(tree)) is not None:
+        return refusal
+    if (refusal := incomplete_activity_refusal(tree)) is not None:
+        # The guard's message is the whole reason, with no label (CLP-10-018).
         return refusal
     if result.internal_error:
         raise VultronBTInternalError(f"{label}: {result.feedback_message}")

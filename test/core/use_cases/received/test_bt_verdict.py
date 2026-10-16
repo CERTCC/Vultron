@@ -395,3 +395,37 @@ def test_incomplete_activity_refusal_reads_the_incomplete_guard():
     assert (
         incomplete_activity_refusal(_ran(_Fixed("Ok", Status.SUCCESS))) is None
     )
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_verdict_from_bt_keeps_the_incomplete_guards_own_reason():
+    """The incomplete-activity refusal carries no tree label (#4643)."""
+    tree = _ran(ActivityIncompleteNode("Add(X) is missing its id"))
+    verdict = verdict_from_bt(
+        tree, BTExecutionResult(status=Status.FAILURE), label="TestBT"
+    )
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "Add(X) is missing its id"
+
+
+@pytest.mark.spec("HP-01-005")
+def test_leader_skip_of_an_incomplete_activity_is_skipped():
+    """A follower that never ran the tree does not refuse the activity."""
+    tree = py_trees.composites.Sequence(name="Root", memory=False)
+    tree.add_child(ActivityIncompleteNode("Add(X) is missing its id"))
+    verdict = verdict_from_bt(
+        tree,
+        BTExecutionResult(status=Status.FAILURE, leader_skipped=True),
+        label="TestBT",
+    )
+    assert verdict.disposition == HandlerDisposition.SKIPPED
+
+
+def test_guard_refusal_lets_a_wiring_fault_raise():
+    """A guard composed without its DataLayer is our fault (ADR-0095)."""
+    tree = _ran(_Guard("Guard", Status.FAILURE, "DataLayer not available"))
+    assert guard_refusal(tree, _Guard) is None
+    with pytest.raises(VultronBTInternalError):
+        verdict_from_bt(
+            tree, BTExecutionResult(status=Status.FAILURE), label="TestBT"
+        )

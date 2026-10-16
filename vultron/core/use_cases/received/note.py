@@ -26,7 +26,6 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
-    incomplete_activity_refusal,
     not_case_manager_refusal,
     reference_edit_verdict,
     verdict_from_bt,
@@ -90,8 +89,6 @@ class CreateNoteReceivedUseCase:
             tree=tree, actor_id=actor_id, activity=request
         )
 
-        if (refusal := incomplete_activity_refusal(tree)) is not None:
-            return refusal
         verdict = verdict_from_bt(tree, result, label="CreateNoteBT")
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
