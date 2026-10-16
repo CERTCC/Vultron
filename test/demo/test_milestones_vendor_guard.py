@@ -223,7 +223,7 @@ class TestVerifyFixDeployedDeployerGuard:
 
     def test_non_deployer_error_includes_actual_roles(self):
         """AssertionError message includes the actor's actual roles."""
-        participant = _make_participant_mock([CVDRole.FINDER])
+        participant = _make_participant_mock([CVDRole.REPORTER])
 
         with patch(
             "vultron.demo.helpers.milestones._fetch_participant",

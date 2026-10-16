@@ -16,8 +16,9 @@
 """Run a sender-entitlement guard before a handler's first write (HP-01-006).
 
 The receive-tree factory places the sender guard after intake, but a handler
-can write or send *before* its tree runs (a P/X/A refusal, an expiry commit,
-closing a pending ask) or have no tree at all.
+can write or send *before* its tree runs (a P/X/A refusal, closing a pending
+ask) or have no tree at all.  An expiry is not such a write: it is a clock
+decision inside the tree, after the sender guard (CLP-10-025).
 :func:`rule_refusal` runs the guard the factory composes from the use case's
 declared rule (HP-01-008) as a one-node tree, so the pre-flight and the tree
 ask the same thing, the predicate stays in
@@ -32,8 +33,8 @@ as a one-node tree, so a handler that writes or sends before its tree runs
 asks the one guard rather than carrying a closed-case check of its own.
 
 :func:`repeat_answer_skip` does the same for the repeat guard of an answer to
-an embargo Invite (CM-13-005): the Accept handler's P/X/A, expiry and late-Accept
-paths write or send before its tree runs, so a repeat must be caught first.
+an embargo Invite (CM-13-005): the Accept handler's P/X/A path writes or
+sends before its tree runs, so a repeat must be caught first.
 
 :func:`closed_sender_preflight` does the same for a sender whose closure the
 case already records (CM-23-018): a repeat of a closing act is ``SKIPPED``,

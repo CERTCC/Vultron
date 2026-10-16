@@ -15,10 +15,11 @@
 """Replay of the case owner's embargo decisions on a participant replica.
 
 ``activate_embargo_on_case`` (the owner's ``Accept(EmbargoEvent,
-target=Case)``) and ``reject_embargo_proposal_on_case`` (its ``Reject``) are
-replayed through ``EmbargoLifecycle`` in ``OBSERVED`` mode (EMB-18-001,
-ADR-0122): the register activates or rejects the embargo and EM derives from
-it.
+target=Case)``) is copied through the one apply function: the ``ACTIVATE``
+step and the owner's agreement it states (ADR-0124).
+``reject_embargo_proposal_on_case`` (its ``Reject``) is replayed through
+``EmbargoLifecycle`` in ``OBSERVED`` mode (EMB-18-001, ADR-0122).  Either
+way the register moves and EM derives from it.
 """
 
 from datetime import timedelta
@@ -43,6 +44,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -139,6 +141,7 @@ def _case(datalayer) -> VulnerabilityCase:
 
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("EMB-18-001")
+@pytest.mark.spec("EMB-02-001")
 @pytest.mark.parametrize("em_before", [EM.PROPOSED, EM.REVISE])
 def test_the_entry_activates_the_embargo_on_the_replica(
     bridge, datalayer, em_before
@@ -193,6 +196,103 @@ def test_the_activation_records_the_owners_agreement_on_the_replica(
     owner = datalayer.read(f"{CASE_ID}/participants/owner")
     assert isinstance(owner, CaseParticipant)
     assert owner.consent_for(EMBARGO_ID) == EmbargoConsentState.AGREED
+
+
+@pytest.mark.spec("MSM-07-008")
+@pytest.mark.spec("CM-23-016")
+def test_a_declined_owner_agrees_on_the_replica(bridge, datalayer):
+    """The Accept states the owner's agreement, a DECLINED row included."""
+    _seed(datalayer, EM.PROPOSED, owner_participant=True)
+    owner = datalayer.read(f"{CASE_ID}/participants/owner")
+    assert isinstance(owner, CaseParticipant)
+    datalayer.save(
+        owner.model_copy(
+            update={
+                "embargo_consents": [
+                    EmbargoConsent(
+                        embargo_id=EMBARGO_ID,
+                        state=EmbargoConsentState.DECLINED,
+                        attributed_to=OWNER_ACTOR_ID,
+                    )
+                ]
+            }
+        )
+    )
+
+    assert _apply(bridge, _embargo_snapshot()).status == Status.SUCCESS
+
+    owner = datalayer.read(f"{CASE_ID}/participants/owner")
+    assert isinstance(owner, CaseParticipant)
+    assert owner.consent_for(EMBARGO_ID) == EmbargoConsentState.AGREED
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("EP-05-001")
+def test_the_replica_carries_nobody_over_from_the_accept_alone(
+    bridge, datalayer
+):
+    """Each CARRY_OVER row is its own CASE_MANAGER entry (ADR-0124).
+
+    A signatory of the replaced embargo keeps its row for the revision as
+    it is until that entry arrives; the replica runs no EP-05-001 logic.
+    """
+    _seed(datalayer, EM.REVISE)
+    signatory = CaseParticipant(
+        id_=f"{CASE_ID}/participants/signatory",
+        attributed_to=PARTICIPANT_ACTOR_ID,
+        context=CASE_ID,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=PRIOR_EMBARGO_ID,
+                state=EmbargoConsentState.AGREED,
+            ),
+            EmbargoConsent(
+                embargo_id=EMBARGO_ID, state=EmbargoConsentState.UNINVITED
+            ),
+        ],
+    )
+    case = _case(datalayer)
+    case.actor_participant_index[PARTICIPANT_ACTOR_ID] = signatory.id_
+    datalayer.save(case)
+    datalayer.save(signatory)
+
+    assert _apply(bridge, _embargo_snapshot()).status == Status.SUCCESS
+
+    held = datalayer.read(signatory.id_)
+    assert isinstance(held, CaseParticipant)
+    assert held.consent_for(EMBARGO_ID) is EmbargoConsentState.UNINVITED
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("SYNC-12-001")
+def test_an_activation_of_an_embargo_not_open_here_is_refused(
+    bridge, datalayer
+):
+    """The register here never saw the proposal: the step does not apply,
+    so the entry is refused, never patched over (ADR-0124)."""
+    datalayer.save(
+        VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    )
+
+    assert _apply(bridge, _embargo_snapshot()).status == Status.FAILURE
+
+    case = _case(datalayer)
+    assert case.em_state is EM.NONE
+    assert case.embargo_register == []
+    # A refused entry stores nothing, the carried embargo included.
+    assert datalayer.read(EMBARGO_ID) is None
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_a_carried_embargo_of_another_case_is_refused(bridge, datalayer):
+    """An inline copy is stored only when it belongs to this case."""
+    _seed(datalayer, EM.PROPOSED)
+
+    foreign = {**_embargo_snapshot(), "context": "https://example.org/cases/x"}
+    assert _apply(bridge, foreign).status == Status.FAILURE
+
+    assert datalayer.read(EMBARGO_ID) is None
+    assert _case(datalayer).em_state is EM.PROPOSED
 
 
 @pytest.mark.spec("RSH-08-004")

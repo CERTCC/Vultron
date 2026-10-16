@@ -453,7 +453,8 @@ See [Manage a Case](../howto/activitypub/activities/manage_case.md) for the corr
 vultron-demo trigger
 ```
 
-Every demo so far posted activities to an inbox, which is how an actor *reacts* to another actor.
+Most activities in the demos so far were posted to an inbox, which is how an actor *reacts* to another actor.
+The finder's report submission already went through a trigger: its own `submit-report`.
 This demo shows the other direction: an actor *initiates* a protocol behavior from its own state by calling one of its trigger endpoints, and the actor's behavior tree builds the activity and queues it for delivery.
 Two workflows are shown:
 

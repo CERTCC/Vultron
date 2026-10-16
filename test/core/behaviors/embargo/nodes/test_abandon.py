@@ -371,20 +371,19 @@ def test_a_cancel_the_register_refuses_commits_no_entry(monkeypatch):
 def test_each_cancel_follows_its_own_entry():
     """Commit, then write, per proposal: the ledger holds each ER before the
     cancel it records is in the case (CLP-07-013)."""
-    from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+    from vultron.core.behaviors.embargo import copy_commit
 
     case, dl, _proposals = _proposed_case("abandon-order", days=(60, 15, 30))
     order: list[tuple[str, object]] = []
-    original = EmbargoLifecycle.abandon_embargo_proposals
+    original = copy_commit.save_case_file
 
-    def _spy(self, **kwargs):
-        order.append(
-            ("cancel", len(_abandonment_entries(dl, kwargs["case_id"])))
-        )
-        return original(self, **kwargs)
+    def _spy(datalayer, before, after):
+        order.append(("cancel", len(_abandonment_entries(dl, case.id_))))
+        return original(datalayer, before, after)
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(EmbargoLifecycle, "abandon_embargo_proposals", _spy)
+        # The write: each cancel is copied from its committed entry (ADR-0124).
+        patch.setattr(copy_commit, "save_case_file", _spy)
         assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
 
     assert order == [("cancel", 1), ("cancel", 2), ("cancel", 3)]

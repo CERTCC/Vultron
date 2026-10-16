@@ -360,3 +360,108 @@ def test_wire_render_port_is_published_to_the_tree():
     ).execute()
 
     assert seen["port"] is port
+
+
+# ---------------------------------------------------------------------------
+# SvcBTTriggerBase: a case-scoped trigger's tree takes the case-wide clock
+# decisions first (EMB-13-003, ADR-0135)
+# ---------------------------------------------------------------------------
+
+
+def _store_with_case():
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.models.case import VulnerabilityCase
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR_ID)
+    dl.create(VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR_ID))
+    return dl
+
+
+def _built_tree(uc: SvcBTTriggerBase) -> py_trees.behaviour.Behaviour:
+    from py_trees.behaviours import Success
+
+    return uc._with_case_clock_decisions(Success(name="own-tree"))
+
+
+@pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("BT-15-001")
+def test_a_case_scoped_trigger_leads_with_the_gated_clock_decisions():
+    from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+        CLOCK_DECISION_GATE_NAME,
+        ClockDecisionStage,
+    )
+    from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
+    from vultron.core.use_cases.triggers.request_bodies import (
+        CaseTriggerRequest,
+    )
+
+    uc = _MinimalTrigger(
+        dl=_store_with_case(),
+        request=CaseTriggerRequest(case_id=_CASE_ID),
+        trigger_activity=MagicMock(),
+    )
+
+    tree = _built_tree(uc)
+
+    gate, own = tree.children
+    assert isinstance(gate, CaseManagerGate)
+    assert gate.name == CLOCK_DECISION_GATE_NAME
+    assert own.name == "own-tree"
+    (stage,) = [n for n in gate.iterate() if isinstance(n, ClockDecisionStage)]
+    assert [d.name for d in stage.decisions] == ["EmbargoEndTimeDecision"]
+
+
+def test_a_trigger_naming_no_case_runs_its_own_tree_alone():
+    uc = _MinimalTrigger(
+        dl=_store_with_case(), request=object(), trigger_activity=MagicMock()
+    )
+
+    assert _built_tree(uc).name == "own-tree"
+
+
+def test_a_trigger_naming_an_unknown_case_runs_its_own_tree_alone():
+    """The trigger reports the missing case itself."""
+    from vultron.core.use_cases.triggers.request_bodies import (
+        CaseTriggerRequest,
+    )
+
+    uc = _MinimalTrigger(
+        dl=_store_with_case(),
+        request=CaseTriggerRequest(case_id="https://example.org/cases/other"),
+        trigger_activity=MagicMock(),
+    )
+
+    assert _built_tree(uc).name == "own-tree"
+
+
+#: Case-scoped trigger verbs that take no case-wide clock decision, and why.
+_NO_CASE_CLOCK_DECISION = {
+    # Its own tree takes the end-time path and answers for it.
+    "terminate-embargo",
+    # Runs no tree and changes no case state (BT-15-003).
+    "offer-case-participant-role",
+}
+
+
+@pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("BT-15-003")
+def test_every_case_scoped_trigger_takes_the_clock_decisions_or_is_listed():
+    """A case-scoped trigger opts out of the end-time check only by name:
+    terminate-embargo, whose own tree takes the end-time path, and the one
+    trigger that runs no tree."""
+    from vultron.core.use_cases.triggers.request_bodies import (
+        CaseTriggerRequest,
+    )
+    from vultron.trigger_registry import entries
+
+    case_scoped = [
+        e for e in entries() if issubclass(e.request_model, CaseTriggerRequest)
+    ]
+    opted_out = {
+        e.verb
+        for e in case_scoped
+        if not (e.bt_backed and e.use_case_class._takes_case_clock_decisions)
+    }
+
+    assert case_scoped
+    assert opted_out == _NO_CASE_CLOCK_DECISION

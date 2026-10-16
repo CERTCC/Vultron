@@ -17,10 +17,9 @@ An embargo reaches its end time through either of two requests, which share
 one idempotent termination path, :func:`end_embargo_at_end_time_bt`:
 
 - the CASE_MANAGER's **lazy check** when it next handles the case
-  (:func:`end_embargo_if_end_time_passed`, installed as a dispatcher
-  :class:`~vultron.core.ports.dispatcher.CaseUpkeep` hook by
-  :func:`end_time_case_upkeep`, so it runs before each activity or trigger
-  the actor handles for a case) — no scheduler is needed; and
+  (:func:`end_time_clock_decision`), a clock decision composed into the one
+  tree that handles the activity or trigger (CLP-10-025, ADR-0135) — no
+  scheduler is needed; and
 - an **outside request**, such as a Sentinel monitoring embargo timers,
   through the terminate-embargo trigger with ``reason=END_TIME_REACHED``.
 
@@ -34,51 +33,48 @@ no change once an entry is ``TERMINATED``::
     ├─ EmbargoAlreadyEndedNode          # EM EXITED: already done
     └─ TerminateEmbargoBT               # END_TIME_REACHED, claimed at *now*
 
-    EndEmbargoIfEndTimePassedBT (CASE_MANAGER-gated)
-    └─ EndTimeDue (Selector)
-       ├─ EndTimeNotPassed (Inverter(EmbargoEndTimePassedNode))
+    EmbargoEndTimeDecision (Selector; a clock decision, gated by its stage)
+    ├─ EndTimeNotPassed (Inverter(EmbargoEndTimePassedNode))
+    └─ EndEmbargoOnAFreshLedger (Sequence)
+       ├─ EndTimeLedgerFresh (CheckLedgerFreshnessNode)
        └─ EndEmbargoAtEndTimeBT
+
+The decision commits one CASE_MANAGER entry for each AS2 activity the
+termination needs: the ``Remove``, whose register step also cancels every
+open proposal, so no prefix of the entries shows the embargo ``TERMINATED``
+beside a ``PROPOSED`` one (EP-08-004), then the ``Add(CaseStatus)`` and each
+re-issued stub ``Invite`` (CLP-10-025).
 """
 
-import logging
-from collections.abc import Callable, Mapping
 from datetime import datetime
-from typing import Any, cast
+from typing import cast
 
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EmbargoActivityBuilder,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models._helpers import now_utc
+from vultron.core.behaviors.sync.nodes import CheckLedgerFreshnessNode
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     has_reached_end_time,
 )
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.ports.dispatcher import CaseUpkeep
-from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.embargo_lifecycle import embargo_in_force
 from vultron.core.states.em import EM
 from vultron.errors import BtNodePreconditionError, VultronError
 
-logger = logging.getLogger(__name__)
-
 #: ``result_out`` key :class:`EmbargoAlreadyEndedNode` sets when the embargo
 #: had already ended, so the request is answered as already done.
 EMBARGO_ALREADY_ENDED_KEY = "embargo_already_ended"
+
+#: Name of the ledger-freshness check that leads the end-time termination
+#: in :func:`end_time_clock_decision`.
+END_TIME_LEDGER_FRESH_NODE_NAME = "EndTimeLedgerFresh"
 
 
 class EmbargoAlreadyEndedNode(DataLayerConditionWithPorts):
@@ -202,127 +198,59 @@ def end_embargo_at_end_time_bt(
     )
 
 
-def end_embargo_if_end_time_passed_tree(
-    *, case_id: str, now: datetime, result_out: dict[str, object]
+def end_time_clock_decision(
+    *, case_id: str, now: datetime
 ) -> py_trees.behaviour.Behaviour:
     """The CASE_MANAGER's lazy end-time check for *case_id* (ADR-0122).
 
-    Gated on the CASE_MANAGER role, with a case the actor does not hold read
-    as "not the manager"; runs :func:`end_embargo_at_end_time_bt` only when
-    the embargo in force has reached its end time, and is otherwise
-    SUCCESS with nothing done.
+    A clock decision (CLP-10-025): runs :func:`end_embargo_at_end_time_bt`
+    only when the embargo in force has reached its end time at *now*, and is
+    otherwise SUCCESS with nothing done.  A gapped local ledger, the one way
+    the ledger refuses a CASE_MANAGER commit, is FAILURE before anything is
+    committed, so the stage logs it and the tree continues (CLP-10-025); a
+    commit that then fails is an internal error and ends the tree.  It holds
+    no gate of its own: every caller composes it into its one tree behind
+    the CASE_MANAGER gate of the clock-decision stage, a received tree through
+    :func:`~vultron.core.behaviors.case.case_clock_decisions.case_clock_decisions`
+    and a case-scoped trigger through ``SvcBTTriggerBase``.  The
+    termination's own output goes to a dict of its own, so it never mixes
+    with the output of the tree it runs in.
     """
-    return create_case_manager_gated_tree(
-        name="EndEmbargoIfEndTimePassedBT",
-        case_id=case_id,
-        case_may_be_absent=True,
+    result_out: dict[str, object] = {}
+    return py_trees.composites.Selector(
+        name="EmbargoEndTimeDecision",
+        memory=False,
         children=[
-            py_trees.composites.Selector(
-                name="EndTimeDue",
+            py_trees.decorators.Inverter(
+                name="EndTimeNotPassed",
+                child=EmbargoEndTimePassedNode(case_id=case_id, now=now),
+            ),
+            py_trees.composites.Sequence(
+                name="EndEmbargoOnAFreshLedger",
                 memory=False,
                 children=[
-                    py_trees.decorators.Inverter(
-                        name="EndTimeNotPassed",
-                        child=EmbargoEndTimePassedNode(
-                            case_id=case_id, now=now
-                        ),
+                    # The ledger's one refusal of a CASE_MANAGER commit, a
+                    # gapped local prefix (SYNC-10-001), is judged before
+                    # the termination commits anything: its commit nodes
+                    # raise on a failed commit, which would end the tree the
+                    # decision runs in as an internal error (CLP-10-025).
+                    CheckLedgerFreshnessNode(
+                        case_id=case_id, name=END_TIME_LEDGER_FRESH_NODE_NAME
                     ),
                     end_embargo_at_end_time_bt(
                         case_id=case_id, result_out=result_out, now=now
                     ),
                 ],
-            )
+            ),
         ],
-        body_name="EndEmbargoIfEndTimePassed",
     )
-
-
-def end_embargo_if_end_time_passed(
-    *,
-    datalayer: CaseOutboxPersistence,
-    case_id: str,
-    actor_id: str,
-    now: datetime,
-    trigger_activity: TriggerActivityPort | None,
-    sync_port: SyncActivityPort | None,
-    wire_render_port: WireRenderPort | None,
-    activity_id: str | None = None,
-) -> BTExecutionResult:
-    """Run the CASE_MANAGER's lazy end-time check for *case_id* as *actor_id*.
-
-    Called before the CASE_MANAGER handles an activity for the case, so the
-    activity is handled against an embargo that has ended when its end time
-    passed (ADR-0122).  A non-manager, or a case the actor does not hold,
-    does nothing.  Returns the bridge's result; a failed termination leaves
-    the case as it was and is retried the next time the case is handled.
-    *activity_id* names the inbound activity being handled, for the log.
-    """
-    result_out: dict[str, object] = {}
-    bridge = BTBridge(
-        datalayer=datalayer,
-        trigger_activity=trigger_activity,
-        sync_port=sync_port,
-        wire_render_port=wire_render_port,
-    )
-    tree = end_embargo_if_end_time_passed_tree(
-        case_id=case_id, now=now, result_out=result_out
-    )
-    result = bridge.execute_with_setup(tree, actor_id=actor_id)
-    if result.status != Status.SUCCESS:
-        logger.warning(
-            "Lazy end-time check for case '%s' by actor '%s' failed"
-            " (activity_id=%s): %s",
-            case_id,
-            actor_id,
-            activity_id,
-            result.feedback_message,
-        )
-    return result
-
-
-def end_time_case_upkeep(
-    port_factory: Callable[[DataLayer], Mapping[str, Any]],
-) -> CaseUpkeep:
-    """The lazy end-time check as a dispatcher :class:`CaseUpkeep` hook.
-
-    *port_factory* supplies, for the store being handled, the ports the
-    termination's commit and announcement need (``trigger_activity``,
-    ``sync_port``, ``wire_render_port``).  The composition root installs the
-    hook on the inbox and trigger dispatchers, so the CASE_MANAGER ends an
-    embargo whose end time has passed the next time it handles the case
-    (ADR-0122, EMB-13-003).
-    """
-
-    def _upkeep(
-        dl: CaseOutboxPersistence,
-        *,
-        case_id: str,
-        actor_id: str,
-        activity_id: str | None,
-    ) -> None:
-        # The inbox's port factories are typed on the whole DataLayer; the
-        # store a dispatcher hands a hook is that DataLayer.
-        ports = port_factory(cast(DataLayer, dl))
-        end_embargo_if_end_time_passed(
-            datalayer=dl,
-            case_id=case_id,
-            actor_id=actor_id,
-            now=now_utc(),
-            trigger_activity=ports.get("trigger_activity"),
-            sync_port=ports.get("sync_port"),
-            wire_render_port=ports.get("wire_render_port"),
-            activity_id=activity_id,
-        )
-
-    return _upkeep
 
 
 __all__ = [
     "EMBARGO_ALREADY_ENDED_KEY",
+    "END_TIME_LEDGER_FRESH_NODE_NAME",
     "EmbargoAlreadyEndedNode",
     "EmbargoEndTimePassedNode",
     "end_embargo_at_end_time_bt",
-    "end_time_case_upkeep",
-    "end_embargo_if_end_time_passed",
-    "end_embargo_if_end_time_passed_tree",
+    "end_time_clock_decision",
 ]

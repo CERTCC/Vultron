@@ -1673,7 +1673,7 @@ groups:
     statement: >-
       Exploit Publishers who are Participants in pre-public CVD cases ($q^{cs} \in \cdots
       p \cdots$) SHOULD comply with the protocol, especially when they also fulfill other
-      roles (e.g., Finder, Reporter, Coordinator, Vendor)
+      roles (e.g., Reporter, Coordinator, Vendor)
     stories:
     - story_2022_080
   - id: VP-14-012

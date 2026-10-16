@@ -24,12 +24,13 @@ handler pipeline and are essential for demonstrating the full Vultron Protocol
 
 Two demo workflows are shown:
 
-1. **Validate and Engage**: Finder submits a report via inbox (reactive setup);
+1. **Validate and Engage**: Finder submits a report through its own
+   ``submit-report`` trigger;
    vendor then proactively validates the report and engages the resulting case
    using ``POST /actors/{actor_id}/trigger/validate-report`` and
    ``POST /actors/{actor_id}/trigger/engage-case``.
 
-2. **Invalidate and Close**: Finder submits a second report via inbox; vendor
+2. **Invalidate and Close**: Finder submits a second report the same way; vendor
    proactively invalidates it via ``POST .../trigger/invalidate-report`` and
    then closes it via ``POST .../trigger/close-report``.
 
@@ -42,60 +43,21 @@ from collections.abc import Callable, Sequence
 
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import find_case_for_offer
+from vultron.demo.helpers.workflow import (
+    find_case_for_offer,
+    reporter_submits_report,
+    verify_reporter_trusts_introduction,
+)
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
     demo_step,
     get_offer_from_datalayer,
-    post_to_inbox_and_wait,
-    seed_case_actor_for_report,
     setup_demo_logging,
-    verify_object_stored,
 )
-from vultron.wire.as2.factories import (
-    rm_submit_report_activity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Shared setup helpers
-# ---------------------------------------------------------------------------
-
-
-def _submit_report(
-    client: DataLayerClient,
-    finder: as_Actor,
-    vendor: as_Actor,
-    name: str,
-    content: str,
-) -> tuple[as_VulnerabilityReport, as_Offer]:
-    """Finder submits a vulnerability report to the vendor's inbox.
-
-    Returns the ``(report, offer)`` pair after verifying both are stored.
-    """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        name=name,
-        content=content,
-    )
-    offer = rm_submit_report_activity(report, actor=finder.id_, to=vendor.id_)
-    # Provision the CaseActor this report's proposal will be
-    # addressed to; its id is derived from the report and this
-    # node hosts it in single-container demo mode (#2469).
-    seed_case_actor_for_report(client, report.id_)
-    post_to_inbox_and_wait(client, vendor.id_, offer)
-    with demo_check("Report and offer stored in DataLayer"):
-        verify_object_stored(client, report.id_)
-        verify_object_stored(client, offer.id_)
-    return report, offer
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +74,7 @@ def demo_validate_and_engage(
     """Demonstrate proactive validation and case engagement via trigger endpoints.
 
     Workflow:
-    1. Finder submits a vulnerability report to the vendor (reactive inbox step).
+    1. Finder submits a vulnerability report to the vendor (``submit-report``).
     2. Vendor calls ``POST .../trigger/validate-report`` to validate the report.
     3. Vendor calls ``POST .../trigger/engage-case`` to engage the created case.
     """
@@ -122,12 +84,13 @@ def demo_validate_and_engage(
 
     report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report, offer = _submit_report(
-            client=client,
-            finder=finder,
-            vendor=vendor,
-            name="Remote Code Execution in Network Stack",
-            content=(
+        report, offer = reporter_submits_report(
+            client,
+            finder,
+            vendor,
+            reporter_client=client,
+            report_name="Remote Code Execution in Network Stack",
+            report_content=(
                 "A use-after-free in the TCP/IP stack allows a remote "
                 "attacker to execute arbitrary code."
             ),
@@ -167,6 +130,8 @@ def demo_validate_and_engage(
             )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
+
     logger.info(
         "✅ TRIGGER DEMO 1 COMPLETE: Report validated and case engaged "
         "via trigger endpoints."
@@ -195,14 +160,15 @@ def demo_invalidate_and_close(
     logger.info("TRIGGER DEMO 2: Invalidate Report → Close Report")
     logger.info("=" * 80)
 
-    offer = None
+    report = offer = None
     with demo_step("Step 1: Finder submits a low-quality report to vendor"):
-        _report, offer = _submit_report(
-            client=client,
-            finder=finder,
-            vendor=vendor,
-            name="Alleged Vulnerability in Demo Component",
-            content=(
+        report, offer = reporter_submits_report(
+            client,
+            finder,
+            vendor,
+            reporter_client=client,
+            report_name="Alleged Vulnerability in Demo Component",
+            report_content=(
                 "The reporter claims a vulnerability exists but provides no "
                 "reproduction steps or supporting evidence."
             ),
@@ -242,6 +208,10 @@ def demo_invalidate_and_close(
                 "Expected 'activity' key in close-report trigger response"
             )
             logger.info("Resulting activity type: %s", activity.get("type"))
+
+    # The case was created on receipt, so the vendor still introduces it to
+    # the finder (CBT-01-001).
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
 
     logger.info(
         "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and closed "

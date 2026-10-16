@@ -31,14 +31,15 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
-    ActivateEmbargoLifecycleNode,
+    ActivationAppliesNode,
+    CommitAndApplyEmbargoActivationNode,
     DecideRejectedEmbargoProposalNode,
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
@@ -75,10 +76,11 @@ def activate_embargo_on_case_tree(
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
-        ├─ GuardedCommitCaseLedgerEntryBT
+        ├─ ActivationAppliesNode             # decide + trial apply (ADR-0124)
+        ├─ GuardedCommitCaseLedgerEntryBT    # the Accept: ACTIVATE (+ SUPERSEDE)
         └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
            ├─ CaptureActiveEmbargoNode       # snapshot signatories before
-           ├─ ActivateEmbargoLifecycleNode   # ACTIVATE (+ SUPERSEDE), owner AGREE
+           ├─ CommitAndApplyEmbargoActivationNode  # CARRY_OVER entries, apply
            ├─ SendEmbargoEndingNoticesNode   # tell dropped signatories (CM-31-009)
            ├─ BackfillAdmittedParticipantsNode  # CM-10-006
            └─ ReissueStubInvitesNode         # CM-11-016
@@ -86,7 +88,12 @@ def activate_embargo_on_case_tree(
     The guards refuse the activation before the commit when P/X/A is set
     (EMB-02-002) or the owner had declined the proposal (ADR-0122), so a
     refused activation is never ledgered; the activation itself runs
-    ``STRICT``.
+    ``STRICT``.  The CASE_MANAGER decides the activation and trial-applies it
+    among the guards, so a step the register refuses commits nothing; once
+    intake has committed the ``Accept`` (the whole register step and the
+    owner's agreement), each ``CARRY_OVER`` row is committed as its own
+    ``Update(EmbargoConsent)`` entry and only then is the case file written
+    (ADR-0124, CLP-07-013).
     Activating a revision can admit a participant that had already accepted
     it after the entry was fanned out, so the CASE_MANAGER then sends what
     the gate withheld (CM-10-006), tells any signatory a shorter revision
@@ -123,10 +130,11 @@ def activate_embargo_on_case_tree(
             OwnerMayActivateEmbargoNode(
                 case_id=case_id, embargo_id=embargo_id
             ),
+            ActivationAppliesNode(case_id=case_id, embargo_id=embargo_id),
         ],
         manager_effects=[
             capture,
-            ActivateEmbargoLifecycleNode(
+            CommitAndApplyEmbargoActivationNode(
                 case_id=case_id, embargo_id=embargo_id, result_out={}
             ),
             notices,

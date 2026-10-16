@@ -140,6 +140,37 @@ class BTTestScenario:
             **context_data,
         )
 
+    def run_capturing(
+        self,
+        tree: py_trees.behaviour.Behaviour,
+        key: str,
+        actor_id: str | None = None,
+        **context_data: Any,
+    ) -> tuple[BTExecutionResult, Any]:
+        """Run *tree*, then read blackboard *key* as the run left it.
+
+        The bridge clears the blackboard once it returns, so a node's output
+        is read by a probe that runs after *tree* in the same execution.
+        The value is ``None`` when *tree* fails before the probe runs.
+        """
+        captured: list[Any] = []
+        storage_key = key if key.startswith("/") else f"/{key}"
+
+        class _Probe(py_trees.behaviour.Behaviour):
+            def update(self) -> py_trees.common.Status:
+                captured.append(
+                    py_trees.blackboard.Blackboard.storage.get(storage_key)
+                )
+                return py_trees.common.Status.SUCCESS
+
+        probed = py_trees.composites.Sequence(
+            name=f"{tree.name}ThenProbe",
+            memory=False,
+            children=[tree, _Probe(name="Probe")],
+        )
+        result = self.run(probed, actor_id=actor_id, **context_data)
+        return result, (captured[0] if captured else None)
+
     # ------------------------------------------------------------------
     # Status assertions
     # ------------------------------------------------------------------

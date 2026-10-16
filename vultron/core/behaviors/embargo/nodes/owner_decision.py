@@ -24,8 +24,9 @@ no node branches on the sender to know what a message means.
 - :class:`IsOpenEmbargoProposalNode`, :class:`OwnerMayActivateEmbargoNode`
   — read-only guards ahead of the commit: the decision names an open
   proposal, and nothing refuses its activation (CLP-10-009).
-- :class:`ActivateEmbargoLifecycleNode` / :class:`RejectEmbargoProposalLifecycleNode`
-  — the ``STRICT`` register write, as the CASE_MANAGER (EP-09-008).
+- :class:`RejectEmbargoProposalLifecycleNode` — the ``STRICT`` register
+  write, as the CASE_MANAGER (EP-09-008).  The activation commits first and
+  copies (``activation_commit.py``, ADR-0124).
 - :class:`SendOwnerEmbargoDecisionNode` — the owner's replica queues its
   decision to the CASE_MANAGER (PCR-08-001).
 """
@@ -39,6 +40,7 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
@@ -118,42 +120,6 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class ActivateEmbargoLifecycleNode(_EmbargoLifecycleNode):
-    """Apply the owner's ``STRICT`` activation of a proposal (ADR-0122).
-
-    ``EmbargoLifecycle.activate_embargo``: ``ACTIVATE`` the proposal,
-    ``SUPERSEDE`` any embargo in force, record the owner's agreement and
-    carry signatories over to a revision that ends no later (EP-05-001).
-    Refused with P/X/A set (EMB-02-002).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        embargo_id: str,
-        result_out: dict[str, object],
-        name: str | None = None,
-    ) -> None:
-        super().__init__(result_out=result_out, name=name)
-        self._case_id_value = case_id
-        self._embargo_id = embargo_id
-
-    def _case_id(self) -> str:
-        return self._case_id_value
-
-    def _transition(
-        self,
-        lifecycle: EmbargoLifecycle,
-        actor_id: str,
-    ) -> EmbargoLifecycleResult:
-        return lifecycle.activate_embargo(
-            case_id=self._case_id_value,
-            embargo_id=self._embargo_id,
-            actor_id=actor_id,
-            transition_mode=TransitionMode.STRICT,
-        )
-
-
 class RejectEmbargoProposalLifecycleNode(_EmbargoLifecycleNode):
     """Apply the owner's ``STRICT`` rejection of a proposal (ADR-0122).
 
@@ -186,6 +152,12 @@ class RejectEmbargoProposalLifecycleNode(_EmbargoLifecycleNode):
             embargo_id=self._embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
+        )
+
+    def _register_step(self) -> RegisterStep:
+        """``REJECT`` of the proposal."""
+        return RegisterStep(
+            kind=RegisterStepKind.REJECT, embargo=self._embargo_id
         )
 
 
@@ -236,7 +208,6 @@ class SendOwnerEmbargoDecisionNode(SendEmbargoInviteAnswerNode):
 
 
 __all__ = [
-    "ActivateEmbargoLifecycleNode",
     "IsOpenEmbargoProposalNode",
     "OwnerMayActivateEmbargoNode",
     "RejectEmbargoProposalLifecycleNode",

@@ -16,7 +16,6 @@
     "updated": "2026-09-30T16:00:59+00:00",
     "attributedTo": "https://vultron.example/users/finndervul",
     "caseRoles": [
-      "finder",
       "reporter"
     ],
     "participantStatuses": [
@@ -31,7 +30,6 @@
         "rmState": "START",
         "caseEngagement": true,
         "cvdRole": [
-          "FINDER",
           "REPORTER"
         ],
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"

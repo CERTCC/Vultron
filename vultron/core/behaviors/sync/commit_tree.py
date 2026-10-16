@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
     from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -115,9 +116,12 @@ def commit_emitted_activity(
     nested tree.  The caller queues the activity first: the entry records a
     completed act, and a send is complete once it is in the outbox
     (SYNC-09-002, ADR-0119).  Returns the decoded snapshot; raises
-    ``RuntimeError`` when the commit did not succeed, so a caller that is
+    ``RuntimeError`` when the ledger refused the commit, so a caller that is
     itself a BT node fails with the activity queued and unrecorded, which a
-    retry that rebuilds it under the same id records (OX-06-002).
+    retry that rebuilds it under the same id records (OX-06-002), and
+    :class:`~vultron.errors.VultronBTInternalError` when the nested commit
+    failed on an internal error, so no caller absorbs it as a refusal
+    (ADR-0095).
 
     *sync_port* fans the entry out to the case's participants when given; an
     emit node that reads ``/sync_port`` passes it through so a relayed
@@ -142,6 +146,14 @@ def commit_emitted_activity(
         actor_id=actor_id,
         **context,
     )
+    if result.internal_error:
+        # Carry the nested bridge's classification across the hop: a missing
+        # sync port or a crash in the commit tree is our fault, never a
+        # refusal a caller may absorb (ADR-0095, #4113).
+        raise VultronBTInternalError(
+            f"nested ledger commit for {event_type}/{activity_id} failed:"
+            f" {result.feedback_message}"
+        )
     if result.status != py_trees.common.Status.SUCCESS:
         raise RuntimeError(
             f"ledger commit failed for {event_type}/{activity_id}:"

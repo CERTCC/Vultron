@@ -169,10 +169,10 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
       refused (CM-21-014).
     - A reply after the Offer's ``end_time`` is refused (CM-21-016).
 
-    The deadline is read here as well as by the CASE_MANAGER's expiry step,
-    which runs first and ledgers the expiry
-    (:func:`~vultron.core.behaviors.case.ownership_expiry_tree.create_ownership_offer_expiry_tree`):
-    a reply after ``end_time`` is refused even when that record could not be
+    The deadline is read here as well as by the CASE_MANAGER's expiry, the
+    clock decision that runs first in the same tree and ledgers it
+    (:class:`~vultron.core.behaviors.case.nodes.ownership_offer_expiry.ExpireOverdueOwnershipOfferNode`,
+    CLP-10-025): a reply after ``end_time`` is refused even when that record could not be
     committed, so the deadline binds whatever the ledger holds.  A replica
     never reads it: it learns an expiry only from the entry (CM-21-017), so
     the guard runs behind the CASE_MANAGER gate

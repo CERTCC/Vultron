@@ -418,6 +418,11 @@ def _build_embargo_event_object(
         or _get_id(target)
     )
     if isinstance(end_time, datetime) and embargo_context and object_id:
+        if isinstance(obj, EmbargoEvent):
+            # Already the core type (ADR-0099): keep every field it carries,
+            # so the CASE_MANAGER stores the embargo its committed entry
+            # carries and replicas that copy the entry match it (CM-23-016).
+            return {"object_": obj.model_copy(deep=True)}
         return {
             "object_": EmbargoEvent(
                 id_=object_id,

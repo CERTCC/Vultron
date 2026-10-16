@@ -238,7 +238,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # VultronNotFoundError on absence (the replica slot resolves the case
         # Regime 2 first).
         (
-            "vultron/core/behaviors/embargo/copy_commit.py",
+            "vultron/core/behaviors/embargo_case_file.py",
             "read_embargo_case_file",
         ),
         # MOD — shared by a received use case, a trigger, a replay node and a

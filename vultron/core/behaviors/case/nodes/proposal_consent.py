@@ -36,6 +36,7 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import participant_id_for_actor
 from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -170,7 +171,9 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts, StateWriteCapable):
                 case_id,
             )
             return None, None
-        participant_id = stored_case.actor_participant_index.get(reporter_uri)
+        participant_id = participant_id_for_actor(
+            stored_case.actor_participant_index, reporter_uri
+        )
         if not participant_id:
             logger.warning(
                 "%s: reporter '%s' has no participant in case '%s' —"

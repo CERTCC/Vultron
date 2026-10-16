@@ -13,7 +13,10 @@
 
 import pytest
 
-from test.demo._helpers import route_exchange_demo_at_testclient
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    route_exchange_demo_at_testclient,
+)
 from vultron.demo.exchange import (
     initialize_case_demo as init_demo,
     transfer_ownership_demo as demo,
@@ -59,7 +62,12 @@ def test_demo(demo_env, demo_fn, caplog):
     """
     import logging
 
-    with caplog.at_level(logging.ERROR):
+    # WARNING, not ERROR: a refused case introduction (CBT-01-011) is
+    # logged at WARNING, and the run must log none (#4675).
+    with (
+        caplog.at_level(logging.WARNING),
+        expect_trusted_introductions(caplog),
+    ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 
     assert "ERROR SUMMARY" not in caplog.text, (

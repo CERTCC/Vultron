@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.predicates.addressing import participant_id_for_actor
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import BtNodePreconditionError, VultronNotFoundError
@@ -136,7 +137,12 @@ class AddReporterParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         stored_case = self.datalayer.read_case(case_id)
         if stored_case is None:
             return False
-        if actor_uri in stored_case.actor_participant_index:
+        if (
+            participant_id_for_actor(
+                stored_case.actor_participant_index, actor_uri
+            )
+            is not None
+        ):
             logger.debug(
                 "%s: '%s' already in actor_participant_index for case '%s'"
                 " — skipping",

@@ -1893,7 +1893,7 @@ groups:
     kind: protocol
     statement: >-
       Step 5 of the case initialization sequence MUST add the reporter as a
-      `CaseParticipant` with `RM.ACCEPTED` and `CVDRole.FINDER`/`REPORTER`, and seed
+      `CaseParticipant` with `RM.ACCEPTED` and `CVDRole.REPORTER`, and seed
       them as a signatory on any active embargo.
     rationale: The reporter is added after the Create(Case) notification is flushed
       (CM-14-011) so that the case object exists on the reporter's system before the
@@ -2710,8 +2710,9 @@ groups:
       (CM-28-013), so its passing times out only that row, never the participant's other
       invitations.
     verification: >-
-      Unit tests confirm that `record_invite_expiry()` and `detect_and_apply_expiry()` apply
-      `TIME_OUT` only to the named invitation's row once its own deadline has passed, leaving a
+      Unit tests confirm that the expiry's row decision (`consent_row_move()` with `TIME_OUT`)
+      and `detect_and_apply_expiry()` move only the named invitation's row once its own
+      deadline has passed, leaving a
       concurrent invitation with a later deadline `INVITED`, and that `propose_embargo()` and the
       owner's revision acceptance write no row to record a lapse.
     adr:
@@ -5134,9 +5135,11 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST record the RSVP deadline on the invitee's `INVITED` consent row for
-      the invited embargo at its commit of the Invite emission, and the replica apply node for that entry MUST
-      record the same deadline (EP-09-007). A participant MUST NOT derive or store an RSVP
-      deadline on receipt of an Invite (EP-09-003).
+      the invited embargo when it commits the Invite emission, as its own
+      `Update(EmbargoConsent)` entry carrying that row and committed right after the
+      Invite's (CLP-07-013), and every replica MUST record the same deadline by copying that
+      entry (EP-09-007, ADR-0124). A participant MUST NOT derive or store an RSVP deadline
+      on receipt of an Invite (EP-09-003).
     rationale: >-
       The deadline is case state about the invitee; like every other case state it is written
       once by the CASE_MANAGER and reaches replicas through the ledger (ADR-0108). Writing it
@@ -5171,20 +5174,23 @@ groups:
     statement: >-
       Only the CASE_MANAGER evaluates invite expiry (CM-28-003). The expired-invitation ledger entry
       (CM-28-009) MUST be committed behind the CASE_MANAGER role gate (BT-17-001) and MUST have a
-      replica apply node reachable from `create_announce_log_entry_tree` (RSH-08-004); a replica
-      learns an expiry from that entry and never computes one.
+      replica apply node reachable from `create_announce_log_entry_tree` (RSH-08-004). The
+      CASE_MANAGER MUST commit the invitee's `TIMED_OUT` row as its own
+      `Update(EmbargoConsent)` entry after the expiry entry (ADR-0124, CLP-07-013); a replica
+      learns an expiry from those entries, copying the row, and never computes one.
     rationale: >-
       The expiry commit ran unconditionally in whichever store processed a late `Accept`, so a
       non-manager could author a ledger entry, and no replay node existed for the event type, so an
       expiry recorded by the manager reached no replica (#3918).
     verification: >-
       A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
-      a test replays an `invite_to_embargo_on_case_expired` entry into a replica and asserts the
-      participant reads `TIMED_OUT`:
+      a test replays an `invite_to_embargo_on_case_expired` entry and its
+      `update_embargo_consent` entry into a replica and asserts the participant reads
+      `TIMED_OUT` only once the row's entry is copied:
       `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
-      and
-      `test/core/behaviors/embargo/nodes/test_expiry.py::TestApplyInviteExpiryFromLedgerNode::test_a_replica_applies_time_out_without_a_deadline`.
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`,
+      `test/core/behaviors/embargo/nodes/test_expiry.py::TestApplyInviteExpiryFromLedgerNode::test_the_expiry_entry_moves_no_row_on_a_replica`
+      and `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`.
     relationships:
     - rel_type: refines
       spec_id: CM-28-009
@@ -5997,7 +6003,7 @@ groups:
       embargo step (CM-14-010) replaced by CM-32-007 or CM-32-008 and its reporter steps
       (CM-14-011, CM-14-012) skipped, and MUST seat only the CASE_MANAGER and the Owner, the
       Owner holding `CASE_OWNER` at `RM.RECEIVED` (CM-14-009). Authoring the child's report
-      MUST NOT give the splitter a Finder or Reporter role. These two are the participants
+      MUST NOT give the splitter the Reporter role. These two are the participants
       seated by case initialization for CM-10-004, and a participant MUST NOT be invited to
       the child before its creation entry is committed (CM-14-007).
     rationale: >-
@@ -6005,7 +6011,7 @@ groups:
       joins the child by accepting its stub Invite (ADR-0114).
     verification: >-
       A test marked `CM-32-011` splits a case and asserts the child's roster holds exactly the
-      CASE_MANAGER and the Owner, with no `FINDER` or `REPORTER` role on the Owner.
+      CASE_MANAGER and the Owner, with no `REPORTER` role on the Owner.
     stories:
     - story_2022_104
     relationships:

@@ -52,7 +52,20 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
-from vultron.enums.roles import CVDRole
+from vultron.enums.roles import CVDRole, parse_role
+
+
+def _parse_injected_role(raw: object) -> CVDRole:
+    """Parse one injected role string, refusing a non-string outright.
+
+    Raises:
+        TypeError: *raw* is not a string.
+        ValueError: *raw* is not a live role; a retired one carries its
+            reason (ADR-0078).
+    """
+    if not isinstance(raw, str):
+        raise TypeError(f"{raw!r} is not a role string ({type(raw).__name__})")
+    return parse_role(raw)
 
 
 class EvaluateDefaultRolesNode(BehaviourWithPorts):
@@ -107,15 +120,16 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         coerced: list[CVDRole] = []
         for raw in injected_roles:
             try:
-                coerced.append(CVDRole(raw))
-            except ValueError:
+                coerced.append(_parse_injected_role(raw))
+            except (TypeError, ValueError) as exc:
                 self.logger.warning(
                     "%s: ignoring unrecognized injected role %r for actor"
-                    " '%s' in case '%s'",
+                    " '%s' in case '%s': %s",
                     self.name,
                     raw,
                     self.suggested_actor_id,
                     self.case_id,
+                    exc,
                 )
         if not coerced:
             self.logger.warning(

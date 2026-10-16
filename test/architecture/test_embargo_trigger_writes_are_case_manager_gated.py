@@ -22,7 +22,8 @@ asks the manager instead and its replica moves on the manager's commit.  An
 state on a replica that does not own it (#3962).
 
 The ratchet builds every embargo trigger BT factory and asserts each
-``_EmbargoLifecycleNode`` in it has a ``create_case_manager_gated_tree``
+EM write node (``_EM_WRITES``: an ``_EmbargoLifecycleNode``, or a copy-model
+commit-and-apply node) in it has a ``create_case_manager_gated_tree``
 ancestor, inside the gated branch.  A completeness check makes a new public
 factory in ``trigger_tree`` fail here until it is listed.
 """
@@ -37,8 +38,14 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     CheckIsCaseManagerNode,
 )
 from vultron.core.behaviors.embargo import trigger_tree
+from vultron.core.behaviors.embargo.nodes.activation_commit import (
+    CommitAndApplyEmbargoActivationNode,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
+)
+from vultron.core.behaviors.embargo.nodes.termination_commit import (
+    CommitAndApplyEmbargoTerminationNode,
 )
 from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
     create_terminate_active_embargo_tree,
@@ -149,6 +156,14 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
 #: left (#4131 gated the P/X/A abandonment cascade).
 _EXEMPT: dict[str, str] = {}
 
+#: The node classes that write EM: the lifecycle writes, and the arms
+#: converted to the copy model, which commit and then apply (ADR-0124).
+_EM_WRITES: tuple[type, ...] = (
+    _EmbargoLifecycleNode,
+    CommitAndApplyEmbargoActivationNode,
+    CommitAndApplyEmbargoTerminationNode,
+)
+
 
 def _walk(
     node: py_trees.behaviour.Behaviour,
@@ -189,7 +204,7 @@ def test_every_lifecycle_write_is_case_manager_gated(
     factory_name: str,
 ) -> None:
     tree = _FACTORIES[factory_name]()
-    writes = [n for n in _walk(tree) if isinstance(n, _EmbargoLifecycleNode)]
+    writes = [n for n in _walk(tree) if isinstance(n, _EM_WRITES)]
 
     assert writes, f"{factory_name} builds no EM lifecycle write to check"
     ungated = [n.name for n in writes if not _gated_by_case_manager(n)]

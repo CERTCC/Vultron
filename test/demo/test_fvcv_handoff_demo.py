@@ -914,7 +914,7 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
                     finder_p = as_CaseParticipant(
                         attributed_to=finder_id,
                         context=case_id,
-                        case_roles=[CVDRole.FINDER],
+                        case_roles=[CVDRole.REPORTER],
                     )
                     case.actor_participant_index[vendor_id] = vendor_p.id_
                     case.actor_participant_index[coordinator_id] = (
