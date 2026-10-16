@@ -15,6 +15,7 @@ related_specs:
   - specs/triggerable-behaviors.yaml
   - specs/handler-protocol.yaml
   - specs/participant-case-replica.yaml
+  - specs/datalayer.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -149,6 +150,11 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
   to the transferee directly.
 - `to=[case_actor_id]`; the Offer's `target` carries `transferee_id`. The CASE_MANAGER
   is never sent an Offer by itself: the delegated emit is its forward.
+- **The transferee travels and is stored inline**, as an `Actor` object, never a
+  bare id (DL-08-003). The CASE_MANAGER need not hold the transferee's profile, and
+  its ledger snapshot must carry the transferee inline (CLP-07-006), so no
+  actor-profile write is needed. The factory wraps a bare id; storage keeps it
+  inline for a received Offer too, by the semantic class's declaration (#4843).
 
 ### `EmitAcceptCaseOwnershipTransferNode`
 
