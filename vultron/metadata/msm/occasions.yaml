@@ -83,14 +83,16 @@ groups:
     example: invalidate_report
   - anchor: report-closed
     heading: Close report
-    when: a report receiver closes the report
+    when: a report receiver closes a report no case holds
     send: Reject(Offer(VulnerabilityReport))
-    send_to: the case manager
-    sent_by: 'a participant (usually: vendor, coordinator)'
+    send_to: an actor outside any case
+    sent_by: 'the addressee of the vulnerability report offer (usually: vendor, coordinator)'
     semantics: close_report
     shorthand: RC
     status: expansion
-    description: Closes the report, moving the sender's RM state to Closed.
+    description: Closes the report, moving the sender's RM state to Closed. Once a case holds
+      the report, its Case Owner closes the case with Leave(VulnerabilityCase) instead, and
+      every receiver refuses a Close(Report) for it.
     seen_in:
     - path: howto/activitypub/activities/manage_case.md
       title: How to Advance a Case Through Report Management

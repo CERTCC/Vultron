@@ -18,14 +18,16 @@ Behavior tree factories for received-side report use cases.
 
 Each factory produces a ``py_trees.composites.Sequence`` that implements the
 inbound protocol handling (intake archives each received activity first,
-CLP-10-017) for one of the four report-lifecycle activities:
+CLP-10-017) for one of the report-lifecycle activities:
 
 - ``CreateReport`` — store VulnerabilityReport
 - ``AckReport``    — check the acknowledgement's sender
-- ``CloseReport``  — record the *sender's* RM → CLOSED
 - ``InvalidateReport`` — record the *sender's* RM → INVALID
 
-with ``ValidateReport`` (the sender's RM → VALID) alongside.  Every RM write
+with ``ValidateReport`` (the sender's RM → VALID) alongside, and
+``CloseReport``, which no receiver applies: its tree only refuses it
+(CM-23-019).
+Every RM write
 here is about the sender of the activity, never the receiving actor whose store
 the tree runs in (RSH-08-001), and is adjudicated by the received-side RM
 acceptance rule shared with ``Add(ParticipantStatus)`` (RSH-06-006) — see
@@ -290,7 +292,7 @@ def create_ack_report_received_tree(
 
 
 def _report_verdict_stages(
-    request: CloseReportReceivedEvent | InvalidateReportReceivedEvent,
+    request: InvalidateReportReceivedEvent,
     case_id: str | None,
     declared_rm: RM,
     write_name: str,
@@ -305,10 +307,10 @@ def _report_verdict_stages(
     the RSH-06-004 note owed when the guard refuses a regression
     (CLP-10-022).
 
-    Shared by the report-closed and report-invalid handlers, which differ only
-    in the RM state their activity declares for its sender.  Each factory
-    composes them through :func:`create_receive_activity_tree` itself
-    (CLP-10-017).
+    The report-invalid factory composes them through
+    :func:`create_receive_activity_tree` itself (CLP-10-017).  A
+    ``Close(Report)`` has no verdict to stage: its tree refuses it
+    (CM-23-019).
 
     The subject of the RM write is the sender, ``request.actor_id``; the tree
     still executes in the receiving actor's store (RSH-08-001, BT-17-006).
@@ -342,70 +344,58 @@ def _report_verdict_stages(
 def create_close_report_received_tree(
     request: CloseReportReceivedEvent,
     case_id: str | None,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
-    """Create the BT for the CloseReportReceived workflow.
+    """Create the BT for the CloseReportReceived workflow (CM-23-019).
 
-    Handles receipt of a ``Reject(Offer(VulnerabilityReport))`` (CloseReport)
-    activity: the sender declares that *its* RM state is ``CLOSED``.  The
-    subject of the write is therefore the sender (``request.actor_id``), never
-    the receiving actor whose store the tree runs in (RSH-08-001, HP-00-001).
+    Handles receipt of a ``Reject(Offer(VulnerabilityReport))``
+    (CloseReport).  No receiver applies one, so the tree has no effect, and
+    its commit stage is never reached; it only decides how the activity is
+    refused:
 
-    Steps (Sequence via :func:`create_receive_activity_tree`):
-    1. Intake archives the ``Reject`` as received (CLP-10-017); the activity
-       stays archived when a later step refuses (CLP-10-018).
-    2. Resolve this actor's case for the report (``RequireCaseForReport``,
-       which also publishes ``/case_id`` for downstream nodes).
-    3. The sender must be a participant of that case (HP-01-006).
-    4. Adjudicate the declaration under the received-side RM rule: a backward
-       move is refused here, before any effect (RSH-06-002, CLP-10-009).
-    5. Guarded commit (only when ``case_id`` is provided and the receiving
-       actor holds ``CVDRole.CASE_MANAGER``) records the activity after the
-       guards and before the effect (CLP-10-006, CLP-10-013).
-    6. Record ``CLOSED`` for the sender unless it is already recorded
-       (RSH-08-002), through the canonical
-       :class:`~vultron.core.behaviors.case.nodes.participant.status\
-.CreateParticipantStatusNode` writer (ADR-0089).
-    7. Post the RSH-06-004 clarification note when step 4 saw a
-       non-adjacent jump.  When step 4 refuses a regression, the factory's
-       refusal-effects stage posts the note instead, at the CASE_MANAGER,
-       and the tree still fails before any effect (CLP-10-022).
-
-    Steps 2–4 return FAILURE when the case is not in this actor's store, so the
-    handler reports a refusal of an activity about an unknown case (#2255,
-    ARCH-15-001, ISSUE-2548); the activity archived in step 1 still records
-    that it arrived.
+    1. Intake archives the ``Reject`` as received (CLP-10-017, CLP-10-018).
+    2. The post-close guard drops it on a fully closed case (CM-23-013).
+    3. The sender guard is composed from the use case's declared rule
+       (HP-01-008).  On a case that holds the report the rule admits no
+       sender on either side, so every sender is refused with nothing
+       written or sent: the Case Owner closes a case by
+       ``Leave(VulnerabilityCase)``, and nobody else holds the report.
+       Before any case exists the rule's outside-case side checks the
+       sender is an addressee of the Offer it closes.
+    4. ``RequireCaseForReport`` then refuses a report this store holds no
+       case for, as an activity about an unknown case (#2255).
 
     Args:
-        request: The parsed inbound domain event.  Its ``actor_id`` — the
-            sender — is the subject of the RM write.
+        request: The parsed inbound domain event.
         case_id: The receiving store's case for the report, resolved by the
             use case before the tree runs; ``None`` when it holds none.
+        sender_rule: The use case's declared sender rule (HP-01-008).
 
     Returns:
         Root node of the ``CloseReportReceivedBT`` Sequence.
     """
-    guards, effects, refusal = _report_verdict_stages(
-        request,
-        case_id,
-        declared_rm=RM.CLOSED,
-        write_name="TransitionRMtoClosed",
-    )
-    return create_receive_activity_tree(
+    root = create_receive_activity_tree(
         name="CloseReportReceivedBT",
-        # A canonical signature: the CASE_MANAGER commits it after the guards,
-        # and replicas replay it (CLP-10-013, RSH-08-004).  RSH-08-003: the
-        # sender's RM → CLOSED is committed and replayed (RmVerdict slot), so a
-        # replica takes it from the ledger, not from the direct Reject (#3814).
-        # With no case the guards refuse before any effect.
+        # The case names the sender guard's side and the post-close boundary;
+        # the guard admits no sender on a case, so the commit never runs.
         case_id=case_id,
-        precondition_guards=guards,
-        manager_effects=effects if case_id is not None else None,
-        manager_case_id=case_id if case_id is not None else None,
-        manager_gate_name=(
-            "CloseReportEffectsIfCaseManager" if case_id is not None else None
+        precondition_guards=[
+            RequireCaseForReport(report_id=request.report_id)
+        ],
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=request.actor_id,
+            case_id=case_id,
+            request=ReportOfferRequest(offer_id=request.offer_id),
         ),
-        refusal_effects=refusal,
     )
+    logger.debug(
+        "Created CloseReportReceivedBT for report=%s activity=%s case=%s",
+        request.report_id,
+        request.activity_id,
+        case_id,
+    )
+    return root
 
 
 def create_invalidate_report_received_tree(
@@ -419,9 +409,30 @@ def create_invalidate_report_received_tree(
     ``INVALID``.  The subject of the write is the sender
     (``request.actor_id``), never the receiving actor (RSH-08-001).
 
-    The steps are those of :func:`create_close_report_received_tree`, with
-    ``INVALID`` as the declared state.  ``("TentativeReject", "Offer")`` is a
-    canonical signature, so the CASE_MANAGER commits it (CLP-10-013).
+    Steps (Sequence via :func:`create_receive_activity_tree`):
+    1. Intake archives the ``TentativeReject`` as received (CLP-10-017); the
+       activity stays archived when a later step refuses (CLP-10-018).
+    2. Resolve this actor's case for the report (``RequireCaseForReport``,
+       which also publishes ``/case_id`` for downstream nodes).
+    3. The sender must be a participant of that case (HP-01-006).
+    4. Adjudicate the declaration under the received-side RM rule: a backward
+       move is refused here, before any effect (RSH-06-002, CLP-10-009).
+    5. Guarded commit (only when ``case_id`` is provided and the receiving
+       actor holds ``CVDRole.CASE_MANAGER``) records the activity after the
+       guards and before the effect (CLP-10-006, CLP-10-013):
+       ``("TentativeReject", "Offer")`` is a canonical signature.
+    6. Record ``INVALID`` for the sender unless it is already recorded
+       (RSH-08-002), through the canonical
+       :class:`~vultron.core.behaviors.case.nodes.participant.status\
+.CreateParticipantStatusNode` writer (ADR-0089).
+    7. Post the RSH-06-004 clarification note when step 4 saw a
+       non-adjacent jump.  When step 4 refuses a regression, the factory's
+       refusal-effects stage posts the note instead, at the CASE_MANAGER,
+       and the tree still fails before any effect (CLP-10-022).
+
+    Steps 2–4 return FAILURE when the case is not in this actor's store, so
+    the handler reports a refusal of an activity about an unknown case
+    (#2255, ARCH-15-001, ISSUE-2548).
 
     Args:
         request: The parsed inbound domain event.  Its ``actor_id`` — the

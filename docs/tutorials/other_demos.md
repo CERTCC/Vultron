@@ -461,7 +461,8 @@ This demo shows the other direction: an actor *initiates* a protocol behavior fr
 Two workflows are shown:
 
 1. **Validate and engage** — the finder submits a report; the vendor then calls `POST /actors/{actor_id}/trigger/validate-report` and `POST /actors/{actor_id}/trigger/engage-case`.
-2. **Invalidate and close** — the finder submits a second report; the vendor calls `trigger/invalidate-report` and then `trigger/close-report`.
+2. **Invalidate and close** — the finder submits a second report; the vendor calls `trigger/invalidate-report`, ends the case's embargo with `trigger/terminate-embargo`, and then closes the case it opened for the report with `demo/close-case`, which sends `Leave(VulnerabilityCase)`.
+   Once a case holds a report, its owner closes the case this way, never with `Close(Report)`.
 
 Notice that each trigger response carries the ActivityStreams activity the actor produced, and that the activity appears in the vendor's outbox.
 This is the mechanism the multi-actor container demos use to drive every actor; see [Running the Multi-Actor Container Demos](container_demos.md).

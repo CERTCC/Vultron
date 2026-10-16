@@ -38,7 +38,6 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
 from vultron.core.behaviors.report.received_report_trees import (
-    create_close_report_received_tree,
     create_invalidate_report_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
@@ -79,7 +78,6 @@ from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.report import (
-    CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
@@ -353,7 +351,6 @@ def test_an_inert_participant_holds_participant_but_not_active_participant(
 RELABELLED = {
     "validate-report": ValidateReportReceivedUseCase,
     "invalidate-report": InvalidateReportReceivedUseCase,
-    "close-report": CloseReportReceivedUseCase,
     "engage-case": EngageCaseReceivedUseCase,
     "defer-case": DeferCaseReceivedUseCase,
     "offer-actor": OfferActorToCaseReceivedUseCase,
@@ -394,10 +391,6 @@ def _hand_placed_trees() -> dict[str, tuple[type, Callable[[], object]]]:
         "engage-case": (
             EngageCaseReceivedUseCase,
             lambda: create_engage_case_tree(case_id=CASE_ID, actor_id=VENDOR),
-        ),
-        "close-report": (
-            CloseReportReceivedUseCase,
-            lambda: create_close_report_received_tree(request, CASE_ID),  # type: ignore[arg-type]
         ),
         "invalidate-report": (
             InvalidateReportReceivedUseCase,

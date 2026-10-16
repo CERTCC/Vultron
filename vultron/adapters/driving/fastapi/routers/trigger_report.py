@@ -178,7 +178,9 @@ def trigger_invalidate_report(
         "Persists a ParticipantStatus record with RM.CLOSED for the actor "
         "and report. "
         "Returns HTTP 409 if the report's RM state has no close edge "
-        "(e.g. VALID; VP-02-004): nothing is emitted."
+        "(e.g. VALID; VP-02-004), or if a case holds the report, whose Case "
+        "Owner closes it with Leave(VulnerabilityCase) instead (CM-23-019): "
+        "nothing is emitted."
     ),
     operation_id="actors_trigger_reject_report",
     response_model=ActivityResult,
@@ -222,9 +224,12 @@ def trigger_reject_report(
         "and report. "
         "Unlike reject-report (a hard-reject, which also accepts a repeat "
         "close as a confirmation), this endpoint closes a report that has "
-        "progressed through the RM lifecycle. Returns HTTP 409 if the report "
-        "is already CLOSED, or if its RM state has no close edge (e.g. VALID; "
-        "VP-02-004)."
+        "progressed through the RM lifecycle. Returns HTTP 409 when a case "
+        "holds the report: its Case Owner closes the case with "
+        "Leave(VulnerabilityCase) (close-case), and no actor sends "
+        "Close(Report) for it (CM-23-019). Also returns HTTP 409 if the "
+        "report is already CLOSED, or if its RM state has no close edge "
+        "(e.g. VALID; VP-02-004)."
     ),
     operation_id="actors_trigger_close_report",
     response_model=ActivityResult,
