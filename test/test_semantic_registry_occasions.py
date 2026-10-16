@@ -204,9 +204,9 @@ def test_evolved_occasion_carries_no_shorthand():
 @pytest.mark.parametrize(
     ("object_type", "field_name", "value"),
     [
-        (ParticipantStatus, "vf_state", CS_vf.VF),
-        (ParticipantStatus, "d_state", CS_d.D),
-        (ParticipantStatus, "rm_state", RM.ACCEPTED),
+        (ParticipantStatus, "vf", CS_vf.VF),
+        (ParticipantStatus, "d", CS_d.D),
+        (ParticipantStatus, "rm", RM.ACCEPTED),
         (CaseStatus, "pxa", CS_pxa.PXa),
         (CaseStatus, "em", EM.ACTIVE),
     ],
@@ -237,7 +237,9 @@ def test_field_value_reads_a_dimension_field_as_its_state():
     [
         (CaseStatus, "pxa", "pxaState"),
         (CaseStatus, "em", "emState"),
-        (ParticipantStatus, "vf_state", "vfState"),
+        (ParticipantStatus, "vf", "vfState"),
+        (ParticipantStatus, "d", "dState"),
+        (ParticipantStatus, "rm", "rmState"),
     ],
 )
 def test_wire_spelling_names_a_field_by_its_as2_spelling(
@@ -249,9 +251,7 @@ def test_wire_spelling_names_a_field_by_its_as2_spelling(
 @pytest.mark.spec("MSM-08-002")
 def test_field_value_rejects_a_value_of_another_enum():
     with pytest.raises(ValueError, match="not a member of CS_vf"):
-        FieldValue(
-            object_type=ParticipantStatus, field="vf_state", value=CS_d.D
-        )
+        FieldValue(object_type=ParticipantStatus, field="vf", value=CS_d.D)
 
 
 @pytest.mark.spec("MSM-08-002")

@@ -152,33 +152,28 @@ def _state_name(value: Any) -> str | None:
     return getattr(value, "name", None) or str(value)
 
 
-def _dim_state(
-    obj: Any, core_field: str, wire_field: str, flat_field: str | None = None
-) -> str | None:
+def _dim_state(obj: Any, core_field: str, wire_field: str) -> str | None:
     """Return a dimension's state name from a core or wire object/dict.
 
-    *flat_field* names a flat view the object still carries
-    (``ParticipantStatus.rm_state``, until #4377); ``CaseStatus`` has none
-    (SDO-03-003).
+    Neither status carries a flat view of a dimension any more (SDO-03-003).
     """
     if isinstance(obj, dict):
         nested = obj.get(core_field)
         if isinstance(nested, dict):
             return _state_name(nested.get("state"))
-        flat = obj.get(flat_field) if flat_field else None
-        return _state_name(flat or obj.get(wire_field))
+        return _state_name(nested or obj.get(wire_field))
     nested = getattr(obj, core_field, None)
     if nested is not None and hasattr(nested, "state"):
         return _state_name(nested.state)
-    return _state_name(getattr(obj, flat_field, None) if flat_field else None)
+    return None
 
 
 def _rm_of(obj: Any) -> str | None:
-    return _dim_state(obj, "rm", "rmState", "rm_state")
+    return _dim_state(obj, "rm", "rmState")
 
 
 def _vf_of(obj: Any) -> str | None:
-    return _dim_state(obj, "vf", "vfState", "vf_state")
+    return _dim_state(obj, "vf", "vfState")
 
 
 def _case_status_of(obj: Any) -> Any:
@@ -1084,12 +1079,12 @@ class TestResolveDimensionFilter:
 class TestMergeSnapshotObjectFields:
     """Unit coverage for the patch merge applied to a payload snapshot."""
 
-    def test_patches_flat_fields_and_drops_stale_snake_case_twins(self):
+    def test_patches_flat_fields_and_drops_stale_field_name_twins(self):
         merged = _merge_snapshot_object_fields(
             {
                 "id": ASSERTED_STATUS_ID,
                 "rmState": "RECEIVED",
-                "rm_state": "RECEIVED",
+                "rm": "RECEIVED",
                 "cvdRole": ["VENDOR"],
                 "name": "RECEIVED VFd",
             },
@@ -1097,8 +1092,8 @@ class TestMergeSnapshotObjectFields:
         )
         assert merged["rmState"] == "VALID"
         assert merged["vfState"] == "VFd"
-        assert "rm_state" not in merged, (
-            "a stale snake_case twin would let a consumer read the value the"
+        assert "rm" not in merged, (
+            "a stale field-name twin would let a consumer read the value the"
             " receiver just refused"
         )
         assert merged["cvdRole"] == ["VENDOR"]

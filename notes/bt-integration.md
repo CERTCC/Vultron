@@ -356,7 +356,7 @@ refusing nodes in `precondition_guards`, so a refused activity leaves no entry.
 
 The BTBridge requirement applies equally to trigger-side `execute()` methods.
 RM transitions, `EmbargoLifecycle` calls, and `ParticipantStatus` writes with a
-specific `rm_state` are protocol-significant (BT-15-001, BT-06-006): they live in
+specific `rm` state are protocol-significant (BT-15-001, BT-06-006): they live in
 BT leaf nodes run via `bridge.execute_with_setup()`, never inline in
 `execute()`. On a non-`SUCCESS` status the trigger raises with
 `BTBridge.get_failure_reason(tree)`.
@@ -421,14 +421,14 @@ for the **outgoing direction**: the local actor deciding whether to engage or
 defer a validated report. The receive-side `EngageCaseBT` and `DeferCaseBT`
 (`report/prioritize_tree.py`) do not use it; they record the **sender's
 already-made decision** in the sender's
-`CaseParticipant.participant_status[].rm_state`. Activities are state-change
+`CaseParticipant.participant_statuses[].rm.state`. Activities are state-change
 notifications, not commands, so a received `Join`/`Ignore(VulnerabilityCase)`
 needs no policy evaluation.
 
 ## RM Is Participant-Specific
 
 Each `CaseParticipant` carries its own RM state in
-`participant_status[].rm_state`. Handlers such as engage/defer update
+`participant_statuses[].rm.state`. Handlers such as engage/defer update
 participant-level RM state; there is no case-level or flat report RM status. The
 CASE_MANAGER creates the case and its participants from the report receiver's
 `Create(as_CaseProposal)` (ADR-0041; `notes/case-proposal.md`).

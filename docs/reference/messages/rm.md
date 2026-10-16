@@ -13,7 +13,7 @@ directly triggers an RM state change in the receiver; all others convey the
 sender's status.
 
 The RM state ladder has **two** wire expressions: the dedicated report-scoped
-activities listed below, and the `rm_state` field of an
+activities listed below, and the `rmState` field of an
 `Add(ParticipantStatus)` broadcast (see [Case State (CS)](cs.md)). *Report/Case
 Accepted* (`RA`) and *Report/Case Deferred* (`RD`) additionally take case-scoped
 verbs — `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)` — because
