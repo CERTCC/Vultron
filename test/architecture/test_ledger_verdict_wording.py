@@ -39,11 +39,16 @@ from test.architecture import _corpus
 
 _ROOT = _corpus.REPO_ROOT
 
-#: The gap between the two words: whitespace (a line wrap), a ``#`` comment or
-#: ``>`` quote marker, Markdown emphasis or code marks (``*``, ``_``, a
-#: backtick), the quotes and ``+`` of a Python string split across lines, or a
-#: hyphen.
-_GAP = r"[\s#>*_`\"'+-]+"
+#: One piece of the gap between the two words: whitespace (a line wrap), a
+#: ``#`` comment or ``>`` quote marker, Markdown emphasis or code marks (``*``,
+#: ``_``, a backtick), the quotes and ``+`` of a Python string split across
+#: lines, the ``f``/``r``/``b``/``u`` prefix of such a string's next piece, or
+#: a hyphen.
+_GAP_PIECE = r"""(?:[\s#>*_`"'+-]|[rRbBfFuU]{1,2}(?=["']))"""
+
+#: The gap may not span a blank line or start a new list item: words in two
+#: paragraphs or two bullets are not one phrase.
+_GAP = rf"(?:(?!\n[ \t]*(?:\n|[-*+][ \t]|\d+\.[ \t])){_GAP_PIECE})+"
 
 #: Letter lookarounds rather than ``\b``, so a word wrapped in ``_emphasis_``
 #: still has a boundary.
@@ -131,7 +136,8 @@ def _matches(text: str) -> list[re.Match[str]]:
         hit = text.find(fragment)
         while hit != -1:
             start = max(0, hit - _WINDOW_BEFORE)
-            end = hit + _WINDOW_AFTER
+            # One character past the word, so the lookahead sees what follows.
+            end = hit + _WINDOW_AFTER + 1
             for m in _BANNED.finditer(text, start, end):
                 found.setdefault(m.start(), m)
             hit = text.find(fragment, hit + 1)
@@ -199,6 +205,7 @@ def test_glossary_aliases_cell_still_declares_the_phrases():
         "an _accepted_ assertion",
         '"the rejected "\n    "assertion is logged"',
         "a rejected-assertion path",
+        '"the accepted "\n        f"assertion {x}"',
     ],
 )
 def test_matcher_catches_wrapped_and_cased_forms(sample: str):
@@ -215,11 +222,33 @@ def test_matcher_catches_wrapped_and_cased_forms(sample: str):
         "a rejected invitation",
         "unaccepted assertions",
         "a rejected assertional claim",
+        "accepted assertionsfoo",
+        "items accepted\n- assertion is a new bullet",
+        "items rejected\n\n- assertion: a new paragraph",
+        "the list is accepted\n1. assertion one",
+        "Accept or Reject: the outcome",
+        "last_accepted_hash and rejected_entry",
     ],
 )
 def test_matcher_ignores_the_admitted_refused_vocabulary(sample: str):
     assert not _BANNED.search(sample)
     assert not _offenders("sample.md", sample)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("| **Other** | x | y |", id="row-absent"),
+        pytest.param(
+            f"{_ALIAS_ROW_PREFIX} a | b |\n{_ALIAS_ROW_PREFIX} c | d |",
+            id="row-duplicated",
+        ),
+        pytest.param(f"{_ALIAS_ROW_PREFIX} a | b", id="no-trailing-cell"),
+    ],
+)
+def test_alias_cell_exemption_raises_when_row_is_gone_or_malformed(text: str):
+    with pytest.raises(AssertionError):
+        _without_alias_cell(text)
 
 
 def test_definition_cell_is_still_scanned():
