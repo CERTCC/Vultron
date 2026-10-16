@@ -31,6 +31,15 @@ For the acknowledgment semantics see
    with `context` = its last accepted hash, so the CASE_MANAGER can replay the
    gap (SYNC-03-001, SYNC-03-002).
 
+A participant's replica of the case is the replay of its ledger: the case as it stood when the replica was seeded, plus every ledger entry since, applied in ledger order ([ADR-0124](../../adr/0124-case-is-a-projection-of-its-ledger.md), CM-23-016).
+A replica applies an entry by copying the objects it carries.
+Applying an entry mints no id, reads no clock or local policy, and runs no lifecycle logic, so two replicas at the same ledger position hold identical case files.
+
+Each entry records one activity with its object.
+An embargo act's entry carries its whole step on the embargo register: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces.
+Each consent row the CASE_MANAGER changes as a consequence of an act is its own CASE_MANAGER `Create(EmbargoConsent)` or `Update(EmbargoConsent)` entry after the act's entry, and a replica copies that row rather than deciding the change itself (CLP-07-013, EP-09-007).
+An embargo or consent entry whose starting state does not match the replica's case is held in the `LedgerGapBuffer`, never patched over.
+
 ## Occasions
 
 {% include-markdown "./_occasions/lookup-ledger_replication.md" %}

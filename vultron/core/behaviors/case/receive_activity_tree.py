@@ -35,8 +35,10 @@ CASE_MANAGER, once per received activity, and the tree still fails before
 the commit (CLP-10-022).
 
 When ``sender_rule`` is provided, the factory composes the sender guard from
-it and places it immediately after the post-close guard and before the
-caller's ``precondition_guards``.
+it and places it after the post-close guard and before the caller's
+``precondition_guards``; a tree whose case is resolved at run time names the
+read-only steps that resolve it (``case_resolution``), which run just before
+the guard.
 A failed sender guard ends the tree with ``REFUSED`` and nothing is written
 or sent (HP-01-006, HP-01-008, ADR-0115).  A tree cannot pass a guard of its
 own: the factory and the embargo pre-flight are the only places a sender
@@ -70,6 +72,7 @@ import py_trees
 from vultron.core.behaviors.case.case_clock_decisions import (
     case_clock_decisions,
 )
+from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
 )
@@ -98,7 +101,8 @@ from vultron.core.behaviors.replica_emit_exemptions import (
 )
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
-    SenderCheckContext,
+    LedgerActivityContext,
+    SenderContext,
     compose_sender_guard,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
@@ -458,14 +462,17 @@ def _sender_guard_stage(
     name: str,
     case_id: str | None,
     sender_rule: SenderRule | None,
-    sender_context: SenderCheckContext | None,
+    sender_context: SenderContext | None,
 ) -> py_trees.behaviour.Behaviour | None:
     """The tree's sender guard, composed from the declared rule (HP-01-008).
 
     The caller passes ``case_id or manager_case_id`` as *case_id*: the
     tree's commit case, else the case whose CASE_MANAGER gates its effects
     (a tree that commits nothing at its own level, such as the close-case
-    tree, still checks its sender there).
+    tree, still checks its sender there).  A
+    :class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`
+    reads the case from the activity at run time, so it is given only to a
+    tree with no case at build time.
     """
     if sender_rule is None:
         if sender_context is not None:
@@ -477,12 +484,66 @@ def _sender_guard_stage(
         raise VultronWiringError(
             f"{name}: sender_rule needs a sender_context (HP-01-008)"
         )
-    if sender_context.case_id != case_id:
+    context_case = (
+        None
+        if isinstance(sender_context, LedgerActivityContext)
+        else sender_context.case_id
+    )
+    if context_case != case_id:
         raise VultronWiringError(
-            f"{name}: sender_context names case {sender_context.case_id!r}"
+            f"{name}: sender_context names case {context_case!r}"
             f" but the tree's case is {case_id!r} (HP-01-008)"
         )
     return compose_sender_guard(sender_rule, sender_context)
+
+
+def _case_resolution_stage(
+    name: str,
+    steps: list[py_trees.behaviour.Behaviour],
+    *,
+    sender_guarded: bool,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The steps that resolve the case the sender guard reads (HP-01-008).
+
+    They run between the post-close guard and the sender guard, so they may
+    only read: a sender with no standing must leave nothing behind
+    (HP-01-006).  A step may publish what it resolved on the blackboard
+    (``/case_id``), which is not a DataLayer write.  Not every writer carries
+    a marker (a ledger commit, replication state), so a step is admitted by
+    the :class:`~vultron.core.behaviors.case.nodes.case_lookup.CaseResolving`
+    marker on each of its leaves, and refused if any node in it is also
+    marked as a state writer or an emitter.
+
+    Raises:
+        VultronWiringError: steps are given without a sender guard to run
+            them for, or a step holds a leaf without the ``CaseResolving``
+            marker, a state writer or an emit-capable node.
+    """
+    if not steps:
+        return []
+    where = f"create_receive_activity_tree({name})"
+    if not sender_guarded:
+        raise VultronWiringError(
+            f"{where}: case_resolution resolves the case the sender guard"
+            " reads; pass it only with a sender_rule (HP-01-008)"
+        )
+    nodes = [n for root in steps for n in root.iterate()]
+    refused = sorted(
+        {
+            type(n).__name__
+            for n in nodes
+            if isinstance(n, (StateWriteCapable, EmitCapable))
+            or (not n.children and not isinstance(n, CaseResolving))
+        }
+    )
+    if refused:
+        raise VultronWiringError(
+            f"{where}: case_resolution runs before the sender guard, so it"
+            " may only read; each leaf must be a CaseResolving node that"
+            f" writes no state and emits nothing; found {refused}"
+            " (HP-01-006)"
+        )
+    return steps
 
 
 def create_receive_activity_tree(
@@ -492,7 +553,8 @@ def create_receive_activity_tree(
     case_may_be_absent: bool = False,
     *,
     sender_rule: SenderRule | None = None,
-    sender_context: SenderCheckContext | None = None,
+    sender_context: SenderContext | None = None,
+    case_resolution: list[py_trees.behaviour.Behaviour] | None = None,
     replica_effects: list[py_trees.behaviour.Behaviour] | None = None,
     replica_emit_exemption: ReplicaEmitExemption | None = None,
     manager_effects: list[py_trees.behaviour.Behaviour] | None = None,
@@ -510,7 +572,8 @@ def create_receive_activity_tree(
     Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
     ADR-0135, BT-17-008, CM-23-013)::
 
-        Intake → CaseOpenToExternalWrites → [sender guard]
+        Intake → CaseOpenToExternalWrites → [*case_resolution]
+            → [sender guard]
             → [CaseManagerGate[ClockDecisionStage[
                    *case_clock_decisions, *clock_decisions]]]
             → [*precondition_guards] → GuardedCommit
@@ -573,6 +636,13 @@ def create_receive_activity_tree(
 
     The sender guard is placed immediately after intake and before the
     caller's ``precondition_guards``.
+    When the case it checks the sender against is resolved at run time, the
+    tree passes the read-only steps that resolve it as ``case_resolution``,
+    and the factory runs them just before the guard: an activity about a
+    case this store does not hold is refused as such, not as an unknown
+    sender (#2255).  A ledger activity's tree passes a
+    :class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`
+    instead, whose nodes read the case from the entry the activity carries.
     It is the per-use-case sender-entitlement check declared via
     ``sender_entitlement`` on the use-case class (ADR-0115, HP-01-006): a
     failed guard ends the tree with ``REFUSED`` and nothing is written or sent.
@@ -643,7 +713,13 @@ def create_receive_activity_tree(
             composes the guard from it (HP-01-008).
         sender_context: The sender and the records the rule's kinds are
             checked against; required with ``sender_rule``.  It names the
-            tree's case: ``case_id``, else ``manager_case_id``.
+            tree's case: ``case_id``, else ``manager_case_id``.  A
+            :class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`
+            reads the sender and the case from the received ledger activity
+            at run time, for a tree with no case.
+        case_resolution: Read-only ``CaseResolving`` steps that resolve the
+            case the sender guard reads, run just before it; requires
+            ``sender_rule``.
         replica_effects: Ungated effects, run on every replica after the
             commit.
         replica_emit_exemption: The registered decision that lets an
@@ -677,7 +753,9 @@ def create_receive_activity_tree(
             inconsistent: ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
             ``sender_context`` naming another case than ``case_id`` (else
-            ``manager_case_id``) (HP-01-008), or ``clock_decisions`` name
+            ``manager_case_id``), or a ``case_resolution`` without
+            ``sender_rule`` or holding a node that is not a read-only
+            ``CaseResolving`` step (HP-01-008), or ``clock_decisions`` name
             no case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's
             commit (CLP-10-025).
@@ -713,6 +791,11 @@ def create_receive_activity_tree(
     )
     guard = _sender_guard_stage(
         name, case_id or manager_case_id, sender_rule, sender_context
+    )
+    children.extend(
+        _case_resolution_stage(
+            name, case_resolution or [], sender_guarded=guard is not None
+        )
     )
     if guard is not None:
         children.append(guard)

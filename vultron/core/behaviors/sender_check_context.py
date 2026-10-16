@@ -36,9 +36,11 @@ __all__ = [
     "AuthoredObject",
     "CaseBootstrapRequest",
     "CaseProposalRequest",
+    "LedgerActivityContext",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
     "SenderCheckContext",
+    "SenderContext",
     "embargo_sender_context",
 ]
 
@@ -179,6 +181,25 @@ class SenderCheckContext:
     request: AddresseeRequest | None = None
     authored_object: AuthoredObject | None = None
     offered_ownership_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LedgerActivityContext:
+    """The received activity carries a ``CaseLedgerEntry``, which names the case.
+
+    A ledger activity's tree has no case at build time, so the guard's nodes
+    read the sender and the case from the activity on the blackboard when the
+    tree runs: ``CASE_MANAGER`` from the announced entry (SYNC-13-006), and
+    ``LEDGER_PEER`` from the rejected entry (SYNC-03-005).  The guard is
+    composed for the activity's case, never for the rule's ``outside_case``
+    side, and the rule must state the same kinds at the CASE_MANAGER and at a
+    participant: telling the receiver's side apart needs the case at build
+    time.
+    """
+
+
+#: Either kind of context :func:`compose_sender_guard` composes a guard for.
+SenderContext = SenderCheckContext | LedgerActivityContext
 
 
 def embargo_sender_context(

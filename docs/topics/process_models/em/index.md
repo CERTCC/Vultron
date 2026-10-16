@@ -64,14 +64,24 @@ The state belongs to the case as a whole, not to any one Participant.
 | State | What it means |
 |---|---|
 | *None* | No embargo is in force, and none has ever been agreed for this case. |
-| *Proposed* | An embargo has been proposed and not yet accepted or rejected. |
-| *Active* | An embargo is in force. |
-| *Revise* | An embargo is in force, and a change to it has been proposed but not yet accepted or rejected. |
+| *Proposed* | At least one embargo has been proposed and not yet accepted or rejected, and none is in force. |
+| *Active* | An embargo is in force, and no change to it is open. |
+| *Revise* | An embargo is in force, and at least one change to it has been proposed but not yet accepted or rejected. |
 | *eXited* | The embargo has ended. |
 
 The underlined-capital shorthand for these states (N, P, A, R, X) is introduced in the [EM formal model](formal_model.md#em-states).
 
 {% include-markdown "./_em_state_names.md" %}
+
+### The embargo register
+
+The EM state is not stored on its own.
+A case keeps an **embargo register**, one entry for every embargo ever proposed on it, and each entry has a status: `PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`.
+The EM state is computed from the register: *Proposed* while proposals are open and none is in force, *Active* while one is in force with none open, *Revise* while one is in force with at least one open, and *eXited* once the one in force is terminated.
+[§7.1.1 The Embargo Register in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#711-the-embargo-register) gives the statuses, the rules every change to the register keeps, and the full derivation.
+
+The register's statuses and the EM states share words, but not meanings.
+Register status `ACTIVE` is one embargo in force; EM *Active* is the whole case with an embargo in force and no change to it open.
 
 !!! warning "Check which model a state name belongs to"
 
@@ -81,18 +91,20 @@ The underlined-capital shorthand for these states (N, P, A, R, X) is introduced 
 ## EM state transitions
 
 Four actions move a case between EM states: *propose*, *accept*, *reject* and *terminate*.
+Each action changes the register, and the change must move the EM state along one of the transitions drawn below; a change that would not is refused.
 
 {% include-markdown "./em_dfa_diagram.md" %}
 
 - Proposing an embargo when none exists moves the case to *Proposed*.
-  A further proposal while one is outstanding supersedes it.
-- Accepting the proposal makes the embargo *Active*.
-  Rejecting it returns the case to *None*.
+  A further proposal while one is outstanding is added beside it, and both stay open.
+- Accepting a proposal makes the embargo *Active*.
+  Any other open proposals stay open as changes to it, so the case moves to *Revise* instead.
+  Rejecting a proposal returns the case to *None* once no other proposal is open.
 - Proposing a change to an active embargo moves the case to *Revise*.
   The existing embargo stays in force until a revision is accepted.
-  Rejecting the revision returns the case to *Active*, with the old terms standing, not to *None*.
+  Rejecting the revision returns the case to *Active*, with the old terms standing, not to *None*; the case stays at *Revise* while another revision is open.
 - An active embargo MUST eventually *terminate*, whether or not a revision is open.
-  Termination moves the case to *eXited*.
+  Termination moves the case to *eXited* and closes every open revision.
 
 The normative transitions table is [§7.2 Transitions and Guards in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards).
 
@@ -106,13 +118,14 @@ The normative transitions table is [§7.2 Transitions and Guards in the Vultron 
 ## The case embargo and each Participant's consent
 
 The EM state says whether the *case* has an embargo.
-Whether each *Participant* has agreed to its current terms is a separate question, tracked per Participant by [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent).
-A case can be *Active* while a Participant who joined later, or who declined, is not bound.
+Whether each *Participant* has agreed to its current terms is a separate question, tracked by [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent): one consent row per Participant for each embargo in the register.
+A Participant is bound when its row for the embargo in force says it agreed.
+A case can be *Active* while a Participant who has been invited but not yet joined, or who declined, is not bound.
 
-The two are linked at two points:
-
-- when the case owner activates revised terms that end later than the ones in force, every Participant who had agreed to the old terms and not to the new ones lapses and must agree again; a revision that is merely proposed, or one that ends no later than the terms in force, changes nobody's consent;
-- when the case enters *eXited*, every Participant's consent resets, because there is no longer an embargo to agree to.
+The two are linked at two points.
+When the case owner activates revised terms that end later than the ones in force, every Participant who had agreed to the old terms and not to the new ones has lapsed and must agree again.
+A revision that is merely proposed changes nobody's consent, and one that ends no later than the terms in force carries every Participant who agreed to the old terms over to the new ones.
+When the case enters *eXited*, no embargo is in force, so nobody is bound; the termination writes no consent, and each Participant's rows stay as they were.
 
 [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the case and Participant scopes interact.
 The normative PEC states and transitions are [§9 Participant Embargo Consent (PEC) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n).

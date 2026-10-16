@@ -31,9 +31,9 @@ Structure:
 
     EngageCaseBT (Sequence)
     ├─ Intake
+    ├─ SenderIsParticipantNode                       # Sender guard, before any write
     ├─ HoldCarriedEmbargoNode                        # Only when the Engage carried a case snapshot
     ├─ StoreEmbeddedParticipantsNode                 # Only when the Engage carried a case snapshot
-    ├─ SenderIsParticipantNode                       # Sender guard (HP-01-006)
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
     └─ EngageEffectsIfCaseManager                    # CASE_MANAGER only (RSH-08-003, #3814)
@@ -93,10 +93,7 @@ from vultron.core.behaviors.report.rm_declaration_tree import (
     rm_declaration_guard,
     rm_gap_note,
 )
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsParticipantNode,
-    SenderRule,
-)
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
@@ -115,6 +112,8 @@ def create_engage_case_tree(
     case_id: str,
     actor_id: str,
     case_obj: VulnerabilityCase | None = None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for the engage_case workflow.
@@ -132,8 +131,10 @@ def create_engage_case_tree(
         actor_id: The sender, whose declared RM state (ACCEPTED) is recorded
             (RSH-08-001)
         case_obj: The case snapshot the Engage carried, if any.  Its embargo
-            is held and its inline participants are stored before the
-            participant guard looks for them (CBT-05-005, EMB-18-003).
+            is held and its inline participants are stored after the sender
+            guard admits the sender (CBT-05-005, EMB-18-003, HP-01-006).
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the engage_case behavior tree (Sequence)
@@ -149,11 +150,15 @@ def create_engage_case_tree(
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,
+        # The sender is checked against the participant records this store
+        # already holds, before the snapshot steps write anything: an Engage
+        # goes to the CASE_MANAGER, which created the sender's record when it
+        # added the sender, so a snapshot never supplies the record the guard
+        # needs, and a stranger's Engage stores nothing (HP-01-006, #4696).
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(sender_id=actor_id, case_id=case_id),
         precondition_guards=[
             *snapshot_steps,
-            # After the snapshot steps, not in the factory's sender-guard
-            # slot: an Engage may carry the sender's own participant inline.
-            SenderIsParticipantNode(sender_actor_id=actor_id, case_id=case_id),
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
         # RSH-08-003: the sender's RM move is canonical participant state only

@@ -199,35 +199,37 @@ groups:
     example: add_report_to_case
   - anchor: offer-case-participant-role
     heading: Offer case participant role
-    when: a Participant offers a CVD role on the case to another actor
+    when: the Case Owner offers a CVD role on the case to another participant
     send: Offer(CaseParticipantRole)[context=VulnerabilityCase]
-    send_to: a participant
-    sent_by: not yet checked
+    send_to: the case manager
+    sent_by: the case owner
     semantics: offer_case_participant_role
     status: none
-    description: Offers one role on the case to the actor named by the target.
+    description: Offers one role on the case to the participant named by the target. The Case
+      Manager records the offer and forwards it to that participant.
     seen_in:
     - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: offer_case_participant_role
   - anchor: accept-case-participant-role
     heading: Accept case participant role
-    when: an actor accepts a role offered to it on the case
+    when: a participant accepts a role offered to it on the case
     send: Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])
-    send_to: a participant
+    send_to: the case manager
     sent_by: not yet checked
     semantics: accept_case_participant_role
     status: none
-    description: Accepts the offered role. The actor holds the role from then on.
+    description: Accepts the offered role. The participant holds the role once the Case Manager
+      records the acceptance.
     seen_in:
     - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: accept_case_participant_role
   - anchor: reject-case-participant-role
     heading: Reject case participant role
-    when: an actor declines a role offered to it on the case
+    when: a participant declines a role offered to it on the case
     send: Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])
-    send_to: a participant
+    send_to: the case manager
     sent_by: not yet checked
     semantics: reject_case_participant_role
     status: none
@@ -491,6 +493,26 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: announce_embargo
+  - anchor: announce-embargo-termination
+    heading: Announce embargo termination
+    when: the Case Manager has applied an Embargo Termination a Case Owner sent before the
+      end time
+    send: Announce(Event)[context=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    semantics: announce_embargo_event_to_case
+    status: none
+    description: Tells the active participants other than the Case Manager and any Closed
+      Participant that the embargo it names is terminated. It proposes nothing.
+    notes: 'The wire form is the same as the embargo announcement''s; the embargo it names,
+      which the case''s embargo register records as terminated, makes it a termination announcement.
+      A termination the Case Manager starts itself, or one at the end time, sends no announcement:
+      after the end time, the Case Manager''s own end-time check ends the embargo before it
+      applies a Case Owner''s termination.'
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: announce_embargo_termination
   - anchor: embargo-proposal
     heading: Embargo Proposal (EP)
     when: a Participant proposes embargo terms for a case with no active embargo
@@ -765,6 +787,24 @@ groups:
     - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: recommend_actor
+  - anchor: request-invite-actor-to-case
+    heading: Ask the Case Manager to invite an actor
+    when: the Case Owner decides to invite an actor to the case
+    send: Offer(Actor)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: 'a participant (usually: case owner)'
+    semantics: offer_actor_to_case
+    status: expansion
+    description: Asks the Case Manager to invite the actor named by the object to the case
+      named by the target, with the roles in `suggestedRoles`. For an actor with no record
+      on the case, or an invitee that has not answered, the Case Manager answers with the
+      Stub Invite to that actor, not with an offer to the Case Owner.
+    notes: The wire form is the suggestion a participant sends; the Case Manager tells this
+      request from a suggestion by whether the sender holds the Case Owner role on the case.
+    seen_in:
+    - path: howto/activitypub/activities/invite_actor.md
+      title: How to Invite an Actor to a Case
+    example: request_invite_actor_to_case
   - anchor: offer-case-participant
     heading: Offer case participant
     when: the Case Manager presents a suggested actor to the Case Owner

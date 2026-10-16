@@ -2,10 +2,12 @@
 """Keep the ``needs-planning`` label on Epics in step with their open children.
 
 An open Epic carries ``needs-planning`` while it has no sub-issues at all (not
-yet planned) or at least one open sub-issue of type Concern or Idea (unplanned
-work).
-The label comes off when it has children and none of them is an open Concern
-or Idea.
+yet planned) or at least one open, unblocked sub-issue of type Concern or Idea
+(unplanned work that can be planned right now).
+The label is a live signal of a planning opportunity, so a Concern or Idea
+that is blocked by an open issue does not count: the label comes off when the
+Epic has children and none of them is an open, unblocked Concern or Idea, and
+goes back on once a blocker closes.
 
 The decision (``wanted_label_change``) is a pure function so the test suite can
 pin it without the GitHub API.
@@ -31,17 +33,18 @@ UNPLANNED_TYPES = frozenset({"Concern", "Idea"})
 
 
 def wanted_label_change(
-    has_label: bool, children: Iterable[tuple[str, str]]
+    has_label: bool, children: Iterable[tuple[str, str, bool]]
 ) -> str | None:
     """Return ``"add"``, ``"remove"``, or ``None`` (already correct).
 
-    ``children`` is ``(state, type_name)`` per direct sub-issue; ``state`` is
-    ``"open"`` or ``"closed"`` and ``type_name`` may be empty (untyped).
+    ``children`` is ``(state, type_name, blocked)`` per direct sub-issue;
+    ``state`` is ``"open"`` or ``"closed"``, ``type_name`` may be empty
+    (untyped), and ``blocked`` is true while any of its blockers is open.
     """
     kids = list(children)
     needs = not kids or any(
-        state == "open" and type_name in UNPLANNED_TYPES
-        for state, type_name in kids
+        state == "open" and type_name in UNPLANNED_TYPES and not blocked
+        for state, type_name, blocked in kids
     )
     if needs and not has_label:
         return "add"
@@ -81,9 +84,22 @@ def open_epics(repo: str) -> list[dict[str, object]]:
     ]
 
 
-def children_of(repo: str, number: int) -> list[tuple[str, str]]:
+def _is_blocked(issue: dict[str, object]) -> bool:
+    """True while the issue has an open blocker (``blocked_by`` counts open ones).
+
+    A missing summary, or a ``blocked_by`` that is not an integer, counts as
+    unblocked, so one odd record cannot stop the reconcile for every Epic.
+    """
+    summary = issue.get("issue_dependencies_summary")
+    if not isinstance(summary, dict):
+        return False
+    blocked_by = summary.get("blocked_by")
+    return isinstance(blocked_by, int) and blocked_by > 0
+
+
+def children_of(repo: str, number: int) -> list[tuple[str, str, bool]]:
     subs = _paginated(f"repos/{repo}/issues/{number}/sub_issues?per_page=100")
-    return [(str(s["state"]), _type_name(s)) for s in subs]
+    return [(str(s["state"]), _type_name(s), _is_blocked(s)) for s in subs]
 
 
 def reconcile(repo: str, dry_run: bool) -> int:

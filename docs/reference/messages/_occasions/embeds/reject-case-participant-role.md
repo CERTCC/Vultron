@@ -4,9 +4,9 @@
 
     Declines the offered role. The roster does not change.
 
-    - **When…** an actor declines a role offered to it on the case
+    - **When…** a participant declines a role offered to it on the case
     - **Send:** `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
-    - **Send to:** a participant
+    - **Send to:** the case manager
     - **Sent by:** not yet checked
     - **Reference:** [Reject case participant role](../../case_management.md#reject-case-participant-role)
 

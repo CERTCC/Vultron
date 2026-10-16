@@ -446,9 +446,9 @@ def test_default_selection_skips_an_index_record_for_a_decided_proposal(
 ) -> None:
     """A relay record written after its proposal was decided is never chosen.
 
-    Ledger replay can index a proposal its OBSERVED step skipped because the
-    register had already decided it; the default selection reads only the
-    proposals the register still holds open.
+    A replica can index a relayed proposal after its register has already
+    decided it (EP-09-007); the default selection reads only the proposals
+    the register still holds open.
     """
     finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")

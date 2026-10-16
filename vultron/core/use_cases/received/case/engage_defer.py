@@ -88,7 +88,10 @@ class EngageCaseReceivedUseCase:
             wire_render_port=self._wire_render_port,
         )
         tree = create_engage_case_tree(
-            case_id=case_id, actor_id=actor_id, case_obj=request.case
+            case_id=case_id,
+            actor_id=actor_id,
+            case_obj=request.case,
+            sender_rule=self.sender_entitlement,
         )
         result = bridge.execute_with_setup(
             tree=tree,

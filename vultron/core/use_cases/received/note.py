@@ -30,7 +30,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     reference_edit_verdict,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._intake_only import refuse_after_intake
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -69,22 +68,10 @@ class CreateNoteReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
 
+        # A Create(Note) with no note is refused by the tree itself
+        # (CLP-10-005, CLP-10-018).
         note = request.note
-        if note is None:
-            logger.warning(
-                "create_note: no note domain object in event for activity '%s'",
-                request.activity_id,
-            )
-            return refuse_after_intake(
-                self._dl,
-                request,
-                "Create(Note) carries no note object",
-                name="CreateNoteBT",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
-
-        case_id: str | None = note.context
+        case_id: str | None = note.context if note is not None else None
         # The *receiving* actor, not the sender (BT-17-005): a received Note is
         # stored in the receiver's own replica.
         actor_id = resolve_receiving_actor_id(

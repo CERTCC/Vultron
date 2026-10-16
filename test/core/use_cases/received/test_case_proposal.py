@@ -943,7 +943,9 @@ class TestCaseProposalDisposition:
         assert list(dl.list_objects("VulnerabilityCase")) == []
 
     @pytest.mark.spec("HP-01-003")
-    def test_create_without_proposal_id_is_refused(self, make_payload):
+    def test_create_without_proposal_id_is_refused(
+        self, make_payload, tree_runs
+    ):
         activity = as_Create(
             actor=VultronOrganization(id_=_VENDOR_URI),
             object_=_make_proposal(),
@@ -959,6 +961,9 @@ class TestCaseProposalDisposition:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == "Create(CaseProposal) carries no proposal id"
+        # CLP-10-005: the refusal is a guard in the delivery's one tree.
+        assert len(tree_runs) == 1
         # CLP-10-018: refused before the real tree could be built, yet kept.
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 

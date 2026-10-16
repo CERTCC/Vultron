@@ -63,15 +63,18 @@ There are two kinds of snapshot:
 
 - A **`CaseStatus`** records the state of the case as a whole: its EM state and its PXA state.
   The case keeps a history of them.
-- A **`ParticipantStatus`** records one participant's state: its RM state, and, where the participant's roles call for it, its fix-readiness and fix-deployment state, together with its [embargo consent](../behavior_logic/use-cases/embargo-lifecycle.md).
+- A **`ParticipantStatus`** records one participant's state: its RM state, and, where the participant's roles call for it, its fix-readiness and fix-deployment state.
   Each participant keeps its own history of them.
+
+A participant's [embargo consent](../behavior_logic/use-cases/embargo-lifecycle.md) is not part of any snapshot.
+It is one row per embargo in the case's embargo register, kept on the participant's record and changed only through the case ledger (CM-18-006).
 
 The difference between the state of the case as a whole and the state of each participant is explained in [Model Interactions](../process_models/model_interactions/index.md).
 
 ### Dimension objects
 
 Each snapshot is made of **Dimension Objects** (ADR-0036): small, immutable objects that each own exactly one state machine.
-EM, PXA, RM, fix readiness, fix deployment, and embargo consent each have one.
+EM, PXA, RM, fix readiness and fix deployment each have one.
 Because each dimension is its own object, it can be compared, serialized, and checked on its own.
 
 !!! tip "Dimension state machines"

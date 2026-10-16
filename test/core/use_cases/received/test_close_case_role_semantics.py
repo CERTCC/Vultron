@@ -87,6 +87,9 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
@@ -981,7 +984,9 @@ class TestOwnerCloseSettlesPendingInvites:
             result = BTBridge(
                 datalayer=replica, wire_render_port=As2WireRenderAdapter()
             ).execute_with_setup(
-                tree=create_announce_log_entry_tree(),
+                tree=create_announce_log_entry_tree(
+                    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                ),
                 actor_id=VENDOR_ID,
                 activity=_make_announce_event(
                     entry=entry, sender_actor_id=CASE_ACTOR_ID
@@ -1392,7 +1397,9 @@ def _deliver(replica: SqliteDataLayer, entries) -> None:
         result = BTBridge(
             datalayer=replica, wire_render_port=As2WireRenderAdapter()
         ).execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=replica.actor_id,
             activity=_make_announce_event(
                 entry=entry, sender_actor_id=CASE_ACTOR_ID
@@ -1937,7 +1944,9 @@ class TestReplicaAppliesTheClosureSteps:
         BTBridge(
             datalayer=dl, wire_render_port=As2WireRenderAdapter()
         ).execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=VENDOR_ID,
             activity=_make_announce_event(
                 entry=entry, sender_actor_id=CASE_ACTOR_ID
@@ -2025,7 +2034,9 @@ class TestReplicaAppliesTheClosureSteps:
                 BTBridge(
                     datalayer=replica, wire_render_port=As2WireRenderAdapter()
                 ).execute_with_setup(
-                    tree=create_announce_log_entry_tree(),
+                    tree=create_announce_log_entry_tree(
+                        sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                    ),
                     actor_id=VENDOR_ID,
                     activity=_make_announce_event(
                         entry=entry, sender_actor_id=CASE_ACTOR_ID
@@ -2251,7 +2262,9 @@ class TestClosureRMBoundary:
             entry=entry, sender_actor_id=CASE_ACTOR_ID
         )
 
-        tree = create_announce_log_entry_tree()
+        tree = create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
         BTBridge(
             datalayer=dl, wire_render_port=As2WireRenderAdapter()
         ).execute_with_setup(

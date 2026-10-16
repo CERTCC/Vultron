@@ -35,7 +35,14 @@ from typing import Any
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
+from vultron.core.behaviors.case.nodes.announce import (
+    AnnounceSenderTrustedNode,
+    SeedAnnouncedCaseNode,
+    announced_case_id,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -43,29 +50,59 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
+_NAME = "AnnounceVulnerabilityCaseReceivedBT"
+
 
 def create_announce_vulnerability_case_received_tree(
-    case_id: str,
     case_obj: VulnerabilityCase | Any,
     request: AnnounceVulnerabilityCaseReceivedEvent,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AnnounceVulnerabilityCaseReceivedUseCase``.
 
+    Structure (the CLP-10-010 stages, ADR-0111)::
+
+        AnnounceVulnerabilityCaseReceivedBT (Sequence)
+        ├── IntakeReceivedActivityNode        # intake
+        ├── CaseOpenToExternalWrites          # post-close boundary
+        ├── AnnounceSenderTrustedNode         # guard (PCR-03-004)
+        └── SeedAnnouncedCaseNode             # effect
+
+    An Announce that carries no ``VulnerabilityCase`` with an id is refused
+    by the same tree's guard instead
+    (:func:`~vultron.core.behaviors.case.intake_only_received_tree.create_incomplete_activity_received_tree`),
+    so either way the delivery runs one tree and is archived (CLP-10-005,
+    CLP-10-018).  The sender check is a precondition guard, not a sender
+    guard composed from a declared rule: it also trusts the CASE_MANAGER
+    address a completed ``ReportCaseLink`` records, which the declared
+    CASE_MANAGER rule does not read, so it stays its own node until the
+    use case declares its rule (#4785).  No refusal effect: only a
+    participant replica receives this Announce, and it owes
+    the CASE_MANAGER no answer.
+
     Args:
-        case_id: URI of the announced case.
-        case_obj: The ``VulnerabilityCase`` instance extracted from the activity.
+        case_obj: The Announce's ``object``, as received; anything but a
+            ``VulnerabilityCase`` with an id is refused.
         request: The received event carrying the full activity context.
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
     """
+    try:
+        case_id = announced_case_id(request, case_obj)
+    except VultronValidationError as exc:
+        return create_incomplete_activity_received_tree(_NAME, str(exc))
     root = create_receive_activity_tree(
-        name="AnnounceVulnerabilityCaseReceivedBT",
+        name=_NAME,
         case_id=None,
-        precondition_guards=[],
+        precondition_guards=[
+            AnnounceSenderTrustedNode(
+                case_id=case_id, sender_id=request.actor_id
+            )
+        ],
         replica_effects=[
             SeedAnnouncedCaseNode(
                 case_id=case_id,
@@ -74,8 +111,5 @@ def create_announce_vulnerability_case_received_tree(
             )
         ],
     )
-    logger.debug(
-        "Created AnnounceVulnerabilityCaseReceivedBT for case='%s'",
-        case_id,
-    )
+    logger.debug("Created %s for case='%s'", _NAME, case_id)
     return root

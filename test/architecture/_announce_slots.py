@@ -38,6 +38,9 @@ from vultron.core.behaviors.sync.announce_tree import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 
 MANAGER = "https://example.org/actors/case-manager"
@@ -58,7 +61,9 @@ def effect_slot_conditions() -> list[py_trees.behaviour.Behaviour]:
     """
     (effects,) = [
         node
-        for node in create_announce_log_entry_tree().iterate()
+        for node in create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ).iterate()
         if node.name == "LogEntryEventEffects"
     ]
     conditions = []

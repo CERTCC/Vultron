@@ -1,0 +1,33 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Offer",
+  "id": "urn:uuid:a5fd44b2-b753-43e9-a9d8-e2bdba03902a",
+  "name": "https://vultron.example/organizations/vendorco Offer Coordinator LLC to urn:uuid:d38f0555-2cb1-4591-8559-98c17446f2c6",
+  "context": "urn:uuid:d38f0555-2cb1-4591-8559-98c17446f2c6",
+  "to": "https://vultron.example/case-actors/vendorco-case-actor",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:d38f0555-2cb1-4591-8559-98c17446f2c6",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Organization",
+    "id": "https://vultron.example/organizations/coordinator",
+    "name": "Coordinator LLC",
+    "published": "2026-10-16T14:03:11+00:00",
+    "updated": "2026-10-16T14:03:11+00:00",
+    "inbox": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/inbox",
+      "items": []
+    },
+    "outbox": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/outbox",
+      "items": []
+    }
+  },
+  "suggestedRoles": [
+    "coordinator"
+  ]
+}

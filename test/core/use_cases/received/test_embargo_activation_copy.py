@@ -11,13 +11,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Activation and expiry commit first and replay by copying (#4716, ADR-0124).
+"""Owner decisions and expiry commit first and replay by copying (ADR-0124).
 
 The owner's ``Accept(EmbargoEvent, target=Case)`` is one entry, and it is the
 whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in force
 included, and the owner's own agreement (CLP-07-013, MSM-07-008).  Each
 ``CARRY_OVER`` row a shorter revision gives an existing signatory follows as
-its own CASE_MANAGER ``Update(EmbargoConsent)`` (EP-05-001).  An RSVP
+its own CASE_MANAGER ``Update(EmbargoConsent)`` (EP-05-001).  The owner's
+``Reject(EmbargoEvent, target=Case)`` is one entry too, the whole ``REJECT``
+step, and changes no consent row (MSM-07-009).  An RSVP
 time-out is the expired-invitation entry followed by the CASE_MANAGER's
 ``Update(EmbargoConsent)`` carrying the ``TIMED_OUT`` row (CM-28-009,
 CM-28-014).  A replica copies every entry through the one apply function and
@@ -43,6 +45,7 @@ from vultron.core.behaviors.embargo.expiry_tree import (
 )
 from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_ACTIVATION_EVENT_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
 )
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc, now_utc
@@ -83,6 +86,7 @@ from ._ledger_network import (
 _S = EmbargoConsentState
 _EMBARGO_ENTRY_TYPES = {
     EMBARGO_ACTIVATION_EVENT_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
     INVITE_EXPIRED_EVENT_TYPE,
     *CONSENT_ROW_VERBS,
 }
@@ -111,16 +115,33 @@ def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
     return revision.id_
 
 
-def _owner_activates(net: LedgerNetwork, embargo_id: str) -> Any:
-    """The owner sends ``Accept(EmbargoEvent, target=Case)`` (ADR-0122).
+def _owner_decides(
+    net: LedgerNetwork, embargo_id: str, *, accept: bool = True
+) -> Any:
+    """The owner sends ``Accept`` or ``Reject(EmbargoEvent, target=Case)``.
 
-    It first receives the relayed Invite, so its store holds the embargo.
+    It first receives the relayed Invites, so its store holds the embargo
+    (ADR-0122).
     """
     net.deliver(MANAGER, to=OWNER, type_="Invite")
-    _, sealed = TriggerActivityAdapter(net.stores[OWNER]).activate_embargo(
+    adapter = TriggerActivityAdapter(net.stores[OWNER])
+    send = (
+        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    )
+    _, sealed = send(
         embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
     )
     return net.receive(MANAGER, json.loads(sealed))
+
+
+def _owner_activates(net: LedgerNetwork, embargo_id: str) -> Any:
+    """The owner sends ``Accept(EmbargoEvent, target=Case)`` (ADR-0122)."""
+    return _owner_decides(net, embargo_id)
+
+
+def _owner_rejects(net: LedgerNetwork, embargo_id: str) -> Any:
+    """The owner sends ``Reject(EmbargoEvent, target=Case)`` (ADR-0122)."""
+    return _owner_decides(net, embargo_id, accept=False)
 
 
 def _sync(net: LedgerNetwork, replica: str) -> list[str]:
@@ -315,6 +336,80 @@ class TestReceivedActivation:
         assert case.active_embargo_id == revision_id
         assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
         assert len(_carried_over(net, revision_id)) == 1
+
+
+# -- the received owner's rejection -----------------------------------------
+
+
+class TestReceivedRejection:
+    """The owner is not the CASE_MANAGER and sends its Reject to it.
+
+    The ``Reject`` entry is the whole ``REJECT`` step: no consent row
+    changes, so no ``Update(EmbargoConsent)`` follows it (MSM-07-009), and
+    every replica copies the step (CM-23-016).
+    """
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("MSM-07-009")
+    def test_the_reject_is_the_only_entry(self):
+        net = LedgerNetwork("https://example.org/cases/rj-received")
+        revision_id = _propose(net, "short", 30)
+        rows = _rows(net, MANAGER)
+        since = _count(net)
+
+        assert _owner_rejects(net, revision_id).disposition is (
+            HandlerDisposition.APPLIED
+        )
+
+        case = net.case(MANAGER)
+        assert case.embargo_register_status(revision_id) is (
+            EmbargoRegisterStatus.REJECTED
+        )
+        assert case.active_embargo_id == net.initial_embargo_id
+        assert _embargo_entries(net, since) == [
+            EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE
+        ]
+        assert _rows(net, MANAGER) == rows
+
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("EP-08-001")
+    def test_with_one_proposal_open(self):
+        """The last open revision: EM returns to the prior terms (EJ)."""
+        net = LedgerNetwork("https://example.org/cases/rj-received-one")
+        revision_id = _propose(net, "short", 30)
+        _owner_rejects(net, revision_id)
+
+        _assert_replicas_match(net, (OWNER, BYSTANDER))
+        for holder in (MANAGER, OWNER, BYSTANDER):
+            case = net.case(holder)
+            assert case.em_state is EM.ACTIVE, holder
+            assert case.proposed_embargo_ids == [], holder
+
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("EP-08-001")
+    def test_with_several_proposals_open(self):
+        """Another revision stays open (EM REVISE) everywhere, and the next
+        rejection then returns every node to the prior terms."""
+        net = LedgerNetwork("https://example.org/cases/rj-received-several")
+        first_id = _propose(net, "short", 30)
+        second_id = _propose(net, "mid", 60)
+        third_id = _propose(net, "long", 90)
+        _owner_rejects(net, second_id)
+
+        _assert_replicas_match(net, (OWNER, BYSTANDER))
+        for holder in (MANAGER, OWNER, BYSTANDER):
+            case = net.case(holder)
+            assert case.em_state is EM.REVISE, holder
+            assert case.proposed_embargo_ids == [first_id, third_id], holder
+
+        _owner_rejects(net, first_id)
+        _owner_rejects(net, third_id)
+
+        _assert_replicas_match(net, (OWNER, BYSTANDER))
+        for holder in (MANAGER, OWNER, BYSTANDER):
+            case = net.case(holder)
+            assert case.em_state is EM.ACTIVE, holder
+            assert case.active_embargo_id == net.initial_embargo_id, holder
 
 
 # -- the managing owner's activation by trigger -----------------------------

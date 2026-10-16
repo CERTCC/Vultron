@@ -31,7 +31,10 @@ Structure (when the note names a case):
     └─ AttachNoteToCaseIfCaseManager
        └─ AttachNoteToCaseNode         # Attach note to case (idempotent)
 
-A note that names no case has no commit and no attach stage.
+A note that names no case has no commit and no attach stage.  A
+``Create(Note)`` that carries no note is refused by the same tree's guard
+instead (``ActivityIncompleteNode``), so the delivery still runs one tree and
+is archived (CLP-10-005, CLP-10-018).
 
 Per specs/case-management.yaml CM-06 and
 specs/case-ledger-processing.yaml CLP-07-013.
@@ -41,6 +44,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -54,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_note_tree(
-    note_obj: VultronNote,
+    note_obj: VultronNote | None,
     case_id: str | None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the create_note workflow.
@@ -69,13 +75,18 @@ def create_note_tree(
 
     Args:
         note_obj: The VultronNote domain object extracted from the inbound
-            Create activity.
+            Create activity; ``None`` when the activity carries none, which
+            the tree refuses.
         case_id: The VulnerabilityCase ID to attach the note to, or ``None``
             if the note is not associated with any case.
 
     Returns:
         Root node of the CreateNoteBT behavior tree (Sequence).
     """
+    if note_obj is None:
+        return create_incomplete_activity_received_tree(
+            "CreateNoteBT", "Create(Note) carries no note object"
+        )
     # SaveNoteNode upserts the Note object itself, which every replica keeps
     # (CLP-10-017).  Attaching it to the case is a change to the case file
     # that only the CASE_MANAGER makes (RSH-08-003), and a change with no
