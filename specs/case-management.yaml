@@ -5137,8 +5137,8 @@ groups:
       the invited embargo when it commits the Invite emission, as its own
       `Update(EmbargoConsent)` entry carrying that row and committed right after the
       Invite's (CLP-07-013), and every replica MUST record the same deadline by copying that
-      entry (EP-09-007, ADR-0124). A participant MUST NOT derive or store an RSVP deadline on
-      receipt of an Invite (EP-09-003).
+      entry (EP-09-007, ADR-0124). A participant MUST NOT derive or store an RSVP deadline
+      on receipt of an Invite (EP-09-003).
     rationale: >-
       The deadline is case state about the invitee; like every other case state it is written
       once by the CASE_MANAGER and reaches replicas through the ledger (ADR-0108). Writing it

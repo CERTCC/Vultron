@@ -1326,6 +1326,7 @@ def test_an_open_invitees_embargo_answer_is_not_refused(
         event,
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason

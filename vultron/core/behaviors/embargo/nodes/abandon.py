@@ -190,8 +190,8 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
     ``Reject(Invite(EmbargoEvent))`` (MSM-02-006) under
     :data:`EMBARGO_ABANDONMENT_EVENT_TYPE`, addressed to nobody — and then
     applies the ``CANCEL`` step that entry is (ADR-0122) by copying it
-    through the one apply function (ADR-0124), which changes no consent.  EM reaches ``NONE`` with the
-    last one, exactly as a replica replaying the entries does (EP-09-007).
+    through the one apply function (ADR-0124), which changes no consent.  EM
+    reaches ``NONE`` with the last one, exactly as a replica replaying the entries does (EP-09-007).
 
     **Commit, then write** (CLP-07-013).  The abandonment is a decision taken
     from local policy, so each proposal's entry is committed before the case

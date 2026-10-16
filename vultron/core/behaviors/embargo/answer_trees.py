@@ -84,8 +84,9 @@ def accept_invite_to_embargo_tree(
     Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity: the
     sender's own consent, the case owner's included (ADR-0122).  The Accept's
     canonical entry is the accepter's row's entry: the ``AGREED`` row it
-    states is applied by copying (ADR-0124), and it moves no register entry.  Only the CASE_MANAGER records it (BT-17-001); any
-    other receiver's gate turns it away and the handler reports a refusal.
+    states is applied by copying (ADR-0124), and it moves no register entry.
+    Only the CASE_MANAGER records it (BT-17-001); any other receiver's gate
+    turns it away and the handler reports a refusal.
     The owner's activation of a proposal is a separate activity
     (``activate_embargo_on_case_tree``), so no revision becomes active here;
     the backfill still runs because a participant that accepts the embargo in
