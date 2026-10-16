@@ -29,6 +29,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
@@ -385,6 +386,53 @@ class TestNoteUseCases:
         ).execute()
 
         assert getattr(dl.read(note_id), "content", None) == "Original"
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("VAM-01-010")
+    def test_add_reply_note_through_ingress_is_applied(self):
+        """A reply note sent through the inbox ingress is stored and attached
+        with its ``in_reply_to``: the event carries the note as received, so
+        the guard sees the same note ingress stored (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1f/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1f"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3f"
+        replied_to = "https://example.org/notes/note3f-question"
+
+        activity = add_note_to_case_activity(
+            as_Note(
+                id_=note_id,
+                content="An answer",
+                context=case_id,
+                attributed_to="https://example.org/users/finder",
+                in_reply_to=replied_to,
+            ),
+            target=case,
+            actor="https://example.org/users/finder",
+        )
+        ingress = FastAPIIngressAdapter(dl)
+        parsed = ingress.parse(
+            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
+        )
+        assert parsed is not None
+        event = extract_event(ingress.rehydrate(parsed)).model_copy(
+            update={"receiving_actor_id": case_actor_id}
+        )
+        assert isinstance(event, AddNoteToCaseReceivedEvent)
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert _as_id(getattr(dl.read(note_id), "in_reply_to", None)) == (
+            replied_to
+        )
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note_id in refreshed.notes
 
     @pytest.mark.spec("HP-01-005")
     def test_add_note_without_an_inline_note_is_refused(self, make_payload):
