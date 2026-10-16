@@ -13,10 +13,10 @@
 
 """Divergence recovery: a diverged replica reports, the CASE_MANAGER re-seeds.
 
-Every SYNC-16 test here is a strict ``xfail`` for unbuilt behaviour (ADR-0142).
-Each implementation issue removes the ``xfail`` from the tests it makes pass,
-and replaces a probe with a full behaviour test where the probe only pins a
-name.
+Every SYNC-16 test here is a strict ``xfail`` for unbuilt behaviour (ADR-0142),
+except one that pins a SYNC-16 property that already holds. Each
+implementation issue removes the ``xfail`` from the tests it makes pass, and
+replaces a probe with a full behaviour test where the probe only pins a name.
 """
 
 from typing import Any, cast
@@ -60,7 +60,6 @@ _CASE_DIVERGED = "https://certcc.github.io/Vultron/ns/errors/LedgerEntryRefused/
     reason="SYNC-16-001: no case-diverged failure class yet. Tracked by #4798.",
 )
 @pytest.mark.spec("SYNC-16-001")
-@pytest.mark.spec("SYNC-16-002")
 def test_case_diverged_failure_class_is_defined() -> None:
     """The replica's fault names the divergence by its own failure class."""
     # getattr until #4798 defines the name, so the type checkers pass now.
@@ -69,6 +68,31 @@ def test_case_diverged_failure_class_is_defined() -> None:
         "VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED",
     )
     assert constant == _CASE_DIVERGED
+
+
+@pytest.mark.spec("SYNC-16-002")
+def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
+    """The CASE_MANAGER commits no ledger entry for a divergence fault.
+
+    Holds already, because the fault use case only logs. #4798 adds the
+    replica side when it builds the fault's emission.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="current copy"))
+    activity = create_processing_fault_activity(
+        actor=_REPLICA_ID,
+        fault=as_ProcessingFault(
+            failure_class=_CASE_DIVERGED,
+            in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
+        ),
+        to=[_CASE_ACTOR_ID],
+    )
+
+    CreateProcessingFaultReceivedUseCase(
+        dl, cast(CreateProcessingFaultReceivedEvent, extract_event(activity))
+    ).execute()
+
+    assert list(dl.list_objects("CaseLedgerEntry")) == []
 
 
 @pytest.mark.xfail(
@@ -115,13 +139,27 @@ def test_replication_state_records_the_last_reseed() -> None:
 @pytest.mark.spec("SYNC-16-005")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("SYNC-16-007")
-def test_case_wire_form_declares_a_ledger_tail() -> None:
+def test_case_wire_form_carries_a_computed_ledger_tail() -> None:
     """A case copy names the ledger position it reflects.
 
-    The replica's stale, conflicting and short-chain checks all read it, so
-    #4797 replaces this probe with one behaviour test for each.
+    The tail is computed from the ledger when the case is read or sent, and
+    is never a stored field of the case file (SYNC-16-005), so a plain model
+    field on the case does not pass this probe. The replica's stale,
+    conflicting and short-chain checks all read the tail, so #4797 replaces
+    this probe with one behaviour test for each.
     """
-    assert "ledger_tail" in as_VulnerabilityCase.model_fields
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="current copy"))
+    activity = announce_vulnerability_case_activity(
+        cast(as_VulnerabilityCase, dl.read(_CASE_ID)),
+        actor=_CASE_ACTOR_ID,
+        context=_CASE_ID,
+    )
+
+    sent = activity.model_dump(by_alias=True, exclude_none=True, mode="json")
+
+    assert "ledger_tail" not in as_VulnerabilityCase.model_fields
+    assert "ledgerTail" in sent["object"]
 
 
 @pytest.mark.spec("PCR-02-004")

@@ -73,7 +73,7 @@ Every full-case announcement to a replica that already holds the case is an auth
 - If the replica's chain is already past the tail, the copy is stale and is skipped.
 - If the replica holds a different entry at the tail's index, the two chains conflict; the copy is refused and the conflict reported.
 - Otherwise the replica replaces its case file with the copy, and if its chain falls short of the tail it asks for the missing entries with the usual Reject.
-  Each replayed entry at or before the tail is already reflected in the copy and is stored as a no-op, so the chain catches up and the refused entry stops being refused.
+  Each entry at or before the tail, whether replayed or the held refused entry drained after the replacement, is already reflected in the copy and is stored as a no-op, so the chain catches up and the refused entry stops being refused.
 
 A copy taken at a position is the case as applying the ledger to that position leaves it (ADR-0124), so replacing and then backfilling leaves the replica exactly where seed-plus-replay would.
 

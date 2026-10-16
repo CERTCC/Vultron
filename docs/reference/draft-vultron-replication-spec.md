@@ -259,7 +259,8 @@ while still preventing amplification.
 
 ### 5.5 Divergence Recovery
 
-A participant can refuse an entry whose predecessor it already holds, because the entry does not apply to its case.
+A participant can refuse an entry whose predecessor it already holds, because the entry's starting state does not match its case.
+An entry whose content is invalid in itself, such as an impossible participant status, takes its own fault instead (RSH-05-021).
 No replay fills that gap: the participant's case has diverged from the CASE_MANAGER's, and a replay resends the same refused entry.
 
 - The participant MUST send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` to the CASE_MANAGER, and MUST keep holding the refused entry. (SYNC-16-001)
@@ -273,7 +274,7 @@ A participant that already holds the case compares the tail with its own chain. 
 - If its chain is already past the tail, the copy is stale and the participant leaves its case unchanged.
 - If it holds a different entry at the tail's index, the chains conflict and the participant leaves its case unchanged.
 - Otherwise it replaces its case with the copy.
-  If its chain falls short of the tail, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each replayed entry at or before the tail as a no-op. (SYNC-16-007)
+  If its chain falls short of the tail, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before the tail, replayed or drained from its gap buffer, as a no-op. (SYNC-16-007)
 
 A divergence fault for an entry the last re-seed already reflected means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 

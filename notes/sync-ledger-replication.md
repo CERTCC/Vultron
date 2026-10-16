@@ -7,8 +7,7 @@ description: >
   log, hash-chain sync, canonical serialization, commit and replica invariants,
   the sync-port wiring rule, fan-out recipients and the embargo pause, ingress
   never writing the ledger, the gap and pre-genesis buffers, divergence recovery,
-  replay rate limiting,
-  and SYNC test patterns.
+  replay rate limiting, and SYNC test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
@@ -255,7 +254,11 @@ same entry forever (ADR-0142).
   the case, because an old copy can arrive late (SYNC-16-006).
 - **Every apply node is forward-only over a newer copy.** An entry a copy already
   reflects is stored as a no-op, as `case_file_is_past()` does for the embargo
-  register, or a backfill after a re-seed refuses it again (SYNC-16-007).
+  register, or a backfill after a re-seed refuses it again. That includes the held
+  refused entry, which the seed drains before any replay arrives (SYNC-16-007).
+- **Divergence is a starting-state mismatch, not invalid content.** An entry that is
+  wrong in itself, like an impossible participant status, takes RSH-05-021's fault:
+  a fresh copy cannot repair it (SYNC-16-001).
 
 ## Genesis-Unavailable Buffer-and-Reject (SYNC-15)
 

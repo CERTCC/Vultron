@@ -787,7 +787,8 @@ groups:
       entry that records it. Whether the remaining faults belong in the ledger at
       all is Concern #4800.
     verification: >
-      A case-attributable fault appears as a recorded entry in the case ledger.
+      A case-attributable fault appears as a recorded entry in the case ledger, and a
+      fault SYNC-16-002 excludes does not.
     adr:
     - ADR-0080
   - id: ASK-07-009
