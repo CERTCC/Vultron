@@ -235,13 +235,13 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 _HOME = "vultron/core/behaviors/sender_entitlement.py"
 _COMPOSER = "vultron/core/behaviors/sender_guard.py"
 
-#: The only modules that may call ``compose_sender_guard``: the receive-tree
-#: factory and the pre-flight that runs the same guard ahead of a handler's
-#: first write (``rule_refusal``).
+#: The only module that may call ``compose_sender_guard``: the receive-tree
+#: factory.  The pre-flight that ran the same guard ahead of a handler's
+#: first write (``rule_refusal``) was retired once every embargo handler
+#: composed its door guards into its one tree (#4642, ADR-0135).
 COMPOSE_CALLERS = frozenset(
     {
         "vultron/core/behaviors/case/receive_activity_tree.py",
-        "vultron/core/use_cases/received/_sender_preflight.py",
     }
 )
 
@@ -521,8 +521,8 @@ def test_sender_nodes_are_composed_only_by_the_factory() -> None:
         "These modules name a sender-entitlement node, or compose a sender"
         " guard, outside the receive-tree factory or more often than the"
         " allow-list says (HP-01-007, HP-01-008).  Declare the standing in"
-        " the use case's SenderRule and pass it with a SenderCheckContext;"
-        " a pre-flight asks rule_refusal():\n" + _site_lines(new, listed)
+        " the use case's SenderRule and pass it with a SenderCheckContext"
+        " to the tree's factory:\n" + _site_lines(new, listed)
     )
     assert not fewer, (
         "These allow-list entries count more uses than the site now has;"
@@ -782,7 +782,7 @@ def _rules_built_outside_a_declaration(tree: ast.AST, rel: str) -> list[str]:
 def test_a_sender_rule_is_built_only_as_a_declaration() -> None:
     """A tree or handler passes its declared rule, never one of its own.
 
-    ``sender_rule=`` and ``rule_refusal()`` take a rule as an argument, so a
+    ``sender_rule=`` takes a rule as an argument, so a
     rule built on the spot would compose a guard the use case never
     declared.  Building a ``SenderRule`` is allowed only as the value of a
     class's ``sender_entitlement``.

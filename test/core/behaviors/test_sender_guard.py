@@ -944,16 +944,31 @@ def test_factory_takes_no_sender_guard_built_by_a_tree() -> None:
 
 
 def test_factory_rejects_a_context_naming_another_case() -> None:
+    """A tree that commits judges the sender against the case it commits to."""
     with pytest.raises(VultronWiringError, match="names case"):
         create_receive_activity_tree(
             name="RuleTreeBT",
-            case_id=None,
+            case_id=f"{CASE_ID}/other",
             precondition_guards=[],
             sender_rule=ANY_OF,
             sender_context=SenderCheckContext(
                 sender_id=VENDOR, case_id=CASE_ID
             ),
         )
+
+
+def test_a_tree_that_commits_nothing_judges_the_context_case() -> None:
+    """A notice tree (no commit) checks the sender against the case its
+    activity names, as the received ``Announce(EmbargoEvent)`` tree does."""
+    tree = create_receive_activity_tree(
+        name="RuleTreeBT",
+        case_id=None,
+        precondition_guards=[],
+        sender_rule=ANY_OF,
+        sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+    )
+
+    assert len(tree.children) == 3  # intake, post-close, sender guard
 
 
 def test_factory_rejects_a_context_without_a_rule() -> None:

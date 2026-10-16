@@ -209,9 +209,9 @@ partition of its own.
 ADR-0118). A participant that is neither owner nor CASE_MANAGER answers a
 revision Invite with ER to the CASE_MANAGER and does not move its own EM state;
 termination is the owner's (or delegated CASE_MANAGER's) decision. A store that
-is not the sender and not in `to` refuses the copy at the door
-(`unaddressed_copy_refusal()`) and answers nothing; `cc` addresses nobody
-(ADR-0109).
+is not the sender and not in `to` refuses the copy at the tree's addressee
+door guard (`ActivityAddressedToReceiverNode`) and answers nothing; `cc`
+addresses nobody (ADR-0109).
 
 ---
 
@@ -396,11 +396,9 @@ expiry path (`create_commit_and_record_expiry_tree`) per row; do not write a
 second one. The sender's own overdue row is swept too: a late `Reject` of an
 Invite records the timeout, then declines the `TIMED_OUT` row, and that expiry
 entry carries the `Reject`'s claimed time so the sender's stream does not run
-backwards (CLP-15-003). The P/X/A refusal of an Invite or an `Accept` does not
-sweep: its handler checks the sender first, but `RefuseEmbargoInviteBT` is a tree
-of its own with no sender rule, and the factory gives such a tree no
-clock-decision stage. The next admitted embargo activity sweeps; #4642 makes the
-refusal a guard of the Invite and Accept trees, which take the sweep.
+backwards (CLP-15-003). The P/X/A refusal of an Invite or an `Accept` is a
+diversion of the Invite and Accept trees (CLP-10-026), so it runs after their
+clock decisions, the sweep included.
 
 ### The ledger fan-out is the owner's notification (MSM-07-007)
 

@@ -143,6 +143,57 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         return None
 
 
+class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
+    """Re-invite a late accepter to the case's current embargo (EMB-17-003).
+
+    The late Accept's routing arm (CLP-10-026): the accepted embargo is not
+    the one in force, so the CASE_MANAGER asks the accepter about the one
+    that is.  Which embargo is read when the node runs, after the Invite
+    expiry was recorded.  Nothing is sent, and the node succeeds, when the
+    case has no embargo in force to invite to, or when this actor was
+    composed without the trigger-activity port that builds the Invite; the
+    WARNING says which, and the Accept is still not recorded as consent
+    (EMB-17-005, EMB-17-006).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        invitee_id: str,
+        name: str | None = None,
+        actor_config: "ActorConfig | None" = None,
+        *,
+        answers: str | None = None,
+    ) -> None:
+        # The embargo is resolved at tick time.
+        super().__init__(
+            case_id=case_id,
+            embargo_id="",
+            invitee_id=invitee_id,
+            name=name or self.__class__.__name__,
+            actor_config=actor_config,
+            answers=answers,
+        )
+
+    def _invite_owed(self, case: VulnerabilityCase) -> bool:
+        embargo_id = case.active_embargo_id
+        if embargo_id is None:
+            self.feedback_message = (
+                f"late Accept for case '{self._case_id}' — no embargo in"
+                f" force to re-invite '{self._invitee_id}' to"
+            )
+        elif self.trigger_activity_factory is None:
+            self.feedback_message = (
+                f"late Accept for a stale embargo on case '{self._case_id}'"
+                " — trigger_activity unavailable, re-invite not emitted"
+            )
+        else:
+            self._embargo_id = embargo_id
+            return True
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return False
+
+
 class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
     """Invite a reinstated participant to the active embargo it is not bound by.
 
@@ -217,5 +268,6 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
 
 __all__ = [
     "InviteReinstatedParticipantToEmbargoNode",
+    "ReinviteLateAccepterNode",
     "ReinviteStaleAccepterNode",
 ]
