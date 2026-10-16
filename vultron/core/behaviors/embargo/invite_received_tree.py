@@ -109,7 +109,7 @@ def embargo_invite_fault_tree(
             fault, unanswered (HP-01-005); see :class:`EmbargoInviteFault`.
     """
     return create_receive_activity_tree(
-        name="InviteToEmbargoOnCaseBT",
+        name="EmbargoInviteFaultBT",
         case_id=None,
         addressee_check="Invite(EmbargoEvent)" if addressed else None,
         precondition_guards=[],
