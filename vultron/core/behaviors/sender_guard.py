@@ -60,11 +60,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import py_trees
+from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderClosureNotRecordedNode,
+    SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
@@ -100,7 +102,12 @@ __all__ = [
     "closed_sender_guard",
     "compose_sender_guard",
     "embargo_sender_context",
+    "sender_guard_refused",
 ]
+
+#: The composites :func:`compose_sender_guard` builds around the kinds' nodes.
+_ANY_OF_NAME = "AnyOfSenderKinds"
+_RULE_GUARD_NAME = "SenderRuleGuard"
 
 
 @dataclass(frozen=True)
@@ -446,7 +453,7 @@ def _any_of(
     # The last arm fails naming every kind, so the refusal reason is the
     # side's whole rule rather than the last kind tried (BT-13-001).
     return py_trees.composites.Selector(
-        name="AnyOfSenderKinds",
+        name=_ANY_OF_NAME,
         memory=False,
         children=[*nodes, SenderHoldsNoneOfNode(kinds)],
     )
@@ -522,7 +529,7 @@ def compose_sender_guard(
         "AtParticipant",
     )
     return py_trees.composites.Sequence(
-        name="SenderRuleGuard",
+        name=_RULE_GUARD_NAME,
         memory=False,
         children=[
             py_trees.composites.Selector(
@@ -549,4 +556,25 @@ def compose_sender_guard(
                 ],
             ),
         ],
+    )
+
+
+def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
+    """Whether *node* is the root of a guard :func:`compose_sender_guard`
+    builds: a kind's node, an empty side's refusal, or a composite."""
+    return isinstance(
+        node, (SenderEntitlementConditionNode, SenderIsParticipantNode)
+    ) or node.name in {_ANY_OF_NAME, _RULE_GUARD_NAME}
+
+
+def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
+    """Whether the sender guard the factory placed in *root* refused.
+
+    ``create_receive_activity_tree`` places the composed guard as a direct
+    child of the tree's root, so a handler can tell a sender refusal from a
+    failure elsewhere without naming a sender node itself (HP-01-007).
+    """
+    return any(
+        _is_composed_guard(child) and child.status is Status.FAILURE
+        for child in root.children
     )

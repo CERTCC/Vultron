@@ -1960,7 +1960,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
 
     Covers RSH-05-021 (impossible composite state) and ARCH-15-001
     (malformed local participant record) end-to-end through
-    ``create_announce_log_entry_tree(sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement)``.
+    ``create_announce_log_entry_tree()``.
     """
 
     @pytest.mark.spec("RSH-05-021")

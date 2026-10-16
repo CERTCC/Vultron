@@ -28,8 +28,8 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
+from vultron.core.behaviors.sender_guard import sender_guard_refused
 from vultron.core.behaviors.sync.announce_tree import (
-    ANNOUNCE_ROLES,
     AT_CASE_MANAGER,
     create_announce_log_entry_tree,
 )
@@ -78,7 +78,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     node_succeeded,
     not_case_manager_refusal,
-    post_close_refusal,
     verdict_from_bt,
 )
 from vultron.errors import VultronValidationError
@@ -171,11 +170,7 @@ def _refused_announce_verdict(
             f"ledger entry '{entry.id_}' buffered until case"
             f" '{entry.case_id}' is seeded (SYNC-15-004)"
         )
-    if (
-        named_node_status(tree, ANNOUNCE_ROLES) is Status.INVALID
-        and post_close_refusal(tree) is None
-    ):
-        # The role arms never ran, so the sender guard refused the sender.
+    if sender_guard_refused(tree):
         return HandlerResult.refused(
             f"sender '{request.actor_id}' is not the CASE_MANAGER of case"
             f" '{entry.case_id}', so its announcement of ledger entry"

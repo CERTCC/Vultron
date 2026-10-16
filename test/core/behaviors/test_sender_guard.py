@@ -39,9 +39,11 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
     StoreEmbeddedParticipantsNode,
 )
+from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderEntitlementConditionNode,
@@ -71,6 +73,7 @@ from vultron.core.behaviors.sender_guard import (
     ReportOfferRequest,
     SenderCheckContext,
     compose_sender_guard,
+    sender_guard_refused,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_proposal_admission import (
@@ -80,6 +83,8 @@ from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
 )
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.case import EngageCaseReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
@@ -1013,7 +1018,7 @@ def test_factory_rejects_a_ledger_context_on_a_tree_with_a_case() -> None:
         )
 
 
-class _ResolveCase(py_trees.behaviour.Behaviour):
+class _ResolveCase(CaseResolving, py_trees.behaviour.Behaviour):
     """A read-only step standing in for a case resolution."""
 
     def update(self) -> Status:
@@ -1068,3 +1073,92 @@ def test_factory_rejects_a_case_resolution_that_writes() -> None:
             ),
             case_resolution=[writer],
         )
+
+
+class _ResolvingEmitter(
+    CaseResolving, EmitCapable, py_trees.behaviour.Behaviour
+):
+    """A step marked as resolving that can also emit."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+class _UnmarkedStep(py_trees.behaviour.Behaviour):
+    """A step without the CaseResolving marker, such as an unmarked writer."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    "step",
+    [
+        _ResolvingEmitter(name="Emitter"),
+        _UnmarkedStep(name="Unmarked"),
+        py_trees.composites.Sequence(
+            name="Wrapped", memory=False, children=[_UnmarkedStep(name="U")]
+        ),
+    ],
+    ids=["emitter", "unmarked-leaf", "unmarked-leaf-in-a-composite"],
+)
+def test_factory_admits_only_read_only_case_resolving_steps(
+    step: py_trees.behaviour.Behaviour,
+) -> None:
+    """Not every writer is marked, so a step is admitted by its marker."""
+    with pytest.raises(VultronWiringError, match="may only read"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+            sender_context=SenderCheckContext(
+                sender_id=VENDOR, case_id=CASE_ID
+            ),
+            case_resolution=[step],
+        )
+
+
+class _Refuse(py_trees.behaviour.Behaviour):
+    """A precondition guard that refuses."""
+
+    def update(self) -> Status:
+        return Status.FAILURE
+
+
+def _participant_tree(
+    sender: str, guards: list[py_trees.behaviour.Behaviour]
+) -> py_trees.composites.Sequence:
+    return create_receive_activity_tree(
+        name="RuleTreeBT",
+        case_id=CASE_ID,
+        precondition_guards=guards,
+        sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+        sender_context=SenderCheckContext(sender_id=sender, case_id=CASE_ID),
+    )
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    ("sender", "guards", "refused"),
+    [
+        (STRANGER, [], True),
+        (VENDOR, [], False),
+        (VENDOR, [_Refuse(name="Refuse")], False),
+    ],
+    ids=["unentitled-sender", "entitled-sender", "a-later-guard-refuses"],
+)
+def test_sender_guard_refused_names_only_the_sender_guards_refusal(
+    sender: str, guards: list[py_trees.behaviour.Behaviour], refused: bool
+) -> None:
+    tree = _participant_tree(sender, guards)
+    event = EngageCaseReceivedEvent(
+        activity_id="https://example.org/activities/engage-guard",
+        actor_id=sender,
+        object_=as_VulnerabilityCase(id_=CASE_ID, name="Sender rule case"),
+        semantic_type=MessageSemantics.ENGAGE_CASE,
+    )
+    result = _store(MANAGER).run(tree, activity=event)
+    assert result.status == Status.FAILURE
+    assert sender_guard_refused(tree) is refused

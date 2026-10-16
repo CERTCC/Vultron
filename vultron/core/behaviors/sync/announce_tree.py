@@ -195,10 +195,6 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
 #: announcement it admits is the CASE_MANAGER's own, echoed back.
 AT_CASE_MANAGER = "CheckIsCaseManager"
 
-#: The selector over the two role arms; it runs only once the sender guard
-#: has admitted the sender.
-ANNOUNCE_ROLES = "AnnounceLogEntryRoles"
-
 
 def create_announce_log_entry_tree(
     *, sender_rule: SenderRule
@@ -451,7 +447,7 @@ def create_announce_log_entry_tree(
         sender_context=LedgerActivityContext(),
         replica_effects=[
             py_trees.composites.Selector(
-                name=ANNOUNCE_ROLES,
+                name="AnnounceLogEntryRoles",
                 memory=False,
                 children=[case_actor_subtree, participant_subtree],
             )

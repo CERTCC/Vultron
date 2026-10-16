@@ -274,6 +274,16 @@ guards, commit, effects.
    (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other
    late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
    check and the sender guard follow.
+
+   When the case the sender is checked against is resolved at run time, the
+   guard still comes from the factory (HP-01-008). Pass the read-only
+   `CaseResolving` steps that resolve it as `case_resolution`; they run just
+   before the guard, so an unknown case is refused as such (#2255). The report
+   verdicts pass `RequireCaseForReport`. A ledger activity's tree passes a
+   `LedgerActivityContext` instead: its nodes read the case from the entry the
+   activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never
+   place a sender check after a write: a snapshot an activity carries is
+   stored only once its sender is admitted (the Engage tree, HP-01-006).
 3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock
    or policy before judging the activity: an expiry, or the embargo end-time
    check (CLP-10-025). It runs after the door guards, so an unentitled sender

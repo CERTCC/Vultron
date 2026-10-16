@@ -72,6 +72,7 @@ import py_trees
 from vultron.core.behaviors.case.case_clock_decisions import (
     case_clock_decisions,
 )
+from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
 )
@@ -504,12 +505,16 @@ def _case_resolution_stage(
     They run between the post-close guard and the sender guard, so they may
     only read: a sender with no standing must leave nothing behind
     (HP-01-006).  A step may publish what it resolved on the blackboard
-    (``/case_id``), which is not a DataLayer write.
+    (``/case_id``), which is not a DataLayer write.  Not every writer carries
+    a marker (a ledger commit, replication state), so a step is admitted by
+    the :class:`~vultron.core.behaviors.case.nodes.case_lookup.CaseResolving`
+    marker on each of its leaves, and refused if any node in it is also
+    marked as a state writer or an emitter.
 
     Raises:
         VultronWiringError: steps are given without a sender guard to run
-            them for, or a step holds a state writer or an emit-capable
-            node.
+            them for, or a step holds a leaf without the ``CaseResolving``
+            marker, a state writer or an emit-capable node.
     """
     if not steps:
         return []
@@ -519,18 +524,21 @@ def _case_resolution_stage(
             f"{where}: case_resolution resolves the case the sender guard"
             " reads; pass it only with a sender_rule (HP-01-008)"
         )
-    writers = sorted(
+    nodes = [n for root in steps for n in root.iterate()]
+    refused = sorted(
         {
             type(n).__name__
-            for root in steps
-            for n in root.iterate()
+            for n in nodes
             if isinstance(n, (StateWriteCapable, EmitCapable))
+            or (not n.children and not isinstance(n, CaseResolving))
         }
     )
-    if writers:
+    if refused:
         raise VultronWiringError(
             f"{where}: case_resolution runs before the sender guard, so it"
-            f" may only read; found {writers} (HP-01-006)"
+            " may only read; each leaf must be a CaseResolving node that"
+            f" writes no state and emits nothing; found {refused}"
+            " (HP-01-006)"
         )
     return steps
 
@@ -705,8 +713,9 @@ def create_receive_activity_tree(
             :class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`
             reads the sender and the case from the received ledger activity
             at run time, for a tree with no ``case_id``.
-        case_resolution: Read-only steps that resolve the case the sender
-            guard reads, run just before it; requires ``sender_rule``.
+        case_resolution: Read-only ``CaseResolving`` steps that resolve the
+            case the sender guard reads, run just before it; requires
+            ``sender_rule``.
         replica_effects: Ungated effects, run on every replica after the
             commit.
         replica_emit_exemption: The registered decision that lets an
@@ -740,10 +749,11 @@ def create_receive_activity_tree(
             inconsistent: ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
             ``sender_context`` naming another case than ``case_id``, or a
-            ``case_resolution`` without ``sender_rule`` or holding a state
-            writer or emitter (HP-01-008), or ``clock_decisions`` name no case, come without
-            a ``sender_rule`` or with a ``post_close_exemption``, or hold
-            the received activity's commit (CLP-10-025).
+            ``case_resolution`` without ``sender_rule`` or holding a node
+            that is not a read-only ``CaseResolving`` step (HP-01-008), or
+            ``clock_decisions`` name no case, come without a ``sender_rule``
+            or with a ``post_close_exemption``, or hold the received
+            activity's commit (CLP-10-025).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, CLP-10-025, ``specs/behavior-tree-integration.yaml``
