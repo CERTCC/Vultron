@@ -26,21 +26,15 @@ dispatcher, so this module holds no per-verb knowledge.
 """
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from typing import Any, cast
 
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.dispatcher import CaseUpkeep
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases.triggers._helpers import (
-    resolve_actor,
-    resolve_case,
-)
-from vultron.core.use_cases.triggers.request_bodies import CaseTriggerRequest
 from vultron.core.use_cases.triggers.requests import ResultT_co, TriggerRequest
-from vultron.errors import VultronApiHandlerNotFoundError, VultronNotFoundError
+from vultron.errors import VultronApiHandlerNotFoundError
 from vultron.trigger_registry import TriggerEntry, index_by_request_model
 
 logger = logging.getLogger(__name__)
@@ -58,10 +52,6 @@ class RegistryTriggerDispatcher:
             snapshots through (ARCH-20-001); given to every ``bt_backed`` row.
         sync_port: The port a BT-backed commit fans a ledger entry out through
             (SYNC-02-002); given to every ``bt_backed`` row.
-        case_upkeep: The
-            :class:`~vultron.core.ports.dispatcher.CaseUpkeep` hooks run, in
-            order, before a request that names a case, unless its row sets
-            ``runs_case_upkeep=False``.  The composition root chooses them.
 
     Port injection is keyed on the row's ``bt_backed`` flag, never on its
     verb: a BT-backed use case is built with the whole BT port bundle, and the
@@ -75,13 +65,11 @@ class RegistryTriggerDispatcher:
         trigger_activity: TriggerActivityPort,
         wire_render_port: WireRenderPort,
         sync_port: SyncActivityPort,
-        case_upkeep: Sequence[CaseUpkeep] = (),
     ) -> None:
         self._by_request = index_by_request_model(entries)
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
-        self._case_upkeep = tuple(case_upkeep)
 
     def _entry_for(self, request: TriggerRequest[Any]) -> TriggerEntry:
         entry = self._by_request.get(type(request))
@@ -104,37 +92,12 @@ class RegistryTriggerDispatcher:
             ports["sync_port"] = self._sync_port
         return ports
 
-    def _run_case_upkeep(
-        self,
-        entry: TriggerEntry,
-        request: TriggerRequest[Any],
-        dl: CaseOutboxPersistence,
-    ) -> None:
-        """Run each case-upkeep hook for the request's case, as its actor.
-
-        Skipped with no hooks, for a row that opts out, for a request that
-        names no case, and when the actor or case cannot be resolved: the use
-        case then reports that itself.
-        """
-        if not self._case_upkeep or not entry.runs_case_upkeep:
-            return
-        if not isinstance(request, CaseTriggerRequest):
-            return
-        try:
-            actor_id = resolve_actor(request.actor_id, dl).id_
-            case_id = resolve_case(request.case_id, dl).id_
-        except VultronNotFoundError:
-            return
-        for upkeep in self._case_upkeep:
-            upkeep(dl, case_id=case_id, actor_id=actor_id, activity_id=None)
-
     def trigger(
         self,
         request: TriggerRequest[ResultT_co],
         dl: CaseOutboxPersistence,
     ) -> ResultT_co:
         entry = self._entry_for(request)
-        self._run_case_upkeep(entry, request, dl)
         use_case = entry.use_case_class(dl, request, **self._ports_for(entry))
         logger.debug(
             "Entering trigger %s for verb '%s' (actor_id=%s)",

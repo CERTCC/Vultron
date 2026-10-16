@@ -67,10 +67,8 @@ from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     create_reject_case_proposal_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -135,13 +133,17 @@ class CreateCaseProposalReceivedUseCase:
     ``Reject(as_CaseProposal)`` and reported ``REFUSED`` (CP-05-006,
     CP-05-008, CM-23-013).
 
-    Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008.
+    Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008, CP-05-010.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#812",
-        "prototype admits a Create(CaseProposal) from any sender (CP-05-002); "
-        "sender must be the report receiver once CaseActors are spawned",
+    # The proposal precedes the case, so the rule is for an actor outside
+    # any case.  Its author is the proposer this CASE_MANAGER recorded for the
+    # proposal id; an id it has not recorded is a new proposal, which any
+    # actor may make, the admission decision being the call-out point's
+    # (CP-05-002).  The proposal id is the sender's choice, so another
+    # proposer's admitted or declined id is refused (CP-05-010, #4719).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
+        SenderEntitlementKind.AUTHOR
     )
 
     def __init__(
@@ -273,6 +275,7 @@ class CreateCaseProposalReceivedUseCase:
             inline_report=inline_report,
             call_out=self._call_out,
             proposer_case_roles=request.proposer_case_roles,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -375,8 +378,10 @@ class AcceptCaseProposalReceivedUseCase:
         request: AcceptCaseProposalReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: AcceptCaseProposalReceivedEvent = request
@@ -408,6 +413,7 @@ class AcceptCaseProposalReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(
@@ -461,8 +467,10 @@ class RejectCaseProposalReceivedUseCase:
         request: RejectCaseProposalReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: RejectCaseProposalReceivedEvent = request
@@ -498,6 +506,7 @@ class RejectCaseProposalReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(

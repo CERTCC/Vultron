@@ -33,6 +33,11 @@ entries last (CP-09-009):
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
+Ahead of the branches, the receive-tree factory composes the sender guard from
+the use case's ``AUTHOR`` declaration: the proposal id is chosen by the sender,
+so one this store recorded for another proposer is refused before any branch
+reads or writes a proposal-keyed record (CP-05-010, HP-01-008, #4719).
+
 The top-level tree is a Selector with five branches, tried in order:
 
 * **Accept in flight** — ``CheckMarkerExistsNode``: if a
@@ -162,7 +167,13 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.replica_emit_exemptions import CASE_PROPOSAL
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    AuthoredCaseProposal,
+    SenderCheckContext,
+)
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
@@ -192,10 +203,13 @@ def create_case_proposal_received_tree(
     inline_report: VulnerabilityReport | None = None,
     call_out: "CaseProposalCallOutBundle | None" = None,
     proposer_case_roles: Sequence[CVDRole] = (),
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
-    The tree is a Sequence of intake (CLP-10-017) and a five-branch Selector:
+    The tree is a Sequence of intake (CLP-10-017), the sender guard the
+    factory composes from *sender_rule*, and a five-branch Selector:
     the CP-05-005 in-flight guard, the
     CP-05-006 already-declined answer, the closed-case decline, the CP-05-002
     admission decision, and the accept flow.
@@ -336,11 +350,14 @@ def create_case_proposal_received_tree(
         proposal_id: URI of the ``as_CaseProposal`` object; ``None`` when
             the proposal names none.
         proposer_uri: URI of the proposing actor — the report receiver — to
-            whom the responses are sent.  If the proposal is admitted, it
-            becomes the case's CASE_OWNER: the new case is attributed to it
-            (CP-09-001) and it is the participant given
-            ``CVDRole.CASE_OWNER``.  A declined proposer owns nothing, so
-            the nodes that run before the case exists name it the proposer.
+            whom the responses are sent.  It is normalised with
+            ``normalise_actor_id``, so a trailing slash names the same
+            proposer and nothing is stored under the slash spelling (#4772).
+            If the proposal is admitted, it becomes the case's CASE_OWNER:
+            the new case is attributed to it (CP-09-001) and it is the
+            participant given ``CVDRole.CASE_OWNER``.  A declined proposer
+            owns nothing, so the nodes that run before the case exists name
+            it the proposer.
         proposal_dict: The proposal's AS2 rendering (from ``WireRenderPort``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-009 and the AKM-03-003 outbox requirement. Falls back
@@ -361,6 +378,11 @@ def create_case_proposal_received_tree(
         proposer_case_roles: The CVD roles the proposer stated on the proposal
             (CP-01-011), given to it alongside ``CVDRole.CASE_OWNER``
             (CP-09-007).  Empty gives ``CVDRole.CASE_OWNER`` only.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the guard from it, with the proposal as the object an
+            ``AUTHOR`` sender must have written.  The proposal id is the
+            sender's choice, so a proposal id this store recorded for another
+            proposer is refused before any arm runs (CP-05-010, HP-01-008).
 
     Returns:
         The root ``Sequence`` (intake, then the idempotency Selector), ready
@@ -372,6 +394,12 @@ def create_case_proposal_received_tree(
             "Create(CaseProposal) carries no proposal id",
         )
     bundle = call_out if call_out is not None else CASE_PROPOSAL_DETERMINISTIC
+
+    # The sender wrote this id; from here on it is the proposer's identity,
+    # which the tree stores and looks up.  Every node below gets the canonical
+    # spelling, so the sender guard's ``same_actor_id`` and the accept path's
+    # lookups agree on who the proposer is (#4772).
+    proposer_uri = normalise_actor_id(proposer_uri)
 
     offer_id, offer_actor_id = offer_provenance_from_proposal(proposal_dict)
 
@@ -614,6 +642,11 @@ def create_case_proposal_received_tree(
     return create_receive_activity_tree(
         name="CreateCaseProposalReceivedBT",
         case_id=None,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=proposer_uri,
+            authored_object=AuthoredCaseProposal(proposal_id=proposal_id),
+        ),
         precondition_guards=[],
         replica_emit_exemption=CASE_PROPOSAL,
         replica_effects=[

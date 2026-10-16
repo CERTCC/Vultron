@@ -539,6 +539,43 @@ groups:
     - story_2022_006
     - story_2022_012
     - story_2022_101
+  - id: CP-05-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on a `Create(CaseProposal)` whose proposal
+      identifier it has already recorded, by admitting, declining or storing that
+      proposal, only when the sender is the proposer it recorded for that
+      identifier. A delivery of that identifier from any other sender MUST be
+      refused, with no case created, no proposal-keyed record written and nothing
+      sent. A proposal identifier it has not recorded is a new proposal, which any
+      actor may send (CP-05-002).
+    rationale: >-
+      The proposal identifier is chosen by the sender, and every proposal-keyed
+      record is keyed on it alone. Without this rule, another actor that reuses an
+      admitted identifier is treated as a redelivery: it gets a stray case, or a
+      closed case's decline is recorded on the original proposer's identifier
+      (#4719).
+    note: >-
+      This is the sender clause for `Create(CaseProposal)` (HP-01-006). The
+      proposer is the proposal's author, so the use case declares the `AUTHOR`
+      kind for an actor outside any case (HP-01-009). Whether the sender must also
+      be the report receiver once CaseActors are spawned is #812.
+    verification: >-
+      Tests marked `CP-05-010` admit, decline and close a proposal, deliver its
+      identifier again from another actor, and assert `REFUSED`, no new case, no
+      new or changed proposal-keyed record, and an empty outbox. The same delivery
+      to a store that holds only the stored `Accept` (no admission record) is
+      refused the same way.
+    stories:
+    - story_2022_035
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CP-05-006
+    adr:
+    - ADR-0115
 - id: CP-06
   title: Protocol Flow — Receiving (Report-Receiver Side)
   specs:

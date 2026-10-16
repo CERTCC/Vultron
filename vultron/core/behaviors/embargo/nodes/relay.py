@@ -19,9 +19,10 @@ The CASE_MANAGER receives every embargo proposal (PCR-08-001), moves the
 canonical case through ``EmbargoLifecycle`` and commits it, then relays one
 ``Invite(EmbargoEvent)`` per participant except the proposer, as the AS2
 ``actor`` with the proposer in ``attributedTo`` (EP-09-002, CM-24), committing
-each emission in this tree once it is queued (ADR-0109, ADR-0119).  At each
-commit the invitee's PEC ``INVITE`` trigger is applied to its row for the
-embargo where CM-18-003 allows it (EP-09-004).
+each emission in this tree once it is queued (ADR-0109, ADR-0119).  After
+each commit the invitee's PEC ``INVITE`` on its row for the embargo, where
+CM-18-003 allows it (EP-09-004), is committed as the CASE_MANAGER's own
+``Update(EmbargoConsent)`` entry and written by copying it (ADR-0124).
 
 Two precondition guards (``relay_guards.py``, re-exported here) and three
 leaf nodes, in the shape of the ledger fan-out (``sync/nodes/fanout.py``).  The collect node is a read-only routing
@@ -34,7 +35,7 @@ it:
     AdjudicateEmbargoProposal (CASE_MANAGER-gated Sequence)
     ├─ CollectEmbargoInviteRecipientsNode   # routing guard; writes recipients
     ├─ ProposeEmbargoLifecycleNode          # EM write (EmbargoLifecycle)
-    └─ RelayEmbargoInviteToEachNode         # factory → outbox → commit → PEC
+    └─ RelayEmbargoInviteToEachNode         # factory → outbox → commit → row
 
 ``actor`` and ``attributed_to`` come from the shared CM-24-005 helper
 (``delegated_authorship``): the relay runs only under the CASE_MANAGER gate, so
@@ -43,19 +44,24 @@ proposer.
 """
 
 import json
+from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
+from vultron.core.behaviors.embargo.decided_entries import (
+    decide_commit_and_apply,
+)
 from vultron.core.behaviors.embargo.nodes.relay_guards import (
     EmbargoProposalNotYetRecordedNode,
     EmStateAdmitsProposalNode,
     case_manager_admits_proposal_guard,
 )
 from vultron.core.behaviors.embargo.rsvp_stamp import (
+    invite_rsvp_deadline,
     stamp_invite_rsvp_deadline,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
@@ -65,10 +71,8 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
-from vultron.core.models._helpers import parse_published
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -86,16 +90,6 @@ if TYPE_CHECKING:
 EMBARGO_INVITE_EVENT_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 
 _RECIPIENTS_KEY = "embargo_invite_recipients"
-
-
-def invite_rsvp_deadline(invite: dict[str, Any]) -> datetime | None:
-    """The RSVP deadline (``endTime``) a relayed Invite's wire body carries.
-
-    The relay and its ledger replay both read it from the same sealed body,
-    so the invitee's record takes the same deadline in every store
-    (CM-28-013, EP-09-007).
-    """
-    return parse_published(invite.get(wire_key("end_time")))
 
 
 class CollectEmbargoInviteRecipientsNode(DataLayerActionWithPorts):
@@ -166,9 +160,12 @@ class RelayEmbargoInviteToEachNode(
     in ``attributedTo`` (CM-24-001, CM-24-002) and the manager's RSVP
     deadline as its ``endTime`` (CM-28-012, from ``actor_config``'s windows),
     queue it, commit the sealed blob as the canonical entry (VM-08-003) once
-    it is queued (ADR-0119), then apply PEC ``INVITE`` to the invitee's row
-    for the embargo where legal, recording the deadline the sealed Invite
-    carries (CM-18-003, EP-09-004, CM-28-013).
+    it is queued (ADR-0119), then commit PEC ``INVITE`` on the invitee's row
+    for the embargo, where legal and with the deadline the sealed Invite
+    carries (CM-18-003, EP-09-004, CM-28-013), as the CASE_MANAGER's own
+    ``Update(EmbargoConsent)`` entry, and only then write the row by copying
+    it (ADR-0124, CLP-07-013).  The row change is decided before the Invite
+    is sent, so a missing invitee record fails with nothing sent.
 
     *answers* names the request the relay answers — the proposer's Invite on
     the received path, the manager's own proposal on the trigger path.
@@ -332,19 +329,28 @@ class RelayEmbargoInviteToEachNode(
             published=stamp.published,
             min_rsvp_window=stamp.min_rsvp_window,
         )
-        # Sent, then recorded: the entry records a completed act (ADR-0119).
-        self._queue(activity_id)
-        committed = False
-        try:
-            self._commit_emission(activity_id, blob)
-            committed = True
-        finally:
-            # The failure itself propagates (BT-14-001); an Invite no retry
-            # rebuilds is first taken back out of the outbox.
-            if not committed and self._withdraw_unrecorded:
-                self._withdraw(activity_id)
+        rsvp_deadline = invite_rsvp_deadline(json.loads(blob))
+
+        def _send_and_commit() -> None:
+            # Sent, then recorded: the entry records a completed act
+            # (ADR-0119).
+            self._queue(activity_id)
+            committed = False
+            try:
+                self._commit_emission(activity_id, blob)
+                committed = True
+            finally:
+                # The failure itself propagates (BT-14-001); an Invite no
+                # retry rebuilds is first taken back out of the outbox.
+                if not committed and self._withdraw_unrecorded:
+                    self._withdraw(activity_id)
+
         self._invite_where_legal(
-            dl, recipient_id, invite_rsvp_deadline(json.loads(blob))
+            dl,
+            recipient_id,
+            rsvp_deadline,
+            cause_id=activity_id,
+            send_and_commit=_send_and_commit,
         )
         self.logger.info(
             "CASE_MANAGER '%s' relayed embargo '%s' to '%s' for '%s' (EP-09-002)",
@@ -418,26 +424,51 @@ class RelayEmbargoInviteToEachNode(
         dl: CaseOutboxPersistence,
         recipient_id: str,
         rsvp_deadline: datetime | None,
+        *,
+        cause_id: str,
+        send_and_commit: Callable[[], None] | None = None,
     ) -> None:
-        """Apply PEC INVITE to *recipient_id*'s row for this embargo where legal."""
+        """Commit the Invite, then the invitee's row; apply it by copying.
+
+        The decision is PEC ``INVITE`` on *recipient_id*'s row for this
+        embargo where legal, with the Invite's deadline (CM-18-003,
+        CM-28-013), taken on a staged store.  The Invite's entry is
+        committed first (*send_and_commit*; ``None`` when the Invite
+        *cause_id* is already committed), then the row as the CASE_MANAGER's
+        own ``Update(EmbargoConsent)`` entry, and only then is the row
+        written, by copying (ADR-0124, CLP-07-013).  Where INVITE does not
+        apply the Invite is still committed, and no row entry follows.
+        """
         # Regime 1 (ADR-0087): the relay follows the manager's own EM write on
         # this case, so a missing case or invitee is an anomaly, not a lenient
         # skip.  ``record_embargo_invite`` raises a ``VultronNotFoundError``,
         # which would read as the sender's fault (REFUSED, ADR-0095), so it is
         # re-raised as the internal error it is in the manager's own store.
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
         try:
-            result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
+            decision = decide_commit_and_apply(
+                datalayer=dl,
                 case_id=self._case_id,
-                invitee_id=recipient_id,
-                embargo_id=self._embargo_id,
-                rsvp_deadline=rsvp_deadline,
+                decide=lambda staged: EmbargoLifecycle(
+                    persistence=staged
+                ).record_embargo_invite(
+                    case_id=self._case_id,
+                    invitee_id=recipient_id,
+                    embargo_id=self._embargo_id,
+                    rsvp_deadline=rsvp_deadline,
+                ),
+                trigger_activity=self.trigger_activity_factory,
+                actor_id=self.actor_id,
+                cause_id=cause_id,
+                act_commit=send_and_commit,
             )
         except VultronNotFoundError as exc:
             raise RuntimeError(
                 f"{self.name}: the CASE_MANAGER's roster names '{recipient_id}'"
                 f" but its store has no record for it: {exc}"
             ) from exc
-        if not result.participant_changes:
+        if not decision.rows:
             self.logger.info(
                 "%s: INVITE does not apply to '%s' (EP-09-004)",
                 self.name,

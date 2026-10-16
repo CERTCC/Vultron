@@ -57,6 +57,9 @@ from vultron.errors import VultronWiringError
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
 COMMIT = "GuardedCommitCaseLedgerEntryBT"
 POST_CLOSE = "CaseOpenToExternalWrites"
+CLOCK_GATE = "ClockDecisionsIfCaseManager"
+#: The case-wide clock decision every case tree with a sender guard takes.
+END_TIME = "EmbargoEndTimeDecision"
 
 
 class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
@@ -406,11 +409,12 @@ class TestRefusalEffects:
         assert _names(tree)[1:] == [
             POST_CLOSE,
             "SenderIsCaseManagerNode",
+            CLOCK_GATE,
             "PreconditionGuardStage",
             COMMIT,
             "Replica",
         ]
-        stage = tree.children[3]
+        stage = tree.children[4]
         assert isinstance(stage, PreconditionGuardStage)
         assert list(stage.guards.children) == [guard]
         gates = [
@@ -634,3 +638,348 @@ class TestPostCloseStage:
                 precondition_guards=[],
                 post_close_reply=[_EmittingWriter()],
             )
+
+
+class _Counting(py_trees.behaviour.Behaviour):
+    """Records that it ran; succeeds."""
+
+    def __init__(self, name: str = "Counting") -> None:
+        super().__init__(name=name)
+        self.ran = 0
+
+    def update(self) -> Status:
+        self.ran += 1
+        return Status.SUCCESS
+
+
+class _Refused(py_trees.behaviour.Behaviour):
+    """A clock decision whose commit the ledger refused."""
+
+    def update(self) -> Status:
+        self.feedback_message = "ledger refused the expiry entry"
+        return Status.FAILURE
+
+
+class _Crashing(py_trees.behaviour.Behaviour):
+    """A clock decision with an internal error."""
+
+    def update(self) -> Status:
+        raise KeyError("bug")
+
+
+def _sender_args(case_id: str | None = CASE_ID) -> dict:
+    return {
+        "sender_rule": SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+        "sender_context": SenderCheckContext(
+            sender_id="https://example.org/actors/sender", case_id=case_id
+        ),
+    }
+
+
+class TestClockDecisionStage:
+    """The factory owns the clock-decision stage (CLP-10-025, ADR-0135)."""
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CLP-10-010")
+    def test_decisions_run_after_the_door_guards_and_before_the_guards(
+        self,
+    ) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            clock_decisions=[_effect("Expiry")],
+            replica_effects=[_effect("Replica")],
+            **_sender_args(),
+        )
+
+        assert _names(tree)[1:] == [
+            POST_CLOSE,
+            "SenderIsCaseManagerNode",
+            "ClockDecisionsIfCaseManager",
+            "Guard",
+            COMMIT,
+            "Replica",
+        ]
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_decisions_precede_the_refusal_stage(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            clock_decisions=[_effect("Expiry")],
+            refusal_effects=[_Emitter()],
+            **_sender_args(),
+        )
+
+        assert _names(tree)[1:] == [
+            POST_CLOSE,
+            "SenderIsCaseManagerNode",
+            "ClockDecisionsIfCaseManager",
+            "PreconditionGuardStage",
+            COMMIT,
+        ]
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("BT-17-001")
+    def test_decisions_are_gated_on_the_case_manager(self) -> None:
+        from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+            ClockDecision,
+            ClockDecisionStage,
+        )
+        from vultron.core.behaviors.case.nodes.conditions import (
+            CheckIsCaseManagerNode,
+        )
+
+        first, second = _effect("First"), _effect("Second")
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            clock_decisions=[first, second],
+            **_sender_args(),
+        )
+
+        gate = tree.children[3]
+        assert isinstance(gate, CaseManagerGate)
+        stage = gate.gated_branch
+        assert isinstance(stage, ClockDecisionStage)
+        assert all(isinstance(c, ClockDecision) for c in stage.children)
+        # The case-wide end-time decision first, then the tree's own.
+        assert [d.name for d in stage.decisions[:1]] == [END_TIME]
+        assert stage.decisions[1:] == [first, second]
+        checks = [
+            n
+            for n in gate.children[0].iterate()
+            if isinstance(n, CheckIsCaseManagerNode)
+        ]
+        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
+            (CASE_ID, True)
+        ]
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_the_gate_takes_the_manager_case_when_the_commit_is_omitted(
+        self,
+    ) -> None:
+        from vultron.core.behaviors.case.nodes.conditions import (
+            CheckIsCaseManagerNode,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[],
+            clock_decisions=[_effect("Expiry")],
+            manager_effects=[_Emitter()],
+            manager_case_id=CASE_ID,
+            **_sender_args(case_id=None),
+        )
+
+        gate = next(c for c in tree.children if c.name == CLOCK_GATE)
+        checks = [
+            n
+            for n in gate.children[0].iterate()
+            if isinstance(n, CheckIsCaseManagerNode)
+        ]
+        assert [c._case_id for c in checks] == [CASE_ID]
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("EMB-13-003")
+    def test_a_case_tree_with_a_sender_guard_takes_the_end_time_decision(
+        self,
+    ) -> None:
+        """With no clock decisions of its own, a case tree with both door
+        guards still takes the case-wide end-time check (EMB-13-003)."""
+        from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+            ClockDecisionStage,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            **_sender_args(),
+        )
+
+        assert _names(tree)[1:] == [
+            POST_CLOSE,
+            "SenderIsCaseManagerNode",
+            CLOCK_GATE,
+            "Guard",
+            COMMIT,
+        ]
+        (stage,) = [
+            n for n in tree.iterate() if isinstance(n, ClockDecisionStage)
+        ]
+        assert [d.name for d in stage.decisions] == [END_TIME]
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_tree_without_a_sender_guard_takes_no_case_decision(
+        self,
+    ) -> None:
+        """A sender with no standing never makes the CASE_MANAGER write, so
+        a tree with no sender guard takes no case-wide decision."""
+        tree = create_receive_activity_tree(
+            name="SampleBT", case_id=CASE_ID, precondition_guards=[]
+        )
+
+        assert CLOCK_GATE not in _names(tree)
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CM-23-013")
+    def test_a_post_close_exempt_tree_takes_no_case_decision(self) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            PostCloseExemption,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
+            **_sender_args(),
+        )
+
+        assert CLOCK_GATE not in _names(tree)
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_a_tree_naming_no_case_takes_no_case_decision(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[],
+            **_sender_args(case_id=None),
+        )
+
+        assert CLOCK_GATE not in _names(tree)
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_decisions_without_a_case_are_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="clock_decisions need"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=None,
+                precondition_guards=[],
+                clock_decisions=[_effect("Expiry")],
+            )
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_a_decision_holding_the_activitys_commit_is_refused(self) -> None:
+        from vultron.core.behaviors.case.receive_activity_tree import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
+
+        with pytest.raises(VultronWiringError, match="never the received"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                clock_decisions=[
+                    create_guarded_commit_case_ledger_entry_tree(CASE_ID)
+                ],
+                **_sender_args(),
+            )
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("HP-01-006")
+    def test_decisions_without_a_sender_guard_are_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="need a sender_rule"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                clock_decisions=[_effect("Expiry")],
+            )
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CM-23-013")
+    def test_decisions_on_a_post_close_exempt_tree_are_refused(self) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            PostCloseExemption,
+        )
+
+        with pytest.raises(VultronWiringError, match="post-close boundary"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                clock_decisions=[_effect("Expiry")],
+                post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
+                **_sender_args(),
+            )
+
+    def test_without_decisions_there_is_no_stage(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT", case_id=CASE_ID, precondition_guards=[]
+        )
+
+        assert "ClockDecisionsIfCaseManager" not in _names(tree)
+
+
+class TestClockDecisionOutcomes:
+    """What each clock-decision outcome does to the tree (CLP-10-025)."""
+
+    @staticmethod
+    def _run(datalayer, actor_id, decisions):
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+            ClockDecisionStage,
+        )
+
+        after = _Counting("NextStage")
+        root = py_trees.composites.Sequence(
+            name="Root",
+            memory=False,
+            children=[
+                ClockDecisionStage(name="ClockDecisions", decisions=decisions),
+                after,
+            ],
+        )
+        result = BTBridge(datalayer=datalayer).execute_with_setup(
+            tree=root, actor_id=actor_id
+        )
+        return result, after
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_a_decision_that_records_nothing_succeeds(
+        self, datalayer, actor_id
+    ) -> None:
+        result, after = self._run(datalayer, actor_id, [_effect("NotDue")])
+
+        assert result.status is Status.SUCCESS
+        assert after.ran == 1
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_a_refused_commit_warns_and_the_tree_continues(
+        self, datalayer, actor_id, caplog
+    ) -> None:
+        second = _Counting("SecondDecision")
+
+        with caplog.at_level("WARNING"):
+            result, after = self._run(
+                datalayer, actor_id, [_Refused(name="Expiry"), second]
+            )
+
+        assert result.status is Status.SUCCESS
+        assert second.ran == 1 and after.ran == 1
+        warnings = [
+            r.getMessage() for r in caplog.records if r.levelname == "WARNING"
+        ]
+        assert any(
+            "Expiry" in m and "ledger refused the expiry entry" in m
+            for m in warnings
+        )
+
+    @pytest.mark.spec("CLP-10-025")
+    def test_an_internal_error_ends_the_tree_as_an_internal_error(
+        self, datalayer, actor_id
+    ) -> None:
+        result, after = self._run(
+            datalayer, actor_id, [_Crashing(name="Expiry")]
+        )
+
+        assert result.status is Status.FAILURE
+        assert result.internal_error is True
+        assert after.ran == 0

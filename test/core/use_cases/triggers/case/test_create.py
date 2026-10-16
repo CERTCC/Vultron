@@ -721,6 +721,9 @@ def test_the_trigger_and_proposal_trees_share_one_creation_commit():
     from vultron.core.behaviors.case.nodes import (
         CommitNativeLedgerEntriesNode,
     )
+    from vultron.core.use_cases.received.case_proposal import (
+        CreateCaseProposalReceivedUseCase,
+    )
 
     trigger = create_case_trigger_bt(
         actor_id="https://example.org/actors/vendor",
@@ -735,6 +738,7 @@ def test_the_trigger_and_proposal_trees_share_one_creation_commit():
         report_id=None,
         proposal_id="https://example.org/proposals/p",
         proposer_uri="https://example.org/actors/vendor",
+        sender_rule=CreateCaseProposalReceivedUseCase.sender_entitlement,
     )
 
     for tree in (trigger, proposal):

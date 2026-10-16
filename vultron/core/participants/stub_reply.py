@@ -21,8 +21,9 @@ stub Invite and the reply's ``published``.  The CASE_MANAGER applies the reply's
 effects to the invitee's record when it receives it, and a replica applies the
 same effects when it receives the entry, through the functions in this module:
 
-- an Accept signs the invitee's consent to the embargo in force
-  (:meth:`CaseParticipant.sign_embargo`, CM-18-005) and marks the record joined;
+- an Accept writes the invitee's agreement to the embargo in force, the row
+  it states, through the one apply function (:func:`stub_accept_consent`,
+  CM-18-005, ADR-0124), and marks the record joined;
 - a Reject moves the consent row to ``DECLINED`` when an embargo is in force.
 
 A vendor's VF status and the reject's closing status are not here: a status is a
@@ -40,6 +41,11 @@ from datetime import datetime
 from vultron.core.models._helpers import as_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_apply import (
+    EmbargoCaseFile,
+    apply_embargo_change,
+)
+from vultron.core.models.embargo_consent_move import joiner_agreement
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 
@@ -100,25 +106,47 @@ def decline_embargo_in_force(
     )
 
 
+def stub_accept_consent(
+    case: VulnerabilityCase, record: CaseParticipant
+) -> CaseParticipant:
+    """*record* as the consent its ``Accept`` of the stub Invite states leaves it.
+
+    The Accept is the invitee's agreement to the embargo in force
+    (CM-10-001), and its own entry is the entry for that row (CLP-07-013):
+    the row the Accept states
+    (:func:`~vultron.core.models.embargo_consent_move.joiner_agreement`) is
+    written through the one apply function (ADR-0124), on the CASE_MANAGER
+    and on every replica alike, so both write the same row.  Returns *record*
+    itself when the Accept moves no row (no embargo in force, or a row that
+    already agrees or declined); otherwise a changed copy.
+    """
+    actor_id = record.attributed_to
+    if actor_id is None:
+        return record
+    case_file = EmbargoCaseFile(case=case, participants={actor_id: record})
+    change = joiner_agreement(case_file, actor_id)
+    if change is None:
+        return record
+    return apply_embargo_change(case_file, change).participants[actor_id]
+
+
 def apply_stub_accept(
     case: VulnerabilityCase, record: CaseParticipant, published: datetime
-) -> bool:
+) -> CaseParticipant | None:
     """A replica's application of an ``accept_invite_actor_to_case`` entry.
 
-    The same two writes the CASE_MANAGER's accept tree makes: consent signed to
-    the embargo in force through :meth:`CaseParticipant.sign_embargo`, then
-    ``joined``.  Returns True when anything changed; the caller saves *record*.
+    The same two writes the CASE_MANAGER's accept tree makes: the consent the
+    Accept states (:func:`stub_accept_consent`), then ``joined``.  Returns
+    the changed record for the caller to save, or ``None`` when nothing
+    changed.
     """
-    signed = False
-    embargo_id = case.active_embargo_id
-    if embargo_id:
-        before = record.consent_for(embargo_id)
-        record.sign_embargo(embargo_id)
-        signed = record.consent_for(embargo_id) != before
-    joined = mark_joined(record, published)
-    if signed or joined:
-        record.updated = _later(record.updated, published)
-    return signed or joined
+    signed = stub_accept_consent(case, record)
+    updated = signed if signed is not record else record.model_copy(deep=True)
+    joined = mark_joined(updated, published)
+    if signed is record and not joined:
+        return None
+    updated.updated = _later(updated.updated, published)
+    return updated
 
 
 def apply_stub_reject(

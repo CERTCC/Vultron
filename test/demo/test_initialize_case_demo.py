@@ -13,7 +13,10 @@
 
 import pytest
 
-from test.demo._helpers import route_exchange_demo_at_testclient
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    route_exchange_demo_at_testclient,
+)
 from vultron.demo.exchange import initialize_case_demo as demo
 
 
@@ -39,7 +42,7 @@ def test_demo(demo_env, caplog):
     """
     import logging
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO), expect_trusted_introductions(caplog):
         demo.main(skip_health_check=True)
 
     assert "ERROR SUMMARY" not in caplog.text, (

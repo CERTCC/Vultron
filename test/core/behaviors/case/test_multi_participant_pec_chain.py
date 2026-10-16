@@ -19,12 +19,16 @@ AC-5 of ISSUE-1976.
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate, propose
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_register import EmbargoRegisterEntry
@@ -83,19 +87,39 @@ _REGISTER = [
 ]
 
 
+def _invitee_case(participant: CaseParticipant) -> VulnerabilityCase:
+    """A case holding :data:`_REGISTER` and *participant* on its roster."""
+    case = VulnerabilityCase(id_="https://example.org/cases/pec-chain")
+    activate(case, _EARLIER_EMBARGO_ID)
+    propose(case, _EMBARGO_ID)
+    activate(case, _EMBARGO_ID)
+    assert case.active_embargo_id == _EMBARGO_ID
+    case.actor_participant_index[cast(str, participant.attributed_to)] = (
+        participant.id_
+    )
+    return case
+
+
 def _run_sign_node(
     scenario: BTTestScenario,
     participant: CaseParticipant,
-) -> EmbargoConsentState | None:
-    """Run _SignEmbargoConsentLeafNode for ``participant``; return its row."""
-    node = _SignEmbargoConsentLeafNode(invitee_id=participant.id_)
-    scenario.run(
-        node,
+) -> CaseParticipant:
+    """Run _SignEmbargoConsentLeafNode for ``participant``; return the record.
+
+    The node writes the row the Accept states through the one apply function
+    (ADR-0124), so it returns a changed copy rather than editing the record
+    it was given; the copy is what the accept tree persists.
+    """
+    result, signed = scenario.run_capturing(
+        _SignEmbargoConsentLeafNode(invitee_id=participant.id_),
+        "new_invite_participant",
         actor_id=participant.id_,
         new_invite_participant=participant,
-        active_embargo_id=_EMBARGO_ID,
+        invitee_case=_invitee_case(participant),
     )
-    return participant.consent_for(_EMBARGO_ID)
+    scenario.assert_success(result)
+    assert isinstance(signed, CaseParticipant)
+    return signed
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +140,8 @@ class TestConsentChainNoRowToSignatory:
         AGREE is valid directly from it.
         """
         participant = _participant(_ACTOR_A)
-        final = _run_sign_node(bt_scenario, participant)
+        participant = _run_sign_node(bt_scenario, participant)
+        final = participant.consent_for(_EMBARGO_ID)
         assert final == EmbargoConsentState.AGREED, (
             f"Expected AGREED after AGREE from UNINVITED, got {final!r}"
         )
@@ -145,7 +170,8 @@ class TestConsentChainNoRowToSignatory:
         assert not participant.is_signatory(_EMBARGO_ID)
 
         # Step 2: BT accept path
-        final = _run_sign_node(bt_scenario, participant)
+        participant = _run_sign_node(bt_scenario, participant)
+        final = participant.consent_for(_EMBARGO_ID)
         assert final == EmbargoConsentState.AGREED, (
             f"Expected AGREED after AGREE from INVITED, got {final!r}"
         )
@@ -176,7 +202,8 @@ class TestConsentChainNoRowToSignatory:
     ):
         """A participant that declined the embargo stays DECLINED."""
         participant = _participant(_ACTOR_A, EmbargoConsentState.DECLINED)
-        final = _run_sign_node(bt_scenario, participant)
+        participant = _run_sign_node(bt_scenario, participant)
+        final = participant.consent_for(_EMBARGO_ID)
         assert final == EmbargoConsentState.DECLINED
         assert not participant.is_signatory(_EMBARGO_ID)
 
@@ -197,8 +224,10 @@ class TestMultiParticipantConsentChain:
         participant_a = _participant(_ACTOR_A)
         participant_b = _participant(_ACTOR_B)
 
-        state_a = _run_sign_node(bt_scenario, participant_a)
-        state_b = _run_sign_node(bt_scenario, participant_b)
+        participant_a = _run_sign_node(bt_scenario, participant_a)
+        state_a = participant_a.consent_for(_EMBARGO_ID)
+        participant_b = _run_sign_node(bt_scenario, participant_b)
+        state_b = participant_b.consent_for(_EMBARGO_ID)
 
         assert state_a == EmbargoConsentState.AGREED, (
             f"Participant A: expected AGREED, got {state_a!r}"
@@ -227,8 +256,10 @@ class TestMultiParticipantConsentChain:
         )
 
         # Both sign via BT
-        state_a = _run_sign_node(bt_scenario, participant_a)
-        state_b = _run_sign_node(bt_scenario, participant_b)
+        participant_a = _run_sign_node(bt_scenario, participant_a)
+        state_a = participant_a.consent_for(_EMBARGO_ID)
+        participant_b = _run_sign_node(bt_scenario, participant_b)
+        state_b = participant_b.consent_for(_EMBARGO_ID)
 
         assert state_a == EmbargoConsentState.AGREED
         assert state_b == EmbargoConsentState.AGREED
@@ -241,14 +272,14 @@ class TestMultiParticipantConsentChain:
         participant_a = _participant(_ACTOR_A)
         participant_b = _participant(_ACTOR_B, EmbargoConsentState.INVITED)
 
-        _run_sign_node(bt_scenario, participant_a)
+        participant_a = _run_sign_node(bt_scenario, participant_a)
         # A is now a signatory; B still INVITED
         assert (
             participant_b.consent_for(_EMBARGO_ID)
             == EmbargoConsentState.INVITED
         )
 
-        _run_sign_node(bt_scenario, participant_b)
+        participant_b = _run_sign_node(bt_scenario, participant_b)
         # Now B is a signatory; A unchanged
         assert participant_a.is_signatory(_EMBARGO_ID)
         assert participant_b.is_signatory(_EMBARGO_ID)
@@ -275,7 +306,8 @@ class TestLapsedToSignatory:
         assert participant.has_lapsed(_REGISTER)
         assert not participant.is_signatory(_EMBARGO_ID)
 
-        final = _run_sign_node(bt_scenario, participant)
+        participant = _run_sign_node(bt_scenario, participant)
+        final = participant.consent_for(_EMBARGO_ID)
         assert final == EmbargoConsentState.AGREED, (
             f"A lapsed participant must reach AGREED, got {final!r}"
         )

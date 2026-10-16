@@ -41,6 +41,7 @@ from vultron.demo.helpers.polling import (
     wait_for_initialized_case,
     wait_for_participant_rm_state,
     wait_for_report_submission_stored,
+    wait_for_reporter_introduction,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _fetch_participant
@@ -56,7 +57,6 @@ from vultron.demo.utils import (
     post_to_inbox_and_wait,
     ref_id,
     seed_case_actor,
-    seed_case_actor_for_report,
     verify_object_stored,
 )
 from vultron.enums.roles import CVDRole
@@ -65,7 +65,6 @@ from vultron.wire.as2.factories import (
     add_report_to_case_activity,
     parse_submit_report_offer,
     reject_embargo_proposal_activity,
-    rm_submit_report_activity,
     rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -116,23 +115,28 @@ def reporter_submits_report(
     receiver_client: DataLayerClient,
     reporter: as_Actor,
     receiver: as_Actor,
-    reporter_client: DataLayerClient | None = None,
+    reporter_client: DataLayerClient,
     proposed_embargo_end_time: datetime | None = None,
+    report_name: str = _DEMO_REPORT_NAME,
+    report_content: str = _DEMO_REPORT_CONTENT,
 ) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Reporter creates a vulnerability report and submits it to the receiver.
 
-    When ``reporter_client`` is provided (e.g. in a multi-container Docker
-    demo), the report and offer are created via the reporter container's
-    ``submit-report`` trigger endpoint so that the reporter container logs tell
-    the full process-flow story (D5-6a).  The trigger's own outbox is the sole
-    delivery of the offer to the receiver's inbox; this function never re-posts
-    it.  The receiver's CaseActor has a stable identity (#1872), so it is
-    provisioned before the trigger, and the function then waits for the report
-    and offer to land in the receiver's own store (EDF-06-002, EDF-06-003).
+    The report and offer are created via the reporter's own ``submit-report``
+    trigger, never built here and posted into the receiver's inbox
+    (DEMOMA-05-001).  The trigger is where the reporter writes its trust
+    anchor, the pending ``ReportCaseLink`` naming *receiver* (CBT-01-005);
+    without it the reporter refuses the receiver's case introduction on the
+    unanchored route (CBT-01-011, #4675).  It also makes the reporter's logs
+    tell the full process-flow story (D5-6a).  The trigger's own outbox is the
+    sole delivery of the offer to the receiver's inbox; this function never
+    re-posts it.  The receiver's CaseActor has a stable identity (#1872), so
+    it is provisioned before the trigger, and the function then waits for the
+    report and offer to land in the receiver's own store (EDF-06-002,
+    EDF-06-003).
 
-    When ``reporter_client`` is ``None`` (e.g. single-container integration
-    tests), the report and offer are constructed in memory and posted directly
-    to the receiver container (backward-compatible path).
+    In a single-container exchange demo, pass the one client as both
+    *receiver_client* and *reporter_client*.
 
     **Default embargo — no explicit negotiation required.**
     When the receiver processes the submitted report,
@@ -163,79 +167,94 @@ def reporter_submits_report(
         receiver_client: Client connected to the receiver's container.
         reporter: Reporter ``as_Actor``.
         receiver: Receiver ``as_Actor``.
-        reporter_client: Optional client connected to the reporter container.
-            When provided, the submit-report trigger is called on the reporter
-            container; when absent the legacy in-memory path is used.
+        reporter_client: Client connected to the reporter's container, where
+            the ``submit-report`` trigger is called.
         proposed_embargo_end_time: The Reporter's proposed embargo end for this
             report, timezone-aware and in the future; ``None`` proposes
             nothing.
+        report_name: ``name`` of the submitted report.
+        report_content: ``content`` of the submitted report.
 
     Returns:
         Tuple of ``(report, offer)``.
     """
-    if reporter_client is not None:
-        with demo_step("Provision the receiver's CaseActor"):
-            _provision_case_actor(receiver_client)
-        result = None
-        with demo_step(
-            "Reporter submits vulnerability report to receiver's inbox"
-        ):
-            result = ActorSession(
-                client=reporter_client, actor=reporter
-            ).submit_report(
-                report_name=_DEMO_REPORT_NAME,
-                report_content=_DEMO_REPORT_CONTENT,
-                recipient_id=receiver.id_,
-                proposed_embargo_end_time=proposed_embargo_end_time,
-            )
-        offer_dict = (result.offer or {}) if result is not None else {}
-        report, offer = parse_submit_report_offer(offer_dict)
-        # No hand delivery: the trigger's outbox already delivered the offer
-        # (ADR-0012 isolation means it is stored only in the reporter's
-        # namespace until that delivery lands). Gate on the effect in the
-        # receiver's own store instead, naming the receiver rather than relying
-        # on `receiver_client`'s binding (ADR-0073).
-        with demo_check("Report and offer stored in receiver's DataLayer"):
-            wait_for_report_submission_stored(
-                receiver_client, receiver.id_, report.id_, offer.id_
-            )
-    else:
-        report = as_VulnerabilityReport(
-            attributed_to=reporter.id_,
-            name=_DEMO_REPORT_NAME,
-            content=_DEMO_REPORT_CONTENT,
+    with demo_step("Provision the receiver's CaseActor"):
+        _provision_case_actor(receiver_client)
+    result = None
+    with demo_step(
+        "Reporter submits vulnerability report to receiver's inbox"
+    ):
+        result = ActorSession(
+            client=reporter_client, actor=reporter
+        ).submit_report(
+            report_name=report_name,
+            report_content=report_content,
+            recipient_id=receiver.id_,
+            proposed_embargo_end_time=proposed_embargo_end_time,
         )
-        proposed_embargo = (
-            as_EmbargoEvent(
-                context=report.id_, end_time=proposed_embargo_end_time
-            )
-            if proposed_embargo_end_time is not None
-            else None
+    offer_dict = (result.offer or {}) if result is not None else {}
+    report, offer = parse_submit_report_offer(offer_dict)
+    # No hand delivery: the trigger's outbox already delivered the offer
+    # (ADR-0012 isolation means it is stored only in the reporter's
+    # namespace until that delivery lands). Gate on the effect in the
+    # receiver's own store instead, naming the receiver rather than relying
+    # on `receiver_client`'s binding (ADR-0073).
+    with demo_check("Report and offer stored in receiver's DataLayer"):
+        wait_for_report_submission_stored(
+            receiver_client, receiver.id_, report.id_, offer.id_
         )
-        offer = rm_submit_report_activity(
-            report,
-            actor=reporter.id_,
-            target=receiver.id_,
-            to=receiver.id_,
-            proposed_embargo=proposed_embargo,
-        )
-        with demo_step(
-            "Reporter submits vulnerability report to receiver's inbox"
-        ):
-            _provision_case_actor(receiver_client)
-            post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
-        # These checks name the receiver explicitly rather than relying on
-        # `receiver_client`'s binding (ADR-0073).
-        with demo_check("Report stored in receiver's DataLayer"):
-            verify_object_stored(
-                receiver_client, report.id_, actor_id=receiver.id_
-            )
-        with demo_check("Offer stored in receiver's DataLayer"):
-            verify_object_stored(
-                receiver_client, offer.id_, actor_id=receiver.id_
-            )
     logger.info("Report submitted: %s", ref_id(report))
     return report, offer
+
+
+def verify_reporter_trusts_introduction(
+    reporter_client: DataLayerClient,
+    reporter: as_Actor,
+    receiver: as_Actor,
+    report: as_VulnerabilityReport,
+    case_id: str | None = None,
+) -> str | None:
+    """Check the reporter took the receiver's case introduction on the trusted route.
+
+    The receiver of a report introduces the case to the reporter with its own
+    ``Create(VulnerabilityCase)`` (CBT-01-001, ADR-0132).  The reporter
+    accepts it only against the anchor its ``submit-report`` trigger wrote
+    (CBT-01-005), and then binds that link to the case, naming the receiver
+    as ``case_creator_id``.  Every demo that submits through
+    :func:`reporter_submits_report` calls this once the case exists, so the
+    trusted bootstrap is shown, not assumed (#4675).
+
+    A ``demo_check``: nothing in the exchange demos reads the result, so a
+    timeout is recorded and the run goes on (EDF-06-005).
+
+    Args:
+        reporter_client: Client connected to the reporter's container.
+        reporter: The report submitter.
+        receiver: The actor the report was submitted to.
+        report: The submitted report.
+        case_id: The case the receiver opened for the report, when the demo
+            knows it; the link must then be bound to that case.  ``None``
+            checks only that the link is bound to some case, which is all a
+            demo that also mints a second case through ``create-case`` can
+            say: the introduction is of the case opened on receipt.
+
+    Returns:
+        The id of the case the reporter's link is bound to, or ``None`` when
+        the check failed and was recorded.
+    """
+    bound_case_id = None
+    with demo_check(
+        "Reporter accepted the receiver's case introduction on the trusted"
+        " route (CBT-01-005)"
+    ):
+        bound_case_id = wait_for_reporter_introduction(
+            reporter_client,
+            reporter.id_,
+            receiver.id_,
+            report.id_,
+            case_id=case_id,
+        )
+    return bound_case_id
 
 
 def receiver_validates_report(
@@ -858,6 +877,81 @@ def seat_participant_through_stub_invite(
     return participant
 
 
+def submit_validate_and_create_case(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    *,
+    report_name: str,
+    report_content: str,
+    validation_note: str,
+    case_name: str,
+    case_content: str,
+    stub_summary: str | None = None,
+) -> tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
+    """Take a report from submission to a vendor-minted case holding it.
+
+    The shared opening of the single-container exchange demos whose vendor
+    mints its case through ``create-case`` (DEMOMA-17-001, #4770):
+
+    1. The finder submits the report through its own ``submit-report``
+       trigger (:func:`reporter_submits_report`).
+    2. The vendor validates it with a Report Valid (RV),
+       ``Accept(Offer(VulnerabilityReport))``, posted to its own inbox.
+    3. The vendor mints the case through the ``create-case`` trigger
+       (:func:`create_case_via_trigger`), which seats it as CASE_OWNER and
+       CASE_MANAGER.
+    4. The vendor adds the report to that case.
+    5. The finder is checked to have taken the vendor's introduction of the
+       case opened on receipt on the trusted route
+       (:func:`verify_reporter_trusts_introduction`).
+
+    Args:
+        client: DataLayerClient for the shared container.
+        finder: The reporting ``as_Actor``.
+        vendor: The receiving vendor ``as_Actor``.
+        report_name: ``name`` of the submitted report.
+        report_content: ``content`` of the submitted report.
+        validation_note: ``content`` of the vendor's Report Valid.
+        case_name: ``name`` of the minted case.
+        case_content: ``content`` of the minted case.
+        stub_summary: The minted case's ``stub_summary``, for a demo that
+            later invites to it (CM-17-010); ``None`` sets none.
+
+    Returns:
+        Tuple of ``(report, case)``, the case being the trigger-minted one.
+    """
+    report, report_offer = reporter_submits_report(
+        client,
+        finder,
+        vendor,
+        reporter_client=client,
+        report_name=report_name,
+        report_content=report_content,
+    )
+
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
+    validate_activity = rm_validate_report_activity(
+        offer, actor=vendor.id_, content=validation_note
+    )
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
+
+    case = create_case_via_trigger(
+        client,
+        vendor,
+        name=case_name,
+        content=case_content,
+        stub_summary=stub_summary,
+    )
+
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    return report, case
+
+
 def setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
@@ -872,18 +966,21 @@ def setup_initialized_case(
     CaseActor service identity — ownership transfer among them — or the routing
     silently degrades to the direct peer-to-peer path (a failure under CM-24-006).
 
-    Performs the standard 7-step setup shared by ``invite_actor_demo``,
+    Performs the standard setup shared by ``invite_actor_demo``,
     ``suggest_actor_demo``, and ``status_updates_demo``:
 
-    1. Finder submits report → vendor inbox
-    2. Vendor validates the report
-    3. Vendor creates the case (via trigger endpoint — registers CASE_OWNER+CASE_MANAGER)
-    4. Vendor adds the report to the case
-    5. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
+    1. :func:`submit_validate_and_create_case`: the finder submits the
+       report through its own ``submit-report`` trigger, which writes the
+       anchor it checks the vendor's case introduction against (CBT-01-005);
+       the vendor validates it, creates the case through the trigger endpoint
+       (registering CASE_OWNER+CASE_MANAGER) and adds the report to it; and
+       the finder is checked to have taken the vendor's introduction of the
+       case it created on receipt on the trusted route
+    2. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
        sends the stub Invite
-    6. Finder accepts, which seats it as FINDER (ADR-0114;
+    3. Finder accepts, which seats it as FINDER (ADR-0114;
        ``Add(CaseParticipant)`` only reinstates, CM-31-011)
-    7. Logs final case state
+    4. Logs final case state
 
     Args:
         client: DataLayerClient for the shared (or single) container.
@@ -893,40 +990,24 @@ def setup_initialized_case(
     Returns:
         The newly created ``as_VulnerabilityCase``.
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A remote code execution vulnerability in the web framework.",
-        name="Remote Code Execution Vulnerability",
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — remote code execution via unsanitized input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = create_case_via_trigger(
+    _report, case = submit_validate_and_create_case(
         client,
+        finder,
         vendor,
-        name="RCE Case — Web Framework",
-        content="Tracking the RCE vulnerability in the web framework.",
+        report_name="Remote Code Execution Vulnerability",
+        report_content=(
+            "A remote code execution vulnerability in the web framework."
+        ),
+        validation_note=(
+            "Confirmed — remote code execution via unsanitized input."
+        ),
+        case_name="RCE Case — Web Framework",
+        case_content="Tracking the RCE vulnerability in the web framework.",
         stub_summary=(
             "Remote code execution in web framework"
             " — details shared after acceptance."
         ),
     )
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
     seat_participant_through_stub_invite(
         client, case, owner=vendor, invitee=finder, role=CVDRole.FINDER
@@ -948,12 +1029,14 @@ def setup_canonical_case(
     """Create a **CaseActor-owned** case and return it with the CaseActor's URI.
 
     Unlike :func:`setup_initialized_case`, which has the vendor mint the case
-    itself, this drives the canonical path: the finder submits a report, the
-    vendor validates it, ``ProposeReportCaseToActorNode`` sends a
-    ``Create(CaseProposal)`` to the CaseActor, and the CaseActor creates the
-    ``VulnerabilityCase``, registering vendor (``CASE_OWNER``),
-    finder/reporter, and itself (``CASE_MANAGER``) as the initial participants
-    (ADR-0041, CP-01-004).
+    itself, this drives the canonical path: the finder submits a report
+    through its own ``submit-report`` trigger, the vendor validates it,
+    ``ProposeReportCaseToActorNode`` sends a ``Create(CaseProposal)`` to the
+    CaseActor, and the CaseActor creates the ``VulnerabilityCase``,
+    registering vendor (``CASE_OWNER``), finder/reporter, and itself
+    (``CASE_MANAGER``) as the initial participants (ADR-0041, CP-01-004).
+    The vendor then introduces the case to the finder, which accepts it on
+    the trusted route (CBT-01-001, CBT-01-005).
 
     Any exchange that must route through the CaseActor — the ownership-transfer
     handshake (ADR-0053, CM-21-005/006) among them — needs this setup rather
@@ -981,16 +1064,14 @@ def setup_canonical_case(
             symptom lands far away: the CM-gated forward skips silently, and the
             dependent gate times out reporting a delivery problem.
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content=report_content,
-        name=report_name,
+    report, report_offer = reporter_submits_report(
+        client,
+        finder,
+        vendor,
+        reporter_client=client,
+        report_name=report_name,
+        report_content=report_content,
     )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    seed_case_actor_for_report(client, report.id_)
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = rm_validate_report_activity(
@@ -1001,6 +1082,9 @@ def setup_canonical_case(
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = wait_for_initialized_case(client, report.id_)
+    verify_reporter_trusts_introduction(
+        client, finder, vendor, report, case_id=case.id_
+    )
     # Attach a stub_summary so demo Invites carry the required non-empty
     # summary (CM-17-010, MV-10-001, #4165).  The BT-created case never has
     # this field; set it on the local object before any Invite factory call.
@@ -1152,7 +1236,7 @@ def setup_two_participant_case(
     embargo messages are accepted only from a sender with standing on a case
     that names a CASE_MANAGER (ADR-0115, EP-09).
 
-    1. The 7-step initialised case (:func:`setup_initialized_case`)
+    1. The initialised case (:func:`setup_initialized_case`)
     2. The coordinator is seated through its stub Invite
        (:func:`seat_participant_through_stub_invite`), which raises when it
        is not seated

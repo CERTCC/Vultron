@@ -187,6 +187,38 @@ def test_extract_intent_embargo_pass_through_fields():
     assert e.updated == now
 
 
+@pytest.mark.spec("CM-23-016")
+def test_extract_intent_embargo_keeps_its_descriptive_fields():
+    """An embargo's content and summary survive extraction (#4782).
+
+    The CASE_MANAGER stores the embargo it extracts, while replicas copy
+    the one its committed entry carries; dropping a field here made the two
+    differ.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    embargo = as_EmbargoEvent(
+        context="https://example.org/cases/1",
+        content="Terms",
+        summary="Thirty days",
+        end_time=days_from_now_utc(30),
+    )
+    activity = as_Invite(
+        actor="https://example.org/alice",
+        object_=embargo,
+        context="https://example.org/cases/1",
+    )
+    event = extract_event(activity)
+
+    e = cast(Any, event.object_)
+    assert e is not None
+    assert (e.content, e.summary) == ("Terms", "Thirty days")
+    assert e.model_dump() == embargo.model_dump()
+
+
 @pytest.mark.spec("VAM-07-001")
 def test_extract_intent_note_pass_through_fields():
     """New VultronNote fields (summary, url) survive extraction."""

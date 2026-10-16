@@ -22,7 +22,10 @@ import logging
 
 import pytest
 
-from test.demo._helpers import route_exchange_demo_at_testclient
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    route_exchange_demo_at_testclient,
+)
 from vultron.demo.exchange import report_with_embargo_demo as demo
 
 
@@ -75,7 +78,10 @@ def test_demo(demo_env, demo_fn, verified, caplog):
     are logged only by the verification that ran to its end, so a run whose
     ``demo_gate`` never opened cannot pass by silence (#2241).
     """
-    with caplog.at_level(logging.INFO):
+    with (
+        caplog.at_level(logging.INFO),
+        expect_trusted_introductions(caplog),
+    ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 
     assert "ERROR SUMMARY" not in caplog.text, (

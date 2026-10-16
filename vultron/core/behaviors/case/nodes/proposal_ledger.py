@@ -44,6 +44,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.errors import VultronError
 
@@ -306,6 +307,15 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     ) -> None:
         assert self.datalayer is not None
         port = self._require_trigger_activity_port()
+        # The owner as the case spells it, when it is this proposer: a case
+        # stored before #4772 may hold the sender's trailing-slash spelling,
+        # and the equivalence check compares the snapshot's actor verbatim.
+        stored_owner = _as_id(case.attributed_to)
+        actor = (
+            stored_owner
+            if stored_owner and same_actor_id(stored_owner, self._owner_uri)
+            else self._owner_uri
+        )
         for status_ref in case.case_statuses:
             if isinstance(status_ref, CaseStatus):
                 status = status_ref
@@ -320,7 +330,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             if not status_id:
                 continue
             activity = port.record_case_status_added(
-                status=status, case_id=case_id, actor=self._owner_uri
+                status=status, case_id=case_id, actor=actor
             )
             self._commit_one(
                 case_id, status_id, "add_case_status_to_case", activity

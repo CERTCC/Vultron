@@ -35,6 +35,9 @@ from vultron.core.behaviors.embargo.nodes import (
     IsWithdrawableEmbargoNode,
     RecordParticipantWithdrawalNode,
 )
+from vultron.core.behaviors.embargo.nodes.withdrawal import (
+    case_manager_admits_withdrawal_guard,
+)
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import SenderCheckContext
 
@@ -56,16 +59,22 @@ def withdraw_from_embargo_on_case_tree(
         ├─ <sender guard>                        # composed from sender_rule
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
         │                                        # and redelivery (HP-01-003)
-        ├─ GuardedCommitCaseLedgerEntryBT
+        ├─ EmbargoWithdrawalApplies (CASE_MANAGER gate)  # staged decision
+        ├─ GuardedCommitCaseLedgerEntryBT        # the Leave's own entry
         └─ RecordEmbargoWithdrawal (CASE_MANAGER gate)
-           └─ RecordParticipantWithdrawalNode    # consent (MSM-07-010)
+           └─ RecordParticipantWithdrawalNode    # each declined row's entry
 
     The guard refuses, with the reason, a Leave of an embargo that is not
     the one in force, from a row that is not ``AGREED``, or from the case
     owner, which ends an embargo by terminating it (CM-02-005), before the
     commit, so no replica is sent an entry it cannot replay (SYNC-12-001).
-    The effect declines the sender's row for the embargo in force and every
-    open proposal's row it had agreed to; it moves no register entry.
+    The CASE_MANAGER also decides the withdrawal on a staged store among the
+    guards, so a Leave whose entries would not apply is refused uncommitted
+    too (ADR-0124).  The Leave's entry carries no row: after it, the effect
+    commits each row the withdrawal declines (the sender's row for the
+    embargo in force and every open proposal's row it had agreed to) as the
+    CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, then applies them by
+    copying (CLP-07-013); it moves no register entry.
 
     Args:
         case_id: ID of the VulnerabilityCase (the Leave's ``context``).
@@ -94,6 +103,9 @@ def withdraw_from_embargo_on_case_tree(
                 embargo_id=embargo_id,
                 withdrawing_actor_id=withdrawing_actor_id,
                 activity_id=activity_id,
+            ),
+            case_manager_admits_withdrawal_guard(
+                case_id, embargo_id, withdrawing_actor_id
             ),
         ],
         manager_effects=[
