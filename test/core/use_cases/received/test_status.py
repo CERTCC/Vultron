@@ -18,6 +18,7 @@ from typing import cast
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
     seed_case_participant,
     seed_store_owner_as_case_manager,
 )
@@ -335,7 +336,10 @@ class TestStatusUseCases:
         "rejected" to KEY_OUTCOME_STATUS and surfaces a rejected InboxOutcome
         rather than a silent 202 Accepted / processed (HP-01-003).
         """
-        receiver_id = "https://example.org/users/vendor-ps-ac2"
+        # The filter runs at the CASE_MANAGER: a replica takes the update
+        # from the CASE_MANAGER alone and refuses this sender first
+        # (PCR-03-001).
+        receiver_id = "https://example.org/users/case-manager-ps-ac2"
         sender_id = "https://example.org/users/vendor-ps-ac2"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
 
@@ -361,6 +365,7 @@ class TestStatusUseCases:
         )
         case.case_participants.append(participant.id_)
         case.actor_participant_index[sender_id] = participant.id_
+        seed_case_manager_participant(dl, case, receiver_id)
         dl.create(case)
 
         # A backward RM with no other change — filter will refuse it in full

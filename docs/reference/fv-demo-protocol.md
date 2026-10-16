@@ -71,10 +71,10 @@ sequenceDiagram
     note over F,CA: ✓ M2 — Finder replica matches the Vendor replica
 
     note over F,CA: Phase 3 — Notes exchange
-    F->>CA: Create(Note) — General Inquiry (GI)
+    F->>CA: Add(Note, target=VulnerabilityCase) — General Inquiry (GI)
     CA-->>V: Announce(CaseLedgerEntry)
     CA-->>F: Announce(CaseLedgerEntry)
-    V->>CA: Create(Note) — reply
+    V->>CA: Add(Note, target=VulnerabilityCase) — reply
     CA-->>V: Announce(CaseLedgerEntry)
     CA-->>F: Announce(CaseLedgerEntry)
     note over F,CA: ✅ M3 — Vendor holds the authoritative final case state
@@ -244,14 +244,14 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
-| `Create(Note)` | [Create note](messages/general.md#create-note) | Participant → Case Actor |
+| `Add(Note)[target=VulnerabilityCase]` | [Add note to case](messages/general.md#add-note-to-case) | Participant → Case Actor |
 | `Announce(CaseLedgerEntry)` | [Announce case ledger entry](messages/ledger_replication.md#announce-case-ledger-entry) | Case Actor → every other participant |
 
 ### What happens
 
-1. The Finder's trigger sends one `Create(Note)` to the Case Actor.
-   The note's `context` names the case, and the `Create` has no `target`.
-2. The Case Actor commits the `Create(Note)` as a `create_note` ledger entry and attaches the note to the case, because the note's `context` names the case.
+1. The Finder's trigger sends one `Add(Note)` to the Case Actor.
+   The `Add` names the case as its `target` and carries the note inline as its `object`.
+2. The Case Actor stores the note, attaches it to the case and commits the `Add(Note)` as an `add_note_to_case` ledger entry.
    It fans the entry out, and each replica attaches the note when it applies the entry.
 3. The Vendor replies the same way, with the reply note's `inReplyTo` naming the question.
 4. Both replicas end up holding both notes.
@@ -418,8 +418,8 @@ The exact count of `add_participant_status_to_participant` and `add_case_status_
 | 7 | `add_case_status_to_case` | Vendor (initial case status, `EM.ACTIVE`) | 1 |
 | 8 | `validate_report` | Vendor | 1 |
 | 9 | `engage_case` | Vendor | 1 |
-| 10 | `create_note` | Finder | 3 |
-| 11 | `create_note` | Vendor | 3 |
+| 10 | `add_note_to_case` | Finder | 3 |
+| 11 | `add_note_to_case` | Vendor | 3 |
 | 12–15 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
 | 16–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
 | 18–19 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |

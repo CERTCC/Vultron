@@ -49,18 +49,17 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
 
     Creates the note in the actor's datalayer with the case as its
     ``context``, adds it to the actor's local copy of the case, and queues
-    one ``Create(Note)`` in the actor's outbox for delivery to the
-    CASE_MANAGER.  The ``Create`` has no ``target``: the note's ``context``
-    names the case, and the CASE_MANAGER attaches the note and commits a
-    ``create_note`` entry from it, which replicas apply.  Sending a separate
-    ``Add(Note, target=Case)`` as well is a valid protocol form that receivers
-    accept, but this trigger does not use it, so one note makes one entry.
+    one ``Add(Note)`` in the actor's outbox for delivery to the
+    CASE_MANAGER.  The ``Add`` names the case as its ``target`` and carries
+    the note inline as its ``object`` (VAM-07-002, VAM-01-010); no
+    ``Create(Note)`` is sent.  The CASE_MANAGER attaches the note and commits
+    one ``add_note_to_case`` entry from it, which replicas apply.
 
     Routing (CASE_MANAGER resolution), activity construction, and outbox
     queueing are delegated to :func:`sender_side_bt` per PCR-08-001.
 
-    After successful activity queueing, records the ``Create(Note)`` in the
-    actor's pending-assertion store under ``create_note``; the matching
+    After successful activity queueing, records the ``Add(Note)`` in the
+    actor's pending-assertion store under ``add_note_to_case``; the matching
     ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-002, SYNC-11-003).
     Unlike the add-object trigger, this one suppresses no repeat: every run
     mints a new note, so a second request is a second note, never a repeat
@@ -82,17 +81,18 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
 
         def _build_activities(case_manager_id: str) -> list[str]:
             note_id = str(self._result_out["note_id"])
-            create_id, create_body = self._factory.create_note_activity(
-                actor=self._actor_id,
+            add_id, add_body = self._factory.add_note_to_case(
                 note_id=note_id,
+                case_id=self._case_id,
+                actor=self._actor_id,
                 to=[case_manager_id],
             )
-            self._captured["activity"] = json.loads(create_body)
+            self._captured["activity"] = json.loads(add_body)
             # The CASE_MANAGER keeps no pending assertion for its own case:
             # its commit is the authoritative write (SYNC-11-004).
             if not same_actor_id(case_manager_id, self._actor_id):
-                self._result_out[ASSERTED_ACTIVITY_KEY] = create_id
-            return [create_id]
+                self._result_out[ASSERTED_ACTIVITY_KEY] = add_id
+            return [add_id]
 
         return add_note_to_case_trigger_bt(
             case_id=self._case_id,
@@ -113,7 +113,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
             self._case_id,
         )
         self._record_asserted_activity(
-            self._case_id, MessageSemantics.CREATE_NOTE.value
+            self._case_id, MessageSemantics.ADD_NOTE_TO_CASE.value
         )
 
     def _build_result(self) -> NoteResult:

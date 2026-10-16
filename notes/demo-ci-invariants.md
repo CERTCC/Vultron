@@ -197,7 +197,7 @@ annotations such as `(≥3)` belong to the count tests and are not checked.
 | FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
 | FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
-| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, create_note, engage_case | (none) |
+| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
 | FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
 | FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |

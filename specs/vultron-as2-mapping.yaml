@@ -103,9 +103,10 @@ groups:
     kind: project
     statement: >-
       This codebase MUST send a `CaseStatus` or a `ParticipantStatus` inline on the
-      single `Add` that attaches it (VAM-08-002, VAM-08-004), and MUST send a proposed
-      `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An inbox
-      MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
+      single `Add` that attaches it (VAM-08-002, VAM-08-004), MUST send a `Note`
+      inline on the single `Add(Note)` that attaches it (VAM-07-002), and MUST send a
+      proposed `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An
+      inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
       `Create(Event)` or `Create(CaseParticipant)` as an unrecognized activity.
     rationale: >-
       VAM-01-011 makes the single message the only protocol form and leaves how a
@@ -116,8 +117,19 @@ groups:
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_object_types.py`, the
       `test_rejects_string` and `test_rejects_link` tests of
-      `TestAddStatusToCaseActivity` and `TestAddStatusToParticipantActivity` confirm
-      that each status `Add` refuses an object given by reference.
+      `TestAddStatusToCaseActivity`, `TestAddStatusToParticipantActivity` and
+      `TestAddNoteToCaseActivity` confirm that each status `Add` and the note `Add`
+      refuse an object given by reference. For the note emitters,
+      `test_one_add_note_queued_in_outbox` in
+      `test/core/use_cases/triggers/test_note_trigger.py` confirms that the add-note
+      trigger sends one `Add(Note)` with the note inline and the case as `target`.
+      `test_gap_anomaly_emits_note` and `test_regression_anomaly_emits_note` in
+      `test/core/behaviors/status/test_add_participant_status_bt.py`,
+      `test_blocked_gate_invariant_violated_note_posted` in
+      `test/core/behaviors/status/test_add_case_status_bt.py` and
+      `test_note_travels_inline_on_the_add` in
+      `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` confirm
+      the same for each CASE_MANAGER note.
       `test_em_propose_embargo_refuses_terms_by_uri` in
       `test/wire/as2/factories/test_embargo_factories.py` confirms that the proposal
       factory refuses terms given by URI. The parametrized test
@@ -135,6 +147,8 @@ groups:
       spec_id: VAM-08-004
     - rel_type: implements
       spec_id: VAM-05-005
+    - rel_type: implements
+      spec_id: VAM-07-002
   - id: VAM-01-011
     priority: MUST
     kind: protocol

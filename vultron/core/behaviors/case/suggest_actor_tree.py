@@ -399,8 +399,12 @@ def create_recommend_actor_to_case_received_tree(
         name="RecommendActorToCaseBT",
         case_id=case_id,
         sender_rule=sender_rule,
+        # A replica takes the Offer from the CASE_MANAGER alone, so with no
+        # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).
         sender_context=SenderCheckContext(
-            sender_id=recommender_id, case_id=case_id
+            sender_id=recommender_id,
+            case_id=case_id,
+            case_manager_required=True,
         ),
         precondition_guards=[
             case_manager_admits_suggested_actor_guard(

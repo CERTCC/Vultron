@@ -36,7 +36,7 @@ split".
 Columns are `CaseLedgerEntry.event_type` values, each a distinct coordination
 protocol phase recorded in the replicated ledger.
 
-| Scenario | validate_report | add_participant_status_to_participant | close_case | create_note | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | activate_embargo_on_case | remove_embargo_event_from_case |
+| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | activate_embargo_on_case | remove_embargo_event_from_case |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
 | fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |

@@ -54,10 +54,11 @@ class OfferActorToCaseReceivedUseCase:
 
     Only a participant of the case may suggest an actor (CM-16-001): an Offer
     from anyone else is refused before the case ledger is written, so nothing is
-    forwarded to the Case Owner (HP-01-006, #3668).
+    forwarded to the Case Owner (HP-01-006, #3668).  A participant replica
+    takes a copy from the CASE_MANAGER alone (PCR-03-001, #4646).
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.PARTICIPANT
     )
 
