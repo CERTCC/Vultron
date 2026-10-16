@@ -62,17 +62,21 @@ REPLICA_ID = "https://example.org/actors/finder"
 RECOMMENDED_ID = "https://example.org/actors/vendor-new"
 
 
-def _replica_store() -> tuple[SqliteDataLayer, CaseParticipant]:
+def _replica_store(
+    with_manager: bool = True,
+) -> tuple[SqliteDataLayer, CaseParticipant]:
     """The replica holder's own store, holding the case it replicates.
 
-    Returns the store and the vendor's participant record.
+    With *with_manager* false the case names no CASE_MANAGER.  Returns the
+    store and the vendor's participant record.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA_ID)
     dl.create(as_Actor(id_=REPLICA_ID))  # type: ignore[arg-type]
     case = as_VulnerabilityCase(
         id_=CASE_ID, name="ReplicaSenderRule", attributed_to=VENDOR_ID
     )
-    seed_case_manager_participant(dl, case, MANAGER_ID)
+    if with_manager:
+        seed_case_manager_participant(dl, case, MANAGER_ID)
     vendor = seed_case_participant(dl, case, VENDOR_ID)
     seed_case_participant(dl, case, REPLICA_ID)
     dl.create(case)
@@ -172,3 +176,23 @@ def test_replica_admits_the_case_manager(
     assert len(tree_runs) == 1
     assert _sender_guard(tree_runs[0]) is py_trees.common.Status.SUCCESS
     assert MANAGER_ID not in (result.reason or "")
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.parametrize("deliver", DELIVERIES)
+def test_replica_with_no_case_manager_refuses_a_listed_participant(
+    deliver, make_payload, tree_runs
+) -> None:
+    """A replica whose case names no CASE_MANAGER has no sender to admit.
+
+    The CASE_MANAGER check does not pass a sender through when there is no
+    CASE_MANAGER to compare with, so the vendor is still refused.
+    """
+    dl, _ = _replica_store(with_manager=False)
+
+    result = deliver(dl, make_payload, VENDOR_ID)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _sender_guard(tree_runs[0]) is py_trees.common.Status.FAILURE
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
