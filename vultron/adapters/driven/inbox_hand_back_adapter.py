@@ -28,9 +28,9 @@ entry appliable is still running when the port is called, and once it ends
 older ``inbox_handler`` queue worker also drains the queue, through its own
 dispatch step rather than ``process_payload``.  No new concurrency mechanism is
 involved, and the handed-back entry takes the same parse, route and tree path
-as any delivery (SYNC-14-008).  The entry itself is stored inline in the Announce, never on its
-own: only the replica's ``PersistReceivedLogEntry`` step writes a ledger entry
-(SYNC-13-002).
+as any delivery (SYNC-14-008).  The entry itself is stored inline in the
+Announce, never on its own: only the replica's ``PersistReceivedLogEntry`` step
+writes a ledger entry (SYNC-13-002).
 """
 
 import logging
