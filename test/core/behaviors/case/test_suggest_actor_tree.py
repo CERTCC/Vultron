@@ -1432,8 +1432,12 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
     """
     children = list(factory(**kwargs).children)
     names = [c.name for c in children]
+    # A rule whose two sides differ composes a SenderRuleGuard holding the
+    # side checks, so look for the check inside each child (HP-01-008).
     guard_index = next(
-        i for i, c in enumerate(children) if isinstance(c, guard_type)
+        i
+        for i, c in enumerate(children)
+        if any(isinstance(n, guard_type) for n in c.iterate())
     )
     commit_index = names.index("GuardedCommitCaseLedgerEntryBT")
     assert guard_index == 2, (

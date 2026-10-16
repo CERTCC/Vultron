@@ -443,8 +443,12 @@ class TestAnomalyFlagDoesNotLeakAcrossRuns:
         assert len(queued_notes(dl)) == 1, "the confirmation posts no note"
 
 
-def _status_declaration(rm: RM) -> Any:
-    """``Add(ParticipantStatus)`` declaring *rm* for the sender."""
+def _status_declaration(rm: RM, sender_id: str = ACTOR_ID) -> Any:
+    """``Add(ParticipantStatus)`` declaring *rm* for the participant.
+
+    *sender_id* sends it: the participant itself by default, or the
+    CASE_MANAGER relaying it to a replica (PCR-03-001).
+    """
     status = as_ParticipantStatus(
         id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
         context=CASE_ID,
@@ -456,7 +460,7 @@ def _status_declaration(rm: RM) -> Any:
         target=as_CaseParticipant(
             id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
         ),
-        actor=ACTOR_ID,
+        actor=sender_id,
         context=_case_ref(),
     )
 
@@ -567,10 +571,14 @@ class TestRefusedRegressionIsNoted:
     def test_only_the_case_manager_answers_a_refusal(
         self, store_for, make_payload
     ):
-        # The vendor's own replica: a participant, not the CASE_MANAGER.
+        # The vendor's own replica: a participant, not the CASE_MANAGER.  A
+        # replica takes the update from the CASE_MANAGER alone (PCR-03-001),
+        # so the CASE_MANAGER relays it and it reaches the adjudication.
         dl = store_for(ACTOR_ID)
         _seed(dl, RM.ACCEPTED)
-        status, activity = _status_declaration(RM.VALID)
+        status, activity = _status_declaration(
+            RM.VALID, sender_id=CASE_MANAGER_ID
+        )
         dl.create(status)
         event = make_payload(activity)
         bridge = BTBridge(
