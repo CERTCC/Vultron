@@ -15,6 +15,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager_refusal,
@@ -84,7 +85,13 @@ class OfferActorToCaseReceivedUseCase:
         recommender_id = request.actor_id
         case_id = request.target_id
         # Offer(Actor, Case): object_ is an as_Actor; object_id is the actor URI directly.
-        recommended_id = request.object_id
+        # It is looked up and stored as the invitee, so it is normalised
+        # where it is extracted (OID-01-006).
+        recommended_id = (
+            normalise_actor_id(request.object_id)
+            if request.object_id
+            else None
+        )
 
         if not recommended_id or not case_id:
             logger.warning(

@@ -59,6 +59,7 @@ from vultron.core.models.embargo_apply import (
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
     entry_embargo,
@@ -145,7 +146,8 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
     ) -> None:
         """Index the Invite on the proposer's replica only (EP-08-002)."""
         assert self.datalayer is not None
-        proposer_id = _extract_id_from_field(
+        # Normalised: the snapshot keeps the relay's spelling (OID-01-006).
+        proposer_id = snapshot_actor_id(
             snapshot.get(wire_key("attributed_to"))
         )
         invite_id = _extract_id_from_field(snapshot.get("id"))
@@ -340,7 +342,9 @@ class _ApplyEmbargoAnswerFromLedgerNode(_CopiedEmbargoEntryNode):
     def _change_for(
         self, entry: CaseLedgerEntry, embargo: EmbargoEvent
     ) -> EmbargoChange:
-        actor_id = _extract_id_from_field(entry.payload_snapshot.get("actor"))
+        # The answerer's row is keyed by its canonical id; the snapshot keeps
+        # the sender's spelling (OID-01-006).
+        actor_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         if not actor_id:
             raise TypeError("the answer names no actor")
         return ConsentRowChange.answer(

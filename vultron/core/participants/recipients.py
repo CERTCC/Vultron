@@ -75,6 +75,10 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import (
+    same_actor_id,
+    snapshot_actor_id,
+)
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -244,14 +248,6 @@ _PARTICIPANT_STATUS_EVENT_TYPE = (
 )
 
 
-def _snapshot_actor_id(entry: CaseLedgerEntry) -> str | None:
-    """The actor the entry's snapshot attributes its activity to."""
-    actor = entry.payload_snapshot.get("actor")
-    if isinstance(actor, dict):
-        actor = actor.get("id") or actor.get("id_")
-    return actor if isinstance(actor, str) and actor else None
-
-
 def entry_records_own_closure(
     entry: CaseLedgerEntry, actor_id: str, record: CaseParticipant
 ) -> bool:
@@ -270,7 +266,11 @@ def entry_records_own_closure(
     those steps.
     """
     if entry.event_type == _CLOSE_CASE_EVENT_TYPE:
-        return _snapshot_actor_id(entry) == actor_id
+        # The snapshot keeps the leaver's own spelling (OID-01-006).
+        snapshot_actor = snapshot_actor_id(entry.payload_snapshot.get("actor"))
+        return snapshot_actor is not None and same_actor_id(
+            snapshot_actor, actor_id
+        )
     if entry.event_type == _PARTICIPANT_STATUS_EVENT_TYPE:
         return any(
             status.id_ == entry.log_object_id
