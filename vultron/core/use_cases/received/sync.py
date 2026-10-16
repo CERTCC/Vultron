@@ -29,8 +29,8 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sync.announce_tree import (
-    SENDER_IS_CASE_MANAGER,
-    SENDER_IS_OWN_CASE_MANAGER,
+    ANNOUNCE_ROLES,
+    AT_CASE_MANAGER,
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
@@ -78,6 +78,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     node_succeeded,
     not_case_manager_refusal,
+    post_close_refusal,
     verdict_from_bt,
 )
 from vultron.errors import VultronValidationError
@@ -98,7 +99,9 @@ def _run_announce_bt(
     Returns the tree along with the result so the caller can tell which
     branch decided the outcome (#2255).
     """
-    tree = create_announce_log_entry_tree()
+    tree = create_announce_log_entry_tree(
+        sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+    )
     result = BTBridge(
         datalayer=dl,
         wire_render_port=wire_render_port,
@@ -125,10 +128,9 @@ def _announce_verdict(
     """
     verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
     if verdict.disposition is HandlerDisposition.APPLIED:
-        if (
-            named_node_status(tree, SENDER_IS_OWN_CASE_MANAGER)
-            is Status.SUCCESS
-        ):
+        # Past the sender guard, an announcement the CASE_MANAGER admits is
+        # its own (SYNC-13-006).
+        if named_node_status(tree, AT_CASE_MANAGER) is Status.SUCCESS:
             return HandlerResult.skipped(
                 f"own announcement of ledger entry '{entry.id_}' echoed back;"
                 " delivery confirmed"
@@ -169,15 +171,15 @@ def _refused_announce_verdict(
             f"ledger entry '{entry.id_}' buffered until case"
             f" '{entry.case_id}' is seeded (SYNC-15-004)"
         )
-    if named_node_status(tree, SENDER_IS_OWN_CASE_MANAGER) is Status.FAILURE:
+    if (
+        named_node_status(tree, ANNOUNCE_ROLES) is Status.INVALID
+        and post_close_refusal(tree) is None
+    ):
+        # The role arms never ran, so the sender guard refused the sender.
         return HandlerResult.refused(
-            f"CASE_MANAGER does not accept an announcement of ledger entry"
-            f" '{entry.id_}' from '{request.actor_id}'"
-        )
-    if named_node_status(tree, SENDER_IS_CASE_MANAGER) is Status.FAILURE:
-        return HandlerResult.refused(
-            f"sender '{request.actor_id}' is not the CaseActor for case"
-            f" '{entry.case_id}' (SYNC-13-006)"
+            f"sender '{request.actor_id}' is not the CASE_MANAGER of case"
+            f" '{entry.case_id}', so its announcement of ledger entry"
+            f" '{entry.id_}' is not accepted (SYNC-13-006, HP-01-006)"
         )
     if node_failed(tree, SendRejectLogEntryNode):
         if node_failed(tree, ReconstructChainTailNode):
@@ -461,7 +463,9 @@ class RejectLedgerEntryReceivedUseCase:
             rejected_entry.case_id,
             request.last_accepted_hash,
         )
-        tree = create_reject_log_entry_tree(rejected_entry.case_id)
+        tree = create_reject_log_entry_tree(
+            rejected_entry.case_id, sender_rule=self.sender_entitlement
+        )
         result = BTBridge(
             datalayer=self._dl,
             sync_port=self._sync_port,

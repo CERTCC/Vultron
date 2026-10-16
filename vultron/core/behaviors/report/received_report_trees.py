@@ -38,6 +38,7 @@ Per issue #759 AC-1 through AC-4.
 """
 
 import logging
+from typing import NamedTuple
 
 import py_trees
 
@@ -56,10 +57,7 @@ from vultron.core.behaviors.report.rm_declaration_tree import (
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_subtree,
 )
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsParticipantNode,
-    SenderRule,
-)
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     ReportOfferRequest,
     SenderCheckContext,
@@ -289,21 +287,32 @@ def create_ack_report_received_tree(
     return root
 
 
+class _ReportVerdictStages(NamedTuple):
+    """The stages of a report verdict's received tree."""
+
+    case_resolution: list[py_trees.behaviour.Behaviour]
+    sender_context: SenderCheckContext
+    guards: list[py_trees.behaviour.Behaviour]
+    effects: list[py_trees.behaviour.Behaviour]
+    refusal: list[py_trees.behaviour.Behaviour]
+
+
 def _report_verdict_stages(
     request: CloseReportReceivedEvent | InvalidateReportReceivedEvent,
     case_id: str | None,
     declared_rm: RM,
     write_name: str,
-) -> tuple[
-    list[py_trees.behaviour.Behaviour],
-    list[py_trees.behaviour.Behaviour],
-    list[py_trees.behaviour.Behaviour],
-]:
-    """Return the guards, effects and refusal effects of a report verdict.
+) -> _ReportVerdictStages:
+    """Return the stages of a report verdict.
 
     The verdict declares *declared_rm* for the sender; the refusal effect is
     the RSH-06-004 note owed when the guard refuses a regression
     (CLP-10-022).
+
+    The case is resolved first (``case_resolution``), so the factory checks
+    the sender against it only once it is known: an activity about a case
+    this store does not hold is refused as such (#2255), not as an unknown
+    sender.
 
     Shared by the report-closed and report-invalid handlers, which differ only
     in the RM state their activity declares for its sender.  Each factory
@@ -314,20 +323,6 @@ def _report_verdict_stages(
     still executes in the receiving actor's store (RSH-08-001, BT-17-006).
     """
     sender_actor_id = request.actor_id
-    guards: list[py_trees.behaviour.Behaviour] = [
-        RequireCaseForReport(report_id=request.report_id),
-        # The sender is checked against the case, so the case is resolved
-        # first: an activity about a case this store does not hold is refused
-        # as such (#2255), not as an unknown sender.
-        SenderIsParticipantNode(
-            sender_actor_id=sender_actor_id,
-            case_id=case_id,
-        ),
-        rm_declaration_guard(sender_actor_id, declared_rm, case_id),
-    ]
-    effects = record_rm_declaration(
-        sender_actor_id, declared_rm, case_id, name=write_name
-    )
     logger.debug(
         "Building %s received tree for report=%s activity=%s sender=%s case=%s",
         declared_rm,
@@ -336,12 +331,24 @@ def _report_verdict_stages(
         sender_actor_id,
         case_id,
     )
-    return guards, effects, [rm_gap_note(sender_actor_id, case_id)]
+    return _ReportVerdictStages(
+        case_resolution=[RequireCaseForReport(report_id=request.report_id)],
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id, case_id=case_id
+        ),
+        guards=[rm_declaration_guard(sender_actor_id, declared_rm, case_id)],
+        effects=record_rm_declaration(
+            sender_actor_id, declared_rm, case_id, name=write_name
+        ),
+        refusal=[rm_gap_note(sender_actor_id, case_id)],
+    )
 
 
 def create_close_report_received_tree(
     request: CloseReportReceivedEvent,
     case_id: str | None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the CloseReportReceived workflow.
 
@@ -380,11 +387,14 @@ def create_close_report_received_tree(
             sender — is the subject of the RM write.
         case_id: The receiving store's case for the report, resolved by the
             use case before the tree runs; ``None`` when it holds none.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it after the case is resolved
+            (HP-01-008).
 
     Returns:
         Root node of the ``CloseReportReceivedBT`` Sequence.
     """
-    guards, effects, refusal = _report_verdict_stages(
+    stages = _report_verdict_stages(
         request,
         case_id,
         declared_rm=RM.CLOSED,
@@ -398,19 +408,24 @@ def create_close_report_received_tree(
         # replica takes it from the ledger, not from the direct Reject (#3814).
         # With no case the guards refuse before any effect.
         case_id=case_id,
-        precondition_guards=guards,
-        manager_effects=effects if case_id is not None else None,
+        sender_rule=sender_rule,
+        sender_context=stages.sender_context,
+        case_resolution=stages.case_resolution,
+        precondition_guards=stages.guards,
+        manager_effects=stages.effects if case_id is not None else None,
         manager_case_id=case_id if case_id is not None else None,
         manager_gate_name=(
             "CloseReportEffectsIfCaseManager" if case_id is not None else None
         ),
-        refusal_effects=refusal,
+        refusal_effects=stages.refusal,
     )
 
 
 def create_invalidate_report_received_tree(
     request: InvalidateReportReceivedEvent,
     case_id: str | None,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the InvalidateReportReceived workflow.
 
@@ -428,11 +443,14 @@ def create_invalidate_report_received_tree(
             sender — is the subject of the RM write.
         case_id: The receiving store's case for the report, resolved by the
             use case before the tree runs; ``None`` when it holds none.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it after the case is resolved
+            (HP-01-008).
 
     Returns:
         Root node of the ``InvalidateReportReceivedBT`` Sequence.
     """
-    guards, effects, refusal = _report_verdict_stages(
+    stages = _report_verdict_stages(
         request,
         case_id,
         declared_rm=RM.INVALID,
@@ -446,13 +464,16 @@ def create_invalidate_report_received_tree(
         # replica takes it from the ledger, not from the direct TentativeReject
         # (#3814).  With no case the guards refuse before any effect.
         case_id=case_id,
-        precondition_guards=guards,
-        manager_effects=effects if case_id is not None else None,
+        sender_rule=sender_rule,
+        sender_context=stages.sender_context,
+        case_resolution=stages.case_resolution,
+        precondition_guards=stages.guards,
+        manager_effects=stages.effects if case_id is not None else None,
         manager_case_id=case_id if case_id is not None else None,
         manager_gate_name=(
             "InvalidateReportEffectsIfCaseManager"
             if case_id is not None
             else None
         ),
-        refusal_effects=refusal,
+        refusal_effects=stages.refusal,
     )

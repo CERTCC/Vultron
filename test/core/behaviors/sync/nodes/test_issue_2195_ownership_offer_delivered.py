@@ -63,6 +63,9 @@ from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -160,7 +163,11 @@ def test_ownership_offer_object_materialized_on_coordinator_replica(
     from the Coordinator's DataLayer — otherwise ``accept-case-ownership-
     transfer`` 404s in SvcAcceptCaseOwnershipTransferUseCase._prepare (#2195).
     """
-    tree = create_announce_log_entry_tree
+
+    def tree():
+        return create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
 
     offer_record = _offer_ownership_transfer_record(case_replica.genesis_hash)
     offer_entry = _to_persistable_entry(offer_record)

@@ -58,6 +58,9 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
@@ -149,14 +152,18 @@ def _make_event(
 
 
 def test_create_announce_log_entry_tree_is_intake_then_role_selector():
-    tree = create_announce_log_entry_tree()
+    tree = create_announce_log_entry_tree(
+        sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+    )
     assert tree.name == "AnnounceLogEntryReceivedBT"
-    # Intake first (CLP-10-017), the post-close guard (CM-23-013), then the
+    # Intake first (CLP-10-017), the post-close guard (CM-23-013), the
+    # sender guard the factory composes (HP-01-008, #4696), then the
     # CASE_MANAGER / participant arms.
     assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert tree.children[1].name == "CaseOpenToExternalWrites"
-    assert len(tree.children) == 3
-    assert len(tree.children[2].children) == 2
+    assert tree.children[2].name == "SenderIsCaseManagerNode"
+    assert len(tree.children) == 4
+    assert len(tree.children[3].children) == 2
 
 
 def _archived(datalayer, event) -> bool:
@@ -172,7 +179,9 @@ def test_announce_archives_the_received_activity(
     event = _make_event(entry, actor_id=case_actor.id_)
 
     result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
         sync_port=MagicMock(spec=SyncActivityPort),
@@ -224,7 +233,9 @@ def test_case_manager_role_takes_authority_arm_without_service_object(
     event = _make_event(entry, actor_id=OWNER_ACTOR_ID)
 
     result = owner_bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
     )
@@ -244,7 +255,9 @@ def test_participant_persists_valid_entry(
     event = _make_event(entry, actor_id=case_actor.id_)
 
     result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
         sync_port=MagicMock(spec=SyncActivityPort),
@@ -269,7 +282,9 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
     # rejecting an unauthorised author — so the receiver is the participant,
     # matching every other tree in this file.
     result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
     )
@@ -319,7 +334,9 @@ def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_obj):
     )
 
     result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
         sync_port=MagicMock(spec=SyncActivityPort),
@@ -337,7 +354,9 @@ def test_case_actor_legit_sender_accepted(bridge, datalayer, case_obj):
     event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
 
     result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
         sync_port=MagicMock(spec=SyncActivityPort),
@@ -359,7 +378,9 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
@@ -420,7 +441,9 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -449,7 +472,9 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         )  # pre-store to trigger CheckLogEntryAlreadyStored
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree()
+        tree = create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
         apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
         call_count = 0
@@ -487,7 +512,9 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -653,7 +680,9 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
 
         for entry in (invite, row_entry):
             result = bridge.execute_with_setup(
-                tree=create_announce_log_entry_tree(),
+                tree=create_announce_log_entry_tree(
+                    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                ),
                 actor_id=PARTICIPANT_ACTOR_ID,
                 activity=_make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID),
                 sync_port=MagicMock(spec=SyncActivityPort),
@@ -680,7 +709,9 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
 
         def _announce(announced: CaseLedgerEntry) -> None:
             result = bridge.execute_with_setup(
-                tree=create_announce_log_entry_tree(),
+                tree=create_announce_log_entry_tree(
+                    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+                ),
                 actor_id=PARTICIPANT_ACTOR_ID,
                 activity=_make_event(announced, actor_id=case_actor.id_),
                 sync_port=MagicMock(spec=SyncActivityPort),
@@ -756,7 +787,9 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -781,7 +814,9 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -802,7 +837,9 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -837,7 +874,9 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -872,7 +911,9 @@ class TestAnnounceLogEntryAppliesReportAddition:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -934,7 +975,9 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -958,7 +1001,9 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1082,7 +1127,9 @@ class TestAnnounceLogEntryAppliesStubPath:
 
     def _announce(self, bridge, case_actor, entry):
         return bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=_make_event(entry, actor_id=case_actor.id_),
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1324,7 +1371,9 @@ class TestEffectsFailureBlocksPersist:
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree()
+        tree = create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
         apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
@@ -1348,7 +1397,9 @@ class TestEffectsFailureBlocksPersist:
         entry = _make_participant_status_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree()
+        tree = create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
         apply_node = _find_node_by_name(
             tree, "ApplyParticipantStatusFromLedger"
         )
@@ -1374,7 +1425,9 @@ class TestEffectsFailureBlocksPersist:
         entry = _make_add_note_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree()
+        tree = create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
         apply_node = _find_node_by_name(tree, "ApplyNoteFromLedger")
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
@@ -1398,7 +1451,9 @@ class TestEffectsFailureBlocksPersist:
         entry = _accept_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree()
+        tree = create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
         apply_node = _find_node_by_name(tree, "ApplyInviteAcceptFromLedger")
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
@@ -1475,7 +1530,9 @@ class TestAnnounceLogEntryCloseCaseChangesNoRmState:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1579,7 +1636,9 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1603,7 +1662,9 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1624,7 +1685,9 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1645,7 +1708,9 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1660,7 +1725,9 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 
 def _run_announce(bridge, case_actor, entry: CaseLedgerEntry):
     return bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=case_actor.id_),
         sync_port=MagicMock(spec=SyncActivityPort),
@@ -1827,7 +1894,9 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1891,7 +1960,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
 
     Covers RSH-05-021 (impossible composite state) and ARCH-15-001
     (malformed local participant record) end-to-end through
-    ``create_announce_log_entry_tree()``.
+    ``create_announce_log_entry_tree(sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement)``.
     """
 
     @pytest.mark.spec("RSH-05-021")
@@ -1936,7 +2005,9 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = trigger_bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             sync_port=MagicMock(spec=SyncActivityPort),
@@ -1987,7 +2058,9 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         entry = _make_participant_status_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        tree = create_announce_log_entry_tree()
+        tree = create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        )
         apply_node = _find_node_by_name(
             tree, "ApplyParticipantStatusFromLedger"
         )

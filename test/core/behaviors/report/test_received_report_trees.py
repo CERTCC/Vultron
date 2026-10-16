@@ -603,7 +603,11 @@ class TestCloseReportReceivedTree:
         """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
-        tree = create_close_report_received_tree(event, case_id=CASE_ID)
+        tree = create_close_report_received_tree(
+            event,
+            case_id=CASE_ID,
+            sender_rule=CloseReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -626,7 +630,11 @@ class TestCloseReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_close_report_event()
-        tree = create_close_report_received_tree(event, case_id=None)
+        tree = create_close_report_received_tree(
+            event,
+            case_id=None,
+            sender_rule=CloseReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -648,7 +656,11 @@ class TestCloseReportReceivedTree:
         bridge = BTBridge(datalayer=dl)
 
         for _ in range(2):
-            tree = create_close_report_received_tree(event, case_id=CASE_ID)
+            tree = create_close_report_received_tree(
+                event,
+                case_id=CASE_ID,
+                sender_rule=CloseReportReceivedUseCase.sender_entitlement,
+            )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )
@@ -716,7 +728,11 @@ class TestInvalidateReportReceivedTree:
         """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, case_id=CASE_ID)
+        tree = create_invalidate_report_received_tree(
+            event,
+            case_id=CASE_ID,
+            sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -739,7 +755,11 @@ class TestInvalidateReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, case_id=None)
+        tree = create_invalidate_report_received_tree(
+            event,
+            case_id=None,
+            sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -762,7 +782,9 @@ class TestInvalidateReportReceivedTree:
 
         for _ in range(2):
             tree = create_invalidate_report_received_tree(
-                event, case_id=CASE_ID
+                event,
+                case_id=CASE_ID,
+                sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
             )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event

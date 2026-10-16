@@ -39,6 +39,9 @@ from vultron.core.behaviors.sync.reject_tree import (
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.use_cases.received.sync import (
+    RejectLedgerEntryReceivedUseCase,
+)
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -185,7 +188,10 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     ).execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=MANAGER_ID,
         activity=event,
         sync_port=sync_port,

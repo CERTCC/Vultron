@@ -36,6 +36,9 @@ from test.core.use_cases.received.conftest import (
 )
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.carried_snapshot import (
+    StoreEmbeddedParticipantsNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -45,6 +48,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
+    SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
@@ -62,6 +66,7 @@ from vultron.core.behaviors.sender_guard import (
     AuthoredCaseProposal,
     AuthoredNote,
     CaseProposalRequest,
+    LedgerActivityContext,
     OwnershipOfferRequest,
     ReportOfferRequest,
     SenderCheckContext,
@@ -953,4 +958,113 @@ def test_factory_rejects_a_context_without_a_rule() -> None:
             case_id=None,
             precondition_guards=[],
             sender_context=SenderCheckContext(sender_id=VENDOR),
+        )
+
+
+# ---------------------------------------------------------------------------
+# A case resolved at run time (#4696)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("HP-01-008", "SYNC-13-006", "SYNC-03-005")
+@pytest.mark.parametrize(
+    ("kind", "node_type"),
+    [
+        (Kind.CASE_MANAGER, SenderIsCaseManagerNode),
+        (Kind.LEDGER_PEER, SenderIsActiveLedgerParticipantNode),
+    ],
+)
+def test_ledger_context_composes_the_in_case_guard(
+    kind: SenderEntitlementKind, node_type: type
+) -> None:
+    """A ledger activity's guard is the in-case side's, not ``outside_case``:
+    its node reads the case from the entry the activity carries."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(kind), LedgerActivityContext()
+    )
+    assert isinstance(guard, node_type)
+    assert getattr(guard, "_case_id", None) is None
+
+
+@pytest.mark.spec("HP-01-008")
+def test_ledger_context_refuses_a_kind_that_needs_the_case_at_build_time() -> (
+    None
+):
+    with pytest.raises(VultronWiringError, match="read from a ledger"):
+        compose_sender_guard(
+            SenderRule.in_case(Kind.PARTICIPANT), LedgerActivityContext()
+        )
+
+
+@pytest.mark.spec("HP-01-008")
+def test_ledger_context_refuses_a_two_sided_rule() -> None:
+    with pytest.raises(VultronWiringError, match="same kinds"):
+        compose_sender_guard(TWO_SIDED, LedgerActivityContext())
+
+
+def test_factory_rejects_a_ledger_context_on_a_tree_with_a_case() -> None:
+    with pytest.raises(VultronWiringError, match="names case"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=SenderRule.in_case(Kind.CASE_MANAGER),
+            sender_context=LedgerActivityContext(),
+        )
+
+
+class _ResolveCase(py_trees.behaviour.Behaviour):
+    """A read-only step standing in for a case resolution."""
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("HP-01-008", "CLP-10-010")
+def test_case_resolution_runs_just_before_the_sender_guard() -> None:
+    """The steps that resolve the case run after the post-close guard and
+    before the guard composed from the rule, so an activity about a case
+    this store lacks is refused as such (#2255)."""
+    resolve = _ResolveCase(name="ResolveCase")
+    tree = create_receive_activity_tree(
+        name="RuleTreeBT",
+        case_id=CASE_ID,
+        precondition_guards=[],
+        sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+        sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+        case_resolution=[resolve],
+    )
+    names = [child.name for child in tree.children]
+    at = names.index("ResolveCase")
+    assert names[at - 1] == "CaseOpenToExternalWrites"
+    assert names[at + 1] == "SenderIsParticipantNode"
+
+
+def test_factory_rejects_a_case_resolution_without_a_rule() -> None:
+    with pytest.raises(VultronWiringError, match="only with a sender_rule"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            case_resolution=[_ResolveCase(name="ResolveCase")],
+        )
+
+
+@pytest.mark.spec("HP-01-006")
+def test_factory_rejects_a_case_resolution_that_writes() -> None:
+    """The steps run before the sender guard, so a write there would let an
+    unentitled sender leave state behind."""
+    writer = StoreEmbeddedParticipantsNode(
+        as_VulnerabilityCase(id_=CASE_ID, name="snapshot"), CASE_ID
+    )
+    with pytest.raises(VultronWiringError, match="may only read"):
+        create_receive_activity_tree(
+            name="RuleTreeBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            sender_rule=SenderRule.in_case(Kind.PARTICIPANT),
+            sender_context=SenderCheckContext(
+                sender_id=VENDOR, case_id=CASE_ID
+            ),
+            case_resolution=[writer],
         )
