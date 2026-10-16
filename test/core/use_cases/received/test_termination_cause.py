@@ -18,8 +18,10 @@ it from the ledger rather than recording the what alone (EMB-13-005).
 """
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models._helpers import now_utc
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import remove_embargo_from_case_activity
@@ -27,7 +29,38 @@ from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 OWNER = "https://example.org/users/owner"
+VENDOR = "https://example.org/users/vendor"
 CASE = "https://example.org/cases/tc-wire"
+
+_NEW_CAUSES = [
+    {"kind": "FIX_READY", "vendors": [VENDOR]},
+    {"kind": "FIX_DEPLOYED"},
+    {"kind": "OTHER"},
+]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=ValidationError,
+    reason=(
+        "EMB-13-004: only the THREAT_SIGNAL cause is defined yet."
+        " Tracked by #4857."
+    ),
+)
+@pytest.mark.spec("EMB-13-004")
+@pytest.mark.parametrize("cause", _NEW_CAUSES, ids=lambda c: c["kind"])
+def test_an_early_termination_records_each_new_cause_kind(
+    cause: dict[str, object],
+) -> None:
+    recorded = EmbargoTermination.model_validate(
+        {"reason": TerminationReason.EARLY, "cause": cause}
+    )
+
+    assert recorded.model_dump(mode="json")["cause"] == cause
+    with pytest.raises(ValidationError):
+        EmbargoTermination.model_validate(
+            {"reason": TerminationReason.END_TIME_REACHED, "cause": cause}
+        )
 
 
 @pytest.mark.xfail(

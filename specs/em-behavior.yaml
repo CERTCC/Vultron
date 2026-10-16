@@ -1401,7 +1401,10 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_termination_reason.py` and
       `test/core/models/test_embargo_termination.py` cover the parse-edge
-      check and the recorded what and why.
+      check and the recorded what and why for `THREAT_SIGNAL`;
+      `test/core/use_cases/received/test_termination_cause.py` builds an
+      `EARLY` termination with each of `FIX_READY`, `FIX_DEPLOYED` and
+      `OTHER`, and refuses each on `END_TIME_REACHED`.
     testable: true
     lint_suppress:
     - testable_without_steps
@@ -1426,29 +1429,32 @@ groups:
       owner's `Remove` to the CASE_MANAGER, a `FIX_READY`, `FIX_DEPLOYED` or
       `OTHER` cause is the owner's claim, which the CASE_MANAGER MUST record
       as given; a `THREAT_SIGNAL` cause MUST be refused before it is
-      committed, with a reason naming the case status entry that sets `P`,
-      `X` or `A` as the way a threat signal ends an embargo. Only a `Remove`
+      committed, with a reason directing the sender to a case status update
+      setting `P`, `X` or `A` as the way a threat signal ends an embargo. Only a `Remove`
       the CASE_MANAGER sends MAY name `THREAT_SIGNAL`. A replica MUST record
       the cause the termination's ledger entry carries on its `TERMINATED`
       entry, and MUST NOT work a cause out from its own case state.
     rationale: >-
       One ledger entry is one activity, and the termination's entry is the
-      whole `TERMINATE` register step (ADR-0124), so the why reaches replicas
-      only if the `Remove` carries it. A threat signal is a fact about the
-      case that every participant learns from a status entry; naming it on a
-      `Remove` while the case status does not show it would leave the register
-      and the status disagreeing, and reading the `Remove` as a status change
-      would commit one no participant sent (ADR-0122).
+      whole `TERMINATE` register step (ADR-0124), so the why reaches a replica
+      replaying the ledger only if the `Remove` carries it. A threat signal is
+      a fact about the case that every participant learns from a status
+      entry; naming it on a `Remove` while the case status does not show it
+      would leave the register and the status disagreeing, and reading the
+      `Remove` as a status change would commit one no participant sent
+      (ADR-0122).
     verification: >-
       `test/core/use_cases/received/test_termination_cause.py` parses a
       `Remove` carrying each cause kind, refuses each malformed cause and an
-      owner's `THREAT_SIGNAL`, and replays a CASE_MANAGER's threat-signal
-      termination into a replica, asserting the two `TERMINATED` entries are
-      equal.
+      owner's `THREAT_SIGNAL` with a reason naming the case status update,
+      records an owner's `FIX_READY` cause whose vendors are not fix-ready
+      as given, and replays a CASE_MANAGER termination whose cause the
+      replica cannot work out from its own state (a `FIX_READY` cause, or
+      threat signals that differ from the replica's PXA) into a replica,
+      asserting the two `TERMINATED` entries are equal.
     testable: true
     lint_suppress:
     - testable_without_steps
-    - phantom_path_ref
     adr:
     - ADR-0122
     relationships:
@@ -1539,7 +1545,10 @@ groups:
       Inspection of `vultron/core/` confirms that `create_terminate_active_embargo_tree`
       uses a Selector of Evaluator call-out points (ExitEmbargoWhenDeployed,
       ExitEmbargoWhenFixReady, ExitEmbargoForOtherReason) before delegating to
-      `terminate_embargo_bt`.
+      `terminate_embargo_bt`; tests in
+      `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
+      run the tree once per reason call-out and assert the `TERMINATED`
+      entry's cause is `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively.
     testable: true
     preconditions:
     - em_state:

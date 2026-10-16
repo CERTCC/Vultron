@@ -92,7 +92,7 @@ Entries are appended and never removed.
 | `ACTIVATE` | `PROPOSED → ACTIVE` |
 | `REJECT` | `PROPOSED → REJECTED` |
 | `SUPERSEDE` | `ACTIVE → SUPERSEDED`, in the same step as another entry's `ACTIVATE` |
-| `TERMINATE` | `ACTIVE → TERMINATED`, with a reason: what ended it (`END_TIME_REACHED` or `EARLY`) and, when known, why (a threat signal) |
+| `TERMINATE` | `ACTIVE → TERMINATED`, with a reason: what ended it (`END_TIME_REACHED` or `EARLY`) and, when known, why (a structured cause, below) |
 | `CANCEL` | `PROPOSED → CANCELLED`, in the same step as a `TERMINATE`, or on a threat signal while no entry is `ACTIVE` |
 
 `REJECTED`, `SUPERSEDED`, `CANCELLED` and `TERMINATED` are final.
@@ -232,7 +232,7 @@ Four kinds are defined, and every one of them is `EARLY`:
 
 Adversary awareness of the technical details, adversaries holding exploit code and a leak by a participant are candidate kinds, defined when something can name them.
 An `END_TIME_REACHED` termination has no cause.
-An `EARLY` termination with no cause is valid on the wire and records the what alone; every termination Vultron itself starts names one, `OTHER` when nothing more specific applies.
+An `EARLY` termination with no cause is valid on the wire and records the what alone; every `EARLY` termination Vultron itself starts names one, `OTHER` when nothing more specific applies.
 
 The termination `Remove` carries the why beside the what, as the Vultron property `terminationCause`, holding the cause object.
 It is checked at the parse edge: an unknown `kind`, a missing or malformed detail, or a cause on an `END_TIME_REACHED` termination is refused.
@@ -311,7 +311,7 @@ On a replica it means an earlier entry is missing or the replica has diverged, s
 - Good, because a `Reject` never has to be read against the case's state to tell a refusal from a withdrawal: withdrawal is `Leave(EmbargoEvent)`.
 - Good, because an embargo that reaches its end time is recorded as ended, so the content gate stops withholding content under an embargo that has expired.
 - Bad, because rows grow to participants × register entries per case and are never pruned; at the expected scale (up to hundreds of participants, a handful of embargoes per case) this is small.
-- Bad, because the wire format changes: the consent row states, the consent row as an AS2 object, the owner's activation and rejection activities, and the termination `content` value.
+- Bad, because the wire format changes: the consent row states, the consent row as an AS2 object, the owner's activation and rejection activities, the termination `content` value, and the termination `Remove`'s `terminationCause` property.
   The prototype owes no compatibility.
 - Bad, because stored `CaseParticipant` and `VulnerabilityCase` records in the old shape no longer load (`extra="forbid"`); the prototype keeps no migration.
 - Bad, because every reader of EM state, the old scalar, `EMAdapter` and the two-audience rule must be revisited.

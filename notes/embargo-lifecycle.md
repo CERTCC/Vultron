@@ -46,6 +46,7 @@ relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/states/embargo_register.py
   - vultron/core/models/embargo_register.py
+  - vultron/core/models/embargo_termination.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
@@ -110,14 +111,19 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 - **A termination records what and why (ADR-0122, EMB-13-004).** The what
   (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
   `content`, parsed at the edge (`termination_reason_from_content()`); the why
-  is a structured cause (`vultron/core/models/embargo_termination.py`), so far
-  only `ThreatSignalCause` naming `P`/`X`/`A`. Both sit on the `TERMINATED`
+  is a structured cause (`vultron/core/models/embargo_termination.py`), a
+  union discriminated on `kind`: `THREAT_SIGNAL` (`P`/`X`/`A`), `FIX_READY`
+  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0122 rev 7; only
+  `ThreatSignalCause` is built until #4857). Both sit on the `TERMINATED`
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. Never put the why on the `Remove`: a replica that replays it
-  records only the what (copying the why is #4748, held on #4609; a case
-  snapshot's `embargoRegister` already carries the entry, cause included).
+  write. The `Remove` carries the why as `terminationCause`, checked at the
+  parse edge (EMB-13-005, #4857), because a replica learns the why only from
+  the ledger entry: it copies the cause, never works it out from its own PXA
+  (#4748). An owner's `Remove` may claim `FIX_READY`, `FIX_DEPLOYED` or
+  `OTHER`, recorded as given; one naming `THREAT_SIGNAL` is refused, since a
+  threat signal arrives as a case status update setting `P`, `X` or `A`.
   The CASE_MANAGER decides the termination first (`decide_termination()`),
   builds its `Remove` from that decision, commits it, and only then applies
   the step (#4714), so the wire and the entry cannot disagree. The CM-31-009
