@@ -74,6 +74,9 @@ from vultron.core.behaviors.case.nodes.post_close import (
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
+from vultron.core.behaviors.case.nodes.role_offer_guard import (
+    RoleOfferAdmissibleNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
 )
@@ -386,6 +389,33 @@ def ownership_offer_verdict(
         verdict,
         "ownership-transfer Offer redelivered",
     )
+
+
+def role_offer_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered role Offer as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferAdmissibleNode`
+    sets ``is_redelivery`` when the CASE_MANAGER's ledger already records the
+    Offer (HP-01-003).  It fails when the forward is already stored, so
+    nothing runs, and admits the run when it is not, so the run finishes the
+    forward with the recorded entry reused (OX-06-002).  Either reads as
+    ``SKIPPED``; when the guard admitted the run, a later refusal or failure
+    keeps its own verdict.
+    """
+    guard = find_node(tree, RoleOfferAdmissibleNode)
+    if guard is None or not guard.is_redelivery:
+        return verdict
+    if (
+        guard.status is Status.FAILURE
+        or verdict.disposition is HandlerDisposition.APPLIED
+    ):
+        return HandlerResult.skipped(
+            guard.feedback_message or "role Offer redelivered"
+        )
+    return verdict
 
 
 def rm_declaration_verdict(

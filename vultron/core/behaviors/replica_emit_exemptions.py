@@ -80,9 +80,10 @@ OFFER_ROLE: Final = ReplicaEmitExemption(
     name="offer-role",
     reason=(
         "Offer(CaseParticipantRole) is answered by the actor offered the"
-        " role: its Accept or Reject is the executing actor's own answer,"
-        " addressed to the offering vendor, not a CASE_MANAGER act"
-        " (ADR-0039)."
+        " role: the Accept or Reject runs in the participant-replica arm,"
+        " only when the executing actor is the Offer's target, and is that"
+        " actor's own answer to the CASE_MANAGER's forward, addressed to the"
+        " CASE_MANAGER (CM-33-004, PCR-08-001, ADR-0039)."
     ),
     covers=frozenset(
         {

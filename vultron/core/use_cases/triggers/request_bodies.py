@@ -407,13 +407,13 @@ class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
     """Request body for the offer-case-participant-role trigger endpoint (ADR-0039).
 
     Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
-    from the requesting actor.  ``role`` defaults to ``"CASE_MANAGER"`` for
-    backward-compatibility with callers that previously used the deprecated
-    offer-case-manager-role endpoint.
+    from the requesting actor.  ``role`` is required: it has no default, since
+    the CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER``
+    and reads no missing role as a default (CM-33-003).
     """
 
     target_actor_id: UriString
-    role: CVDRole = CVDRole.CASE_MANAGER
+    role: CVDRole
 
     @field_validator("role", mode="before")
     @classmethod

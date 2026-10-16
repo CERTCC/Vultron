@@ -68,6 +68,7 @@ from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     create_case,
     defer_case,
     engage_case,
+    forward_case_participant_role,
     offer_case_ownership_transfer,
     offer_case_participant_role,
     populated_case,
@@ -368,6 +369,8 @@ def main(outdir=None):
     # handshake that offer_case_participant covers
     _offer_role = offer_case_participant_role()
     obj_to_file(_offer_role, f"{outdir}/offer_case_participant_role.json")
+    _forward_role = forward_case_participant_role()
+    obj_to_file(_forward_role, f"{outdir}/forward_case_participant_role.json")
     _accept_role = accept_case_participant_role()
     obj_to_file(_accept_role, f"{outdir}/accept_case_participant_role.json")
     _reject_role = reject_case_participant_role()
