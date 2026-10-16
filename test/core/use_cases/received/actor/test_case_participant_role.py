@@ -299,6 +299,51 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         )
         assert offer_entries[0].log_object_id == offer.id_
 
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_spelled_target_actor_is_granted_the_role(
+        self, make_payload
+    ):
+        """The offer's ``target`` is extracted without its trailing slash, so
+        the CASE_MANAGER grants the role to the participant it stores."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.adapters.driven.wire_render.as2 import (
+            As2WireRenderAdapter,
+        )
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
+        self._seed_case_with_cm(dl)
+        offer = offer_case_participant_role_activity(
+            role=CVDRole.COORDINATOR,
+            target_actor=as_Actor(id_=self._CASE_ACTOR_URI + "/"),
+            case=as_VulnerabilityCase(id_=self._CASE_URI, name="ROLE-TEST"),
+            actor=self._VENDOR_URI,
+        )
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        result = OfferCaseParticipantRoleReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        manager = dl.read(f"{self._CASE_URI}/participants/cm")
+        assert isinstance(manager, CaseParticipant)
+        assert CVDRole.COORDINATOR in manager.case_roles
+
     @pytest.mark.spec("HP-01-003")
     def test_offer_case_participant_role_refused_when_neither_reply_sent(
         self, make_payload

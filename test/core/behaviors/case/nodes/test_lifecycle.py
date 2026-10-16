@@ -620,3 +620,70 @@ def test_case_manager_as_participant_commits_without_error(bridge):
         )
     assert result.status == Status.SUCCESS
     mock_factory.assert_called_once()
+
+
+def _note_payload(actor: str, note_id: str) -> dict:
+    return {
+        "type": "Add",
+        "actor": actor,
+        "object": {
+            "type": "Note",
+            "id": note_id,
+            "context": CASE_ID_CLP,
+        },
+        "context": CASE_ID_CLP,
+        "published": "2026-01-01T12:00:00+00:00",
+    }
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("OID-01-006")
+def test_slash_spelled_snapshot_actor_commits(bridge):
+    """CLP-07-003: the snapshot keeps the sender's trailing slash while the
+    event's ``actor_id`` is normalised; the two name one actor, so the entry
+    commits (``same_actor_id``)."""
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(
+            _note_payload(ACTOR_ID + "/", "https://example.org/notes/n3")
+        ),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.SUCCESS
+    mock_factory.assert_called_once()
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_slash_spelled_different_actor_still_refused(bridge):
+    """CLP-07-003: the trailing-slash tolerance does not admit a different
+    actor — a slash-spelled impostor in the snapshot is still refused."""
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(
+            _note_payload(
+                DIFFERENT_ACTOR + "/", "https://example.org/notes/n4"
+            )
+        ),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.FAILURE
+    assert "CLP-07-003" in (result.feedback_message or "")
+    mock_factory.assert_not_called()

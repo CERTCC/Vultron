@@ -22,6 +22,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.enums.roles import CVDRole
@@ -77,7 +78,11 @@ class OfferCaseParticipantRoleReceivedUseCase:
         vendor_id = request.actor_id
         # context carries the VulnerabilityCase; target carries the Actor
         case_id = _as_id(getattr(request.activity, "context", None))
+        # The actor the role is offered to is looked up in the case's
+        # participant index, so it is normalised here (OID-01-006).
         target_actor_id = _as_id(getattr(request.activity, "target", None))
+        if target_actor_id is not None:
+            target_actor_id = normalise_actor_id(target_actor_id)
         # Extract role from the CaseParticipantRole object
         role_obj = getattr(
             getattr(request.activity, "object_", None), "role", None

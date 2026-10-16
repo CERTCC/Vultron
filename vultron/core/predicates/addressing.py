@@ -34,22 +34,18 @@ This module MUST NOT import from ``vultron.core.behaviors``,
 
 from collections.abc import Iterable, Mapping
 
+# Defined in ``vultron.primitives`` so the wire extractor and the received
+# event model can use them too (ARCH-22-001, OID-01-007); re-exported here,
+# where core's addressing predicates have always been imported from.
+from vultron.primitives import normalise_actor_id, same_actor_id
 
-def normalise_actor_id(actor_id: str) -> str:
-    """Return *actor_id* without a trailing slash, its canonical spelling.
-
-    Use it where an id a sender wrote becomes an identity the receiver looks
-    up, so a recipient spelled ``…/vendor/`` still names ``…/vendor``.
-    """
-    return actor_id.rstrip("/")
-
-
-def same_actor_id(a: str, b: str) -> bool:
-    """Return True when *a* and *b* identify the same actor.
-
-    The two differ at most by a trailing slash.
-    """
-    return normalise_actor_id(a) == normalise_actor_id(b)
+__all__ = [
+    "distinct_recipients",
+    "is_addressed_to",
+    "normalise_actor_id",
+    "participant_id_for_actor",
+    "same_actor_id",
+]
 
 
 def participant_id_for_actor(

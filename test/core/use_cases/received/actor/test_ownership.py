@@ -2568,3 +2568,59 @@ def test_a_closed_transferees_answer_is_refused(make_payload, answer):
     assert _owner(dl, case_id) == _VENDOR_ID
     assert _event_types(dl) == entries_before
     assert list(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_spelled_transferee_is_forwarded_to_canonically(make_payload):
+    """The Offer's ``target`` is extracted as the transferee without its
+    trailing slash: the forward names the actor the roster stores."""
+    case_id = "https://example.org/cases/case_ot_slash_transferee"
+    _dl, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, case_id
+    )
+
+    disposition, _ = deliver(_COORDINATOR_ID + "/", f"{case_id}/offer")
+
+    assert disposition is HandlerDisposition.APPLIED
+    kwargs = trigger_activity.offer_case_ownership_transfer.call_args.kwargs
+    assert kwargs["transferee_id"] == _COORDINATOR_ID
+    assert kwargs["to"] == [_COORDINATOR_ID]
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_spelled_delegated_offerer_is_extracted_canonically(
+    make_payload,
+):
+    """A delegated Offer's ``attributed_to`` is the offerer of record, so it
+    is extracted without the trailing slash the CaseActor wrote.
+
+    The delegated shape (the CaseActor as sender) only reaches the forward
+    at a store that is not the CASE_MANAGER, where no effect reads the
+    offerer, so the extraction is pinned at the resolver itself.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    case_id = "https://example.org/cases/case_ot_slash_delegated"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_COORDINATOR_ID)
+    case = as_VulnerabilityCase(
+        id_=case_id, name="Delegated offer", attributed_to=_VENDOR_ID
+    )
+    seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
+    seed_case_owner_participant(dl, case, _VENDOR_ID)
+    seed_case_participant(dl, case, _COORDINATOR_ID)
+    dl.create(case)
+    forward = offer_case_ownership_transfer_activity(
+        case,
+        target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+        actor=_CASE_ACTOR_ID,
+        to=[_COORDINATOR_ID],
+        attributed_to=_VENDOR_ID + "/",
+        id_=f"{case_id}/forward",
+    )
+    event = make_payload(forward, receiving_actor_id=_COORDINATOR_ID)
+    use_case = OfferCaseOwnershipTransferReceivedUseCase(
+        dl, event, wire_render_port=As2WireRenderAdapter()
+    )
+
+    assert use_case._resolve_offering_actor_id(case_id) == _VENDOR_ID

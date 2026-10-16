@@ -29,6 +29,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
@@ -108,6 +109,10 @@ def resolve_proposer_id(
     attributed_to = request.activity.attributed_to
     if not attributed_to:
         return request.actor_id
+    # The proposer's consent is recorded and it is left out of the relay, so
+    # its id is normalised where it is extracted, like the sender's
+    # (OID-01-006).
+    attributed_to = normalise_actor_id(attributed_to)
     case = dl.read_case(request.context_id) if request.context_id else None
     if case is None:
         logger.warning(

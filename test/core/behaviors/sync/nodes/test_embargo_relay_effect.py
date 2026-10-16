@@ -265,6 +265,33 @@ class TestIsRelayedEmbargoInvite:
     def test_without_a_case_authorship_alone_decides(self, datalayer):
         assert is_relayed_embargo_invite(_invite_snapshot(), None, datalayer)
 
+    @pytest.mark.spec("OID-01-006")
+    def test_slash_spelled_manager_emission_is_still_a_relay(
+        self, datalayer, revising_case
+    ):
+        """The snapshot keeps the manager's trailing slash; the stored role
+        holder has none, and the two still name one actor."""
+        assert is_relayed_embargo_invite(
+            _invite_snapshot(actor=MANAGER_ACTOR_ID + "/"),
+            revising_case,
+            datalayer,
+        )
+
+    @pytest.mark.spec("OID-01-006")
+    def test_slash_spelled_self_attribution_is_the_proposal(
+        self, datalayer, revising_case
+    ):
+        """``attributedTo`` naming the sender in the other spelling is the
+        sender itself, not a third party."""
+        assert not is_relayed_embargo_invite(
+            _invite_snapshot(
+                actor=PROPOSER_ACTOR_ID,
+                attributed_to=PROPOSER_ACTOR_ID + "/",
+            ),
+            None,
+            datalayer,
+        )
+
 
 # ---------------------------------------------------------------------------
 # ApplyEmbargoProposalFromLedgerNode

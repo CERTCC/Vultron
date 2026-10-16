@@ -40,6 +40,7 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.errors import (
     VultronBTInternalError,
     VultronCanonicalEntryError,
@@ -126,7 +127,12 @@ def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
 def _assert_actor_identity(
     event_type: str, payload_snapshot: dict[str, Any], activity: Any
 ) -> None:
-    """CLP-07-003: payloadSnapshot.actor MUST equal the inbound activity's actor_id."""
+    """CLP-07-003: payloadSnapshot.actor MUST name the inbound activity's actor.
+
+    The snapshot keeps the sender's spelling while the event's ``actor_id``
+    is normalised (OID-01-006), so the two are compared with
+    :func:`same_actor_id`: a trailing slash is not a substitution.
+    """
     activity_actor_id = getattr(activity, "actor_id", None)
     snapshot_actor = (
         payload_snapshot.get("actor") if payload_snapshot else None
@@ -134,7 +140,7 @@ def _assert_actor_identity(
     if (
         activity_actor_id
         and snapshot_actor
-        and snapshot_actor != activity_actor_id
+        and not same_actor_id(str(snapshot_actor), activity_actor_id)
     ):
         raise VultronCanonicalEntryError(
             f"{event_type}: CLP-07-003 — payloadSnapshot.actor"

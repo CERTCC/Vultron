@@ -46,6 +46,7 @@ from vultron.core.models.rsvp_deadline import (
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.errors import VultronWiringError
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
@@ -336,11 +337,19 @@ def is_relayed_embargo_invite(
     """
     actor_id = _extract_id_from_field(snapshot.get("actor"))
     attributed_to = _extract_id_from_field(snapshot.get(_ATTRIBUTED_TO))
-    if not actor_id or not attributed_to or attributed_to == actor_id:
+    # Both ids keep the sender's spelling in the snapshot, and the role
+    # holder is stored canonically, so each comparison is ``same_actor_id``
+    # (OID-01-006, CLP-10-021).
+    if (
+        not actor_id
+        or not attributed_to
+        or same_actor_id(attributed_to, actor_id)
+    ):
         return False
     if case is None:
         return True
-    return resolve_case_manager_id(case, dl) == actor_id
+    manager_id = resolve_case_manager_id(case, dl)
+    return manager_id is not None and same_actor_id(manager_id, actor_id)
 
 
 class _EmbargoInviteEventNode(_ActivityEventNode):
