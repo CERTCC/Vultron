@@ -475,6 +475,7 @@ def test_dispatch_refuses_a_semantics_with_no_registered_use_case():
         dispatcher.dispatch(_create_report_event(), MagicMock())
 
 
+@pytest.mark.spec("SL-03-001")
 def test_dispatch_logs_no_use_case_found_at_warning_with_context(caplog):
     """No use case found is logged at WARNING with semantic, activity_id, actor_id.
 
