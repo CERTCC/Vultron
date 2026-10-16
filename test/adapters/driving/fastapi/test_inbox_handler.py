@@ -282,7 +282,7 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
     # Capture which port_factories map was supplied to get_dispatcher
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -353,48 +353,49 @@ def test_make_dispatcher_gives_a_received_consent_act_the_trigger_port(
 
 
 @pytest.mark.spec("EMB-13-003")
-def test_make_dispatcher_gives_the_lazy_end_time_check_its_ports(monkeypatch):
-    """The CASE_MANAGER's lazy end-time check commits and announces a
-    termination, so the inbox dispatcher's case-upkeep hook hands it the
-    trigger, sync and wire-render ports (ADR-0122)."""
+@pytest.mark.spec("CLP-10-025")
+def test_make_dispatcher_gives_every_semantic_a_trigger_port(monkeypatch):
+    """Every received use case is constructed with a ``TriggerActivityPort``.
+
+    Every received tree with a case and a sender guard takes the CASE_MANAGER's
+    end-time check as a clock decision, and the termination builds its
+    ``Remove``, ``Add(CaseStatus)`` and re-issued stub ``Invite`` through
+    this port (EMB-13-003).  A use case dispatched without it would end the
+    embargo locally and fail to record it, so every use case gets the port and
+    must accept it: the dispatcher calls ``use_case_class(dl, event, **kwargs)``.
+    """
+    import inspect
+
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
 
     real_dl = SqliteDataLayer(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    captured: dict = {}
-
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
-        captured["case_upkeep"] = case_upkeep
-        return Mock()
-
-    checks: list[dict] = []
-    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
-    monkeypatch.setattr(
-        "vultron.core.behaviors.embargo.end_time_tree"
-        ".end_embargo_if_end_time_passed",
-        lambda **kwargs: checks.append(kwargs),
-    )
-
-    ih.make_dispatcher()
-
-    (hook,) = captured["case_upkeep"]
-    hook(
-        real_dl,
-        case_id="https://test.example/cases/c",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-        activity_id="https://test.example/activities/a",
-    )
-    (check,) = checks
-    assert check["case_id"] == "https://test.example/cases/c"
-    assert check["activity_id"] == "https://test.example/activities/a"
-    assert isinstance(check["trigger_activity"], TriggerActivityAdapter)
-    assert isinstance(check["sync_port"], SyncActivityAdapter)
-    assert isinstance(check["wire_render_port"], As2WireRenderAdapter)
+    for sem, use_case in use_case_map().items():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("trigger_activity"), TriggerActivityAdapter
+        ), f"{sem.name} is dispatched without a TriggerActivityPort"
+        assert "trigger_activity" in inspect.signature(use_case).parameters, (
+            f"{use_case.__name__} does not accept trigger_activity"
+        )
 
 
 def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
@@ -406,9 +407,9 @@ def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
     from vultron.core.models.events import MessageSemantics
 
     # Inject an artificial overlap: put the submit-report semantic into the
-    # trigger set as well.
+    # case-proposal set as well.
     overlapping = frozenset({MessageSemantics.SUBMIT_REPORT})
-    monkeypatch.setattr(ih, "_TRIGGER_ACTIVITY_PORT_SEMANTICS", overlapping)
+    monkeypatch.setattr(ih, "_CASE_PROPOSAL_SEMANTICS", overlapping)
 
     with pytest.raises(AssertionError, match="overlap"):
         ih.make_dispatcher()
@@ -438,9 +439,7 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     monkeypatch.setattr(
         ih,
         "get_dispatcher",
-        lambda use_case_map, port_factories=None, case_upkeep=(): (
-            mock_dispatcher
-        ),
+        lambda use_case_map, port_factories=None: mock_dispatcher,
     )
 
     ih.init_dispatcher()
@@ -876,7 +875,7 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -909,8 +908,7 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
 def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
     """make_dispatcher() must give CLOSE_CASE all three ports.
 
-    The trigger port comes from ``_TRIGGER_ACTIVITY_PORT_SEMANTICS``; the sync
-    and wire-render ports come from the received baseline (#4113).  Without
+    All three come from the received baseline every semantic gets (#4113).  Without
     the ``WireRenderPort``, ``CommitRMClosureEntriesNode`` cannot render the
     CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
     the owner-Leave path before ``case_fully_closed`` is committed.  This guards
@@ -928,7 +926,7 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -974,7 +972,7 @@ def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(
 
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -1007,7 +1005,7 @@ def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -1047,7 +1045,7 @@ def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -1148,7 +1146,7 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 
@@ -1200,7 +1198,7 @@ def test_make_dispatcher_embargo_invite_gets_actor_config(monkeypatch, sem):
 
     captured: dict = {}
 
-    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+    def fake_get_dispatcher(use_case_map, port_factories=None):
         captured["port_factories"] = port_factories
         return Mock()
 

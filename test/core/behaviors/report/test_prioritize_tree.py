@@ -367,9 +367,9 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
     # RSH-08-003 (#3814): intake, the post-close guard (CM-23-013), sender
-    # guard, the guard stage, the guarded commit, and the CASE_MANAGER gate
-    # holding the RM write + gap note.
-    assert len(tree.children) == 6
+    # guard, the clock decisions (CLP-10-025), the guard stage, the guarded
+    # commit, and the CASE_MANAGER gate holding the RM write + gap note.
+    assert len(tree.children) == 7
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
@@ -422,19 +422,22 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     assert tree.children[1].name == "CaseOpenToExternalWrites"
     # The sender must be a participant (HP-01-006) ...
     assert tree.children[2].name == "SenderIsParticipantNode"
+    # ... then the CASE_MANAGER's clock decisions, the embargo end-time
+    # check among them (CLP-10-025, EMB-13-003) ...
+    assert tree.children[3].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage that notes a refused regression
     # (CLP-10-022)
-    stage = tree.children[3]
+    stage = tree.children[4]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode"
     ]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[4].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[5].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write and its gap note run only at the
     # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
-    gate = tree.children[5]
+    gate = tree.children[6]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "DeferEffectsIfCaseManager"
     body = gate.gated_branch

@@ -26,7 +26,9 @@ arrived or forgets the closed-case boundary.
 A tree whose CASE_MANAGER must record a decision from its own clock before
 it judges the activity (an expiry) passes ``clock_decisions``: the factory
 runs them at the CASE_MANAGER only, after the door guards, and a refused
-commit there never ends the tree (CLP-10-025).
+commit there never ends the tree (CLP-10-025).  Every tree with a case and a
+sender guard also takes the case-wide clock decisions (the embargo end-time
+check, EMB-13-003) ahead of its own, with no argument.
 A tree that owes the sender feedback when its guards refuse passes
 ``refusal_effects``: the factory runs them only on that refusal, at the
 CASE_MANAGER, once per received activity, and the tree still fails before
@@ -65,8 +67,11 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.case_clock_decisions import (
+    case_clock_decisions,
+)
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
-    ClockDecisionStage,
+    create_clock_decision_gate,
 )
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
@@ -370,10 +375,11 @@ def _clock_decision_stage(
 ) -> CaseManagerGate:
     """The tree's clock decisions, run only at the case's CASE_MANAGER.
 
-    A clock decision commits only its own CASE_MANAGER-authored entry and the
-    change it records, so it may hold neither the received activity's commit
-    node nor the guarded-commit subtree around it (CLP-10-025): either would
-    commit the activity's own assertion before the guards judge it.
+    A clock decision commits only CASE_MANAGER-authored entries, one for each
+    AS2 activity that expresses what it decided, and the changes they record,
+    so it may hold neither the received activity's commit node nor the
+    guarded-commit subtree around it (CLP-10-025): either would commit the
+    activity's own assertion before the guards judge it.
 
     It writes, so both door guards must run first: the sender guard, so a
     sender with no standing never makes the CASE_MANAGER write (HP-01-006),
@@ -422,14 +428,31 @@ def _clock_decision_stage(
             f"{where}: a clock decision commits only its own entry, never"
             f" the received activity; found {activity_commits} (CLP-10-025)"
         )
-    return create_case_manager_gated_tree(
-        name="ClockDecisionsIfCaseManager",
-        case_id=case_id,
-        children=[
-            ClockDecisionStage(name="ClockDecisions", decisions=decisions)
-        ],
-        case_may_be_absent=True,
-    )
+    return create_clock_decision_gate(case_id, decisions)
+
+
+def _case_and_tree_decisions(
+    case_id: str | None,
+    tree_decisions: list[py_trees.behaviour.Behaviour],
+    *,
+    sender_guarded: bool,
+    post_close_exemption: PostCloseExemption | None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The case-wide clock decisions, then the tree's own.
+
+    The case-wide decisions (the embargo end-time check, EMB-13-003) run on
+    every tree that names a case, has a sender guard and keeps the
+    post-close boundary, because both door guards must run before the
+    CASE_MANAGER writes (HP-01-006, CM-23-013).  A tree with no sender guard
+    takes them once it declares its sender rule (HP-01-008; the remaining
+    exempt handlers are #4522); a tree exempt from the post-close boundary
+    never does.  The tree's own
+    decisions are returned as given, so :func:`_clock_decision_stage`
+    refuses them on a tree where they cannot run.
+    """
+    if case_id is None or not sender_guarded or post_close_exemption:
+        return tree_decisions
+    return [*case_clock_decisions(case_id), *tree_decisions]
 
 
 def _sender_guard_stage(
@@ -483,7 +506,8 @@ def create_receive_activity_tree(
     ADR-0135, BT-17-008, CM-23-013)::
 
         Intake → CaseOpenToExternalWrites → [sender guard]
-            → [CaseManagerGate[ClockDecisionStage[*clock_decisions]]]
+            → [CaseManagerGate[ClockDecisionStage[
+                   *case_clock_decisions, *clock_decisions]]]
             → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
 
@@ -500,10 +524,17 @@ def create_receive_activity_tree(
     error (a raised exception) ends the tree (ADR-0095).  A decision decides
     from the CASE_MANAGER's clock, policy and the case's ledger and file; the
     received activity may prompt it and name what it concerns, never be its
-    evidence.  It commits only its own entry: one holding the received
-    activity's commit is refused at construction, as is a tree with no
-    ``sender_rule`` or with a ``post_close_exemption``, where a door guard
+    evidence.  It commits only its own CASE_MANAGER-authored entries, one
+    for each AS2 activity that expresses what it decided: one holding the
+    received activity's commit is refused at construction, as is a tree with
+    no ``sender_rule`` or with a ``post_close_exemption``, where a door guard
     would not run first.
+
+    The case-wide decisions
+    (:func:`~vultron.core.behaviors.case.case_clock_decisions.case_clock_decisions`,
+    the embargo end-time check, EMB-13-003) run first in the stage of every
+    tree that names a case, has a sender guard and keeps the post-close
+    boundary; a tree without both door guards takes none of them.
 
     ``CaseOpenToExternalWrites`` is the post-close write boundary
     (CM-23-013, ADR-0085, ADR-0131): at the case's CASE_MANAGER, once the
@@ -676,12 +707,18 @@ def create_receive_activity_tree(
     guard = _sender_guard_stage(name, case_id, sender_rule, sender_context)
     if guard is not None:
         children.append(guard)
-    if clock_decisions:
+    decisions = _case_and_tree_decisions(
+        case_id or manager_case_id,
+        clock_decisions or [],
+        sender_guarded=guard is not None,
+        post_close_exemption=post_close_exemption,
+    )
+    if decisions:
         children.append(
             _clock_decision_stage(
                 name,
                 case_id or manager_case_id,
-                clock_decisions,
+                decisions,
                 sender_guarded=guard is not None,
                 post_close_exemption=post_close_exemption,
             )

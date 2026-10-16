@@ -29,6 +29,7 @@ from typing import Any, cast
 import py_trees
 import pytest
 
+from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_event_types, fail_commits
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -37,9 +38,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.end_time_tree import (
-    end_embargo_if_end_time_passed,
-)
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.sync import commit_tree
@@ -152,16 +150,8 @@ def _trigger(net: LedgerNetwork) -> py_trees.common.Status:
 
 
 def _lazy_end_time_check(net: LedgerNetwork) -> None:
-    dl = net.stores[MANAGER]
-    end_embargo_if_end_time_passed(
-        datalayer=dl,
-        case_id=net.case_id,
-        actor_id=MANAGER,
-        now=now_utc(),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    )
+    """Run the end-time check as the clock-decision stage runs it."""
+    run_end_time_check(net.stores[MANAGER], net.case_id, MANAGER)
 
 
 def _register(net: LedgerNetwork, holder: str) -> list[dict[str, Any]]:

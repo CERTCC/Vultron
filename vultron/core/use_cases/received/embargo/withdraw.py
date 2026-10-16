@@ -66,8 +66,8 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
         dl: CaseOutboxPersistence,
         request: WithdrawFromEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         super().__init__(
             dl,

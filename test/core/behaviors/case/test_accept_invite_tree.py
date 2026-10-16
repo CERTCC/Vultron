@@ -26,6 +26,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.clock_decisions import clock_decision_node_ids
 from test.support.embargo_register import register
 from vultron.core.behaviors.case.nodes import (
     ActivateInviteeParticipantNode,
@@ -491,11 +492,15 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
     assert any(isinstance(n, CheckIsCaseManagerNode) for n in gate.iterate())
 
     effect_prefixes = ("Activate", "Advance", "Emit", "Backfill")
+    # The CASE_MANAGER's clock decisions run in their own gated stage before
+    # the guards; they are not effects of the Accept (CLP-10-025).
+    decisions = clock_decision_node_ids(tree)
     effects = [
         n
         for n in tree.iterate()
         if type(n).__name__.startswith(effect_prefixes)
         and not isinstance(n, py_trees.composites.Composite)
+        and id(n) not in decisions
     ]
     assert effects, "the tree must have effect nodes to gate"
     outside = [type(n).__name__ for n in effects if id(n) not in inside]

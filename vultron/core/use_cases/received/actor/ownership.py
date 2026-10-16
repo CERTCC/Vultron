@@ -416,8 +416,10 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         request: RejectCaseOwnershipTransferReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: RejectCaseOwnershipTransferReceivedEvent = request
@@ -443,6 +445,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             label="RejectOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
+            trigger_activity=self._trigger_activity,
             applied_note="rejected (ownership unchanged)",
         )
 
@@ -476,8 +479,10 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         request: UndoCaseOwnershipTransferReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: UndoCaseOwnershipTransferReceivedEvent = request
@@ -503,5 +508,6 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             label="UndoOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
+            trigger_activity=self._trigger_activity,
             applied_note="withdrew (ownership unchanged)",
         )

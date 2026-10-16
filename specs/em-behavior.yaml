@@ -1338,8 +1338,10 @@ groups:
       `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
       covers the lazy check, the outside request, the order of the two, a
       race between them, an early request after the end time, and the lazy
-      check run by the inbox and trigger dispatchers before the activity or
-      trigger; `test/core/use_cases/received/test_termination_reason.py`
+      check composed into the one tree that handles a participant's received
+      activity or a case-scoped trigger (CLP-10-025, ADR-0135), including an
+      accept of a pending revision that cannot extend the expired embargo;
+      `test/core/use_cases/received/test_termination_reason.py`
       covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
       at a replica, and a case owner's `Remove` after the termination.
     testable: true
