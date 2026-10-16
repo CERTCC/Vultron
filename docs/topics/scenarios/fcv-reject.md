@@ -104,7 +104,7 @@ The Case Actor sends the Invite and records it as an `invite_actor_to_case` entr
 
 ### 5. Vendor rejects the invitation
 
-The Vendor declines to participate.  The Case Actor records the rejection as a
+The Vendor declines to participate.  The Case Actor records the Vendor's `Reject` as a
 `reject_invite_actor_to_case` entry.  **The Vendor is not added as a participant.**
 
 *Antecedent:* The Vendor's `invite_actor_to_case` entry is in the ledger.

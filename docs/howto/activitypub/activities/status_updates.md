@@ -111,7 +111,7 @@ This implementation's add-note trigger sends the `Create` alone.
 {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
 
 To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
-The CASE_MANAGER accepts it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.
+The CASE_MANAGER admits it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/remove-note-from-case.md" %}
 
