@@ -1031,8 +1031,8 @@ groups:
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
       owner's decision for the case, so neither meaning depends on who sent the message
       (ADR-0122). Refusing a doomed activation before the commit keeps the ledger free of an
-      entry that replicas, replaying in OBSERVED mode, would apply without the CASE_MANAGER's
-      P/X/A check.
+      entry that replicas, copying its step, would apply without the CASE_MANAGER's P/X/A
+      check (CM-23-016).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
       Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records

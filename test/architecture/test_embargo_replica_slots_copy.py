@@ -19,7 +19,8 @@ re-running ``EmbargoLifecycle`` or a consent transition on its own state.
 The check is per class, over every class in each slot's MRO that this
 codebase defines, because ``abandon.py`` and ``withdrawal.py`` also hold the
 CASE_MANAGER's own nodes, which decide through ``EmbargoLifecycle`` as they
-must (#4717 added the withdrawal slot).
+must (#4717 added the withdrawal slot; #4784 the owner's activation and
+rejection slots).
 """
 
 import ast
@@ -31,6 +32,10 @@ import pytest
 from test.architecture import _corpus
 from vultron.core.behaviors.embargo.nodes.abandon import (
     ApplyEmbargoAbandonmentFromLedgerNode,
+)
+from vultron.core.behaviors.embargo.nodes.activation_effect import (
+    ApplyEmbargoActivationFromLedgerNode,
+    ApplyEmbargoProposalRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyEmbargoAcceptanceFromLedgerNode,
@@ -44,8 +49,16 @@ from vultron.core.behaviors.embargo.nodes.withdrawal import (
 )
 
 #: Names a copying slot must never reach for (CM-23-016, CM-18-005).
+#: ``TransitionMode`` catches a slot that delegates to a lifecycle node in
+#: ``OBSERVED`` mode rather than calling ``EmbargoLifecycle`` itself, as the
+#: owner's-rejection slot did before #4784.
 _LIFECYCLE_NAMES = frozenset(
-    {"EmbargoLifecycle", "apply_pec_transition", "write_uninvited_rows"}
+    {
+        "EmbargoLifecycle",
+        "TransitionMode",
+        "apply_pec_transition",
+        "write_uninvited_rows",
+    }
 )
 
 _SLOTS = [
@@ -56,6 +69,8 @@ _SLOTS = [
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoAbandonmentFromLedgerNode,
     ApplyEmbargoWithdrawalFromLedgerNode,
+    ApplyEmbargoActivationFromLedgerNode,
+    ApplyEmbargoProposalRejectionFromLedgerNode,
 ]
 
 

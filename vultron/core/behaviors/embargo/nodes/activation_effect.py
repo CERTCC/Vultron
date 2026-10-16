@@ -28,20 +28,14 @@ whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in force
 included, and the owner's agreement it states, applied through the one apply
 function the CASE_MANAGER uses.  Each ``CARRY_OVER`` row is its own
 CASE_MANAGER ``Update(EmbargoConsent)`` entry, which the consent slot copies.
-The rejection still goes through ``EmbargoLifecycle`` in ``OBSERVED`` mode
-(EMB-18-001) until its arm is converted (#4715).
+The rejection copies the same way: the ``Reject`` entry is the whole
+``REJECT`` step, unless the CASE_MANAGER answered it with ET (EMB-04-002).
 """
 
 from __future__ import annotations
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.reject_proposed import (
-    DecideRejectedEmbargoProposalNode,
-)
-from vultron.core.behaviors.embargo.nodes.relay_effect import (
-    _EmbargoRelayEffectNode,
-)
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
@@ -59,8 +53,9 @@ from vultron.core.models.embargo_apply import (
 from vultron.core.models.embargo_consent_move import owner_agreement
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.predicates.embargo import rejection_ends_embargo
 from vultron.core.services.carried_embargo import carried_entry_embargo
-from vultron.core.services.embargo_lifecycle import TransitionMode
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.errors import VultronError
 
 #: Ledger ``event_type`` of the case owner's committed activation.
@@ -158,34 +153,45 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
         return [agreement] if agreement is not None else []
 
 
-class ApplyEmbargoProposalRejectionFromLedgerNode(_EmbargoRelayEffectNode):
-    """Reject the entry's proposal on the replica (ER / EJ).
+class ApplyEmbargoProposalRejectionFromLedgerNode(
+    ApplyEmbargoChangeFromLedgerNode
+):
+    """Copy the owner's rejection onto the replica (ER / EJ).
 
-    Runs :class:`DecideRejectedEmbargoProposalNode` in ``OBSERVED`` mode:
-    the register rejects the proposal and EM derives from what is left
-    (EP-08-001).  No consent changes.  A proposal this replica no longer
-    holds as open is a no-op, so a re-delivered entry changes nothing.  So
-    is the last revision with P/X/A set: the CASE_MANAGER answered that
-    Reject with ET (EMB-04-002), and the termination entry that follows
-    cancels the revision here as it did there (EP-08-004, ADR-0124).
+    The entry's ``object`` names the proposal, and the entry is the whole
+    ``REJECT`` register step: the proposal is rejected and EM derives from
+    what is left (EP-08-001).  No consent changes, the owner's included
+    (MSM-07-009).  A rejection already in place, so a re-delivered entry,
+    changes nothing.
 
-    SUCCESS with nothing written when the replica holds no copy of the case
-    (Regime 2, ADR-0087).  FAILURE, so the entry is not persisted
-    (SYNC-12-001), when the entry names no embargo or one the replica can
-    neither find nor reconstruct.
+    The owner's rejection of the last revision after disclosure changes
+    nothing here either: the CASE_MANAGER answered it with ET rather than
+    returning to the prior terms (EMB-04-002), and the ``Remove`` entry that
+    follows carries the ``TERMINATE`` step that cancels the revision
+    (EP-08-004).  A revision this replica already holds ``CANCELLED`` was
+    cancelled that way, so a seeded replica already past that ``Remove``
+    skips the entry too (ADR-0114).
+
+    An entry naming an embargo that is not an open proposal here is refused
+    into the gap buffer (ADR-0124); one that names no embargo fails, so it
+    is not persisted (SYNC-12-001).  SUCCESS with nothing written when the
+    replica holds no copy of the case (Regime 2, ADR-0087).
     """
 
-    def update(self) -> Status:
-        entry = self._get_entry()
-        resolved = self._resolve(entry.payload_snapshot.get("object"))
-        if isinstance(resolved, Status):
-            return resolved
-        case, embargo_id = resolved
-        return self._delegate(
-            DecideRejectedEmbargoProposalNode(
-                case_id=case.id_,
-                embargo_id=embargo_id,
-                transition_mode=TransitionMode.OBSERVED,
-                name=f"{self.name}.DecideRejectedEmbargoProposal",
-            )
+    def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
+        embargo_id = _extract_id_from_field(
+            entry.payload_snapshot.get("object")
+        )
+        if not embargo_id:
+            raise TypeError("the Reject names no EmbargoEvent")
+        return RegisterStep(kind=RegisterStepKind.REJECT, embargo=embargo_id)
+
+    def _left_to_a_later_entry(
+        self, before: EmbargoCaseFile, change: EmbargoChange
+    ) -> bool:
+        assert isinstance(change, RegisterStep)
+        case = before.case
+        held = case.embargo_register_entry(change.embargo_id)
+        return rejection_ends_embargo(case, change.embargo_id) or (
+            held is not None and held.status is EmbargoRegisterStatus.CANCELLED
         )

@@ -45,7 +45,6 @@ from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
-    TransitionMode,
 )
 
 
@@ -89,10 +88,9 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
     is activated then).  An owner whose row for the proposal is ``DECLINED``
     is not refused: activating is the owner changing its answer, and its row
     moves straight to ``AGREED`` (MSM-07-008).  Read-only and ahead of the
-    commit, so a
-    refused activation is never ledgered: a replica replays the entry in
-    ``OBSERVED`` mode, which does not re-check P/X/A (CLP-10-009,
-    SYNC-12-001).
+    commit, so a refused activation is never ledgered: a replica copies
+    the entry's step and does not re-check P/X/A (CLP-10-009, SYNC-12-001,
+    CM-23-016).
     """
 
     def __init__(
@@ -151,7 +149,6 @@ class RejectEmbargoProposalLifecycleNode(_EmbargoLifecycleNode):
             case_id=self._case_id_value,
             embargo_id=self._embargo_id,
             actor_id=actor_id,
-            transition_mode=TransitionMode.STRICT,
         )
 
     def _register_step(self) -> RegisterStep:

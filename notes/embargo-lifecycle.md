@@ -161,8 +161,8 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   owner changing its answer, so its row moves straight to `AGREED`, in either
   mode, with one ledger entry (MSM-07-008). The received owner-decision trees
   check P/X/A with a read-only guard ahead of the commit
-  (`OwnerMayActivateEmbargoNode`), because replay runs `OBSERVED` and does not
-  re-check.
+  (`OwnerMayActivateEmbargoNode`), because a replica copies the step and does
+  not re-check.
 - A repeat of a recorded Accept or Reject is `SKIPPED` before the commit
   (`EmbargoAnswerNotRecordedNode`, CM-13-005); a `DECLINED` actor's Reject of
   an unknown embargo stays `REFUSED` (HP-01-003). An Accept after a Reject is
@@ -182,9 +182,11 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
   never blocked. `reject_embargo_proposal()` raises when it would return a
   `REVISE` case to the prior terms with P/X/A set — the correct path is to
-  terminate the embargo (ET, `terminate_embargo_bt`). That guard holds in
-  `OBSERVED` too, so manager and replicas both end with the revision
-  `CANCELLED` (#4364).
+  terminate the embargo (ET, `terminate_embargo_bt`). The CASE_MANAGER still
+  commits that `Reject`, so the replica slot skips it under the same condition
+  (`rejection_ends_embargo`, `vultron/core/predicates/embargo.py`) and the
+  `Remove` entry that follows cancels the revision: manager and replicas both
+  end with it `CANCELLED` (#4364, #4784).
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -299,11 +301,10 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    open proposal and writes no consent (MSM-07-006). Callers do none of this
    by hand.
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
-   teardown, withdrawal, activation and expiry slots copy the entry's step or
-   row (a `Leave` carries none), and every other row arrives as its own
-   CASE_MANAGER entry (ADR-0124). Two paths still pass
-   `transition_mode=TransitionMode.OBSERVED`: the owner's-rejection replica
-   slot (`activation_effect.py`, #4784), and a paused replica applying a
+   teardown, withdrawal, activation, owner's-rejection and expiry slots copy
+   the entry's step or row (a `Leave` carries none), and every other row
+   arrives as its own CASE_MANAGER entry (ADR-0124). One path still passes
+   `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
