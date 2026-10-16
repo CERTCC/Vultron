@@ -461,18 +461,19 @@ def _case_and_tree_decisions(
 def _sender_guard_stage(
     name: str,
     case_id: str | None,
+    manager_case_id: str | None,
     sender_rule: SenderRule | None,
     sender_context: SenderContext | None,
 ) -> py_trees.behaviour.Behaviour | None:
     """The tree's sender guard, composed from the declared rule (HP-01-008).
 
-    The caller passes ``case_id or manager_case_id`` as *case_id*: the
-    tree's commit case, else the case whose CASE_MANAGER gates its effects
-    (a tree that commits nothing at its own level, such as the close-case
-    tree, still checks its sender there).  A
+    A :class:`SenderCheckContext` names the tree's case: its commit case
+    *case_id*, else *manager_case_id*, the case whose CASE_MANAGER gates its
+    effects (a tree that commits nothing at its own level, such as the
+    close-case tree, still checks its sender there).  A
     :class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`
     reads the case from the activity at run time, so it is given only to a
-    tree with no case at build time.
+    tree with no commit case at build time.
     """
     if sender_rule is None:
         if sender_context is not None:
@@ -484,15 +485,15 @@ def _sender_guard_stage(
         raise VultronWiringError(
             f"{name}: sender_rule needs a sender_context (HP-01-008)"
         )
-    context_case = (
-        None
-        if isinstance(sender_context, LedgerActivityContext)
-        else sender_context.case_id
-    )
-    if context_case != case_id:
+    if isinstance(sender_context, LedgerActivityContext):
+        context_case, tree_case = None, case_id
+    else:
+        context_case = sender_context.case_id
+        tree_case = case_id or manager_case_id
+    if context_case != tree_case:
         raise VultronWiringError(
             f"{name}: sender_context names case {context_case!r}"
-            f" but the tree's case is {case_id!r} (HP-01-008)"
+            f" but the tree's case is {tree_case!r} (HP-01-008)"
         )
     return compose_sender_guard(sender_rule, sender_context)
 
@@ -790,7 +791,7 @@ def create_receive_activity_tree(
         )
     )
     guard = _sender_guard_stage(
-        name, case_id or manager_case_id, sender_rule, sender_context
+        name, case_id, manager_case_id, sender_rule, sender_context
     )
     children.extend(
         _case_resolution_stage(
