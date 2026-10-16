@@ -339,6 +339,39 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
+  - id: RSH-04-005
+    priority: MUST
+    kind: protocol
+    statement: >
+      A received `Add(CaseStatus)` MUST be admitted only from the case's
+      CASE_MANAGER, sent to a participant. A receiver MUST refuse an
+      `Add(CaseStatus)` from any other sender, and an `Add(CaseStatus)` sent to
+      the CASE_MANAGER, with nothing written and nothing sent.
+    rationale: >
+      RSH-04-001 reserves `Add(CaseStatus)` for the CASE_MANAGER, which sends it
+      to participants inside a case ledger entry. `add_case_status_tree` has no
+      StatusAdoptionGate (RSH-03-002 rests on its sender being the
+      CASE_MANAGER), so admitting it from another sender adopts that
+      participant's P, X or A report without the Case Owner approval RSH-07-001
+      requires. A participant reports P, X or A in its own
+      `Add(ParticipantStatus)` instead (CSB-15-003).
+    verification: >-
+      A test marked `RSH-04-005` asserts that `AddCaseStatusToCaseReceivedUseCase`
+      declares a sender rule admitting only the CASE_MANAGER on the participant
+      side and no sender at the CASE_MANAGER, and a received use-case test shows
+      a non-manager's `Add(CaseStatus)` is `REFUSED` with nothing written or sent.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-04-001
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0046
+    - ADR-0108
+    - ADR-0115
+    stories:
+    - story_2022_045
+    - story_2022_046
 - id: RSH-05
   title: Per-Dimension Partial Accept (liberal accept)
   description: >

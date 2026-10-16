@@ -202,6 +202,9 @@ sender check: authorization happened at the gates.
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
   suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gates decide
   (RSH-04-001).
+- **Refuse `Add(CaseStatus)` from anyone else.** `add_case_status_tree` has no
+  adoption gate, so admitting it from a participant skips the Case Owner's
+  approval (RSH-04-005, RSH-07-001).
 - **Every CASE_MANAGER-side EM or P/X/A mutation is followed by a canonical
   `CaseStatus` ledger write** through `EmitCaseStatusUpdateNode` (RSH-04-002,
   RSH-04-003); without it every replica stays stale. Wire it after any new EM
