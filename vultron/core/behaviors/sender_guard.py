@@ -45,19 +45,28 @@ on one addressee base (``SenderIsRequestAddresseeNode``).  ``AUTHOR`` is one
 kind whatever the object: the context's ``authored_object`` names it, and the
 factory picks the note-author or proposal-author check for it.
 
+An activity that carries a ``CaseLedgerEntry`` has no case at build time: the
+entry names it.  Its tree passes a :class:`LedgerActivityContext`, and the
+kinds' nodes read the sender and the case from the activity on the blackboard
+at run time (SYNC-03-005, SYNC-13-006).  Only the kinds whose nodes can do
+that may be declared for it: ``CASE_MANAGER`` and ``LEDGER_PEER``.
+
 An empty side composes :class:`NoSenderAdmittedNode`, so an activity that
 names no case is refused under a rule with no ``outside_case`` side; ``ANY_ACTOR`` composes
 no node, so a rule that admits any actor composes no guard at all.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import py_trees
+from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderClosureNotRecordedNode,
+    SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
@@ -85,13 +94,20 @@ __all__ = [
     "AuthoredNote",
     "AuthoredObject",
     "CaseProposalRequest",
+    "LedgerActivityContext",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
     "SenderCheckContext",
+    "SenderContext",
     "closed_sender_guard",
     "compose_sender_guard",
     "embargo_sender_context",
+    "sender_guard_refused",
 ]
+
+#: The composites :func:`compose_sender_guard` builds around the kinds' nodes.
+_ANY_OF_NAME = "AnyOfSenderKinds"
+_RULE_GUARD_NAME = "SenderRuleGuard"
 
 
 @dataclass(frozen=True)
@@ -211,6 +227,25 @@ class SenderCheckContext:
     request: AddresseeRequest | None = None
     authored_object: AuthoredObject | None = None
     offered_ownership_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LedgerActivityContext:
+    """The received activity carries a ``CaseLedgerEntry``, which names the case.
+
+    A ledger activity's tree has no case at build time, so the guard's nodes
+    read the sender and the case from the activity on the blackboard when the
+    tree runs: ``CASE_MANAGER`` from the announced entry (SYNC-13-006), and
+    ``LEDGER_PEER`` from the rejected entry (SYNC-03-005).  The guard is
+    composed for the activity's case, never for the rule's ``outside_case``
+    side, and the rule must state the same kinds at the CASE_MANAGER and at a
+    participant: telling the receiver's side apart needs the case at build
+    time.
+    """
+
+
+#: Either kind of context :func:`compose_sender_guard` composes a guard for.
+SenderContext = SenderCheckContext | LedgerActivityContext
 
 
 def embargo_sender_context(
@@ -402,9 +437,30 @@ def _kind_node(
     )
 
 
+def _ledger_kind_node(
+    kind: SenderEntitlementKind,
+) -> py_trees.behaviour.Behaviour:
+    """The condition node that checks *kind* for a ledger activity.
+
+    Each node reads the sender and the case from the activity on the
+    blackboard (:class:`LedgerActivityContext`).
+    """
+    if kind is SenderEntitlementKind.LEDGER_PEER:
+        return SenderIsActiveLedgerParticipantNode(
+            name="SenderIsActiveLedgerParticipant"
+        )
+    if kind is SenderEntitlementKind.CASE_MANAGER:
+        return SenderIsCaseManagerNode()
+    raise VultronWiringError(
+        f"compose_sender_guard: {kind.name} cannot be checked against a case"
+        " read from a ledger activity at run time; only CASE_MANAGER and"
+        " LEDGER_PEER can (HP-01-008)"
+    )
+
+
 def _any_of(
     kinds: frozenset[SenderEntitlementKind],
-    ctx: SenderCheckContext,
+    node_for: Callable[[SenderEntitlementKind], py_trees.behaviour.Behaviour],
     side: str,
 ) -> py_trees.behaviour.Behaviour | None:
     """The guard for one side: ``None`` when it admits any actor."""
@@ -412,13 +468,13 @@ def _any_of(
         return NoSenderAdmittedNode(side=side)
     if SenderEntitlementKind.ANY_ACTOR in kinds:
         return None
-    nodes = [_kind_node(kind, ctx) for kind in in_declaration_order(kinds)]
+    nodes = [node_for(kind) for kind in in_declaration_order(kinds)]
     if len(nodes) == 1:
         return nodes[0]
     # The last arm fails naming every kind, so the refusal reason is the
     # side's whole rule rather than the last kind tried (BT-13-001).
     return py_trees.composites.Selector(
-        name="AnyOfSenderKinds",
+        name=_ANY_OF_NAME,
         memory=False,
         children=[*nodes, SenderHoldsNoneOfNode(kinds)],
     )
@@ -433,14 +489,27 @@ def _or_pass(
     return py_trees.behaviours.Success(name=f"{name}AnyActor")
 
 
+def _ledger_guard(rule: SenderRule) -> py_trees.behaviour.Behaviour | None:
+    """The guard *rule* requires for a ledger activity's case."""
+    if rule.at_case_manager != rule.at_participant:
+        raise VultronWiringError(
+            "compose_sender_guard: a ledger activity's case is read at run"
+            " time, so its rule must state the same kinds at the CASE_MANAGER"
+            " and at a participant (HP-01-008)"
+        )
+    return _any_of(rule.at_case_manager, _ledger_kind_node, "a case actor")
+
+
 def compose_sender_guard(
-    rule: SenderRule, ctx: SenderCheckContext
+    rule: SenderRule, ctx: SenderContext
 ) -> py_trees.behaviour.Behaviour | None:
     """Compose the guard *rule* requires for the activity *ctx* describes.
 
     Args:
         rule: The use case's declared sender rule.
-        ctx: The sender and the records its kinds are checked against.
+        ctx: The sender and the records its kinds are checked against, or a
+            :class:`LedgerActivityContext` for an activity whose case the
+            ledger entry it carries names.
 
     Returns:
         The guard, or ``None`` when the receiver's side admits any actor.
@@ -450,30 +519,38 @@ def compose_sender_guard(
             ``INVITEE`` kind without ``invite_id``, a ``NAMED_ACTOR`` kind
             without ``request``, an ``AUTHOR`` kind without
             ``authored_object``, or a case-scoped check without
-            ``case_id``.
+            ``case_id``; or a ledger activity's rule declares a kind that
+            cannot read the case at run time, or differs by side.
     """
+    if isinstance(ctx, LedgerActivityContext):
+        return _ledger_guard(rule)
+
+    def node_for(kind: SenderEntitlementKind) -> py_trees.behaviour.Behaviour:
+        return _kind_node(kind, ctx)
+
     if ctx.case_id is None:
         return _any_of(
             rule.outside_case,
-            ctx,
+            node_for,
             "a receiver that holds no case for it (the activity names no"
             " case this store holds)",
         )
     if rule.at_case_manager == rule.at_participant:
-        return _any_of(rule.at_case_manager, ctx, "a case actor")
+        return _any_of(rule.at_case_manager, node_for, "a case actor")
     manager = _or_pass(
-        _any_of(rule.at_case_manager, ctx, "the CASE_MANAGER"), "AtCaseManager"
+        _any_of(rule.at_case_manager, node_for, "the CASE_MANAGER"),
+        "AtCaseManager",
     )
     participant = _or_pass(
         _any_of(
             rule.at_participant,
-            ctx,
+            node_for,
             "a participant other than the CASE_MANAGER",
         ),
         "AtParticipant",
     )
     return py_trees.composites.Sequence(
-        name="SenderRuleGuard",
+        name=_RULE_GUARD_NAME,
         memory=False,
         children=[
             py_trees.composites.Selector(
@@ -500,4 +577,25 @@ def compose_sender_guard(
                 ],
             ),
         ],
+    )
+
+
+def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
+    """Whether *node* is the root of a guard :func:`compose_sender_guard`
+    builds: a kind's node, an empty side's refusal, or a composite."""
+    return isinstance(
+        node, (SenderEntitlementConditionNode, SenderIsParticipantNode)
+    ) or node.name in {_ANY_OF_NAME, _RULE_GUARD_NAME}
+
+
+def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
+    """Whether the sender guard the factory placed in *root* refused.
+
+    ``create_receive_activity_tree`` places the composed guard as a direct
+    child of the tree's root, so a handler can tell a sender refusal from a
+    failure elsewhere without naming a sender node itself (HP-01-007).
+    """
+    return any(
+        _is_composed_guard(child) and child.status is Status.FAILURE
+        for child in root.children
     )

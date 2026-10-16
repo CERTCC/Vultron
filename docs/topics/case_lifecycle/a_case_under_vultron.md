@@ -127,7 +127,7 @@ In either form, the invitation asks for one decision, and the table below shows 
 |---|---|
 | Accept | You are a signatory to the terms. You are expected not to disclose the vulnerability to anyone outside the case until the embargo ends ([Embargo Principles](../process_models/em/principles.md)). |
 | Decline | You are not bound. You still receive the negotiation traffic, so you can accept later terms, but embargoed case content is withheld from you ([§9.5 Embargo Traffic Reaches Non-Signatories](../../reference/vultron-spec/tracking-models.md#95-embargo-traffic-reaches-non-signatories), [§9.7 Gating Full Case Delivery](../../reference/vultron-spec/tracking-models.md#97-gating-full-case-delivery)). |
-| No answer by the deadline | Recorded as expired, distinct from an explicit decline ([§9.4 Deadlines and the Pocket Veto](../../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)). |
+| No answer by the deadline | Recorded as timed out, distinct from an explicit decline ([§9.4 Deadlines and the Pocket Veto](../../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)). |
 | Propose different terms | The shortest proposed embargo is taken as accepted and the longer one as a proposed revision, so the case has an embargo while you negotiate ([Default Embargoes](../process_models/em/defaults.md)). |
 
 Three things happen without anyone asking you.

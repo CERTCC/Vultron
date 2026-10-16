@@ -18,7 +18,7 @@
 Covers all four report-lifecycle BTs (issue #759 AC-1 through AC-5):
   - ``CreateReportReceivedBT``    — stores report; intake archives activity
   - ``AckReportReceivedBT``      — intake archives activity; forwards own ack
-  - ``CloseReportReceivedBT``    — intake archives activity; RM → CLOSED
+  - ``CloseReportReceivedBT``    — intake archives activity; refuses on a case
   - ``InvalidateReportReceivedBT`` — intake archives activity; RM → INVALID
 
 Each BT is tested at three levels:
@@ -656,7 +656,11 @@ class TestInvalidateReportReceivedTree:
         """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, case_id=CASE_ID)
+        tree = create_invalidate_report_received_tree(
+            event,
+            case_id=CASE_ID,
+            sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -679,7 +683,11 @@ class TestInvalidateReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, case_id=None)
+        tree = create_invalidate_report_received_tree(
+            event,
+            case_id=None,
+            sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+        )
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -702,7 +710,9 @@ class TestInvalidateReportReceivedTree:
 
         for _ in range(2):
             tree = create_invalidate_report_received_tree(
-                event, case_id=CASE_ID
+                event,
+                case_id=CASE_ID,
+                sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
             )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
@@ -752,3 +762,26 @@ class TestInvalidateReportReceivedUseCase:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in warn_msgs
         )
+
+
+def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
+    """An Invalidate(Report) tree resolves the case, checks the sender,
+    then runs the CASE_MANAGER's clock decisions, the embargo end-time check
+    among them, before its guards (HP-01-008, CLP-10-025, EMB-13-003).
+
+    A ``Close(Report)`` tree has no guards to run them before: it refuses
+    every sender on a case (CM-23-019).
+    """
+    tree = create_invalidate_report_received_tree(
+        _make_invalidate_report_event(),
+        case_id=CASE_ID,
+        sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+    )
+    assert [c.name for c in tree.children[:6]] == [
+        "IntakeReceivedActivityNode",
+        "CaseOpenToExternalWrites",
+        "RequireCaseForReport",
+        "SenderIsParticipantNode",
+        "ClockDecisionsIfCaseManager",
+        "PreconditionGuardStage",
+    ]

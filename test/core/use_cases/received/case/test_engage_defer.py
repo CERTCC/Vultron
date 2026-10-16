@@ -16,7 +16,7 @@ import logging
 
 import pytest
 
-from test.support.embargo_register import activate, register
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -108,40 +108,6 @@ class TestEngageDeferCaseBTFailureReason:
 
         assert result.disposition == HandlerDisposition.REFUSED
 
-    def test_engage_naming_an_unheld_embargo_is_refused_and_stores_nothing(
-        self, dl, actor_id, case_id
-    ):
-        """EMB-18-003: a carried snapshot naming an unreadable embargo is
-        refused before its participants are stored."""
-        participant = CaseParticipant(
-            id_=f"{case_id}/participants/vendor",
-            attributed_to=actor_id,
-            context=case_id,
-        )
-        # The sender's participant carries a row for every register entry
-        # (ADR-0122).
-        participant.write_uninvited_rows([f"{case_id}/embargo_events/unheld"])
-        case = VulnerabilityCase(
-            id_=case_id,
-            name="engage snapshot",
-            embargo_register=register(
-                active=f"{case_id}/embargo_events/unheld"
-            ),
-            case_participants=[participant],
-        )
-        event = EngageCaseReceivedEvent(
-            activity_id="https://example.org/activities/engage-002",
-            actor_id=actor_id,
-            object_=case,
-            semantic_type=MessageSemantics.ENGAGE_CASE,
-        )
-
-        result = EngageCaseReceivedUseCase(dl, event).execute()
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert "EMB-18-003" in (result.reason or "")
-        assert dl.read(participant.id_) is None
-
     def test_engage_case_failure_reason_is_nonempty(
         self, dl, actor_id, case_id, caplog
     ):
@@ -214,12 +180,13 @@ class TestEngageDeferCaseBTFailureReason:
 
 
 class TestEngageCaseStoresEmbeddedParticipants:
-    """EngageCaseReceivedUseCase must call store_embedded_participants (#573).
+    """EngageCaseReceivedUseCase stores the participants a Join carries (#573).
 
-    Regression tests: when Join(VulnerabilityCase) arrives with inline
-    participant objects, those objects must be persisted as independent
-    DataLayer records before the BT runs — matching the pattern already
-    established for Create (#564) and Announce (#566) paths.
+    When ``Join(VulnerabilityCase)`` arrives with inline participant objects,
+    those objects are persisted as independent DataLayer records, matching
+    the Create (#564) and Announce (#566) paths, but only once the sender
+    guard has admitted the sender: a stranger's Engage stores nothing
+    (HP-01-006, #4696).
     """
 
     # The received-side tree executes under the case manager
@@ -229,6 +196,8 @@ class TestEngageCaseStoresEmbeddedParticipants:
     _ACTOR_ID = "https://vendor.example.org/actors/vendor"
     _CASE_ID = "https://example.org/cases/case-573-001"
     _PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
+    _OTHER_ACTOR_ID = "https://finder.example.org/actors/finder"
+    _OTHER_PARTICIPANT_ID = f"{_CASE_ID}/participants/finder"
 
     @pytest.fixture
     def dl(self):
@@ -238,15 +207,40 @@ class TestEngageCaseStoresEmbeddedParticipants:
         )
 
     @pytest.fixture
-    def case_with_inline_participant(self):
-        """VulnerabilityCase carrying a fully inline CaseParticipant."""
-        participant = CaseParticipant(
-            id_=self._PARTICIPANT_ID,
-            attributed_to=self._ACTOR_ID,
-            context=self._CASE_ID,
+    def dl_holding_the_sender(self, dl):
+        """The receiver's case, listing the sender's own participant."""
+        dl.create(
+            CaseParticipant(
+                id_=self._PARTICIPANT_ID,
+                attributed_to=self._ACTOR_ID,
+                context=self._CASE_ID,
+            )
         )
+        dl.create(
+            VulnerabilityCase(
+                id_=self._CASE_ID, case_participants=[self._PARTICIPANT_ID]
+            )
+        )
+        return dl
+
+    @pytest.fixture
+    def case_with_inline_participant(self):
+        """VulnerabilityCase carrying the sender's and another participant
+        inline; the receiver holds no record of the other one."""
+        participants = [
+            CaseParticipant(
+                id_=self._PARTICIPANT_ID,
+                attributed_to=self._ACTOR_ID,
+                context=self._CASE_ID,
+            ),
+            CaseParticipant(
+                id_=self._OTHER_PARTICIPANT_ID,
+                attributed_to=self._OTHER_ACTOR_ID,
+                context=self._CASE_ID,
+            ),
+        ]
         case = VulnerabilityCase(id_=self._CASE_ID)
-        object.__setattr__(case, "case_participants", [participant])
+        object.__setattr__(case, "case_participants", participants)
         return case
 
     @pytest.fixture
@@ -258,29 +252,41 @@ class TestEngageCaseStoresEmbeddedParticipants:
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
 
-    def test_inline_participant_stored_even_when_bt_fails(
-        self, dl, engage_event_with_inline_case
-    ):
-        """Embedded CaseParticipant is persisted before EngageCaseBT runs.
-
-        Even when the BT fails (no pre-registered participant in the DataLayer),
-        store_embedded_participants must run first and persist the inline
-        participant object (#573 regression).
-        """
-        EngageCaseReceivedUseCase(
+    def _execute(self, dl, event):
+        return EngageCaseReceivedUseCase(
             dl,
-            engage_event_with_inline_case,
+            event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        stored = dl.read(self._PARTICIPANT_ID)
+    def test_inline_participants_stored_once_the_sender_is_admitted(
+        self, dl_holding_the_sender, engage_event_with_inline_case
+    ):
+        """An admitted sender's snapshot participants are stored (#573)."""
+        self._execute(dl_holding_the_sender, engage_event_with_inline_case)
+
+        stored = dl_holding_the_sender.read(self._OTHER_PARTICIPANT_ID)
         assert stored is not None, (
             "CaseParticipant embedded in Join(VulnerabilityCase) must be "
-            "stored as an independent DataLayer record before the BT runs "
-            "(EngageCaseReceivedUseCase regression #573)"
+            "stored as an independent DataLayer record once the sender is "
+            "admitted (EngageCaseReceivedUseCase regression #573)"
         )
+
+    @pytest.mark.spec("HP-01-006")
+    def test_a_refused_senders_snapshot_stores_nothing(
+        self, dl, engage_event_with_inline_case
+    ):
+        """The sender guard runs before the snapshot steps: an Engage from a
+        sender the receiver cannot place in the case writes nothing (#4696).
+        """
+        result = self._execute(dl, engage_event_with_inline_case)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(self._PARTICIPANT_ID) is None
+        assert dl.read(self._OTHER_PARTICIPANT_ID) is None
+        assert dl.list_objects("CaseParticipant") == []
 
     def test_bare_string_participant_is_not_stored(self, dl):
         """When case_participants contains bare strings, nothing is stored.
@@ -298,13 +304,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
             object_=case_str_participants,
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
-        EngageCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        self._execute(dl, event)
 
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is None, (
@@ -315,9 +315,10 @@ class TestEngageCaseStoresEmbeddedParticipants:
 
     @pytest.mark.spec("EMB-18-003")
     def test_case_naming_an_unheld_embargo_is_refused(
-        self, dl, case_with_inline_participant
+        self, dl_holding_the_sender, case_with_inline_participant
     ):
         """A case naming an embargo this store cannot read stores nothing."""
+        dl = dl_holding_the_sender
         unheld_id = f"{self._CASE_ID}/embargo_events/unheld"
         # The sender's inline participants carry a row for every register
         # entry (ADR-0122), so they hold it before the entry is added.
@@ -332,18 +333,11 @@ class TestEngageCaseStoresEmbeddedParticipants:
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
 
-        result = EngageCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = self._execute(dl, event)
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert "EMB-18-003" in (result.reason or "")
-        assert dl.read(self._PARTICIPANT_ID) is None
-        assert dl.read(self._CASE_ID) is None
+        assert dl.read(self._OTHER_PARTICIPANT_ID) is None
         assert dl.list_objects("EmbargoEvent") == []
 
 

@@ -259,15 +259,16 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "a Participant offers a CVD role on the case to another "
-                    "actor"
+                    "the Case Owner offers a CVD role on the case to another "
+                    "participant"
                 ),
                 anchor="offer-case-participant-role",
-                addressee=AddresseeSide.PARTICIPANT,
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Offer case participant role",
                 description=(
-                    "Offers one role on the case to the actor named by the "
-                    "target."
+                    "Offers one role on the case to the participant named by"
+                    " the target. The Case Manager records the offer and"
+                    " forwards it to that participant."
                 ),
                 example="offer_case_participant_role",
                 howto=HowToGuide.ROLE_DELEGATION,
@@ -285,13 +286,13 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="an actor accepts a role offered to it on the case",
+                when="a participant accepts a role offered to it on the case",
                 anchor="accept-case-participant-role",
-                addressee=AddresseeSide.PARTICIPANT,
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Accept case participant role",
                 description=(
-                    "Accepts the offered role. The actor holds the role from "
-                    "then on."
+                    "Accepts the offered role. The participant holds the role"
+                    " once the Case Manager records the acceptance."
                 ),
                 example="accept_case_participant_role",
                 howto=HowToGuide.ROLE_DELEGATION,
@@ -309,9 +310,9 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="an actor declines a role offered to it on the case",
+                when="a participant declines a role offered to it on the case",
                 anchor="reject-case-participant-role",
-                addressee=AddresseeSide.PARTICIPANT,
+                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject case participant role",
                 description=(
                     "Declines the offered role. The roster does not change."

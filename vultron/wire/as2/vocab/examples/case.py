@@ -238,7 +238,8 @@ def offer_case_participant_role() -> as_Offer:
     Distinct from ``offer_case_participant``, which is the GI actor-suggestion
     handshake.  The ``as_CaseParticipantRole`` object carries the role, so the
     object type alone tells a receiver this is a role offer and not an
-    ownership-transfer offer.
+    ownership-transfer offer.  The Case Owner sends it to the case's
+    CASE_MANAGER, never to the target (CM-33-001).
     """
     _case = case()
     _vendor = vendor()
@@ -248,7 +249,7 @@ def offer_case_participant_role() -> as_Offer:
         target_actor=_coordinator,
         case=_case,
         actor=_vendor.id_,
-        to=[_coordinator.id_],
+        to=[case_actor().id_],
         content=(
             f"We're offering the {CVDRole.COORDINATOR.value} role on case "
             f"{_case.name} to {_coordinator.name}."
@@ -256,27 +257,54 @@ def offer_case_participant_role() -> as_Offer:
     )
 
 
-def accept_case_participant_role() -> as_Accept:
-    """Build ``Accept(Offer(CaseParticipantRole))`` — the target takes the role."""
-    _vendor = vendor()
-    _coordinator = _COORDINATOR
+def forward_case_participant_role() -> as_Offer:
+    """Build the CASE_MANAGER's forward of a recorded role Offer (CM-33-001).
+
+    The CASE_MANAGER is the ``actor`` and the Case Owner that made the Offer
+    is ``attributedTo`` (CM-24-005); the forward goes to the target only and
+    names the recorded Offer in ``inReplyTo``.
+    """
     _offer = offer_case_participant_role()
+    _coordinator = _COORDINATOR
+    return offer_case_participant_role_activity(
+        role=CVDRole.COORDINATOR,
+        target_actor=_coordinator,
+        case=case(),
+        actor=case_actor().id_,
+        attributed_to=vendor().id_,
+        to=[_coordinator.id_],
+        in_reply_to=_offer.id_,
+        content=_offer.content,
+    )
+
+
+def accept_case_participant_role() -> as_Accept:
+    """Build ``Accept(Offer(CaseParticipantRole))`` — the target takes the role.
+
+    The target answers the CASE_MANAGER's forward, to the CASE_MANAGER
+    (CM-33-004).
+    """
+    _coordinator = _COORDINATOR
+    _offer = forward_case_participant_role()
     return accept_case_participant_role_activity(
         _offer,
         actor=_coordinator.id_,
-        to=[_vendor.id_],
+        to=[case_actor().id_],
         content="We're accepting the role you offered.",
     )
 
 
 def reject_case_participant_role() -> as_Reject:
-    """Build ``Reject(Offer(CaseParticipantRole))`` — the target declines the role."""
-    _vendor = vendor()
+    """Build ``Reject(Offer(CaseParticipantRole))`` — the target declines the role.
+
+    The target answers the CASE_MANAGER's forward, to the CASE_MANAGER
+    (CM-33-004).
+    """
     _coordinator = _COORDINATOR
-    _offer = offer_case_participant_role()
+    _offer = forward_case_participant_role()
     return reject_case_participant_role_activity(
         _offer,
         actor=_coordinator.id_,
-        to=[_vendor.id_],
+        to=[case_actor().id_],
         content="We're declining the role you offered.",
     )

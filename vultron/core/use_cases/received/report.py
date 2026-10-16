@@ -372,7 +372,9 @@ class InvalidateReportReceivedUseCase:
         )
         # The case the sender guard and the RM adjudication read.
         tree = create_invalidate_report_received_tree(
-            request, case_id=_case_id_for_report(self._dl, request.report_id)
+            request,
+            case_id=_case_id_for_report(self._dl, request.report_id),
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,

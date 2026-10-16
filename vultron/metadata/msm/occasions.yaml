@@ -201,35 +201,37 @@ groups:
     example: add_report_to_case
   - anchor: offer-case-participant-role
     heading: Offer case participant role
-    when: a Participant offers a CVD role on the case to another actor
+    when: the Case Owner offers a CVD role on the case to another participant
     send: Offer(CaseParticipantRole)[context=VulnerabilityCase]
-    send_to: a participant
-    sent_by: not yet checked
+    send_to: the case manager
+    sent_by: the case owner
     semantics: offer_case_participant_role
     status: none
-    description: Offers one role on the case to the actor named by the target.
+    description: Offers one role on the case to the participant named by the target. The Case
+      Manager records the offer and forwards it to that participant.
     seen_in:
     - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: offer_case_participant_role
   - anchor: accept-case-participant-role
     heading: Accept case participant role
-    when: an actor accepts a role offered to it on the case
+    when: a participant accepts a role offered to it on the case
     send: Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])
-    send_to: a participant
+    send_to: the case manager
     sent_by: not yet checked
     semantics: accept_case_participant_role
     status: none
-    description: Accepts the offered role. The actor holds the role from then on.
+    description: Accepts the offered role. The participant holds the role once the Case Manager
+      records the acceptance.
     seen_in:
     - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: accept_case_participant_role
   - anchor: reject-case-participant-role
     heading: Reject case participant role
-    when: an actor declines a role offered to it on the case
+    when: a participant declines a role offered to it on the case
     send: Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])
-    send_to: a participant
+    send_to: the case manager
     sent_by: not yet checked
     semantics: reject_case_participant_role
     status: none

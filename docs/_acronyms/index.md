@@ -207,6 +207,7 @@ sense the docs actually use.
 *[RMM]: The CERT Resilience Management Model
 *[RS]: Report Submission (RM message)
 *[RSS]: Really Simple Syndication
+*[RSVP]: Répondez s'il vous plaît (please respond; used for an invitation's respond-by deadline)
 *[RV]: Report Valid (RM message)
 
 *[SAAS]: Software as a Service
