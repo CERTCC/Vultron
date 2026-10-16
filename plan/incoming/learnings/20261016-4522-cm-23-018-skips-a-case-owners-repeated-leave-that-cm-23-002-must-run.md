@@ -25,10 +25,17 @@ closed (its CASE_MANAGER closure step failed to commit, CLP-07-013).
 For the Case Owner the effect is not in place until `case_fully_closed`, so
 CM-23-018's own reason does not hold there.
 
-**Evidence.** PR #4823 (#4522) adds the closed-sender pre-flight to the Leave
-handler with `case_owner_completes=True`, and amends CM-23-018 with a Case Owner
-exception. The PR is held as a draft for the maintainer's decision.
+**Decision.** The maintainer approved the CM-23-018 Case Owner exception on
+2026-10-16. The owner's Leave means "we're done here", so the CASE_MANAGER
+must finish the closure from that point on. A repeat owner Leave, whatever its
+activity id, only lets it finish whatever is left and adds nothing new. After
+`case_fully_closed`, CM-23-013 refuses it.
 
-**How to apply.** If the maintainer rejects the amendment, the part-way owner
-closure needs another way to heal (a CASE_MANAGER-side retry), and the heal test
-changes with it.
+**Evidence.** PR #4823 (#4522) adds the closed-sender pre-flight to the Leave
+handler with `case_owner_completes=True`, and amends CM-23-018 with the
+exception. Tests in `test_close_case_role_semantics.py` pin both sides:
+`test_a_repeat_owner_leave_with_a_new_id_completes_the_closure` and
+`test_a_repeat_owner_leave_after_full_close_is_refused`.
+
+**How to apply.** Do not make a closed Case Owner's Leave a `SKIPPED` repeat
+while the case is not fully closed: it is how a part-way closure heals.
