@@ -1057,7 +1057,9 @@ def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
 
     assert again.disposition is HandlerDisposition.SKIPPED
     assert _event_types(dl) == entries_after_first
-    assert trigger_activity.offer_case_ownership_transfer.call_count == 2
+    calls = trigger_activity.offer_case_ownership_transfer.call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs["id_"] == calls[1].kwargs["id_"]
 
 
 @pytest.mark.spec("CM-21-016")
