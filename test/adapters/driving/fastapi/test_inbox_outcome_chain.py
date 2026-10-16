@@ -497,7 +497,7 @@ def test_untrusted_announce_case_is_refused_and_unstored(dl):
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
     assert outcome.failure_reason is not None
-    assert "untrusted sender" in outcome.failure_reason
+    assert "PCR-03-004" in outcome.failure_reason
     assert dl.read(_IMPOSTER_CASE_ID) is None
     assert dl.read(f"{_IMPOSTER_CASE_ID}/participants/imposter") is None
 
