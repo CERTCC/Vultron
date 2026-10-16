@@ -113,7 +113,7 @@ The embargo does not lapse because a revision failed.
 
 Embargo Termination (ET) is implemented in ActivityStreams as `Remove(Event)`.
 
-Send `Remove(Event)`, then `Announce(Event)` so participants see that the embargo is gone.
+Send `Remove(Event)`.
 The case moves to `EM.EXITED`, with immediate effect.
 
 Set `content` to the reason the embargo ends: `EARLY` to end it before its end time, or `END_TIME_REACHED` once its end time has passed.
@@ -130,6 +130,12 @@ If you are the CASE_MANAGER, address `Remove(Event)` to every other participant 
 
 The CASE_MANAGER commits the termination to the case ledger and fans the entry out to every participant.
 Your own copy of the case moves to `EM.EXITED` when the CASE_MANAGER's ledger entry for the termination reaches you, not when you send.
+
+When the CASE_MANAGER applies a Case Owner's termination that arrives before the end time, it then sends `Announce(Event)` naming the terminated embargo to every other active participant except a Closed Participant, the Case Owner included (EMB-19-001, CM-23-004).
+A termination the CASE_MANAGER starts itself sends no `Announce(Event)`.
+Neither does a Case Owner's termination that arrives after the end time: the CASE_MANAGER's own end-time check has already ended the embargo when that `Remove(Event)` arrives.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo-termination.md" %}
 
 !!! warning "Termination is not a revision"
 
