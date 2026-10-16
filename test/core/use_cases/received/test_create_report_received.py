@@ -238,9 +238,7 @@ class TestDuplicateReportHandling:
         )
         return (report, event)
 
-    def test_submit_report_no_warning_on_duplicate_report(
-        self, caplog, monkeypatch
-    ):
+    def test_submit_report_no_warning_on_duplicate_report(self, caplog):
         """SubmitReportReceivedUseCase emits no WARNING when report already stored.
 
         The inbox endpoint pre-stores the nested as_VulnerabilityReport before
@@ -249,28 +247,28 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        from vultron.core.use_cases.received import report as report_use_cases
-
-        monkeypatch.setattr(
-            report_use_cases,
-            "_run_submit_report_case_creation",
-            lambda *args, **kwargs: None,
-        )
+        from vultron.config.actor import ActorConfig
 
         report, event = self._make_submit_event(
             "https://example.org/reports/r-dup-1",
             "https://example.org/activities/offer-dup-1",
         )
+        # The store is the receiving vendor's own (BT-05-005).
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id="https://example.org/actors/vendor",
         )
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
 
         with caplog.at_level(logging.WARNING):
+            # Case creation off: the tree keeps the report (the duplicate
+            # path under test) and proposes nothing.
             SubmitReportReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                actor_config=ActorConfig(auto_create_case=False),
             ).execute()
 
         warning_records = [
