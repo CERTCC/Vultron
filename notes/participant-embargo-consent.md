@@ -469,9 +469,12 @@ The owner's decision and each participant's consent are different messages
   marks the sender's row for that embargo `AGREED` and moves no register entry.
 - `WithdrawFromEmbargoOnCaseReceivedUseCase` (`Leave(EmbargoEvent)`) declines
   the sender's `AGREED` row for the embargo in force and its agreed revisions,
-  and moves no register entry. Its guard sits ahead of the commit, so a refused
-  Leave is never ledgered; the withdrawer's replica still receives the entry,
-  because the fan-out runs at the commit, before the effect makes it inactive.
+  and moves no register entry. Its guards sit ahead of the commit, the
+  CASE_MANAGER's staged decision among them, so a refused Leave is never
+  ledgered. The Leave's entry carries no row: each declined row follows as the
+  CASE_MANAGER's own `Update(EmbargoConsent)` entry, which every replica copies
+  (ADR-0124, #4717). The withdrawer's replica still receives the Leave and every
+  row entry, because each is committed before the rows make it inactive.
   A redelivery of a Leave the ledger already records is `SKIPPED`, not
   refused (HP-01-003); a new Leave after the withdrawal is still refused.
 - `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,

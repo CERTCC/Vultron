@@ -168,7 +168,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
 - **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
-  and replay nodes not yet copying, #4716, #4717): it skips the P/X/A
+  and replay nodes not yet copying, #4716): it skips the P/X/A
   guards, records a proposal a replica never saw before activating it, and
   logs and skips a refused step — it never forces the register into a state
   its rules refuse. A copying replay node runs no lifecycle mode at all: it
@@ -289,12 +289,12 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    derivation (MSM-07-005). Termination (`decide_termination()`, then the
    `TERMINATE` step through the one apply function) cancels every open proposal
    and writes no consent (MSM-07-006). Callers do none of this by hand.
-4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment and
-   teardown slots copy the entry's step or row, and every other row arrives as
-   its own CASE_MANAGER entry (ADR-0124). The slots not yet converted
-   (activation, expiry, withdrawal) still pass
+4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
+   teardown and withdrawal slots copy the entry's step or row (a `Leave` carries
+   none), and every other row arrives as its own CASE_MANAGER entry (ADR-0124).
+   The slots not yet converted (activation, expiry) still pass
    `transition_mode=TransitionMode.OBSERVED`, and their consent cascades still
-   run, until #4716 and #4717.
+   run, until #4716.
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside

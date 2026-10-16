@@ -1496,17 +1496,20 @@ groups:
       (#3892). Covering every event type of the relay is what makes the participant-side
       embargo trees gateable with no further work.
     note: >-
-      The owner's decision, expiry and withdrawal slots still reconstruct their register
-      step through `EmbargoLifecycle` in `OBSERVED` mode until they copy too (#4716,
-      #4717); the consent rows those acts change already arrive as their own
-      entries wherever the CASE_MANAGER's arm commits them.
+      The owner's decision and expiry slots still reconstruct their register step
+      through `EmbargoLifecycle` in `OBSERVED` mode until they copy too (#4716); the
+      consent rows those acts change already arrive as their own entries wherever the
+      CASE_MANAGER's arm commits them. A withdrawal's `Leave(EmbargoEvent)` (EP-09-013)
+      carries no row: each row it declines is the CASE_MANAGER's own
+      `Update(EmbargoConsent)` entry, which the consent slot copies (#4717).
     verification: >-
       The RSH-08-004 architecture ratchet lists every committed embargo event type as having a
       replay node or a declared exemption; integration tests with per-actor stores assert a
       replica converges to `REVISE` and back to `ACTIVE` on the fan-out alone, and
       `test/core/use_cases/received/test_embargo_proposal_answer_copy.py` asserts a replica's
-      register and rows equal the CASE_MANAGER's after a proposal, each answer and the
-      CASE_MANAGER's policy consent, and
+      register and rows equal the CASE_MANAGER's after a proposal, each answer, the
+      CASE_MANAGER's policy consent and a withdrawal (the withdrawer's own replica
+      included), and
       `test/architecture/test_embargo_replica_slots_copy.py` asserts the copying slots
       run no lifecycle logic.
     relationships:

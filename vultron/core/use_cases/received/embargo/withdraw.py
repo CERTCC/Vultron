@@ -14,6 +14,7 @@ import py_trees
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.embargo.withdrawal_tree import (
@@ -49,7 +50,9 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
     refusal.  A redelivery of a Leave already
     ledgered is a benign no-op, reported ``SKIPPED`` (HP-01-003).  Only the
     CASE_MANAGER records the withdrawal, so a receiver whose gate turns it
-    away reports a refusal (BT-17-001).
+    away reports a refusal (BT-17-001).  Each row the withdrawal declines is
+    the CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, built through
+    the trigger-activity port (ADR-0124, CLP-07-013).
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
@@ -63,12 +66,14 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
         dl: CaseOutboxPersistence,
         request: WithdrawFromEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         super().__init__(
             dl,
             request,
             sync_port=sync_port,
+            trigger_activity=trigger_activity,
             wire_render_port=wire_render_port,
         )
 

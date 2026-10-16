@@ -25,44 +25,60 @@ everyone else (VP-13-017).  It is not an answer to an Invite, so a
   ahead of the commit (CLP-10-009).
 - :class:`RejectIsNotWithdrawalNode` — the Reject tree's read-only guard that
   refuses a Reject reading as a withdrawal.
+- :class:`EmbargoWithdrawalAppliesNode` — the received tree's decision
+  guard: the CASE_MANAGER decides the withdrawal on a staged store before
+  intake commits the Leave (ADR-0124).
 - :class:`RecordParticipantWithdrawalNode` — the CASE_MANAGER's effect.
 - :class:`WithdrawEmbargoLifecycleNode` — the trigger's CASE_MANAGER arm.
-- :class:`ApplyEmbargoWithdrawalFromLedgerNode` — the replica replay
+- :class:`ApplyEmbargoWithdrawalFromLedgerNode` — the replica slot
   (EP-09-007, RSH-08-004).
+
+Under the copy model (ADR-0124, CLP-07-013) the ``Leave`` is its own entry
+and carries no row: each row the withdrawal declines (the sender's row for
+the embargo in force, and every open proposal's row it had agreed to) is
+committed after it as the CASE_MANAGER's own ``Update(EmbargoConsent)``
+entry, which every replica copies (``ApplyEmbargoConsentFromLedgerNode``).
 
 Each check calls the shared predicates in
 :mod:`vultron.core.services.embargo_lifecycle.pec`, which the lifecycle's own
 refusal also calls, so the guard and the write cannot drift.
 """
 
+import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.decided_entries import (
+    EmbargoDecision,
+    decide_embargo_act,
+)
+from vultron.core.behaviors.embargo.nodes.answer_record import (
+    EmbargoDecisionAppliesNode,
+    case_manager_decision_guard,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
+)
+from vultron.core.behaviors.embargo.nodes.proposal import (
+    _RecordReceivedConsentNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     _EmbargoRelayEffectNode,
 )
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    DataLayerConditionWithPorts,
-)
-from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     embargo_withdrawal_refusal,
-    participant_consent_row,
     reject_is_withdrawal_refusal,
 )
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState as ECS,
-)
 from vultron.core.sync_helpers import recorded_entries_for_case
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronEntryRefusedError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 
 def is_ledgered_activity(
@@ -207,18 +223,41 @@ class RejectIsNotWithdrawalNode(_EmbargoRefusalGuardNode):
         super().__init__(case_id, embargo_id, rejecting_actor_id, name=name)
 
 
-class RecordParticipantWithdrawalNode(
-    DataLayerActionWithPorts, StateWriteCapable
-):
-    """Record a participant's withdrawal from the embargo in force.
+def decide_withdrawal(
+    datalayer: CasePersistence,
+    *,
+    case_id: str,
+    embargo_id: str,
+    actor_id: str,
+) -> EmbargoDecision:
+    """The decision *actor_id*'s withdrawal from *embargo_id* makes, staged.
 
-    Calls ``EmbargoLifecycle.record_embargo_withdrawal`` for
-    *withdrawing_actor_id*, the message's actor (the tree executes as the
-    receiving actor, ADR-0022): its ``AGREED`` row for the embargo in force
-    and every open proposal's row it had agreed to become ``DECLINED``, and
-    no register entry moves (MSM-07-010).  Returns FAILURE — so the handler
-    reports a refusal — when the lifecycle refuses the withdrawal or the case
-    is not found.
+    ``EmbargoLifecycle.record_embargo_withdrawal`` runs on a staged copy of
+    *datalayer*, so nothing is written.  The ``Leave`` moves no register
+    entry and carries no row, so the decision's act is ``None`` and every
+    row it declines is one of its :attr:`~EmbargoDecision.rows`
+    (MSM-07-010, ADR-0124).
+
+    Raises:
+        VultronError: the lifecycle refuses the withdrawal.
+        VultronBTInternalError: the entries do not carry what it wrote.
+    """
+
+    def _decide(staged: CasePersistence) -> object:
+        return EmbargoLifecycle(persistence=staged).record_embargo_withdrawal(
+            case_id=case_id, actor_id=actor_id, embargo_id=embargo_id
+        )
+
+    return decide_embargo_act(datalayer, case_id, _decide)
+
+
+class EmbargoWithdrawalAppliesNode(EmbargoDecisionAppliesNode):
+    """Guard: the CASE_MANAGER's decision of a received withdrawal applies.
+
+    Runs :func:`decide_withdrawal` and writes nothing, so a Leave the
+    lifecycle would refuse, or whose row entries would not apply, is refused
+    before intake commits it (ADR-0122: for a received act the trial runs
+    among its guards).  A decision fault raises.
     """
 
     def __init__(
@@ -228,25 +267,88 @@ class RecordParticipantWithdrawalNode(
         withdrawing_actor_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+        super().__init__(case_id, name=name)
         self.embargo_id = embargo_id
         self.withdrawing_actor_id = withdrawing_actor_id
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
+    def _decide(self, datalayer: CasePersistence) -> EmbargoDecision:
+        return decide_withdrawal(
+            datalayer,
+            case_id=self.case_id,
+            embargo_id=self.embargo_id,
+            actor_id=self.withdrawing_actor_id,
+        )
+
+    def _act(self) -> str:
+        return (
+            f"'{self.withdrawing_actor_id}''s withdrawal from embargo"
+            f" '{self.embargo_id}'"
+        )
+
+
+def case_manager_admits_withdrawal_guard(
+    case_id: str, embargo_id: str, withdrawing_actor_id: str
+) -> py_trees.behaviour.Behaviour:
+    """Precondition guard: at the CASE_MANAGER, the withdrawal applies."""
+    return case_manager_decision_guard(
+        "EmbargoWithdrawalApplies",
+        case_id,
+        EmbargoWithdrawalAppliesNode(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            withdrawing_actor_id=withdrawing_actor_id,
+        ),
+    )
+
+
+class RecordParticipantWithdrawalNode(_RecordReceivedConsentNode):
+    """Record a participant's withdrawal from the embargo in force.
+
+    Intake has committed the ``Leave`` (ADR-0111).  The node decides the
+    withdrawal for *withdrawing_actor_id*, the message's actor (the tree
+    executes as the receiving CASE_MANAGER, ADR-0022), with
+    :func:`decide_withdrawal`: its ``AGREED`` row for the embargo in force
+    and every open proposal's row it had agreed to become ``DECLINED``, and
+    no register entry moves (MSM-07-010).  Each declined row is then
+    committed as the CASE_MANAGER's own ``Update(EmbargoConsent)`` entry,
+    after the Leave, and applied by copying (ADR-0124, CLP-07-013).
+
+    Returns FAILURE — so the handler reports a refusal — when the lifecycle
+    refuses the withdrawal, the case is not found, or the case changed since
+    the guard's decision so the trial refuses a row.  A failed commit raises
+    (BT-14-001).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        withdrawing_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, embargo_id=embargo_id, name=name)
+        self.withdrawing_actor_id = withdrawing_actor_id
+
+    def _decide(self, actor_id: str) -> EmbargoDecision:
         assert self.datalayer is not None
+        return decide_withdrawal(
+            self.datalayer,
+            case_id=self.case_id,
+            embargo_id=self.embargo_id,
+            actor_id=actor_id,
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
 
         try:
-            result = EmbargoLifecycle(
-                persistence=self.datalayer
-            ).record_embargo_withdrawal(
-                case_id=self.case_id,
-                actor_id=self.withdrawing_actor_id,
-                embargo_id=self.embargo_id,
-            )
-        except (VultronNotFoundError, VultronValidationError) as exc:
+            decision = self._record(self.withdrawing_actor_id)
+        except (
+            VultronNotFoundError,
+            VultronValidationError,
+            VultronEntryRefusedError,
+        ) as exc:
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -254,7 +356,7 @@ class RecordParticipantWithdrawalNode(
         self.feedback_message = (
             f"Recorded withdrawal of '{self.withdrawing_actor_id}' from"
             f" embargo '{self.embargo_id}' on case '{self.case_id}'"
-            f" ({len(result.participant_changes)} consent row change(s))"
+            f" ({len(decision.rows)} declined row entr(ies))"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
@@ -263,10 +365,13 @@ class RecordParticipantWithdrawalNode(
 class WithdrawEmbargoLifecycleNode(_EmbargoLifecycleNode):
     """Record the executing actor's own withdrawal (the trigger's manager arm).
 
-    A CASE_MANAGER that is a signatory and not the case owner withdraws by
-    writing its own consent and committing the ``Leave(EmbargoEvent)``; any
-    other participant sends the Leave to the CASE_MANAGER and writes nothing
-    (EP-09-008).  Moves no register entry (MSM-07-010).
+    A CASE_MANAGER that is a signatory and not the case owner withdraws:
+    the trigger tree runs this node ``deciding()``, on a staged store, and
+    ``CommitEmbargoDecisionNode`` commits the ``Leave(EmbargoEvent)``, then
+    each row it declines as its own ``Update(EmbargoConsent)`` entry, and
+    applies them by copying (ADR-0124).  Any other participant sends the
+    Leave to the CASE_MANAGER and writes nothing (EP-09-008).  Moves no
+    register entry (MSM-07-010).
     """
 
     def __init__(
@@ -296,95 +401,33 @@ class WithdrawEmbargoLifecycleNode(_EmbargoLifecycleNode):
 
 
 class ApplyEmbargoWithdrawalFromLedgerNode(_EmbargoRelayEffectNode):
-    """Replay a ``Leave(EmbargoEvent)`` the CASE_MANAGER committed (MSM-07-010).
+    """Store a ``Leave(EmbargoEvent)`` the CASE_MANAGER committed (MSM-07-010).
 
-    Delegates to :class:`RecordParticipantWithdrawalNode` for the entry's
-    actor, the operation the CASE_MANAGER ran after its commit: the actor's
-    row for the embargo in force and its agreed open proposals' rows become
-    ``DECLINED``.  The withdrawing participant's own replica is among the
-    fan-out's recipients, because the commit precedes the effect that makes
-    it inactive, so it learns its own withdrawal here.
-
-    The CASE_MANAGER commits only a withdrawal its guard admitted, so a
-    replica whose row for the embargo is no longer ``AGREED`` — a repeat of
-    this entry — or whose case no longer holds the embargo as active (a
-    later teardown applied first) has nothing left to apply, and replays
-    the entry as a no-op rather than blocking the persist (SYNC-12-001).  An
-    actor with no participant record here is skipped (Regime 2, ADR-0087).
+    The Leave carries no row and moves no register entry, so this slot
+    writes nothing but the embargo it names, if absent.  Each row the
+    withdrawal declines follows as the CASE_MANAGER's own
+    ``Update(EmbargoConsent)`` entry, which the consent slot copies
+    (``ApplyEmbargoConsentFromLedgerNode``, ADR-0124, CM-23-016); the slot
+    re-runs no lifecycle logic.  The withdrawing participant's own replica
+    is among the recipients of the Leave and of every row entry, since each
+    is committed before the CASE_MANAGER applies the rows that make it
+    inactive, so it learns its own withdrawal from the same entries.
+    Regime 2 (ADR-0087): a replica with no copy of the case skips it.
     """
 
     def update(self) -> Status:
-        entry = self._get_entry()
-        snapshot = entry.payload_snapshot
-        resolved = self._resolve(snapshot.get("object"))
-        if isinstance(resolved, Status):
-            return resolved
-        case, embargo_id = resolved
-        assert self.datalayer is not None
-        actor_id = _extract_id_from_field(snapshot.get("actor"))
-        if not actor_id:
-            self.feedback_message = (
-                f"Leave(EmbargoEvent) on case '{case.id_}' names no actor"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        try:
-            row = participant_consent_row(
-                self.datalayer, case, actor_id, embargo_id
-            )
-        except VultronNotFoundError as exc:
-            # The CASE_MANAGER admitted the Leave from an AGREED row, so a
-            # replica with no row at all diverges from it.  Logged, and not
-            # failed, so later entries are not blocked (as below).
-            self.feedback_message = (
-                f"{exc} — replica diverges from the CASE_MANAGER; not replayed"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        if row is None:
-            self.feedback_message = (
-                f"no participant record for '{actor_id}' on case"
-                f" '{case.id_}' — skipping (partial replica)"
-            )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        if embargo_id != case.active_embargo_id or row is ECS.DECLINED:
-            # A repeat of this entry, or a later teardown applied first.
-            self.feedback_message = (
-                f"Withdrawal of '{actor_id}' from embargo '{embargo_id}' on"
-                f" case '{case.id_}' is already applied here — nothing to"
-                " replay"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        if row is not ECS.AGREED:
-            # The CASE_MANAGER admitted the Leave from an AGREED row, so this
-            # replica's row diverges from it.  Not repaired here (#4294 makes
-            # replay a copy); logged so the divergence is not mistaken for a
-            # repeat, and not failed, so later entries are not blocked.
-            self.feedback_message = (
-                f"'{actor_id}' is {row.value} on embargo '{embargo_id}' of"
-                f" case '{case.id_}' here, but the CASE_MANAGER admitted its"
-                " withdrawal from an AGREED row — replica diverges; not"
-                " replayed"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        return self._delegate(
-            RecordParticipantWithdrawalNode(
-                case_id=case.id_,
-                embargo_id=embargo_id,
-                withdrawing_actor_id=actor_id,
-            )
+        return self._store_only(
+            self._get_entry().payload_snapshot.get("object")
         )
 
 
 __all__ = [
     "ApplyEmbargoWithdrawalFromLedgerNode",
+    "EmbargoWithdrawalAppliesNode",
     "IsWithdrawableEmbargoNode",
     "RecordParticipantWithdrawalNode",
     "RejectIsNotWithdrawalNode",
     "WithdrawEmbargoLifecycleNode",
+    "case_manager_admits_withdrawal_guard",
+    "decide_withdrawal",
 ]

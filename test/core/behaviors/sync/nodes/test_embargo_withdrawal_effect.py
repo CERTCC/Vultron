@@ -3,7 +3,10 @@
 
 Each test runs in the participant's replica store (``PARTICIPANT_ACTOR_ID``,
 see ``conftest.py``) and applies the withdrawal entry the CASE_MANAGER
-committed (EP-09-007, RSH-08-004).
+committed (EP-09-007, RSH-08-004).  Under the copy model the Leave carries
+no row: every row it declines is the CASE_MANAGER's next
+``Update(EmbargoConsent)`` entry, which the consent slot copies (ADR-0124),
+so this slot re-runs no lifecycle logic and writes no row.
 """
 
 from datetime import timedelta
@@ -63,6 +66,7 @@ def _leave_entry(
             "type": "EmbargoEvent",
             "id": embargo_id,
             "context": CASE_ID,
+            "endTime": (now_utc() + timedelta(days=30)).isoformat(),
         },
     }
     return _to_persistable_entry(
@@ -128,153 +132,80 @@ def _rows(datalayer, actor_id: str) -> dict[str, str]:
     return {r.embargo_id: r.state.value for r in participant.embargo_consents}
 
 
+def _register(datalayer) -> list[tuple[str, str]]:
+    case = cast(VulnerabilityCase, datalayer.read(CASE_ID))
+    return [(e.embargo_id, e.status.value) for e in case.embargo_register]
+
+
 @pytest.mark.spec("MSM-07-010")
 @pytest.mark.spec("EP-09-007")
-@pytest.mark.spec("RSH-08-004")
-def test_replica_replays_its_own_withdrawal(
+@pytest.mark.spec("CM-23-016")
+def test_the_leave_writes_no_row_on_the_withdrawers_replica(
     datalayer, bridge, revising_replica
 ) -> None:
-    """The withdrawer's replica declines the active and the agreed revision."""
-    result, _ = _run(bridge, _leave_entry())
-
-    assert result.status == Status.SUCCESS
-    assert _rows(datalayer, PARTICIPANT_ACTOR_ID) == {
-        ACTIVE_EMBARGO_ID: "DECLINED",
-        REVISION_ID: "DECLINED",
+    """The declined rows follow as their own entries; the Leave moves none."""
+    rows_before = {
+        actor: _rows(datalayer, actor)
+        for actor in (MANAGER_ACTOR_ID, OWNER_ACTOR_ID, PARTICIPANT_ACTOR_ID)
     }
-    # Nobody else's consent moves, and the embargo stays in force.
-    assert _rows(datalayer, OWNER_ACTOR_ID)[ACTIVE_EMBARGO_ID] == "AGREED"
-    case = cast(VulnerabilityCase, datalayer.read(CASE_ID))
-    assert case.active_embargo_id == ACTIVE_EMBARGO_ID
-    assert case.proposed_embargo_ids == [REVISION_ID]
-
-
-@pytest.mark.spec("MSM-07-010")
-@pytest.mark.spec("SYNC-12-001")
-def test_a_repeat_of_the_withdrawal_replays_as_a_no_op(
-    datalayer, bridge, revising_replica
-) -> None:
-    """A row already DECLINED has nothing left to apply; the persist proceeds."""
-    _run(bridge, _leave_entry())
+    register_before = _register(datalayer)
 
     result, node = _run(bridge, _leave_entry())
 
     assert result.status == Status.SUCCESS
-    assert "already applied" in node.feedback_message
-    assert _rows(datalayer, PARTICIPANT_ACTOR_ID)[ACTIVE_EMBARGO_ID] == (
-        "DECLINED"
-    )
+    assert "follows as its own entry" in node.feedback_message
+    assert {
+        actor: _rows(datalayer, actor) for actor in rows_before
+    } == rows_before
+    assert _register(datalayer) == register_before
 
 
 @pytest.mark.spec("MSM-07-010")
-def test_a_withdrawal_naming_no_actor_fails(
+@pytest.mark.spec("SYNC-12-001")
+def test_a_repeat_of_the_leave_is_a_no_op(
     datalayer, bridge, revising_replica
 ) -> None:
-    entry = _leave_entry()
-    entry.payload_snapshot.pop("actor")
+    _run(bridge, _leave_entry())
 
-    result, node = _run(bridge, entry)
+    result, _ = _run(bridge, _leave_entry())
 
-    assert result.status == Status.FAILURE
-    assert "names no actor" in node.feedback_message
+    assert result.status == Status.SUCCESS
     assert _rows(datalayer, PARTICIPANT_ACTOR_ID)[ACTIVE_EMBARGO_ID] == (
         "AGREED"
     )
 
 
-@pytest.mark.spec("MSM-07-010")
-def test_a_withdrawal_by_an_actor_not_on_this_replica_is_skipped(
+@pytest.mark.spec("EMB-18-003")
+def test_a_replica_missing_the_embargo_stores_it_from_the_leave(
     datalayer, bridge, revising_replica
 ) -> None:
-    """A partial replica holds no record for the actor (Regime 2, ADR-0087)."""
-    result, node = _run(
-        bridge, _leave_entry(actor="https://example.org/actors/stranger")
-    )
+    """The entry carries the embargo inline, so the replica stores it."""
+    assert datalayer.delete("EmbargoEvent", ACTIVE_EMBARGO_ID)
+    assert datalayer.read(ACTIVE_EMBARGO_ID) is None
+
+    result, _ = _run(bridge, _leave_entry())
 
     assert result.status == Status.SUCCESS
-    assert "partial replica" in node.feedback_message
+    stored = datalayer.read(ACTIVE_EMBARGO_ID)
+    assert isinstance(stored, EmbargoEvent)
+
+
+@pytest.mark.spec("EP-09-007")
+def test_a_leave_naming_no_embargo_fails(
+    datalayer, bridge, revising_replica
+) -> None:
+    entry = _leave_entry()
+    entry.payload_snapshot.pop("object")
+
+    result, node = _run(bridge, entry)
+
+    assert result.status == Status.FAILURE
+    assert "names no embargo" in node.feedback_message
 
 
 @pytest.mark.spec("MSM-07-010")
 def test_a_replica_without_the_case_skips_the_entry(datalayer, bridge) -> None:
+    """Regime 2 (ADR-0087): a replica with no copy of the case skips it."""
     result, _ = _run(bridge, _leave_entry())
 
     assert result.status == Status.SUCCESS
-
-
-@pytest.mark.spec("MSM-07-010")
-@pytest.mark.spec("SYNC-12-001")
-def test_a_replica_whose_row_diverges_is_warned_not_blocked(
-    datalayer, bridge, revising_replica, caplog
-) -> None:
-    """An INVITED row here, though the manager admitted the Leave from AGREED.
-
-    Not repaired and not failed (later entries must not stall), but logged at
-    WARNING so it is not mistaken for a repeat.
-    """
-    case = cast(VulnerabilityCase, datalayer.read(CASE_ID))
-    participant = cast(
-        CaseParticipant,
-        datalayer.read(case.actor_participant_index[PARTICIPANT_ACTOR_ID]),
-    )
-    participant.embargo_consents = [
-        EmbargoConsent(embargo_id=ACTIVE_EMBARGO_ID, state=ECS.INVITED),
-        EmbargoConsent(embargo_id=REVISION_ID, state=ECS.AGREED),
-    ]
-    datalayer.save(participant)
-
-    with caplog.at_level("WARNING"):
-        result, node = _run(bridge, _leave_entry())
-
-    assert result.status == Status.SUCCESS
-    assert "replica diverges" in node.feedback_message
-    assert any("replica diverges" in r.getMessage() for r in caplog.records)
-    assert _rows(datalayer, PARTICIPANT_ACTOR_ID) == {
-        ACTIVE_EMBARGO_ID: "INVITED",
-        REVISION_ID: "AGREED",
-    }
-
-
-@pytest.mark.spec("MSM-07-010")
-@pytest.mark.spec("SYNC-12-001")
-def test_a_withdrawal_from_an_embargo_no_longer_in_force_is_a_no_op(
-    datalayer, bridge, revising_replica
-) -> None:
-    """The case here no longer holds the entry's embargo as the one in force.
-
-    A later register change applied first, so there is nothing to withdraw
-    from; the entry replays as a no-op and no row moves.
-    """
-    result, node = _run(bridge, _leave_entry(embargo_id=REVISION_ID))
-
-    assert result.status == Status.SUCCESS
-    assert "already applied" in node.feedback_message
-    assert _rows(datalayer, PARTICIPANT_ACTOR_ID) == {
-        ACTIVE_EMBARGO_ID: "AGREED",
-        REVISION_ID: "AGREED",
-    }
-
-
-@pytest.mark.spec("MSM-07-010")
-@pytest.mark.spec("SYNC-12-001")
-def test_a_replica_with_no_row_for_the_embargo_is_warned_not_blocked(
-    datalayer, bridge, revising_replica, caplog
-) -> None:
-    """A missing row is a defect here; logged at WARNING, later entries flow."""
-    case = cast(VulnerabilityCase, datalayer.read(CASE_ID))
-    participant = cast(
-        CaseParticipant,
-        datalayer.read(case.actor_participant_index[PARTICIPANT_ACTOR_ID]),
-    )
-    participant.embargo_consents = [
-        EmbargoConsent(embargo_id=REVISION_ID, state=ECS.AGREED),
-    ]
-    datalayer.save(participant)
-
-    with caplog.at_level("WARNING"):
-        result, node = _run(bridge, _leave_entry())
-
-    assert result.status == Status.SUCCESS
-    assert "replica diverges" in node.feedback_message
-    assert any("replica diverges" in r.getMessage() for r in caplog.records)
-    assert _rows(datalayer, PARTICIPANT_ACTOR_ID) == {REVISION_ID: "AGREED"}

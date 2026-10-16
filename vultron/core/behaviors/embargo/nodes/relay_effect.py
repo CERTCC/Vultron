@@ -147,7 +147,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
     def _delegate(self, node: DataLayerActionWithPorts) -> Status:
         """Run a received-side record node in this node's store and actor.
 
-        For the slots not yet copying (#4716, #4717).
+        For the slots not yet copying (#4716).
         """
         node.datalayer = self.datalayer
         node.actor_id = self.actor_id

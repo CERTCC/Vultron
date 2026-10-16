@@ -170,23 +170,21 @@ class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class _RecordParticipantAnswerNode(
-    DataLayerActionWithPorts, StateWriteCapable
-):
-    """Shared frame: record a participant's answer under the copy model.
+class _RecordReceivedConsentNode(DataLayerActionWithPorts, StateWriteCapable):
+    """Shared frame: record a received consent act under the copy model.
 
-    The CASE_MANAGER has committed the participant's ``Accept`` or
-    ``Reject`` at intake (ADR-0111), and that entry is the answerer's row's
-    entry: the row it states (:meth:`ConsentRowChange.answer`) is applied by
-    copying, and no second entry records it (ADR-0122, CLP-07-013).  Every
-    replica copies the same row from the same entry.  The lifecycle
-    operation decides on a staged store and must write exactly that row; an
-    answer that would record nothing the case can take is refused, which the
-    tree's ``EmbargoAnswerAppliesNode`` guard does before the commit.  The
-    received answer (``/activity``) is the cause of any further row entry.
+    The CASE_MANAGER has committed the received act (an ``Accept``,
+    ``Reject`` or ``Leave``) at intake (ADR-0111).  The lifecycle operation
+    decides on a staged store (:meth:`_decide`); every consent row the
+    decision changes beyond what the act's own entry carries is then
+    committed as the CASE_MANAGER's own ``Update(EmbargoConsent)`` entry,
+    caused by the received act (``/activity``), and applied by copying
+    (ADR-0124, CLP-07-013).  Every replica copies the same entries.  The
+    tree's decision guard (``EmbargoDecisionAppliesNode``) refuses, before
+    the commit, an act that would record nothing the case can take.
 
     A failed commit is not a refusal: it raises (BT-14-001).  A tree that
-    supplies no received answer is a composition fault, and raises too.
+    supplies no received act is a composition fault, and raises too.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -213,49 +211,76 @@ class _RecordParticipantAnswerNode(
         super().initialise()
         self._event = self._try_get_input("activity")
 
-    def _answer_id(self) -> str:
-        """The id of the received answer this node records.
+    def _received_id(self) -> str:
+        """The id of the received act this node records.
 
         Raises:
-            VultronWiringError: the tree put no received answer on the
+            VultronWiringError: the tree put no received act on the
                 blackboard.
         """
-        answer_id = getattr(self._event, "activity_id", None)
-        if not isinstance(answer_id, str) or not answer_id:
+        received_id = getattr(self._event, "activity_id", None)
+        if not isinstance(received_id, str) or not received_id:
             raise VultronWiringError(
-                f"{self.name}: no received answer on the blackboard to"
+                f"{self.name}: no received act on the blackboard to"
                 f" record for embargo '{self.embargo_id}' (ARCH-15-001)"
             )
-        return answer_id
+        return received_id
 
-    def _record(self, actor_id: str, *, accept: bool) -> EmbargoDecision:
-        """Decide *actor_id*'s answer; apply the row it states, and any other.
-
-        The answer's own entry, already committed, carries the stated row;
-        any other row the decision changes is its own entry (ADR-0122).
+    def _decide(self, actor_id: str) -> EmbargoDecision:
+        """*actor_id*'s act, decided on a staged store; nothing is written.
 
         Raises:
-            VultronError: the lifecycle refused the answer, the answer
-                records nothing the case can take, or the trial refused its
-                entries; nothing is committed or written.
+            VultronError: the lifecycle refused the act, or it records
+                nothing the case can take.
+        """
+        raise NotImplementedError
+
+    def _record(self, actor_id: str) -> EmbargoDecision:
+        """Decide *actor_id*'s act; commit and apply each row it changes.
+
+        The act's own entry, already committed, carries any change of its
+        own (an answer's stated row); every other row the decision changes
+        is its own entry (ADR-0122).
+
+        Raises:
+            VultronError: the lifecycle refused the act, the act records
+                nothing the case can take, or the trial refused its entries;
+                nothing is committed or written.
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
-        decision = decide_answer(
-            self.datalayer,
-            case_id=self.case_id,
-            embargo_id=self.embargo_id,
-            actor_id=actor_id,
-            accept=accept,
-        )
+        decision = self._decide(actor_id)
         commit_and_apply_decision(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
             decision=decision,
             trigger_activity=self._require_trigger_activity_port(),
             actor_id=self.actor_id,
-            cause_id=self._answer_id(),
+            cause_id=self._received_id(),
         )
         return decision
+
+
+class _RecordParticipantAnswerNode(_RecordReceivedConsentNode):
+    """Shared frame: record a participant's answer to an embargo Invite.
+
+    The answer's committed entry is the answerer's row's entry: the row it
+    states (:meth:`ConsentRowChange.answer`) is applied by copying, and no
+    second entry records it (ADR-0122, CLP-07-013).  The lifecycle operation
+    must write exactly that row (:func:`decide_answer`).
+    """
+
+    #: ``True`` for an ``Accept``, ``False`` for a ``Reject``.
+    _ACCEPT: bool
+
+    def _decide(self, actor_id: str) -> EmbargoDecision:
+        assert self.datalayer is not None
+        return decide_answer(
+            self.datalayer,
+            case_id=self.case_id,
+            embargo_id=self.embargo_id,
+            actor_id=actor_id,
+            accept=self._ACCEPT,
+        )
 
 
 class RecordParticipantAcceptanceNode(_RecordParticipantAnswerNode):
@@ -271,6 +296,8 @@ class RecordParticipantAcceptanceNode(_RecordParticipantAnswerNode):
     while the acceptance is recorded for the actual accepting actor.
     """
 
+    _ACCEPT = True
+
     def __init__(
         self,
         case_id: str,
@@ -285,7 +312,7 @@ class RecordParticipantAcceptanceNode(_RecordParticipantAnswerNode):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         try:
-            self._record(self.accepting_actor_id, accept=True)
+            self._record(self.accepting_actor_id)
         except (VultronNotFoundError, VultronEntryRefusedError) as exc:
             # The case itself is missing, or it changed under the decision:
             # consent reads no embargo record (ADR-0122).
@@ -326,6 +353,8 @@ class RecordParticipantRejectionNode(_RecordParticipantAnswerNode):
     rejection already recorded, or when the case is not found.
     """
 
+    _ACCEPT = False
+
     def __init__(
         self,
         case_id: str,
@@ -358,7 +387,7 @@ class RecordParticipantRejectionNode(_RecordParticipantAnswerNode):
             return failure  # Regime 1 (ADR-0087)
 
         try:
-            decision = self._record(self.rejecting_actor_id, accept=False)
+            decision = self._record(self.rejecting_actor_id)
         except (
             VultronNotFoundError,
             VultronValidationError,

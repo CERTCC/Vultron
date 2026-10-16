@@ -32,7 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.ledger import committed_event_types
 from vultron.core.behaviors.embargo.decided_entries import EMBARGO_DECISION_KEY
-from vultron.core.behaviors.embargo.nodes import lifecycle
+from vultron.core.behaviors.embargo.nodes import lifecycle, withdrawal
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
     ProposeEmbargoLifecycleNode,
@@ -43,9 +43,13 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
 from vultron.core.behaviors.embargo.nodes.proposal import (
     RecordParticipantAcceptanceNode,
 )
+from vultron.core.behaviors.embargo.nodes.withdrawal import (
+    EmbargoWithdrawalAppliesNode,
+    RecordParticipantWithdrawalNode,
+)
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.em import EM
-from vultron.errors import VultronEntryRefusedError
+from vultron.errors import VultronBTInternalError, VultronEntryRefusedError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 
@@ -148,7 +152,7 @@ def test_an_answer_node_with_no_received_answer_raises(
 
     assert result.status == Status.FAILURE
     assert result.internal_error
-    assert "no received answer" in (result.feedback_message or "")
+    assert "no received act" in (result.feedback_message or "")
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ACTOR)
@@ -171,4 +175,76 @@ def test_an_answer_node_records_the_row_on_the_answers_own_entry(
     )
 
     bt_scenario.assert_success(result)
+    assert committed_event_types(bt_scenario.dl, case_id) == before
+
+
+# ---------------------------------------------------------------------------
+# #4717: the received withdrawal's decision guard and effect
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ACTOR)
+def test_the_withdrawal_guard_refuses_what_the_lifecycle_refuses(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """No embargo in force: the staged decision refuses; nothing written."""
+    case_id = _seed(bt_scenario, "copy-withdraw-guard", EM.PROPOSED)
+    before = committed_event_types(bt_scenario.dl, case_id)
+
+    result = bt_scenario.run(
+        EmbargoWithdrawalAppliesNode(
+            case_id=case_id,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            withdrawing_actor_id=OTHER_PARTICIPANT_ACTOR,
+        )
+    )
+
+    bt_scenario.assert_failure(result, reason="records nothing")
+    assert committed_event_types(bt_scenario.dl, case_id) == before
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ACTOR)
+def test_the_withdrawal_guard_raises_on_a_decision_fault(
+    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A decision whose entries do not carry its writes is a fault."""
+    case_id = _seed(bt_scenario, "copy-withdraw-fault", EM.ACTIVE)
+
+    def _fault(*_args: object, **_kwargs: object) -> None:
+        raise VultronBTInternalError("the entries do not carry it")
+
+    monkeypatch.setattr(withdrawal, "decide_embargo_act", _fault)
+    result = bt_scenario.run(
+        EmbargoWithdrawalAppliesNode(
+            case_id=case_id,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            withdrawing_actor_id=OTHER_PARTICIPANT_ACTOR,
+        )
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ACTOR)
+def test_a_withdrawal_effect_whose_decision_is_refused_writes_nothing(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """The case changed since the guard (no embargo in force): FAILURE."""
+    case_id = _seed(bt_scenario, "copy-withdraw-moved", EM.PROPOSED)
+    before = committed_event_types(bt_scenario.dl, case_id)
+
+    result = bt_scenario.run(
+        RecordParticipantWithdrawalNode(
+            case_id=case_id,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            withdrawing_actor_id=OTHER_PARTICIPANT_ACTOR,
+        ),
+        activity=SimpleNamespace(
+            activity_id="https://example.org/activities/leave"
+        ),
+    )
+
+    assert result.status == Status.FAILURE
+    assert not result.internal_error
     assert committed_event_types(bt_scenario.dl, case_id) == before

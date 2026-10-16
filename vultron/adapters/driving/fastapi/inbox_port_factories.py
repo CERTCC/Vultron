@@ -258,6 +258,10 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # direct Remove(CaseParticipant) notice (CM-31-006).
         MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
         MessageSemantics.VALIDATE_REPORT,
+        # WITHDRAW_FROM_EMBARGO_ON_CASE: the CASE_MANAGER commits each row
+        # the withdrawal declines as its own factory-built
+        # Update(EmbargoConsent) entry after the Leave (ADR-0124, CLP-07-013).
+        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
     }
 )
 
