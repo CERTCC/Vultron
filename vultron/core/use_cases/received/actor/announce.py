@@ -7,13 +7,10 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
 )
-from vultron.core.behaviors.case.nodes.announce import (
-    AnnounceSenderTrustedNode,
-    announced_case_id,
-)
+from vultron.core.behaviors.case.nodes.announce import announced_case_id
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
+    SenderRule,
 )
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -32,10 +29,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    guard_refusal,
-    verdict_from_bt,
-)
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
@@ -47,10 +41,16 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     Per MV-10-003, the invitee creates the case if it does not already exist.
     Per MV-10-004, if the case already exists locally, the announcement is
     accepted without overwriting the existing record (idempotent).
+
+    Only the case's CASE_MANAGER sends it, and every receiver, a participant
+    replica, takes it from the CASE_MANAGER alone (PCR-03-001): the one its
+    bootstrap recorded on a completed ``ReportCaseLink`` (CBT-02-003), else
+    the one its replica names, else the trust anchor its stub Invite
+    recorded (PCR-03-004).  With none of them, the Announce is refused.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for actor announcement"
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+        SenderEntitlementKind.CASE_MANAGER
     )
 
     def __init__(
@@ -73,7 +73,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         request = self._request
         case_obj = getattr(request.activity, "object_", None)
         tree = create_announce_vulnerability_case_received_tree(
-            case_obj=case_obj, request=request
+            case_obj=case_obj,
+            request=request,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -91,11 +93,6 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             ),
             activity=request,
         )
-        # The guards' own reasons are the refusal (PCR-03-004, CLP-10-018).
-        if (
-            refusal := guard_refusal(tree, AnnounceSenderTrustedNode)
-        ) is not None:
-            return refusal
         verdict = verdict_from_bt(
             tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
         )

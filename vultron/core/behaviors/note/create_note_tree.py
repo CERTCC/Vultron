@@ -26,12 +26,15 @@ Structure (when the note names a case):
     CreateNoteBT (Sequence, via create_receive_activity_tree)
     ├─ IntakeReceivedActivityNode      # Archive the Create(Note) as received
     ├─ CaseOpenToExternalWrites        # Post-close write boundary
+    ├─ SenderRuleGuard                 # Composed from the declared rule
+    ├─ CaseManagerGate[ClockDecisionStage]  # Embargo end-time check
     ├─ GuardedCommitCaseLedgerEntryBT  # CASE_MANAGER commits create_note
     ├─ SaveNoteNode                    # Upsert note (idempotent)
     └─ AttachNoteToCaseIfCaseManager
        └─ AttachNoteToCaseNode         # Attach note to case (idempotent)
 
-A note that names no case has no commit and no attach stage.  A
+A note that names no case, or a case this store does not hold, is refused by
+the sender guard: no sender has standing outside a case (HP-01-008).  A
 ``Create(Note)`` that carries no note is refused by the same tree's guard
 instead (``ActivityIncompleteNode``), so the delivery still runs one tree and
 is archived (CLP-10-005, CLP-10-018).
@@ -54,6 +57,8 @@ from vultron.core.behaviors.note.nodes import (
     AttachNoteToCaseNode,
     SaveNoteNode,
 )
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)
@@ -62,6 +67,9 @@ logger = logging.getLogger(__name__)
 def create_note_tree(
     note_obj: VultronNote | None,
     case_id: str | None,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the create_note workflow.
 
@@ -78,7 +86,12 @@ def create_note_tree(
             Create activity; ``None`` when the activity carries none, which
             the tree refuses.
         case_id: The VulnerabilityCase ID to attach the note to, or ``None``
-            if the note is not associated with any case.
+            if the note names no case, which the sender guard refuses.
+        sender_id: The ``Create(Note)``'s sender.
+        sender_rule: The use case's declared sender rule (HP-01-008).  At a
+            participant replica the sender must be the CASE_MANAGER this
+            store knows for the case, so a case it does not hold refuses
+            (``case_manager_required``, PCR-03-001).
 
     Returns:
         Root node of the CreateNoteBT behavior tree (Sequence).
@@ -93,31 +106,28 @@ def create_note_tree(
     # committed entry is not made (CLP-07-013): the Create(Note) states the
     # attachment through the note's ``context``, so its own entry
     # (``create_note``) is the attachment's entry, and a replica attaches the
-    # note when it applies that entry (``IsAddNoteEventNode`` slot, #4441).  A
-    # note that names no case changes no case file, so the commit and the
-    # gated attach are omitted entirely then.
-    manager_effects: list[py_trees.behaviour.Behaviour] = []
-    if case_id is not None:
-        manager_effects.append(
-            AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id)
-        )
-    names_a_case = bool(manager_effects)
+    # note when it applies that entry (``IsAddNoteEventNode`` slot, #4441).
+    # A note that names no case reaches neither: the sender guard refuses it.
     root = create_receive_activity_tree(
         name="CreateNoteBT",
         case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id,
+            case_id=case_id,
+            case_manager_required=True,
+        ),
         precondition_guards=[],
-        # A receiver that does not hold the named case is simply not its
-        # CASE_MANAGER (not a Regime-1 anomaly): it keeps the Note object but
-        # commits and attaches nothing, and takes the attachment from the
-        # ledger (RSH-08-003, ADR-0087 Regime 3).
-        case_may_be_absent=names_a_case,
         replica_effects=[SaveNoteNode(note_obj=note_obj)],
-        manager_effects=manager_effects or None,
+        manager_effects=(
+            [AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id)]
+            if case_id is not None
+            else None
+        ),
         manager_case_id=case_id,
         manager_gate_name=(
-            "AttachNoteToCaseIfCaseManager" if names_a_case else None
+            "AttachNoteToCaseIfCaseManager" if case_id is not None else None
         ),
-        manager_case_may_be_absent=names_a_case,
     )
     logger.info(
         "Created CreateNoteBT for note=%s, case=%s", note_obj.id_, case_id

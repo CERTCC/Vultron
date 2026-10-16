@@ -327,7 +327,9 @@ class BindReportCaseLinkNode(DataLayerActionWithPorts):
 
     Sets ``case_id`` and the CASE_MANAGER the snapshot names
     (``case_manager_id``, CBT-01-003).  A snapshot naming none is accepted, with
-    a warning that Announce validation will be bypassed.  Idempotent, and
+    a warning: the link then anchors no ``Announce(VulnerabilityCase)``, so
+    the receiver checks one against its replica's CASE_MANAGER alone, or
+    refuses it (PCR-03-004).  Idempotent, and
     re-applied when the replica was already seeded.
     """
 
@@ -355,7 +357,7 @@ class BindReportCaseLinkNode(DataLayerActionWithPorts):
         if manager_id is None:
             self.logger.warning(
                 "%s: no CASE_MANAGER participant in bootstrap snapshot for"
-                " case '%s'; Announce validation will be bypassed",
+                " case '%s'; the link anchors no Announce(VulnerabilityCase)",
                 self.name,
                 self.case_id,
             )

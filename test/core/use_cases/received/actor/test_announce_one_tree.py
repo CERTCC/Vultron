@@ -120,9 +120,10 @@ def test_untrusted_sender_is_refused_by_the_tree_guard(dl, event, tree_runs):
     result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert result.reason == (
-        f"untrusted sender '{_CASE_ACTOR_ID}' for case '{_CASE_ID}'"
-        " (PCR-03-004)"
+    assert result.reason is not None
+    assert result.reason.endswith(
+        f"No CASE_MANAGER is known for case '{_CASE_ID}' to match sender"
+        f" '{_CASE_ACTOR_ID}' — REFUSED (HP-01-006, PCR-03-004)"
     )
     assert len(tree_runs) == 1
     assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))

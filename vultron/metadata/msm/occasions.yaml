@@ -393,7 +393,7 @@ groups:
     when: the Case Manager has admitted a new Participant to the case
     send: Announce(VulnerabilityCase)
     send_to: a participant
-    sent_by: not yet checked
+    sent_by: the case manager
     semantics: announce_vulnerability_case
     status: none
     description: Sends the full case to the newly admitted Participant once its acceptance
@@ -854,7 +854,7 @@ groups:
     when: a Participant posts a new note to the case
     send: Create(Note)
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: an active participant
     semantics: create_note
     shorthand: GI
     status: expansion
@@ -872,7 +872,7 @@ groups:
     when: a Participant attaches a note that already exists to the case
     send: Add(Note)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: an active participant
     semantics: add_note_to_case
     shorthand: GI
     status: expansion

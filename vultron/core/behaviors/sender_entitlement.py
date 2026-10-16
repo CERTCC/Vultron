@@ -167,7 +167,10 @@ from vultron.core.models.case_proposal_decline import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.authority import (
+    established_link_case_manager_id,
+    resolve_case_manager_id,
+)
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     recorded_ownership_offer,
@@ -848,11 +851,15 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     reject-on-missing-case / pre-genesis buffering (SYNC-15-001,
     SYNC-15-004) handles the entry rather than this gate dropping it.
 
-    With ``anchored=True`` there is no pass-through: with no CASE_MANAGER on
-    the replica, the sender must be the CASE_MANAGER recorded as the case's
-    trust anchor when the receiver got the stub Invite (PCR-03-004, #4185),
-    and a sender with no anchor to match is refused.  The full-case Invite
-    uses it: its sender is the one actor the stub Invite introduced.
+    With ``anchored=True`` the sender must be the CASE_MANAGER this receiver
+    has trusted for the case, and there is no pass-through (PCR-03-004).
+    That is the CASE_MANAGER its bootstrap ``Create(VulnerabilityCase)``
+    recorded on a completed ``ReportCaseLink``, which ordinary case traffic
+    never replaces (CBT-01-006, CBT-02-003); else the replica's; else the
+    one recorded as the case's trust anchor when the receiver got the stub
+    Invite (#4185).  A sender with no anchor to match is refused.  The
+    full-case Invite and ``Announce(VulnerabilityCase)`` use it: their
+    sender is the one actor the bootstrap or the stub Invite introduced.
 
     With ``required=True`` there is no pass-through either: a case this store
     does not hold, or one that names no CASE_MANAGER, leaves nothing to
@@ -870,7 +877,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
 
     Merged from ``VerifySenderIsCaseActorNode`` (ADR-0115, AC-2).
 
-    Spec: CLP-01-003, SYNC-13-006, HP-01-006.
+    Spec: CLP-01-003, SYNC-13-006, HP-01-006, PCR-03-004, CBT-02-003.
     """
 
     guards_kind: ClassVar[SenderEntitlementKind | None] = (
@@ -898,9 +905,11 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 Leave ``None`` for a ledger-entry activity, where the case is
                 read from the entry the activity carries.
             name: Optional node name.
-            anchored: Refuse, rather than pass through, when the replica names
-                no CASE_MANAGER and the receiver recorded no matching trust
-                anchor (PCR-03-004).
+            anchored: Match the sender against the CASE_MANAGER the
+                receiver's bootstrap recorded on a completed
+                ``ReportCaseLink`` first (CBT-02-003), and refuse, rather than
+                pass through, when neither that record, the replica nor a
+                stub Invite's trust anchor names one (PCR-03-004).
             required: Refuse, rather than pass through, when this store holds
                 no case or the case names no CASE_MANAGER.
             sender_actor_id: The sender to check.  ``None`` reads it from the
@@ -922,6 +931,28 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         if isinstance(pending, VultronPendingCaseInbox):
             return pending.case_actor_id
         return None
+
+    def _trusted_case_manager(
+        self, case_id: str, case: VulnerabilityCase | None
+    ) -> str | None:
+        """The CASE_MANAGER the sender must be, or ``None`` when none is known.
+
+        An anchored check trusts the one the bootstrap recorded before the
+        replica's, which ordinary traffic may rewrite (CBT-02-003), and falls
+        back to the stub Invite's trust anchor (PCR-03-004).
+        """
+        assert self.datalayer is not None
+        if self._anchored and (
+            recorded := established_link_case_manager_id(
+                self.datalayer, case_id
+            )
+        ):
+            return recorded
+        if case is not None and (
+            holder := resolve_case_manager_id(case, self.datalayer)
+        ):
+            return holder
+        return self._recorded_anchor(case_id) if self._anchored else None
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -958,21 +989,16 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         # Lenient read: a missing case is the bootstrap window (Regime 3,
         # ADR-0087) — pass through rather than starving buffer/reject paths.
         case = self.datalayer.read_case(case_id)
-        case_actor_id = (
-            resolve_case_manager_id(case, self.datalayer)
-            if case is not None
-            else None
-        )
+        case_actor_id = self._trusted_case_manager(case_id, case)
 
         if case_actor_id is None and self._anchored:
-            case_actor_id = self._recorded_anchor(case_id)
-            if case_actor_id is None:
-                self.feedback_message = (
-                    f"No CASE_MANAGER is known for case '{case_id}' to"
-                    f" match sender '{sender_id}' — REFUSED (HP-01-006)"
-                )
-                self.logger.warning("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
+            self.feedback_message = (
+                f"No CASE_MANAGER is known for case '{case_id}' to"
+                f" match sender '{sender_id}' — REFUSED (HP-01-006,"
+                " PCR-03-004)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         if case_actor_id is None and self._required:
             held = (

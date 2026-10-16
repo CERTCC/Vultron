@@ -42,6 +42,7 @@ from vultron.core.models.note import VultronNote
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.use_cases.received.note import CreateNoteReceivedUseCase
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -104,6 +105,17 @@ def _create_note_event(note: VultronNote):
     )
 
 
+def _tree(note: VultronNote, case_id: str | None):
+    """The ``Create(Note)`` tree for a note sent by ``ACTOR_ID``, under the
+    use case's declared sender rule (HP-01-008)."""
+    return create_note_tree(
+        note_obj=note,
+        case_id=case_id,
+        sender_id=ACTOR_ID,
+        sender_rule=CreateNoteReceivedUseCase.sender_entitlement,
+    )
+
+
 def _archived(dl, event) -> bool:
     return (
         dl.read(ReceivedActivityRecord.build_id(event.activity_id)) is not None
@@ -134,7 +146,7 @@ class TestCreateNoteTree:
         self, bridge, dl, note_with_case, case
     ):
         event = _create_note_event(note_with_case)
-        tree = create_note_tree(note_obj=note_with_case, case_id=CASE_ID)
+        tree = _tree(note_with_case, CASE_ID)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )
@@ -148,24 +160,26 @@ class TestCreateNoteTree:
         assert refreshed_case is not None
         assert NOTE_ID in refreshed_case.notes
 
-    def test_saves_note_without_case_attachment(self, bridge, dl, note):
-        """When case_id is None, only the note is saved."""
+    @pytest.mark.spec("HP-01-008")
+    @pytest.mark.spec("CLP-10-018")
+    def test_note_naming_no_case_is_refused(self, bridge, dl, note):
+        """No sender has standing outside a case, so a note naming none is
+        refused and not stored; the Create is still archived."""
         event = _create_note_event(note)
-        tree = create_note_tree(note_obj=note, case_id=None)
+        tree = _tree(note, None)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )
-        assert result.status == Status.SUCCESS
-
-        stored_note = dl.read(NOTE_ID)
-        assert stored_note is not None
+        assert result.status == Status.FAILURE
+        assert dl.read(NOTE_ID) is None
+        assert _archived(dl, event)
 
     @pytest.mark.spec("CM-13-007")
     def test_idempotent_replay(self, bridge, dl, note_with_case, case):
         """Running the same tree twice produces the same outcome."""
         event = _create_note_event(note_with_case)
         for _ in range(2):
-            tree = create_note_tree(note_obj=note_with_case, case_id=CASE_ID)
+            tree = _tree(note_with_case, CASE_ID)
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )
@@ -176,32 +190,38 @@ class TestCreateNoteTree:
         assert refreshed.notes.count(NOTE_ID) == 1
 
     def test_tree_name_is_create_note_bt(self, note, dl):
-        tree = create_note_tree(note_obj=note, case_id=None)
+        tree = _tree(note, None)
         assert tree.name == "CreateNoteBT"
 
     @pytest.mark.spec("CLP-07-013")
-    def test_tree_runs_intake_then_commit_then_save_then_attach(
-        self, note, dl
+    @pytest.mark.spec("CLP-10-025")
+    def test_tree_runs_intake_then_guards_then_commit_then_save_then_attach(
+        self, note
     ):
         # RSH-08-003 (#3814): the attach is wrapped in the factory's
         # CASE_MANAGER gate as the last child; the Note object is still saved
         # ungated.  CLP-07-013 (#4441): the attachment is a case-file change,
-        # so the CASE_MANAGER commits the Create(Note) first.
-        tree = create_note_tree(note_obj=note, case_id=CASE_ID)
-        assert len(tree.children) == 5
+        # so the CASE_MANAGER commits the Create(Note) first.  The sender
+        # guard comes before both, and with it the embargo end-time check
+        # (HP-01-008, CLP-10-025).
+        tree = _tree(note, CASE_ID)
+        names = [c.name for c in tree.children]
+        assert len(tree.children) == 7
         assert isinstance(tree.children[0], IntakeReceivedActivityNode)
         assert isinstance(tree.children[1], CaseOpenToExternalWritesNode)
-        commit = tree.children[2]
+        assert names[2] == "SenderRuleGuard"
+        assert names[3] == "ClockDecisionsIfCaseManager"
+        commit = tree.children[4]
         assert isinstance(commit, CaseManagerGate)
         assert commit.name == "GuardedCommitCaseLedgerEntryBT"
-        assert isinstance(tree.children[3], SaveNoteNode)
-        gate = tree.children[4]
+        assert isinstance(tree.children[5], SaveNoteNode)
+        gate = tree.children[6]
         assert isinstance(gate, CaseManagerGate)
         assert isinstance(gate.gated_branch, AttachNoteToCaseNode)
 
     def test_note_naming_no_case_has_no_commit(self, note):
         """A note that names no case changes no case file: no commit stage."""
-        tree = create_note_tree(note_obj=note, case_id=None)
+        tree = _tree(note, None)
         assert not any(isinstance(c, CaseManagerGate) for c in tree.children)
 
     @pytest.mark.spec("CLP-07-013")
@@ -211,7 +231,7 @@ class TestCreateNoteTree:
         """The CASE_MANAGER commits one ``create_note`` entry carrying the
         note, and attaches the note (CLP-07-013, #4441)."""
         event = _create_note_event(note_with_case)
-        tree = create_note_tree(note_obj=note_with_case, case_id=CASE_ID)
+        tree = _tree(note_with_case, CASE_ID)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )
@@ -228,19 +248,20 @@ class TestCreateNoteTree:
         assert snapshot_object["id"] == NOTE_ID
 
     @pytest.mark.spec("CLP-10-018")
-    def test_unmanaged_case_archives_the_activity_and_attaches_nothing(
+    @pytest.mark.spec("PCR-03-001")
+    def test_unheld_case_refuses_and_archives_the_activity(
         self, bridge, dl, note_with_case
     ):
-        """The case is not held, so the actor is not its CASE_MANAGER: the
-        commit and the attach are gated out (RSH-08-003, #3814) and the tree
-        still succeeds, archiving the Create and writing no attachment or
-        entry (CLP-10-018)."""
+        """The case is not held, so this store cannot tell the sender is its
+        CASE_MANAGER: the Create is refused, archived, and nothing is stored,
+        attached or committed (PCR-03-001, CLP-10-018)."""
         event = _create_note_event(note_with_case)
-        tree = create_note_tree(note_obj=note_with_case, case_id=CASE_ID)
+        tree = _tree(note_with_case, CASE_ID)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
         assert _archived(dl, event)
+        assert dl.read(NOTE_ID) is None
         assert dl.read(CASE_ID) is None
         assert dl.list_objects("CaseLedgerEntry") == []

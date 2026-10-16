@@ -7,7 +7,7 @@
     - **When…** a Participant posts a new note to the case
     - **Send:** `Create(Note)`
     - **Send to:** the case manager
-    - **Sent by:** not yet checked
+    - **Sent by:** an active participant
     - **Reference:** [Create note](../../general.md#create-note)
 
     ??? example "Example activity"

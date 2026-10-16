@@ -7,7 +7,7 @@ Attaches the note to the case named by the target, and the Case Manager records 
 - **When…** a Participant attaches a note that already exists to the case
 - **Send:** `Add(Note)[target=VulnerabilityCase]`
 - **Send to:** the case manager
-- **Sent by:** not yet checked
+- **Sent by:** an active participant
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)

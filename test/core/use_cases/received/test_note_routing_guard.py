@@ -78,6 +78,16 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     dl.create(cm_participant)
     case.case_participants.append(cm_participant.id_)
     case.actor_participant_index[CASE_ACTOR_ID] = cm_participant.id_
+    # The sender is an active participant: only one may attach a note
+    # (CM-23-018, HP-01-006).
+    vendor_participant = as_CaseParticipant(
+        attributed_to=VENDOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+    dl.create(vendor_participant)
+    case.case_participants.append(vendor_participant.id_)
+    case.actor_participant_index[VENDOR_ID] = vendor_participant.id_
     dl.save(case)
 
     # Persist the note object so the use case can find it.

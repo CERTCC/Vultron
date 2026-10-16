@@ -201,8 +201,10 @@ class SenderCheckContext:
             must also be one this CASE_MANAGER issued for ``case_id``
             (CM-11-017).
         case_manager_anchored: A ``CASE_MANAGER`` sender is matched against the
-            trust anchor the receiver recorded with the stub Invite when the
-            replica names no CASE_MANAGER (PCR-03-004).
+            CASE_MANAGER this receiver has trusted for the case: the one its
+            bootstrap recorded on a completed ``ReportCaseLink``
+            (CBT-02-003), else the replica's, else the trust anchor recorded
+            with the stub Invite (PCR-03-004).
         case_manager_required: A ``CASE_MANAGER`` sender is refused, rather
             than passed through, when this store holds no case or the case
             names no CASE_MANAGER.
