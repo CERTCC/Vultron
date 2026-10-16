@@ -39,6 +39,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import (
+    ActivationAppliesNode,
     CommitAndApplyEmbargoActivationNode,
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
@@ -333,6 +334,45 @@ class TestCommitAndApplyEmbargoActivationNode:
         assert (
             owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
         )
+
+
+class TestActivationAppliesNode:
+    """The received activation's decide-and-trial guard (ADR-0124)."""
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_applicable_activation_passes_and_writes_nothing(
+        self, dl: SqliteDataLayer
+    ):
+        case, active_id, revision_id, owner_pid = _case_with_owner(
+            dl, "applies-ok", em_state=EM.ACTIVE
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+        before = _case(dl, case.id_).model_dump()
+
+        node = ActivationAppliesNode(case_id=case.id_, embargo_id=revision_id)
+
+        assert _tick(node) is Status.SUCCESS
+        assert _case(dl, case.id_).model_dump() == before
+        owner_p = cast(CaseParticipant, dl.read(owner_pid))
+        assert (
+            owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
+        )
+        assert active_id != revision_id
+
+    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_unreadable_replaced_embargo_refuses_before_the_commit(
+        self, dl: SqliteDataLayer
+    ):
+        case, _active_id, revision_id, _owner_pid = _case_with_owner(
+            dl, "applies-unread", em_state=EM.ACTIVE, store_active=False
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+
+        node = ActivationAppliesNode(case_id=case.id_, embargo_id=revision_id)
+
+        assert _tick(node) is Status.FAILURE
+        assert _case(dl, case.id_).proposed_embargo_ids == [revision_id]
 
 
 class TestRejectEmbargoProposalLifecycleNode:

@@ -26,7 +26,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from test.support.embargo_register import register
+from test.support.embargo_register import activate, register
 from vultron.core.behaviors.case.nodes import (
     ActivateInviteeParticipantNode,
     InviteeHasParticipantRecordNode,
@@ -80,15 +80,23 @@ def _run_sign_node(
         embargo_consents=rows,
     )
 
-    node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
+    case = VulnerabilityCase(id_="https://example.org/cases/sign")
+    if earlier_accepted:
+        activate(case, _EARLIER_EMBARGO_ID)
+    activate(case, _EMBARGO_ID)
+    case.actor_participant_index[_ACTOR_ID] = participant.id_
 
-    result = bt_scenario.run(
-        node,
+    # The node writes the row the Accept states through the one apply
+    # function, so the signed record is a copy it puts on the blackboard.
+    result, signed = bt_scenario.run_capturing(
+        _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID),
+        "new_invite_participant",
         actor_id=_ACTOR_ID,
         new_invite_participant=participant,
-        active_embargo_id=_EMBARGO_ID,
+        invitee_case=case,
     )
-    return result.status, participant
+    assert isinstance(signed, CaseParticipant)
+    return result.status, signed
 
 
 @pytest.mark.spec("CM-10-001")
@@ -201,10 +209,10 @@ class TestSignEmbargoConsentLeafNode:
         )
         assert result.status == Status.FAILURE
 
-    def test_failure_when_embargo_id_missing(
+    def test_failure_when_case_missing(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """FAILURE returned when active_embargo_id is absent."""
+        """FAILURE returned when the invitee's case is absent."""
         participant = CaseParticipant(
             id_=_ACTOR_ID,
             attributed_to=_ACTOR_ID,
@@ -244,7 +252,7 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
     """At REVISE the whole consent step signs the active embargo only.
 
     The open revision is not the joiner's to accept: it records the active
-    embargo's id, is marked AGREED through ``apply_pec_transition``, and
+    embargo's id, is marked AGREED through the one apply function, and
     the revision's row stays UNINVITED (EP-05-001 then
     lapses it if the owner activates longer terms).
     """
@@ -260,19 +268,19 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
     case.add_participant(participant)
     node = MaybeSignEmbargoConsentNode(case_id=case.id_, invitee_id=_ACTOR_ID)
 
-    result = bt_scenario.run(
+    result, signed = bt_scenario.run_capturing(
         node,
+        "new_invite_participant",
         actor_id=_ACTOR_ID,
         invitee_case=case,
         new_invite_participant=participant,
     )
 
     assert result.status == Status.SUCCESS
-    assert participant.is_signatory(_EMBARGO_ID)
-    assert participant.consent_for(_REVISION_ID) is (
-        EmbargoConsentState.UNINVITED
-    )
-    assert case.is_active_participant(participant)
+    assert isinstance(signed, CaseParticipant)
+    assert signed.is_signatory(_EMBARGO_ID)
+    assert signed.consent_for(_REVISION_ID) is (EmbargoConsentState.UNINVITED)
+    assert case.is_active_participant(signed)
 
 
 @pytest.mark.spec("CM-10-004")

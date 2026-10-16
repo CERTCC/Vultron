@@ -1480,8 +1480,11 @@ groups:
     statement: >-
       Every ledger event type the revision relay commits (the proposal, each Invite emission,
       each participant's consent answer, and the owner's decision) MUST have a replica apply
-      node reachable from `create_announce_log_entry_tree` (RSH-08-004) that reconstructs the
-      state through `EmbargoLifecycle` in `OBSERVED` mode, as the teardown apply node does.
+      node reachable from `create_announce_log_entry_tree` (RSH-08-004) that applies it by
+      copying through the one apply function, `apply_embargo_change()` (ADR-0124,
+      CM-23-016), as the teardown and activation apply nodes do, or, for an act not yet
+      converted to the copy model, reconstructs the state through `EmbargoLifecycle` in
+      `OBSERVED` mode.
       The replay node for a transition MUST land before the received-side effect that wrote
       it directly is gated (RSH-08-003).
     rationale: >-

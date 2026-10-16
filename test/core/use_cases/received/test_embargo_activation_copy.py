@@ -66,6 +66,7 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -162,6 +163,14 @@ def _row(net: LedgerNetwork, holder: str, actor_id: str, embargo_id: str):
     return record.held_row(embargo_id)
 
 
+def _state(
+    net: LedgerNetwork, holder: str, actor_id: str, embargo_id: str
+) -> EmbargoConsentState:
+    row = _row(net, holder, actor_id, embargo_id)
+    assert row is not None, (holder, actor_id, embargo_id)
+    return row.state
+
+
 def _embargo_entries(net: LedgerNetwork, since: int) -> list[str]:
     """The embargo and consent entries committed after the first *since*."""
     return [
@@ -236,7 +245,7 @@ class TestReceivedActivation:
             EMBARGO_ACTIVATION_EVENT_TYPE,
             *[UPDATE_EMBARGO_CONSENT_EVENT_TYPE] * len(carried),
         ]
-        assert _row(net, MANAGER, OWNER, revision_id).state is _S.AGREED
+        assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EP-09-007")
@@ -274,7 +283,7 @@ class TestReceivedActivation:
         _owner_activates(net, revision_id)
 
         assert _embargo_entries(net, since) == [EMBARGO_ACTIVATION_EVENT_TYPE]
-        assert _row(net, MANAGER, OWNER, revision_id).state is _S.AGREED
+        assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
         assert _carried_over(net, revision_id) == set()
 
     @pytest.mark.spec("CLP-07-013")
@@ -294,13 +303,14 @@ class TestReceivedActivation:
             ),
         )
 
-        with pytest.raises(Exception):
+        # A failed commit is not a refusal: the handler raises (BT-14-001).
+        with pytest.raises(VultronBTInternalError, match="ledger commit"):
             _owner_activates(net, revision_id)
 
         assert len(failed) == 2
         case = net.case(MANAGER)
         assert case.active_embargo_id == revision_id
-        assert _row(net, MANAGER, OWNER, revision_id).state is _S.AGREED
+        assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
         assert len(_carried_over(net, revision_id)) == 1
 
 
@@ -389,7 +399,8 @@ class TestTriggerActivation:
             when=lambda kw: kw["event_type"] == EMBARGO_ACTIVATION_EVENT_TYPE,
         )
 
-        with pytest.raises(Exception):
+        # A failed commit is not a refusal: the handler raises (BT-14-001).
+        with pytest.raises(VultronBTInternalError, match="ledger commit"):
             _manager_activates(net)
 
         assert len(failed) == 1
@@ -412,7 +423,7 @@ def _invited_bystander(name: str) -> tuple[LedgerNetwork, str]:
     """A revision relayed to the bystander, whose row is now INVITED."""
     net = LedgerNetwork(f"https://example.org/cases/{name}")
     revision_id = _propose(net, "pending", 90)
-    assert _row(net, MANAGER, BYSTANDER, revision_id).state is _S.INVITED
+    assert _state(net, MANAGER, BYSTANDER, revision_id) is _S.INVITED
     return net, revision_id
 
 
@@ -449,9 +460,7 @@ class TestInviteTimeOut:
             INVITE_EXPIRED_EVENT_TYPE,
             UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
         ]
-        assert _row(net, MANAGER, BYSTANDER, revision_id).state is (
-            _S.TIMED_OUT
-        )
+        assert _state(net, MANAGER, BYSTANDER, revision_id) is (_S.TIMED_OUT)
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("CM-28-014")
@@ -460,9 +469,7 @@ class TestInviteTimeOut:
         _expire(net, revision_id)
 
         _assert_replicas_match(net, (OWNER, BYSTANDER))
-        assert _row(net, BYSTANDER, BYSTANDER, revision_id).state is (
-            _S.TIMED_OUT
-        )
+        assert _state(net, BYSTANDER, BYSTANDER, revision_id) is (_S.TIMED_OUT)
 
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.parametrize(
@@ -482,7 +489,7 @@ class TestInviteTimeOut:
         assert _expire(net, revision_id).status.name != "SUCCESS"
 
         assert len(failed) == 1
-        assert _row(net, MANAGER, BYSTANDER, revision_id).state is _S.INVITED
+        assert _state(net, MANAGER, BYSTANDER, revision_id) is _S.INVITED
 
     @pytest.mark.spec("CM-28-009")
     def test_a_row_no_longer_invited_commits_nothing(self):

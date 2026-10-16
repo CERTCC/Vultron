@@ -17,6 +17,9 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -31,6 +34,9 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
@@ -631,22 +637,50 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             datalayer, case_obj, EmbargoConsentState.INVITED
         )
         entry = _make_invite_expired_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
+        def _announce(announced: CaseLedgerEntry) -> None:
+            result = bridge.execute_with_setup(
+                tree=create_announce_log_entry_tree(),
+                actor_id=PARTICIPANT_ACTOR_ID,
+                activity=_make_event(announced, actor_id=case_actor.id_),
+                sync_port=MagicMock(spec=SyncActivityPort),
+            )
+            assert result.status == Status.SUCCESS, result.feedback_message
 
-        assert result.status == Status.SUCCESS
-        updated = datalayer.read(participant_id)
-        assert isinstance(updated, CaseParticipant)
-        assert (
-            updated.consent_for(_ENTRY_EMBARGO_ID)
-            is EmbargoConsentState.TIMED_OUT
+        def _state() -> EmbargoConsentState:
+            updated = datalayer.read(participant_id)
+            assert isinstance(updated, CaseParticipant)
+            return updated.consent_for(_ENTRY_EMBARGO_ID)
+
+        # The expiry entry records the act and moves no row (ADR-0124) ...
+        _announce(entry)
+        assert _state() is EmbargoConsentState.INVITED
+        # ... the CASE_MANAGER's Update(EmbargoConsent) carries the row.
+        _, blob = TriggerActivityAdapter(
+            datalayer
+        ).record_embargo_consent_updated(
+            row=EmbargoConsent(
+                embargo_id=_ENTRY_EMBARGO_ID,
+                state=EmbargoConsentState.TIMED_OUT,
+                attributed_to=PARTICIPANT_ACTOR_ID,
+            ),
+            case_id=CASE_ID,
+            actor=case_actor.id_,
+            cause_id=entry.log_object_id,
         )
+        _announce(
+            _to_persistable_entry(
+                HashChainLedgerRecord(
+                    case_id=CASE_ID,
+                    log_index=1,
+                    object_id=json.loads(blob)["id"],
+                    event_type=UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+                    payload_snapshot=json.loads(blob),
+                    prev_log_hash=entry.entry_hash,
+                )
+            )
+        )
+        assert _state() is EmbargoConsentState.TIMED_OUT
 
 
 def _make_add_note_entry(

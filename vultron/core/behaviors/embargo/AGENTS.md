@@ -102,6 +102,13 @@ its other arm sends nothing at all (EMB-16-002), so it passes
   `CommitAndApplyEmbargoTerminationNode` decides, commits the `Remove`, then
   applies it. With no use case to build the activity (the cascades and the
   lazy end-time check) it calls the factory itself.
+- The activation arm is converted too (#4716):
+  `CommitAndApplyEmbargoActivationNode` (`nodes/activation_commit.py`) runs
+  `EmbargoLifecycle.decide_activation()`, commits the `Accept` (the whole
+  `ACTIVATE` step and the owner's own `AGREED` row), then one
+  `Update(EmbargoConsent)` per `CARRY_OVER` row, then applies. It does not use
+  `_answer_arms()`; the received owner-decision tree runs the same node with
+  no builder, after `ActivationAppliesNode` trial-applies among the guards.
 - Ratchet: `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`
   fails on any EM write node (`_EM_WRITES`: an `_EmbargoLifecycleNode` or a
   copy-model commit-and-apply node) outside the gate, and on a new public
@@ -133,6 +140,15 @@ for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
 (`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).
 Never call `EmbargoLifecycle`, `apply_pec_transition` or `write_uninvited_rows`
 from a replica slot.
+
+A decision the CASE_MANAGER takes from the clock or policy about one row (an
+RSVP time-out, honouring a late Accept) commits the act's entry and then the
+row's `Update(EmbargoConsent)` before writing it (`nodes/expiry_commit.py`);
+the act's replica slot records the act and changes nothing, since the consent
+slot copies the row. A row the actor's own activity states (the owner's
+agreement at activation, a joiner's at its stub Accept) is applied from that
+activity's entry on both sides, decided by the same function
+(`models/embargo_consent_move.py`: `owner_agreement`, `joiner_agreement`).
 
 `terminate_embargo_bt` is the worked example (#4714):
 `decide_termination()` (`services/embargo_lifecycle/activation.py`) names

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from typing import cast
 
-import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
@@ -111,33 +110,14 @@ def _run_sign_node(
     (ADR-0124), so it returns a changed copy rather than editing the record
     it was given; the copy is what the accept tree persists.
     """
-    captured: list[object] = []
-
-    class _Capture(py_trees.behaviour.Behaviour):
-        def update(self) -> py_trees.common.Status:
-            captured.append(
-                py_trees.blackboard.Blackboard.storage[
-                    "/new_invite_participant"
-                ]
-            )
-            return py_trees.common.Status.SUCCESS
-
-    tree = py_trees.composites.Sequence(
-        name="SignThenCapture",
-        memory=False,
-        children=[
-            _SignEmbargoConsentLeafNode(invitee_id=participant.id_),
-            _Capture(name="Capture"),
-        ],
-    )
-    result = scenario.run(
-        tree,
+    result, signed = scenario.run_capturing(
+        _SignEmbargoConsentLeafNode(invitee_id=participant.id_),
+        "new_invite_participant",
         actor_id=participant.id_,
         new_invite_participant=participant,
         invitee_case=_invitee_case(participant),
     )
     scenario.assert_success(result)
-    (signed,) = captured
     assert isinstance(signed, CaseParticipant)
     return signed
 

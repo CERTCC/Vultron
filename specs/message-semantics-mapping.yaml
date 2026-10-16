@@ -896,9 +896,12 @@ groups:
       path (EMB-17), because its row for the now-SUPERSEDED A is frozen. A revision proposal
       (EV, ACTIVE → REVISE, or a counter-revision REVISE → REVISE) MUST NOT change any
       participant's consent to the embargo in force, and the proposer's row for the proposed
-      embargo MUST be marked AGREED. The carry-over MUST run whether the transition is driven locally or observed
-      from the wire. No separate outbound wire activity is emitted for these per-participant
-      consent writes; they are an internal side-effect of the activation.
+      embargo MUST be marked AGREED. The CASE_MANAGER decides the carry-over and MUST commit
+      each carried-over row as its own CASE_MANAGER `Update(EmbargoConsent)` ledger entry,
+      after the Accept's, and every replica MUST copy those entries rather than run the
+      carry-over itself (ADR-0124, CLP-07-013, CM-23-016); the owner's own row is what its
+      Accept states, applied from the Accept's entry. No activity is sent to a participant
+      for these consent writes beyond the ledger fan-out.
     rationale: >-
       A participant has lapsed when the active embargo was replaced by longer terms it has not
       agreed to. While a revision is merely proposed the prior embargo is still in force and
@@ -909,16 +912,21 @@ groups:
       to losing time, not to keeping the embargo. Longer terms ask for more than they promised,
       so only those who agreed to B are bound by B, and the rows say so without a write. Only
       the owner's acceptance changes the embargo on the case; other participants' accepts and
-      rejects are recorded per embargo and inform that decision. Running the carry-over in the
-      observed path too keeps every replica's consent rows in step with the CASE_MANAGER's.
+      rejects are recorded per embargo and inform that decision. Committing each carried-over
+      row as its own entry keeps every replica's consent rows in step with the CASE_MANAGER's
+      without a replica re-running the containment comparison on its own state (#4716).
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
       propose_embargo() answers only the proposer's row for the proposed id (every other
-      participant's new row is UNINVITED), and that activate_embargo() applies CARRY_OVER to
-      a revision that ends no later than the replaced embargo and writes only the owner's row
-      for a longer one. Unit tests
-      in test/core/services/embargo_lifecycle/ assert both arms, the derived lapse, and the
-      no-op on proposal.
+      participant's new row is UNINVITED), and that decide_activation() names a
+      CARRY_OVER row for each signatory of a replaced embargo that ends no later, and
+      only the owner's row for a longer one. Unit tests in
+      test/core/services/embargo_lifecycle/ (test_activation.py,
+      test_activation_decision.py) assert both arms, the derived lapse, and the no-op
+      on proposal; test/core/use_cases/received/test_embargo_activation_copy.py
+      asserts the Accept is followed by one Update(EmbargoConsent) entry per
+      carried-over row and that a replica's rows and register equal the
+      CASE_MANAGER's.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003

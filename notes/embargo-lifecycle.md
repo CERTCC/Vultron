@@ -279,14 +279,20 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 2. **On `VultronInvalidStateTransitionError` from a P/X/A guard**, the case is no
    longer embargo-eligible: do not retry; emit ER to the proposer.
 3. **Consent cascades are automatic.** `propose_embargo()` changes no consent
-   except recording the proposer's (ADR-0093). `activate_embargo()` records the
+   except recording the proposer's (ADR-0093). An activation records the
    owner's agreement; a *shorter* replacement carries every signatory over
    (`CARRY_OVER`), and under *longer* terms non-agreeing signatories lapse by
-   derivation (MSM-07-005). Termination (`decide_termination()`, then the
+   derivation (MSM-07-005). The CASE_MANAGER decides these
+   (`decide_activation()`) and commits each carried-over row as its own
+   `Update(EmbargoConsent)` entry after the `Accept`; replicas copy them and
+   run no carry-over (ADR-0124, #4716). Termination (`decide_termination()`, then the
    `TERMINATE` step through the one apply function) cancels every open proposal
    and writes no consent (MSM-07-006). Callers do none of this by hand.
-4. **Received side passes `transition_mode=TransitionMode.OBSERVED`**; the
-   consent cascades still run, so replica rows stay in step with the manager's.
+4. **Received side passes `transition_mode=TransitionMode.OBSERVED`** for an
+   act not yet converted to the copy model; its consent cascades still run, so
+   replica rows stay in step with the manager's.  A converted act (termination,
+   activation, expiry) is copied instead: the replica applies the entries the
+   CASE_MANAGER committed through `apply_embargo_change()` (CM-23-016).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside

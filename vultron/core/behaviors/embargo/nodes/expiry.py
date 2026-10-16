@@ -30,8 +30,9 @@ CLP-10-025, CM-28-014, BT-17-001).  The tree follows the guard → commit → ef
 3. :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyInviteExpiryNode`
    commits the expired-invitation entry, then the CASE_MANAGER's
    ``Update(EmbargoConsent)`` carrying the invitee's ``TIMED_OUT`` row, and
-   only then writes the row through the one apply function (ADR-0124).  A failed commit therefore leaves the invitee
-   unchanged (CLP-07-013, CLP-10-006).
+   only then writes the row through the one apply function (ADR-0124).  A
+   failed commit therefore leaves the invitee unchanged (CLP-07-013,
+   CLP-10-006).
 
 :class:`InviteExpiryChangedConsentNode` is a backward-compatible alias for
 :class:`InviteExpiryNeedsApplyNode`.

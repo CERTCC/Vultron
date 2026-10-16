@@ -2710,8 +2710,9 @@ groups:
       (CM-28-013), so its passing times out only that row, never the participant's other
       invitations.
     verification: >-
-      Unit tests confirm that `record_invite_expiry()` and `detect_and_apply_expiry()` apply
-      `TIME_OUT` only to the named invitation's row once its own deadline has passed, leaving a
+      Unit tests confirm that the expiry's row decision (`consent_row_move()` with `TIME_OUT`)
+      and `detect_and_apply_expiry()` move only the named invitation's row once its own
+      deadline has passed, leaving a
       concurrent invitation with a later deadline `INVITED`, and that `propose_embargo()` and the
       owner's revision acceptance write no row to record a lapse.
     adr:
@@ -5171,20 +5172,23 @@ groups:
     statement: >-
       Only the CASE_MANAGER evaluates invite expiry (CM-28-003). The expired-invitation ledger entry
       (CM-28-009) MUST be committed behind the CASE_MANAGER role gate (BT-17-001) and MUST have a
-      replica apply node reachable from `create_announce_log_entry_tree` (RSH-08-004); a replica
-      learns an expiry from that entry and never computes one.
+      replica apply node reachable from `create_announce_log_entry_tree` (RSH-08-004). The
+      CASE_MANAGER MUST commit the invitee's `TIMED_OUT` row as its own
+      `Update(EmbargoConsent)` entry after the expiry entry (ADR-0124, CLP-07-013); a replica
+      learns an expiry from those entries, copying the row, and never computes one.
     rationale: >-
       The expiry commit ran unconditionally in whichever store processed a late `Accept`, so a
       non-manager could author a ledger entry, and no replay node existed for the event type, so an
       expiry recorded by the manager reached no replica (#3918).
     verification: >-
       A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
-      a test replays an `invite_to_embargo_on_case_expired` entry into a replica and asserts the
-      participant reads `TIMED_OUT`:
+      a test replays an `invite_to_embargo_on_case_expired` entry and its
+      `update_embargo_consent` entry into a replica and asserts the participant reads
+      `TIMED_OUT` only once the row's entry is copied:
       `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
-      and
-      `test/core/behaviors/embargo/nodes/test_expiry.py::TestApplyInviteExpiryFromLedgerNode::test_a_replica_applies_time_out_without_a_deadline`.
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`,
+      `test/core/behaviors/embargo/nodes/test_expiry.py::TestApplyInviteExpiryFromLedgerNode::test_the_expiry_entry_moves_no_row_on_a_replica`
+      and `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`.
     relationships:
     - rel_type: refines
       spec_id: CM-28-009

@@ -27,7 +27,8 @@ the clock or from its policy (CLP-07-013, ADR-0124):
 
 Each decides the row first, trial-applies it, commits the act's entry and
 then the row's, and only then writes the row through the one apply function.
-A commit that fails leaves the row as it was.  A replica copies the row from
+A commit that fails leaves the row as it was, and the node fails (it does not
+raise), as the in-tree commit it replaces did.  A replica copies the row from
 its ``Update`` entry through the consent slot; the act's entry changes
 nothing there (``ApplyInviteExpiryFromLedgerNode``,
 ``ApplyHonourLateAcceptFromLedgerNode``).  The trees place both nodes behind
@@ -166,6 +167,11 @@ class _CommitActThenConsentRowNode(
             )
         except VultronEntryRefusedError as exc:
             return self._fail(str(exc))
+        except RuntimeError as exc:
+            # The ledger refused an entry (commit_emitted_activity): the row
+            # is unwritten, and the decision fails as a guard would, so a
+            # clock-decision stage logs it and goes on (CLP-10-025).
+            return self._fail(f"the entries did not commit: {exc}")
         self.feedback_message = (
             f"committed '{self._ACT_EVENT_TYPE}' and the {change.row.state}"
             f" row of '{self._invitee_id}' for embargo '{self._embargo_id}'"

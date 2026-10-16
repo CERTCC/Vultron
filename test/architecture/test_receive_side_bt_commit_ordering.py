@@ -285,6 +285,9 @@ def _commit_node_types() -> tuple[type, ...]:
     received activity's commit; ``ExpireOverdueOwnershipOfferNode`` commits
     the Offer expiry in a nested tree only it can see, because which Offer
     expires is known only when it runs, so it is named here to be checked.
+    ``CommitAndApplyInviteExpiryNode`` commits the invitation expiry and its
+    ``TIMED_OUT`` row in nested trees too, decided first so the row is
+    written only once both commit (ADR-0124).
     """
     from vultron.core.behaviors.case.nodes.lifecycle import (
         CommitCaseLedgerEntryNode,
@@ -292,9 +295,13 @@ def _commit_node_types() -> tuple[type, ...]:
     from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
         ExpireOverdueOwnershipOfferNode,
     )
+    from vultron.core.behaviors.embargo.nodes.expiry_commit import (
+        CommitAndApplyInviteExpiryNode,
+    )
     from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 
     return (
+        CommitAndApplyInviteExpiryNode,
         CommitCaseLedgerEntryNode,
         CreateLogEntryNode,
         ExpireOverdueOwnershipOfferNode,
@@ -368,9 +375,12 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
-    # Both expiries are seen committing inside the stage, so the walk covers
-    # the nested committer as well as the in-tree one.
-    assert {"CreateLogEntryNode", "ExpireOverdueOwnershipOfferNode"} <= staged
+    # Both expiries are seen committing inside the stage, through the nested
+    # committers that decide first.
+    assert {
+        "CommitAndApplyInviteExpiryNode",
+        "ExpireOverdueOwnershipOfferNode",
+    } <= staged
 
 
 @pytest.mark.spec("CLP-10-025")

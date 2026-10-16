@@ -38,6 +38,9 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     CheckIsCaseManagerNode,
 )
 from vultron.core.behaviors.embargo import trigger_tree
+from vultron.core.behaviors.embargo.nodes.activation_commit import (
+    CommitAndApplyEmbargoActivationNode,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
@@ -157,6 +160,7 @@ _EXEMPT: dict[str, str] = {}
 #: converted to the copy model, which commit and then apply (ADR-0124).
 _EM_WRITES: tuple[type, ...] = (
     _EmbargoLifecycleNode,
+    CommitAndApplyEmbargoActivationNode,
     CommitAndApplyEmbargoTerminationNode,
 )
 
