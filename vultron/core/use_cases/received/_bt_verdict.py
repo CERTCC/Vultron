@@ -67,6 +67,9 @@ from vultron.core.behaviors.case.nodes.post_close import (
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
+from vultron.core.behaviors.case.nodes.role_offer_guard import (
+    RoleOfferAdmissibleNode,
+)
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
 )
@@ -261,6 +264,7 @@ def _redelivery_verdict(
         type[OwnershipOfferOpenNode]
         | type[NoOpenOwnershipOfferNode]
         | type[IsWithdrawableEmbargoNode]
+        | type[RoleOfferAdmissibleNode]
     ),
     verdict: HandlerResult,
     fallback: str,
@@ -348,6 +352,25 @@ def ownership_offer_verdict(
         NoOpenOwnershipOfferNode,
         verdict,
         "ownership-transfer Offer redelivered",
+    )
+
+
+def role_offer_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered role Offer as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferAdmissibleNode`
+    fails with ``is_redelivery`` set when the CASE_MANAGER's ledger already
+    records the Offer, so it is neither committed nor forwarded again
+    (HP-01-003).
+    """
+    return _redelivery_verdict(
+        tree,
+        RoleOfferAdmissibleNode,
+        verdict,
+        "role Offer redelivered",
     )
 
 

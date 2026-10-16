@@ -46,9 +46,17 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
 
 {% include-markdown "./_occasions/sections/offer-case-participant-role.md" %}
 
+- **Routing:** the offer is addressed to the CASE_MANAGER only, never to the target ([CM-33-001](../specs/protocol.md#cm-33-001)).
+  The CASE_MANAGER records it in the ledger and then forwards it to the target as its own `Offer(CaseParticipantRole)`, with the Case Owner in `attributedTo` and `inReplyTo` naming the recorded offer.
+  The target acts only on that forward, and answers the CASE_MANAGER, not the Case Owner ([CM-33-004](../specs/protocol.md#cm-33-004)).
+  Nothing is granted until the CASE_MANAGER records the target's `Accept` ([CM-02-016](../specs/project.md#cm-02-016)).
+- **Who may send:** the Case Owner only; the CASE_MANAGER refuses an offer from any other sender ([CM-33-002](../specs/protocol.md#cm-33-002)).
+  `CASE_OWNER` and `CASE_MANAGER` cannot be offered, and the CASE_MANAGER also refuses an offer with no readable role, one whose target is not a participant, and one of a role the target already holds ([CM-33-003](../specs/protocol.md#cm-33-003)).
+  A refused offer is not recorded and not forwarded.
 - **Object type:** the object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
   Roles are granted through the case's authority chain ([§11.1 Role Assignment](../vultron-spec/interactions.md#111-role-assignment-n)).
-- **Target:** the Actor receiving the role; the `context` is the case.
+- **Target:** the participant offered the role; the `context` is the case.
+- **Forward example:** [forward_case_participant_role.json](../examples/forward_case_participant_role.json).
 - **Triggering transition:** none — roster action, not a state-machine event.
 - **Example artifact:** [offer_case_participant_role.json](../examples/offer_case_participant_role.json).
 

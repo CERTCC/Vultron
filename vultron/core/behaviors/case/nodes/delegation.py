@@ -16,8 +16,10 @@
 """
 CaseParticipantRole delegation action nodes for case behavior trees (ADR-0039).
 
-Provides action nodes for the role delegation workflow:
-auto-accepting and explicitly rejecting the delegation.
+Provides the nodes of the role delegation workflow (CM-33): the CASE_MANAGER's
+forward of a recorded role Offer to its target, the target's check that it is
+the actor the Offer names, and the target's Accept or Reject, addressed to the
+CASE_MANAGER.
 
 See SE-08-003, ADR-0039.
 """
@@ -28,49 +30,173 @@ from typing import ClassVar, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
+    DataLayerConditionWithPorts,
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     grant_role_to_target,
 )
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
+class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
+    """CASE_MANAGER effect: forward a recorded role Offer to its target.
+
+    After the CASE_MANAGER commits the ``offer_case_participant_role`` entry
+    for the Case Owner's Offer, it sends the target a new
+    ``Offer(CaseParticipantRole)`` naming the same role, target and case
+    (CM-33-001).  ``actor`` and ``attributed_to`` come from the delegated-
+    authorship helper: the CASE_MANAGER forwards, on the Case Owner's behalf
+    (CM-24-005).  The forward is addressed to the target only and carries
+    ``in_reply_to`` set to the recorded Offer's id (the entry's
+    ``log_object_id``), so an answer naming the forward resolves to the Offer
+    it stands for (CM-33-005).
+
+    The forward's id derives from the recorded Offer (OX-06-002), so a retry
+    rebuilds the same forward, which the outbox does not queue twice.  It is
+    not ledgered on its own: the entry it follows records the Offer.
+
+    A ``manager_effects`` entry, so it runs only at the CASE_MANAGER
+    (BT-17-008).  Returns FAILURE, writing nothing, when the factory is absent
+    or raises.
+    """
+
+    _ID_KIND: ClassVar[str] = "forward_case_participant_role"
+
+    def __init__(
+        self,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        offer_id: str,
+        owner_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name)
+        self.case_id = case_id
+        self.role = role
+        self.target_actor_id = target_actor_id
+        self.offer_id = offer_id
+        self.owner_id = owner_id
+
+    def _call_factory(self) -> tuple[str, str]:
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
+        authorship = delegated_authorship(
+            doing_actor_id=self.actor_id, requesting_actor_id=self.owner_id
+        )
+        return self.trigger_activity_factory.offer_case_participant_role(
+            case_id=self.case_id,
+            role=self.role,
+            target_actor_id=self.target_actor_id,
+            actor=authorship.actor,
+            to=[self.target_actor_id],
+            attributed_to=authorship.attributed_to,
+            in_reply_to=self.offer_id,
+            id_=derived_activity_id(
+                self._ID_KIND, self.actor_id, self.case_id, self.offer_id
+            ),
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        if (f := self._require_factory()) is not None:
+            self.logger.warning(
+                "%s: no trigger_activity port — cannot forward role offer"
+                " '%s' to '%s' (CM-33-001)",
+                self.name,
+                self.offer_id,
+                self.target_actor_id,
+            )
+            return f
+        try:
+            activity_id, activity_blob = self._call_factory()
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
+            self.feedback_message = (
+                f"error forwarding role offer '{self.offer_id}': {exc}"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+        self._emit_through_seam(activity_id, activity_blob)
+        self._on_success(activity_id, activity_blob)
+        return Status.SUCCESS
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "%s: CASE_MANAGER '%s' forwarded role offer '%s' (%s) to '%s'"
+            " in reply to recorded offer '%s' from '%s' (CM-33-001)",
+            self.name,
+            self.actor_id,
+            activity_id,
+            self.role.value,
+            self.target_actor_id,
+            self.offer_id,
+            self.owner_id,
+        )
+
+
+class IsRoleOfferTargetNode(DataLayerConditionWithPorts):
+    """Condition: the executing actor is the target the role Offer names.
+
+    Only the target answers a role Offer (CM-33-004), so the answer speaks
+    for the executing actor (BT-17-008).  Any other actor that holds the
+    Offer, at the door already shown to be one it is addressed to, refuses it
+    with no answer sent.
+    """
+
+    def __init__(self, target_actor_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.target_actor_id = target_actor_id
+
+    def update(self) -> Status:
+        if self.actor_id is not None and same_actor_id(
+            self.actor_id, self.target_actor_id
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"'{self.actor_id}' is not the target '{self.target_actor_id}'"
+            " of the role Offer — not answered here (CM-33-004)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
-    """Send this actor's answer to an ``Offer(CaseParticipantRole)`` (ADR-0039).
+    """Send the target's answer to an ``Offer(CaseParticipantRole)`` (ADR-0039).
 
     The one shape both arms of the ``AcceptOrReject`` Selector share.  The
-    answer's id derives from the Offer it answers (OX-06-002), so a retry
-    after a send whose commit failed rebuilds the same answer, which the
-    outbox does not queue twice and the commit records once.
+    answer goes to the case's CASE_MANAGER only, resolved from the case,
+    never to the Offer's ``actor`` or to the Case Owner that made it
+    (CM-33-004, PCR-08-001, PCR-08-011).  The answer's id derives from the
+    Offer it answers (OX-06-002), so a retry rebuilds the same answer, which
+    the outbox does not queue twice.
 
-    Sent, then recorded (ADR-0119): the answer is queued first, and the
-    commit follows **only when the executing actor holds**
-    ``CVDRole.CASE_MANAGER`` **for the case**.  The actor a role is offered to
-    is usually an ordinary participant, and a participant never commits
+    The target is a participant, never the CASE_MANAGER (the CASE_MANAGER
+    refuses an Offer that names itself), and a participant never commits
     (CLP-09-001): its answer goes out with no entry in its own ledger.  The
     CASE_MANAGER commits it on receipt (CM-33-006), which #4703 builds.
 
-    Neither the outbox write nor the commit is caught: once the answer is
-    queued a FAILURE would let the Selector send the contradictory answer
-    after it, so a fault escapes to ``BTBridge`` as an internal error
-    (BT-14-001, ARCH-15-001).  Only a missing input, a case this store does not
-    hold, or a factory error returns FAILURE, before anything is written.
+    The outbox write is not caught: once the answer is queued a FAILURE would
+    let the Selector send the contradictory answer after it, so a fault
+    escapes to ``BTBridge`` as an internal error (BT-14-001, ARCH-15-001).
+    Only a missing input, a case this store does not hold, a case that names
+    no CASE_MANAGER, or a factory error returns FAILURE, before anything is
+    written.
 
-    Subclasses set ``_EVENT_TYPE`` (the ledger ``event_type`` and the kind
-    label of the derived id) and ``_ANSWER`` (for logs), and implement
-    :meth:`_factory_method`.
+    Subclasses set ``_EVENT_TYPE`` (the kind label of the derived id) and
+    ``_ANSWER`` (for logs), and implement :meth:`_factory_method`.
     """
 
     _EVENT_TYPE: ClassVar[str]
@@ -91,7 +217,7 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
         self.role = role
         self.target_actor_id = target_actor_id
         self.vendor_id = vendor_id
-        self._case: VulnerabilityCase | None = None
+        self._case_manager_id: str | None = None
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:
         """The ``TriggerActivityPort`` method that builds this answer."""
@@ -99,6 +225,9 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
 
     def _call_factory(self) -> tuple[str, str]:
         assert self.actor_id is not None
+        assert (
+            self._case_manager_id is not None
+        )  # resolved by _validate_context
         return self._factory_method()(
             offer_id=self.offer_id,
             case_id=self.case_id,
@@ -106,7 +235,7 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
             target_actor_id=self.target_actor_id,
             vendor_id=self.vendor_id,
             actor=self.actor_id,
-            to=[self.vendor_id],
+            to=[self._case_manager_id],
             id_=derived_activity_id(
                 self._EVENT_TYPE, self.actor_id, self.case_id, self.offer_id
             ),
@@ -132,62 +261,33 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
                 self.offer_id,
             )
             return Status.FAILURE
-        # Resolved before anything is written (Regime 1, ADR-0087): an Accept
-        # that cannot find the case fails, so the Selector answers with the
-        # Reject, and the commit gate below reads the same case.
-        self._case, failure = self._require_case(self.case_id)
-        return failure
-
-    def _executing_actor_is_case_manager(self) -> bool:
-        """Whether the executing actor holds ``CVDRole.CASE_MANAGER`` here.
-
-        The same answer :class:`CheckIsCaseManagerNode` gives (ADR-0088,
-        ARCH-24-003): the canonical resolver names the CASE_MANAGER.
-        """
-        assert self._case is not None  # resolved by _validate_context
-        return (
-            resolve_case_manager_id(
-                self._case, cast(CasePersistence, self.datalayer)
-            )
-            == self.actor_id
+        # Resolved before anything is written (Regime 1, ADR-0087): the
+        # answer goes to the case's CASE_MANAGER or nowhere (PCR-08-011).
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
+        self._case_manager_id = resolve_case_manager_id(
+            case, cast(CasePersistence, self.datalayer)
         )
-
-    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
-        """Commit the queued answer when this actor is the CASE_MANAGER.
-
-        Exact blob as snapshot (VM-08-003).  Raises when the commit fails.
-        """
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        if not self._executing_actor_is_case_manager():
-            self.logger.info(
-                "%s: '%s' does not hold CASE_MANAGER for case '%s' — %s '%s'"
-                " sent with no ledger entry (CLP-09-001)",
-                self.name,
-                self.actor_id,
-                self.case_id,
-                self._ANSWER,
-                activity_id,
+        if self._case_manager_id is None:
+            self.feedback_message = (
+                f"case '{self.case_id}' names no CASE_MANAGER — cannot"
+                f" answer role offer '{self.offer_id}' (PCR-08-011)"
             )
-            return
-        commit_emitted_activity(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-            activity_id=activity_id,
-            activity_blob=activity_blob,
-            event_type=self._EVENT_TYPE,
-        )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return None
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "%s: '%s' answered offer '%s' with %s '%s' to vendor '%s'",
+            "%s: '%s' answered offer '%s' with %s '%s' to the CASE_MANAGER"
+            " '%s'",
             self.name,
             self.actor_id,
             self.offer_id,
             self._ANSWER,
             activity_id,
-            self.vendor_id,
+            self._case_manager_id,
         )
 
     def update(self) -> Status:
@@ -203,7 +303,6 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
             self.logger.error("%s: %s", self.name, self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._emit_through_seam(activity_id, activity_blob)
-        self._record_sent(activity_id, activity_blob)
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
 
@@ -211,9 +310,9 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
 class AutoAcceptCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
 
-    When the local actor receives an ``Offer(CaseParticipantRole)`` it MUST
-    auto-accept so the offering Vendor receives confirmation.  The send and
-    the CASE_MANAGER-only commit are
+    When the target receives the CASE_MANAGER's forward of an
+    ``Offer(CaseParticipantRole)`` it accepts, and the CASE_MANAGER receives
+    the answer (CM-33-004).  The send is
     :class:`_AnswerCaseParticipantRoleOfferBase`'s.
 
     See SE-08-003, ADR-0039.
@@ -230,12 +329,16 @@ class AutoAcceptCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
 class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
     """Grant the offered role on the CASE_MANAGER's own case replica (ADR-0039).
 
-    Runs as a ``manager_effects`` entry of the offer-received tree, so the
-    factory's CASE_MANAGER gate (BT-17-008) fires it only at the CASE_MANAGER —
-    the ledger holder, which excludes itself from the ``Announce`` fan-out and
-    so never replays its own ``accept_case_participant_role`` entry. The CM
-    therefore applies the grant to its own copy here; every other participant
-    applies it from the ledger via
+    The grant is the CASE_MANAGER's committed ``accept_case_participant_role``
+    entry, never the Offer's receipt (CM-33-001, CM-02-016), so no tree
+    composes this node on the Offer; the target's Accept does once the
+    CASE_MANAGER commits it (CM-33-006, #4703).  It runs as a
+    ``manager_effects`` entry, so the factory's CASE_MANAGER gate (BT-17-008)
+    fires it only at the CASE_MANAGER — the ledger holder, which excludes
+    itself from the ``Announce`` fan-out and so never replays its own
+    ``accept_case_participant_role`` entry.  The CM therefore applies the
+    grant to its own copy here; every other participant applies it from the
+    ledger via
     :class:`~vultron.core.behaviors.sync.nodes.role_grant_effect.ApplyCaseParticipantRoleGrantFromLedgerNode`
     (CM-02-016).  Idempotent and non-fatal: an absent case or a target that is
     not a participant returns SUCCESS without writing.
@@ -288,13 +391,13 @@ class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
 
 
 class EmitRejectCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
-    """Emit a Reject(Offer(CaseParticipantRole)) to the offering Vendor (ADR-0039).
+    """Emit a Reject(Offer(CaseParticipantRole)) to the CASE_MANAGER (ADR-0039).
 
     Fallback branch of the ``AcceptOrReject`` Selector after
-    :class:`AutoAcceptCaseParticipantRoleNode`.  When the local actor cannot
+    :class:`AutoAcceptCaseParticipantRoleNode`.  When the target cannot
     auto-accept the role delegation offer, this node sends an explicit
-    ``Reject`` so the offering Vendor is notified rather than receiving
-    silence.  The send and the CASE_MANAGER-only commit are
+    ``Reject`` so the CASE_MANAGER, and through its ledger the Case Owner, is
+    told rather than receiving silence (CM-33-004).  The send is
     :class:`_AnswerCaseParticipantRoleOfferBase`'s.
 
     See SE-08-003, ADR-0039.

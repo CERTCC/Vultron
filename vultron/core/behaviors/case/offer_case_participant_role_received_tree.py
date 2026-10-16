@@ -13,24 +13,33 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Received-side BT factory for OfferCaseParticipantRole (ADR-0039).
+"""Received-side BT factory for OfferCaseParticipantRole (ADR-0039, CM-33).
 
-Builds the response tree for
-``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
-received by the target Actor.  Auto-accepts the offer and commits a
-ledger entry; falls back to an explicit Reject if accept creation fails.
+Builds the tree for ``Offer(CaseParticipantRole, target=Actor,
+context=VulnerabilityCase)``.  The Offer reaches two stores.  At the case's
+CASE_MANAGER it is the Case Owner's own Offer: the CASE_MANAGER checks it,
+commits it and forwards it to the target (CM-33-001 to CM-33-003).  At the
+target it is the CASE_MANAGER's forward: the target answers it, to the
+CASE_MANAGER (CM-33-004).  The CASE_MANAGER never answers for the target and
+never grants the role on the Offer: the grant is the committed Accept
+(CM-02-016, #4703).
 
 Structure::
 
     OfferCaseParticipantRoleReceivedBT (Sequence)
-    ├── IntakeReceivedActivityNode                  # archives the Offer (CLP-10-017)
-    ├── GuardedCommitOrSkip (Selector, only when case_id provided)
-    │   ├── SkipIfNotCaseManager (Sequence)
-    │   │   └── Inverter(CheckIsCaseManagerNode)
-    │   └── CommitCaseLedgerEntryNode
-    └── AcceptOrReject (Selector)
-        ├── AutoAcceptCaseParticipantRoleNode
-        └── EmitRejectCaseParticipantRoleNode
+    ├── IntakeReceivedActivityNode           # archives the Offer (CLP-10-017)
+    ├── CaseOpenToExternalWrites
+    ├── SenderRuleGuard                      # Case Owner at the CM, the CM at
+    │                                        # a participant (CM-33-002, -004)
+    ├── RoleOfferAdmissibleNode              # CM-33-003
+    ├── GuardedCommit                        # CASE_MANAGER only
+    ├── AnswerRoleOfferOnReplica (participant replica gate)
+    │   ├── IsRoleOfferTargetNode
+    │   └── AcceptOrReject (Selector)
+    │       ├── AutoAcceptCaseParticipantRoleNode
+    │       └── EmitRejectCaseParticipantRoleNode
+    └── ForwardRoleOfferToTargetCMGated (CASE_MANAGER gate)
+        └── ForwardRoleOfferToTargetNode
 
 See SE-08-003, ADR-0039.
 """
@@ -42,12 +51,21 @@ import py_trees
 from vultron.core.behaviors.case.nodes.delegation import (
     AutoAcceptCaseParticipantRoleNode,
     EmitRejectCaseParticipantRoleNode,
-    GrantCaseParticipantRoleNode,
+    ForwardRoleOfferToTargetNode,
+    IsRoleOfferTargetNode,
+)
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_participant_replica_gated_tree,
+)
+from vultron.core.behaviors.case.nodes.role_offer_guard import (
+    RoleOfferAdmissibleNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.replica_emit_exemptions import OFFER_ROLE
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -55,73 +73,114 @@ logger = logging.getLogger(__name__)
 
 def create_offer_case_participant_role_received_tree(
     offer_id: str,
-    case_id: str,
-    role: CVDRole,
-    target_actor_id: str,
-    vendor_id: str,
+    case_id: str | None,
+    role: CVDRole | None,
+    target_actor_id: str | None,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT factory for OfferCaseParticipantRole (ADR-0039).
 
-    Intake archives the incoming Offer as received (CLP-10-017); then — when
-    the receiving actor holds the offered CVDRole in the case — the tree
-    commits the ``offer_case_participant_role`` ``CaseLedgerEntry``.  The
-    auto-accept runs after the commit so the canonical ledger entry exists
-    before the ``Accept`` is sent to the offering Vendor.  The per-tree
-    ``StoreActivityNode`` this tree once carried duplicated intake and was
-    removed (CLP-10-019).
+    Intake archives the incoming Offer as received (CLP-10-017).  The sender
+    guard, composed from *sender_rule*, admits the Case Owner at the
+    CASE_MANAGER and the CASE_MANAGER at any other store, and refuses a
+    store that does not hold the case (CM-33-002, CM-33-004, PCR-03-001).
+    :class:`RoleOfferAdmissibleNode` then refuses an Offer the CASE_MANAGER
+    may not record (CM-33-003), so a refused Offer leaves no entry and sends
+    nothing.  At the CASE_MANAGER the guarded commit records the Offer and
+    the gated :class:`ForwardRoleOfferToTargetNode` sends it on to the target
+    The commit records the received Offer, so it precedes the forward
+    (CLP-10-006); the forward is not ledgered on its own, so SYNC-09-002's
+    send-then-commit order binds nothing here.  At a participant replica only
+    the target answers (CM-33-004, BT-17-008).
 
     Args:
-        offer_id: ID of the ``Offer(CaseParticipantRole)`` activity.
-        case_id: ID of the VulnerabilityCase context.
-        role: The CVDRole being offered.
-        target_actor_id: Actor ID of the target receiving the role offer.
-        vendor_id: Actor ID of the offering Vendor (recipient of Accept/Reject).
+        offer_id: ID of the received ``Offer(CaseParticipantRole)``; the
+            recorded Offer's id the forward names in ``in_reply_to``.
+        case_id: ID of the VulnerabilityCase context; ``None`` for an Offer
+            that names no case, which intake archives and nothing else
+            touches (CLP-10-018); its handler refuses it.
+        role: The CVDRole offered; ``None`` when the Offer carries none,
+            which is refused, never read as a default (CM-33-003).
+        target_actor_id: Actor ID of the target the role is offered to.
+        sender_id: The Offer's sender, which the sender guard checks.
+        sender_rule: The use case's declared sender rule (HP-01-008).
 
     Returns:
         Root ``OfferCaseParticipantRoleReceivedBT`` Sequence node.
     """
-    accept_or_reject = py_trees.composites.Selector(
-        name="AcceptOrReject",
-        memory=False,
-        children=[
-            AutoAcceptCaseParticipantRoleNode(
-                offer_id=offer_id,
-                case_id=case_id,
-                role=role,
-                target_actor_id=target_actor_id,
-                vendor_id=vendor_id,
-            ),
-            EmitRejectCaseParticipantRoleNode(
-                offer_id=offer_id,
-                case_id=case_id,
-                role=role,
-                target_actor_id=target_actor_id,
-                vendor_id=vendor_id,
-            ),
-        ],
-    )
+    if case_id is None:
+        return create_receive_activity_tree(
+            name="OfferCaseParticipantRoleReceivedBT",
+            case_id=None,
+            precondition_guards=[],
+        )
 
-    # The CASE_MANAGER grants the role on its own copy at commit; it excludes
-    # itself from the Announce fan-out, so it never replays its own accept
-    # entry. Remote replicas apply the grant from the ledger (CM-02-016).
-    manager_effects: list[py_trees.behaviour.Behaviour] | None = (
-        [
-            GrantCaseParticipantRoleNode(
+    replica_effects: list[py_trees.behaviour.Behaviour] = []
+    manager_effects: list[py_trees.behaviour.Behaviour] = []
+    if role is not None and target_actor_id:
+        replica_effects.append(
+            create_participant_replica_gated_tree(
+                name="AnswerRoleOfferOnReplica",
+                case_id=case_id,
+                children=[
+                    IsRoleOfferTargetNode(target_actor_id=target_actor_id),
+                    py_trees.composites.Selector(
+                        name="AcceptOrReject",
+                        memory=False,
+                        children=[
+                            AutoAcceptCaseParticipantRoleNode(
+                                offer_id=offer_id,
+                                case_id=case_id,
+                                role=role,
+                                target_actor_id=target_actor_id,
+                                vendor_id=sender_id,
+                            ),
+                            EmitRejectCaseParticipantRoleNode(
+                                offer_id=offer_id,
+                                case_id=case_id,
+                                role=role,
+                                target_actor_id=target_actor_id,
+                                vendor_id=sender_id,
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        )
+        manager_effects.append(
+            ForwardRoleOfferToTargetNode(
                 case_id=case_id,
                 role=role,
                 target_actor_id=target_actor_id,
+                offer_id=offer_id,
+                owner_id=sender_id,
             )
-        ]
-        if case_id
-        else None
-    )
+        )
 
     return create_receive_activity_tree(
         name="OfferCaseParticipantRoleReceivedBT",
-        case_id=case_id if case_id else None,
-        precondition_guards=[],
-        replica_effects=[accept_or_reject],
-        replica_emit_exemption=OFFER_ROLE,
+        case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id,
+            case_id=case_id,
+            case_manager_required=True,
+        ),
+        precondition_guards=[
+            RoleOfferAdmissibleNode(
+                case_id=case_id,
+                offer_id=offer_id,
+                role=role,
+                target_actor_id=target_actor_id,
+            )
+        ],
+        replica_effects=replica_effects,
+        replica_emit_exemption=OFFER_ROLE if replica_effects else None,
         manager_effects=manager_effects,
-        manager_case_id=case_id if case_id else None,
+        manager_case_id=case_id if manager_effects else None,
+        manager_gate_name=(
+            "ForwardRoleOfferToTargetCMGated" if manager_effects else None
+        ),
     )

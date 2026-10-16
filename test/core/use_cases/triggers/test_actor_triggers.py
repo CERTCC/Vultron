@@ -1953,24 +1953,23 @@ class TestSvcOfferCaseParticipantRoleUseCase:
         actor, dl = _make_actor_dl("Vendor")
         target, _ = _make_actor_dl("Coordinator")
         dl.create(target)
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="CPR Test Case", content="Content"
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
         return actor, target, dl, case
 
-    def test_happy_path_returns_activity(self):
-        """SE-08-003: successful offer returns activity_id and activity dict."""
-        actor, target, dl, case = self._setup()
+    def _execute(self, actor, target, dl, case, role=CVDRole.VENDOR):
         request = OfferCaseParticipantRoleTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
             target_actor_id=target.id_,
-            role=CVDRole.CASE_MANAGER,
+            role=role,
         )
-        result = SvcOfferCaseParticipantRoleUseCase(
+        return SvcOfferCaseParticipantRoleUseCase(
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
+
+    def test_happy_path_returns_activity(self):
+        """SE-08-003: successful offer returns activity_id and activity dict."""
+        result = self._execute(*self._setup())
 
         assert isinstance(result, RoleOfferResult)
         assert result.activity["type"] == "Offer"
@@ -1978,18 +1977,49 @@ class TestSvcOfferCaseParticipantRoleUseCase:
     def test_happy_path_activity_persisted(self):
         """Emitted Offer activity is readable from the DataLayer."""
         actor, target, dl, case = self._setup()
-        request = OfferCaseParticipantRoleTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            target_actor_id=target.id_,
-            role=CVDRole.VENDOR,
-        )
-        result = SvcOfferCaseParticipantRoleUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        result = self._execute(actor, target, dl, case)
 
         stored = dl.read(result.activity_id)
         assert stored is not None
+
+    @pytest.mark.spec("CM-33-001")
+    def test_offer_is_addressed_to_the_case_manager_only(self):
+        """The Case Owner's Offer never goes to the target (CM-33-001)."""
+        actor, target, dl, case = self._setup()
+        result = self._execute(actor, target, dl, case)
+
+        assert result.activity["to"] == [_CASE_MANAGER_ID]
+        assert getattr(dl.read(result.activity_id), "to", None) == [
+            _CASE_MANAGER_ID
+        ]
+
+    @pytest.mark.spec("CM-33-001")
+    def test_offer_is_queued_in_the_owners_outbox(self):
+        actor, target, dl, case = self._setup()
+        result = self._execute(actor, target, dl, case)
+
+        assert dl.outbox_list() == [result.activity_id]
+
+    @pytest.mark.spec("PCR-08-011")
+    def test_raises_before_sending_when_no_case_manager_resolves(self):
+        actor, dl = _make_actor_dl("Vendor")
+        target, _ = _make_actor_dl("Coordinator")
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_, name="No CM Case", content="Content"
+        )
+        dl.create(case)
+
+        with pytest.raises(VultronNotFoundError):
+            self._execute(actor, target, dl, case)
+        assert dl.outbox_list() == []
+
+    def test_raises_when_the_case_is_not_held(self):
+        actor, dl = _make_actor_dl("Vendor")
+        target, _ = _make_actor_dl("Coordinator")
+        case = as_VulnerabilityCase(attributed_to=actor.id_, name="Unheld")
+
+        with pytest.raises(VultronNotFoundError):
+            self._execute(actor, target, dl, case)
 
     def test_raises_when_trigger_activity_missing(self):
         """RuntimeError when trigger_activity is None (SE-08-003 guard)."""

@@ -51,7 +51,10 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import read_received_activity
+from vultron.core.use_cases._helpers import (
+    add_activity_to_outbox,
+    read_received_activity,
+)
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -637,12 +640,20 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
 
 
 class SvcOfferCaseParticipantRoleUseCase:
-    """Offer a CVDRole to a target Actor via the canonical ADR-0039 wire format.
+    """The Case Owner offers a CVDRole to a target Actor (ADR-0039, CM-33-001).
 
-    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
-    from the requesting actor.  The trigger_activity adapter's
-    ``offer_case_participant_role`` method handles wire construction and
-    DataLayer persistence.  No BT orchestration is needed on the sending side.
+    Builds ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    from the requesting actor, addressed to the case's CASE_MANAGER only, and
+    queues it in the requesting actor's outbox.  The CASE_MANAGER checks the
+    Offer, records it and forwards it to the target (CM-33-002, CM-33-003);
+    the target never receives the Case Owner's own Offer (CM-33-001).  The
+    ``trigger_activity`` adapter's ``offer_case_participant_role`` method
+    handles wire construction and persistence; no BT orchestration is needed
+    on the sending side (ADR-0110).
+
+    Raises ``VultronNotFoundError`` before anything is built when the case is
+    not held, or names no CASE_MANAGER (PCR-08-011): a case always has one
+    (CM-24-006), so its absence is a fault, never a direct send to the target.
 
     See SE-08-003, ADR-0039.
     """
@@ -663,20 +674,33 @@ class SvcOfferCaseParticipantRoleUseCase:
                 "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
             )
         req = self._request
-        factory = self._trigger_activity
-        activity_id, activity_dict = factory.offer_case_participant_role(
-            case_id=req.case_id,
-            role=req.role,
-            target_actor_id=req.target_actor_id,
-            actor=req.actor_id,
+        case = resolve_case(req.case_id, self._dl)
+        # The Offer goes to the CASE_MANAGER or nowhere (CM-33-001,
+        # PCR-08-011).
+        case_manager_id = resolve_case_manager_id(case, self._dl)
+        if case_manager_id is None:
+            raise VultronNotFoundError(
+                "CASE_MANAGER", f"(for case '{case.id_}')"
+            )
+        activity_id, activity_dict = (
+            self._trigger_activity.offer_case_participant_role(
+                case_id=case.id_,
+                role=req.role,
+                target_actor_id=req.target_actor_id,
+                actor=req.actor_id,
+                to=[case_manager_id],
+            )
         )
+        add_activity_to_outbox(req.actor_id, activity_id, self._dl)
         logger.info(
             "SvcOfferCaseParticipantRoleUseCase: queued Offer(CaseParticipantRole)"
-            " '%s' for case '%s' role '%s' → actor '%s'",
+            " '%s' for case '%s' role '%s' → actor '%s', sent to the"
+            " CASE_MANAGER '%s'",
             activity_id,
-            req.case_id,
+            case.id_,
             req.role,
             req.target_actor_id,
+            case_manager_id,
         )
         return RoleOfferResult(
             activity_id=activity_id,
