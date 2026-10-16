@@ -32,7 +32,7 @@ sequenceDiagram
     I->>CM: Accept(Invite(Actor, VulnerabilityCaseStub))
     CM->>CM: Commit ledger entry for the acceptance
     CM->>P: Announce(CaseLedgerEntry)
-    CM->>CM: Record effect: RM stays Received, embargo consent Accepted
+    CM->>CM: Record effect: RM stays Received, embargo consent AGREED
     CM->>I: Announce(VulnerabilityCase) — full case content
     CM->>I: Prior ledger entries, oldest first
     CM->>I: Invite(Actor, VulnerabilityCase) — full-case Invite
@@ -44,8 +44,8 @@ this order (CM-17-004):
 1. Commit a ledger entry recording the acceptance, and send that entry to every
    active participant.
 2. Record the acceptance's effect on the participant: its RM state stays
-   `Received`, and its embargo consent for the active embargo, if any, becomes
-   `Accepted`.
+   `Received`, and its consent row for the active embargo, if any, becomes
+   `AGREED`, unless the participant had declined that embargo.
 3. When the participant is now active, send `Announce(VulnerabilityCase)`
    carrying the full case snapshot, then replay the ledger entries committed
    before this participant joined, oldest first.
@@ -63,32 +63,45 @@ Step 4 follows the replay, so the participant judges a case it already holds.
 
 ### 10.2 Embargo Revision and Termination Cascades
 
-A change to the embargo in force propagates to every participant's consent
-state, because consent is given to specific terms.
+A change to the embargo in force propagates to participants' consent, because consent is given to specific terms.
 A change that is only proposed does not.
+Each cascade below starts from a step on the case's embargo register ([§7.1.1 The Embargo Register](tracking-models.md#711-the-embargo-register)), and the EM state follows from the register.
 
 !!! note "Recall: embargo management states"
     {% include-markdown "./includes/_em-states-table.md" %}
 
     Full definitions are in [§7.1 States](tracking-models.md#71-states).
 
-- **EM enters `Revised`.** No consent changes.
-  The prior embargo is still in force and every signatory to it remains `SIGNATORY`; the CASE_MANAGER records the proposer as having accepted the terms it proposed.
-- **EM returns to `Active` with revised terms.** Consent is recorded per embargo, so the CASE_MANAGER re-evaluates every participant's position against the new terms.
-  If the revised embargo ends no later than the one it replaces, every signatory to the replaced terms is carried over as a signatory of the revised terms.
-  If it ends later, a signatory that has not accepted the revised terms is no longer a signatory to the active embargo, which is the `LAPSED` position; nothing is written to record it.
-  A participant that has already accepted the revised terms is a signatory to them.
-- **EM returns to `Active` because the owner rejected the revision.** No consent changes; the prior terms stand.
-- **EM enters `Exited`.** No embargo is in scope, so no participant is a signatory to one, which is the terminal `UNBOUND_EXITED` position.
-  The CASE_MANAGER writes nothing to record it, and a terminated embargo cannot be re-invited (ADR-0118).
-- **After a teardown.** The CASE_MANAGER SHOULD commit and send a fresh
-  `Announce(CaseLedgerEntry)` so every participant learns that the embargo
-  ended.
+- **A revision is proposed** (EM enters, or stays at, `Revised`).
+  The register gains a `PROPOSED` entry for the revision, and every other participant gets an `UNINVITED` row for it (CM-18-001).
+  No consent to the embargo in force changes: the prior embargo is still in force and every signatory to it remains one (EP-05-002).
+  The CASE_MANAGER records the proposer's row for the revision as `AGREED`, because proposing terms is consenting to them.
+- **The case owner activates the revision.**
+  The register activates the revision's entry and supersedes the entry in force, in one step; EM returns to `Active`, or stays at `Revised` while another revision is open (EMB-18-005).
+  The owner's row for the revision becomes `AGREED` unless it already is.
+  If the revision ends no later than the embargo it replaces, the CASE_MANAGER applies `CARRY_OVER` to the revision's row of every participant whose row for the replaced embargo is `AGREED`, a `DECLINED` row for the revision included (EP-05-001, MSM-07-005).
+  If it ends later, no row is written: a signatory to the replaced terms whose row for the revision is not `AGREED` has lapsed, which is read from its rows and the register ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
+  A participant that has already agreed to the revision is its signatory by lookup.
+- **The case owner rejects the revision.**
+  The register rejects the revision's entry; EM returns to `Active` once no other revision is open.
+  No consent row changes, the owner's included, and the prior terms stand (MSM-07-009).
+- **The embargo is terminated** (EM enters `Exited`).
+  The register terminates the entry in force and cancels every open proposal in the same step (EP-08-004).
+  No consent row is written (CM-18-016, MSM-07-006).
+  With no `ACTIVE` entry, no participant is a signatory and none has lapsed, and every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing (EMB-17-004).
+- **After a teardown.**
+  The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, is how every participant learns that the embargo ended; no further message is sent (EP-09-009, MSM-07-006).
 
 !!! note "Recall: participant embargo consent states"
     {% include-markdown "./includes/_pec-states-table.md" %}
 
     Full definitions are in [§9.1 States](tracking-models.md#91-states).
+
+Every one of these changes reaches the case ledger, and every replica applies it by copying (CM-23-016).
+The act's own activity carries its whole register step: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces (CLP-07-013).
+Where the act's activity states a row itself, as the owner's `Accept` states the owner's agreement, the act's entry carries that row (CLP-07-013).
+Each other consent row the CASE_MANAGER writes as a consequence of the act, such as an `UNINVITED` row, the proposer's `AGREED` row or a `CARRY_OVER`, is its own CASE_MANAGER entry after the act's entry, a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, carrying the row in full (EP-09-007).
+A replica copies those rows and never decides a carry-over, an expiry or a lapse itself.
 
 ### 10.3 Status Adoption: The Two-Seam Model
 

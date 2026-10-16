@@ -53,7 +53,9 @@ A revision that ends later sends no such notice, because those participants neve
 
 - **Triggering transition:** Proposed → Active (P → A), or Proposed → Revise (P → R) while another proposal stays open as a revision (EMB-18-005).
 - **Who decides:** an `Accept` of the Invite is always the sender's own consent to those terms, the Case Owner's included.
-  It changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision)).
+  It moves the sender's consent to that embargo to `AGREED` and changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision), MSM-07-003).
+- **The embargo in force:** an `Accept` or `Reject` may answer an Invite for the embargo already in force, such as a proposal that was activated before the sender answered it, an invitation whose deadline has passed, or a re-invitation after a lapse, while the sender's consent to it is `INVITED` or `TIMED_OUT` (EP-09-012).
+  The answer names that Invite by id.
 
 {% include-markdown "./_occasions/sections/embargo-revision-proposal.md" %}
 
@@ -82,10 +84,11 @@ They are how the case takes the `EA`, `EC`, `ER`, and `EJ` transitions above, wh
 
 {% include-markdown "./_occasions/sections/activate-embargo.md" heading-offset=1 %}
 
-The Case Owner's own consent to the activated terms is recorded with it.
-When the new terms end no later than the ones they replace, every participant that agreed to the old terms is bound by the new ones too.
-The Case Manager refuses an activation once the case is public, an exploit is public, or attacks are observed.
-It also refuses one from a Case Owner that has refused those terms, until that Case Owner is invited again.
+The activation supersedes the embargo in force, if there is one, in the same register step, and any other open proposal stays open as a revision.
+The Case Owner's own consent to the activated terms is recorded with it, as `AGREED`.
+A Case Owner that had declined those terms may still activate them: activating is the Case Owner changing its answer, so its consent moves straight to `AGREED` (MSM-07-008).
+When the new terms end no later than the ones they replace, every participant that agreed to the old terms is carried over to the new ones; when they end later, a participant that has not agreed to them is no longer bound (MSM-07-005).
+The Case Manager refuses an activation once the case is public, an exploit is public, or attacks are observed, and refuses one whose `Event` is not an open proposal of the case.
 
 {% include-markdown "./_occasions/sections/reject-embargo-proposal.md" heading-offset=1 %}
 
@@ -97,6 +100,7 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
 {% include-markdown "./_occasions/sections/embargo-termination.md" %}
 
 - **Triggering transition:** Active or Revise → eXited ({A,R} → X).
+  The same register step cancels every open proposal, and no participant's consent is written (EP-08-004, MSM-07-006).
 - **Reason:** `content` says what ended the embargo, exactly `END_TIME_REACHED` or `EARLY`.
   A receiver refuses a `Remove` whose `content` is anything else.
   `summary` is a human-readable account that the protocol does not read.
