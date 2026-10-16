@@ -140,9 +140,14 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (f"{_E}/expiry_tree.py", "create_honour_late_accept_tree"),
         (f"{_E}/expiry_tree.py", "create_noop_ledger_entry_tree"),
         (f"{_E}/expiry_tree.py", "create_reinvite_stale_accepter_tree"),
-        # The CASE_MANAGER's lazy end-time check (ADR-0122): its own act,
-        # run by the dispatcher before the received tree.
-        (f"{_E}/end_time_tree.py", "end_embargo_if_end_time_passed_tree"),
+        # The clock-decision stage (CLP-10-025, ADR-0135): the received-tree
+        # factory and a case-scoped trigger place it, gated, in their one
+        # tree; it holds the CASE_MANAGER's own decisions, never an effect
+        # of the received activity.
+        (
+            f"{_C}/nodes/clock_decision_stage.py",
+            "create_clock_decision_gate",
+        ),
         (f"{_E}/nodes/relay_guards.py", "case_manager_admits_proposal_guard"),
         # The repeat guard for an answer to an embargo Invite (CM-13-005),
         # also run by the Accept handler before its pre-tree paths.

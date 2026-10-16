@@ -67,8 +67,10 @@ class AddReportToCaseReceivedUseCase:
         request: AddReportToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: AddReportToCaseReceivedEvent = request
@@ -94,6 +96,7 @@ class AddReportToCaseReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(

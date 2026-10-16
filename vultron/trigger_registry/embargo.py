@@ -89,9 +89,6 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=_COMMON,
-        # Ends the embargo with END_TIME_REACHED itself once the end time
-        # has passed, so the lazy end-time check must not pre-empt it.
-        runs_case_upkeep=False,
     ),
     TriggerEntry(
         verb="withdraw-embargo",
