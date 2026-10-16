@@ -28,15 +28,30 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronPerson
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.note import VultronNote
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.base.objects.object_types import (
+    as_Article,
+    as_Note,
+)
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.case_status import (
+    as_CaseStatus,
+    as_ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -133,6 +148,7 @@ class TestAddObjectToCase:
             actor=_ACTOR,
             object_id=note.id_,
             case_id=case.id_,
+            to=[_PEER],
         )
 
         assert activity_id
@@ -147,9 +163,118 @@ class TestAddObjectToCase:
             actor=_ACTOR,
             object_id=note.id_,
             case_id=case.id_,
+            to=[_PEER],
         )
 
         assert dl.read(activity_id) is not None
+
+    @pytest.mark.spec("PCR-08-005")
+    def test_addresses_add_to_given_recipients(self, adapter, dl):
+        case = _make_case(dl)
+        note = as_Note(name="Finding", content="details")
+        dl.create(note)
+
+        activity_id, _ = adapter.add_object_to_case(
+            actor=_ACTOR,
+            object_id=note.id_,
+            case_id=case.id_,
+            to=[_PEER],
+        )
+
+        activity = dl.read(activity_id)
+        assert activity is not None
+        assert getattr(activity, "to", None) == [_PEER]
+
+
+class TestAddObjectToCaseSemantics:
+    """The sender-side refusal reads the Add as a receiver would (TRIG-10-001)."""
+
+    @pytest.mark.parametrize(
+        ("make_object", "semantics"),
+        [
+            pytest.param(
+                lambda case_id: as_Note(name="N", content="c"),
+                MessageSemantics.ADD_NOTE_TO_CASE,
+                id="note",
+            ),
+            pytest.param(
+                lambda case_id: as_VulnerabilityReport(name="R", content="c"),
+                MessageSemantics.ADD_REPORT_TO_CASE,
+                id="report",
+            ),
+        ],
+    )
+    @pytest.mark.spec("TRIG-10-001")
+    def test_routable_type_returns_its_semantics(
+        self, adapter, dl, make_object, semantics
+    ):
+        case = _make_case(dl)
+        obj = make_object(case.id_)
+        dl.create(obj)
+
+        assert (
+            adapter.add_object_to_case_semantics(
+                object_id=obj.id_, case_id=case.id_
+            )
+            == semantics
+        )
+
+    @pytest.mark.parametrize(
+        "make_object",
+        [
+            pytest.param(
+                lambda case_id: as_Article(name="A", content="c"),
+                id="no-add-pattern",
+            ),
+            pytest.param(
+                lambda case_id: as_EmbargoEvent(
+                    context=case_id, end_time=days_from_now_utc(45)
+                ),
+                id="embargo-event",
+            ),
+            pytest.param(
+                lambda case_id: as_CaseParticipant(
+                    attributed_to=_PEER, context=case_id
+                ),
+                id="case-participant",
+            ),
+            pytest.param(
+                lambda case_id: as_CaseStatus(context=case_id),
+                id="case-status",
+            ),
+            pytest.param(
+                # Add(ParticipantStatus, <case URI>) matches the
+                # participant-status pattern, whose target is permissive;
+                # it is still not an addition to the case.
+                lambda case_id: as_ParticipantStatus(context=case_id),
+                id="participant-status",
+            ),
+        ],
+    )
+    @pytest.mark.spec("TRIG-10-001")
+    def test_refused_type_raises_and_persists_nothing(
+        self, adapter, dl, make_object
+    ):
+        case = _make_case(dl)
+        obj = make_object(case.id_)
+        dl.create(obj)
+        before = len(dl.outbox_list())
+
+        with pytest.raises(VultronValidationError, match="cannot be added"):
+            adapter.add_object_to_case_semantics(
+                object_id=obj.id_, case_id=case.id_
+            )
+
+        assert len(dl.outbox_list()) == before
+
+    def test_missing_case_raises_not_found(self, adapter, dl):
+        note = as_Note(name="N", content="c")
+        dl.create(note)
+
+        with pytest.raises(VultronNotFoundError):
+            adapter.add_object_to_case_semantics(
+                object_id=note.id_, case_id="urn:test:absent-case"
+            )
 
 
 _TO_WIRE_OBJECT_PATH = (
@@ -186,6 +311,7 @@ class TestAddObjectToCaseConversionBranch:
                 actor=_ACTOR,
                 object_id=fake_id,
                 case_id=case.id_,
+                to=[_PEER],
             )
 
         assert activity_id
@@ -212,6 +338,7 @@ class TestAddObjectToCaseConversionBranch:
                     actor=_ACTOR,
                     object_id=fake_id,
                     case_id=case.id_,
+                    to=[_PEER],
                 )
 
     def test_core_record_raises_construction_error(self, adapter, dl):
@@ -243,6 +370,7 @@ class TestAddObjectToCaseConversionBranch:
                     actor=_ACTOR,
                     object_id=fake_id,
                     case_id=case.id_,
+                    to=[_PEER],
                 )
 
     def test_core_only_class_error_names_its_type(self, adapter, dl):
@@ -271,6 +399,7 @@ class TestAddObjectToCaseConversionBranch:
                     actor=_ACTOR,
                     object_id=fake_id,
                     case_id=case.id_,
+                    to=[_PEER],
                 )
 
     def test_missing_object_raises_not_found(self, adapter, dl):
@@ -286,6 +415,7 @@ class TestAddObjectToCaseConversionBranch:
                 actor=_ACTOR,
                 object_id="urn:test:absent-1",
                 case_id=case.id_,
+                to=[_PEER],
             )
 
         assert exc_info.value.resource_id == "urn:test:absent-1"
@@ -311,6 +441,7 @@ class TestAddObjectToCaseConversionBranch:
                     actor=_ACTOR,
                     object_id=note.id_,
                     case_id=case.id_,
+                    to=[_PEER],
                 )
 
         assert isinstance(exc_info.value.__cause__, ValidationError)

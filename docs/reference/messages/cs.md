@@ -23,9 +23,9 @@ dimensions in multi-party CVD; those dimensions are always participant-specific
 Vendor nor Deployer.
 
 The `Add` carries the new status object inline.
-This implementation does not support a separate `Create(CaseStatus)` or `Create(ParticipantStatus)` ahead of the `Add`.
-An inbox refuses either one as an unrecognized activity and changes nothing.
-Whether the protocol should support that separate `Create` is an [open question](../../topics/future_work/open_questions.md).
+The protocol names one form for each: `Add(CaseStatus)` brings a case status into the case, and `Add(ParticipantStatus)` brings a participant status into the case ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md)).
+A received `Create(CaseStatus)` or `Create(ParticipantStatus)` is not a protocol message, and its receiver must not change the case file because of it (VAM-01-011).
+This implementation's inbox refuses either one as an unrecognized activity and changes nothing (VAM-01-010).
 
 ## Occasions
 

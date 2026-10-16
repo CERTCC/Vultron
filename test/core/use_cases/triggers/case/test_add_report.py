@@ -23,6 +23,10 @@ Spec: specs/triggerable-behaviors.yaml TRIG-10-002.
 
 import pytest
 
+from test.support.case_manager import (
+    CASE_MANAGER_ID,
+    make_case_with_case_manager,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -31,7 +35,15 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.use_cases.triggers.case import SvcAddReportToCaseUseCase
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.pending_assertion import (
+    _reset_stores,
+    get_pending_assertion_store,
+)
+from vultron.core.use_cases.triggers.case import (
+    SvcAddObjectToCaseUseCase,
+    SvcAddReportToCaseUseCase,
+)
 from vultron.core.use_cases.triggers.requests import (
     AddReportToCaseTriggerRequest,
 )
@@ -83,12 +95,23 @@ class TestSvcAddReportToCaseUseCase:
     def setup(self):
         """Set up actor and in-memory DataLayer."""
         self.actor, self.dl = _make_actor_dl("Vendor Co")
-        # Create a case for testing
-        self.case = as_VulnerabilityCase(name="Test Case")
-        self.dl.create(self.case)
+        self.case = make_case_with_case_manager(self.dl)
         yield
         self.dl.clear_all()
         reset_datalayer(self.actor.id_)
+        _reset_stores()
+
+    def _execute(self, report_id: str, case_id: str | None = None):
+        request = AddReportToCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=case_id or self.case.id_,
+            report_id=report_id,
+        )
+        return SvcAddReportToCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
 
     def test_add_report_to_case_happy_path(self):
         """SvcAddReportToCaseUseCase adds a report to a case."""
@@ -119,47 +142,45 @@ class TestSvcAddReportToCaseUseCase:
         activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
-    def test_add_report_to_case_outbox_activity_to_field(self):
-        """Outbox activity produced by AddReportToCase has a documented ``to`` value.
-
-        PCR-08-001 requires outbound activities to address the Case Actor.
-        The current ``add_object_to_case`` factory (delegated from AddReport)
-        sets ``to=None``; this test anchors that behaviour so any change is
-        immediately visible in CI.
-        """
+    @pytest.mark.spec("PCR-08-005")
+    def test_add_report_to_case_addresses_case_manager_alone(self):
+        """The queued Add goes to the CASE_MANAGER and no one else."""
         report = as_VulnerabilityReport(name="To-Field Report", content="c")
         self.dl.create(report)
-        request = AddReportToCaseTriggerRequest(
-            actor_id=self.actor.id_,
-            case_id=self.case.id_,
-            report_id=report.id_,
-        )
-        before = set(self.dl.outbox_list())
-        from vultron.core.use_cases.triggers.case import (
-            SvcAddReportToCaseUseCase,
-        )
 
-        SvcAddReportToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
-        after = set(self.dl.outbox_list())
-        new_ids = after - before
-        assert new_ids, (
-            "AddReportToCase must queue at least one outbox activity"
-        )
-        activity_id = next(iter(new_ids))
-        activity = self.dl.read(activity_id)
+        result = self._execute(report.id_)
+
+        activity = self.dl.read(activity_of(result)["id"])
         assert activity is not None
-        # Document current ``to`` value as regression anchor (PCR-08-001).
-        _absent = object()
-        to = getattr(activity, "to", _absent)
-        assert to is not _absent, (
-            "PCR-08-001: ``to`` attribute must exist on the activity"
-        )
-        assert to is None or isinstance(to, (str, list)), (
-            f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"
+        assert getattr(activity, "to", None) == [CASE_MANAGER_ID]
+
+    @pytest.mark.spec("PCR-08-016")
+    def test_add_report_to_case_without_case_manager_queues_nothing(self):
+        """A case with no CASE_MANAGER fails fast with nothing queued."""
+        case = as_VulnerabilityCase(name="No Manager")
+        self.dl.create(case)
+        report = as_VulnerabilityReport(name="Orphan", content="c")
+        self.dl.create(report)
+
+        with pytest.raises(VultronValidationError):
+            self._execute(report.id_, case_id=case.id_)
+
+        assert self.dl.outbox_list() == []
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_add_report_to_case_records_pending_assertion(self):
+        """The Add is pending under ``add_report_to_case``, the event type the
+        CASE_MANAGER commits."""
+        report = as_VulnerabilityReport(name="Pending", content="c")
+        self.dl.create(report)
+
+        result = self._execute(report.id_)
+
+        store = get_pending_assertion_store(self.actor.id_)
+        assert store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_REPORT_TO_CASE.value,
+            activity_of(result)["id"],
         )
 
     def test_add_report_to_case_raises_when_report_not_found(self):
@@ -250,9 +271,11 @@ class TestSvcAddReportToCaseUseCase:
             "Activity ID in outbox should match returned activity ID"
         )
 
+    @pytest.mark.spec("TRIG-10-002")
     def test_add_report_to_case_delegates_to_add_object(self):
         """SvcAddReportToCaseUseCase validates report type then delegates to
         SvcAddObjectToCaseUseCase."""
+        assert issubclass(SvcAddReportToCaseUseCase, SvcAddObjectToCaseUseCase)
         report = as_VulnerabilityReport(
             name="Test Report",
             content="Test report content",

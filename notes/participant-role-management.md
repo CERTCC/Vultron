@@ -93,6 +93,10 @@ No protocol state machine treats a Finder differently from a Reporter, so an
 actor that finds a vulnerability and reports it holds `CVDRole.REPORTER`. Who
 discovered it is metadata: record it in the report content or case notes.
 
-`CVDRole.FINDER` still exists in code and stored data until #2677 removes it.
-Do not build new behavior on it: new code that needs the reporting party uses
-`CVDRole.REPORTER`.
+`CVDRole.FINDER` and the `FinderParticipant` / `FinderReporterParticipant`
+subclasses are gone (#2677). Every boundary role parse goes through
+`parse_role()` in `vultron/enums/roles.py`, which refuses the retired wire
+value `"finder"` (any case) with the ADR-0078 reason listed in
+`RETIRED_ROLE_VALUES`. It is refused, never aliased to `reporter`, so stored
+data or a peer still carrying it fails validation rather than being silently
+rewritten.

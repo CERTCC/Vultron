@@ -418,7 +418,7 @@ def _mixed_spelling_case_row(case_id):
         id_="urn:uuid:participant-2232",
         attributed_to="https://example.org/actors/finder",
         context=case_id,
-        case_roles=[CVDRole.FINDER],
+        case_roles=[CVDRole.REPORTER],
         participant_statuses=[status],
     )
     # Build the case without participants first, so we get snake_case at the top level.
@@ -459,7 +459,7 @@ def test_mixed_spelling_row_now_validates_directly():
     assert isinstance(participant, CaseParticipant), (
         "the camelCase participant was not read as a core CaseParticipant"
     )
-    assert participant.case_roles == [CVDRole.FINDER]
+    assert participant.case_roles == [CVDRole.REPORTER]
     assert [s.rm.state.name for s in participant.participant_statuses] == [
         "ACCEPTED"
     ], "the RM ladder was rewound (#2264)"

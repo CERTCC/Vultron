@@ -170,7 +170,7 @@ def _make_full_dl(
     owner_participant = as_CaseParticipant(
         attributed_to=owner_id,
         context=CASE_ID,
-        case_roles=[CVDRole.CASE_OWNER, CVDRole.FINDER],
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.REPORTER],
     )
     dl.create(owner_participant)
     case.case_participants.append(owner_participant.id_)

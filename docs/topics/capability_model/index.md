@@ -335,7 +335,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `engage-case` — accept a case (transitions to ACCEPTED state)
 - `defer-case` — defer a case (transitions to DEFERRED state)
 - `add-report-to-case` — link a report to an existing case
-- `add-object-to-case` — add any protocol object to a case
+- `add-object-to-case` — ask the case manager to add an existing report or note to a case; other object types are refused
 
 ### Embargo
 

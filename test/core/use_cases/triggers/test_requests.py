@@ -46,8 +46,11 @@ from vultron.core.use_cases.triggers import request_bodies, requests
 from vultron.core.use_cases.triggers.request_bodies import (
     CaseTriggerRequest,
     CreateCaseRequest,
+    InviteActorToCaseRequest,
+    OfferCaseParticipantRoleRequest,
     ProposeEmbargoRequest,
     ProposeEmbargoRevisionRequest,
+    SuggestActorToCaseRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
@@ -63,6 +66,7 @@ from vultron.core.use_cases.triggers.requests import (
     TriggerRequest,
     result_type_of,
 )
+from vultron.enums.roles import CVDRole
 
 _ACTOR = "https://example.org/actors/vendor"
 _CASE = "https://example.org/api/v2/VulnerabilityCases/abc"
@@ -341,3 +345,52 @@ def test_create_case_accepts_absent_empty_or_named_recipients(
         {"name": "case", "content": "content", "to": to}
     )
     assert built.to == to
+
+
+_CASE = "https://example.org/cases/c1"
+_ACTOR = "https://example.org/actors/a"
+_ROLE_LIST_BODIES: list[tuple[type[BaseModel], str]] = [
+    (SuggestActorToCaseRequest, "suggested_actor_id"),
+    (InviteActorToCaseRequest, "invitee_id"),
+]
+
+
+@pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
+@pytest.mark.parametrize("roles", [["finder"], ["vendor", "FINDER"]])
+def test_role_list_bodies_refuse_finder_with_its_reason(
+    model: type[BaseModel], actor_field: str, roles: list[str]
+) -> None:
+    """A trigger body offering the retired 'finder' role names ADR-0078."""
+    with pytest.raises(ValidationError, match="ADR-0078"):
+        model.model_validate(
+            {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
+        )
+
+
+@pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
+def test_role_list_bodies_parse_roles_like_every_other_path(
+    model: type[BaseModel], actor_field: str
+) -> None:
+    """Omitted roles stay None; role strings parse in any case."""
+    absent = model.model_validate({"case_id": _CASE, actor_field: _ACTOR})
+    assert absent.model_dump()["roles"] is None
+    built = model.model_validate(
+        {"case_id": _CASE, actor_field: _ACTOR, "roles": ["VENDOR"]}
+    )
+    assert built.model_dump()["roles"] == [CVDRole.VENDOR]
+
+
+@pytest.mark.parametrize("role", ["finder", "Finder"])
+def test_offer_role_body_refuses_finder_with_its_reason(role: str) -> None:
+    """The offer-role trigger body refuses 'finder' with its reason."""
+    with pytest.raises(ValidationError, match="ADR-0078"):
+        OfferCaseParticipantRoleRequest.model_validate(
+            {"case_id": _CASE, "target_actor_id": _ACTOR, "role": role}
+        )
+
+
+def test_offer_role_body_parses_role_case_insensitively() -> None:
+    built = OfferCaseParticipantRoleRequest.model_validate(
+        {"case_id": _CASE, "target_actor_id": _ACTOR, "role": "VENDOR"}
+    )
+    assert built.role is CVDRole.VENDOR

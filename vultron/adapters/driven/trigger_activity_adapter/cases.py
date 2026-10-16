@@ -21,12 +21,20 @@ from typing import Any
 from pydantic import ValidationError
 
 from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,
     VultronNotFoundError,
+    VultronValidationError,
 )
+from vultron.semantic_registry import (
+    SEMANTIC_REGISTRY,
+    find_matching_semantics,
+)
+from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.factories import (
     create_case_activity,
     reject_close_case_activity,
@@ -54,6 +62,21 @@ from ._base import (
 )
 
 logger = logging.getLogger(__name__)
+
+# What add-object-to-case may send: every receive-side pattern that adds an
+# object *to a case*, less the types with their own flow (TRIG-10-001).  The
+# target check matters: ``Add(ParticipantStatus, <case URI>)`` would match the
+# participant-status pattern, whose permissive target accepts any URI.
+_ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
+    entry.semantics
+    for entry in SEMANTIC_REGISTRY
+    if entry.pattern is not None
+    and entry.pattern.activity_ == TAtype.ADD
+    and entry.pattern.target_ == VOtype.VULNERABILITY_CASE
+) - {
+    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+    MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+}
 
 
 class _CasesMixin:
@@ -154,22 +177,71 @@ class _CasesMixin:
         )
         return _seal_record(self._dl, activity)
 
+    def add_object_to_case_semantics(
+        self, object_id: str, case_id: str
+    ) -> MessageSemantics:
+        """Return what a receiver would read ``Add(object, Case)`` as.
+
+        Builds the ``Add`` the trigger would send (unpersisted) and classifies
+        it with the receive-side :func:`find_matching_semantics`, so the
+        sender refuses exactly what no receiver would route as an addition to
+        the case (TRIG-10-001).
+
+        Raises:
+            VultronNotFoundError: when the case or the object is not stored.
+            VultronActivityConstructionError: when the object has no wire
+                representation or cannot be carried in an ``Add``.
+            VultronValidationError: when the ``Add`` matches no receive-side
+                pattern that adds an object to a case, or matches one whose
+                object type has its own flow (``CaseParticipant``,
+                ``CaseStatus``; an ``EmbargoEvent`` matches no ``Add``
+                pattern at all).
+        """
+        activity = self._build_add_object_to_case(
+            actor=None, object_id=object_id, case_id=case_id, to=None
+        )
+        semantics = find_matching_semantics(activity)
+        if semantics not in _ADD_OBJECT_TO_CASE_SEMANTICS:
+            raise VultronValidationError(
+                f"add_object_to_case: object '{object_id}' of type"
+                f" {type(activity.object_).__name__!r} cannot be added to a"
+                f" case by this trigger (a receiver would read it as"
+                f" {semantics.value!r}); use the type's own trigger or a"
+                f" supported object type"
+            )
+        return semantics
+
     def add_object_to_case(
         self,
         actor: str,
         object_id: str,
         case_id: str,
+        to: list[str],
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(object, Case)`` activity.
+        """Create and persist an ``Add(object, Case)`` activity addressed to *to*.
 
         The object may be of any stored type; :func:`_to_wire_object` resolves
-        it to the object the activity carries.
+        it to the object the activity carries.  Callers check the type first
+        with :meth:`add_object_to_case_semantics`.
 
         Raises:
             VultronNotFoundError: when *object_id* is not in the DataLayer.
             VultronActivityConstructionError: when the object has no wire
                 representation or the ``Add`` cannot be constructed with it.
         """
+        activity = self._build_add_object_to_case(
+            actor=actor, object_id=object_id, case_id=case_id, to=to
+        )
+        return _create_and_seal(self._dl, activity, "add_object_to_case")
+
+    def _build_add_object_to_case(
+        self,
+        actor: str | None,
+        object_id: str,
+        case_id: str,
+        to: list[str] | None,
+    ) -> as_Add:
+        """Build, without persisting, the ``Add(object, Case)`` activity."""
         # The case is addressed by its URI: every recipient of an Add to a
         # case already holds the case (AKM-02-002), and the sealed body is
         # delivered as built (VM-08-003), so a full case here would go on the
@@ -178,15 +250,18 @@ class _CasesMixin:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
         obj = _to_wire_object(self._dl.read(object_id), object_id)
         try:
-            activity = as_Add(
-                actor=actor, object_=obj, target=case_id, context=case_id
+            return as_Add(
+                actor=actor,
+                object_=obj,
+                target=case_id,
+                context=case_id,
+                to=to,
             )
         except ValidationError as exc:
             raise VultronActivityConstructionError(
                 f"add_object_to_case: object '{object_id}' of type"
                 f" {type(obj).__name__!r} cannot be carried in an Add activity"
             ) from exc
-        return _create_and_seal(self._dl, activity, "add_object_to_case")
 
     def announce_vulnerability_case(
         self,

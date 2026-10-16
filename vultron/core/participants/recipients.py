@@ -39,7 +39,7 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
 - :func:`reporter_introduction_recipients` — the reporters the report
   receiver introduces the CASE_MANAGER to with its own
   ``Create(VulnerabilityCase)`` (CBT-01-001, ADR-0132).  The case-content
-  selection narrowed to the ``REPORTER`` and ``FINDER`` roles.
+  selection narrowed to the ``REPORTER`` role.
 
 Each reads the roster (``actor_participant_index``) and resolves each entry to
 its participant record.  A roster entry whose record cannot be read is not
@@ -225,8 +225,8 @@ def reporter_introduction_recipients(
     ``Create(VulnerabilityCase)``, which names the CASE_MANAGER it delegated
     the case to (CBT-01-001, CM-12-003, ADR-0132).  The message carries the
     whole case, so it is case content: only active participants qualify
-    (CM-10-004), narrowed to the ``REPORTER`` and ``FINDER`` roles the case
-    initialization seats the report submitter in.  *excluding* is typically
+    (CM-10-004), narrowed to the ``REPORTER`` role the case initialization
+    seats the report submitter in.  *excluding* is typically
     the receiver itself and the CASE_MANAGER.  Roster order is kept.
     """
     return [
@@ -234,7 +234,7 @@ def reporter_introduction_recipients(
         for actor_id, record in case_content_participants(
             case, dl, excluding=excluding
         )
-        if CVDRole.REPORTER in record.roles or CVDRole.FINDER in record.roles
+        if CVDRole.REPORTER in record.roles
     ]
 
 

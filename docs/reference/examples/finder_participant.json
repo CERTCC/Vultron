@@ -5,7 +5,6 @@
   "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "attributedTo": "https://vultron.example/users/finndervul",
   "caseRoles": [
-    "finder",
     "reporter"
   ],
   "participantStatuses": [
@@ -20,7 +19,6 @@
       "rmState": "START",
       "caseEngagement": true,
       "cvdRole": [
-        "FINDER",
         "REPORTER"
       ],
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
