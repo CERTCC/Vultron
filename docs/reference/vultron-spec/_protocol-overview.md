@@ -23,7 +23,7 @@ State divides into two kinds, and the distinction runs through the whole
 specification. **Participant-specific state** belongs to one participant, which
 is the authority on its own value. **Shared case state** has one value for the
 entire case, and only the participant holding the `CASE_MANAGER` role writes it
-([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)); it replicates each accepted
+([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)); it replicates each admitted
 change to every participant as `Announce(CaseLedgerEntry)`.
 
 {% include-markdown "./includes/_state-ownership-table.md" %}

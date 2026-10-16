@@ -6,8 +6,10 @@ cached lazily on first demand so only the files actually needed by each ratchet
 are ever parsed.
 
 Also caches ``docs/**/*.md`` text for ratchets that assert documentation prose
-against code (:func:`docs_mentioning`, :func:`all_docs`).  Markdown has no
-parse tier because these ratchets match on text.
+against code (:func:`docs_mentioning`, :func:`all_docs`), and the Markdown, YAML
+and text files under ``specs/``, ``notes/`` and ``vultron/`` for terminology
+ratchets (:func:`all_prose`).  Text has no parse tier because these ratchets
+match on text.
 
 See ``notes/architecture-ratchet-corpus.md`` for the full design rationale and
 performance measurements.
@@ -69,6 +71,36 @@ for _md_file in sorted(_DOCS_ROOT.rglob("*.md")):
         _docs_cache[_md_file] = _md_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         pass
+
+# ---------------------------------------------------------------------------
+# Module-level prose cache — the authored, non-Python text outside ``docs/``
+# that terminology ratchets scan: ``specs/`` (YAML), ``notes/`` (Markdown), and
+# the Markdown, YAML and text files that live beside the code in ``vultron/``
+# (per-directory ``AGENTS.md``, the message-semantics occasion registry).
+# Read once at import time, like the caches above.
+# ---------------------------------------------------------------------------
+_PROSE_ROOTS = [
+    REPO_ROOT / "specs",
+    REPO_ROOT / "notes",
+    REPO_ROOT / "vultron",
+]
+
+_PROSE_SUFFIXES = frozenset({".md", ".yaml", ".yml", ".txt"})
+
+_prose_cache: dict[Path, str] = {}
+
+for _root in _PROSE_ROOTS:
+    for _prose_file in sorted(_root.rglob("*")):
+        if (
+            _prose_file.suffix not in _PROSE_SUFFIXES
+            or "__pycache__" in _prose_file.relative_to(_root).parts
+            or not _prose_file.is_file()
+        ):
+            continue
+        try:
+            _prose_cache[_prose_file] = _prose_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            pass
 
 #: The cached paths in ``Path`` order with their strings, computed once: sorting ``Path`` objects
 #: and calling ``Path.relative_to`` per file on every query cost ~0.1 s per
@@ -192,6 +224,18 @@ def all_docs() -> Iterator[tuple[Path, str]]:
     """Yield ``(path, text)`` for every cached ``docs/**/*.md`` file."""
     for path in sorted(_docs_cache.keys()):
         yield path, _docs_cache[path]
+
+
+def all_prose() -> Iterator[tuple[Path, str]]:
+    """Yield ``(path, text)`` for every cached prose file.
+
+    Prose is the authored non-Python text under ``specs/``, ``notes/`` and
+    ``vultron/``: Markdown, YAML and plain text.  ``docs/`` has its own cache
+    (:func:`all_docs`) and Python source has :func:`all_sources`, so a ratchet
+    that scans every authored word combines the three.
+    """
+    for path in sorted(_prose_cache.keys()):
+        yield path, _prose_cache[path]
 
 
 @contextlib.contextmanager

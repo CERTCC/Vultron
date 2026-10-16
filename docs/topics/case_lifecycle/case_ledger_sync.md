@@ -23,7 +23,7 @@ by holding an early message until the message it depends on arrives.
 ## Before you read this page
 
 This page builds on [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md).
-That page explains why the CASE_MANAGER is the case's only writer, why the ledger holds only accepted entries, and how each new entry is sent to every participant.
+That page explains why the CASE_MANAGER is the case's only writer, why the ledger holds only admitted entries, and how each new entry is sent to every participant.
 This page takes those as given and explains ordering and recovery.
 
 ---
@@ -106,8 +106,8 @@ replay what it missed, and it may hold the early entry aside until the missing
 ones arrive ([SYNC-14-001, SYNC-14-002](../../reference/specs/protocol.md#sync-14)). A replica
 must hold every entry from genesis through the position it has acknowledged
 before it takes new protocol-significant actions on the case
-([SYNC-10-004](../../reference/specs/protocol.md#sync-10-004)). Rejected assertions
-do not use up an index, because the ledger records only accepted entries.
+([SYNC-10-004](../../reference/specs/protocol.md#sync-10-004)). Refused assertions
+do not use up an index, because the ledger records only admitted entries.
 
 The CASE_MANAGER should also refuse an assertion whose own timestamp is far in
 the future or far in the past compared to its clock — by default, more than
@@ -182,7 +182,7 @@ One thing the CASE_MANAGER does refuse outright: an activity that arrives with n
 receiver that filled in the blank with its own clock could no longer tell what
 the sender claimed from what it invented — and every check above would then be
 comparing the CASE_MANAGER's clock against itself. A message without a claimed time
-is therefore rejected at the door
+is therefore refused at the door
 ([CLP-15-006](../../reference/specs/protocol.md#clp-15-006)).
 
 A field that is present but empty carries no claimed time either. A blank
@@ -234,7 +234,7 @@ Two kinds of entry are not held:
 Both go to the ordinary duplicate and divergence handling instead.
 
 Even when it does hold an entry, the replica still sends
-`Reject(CaseLedgerEntry)` naming the last entry it accepted
+`Reject(CaseLedgerEntry)` naming the last entry it applied
 ([SYNC-14-002](../../reference/specs/protocol.md#sync-14-002)). Holding solves
 reordering; it cannot solve loss. If the missing entry was never delivered at
 all, the reject is what prompts the CASE_MANAGER to send it again.
@@ -364,7 +364,7 @@ these properties:
 | Deterministic projection | The same run of entries produces the same state in every conforming implementation |
 | Idempotent replay | Re-processing entries already seen changes nothing |
 | Monotonic progress | A replica never regresses the position it has acknowledged |
-| Reject on divergence | An entry that does not extend the chain is not silently accepted |
+| Reject on divergence | An entry that does not extend the chain is not silently applied |
 | Order-independent convergence | Delivery order does not affect the final state |
 
 The result is eventual consistency with a strong bound: given the same
@@ -373,7 +373,7 @@ order those entries arrived in.
 
 The holding area itself is in memory only, and is lost on restart. That is
 deliberate: nothing in it is committed, so a restart cannot cost the replica
-anything it had already accepted. The dropped entries themselves come back the
+anything it had already applied. The dropped entries themselves come back the
 same way an evicted one does — the next entry that does not match the replica's
 tail produces a `Reject`, and the CASE_MANAGER replays from the position that
 reject names.
@@ -382,7 +382,7 @@ reject names.
 
 ## Further reading
 
-- [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) — the single writer, accepted entries, and fan-out
+- [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) — the single writer, admitted entries, and fan-out
 - [The Case Model](case_model.md) — the case, its participants, and the CASE_MANAGER role
 - [Actor Knowledge Model](../actor-knowledge-model.md) — why nothing can be learned except by receiving a message
 - [CS Process Model](../process_models/cs/index.md) — the case-state rules the drain-time checks enforce

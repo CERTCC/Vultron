@@ -92,6 +92,7 @@ See [How to Seat a Participant on an Existing Case](../howto/activitypub/activit
 This demo shows two invitation outcomes.
 The Case Owner invites a coordinator, who **accepts** and is added to the case; then it invites a second coordinator, who **rejects** and is not added.
 Notice the log lines showing the Invite Actor to Case, `Invite(Actor)`, and the answering `Accept(Invite)` or `Reject(Invite)`.
+Both answers are case events, so the case ledger records the `Reject` just as it records the `Accept`.
 
 ```mermaid
 ---
@@ -108,7 +109,7 @@ sequenceDiagram
 
     O->>+C2: Invite Actor to Case<br/>Invite(Actor)
     C2-->>-O: Reject Invite to Case<br/>Reject(Invite)
-    Note over O: Coordinator 2 not added
+    Note over O: Reject ledgered<br/>Coordinator 2 not added
 ```
 
 In a multi-actor deployment the invitation is sent by the Case Actor on the owner's behalf, and the answer goes back to the Case Actor.
@@ -121,6 +122,7 @@ See [How to Invite an Actor to a Case](../howto/activitypub/activities/invite_ac
 This demo shows a finder *suggesting* a coordinator for the case.
 The suggestion goes to the Case Actor, which forwards it to the Case Owner as a proposed participant.
 Two paths are demonstrated: the vendor **accepts** the suggestion, and the Case Actor invites the coordinator; or the vendor **rejects** it, and no invitation is sent.
+The vendor's `Reject` is ledgered like its `Accept`.
 
 ```mermaid
 ---
@@ -140,7 +142,7 @@ sequenceDiagram
         Note over CA,C: Coordinator invited to case
     else Vendor rejects suggestion
         V->>CA: Reject(Offer(CaseParticipant))
-        Note over CA: No invitation sent
+        Note over CA: Reject ledgered<br/>no invitation sent
     end
 ```
 
@@ -153,7 +155,7 @@ See [How to Suggest an Actor for a Case](../howto/activitypub/activities/suggest
 This demo combines the full participant lifecycle: invite, accept, record a participant status, remove the participant from active participation, and reinstate it.
 The vendor is both Case Owner and CASE_MANAGER here, so the removal and the reinstatement are the owner's requests to itself.
 The participant receives the CASE_MANAGER's direct notice of each, and its record stays on the case throughout.
-A second path shows the rejection outcome.
+A second path shows the participant declining the invitation: its `Reject` is a case event, and the CASE_MANAGER ledgers it just as it ledgers an `Accept`.
 Each step is logged so we can follow the state changes.
 
 ```mermaid
@@ -175,7 +177,7 @@ sequenceDiagram
         O->>P: Missed ledger entries, then reinstatement notice<br/>Add(CaseParticipant)
     else Participant rejects
         P-->>O: Reject Invite to Case<br/>Reject(Invite)
-        Note over O: No participant created
+        Note over O: Reject ledgered<br/>no participant seated
     end
 ```
 
@@ -192,7 +194,7 @@ The current owner (the vendor) offers the case to a coordinator, who either **ac
 A third path has the vendor **withdraw** the offer before the coordinator answers, so ownership again stays with the vendor.
 In the accept path the offer carries a deadline to answer, and the demo checks that the offer the coordinator receives names it; the coordinator answers in time.
 
-Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer or its refusal and every participant learns of it.
+Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer or the coordinator's `Reject` and every participant learns of it.
 
 ```mermaid
 ---

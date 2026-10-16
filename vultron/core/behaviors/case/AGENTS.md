@@ -104,9 +104,11 @@ return Status.FAILURE
 ```
 
 The ledger records only canonical protocol-significant assertions the
-CASE_MANAGER accepted (CLP-04-007). Rejection outcomes from any path — failed
-guards, bad payloads, out-of-order entries — are surfaced through Python
-logging, not ledger entries.
+CASE_MANAGER admitted (CLP-04-007). Refusals from any path — failed guards,
+bad payloads, out-of-order entries — are surfaced through Python logging, not
+ledger entries. A participant's `Reject` answering an `Invite` or an `Offer` is
+not a refusal: it is a case event, admitted and ledgered like its `Accept`
+(CLP-02-012).
 
 **`SilentIdempotencyGuardMixin`** (`vultron/core/behaviors/idempotency.py`)
 implements this correctly and satisfies CLP-13-002. Use it for all idempotency

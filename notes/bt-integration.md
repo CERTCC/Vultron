@@ -311,12 +311,12 @@ guards, commit, effects.
    guard's reason, so nothing commits and the handler reads `REFUSED`. A refusal
    effect must be `EmitCapable` and hold no `StateWriteCapable` node. Do not
    hand-build a `Selector[guard, emit]`: the emit would run ahead of the commit
-   on an accepted delivery.
+   on an admitted delivery.
 5. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
    postmark on the envelope (ADR-0107, CLP-07-011); it never rebuilds the
    assertion from processed state. Every commit goes through
    `CommitCaseLedgerEntryNode`; a received `execute()` never commits (BT-06-006).
-6. **Effects** — apply the accepted assertion to the local replica and enqueue
+6. **Effects** — apply the admitted assertion to the local replica and enqueue
    cascades. `replica_effects` run on every replica; `manager_effects` run only
    at the CASE_MANAGER, inside the gate the factory adds (BT-17-008; see
    `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From
