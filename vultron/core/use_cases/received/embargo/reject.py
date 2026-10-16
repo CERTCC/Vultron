@@ -154,7 +154,8 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             # The commit fans the entry out to every participant replica
             # (EP-09-007, RSH-08-004); without the port nothing replays it.
             sync_port=self._sync_port,
-            # The rejecter's row is the CASE_MANAGER's own
+            # The Reject's own entry carries the rejecter's row (ADR-0122);
+            # any other row the rejection changes is the CASE_MANAGER's own
             # Update(EmbargoConsent) entry, built through it (ADR-0124).
             trigger_activity=self._trigger_activity,
         )

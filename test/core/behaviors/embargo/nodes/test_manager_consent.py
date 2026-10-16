@@ -158,14 +158,16 @@ class TestManagerConsentAtCommit:
         assert _managers_row(bt_scenario) == EmbargoConsentState.DECLINED
 
     @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.parametrize("agree", [True, False], ids=["agree", "decline"])
     def test_the_policy_answer_is_committed_as_its_own_entry(
-        self, bt_scenario: BTTestScenario
+        self, bt_scenario: BTTestScenario, agree: bool
     ) -> None:
         """A decision from local policy is its own CASE_MANAGER entry (#4715)."""
         _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.VENDOR])
         before = committed_event_types(bt_scenario.dl, CASE_ID)
+        call_out = None if agree else _declining_bundle()
 
-        assert _run(bt_scenario).status == Status.SUCCESS
+        assert _run(bt_scenario, call_out=call_out).status == Status.SUCCESS
 
         after = committed_event_types(bt_scenario.dl, CASE_ID)
         assert after[len(before) :] == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]

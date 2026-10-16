@@ -196,12 +196,20 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
     def _record(
         self, activity_id: str, send_and_commit: Callable[[], None]
     ) -> None:
-        recorded = False
+        committed = False
+
+        def _commit_act() -> None:
+            nonlocal committed
+            send_and_commit()
+            committed = True
+
         try:
-            super()._record(activity_id, send_and_commit)
-            recorded = True
+            super()._record(activity_id, _commit_act)
         finally:
-            if not recorded:
+            # Once the proposal's own entry is committed, the embargo it
+            # names is case data: a later row commit that fails (#4764)
+            # leaves it stored.
+            if not committed:
                 self._discard_stored()
 
     def _discard_stored(self) -> None:
