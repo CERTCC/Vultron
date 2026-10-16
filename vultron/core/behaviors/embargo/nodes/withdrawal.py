@@ -74,11 +74,7 @@ from vultron.core.services.embargo_lifecycle import (
     reject_is_withdrawal_refusal,
 )
 from vultron.core.sync_helpers import recorded_entries_for_case
-from vultron.errors import (
-    VultronEntryRefusedError,
-    VultronNotFoundError,
-    VultronValidationError,
-)
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
 def is_ledgered_activity(
@@ -314,9 +310,9 @@ class RecordParticipantWithdrawalNode(_RecordReceivedConsentNode):
     after the Leave, and applied by copying (ADR-0124, CLP-07-013).
 
     Returns FAILURE — so the handler reports a refusal — when the lifecycle
-    refuses the withdrawal, the case is not found, or the case changed since
-    the guard's decision so the trial refuses a row.  A failed commit raises
-    (BT-14-001).
+    refuses the withdrawal or the case is not found.  The decision and the
+    commit's trial run on the same store in one tick, so the trial cannot
+    refuse what the decision wrote.  A failed commit raises (BT-14-001).
     """
 
     def __init__(
@@ -344,11 +340,7 @@ class RecordParticipantWithdrawalNode(_RecordReceivedConsentNode):
 
         try:
             decision = self._record(self.withdrawing_actor_id)
-        except (
-            VultronNotFoundError,
-            VultronValidationError,
-            VultronEntryRefusedError,
-        ) as exc:
+        except (VultronNotFoundError, VultronValidationError) as exc:
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

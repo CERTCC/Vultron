@@ -159,9 +159,9 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         """Store the embargo the entry names; write nothing else.
 
         For an entry whose consent consequences follow as entries of their
-        own (ADR-0124, CLP-07-013): the row the act changed is the
-        CASE_MANAGER's next ``Update(EmbargoConsent)`` entry, which the
-        consent slot copies.
+        own (ADR-0124, CLP-07-013): each row the act changed (none, one, or
+        several, as for a withdrawal) is a later CASE_MANAGER
+        ``Update(EmbargoConsent)`` entry, which the consent slot copies.
         """
         resolved = self._resolve(embargo_data)
         if isinstance(resolved, Status):
@@ -170,8 +170,8 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         entry = self._get_entry()
         self.feedback_message = (
             f"'{entry.event_type}' entry '{entry.id_}' of embargo"
-            f" '{embargo_id}' on case '{case.id_}': its consent row follows"
-            " as its own entry"
+            f" '{embargo_id}' on case '{case.id_}': each consent row it"
+            " changes follows as its own entry"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS

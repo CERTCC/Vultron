@@ -230,7 +230,8 @@ def test_the_withdrawal_guard_raises_on_a_decision_fault(
 def test_a_withdrawal_effect_whose_decision_is_refused_writes_nothing(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """The case changed since the guard (no embargo in force): FAILURE."""
+    """The lifecycle refuses the withdrawal (no embargo in force): FAILURE,
+    nothing committed or written."""
     case_id = _seed(bt_scenario, "copy-withdraw-moved", EM.PROPOSED)
     before = committed_event_types(bt_scenario.dl, case_id)
 
