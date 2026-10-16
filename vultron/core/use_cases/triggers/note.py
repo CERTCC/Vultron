@@ -31,6 +31,7 @@ from vultron.core.behaviors.note.add_note_trigger_tree import (
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.models.use_case_result import NoteResult
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -87,7 +88,10 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
                 to=[case_manager_id],
             )
             self._captured["activity"] = json.loads(create_body)
-            self._result_out[ASSERTED_ACTIVITY_KEY] = create_id
+            # The CASE_MANAGER keeps no pending assertion for its own case:
+            # its commit is the authoritative write (SYNC-11-004).
+            if not same_actor_id(case_manager_id, self._actor_id):
+                self._result_out[ASSERTED_ACTIVITY_KEY] = create_id
             return [create_id]
 
         return add_note_to_case_trigger_bt(

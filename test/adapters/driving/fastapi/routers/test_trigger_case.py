@@ -926,6 +926,35 @@ def test_trigger_add_object_to_case_refused_type_returns_422(
 
 
 @pytest.mark.spec("TRIG-10-001")
+def test_trigger_add_object_to_case_no_wire_form_returns_422(
+    client_triggers, actor, case_with_participant, dl
+):
+    """A stored object with no AS2 form is the caller's bad request: 422
+    with nothing queued, never a 500."""
+    from vultron.core.models.offer_record import VultronOfferRecord
+
+    record = VultronOfferRecord(
+        id_="urn:test:offer-record-router",
+        offer_id="urn:test:offer-1",
+        report_id="urn:test:report-1",
+        offer_actor_id=actor.id_,
+    )
+    dl.create(record)
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": record.id_,
+        },
+    )
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert set(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("TRIG-10-001")
 def test_trigger_add_object_to_case_addresses_add_to_case_manager(
     client_triggers, actor, case_with_participant, report, dl
 ):

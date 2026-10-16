@@ -22,11 +22,9 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.add_object_trigger_tree import (
     add_object_trigger_bt,
 )
-from vultron.core.models.pending_assertion import (
-    ASSERTED_ACTIVITY_KEY,
-    suppressed_repeat_reason,
-)
+from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.models.use_case_result import ActivityResult
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -35,7 +33,11 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,19 +87,18 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
         # Classify first: a refused type raises here, before any tree exists,
         # so it queues nothing.  The semantics is also the ledger event type
         # the pending assertion is keyed by.
-        self._semantics = self._factory.add_object_to_case_semantics(
-            object_id=self._object_id, case_id=self._case_id
+        try:
+            self._semantics = self._factory.add_object_to_case_semantics(
+                object_id=self._object_id, case_id=self._case_id
+            )
+        except VultronActivityConstructionError as exc:
+            # A stored object with no wire form (a bookkeeping record, an
+            # abstract actor) is the caller's bad request, not a server
+            # fault: refused as 422 like any other unroutable type.
+            raise VultronValidationError(str(exc)) from exc
+        return self._suppressed_repeat(
+            self._case_id, self._semantics.value, self._object_id
         )
-        reason = suppressed_repeat_reason(
-            self._actor_id,
-            self._case_id,
-            self._semantics.value,
-            self._object_id,
-        )
-        if reason is None:
-            return None
-        logger.info("%s: %s", type(self).__name__, reason)
-        return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -108,7 +109,10 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
                 to=[case_manager_id],
             )
             self._captured["activity"] = json.loads(add_body)
-            self._result_out[ASSERTED_ACTIVITY_KEY] = add_id
+            # The CASE_MANAGER keeps no pending assertion for its own case:
+            # its commit is the authoritative write (SYNC-11-004).
+            if not same_actor_id(case_manager_id, self._actor_id):
+                self._result_out[ASSERTED_ACTIVITY_KEY] = add_id
             return [add_id]
 
         return add_object_trigger_bt(

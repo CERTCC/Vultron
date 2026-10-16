@@ -22,6 +22,8 @@ Spec: specs/triggerable-behaviors.yaml TRIG-10-001; the Add goes to the
 CASE_MANAGER alone (PCR-08-005) and refused types queue nothing (TRIG-10-001).
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from test.support.case_manager import (
@@ -38,6 +40,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_assertion import (
     _reset_stores,
     get_pending_assertion_store,
@@ -290,6 +293,48 @@ class TestSvcAddObjectToCaseUseCase:
             self._execute(obj.id_)
 
         assert len(self.dl.outbox_list()) == stored_before
+
+    @pytest.mark.spec("TRIG-10-001")
+    def test_object_with_no_wire_form_is_refused_and_queues_nothing(self):
+        """A stored object with no AS2 form (a ``CoreRecord`` bookkeeping
+        type) is the caller's bad request: refused with 422, never a 500."""
+        record = VultronOfferRecord(
+            id_="urn:test:offer-record-add-object",
+            offer_id="urn:test:offer-1",
+            report_id="urn:test:report-1",
+            offer_actor_id=self.actor.id_,
+        )
+        real_read = self.dl.read
+
+        def _read(object_id, *args, **kwargs):
+            if object_id == record.id_:
+                return record
+            return real_read(object_id, *args, **kwargs)
+
+        with patch.object(self.dl, "read", side_effect=_read):
+            with pytest.raises(
+                VultronValidationError, match="is not an AS2 object"
+            ):
+                self._execute(record.id_)
+
+        assert self.dl.outbox_list() == []
+
+    @pytest.mark.spec("SYNC-11-004")
+    def test_case_manager_records_no_pending_assertion(self):
+        """The CASE_MANAGER adding an object to its own case keeps no pending
+        assertion, so a repeat is not suppressed (SYNC-11-004)."""
+        case = make_case_with_case_manager(
+            self.dl, case_manager_id=self.actor.id_
+        )
+        report = as_VulnerabilityReport(name="Own", content="c")
+        self.dl.create(report)
+
+        first = self._execute(report.id_, case_id=case.id_)
+        repeat = self._execute(report.id_, case_id=case.id_)
+
+        assert first.activity is not None
+        assert len(get_pending_assertion_store(self.actor.id_)) == 0
+        assert repeat.activity is not None
 
     def test_add_object_to_case_raises_when_actor_not_found(self):
         """SvcAddObjectToCaseUseCase raises VultronNotFoundError when actor

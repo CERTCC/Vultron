@@ -473,6 +473,31 @@ class TestSvcAddNoteToCaseUseCase:
             create_activity_id,
         ), "After clear(), suppression must be lifted"
 
+    @pytest.mark.spec("SYNC-11-004")
+    def test_case_manager_records_no_pending_assertion(self):
+        """The CASE_MANAGER adding a note to its own case records nothing in
+        its pending-assertion store: its commit is the authoritative write
+        (SYNC-11-004)."""
+        manager, manager_dl = _make_actor_dl("Manager Co")
+        case, _ = _make_case_with_case_manager(
+            manager_dl, self.vendor.id_, self.finder.id_, manager.id_
+        )
+        request = AddNoteToCaseTriggerRequest(
+            actor_id=manager.id_,
+            case_id=case.id_,
+            note_name=self.NOTE_NAME,
+            note_content=self.NOTE_CONTENT,
+        )
+
+        result = SvcAddNoteToCaseUseCase(
+            manager_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(manager_dl),
+        ).execute()
+
+        assert activity_of(result)["id"] is not None
+        assert len(get_pending_assertion_store(manager.id_)) == 0
+
     def test_zero_timeout_store_does_not_suppress(self):
         """When the store has zero timeout, is_suppressed always returns False
         even after execute() adds the entry (SYNC-11-001)."""
