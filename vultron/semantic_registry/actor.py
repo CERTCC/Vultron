@@ -149,17 +149,19 @@ ENTRIES: list[SemanticEntry] = [
                 description=(
                     "Asks the Case Manager to invite the actor named by the "
                     "object to the case named by the target, with the roles "
-                    "in `suggestedRoles`. For an actor not yet on the case or "
-                    "invited, the Case Manager answers with the Stub Invite to"
-                    " that actor, not with an offer to the Case Owner."
+                    "in `suggestedRoles`. For an actor with no record on the "
+                    "case, or an invitee that has not answered, the Case "
+                    "Manager answers with the Stub Invite to that actor, not "
+                    "with an offer to the Case Owner."
                 ),
                 example="request_invite_actor_to_case",
                 howto=HowToGuide.INVITE_ACTOR,
                 usual_senders=(CVDRole.CASE_OWNER,),
                 notes=(
                     "The wire form is the suggestion a participant sends; "
-                    "the Case Manager tells the two apart by whether the "
-                    "sender holds the Case Owner role on the case."
+                    "the Case Manager tells this request from a suggestion "
+                    "by whether the sender holds the Case Owner role on the "
+                    "case."
                 ),
             ),
         ),

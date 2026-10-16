@@ -135,25 +135,28 @@ ENTRIES: list[SemanticEntry] = [
             ),
             Occasion(
                 when=(
-                    "the Case Manager has applied the Embargo Termination a "
-                    "Case Owner sent"
+                    "the Case Manager has applied an Embargo Termination a "
+                    "Case Owner sent before the end time"
                 ),
                 anchor="announce-embargo-termination",
                 addressee=AddresseeSide.PARTICIPANT,
                 heading="Announce embargo termination",
                 description=(
                     "Tells the active participants other than the Case "
-                    "Manager that the embargo it names is terminated. It "
-                    "proposes nothing."
+                    "Manager and any Closed Participant that the embargo it "
+                    "names is terminated. It proposes nothing."
                 ),
                 example="announce_embargo_termination",
                 howto=HowToGuide.MANAGE_EMBARGO,
                 notes=(
-                    "The wire form is the announcement of the embargo in "
-                    "force; the embargo it names, which the case's embargo "
-                    "register records as terminated, makes it a termination "
+                    "The wire form is the same as the embargo announcement's; "
+                    "the embargo it names, which the case's embargo register "
+                    "records as terminated, makes it a termination "
                     "announcement. A termination the Case Manager starts "
-                    "itself, or one at the end time, sends no announcement."
+                    "itself, or one at the end time, sends no announcement: "
+                    "after the end time, the Case Manager's own end-time "
+                    "check ends the embargo before it applies a Case Owner's "
+                    "termination."
                 ),
             ),
         ),

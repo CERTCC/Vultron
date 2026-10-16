@@ -38,8 +38,8 @@ A revision that ends later sends no such notice, because those participants neve
 
 {% include-markdown "./_occasions/sections/announce-embargo-termination.md" %}
 
-- **Recipient:** every active participant other than the CASE_MANAGER, after the CASE_MANAGER applies a Case Owner's `Remove(Event)` (CM-10-004, CM-23-004).
-  A termination the CASE_MANAGER starts itself sends no `Announce(Event)`.
+- **Recipient:** every active participant other than the CASE_MANAGER and any Closed Participant, after the CASE_MANAGER applies a Case Owner's `Remove(Event)` that arrives before the end time (EMB-19-001, CM-10-004, CM-23-004).
+  A termination the CASE_MANAGER starts itself, or one at the end time, sends no `Announce(Event)`.
   A bound signatory that no longer receives ledger entries gets the CASE_MANAGER's own `Remove(Event)` instead (CM-31-009).
 
 {% include-markdown "./_occasions/sections/embargo-proposal-rejection.md" %}

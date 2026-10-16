@@ -36,16 +36,16 @@ from vultron.wire.as2.vocab.examples._base import (
 
 
 def recommend_actor() -> as_Offer:
+    """A participant suggests an actor to the CASE_MANAGER (PCR-08-001)."""
     _case = case()
     _finder = finder()
-    _vendor = vendor()
     _coordinator = _COORDINATOR
     _activity = recommend_actor_activity(
         _coordinator,
         actor=_finder.id_,
         context=_case.id_,
         target=_case.id_,
-        to=_vendor.id_,
+        to=case_actor().id_,
         content=f"I'm recommending we add {_coordinator.name} to the case.",
     )
     return _activity

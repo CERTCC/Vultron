@@ -66,8 +66,8 @@ class TestRecommendActor(unittest.TestCase):
     def test_actor_is_finder(self):
         self.assertEqual(self.activity.actor, self.finder.id_)
 
-    def test_to_is_vendor(self):
-        self.assertEqual(self.activity.to, self.vendor.id_)
+    def test_to_is_the_case_manager(self):
+        self.assertEqual(self.activity.to, _CASE_ACTOR.id_)
 
     def test_object_is_recommended_actor(self):
         self.assertEqual(self.activity.object_, self.coordinator)

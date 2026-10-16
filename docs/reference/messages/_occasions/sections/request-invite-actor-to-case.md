@@ -2,7 +2,7 @@
 
 ## Ask the Case Manager to invite an actor { #request-invite-actor-to-case }
 
-Asks the Case Manager to invite the actor named by the object to the case named by the target, with the roles in `suggestedRoles`. For an actor not yet on the case or invited, the Case Manager answers with the Stub Invite to that actor, not with an offer to the Case Owner.
+Asks the Case Manager to invite the actor named by the object to the case named by the target, with the roles in `suggestedRoles`. For an actor with no record on the case, or an invitee that has not answered, the Case Manager answers with the Stub Invite to that actor, not with an offer to the Case Owner.
 
 - **When…** the Case Owner decides to invite an actor to the case
 - **Send:** `Offer(Actor)[target=VulnerabilityCase]`
@@ -11,7 +11,7 @@ Asks the Case Manager to invite the actor named by the object to the case named 
 - **Seen in:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
 - **Mapping status:** [expansion](../../index.md#mapping-status)
 
-The wire form is the suggestion a participant sends; the Case Manager tells the two apart by whether the sender holds the Case Owner role on the case.
+The wire form is the suggestion a participant sends; the Case Manager tells this request from a suggestion by whether the sender holds the Case Owner role on the case.
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

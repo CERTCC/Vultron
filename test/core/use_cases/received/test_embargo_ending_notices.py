@@ -494,6 +494,47 @@ def test_expiry_on_or_after_the_agreed_end_sends_no_unreached_notice() -> None:
     assert not _unreached_signatories() & set(removes)
 
 
+@pytest.mark.spec("EMB-19-001")
+@pytest.mark.parametrize(
+    "terminate",
+    [
+        pytest.param(_cascade_terminate, id="pxa-cascade"),
+        pytest.param(_trigger_terminate, id="trigger"),
+    ],
+)
+def test_case_manager_termination_sends_no_announce(
+    terminate: Callable[[_Manager], None],
+) -> None:
+    """Only a Case Owner's termination is announced.
+
+    A termination the CASE_MANAGER starts itself commits its ``Remove`` as
+    case content and sends no ``Announce(EmbargoEvent)`` naming the embargo
+    (the ``announce-embargo-termination`` occasion).
+    """
+    manager = _Manager()
+
+    terminate(manager)
+
+    assert manager.notices("Remove", EMBARGO_ID)
+    assert manager.notices("Announce", EMBARGO_ID) == {}
+
+
+@pytest.mark.spec("EMB-19-001")
+def test_owner_termination_after_the_end_time_sends_no_announce() -> None:
+    """The end-time check ends the embargo first, so nothing is announced."""
+    manager = _Manager()
+    manager.dl.save(
+        as_EmbargoEvent(
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(-1)
+        )
+    )
+
+    manager.terminate_as_owner()
+
+    assert manager.notices("Remove", EMBARGO_ID)
+    assert manager.notices("Announce", EMBARGO_ID) == {}
+
+
 # ---------------------------------------------------------------------------
 # AC-2: revisions
 # ---------------------------------------------------------------------------

@@ -26,7 +26,8 @@ The General shorthands cover messages not tied to a specific state change.
 
 {% include-markdown "./_occasions/sections/request-invite-actor-to-case.md" heading-offset=1 %}
 
-The CASE_MANAGER sends the Stub Invite directly, because the Case Owner who would decide on a suggestion is the sender (CM-17-007).
+For an actor with no record on the case, or an invitee that has not answered (CM-11-015), the CASE_MANAGER sends the Stub Invite directly, because the Case Owner who would decide on a suggestion is the sender (CM-17-007).
+An actor already on the case or already awaiting the Case Owner's decision gets the same answer a suggestion gets (CM-16-008, CM-16-009).
 
 {% include-markdown "./_occasions/sections/offer-case-participant.md" heading-offset=1 %}
 
