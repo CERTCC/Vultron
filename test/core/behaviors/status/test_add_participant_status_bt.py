@@ -37,6 +37,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.note_wire import assert_add_note_carries_note_inline
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -1673,8 +1674,9 @@ class TestEmitRMGapNoteNode:
         assert len(outbox) == 0, "No anomaly → no outbox entry expected"
 
     @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("VAM-01-010")
     def test_gap_anomaly_emits_note(self, populated_dl):
-        """BB_RM_ANOMALY=gap → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        """BB_RM_ANOMALY=gap → SUCCESS + one inline Add(Note,Case) queued (RSH-06-004)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = EmitRMGapNoteNode(
             sender_actor_id=ACTOR_ID,
@@ -1690,10 +1692,12 @@ class TestEmitRMGapNoteNode:
         assert len(outbox) == 1, (
             "Gap anomaly should emit exactly one Add(Note,Case)"
         )
+        assert_add_note_carries_note_inline(populated_dl, outbox[0], CASE_ID)
 
     @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("VAM-01-010")
     def test_regression_anomaly_emits_note(self, populated_dl):
-        """BB_RM_ANOMALY=regression → SUCCESS + Add(Note,Case) queued (RSH-06-004)."""
+        """BB_RM_ANOMALY=regression → SUCCESS + one inline Add(Note,Case) (RSH-06-004)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = EmitRMGapNoteNode(
             sender_actor_id=ACTOR_ID,
@@ -1708,6 +1712,7 @@ class TestEmitRMGapNoteNode:
         assert len(outbox) == 1, (
             "Regression anomaly should emit exactly one Add(Note,Case)"
         )
+        assert_add_note_carries_note_inline(populated_dl, outbox[0], CASE_ID)
 
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""

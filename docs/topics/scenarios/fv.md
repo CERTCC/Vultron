@@ -29,7 +29,7 @@ causal_edges:
       closes the case, and a departure sent after it is not recorded
       (CM-23-013).
   - antecedent: engage_case
-    consequent: create_note
+    consequent: add_note_to_case
     consequent_actor: finder
     note: >
       Protocol notes are substantive communications within an active case;
@@ -103,7 +103,7 @@ entry.
 ### 5. Finder and Vendor exchange notes
 
 Participants communicate about the vulnerability through case notes.
-Each note is posted via the protocol and recorded in the ledger as a `create_note` entry, which attaches it to the case.
+Each note is posted via the protocol as one `Add(Note)` carrying the note inline, and recorded in the ledger as an `add_note_to_case` entry, which attaches it to the case.
 The Finder may ask about workarounds; the Vendor provides status updates.
 
 *Antecedent:* `engage_case` is present in the ledger.

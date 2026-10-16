@@ -156,6 +156,7 @@ class AddNoteToCaseReceivedUseCase:
         tree = create_add_note_to_case_received_tree(
             note_id=note_id,
             case_id=case_id,
+            note_obj=request.note,
         )
         result = BTBridge(
             datalayer=self._dl,

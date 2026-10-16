@@ -31,7 +31,11 @@ import py_trees
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.note.nodes.storage import AttachNoteToCaseNode
+from vultron.core.behaviors.note.nodes.storage import (
+    AttachNoteToCaseNode,
+    SaveNoteNode,
+)
+from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,7 @@ logger = logging.getLogger(__name__)
 def create_add_note_to_case_received_tree(
     note_id: str,
     case_id: str,
+    note_obj: VultronNote | None = None,
 ) -> py_trees.composites.Sequence:
     """Single-BT received-side tree for AddNoteToCase (ADR-0022, ADR-0111).
 
@@ -59,7 +64,17 @@ def create_add_note_to_case_received_tree(
         │   └── CommitCaseLedgerEntryNode(case_id)
         └── GuardedAttachNoteBT (Selector)             # effect
             ├── SkipIfNotCaseManager
-            └── AttachNoteToCaseNode(note_id, case_id)
+            └── Sequence
+                ├── SaveNoteNode(note_obj)     # only when carried inline
+                └── AttachNoteToCaseNode(note_id, case_id)
+
+    When the ``Add`` carries the note inline (as this codebase sends it,
+    VAM-01-010), the CASE_MANAGER stores the note before attaching it, so
+    the case never references a note the CASE_MANAGER cannot read.  Storing
+    it is part of what the ``Add`` states, so it is part of the change the
+    ``add_note_to_case`` entry records (CLP-07-013); a replica stores the
+    same note from the entry's snapshot.  An ``Add`` that names the note by
+    URI attaches a note the CASE_MANAGER already holds.
 
     Composed through :func:`create_receive_activity_tree`, which supplies the
     intake node and the guarded commit, so the tree cannot opt out of either
@@ -73,6 +88,8 @@ def create_add_note_to_case_received_tree(
     Args:
         note_id: ID of the Note being attached to the case.
         case_id: ID of the VulnerabilityCase receiving the note.
+        note_obj: The note the ``Add`` carries inline, or ``None`` when the
+            ``Add`` names it by URI.
 
     Returns:
         Root ``GuardedAttachAndCommitBT`` Sequence node.
@@ -82,7 +99,12 @@ def create_add_note_to_case_received_tree(
         case_id=case_id,
         precondition_guards=[],
         manager_effects=[
-            AttachNoteToCaseNode(note_id=note_id, case_id=case_id)
+            *(
+                [SaveNoteNode(note_obj=note_obj)]
+                if note_obj is not None
+                else []
+            ),
+            AttachNoteToCaseNode(note_id=note_id, case_id=case_id),
         ],
         manager_case_id=case_id,
         manager_gate_name="GuardedAttachNoteBT",

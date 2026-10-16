@@ -680,7 +680,7 @@ groups:
     kind: protocol
     statement: >-
       A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
-      that records outbound assertion activities (e.g., Create(Note)) emitted toward the
+      that records outbound assertion activities (e.g., Add(Note)) emitted toward the
       CASE_MANAGER but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
       the suppression window is configurable and zero disables suppression
   - id: SYNC-11-002
