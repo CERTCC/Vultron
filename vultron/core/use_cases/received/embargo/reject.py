@@ -15,7 +15,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     reject_invite_to_embargo_tree,
 )
-from vultron.core.behaviors.embargo.nodes import IsRejectableEmbargoNode
 from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -27,9 +26,8 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     addressee_refusal,
+    door_guards_admitted,
     embargo_answer_repeat_verdict,
-    node_failed,
-    node_succeeded,
     not_case_manager_refusal,
     verdict_from_bt,
 )
@@ -134,13 +132,10 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             activity=request,
         )
 
-        if node_failed(tree, IsRejectableEmbargoNode) or node_succeeded(
-            tree, IsRejectableEmbargoNode
-        ):
-            # The door guards admitted the Reject — the first precondition
-            # guard ran — so the sender has standing, and a CASE_MANAGER's
-            # Reject closes the proposer's pending ask, whatever the tree then
-            # decided about the consent (EP-09-008).
+        if door_guards_admitted(tree):
+            # The door guards admitted the Reject, so the sender has standing,
+            # and a CASE_MANAGER's Reject closes the proposer's pending ask,
+            # whatever the tree then decided about the consent (EP-09-008).
             logger.info(
                 "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
             )

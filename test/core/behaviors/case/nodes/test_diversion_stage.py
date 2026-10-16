@@ -47,6 +47,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_REFUSAL,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.chain import CreateLogEntryNode
 from vultron.errors import VultronWiringError
 
 _CASE = "https://example.org/cases/diversion"
@@ -161,6 +162,26 @@ class TestFactoryChecks:
                     name="D",
                     condition=_Counted("C"),
                     effects=(_Writer("W"),),
+                    gate=DiversionGate.RECEIVER,
+                )
+            )
+
+    @pytest.mark.spec("CLP-10-026")
+    def test_a_receiver_diversion_commits_no_entry(self) -> None:
+        """A commit of the CASE_MANAGER's own entry runs only at the
+        CASE_MANAGER, so a receiver's own answer may not hold one."""
+        with pytest.raises(VultronWiringError, match="only at the"):
+            _tree(
+                Diversion(
+                    name="D",
+                    condition=_Counted("C"),
+                    effects=(
+                        CreateLogEntryNode(
+                            case_id=_CASE,
+                            object_id=_CASE,
+                            event_type="probe",
+                        ),
+                    ),
                     gate=DiversionGate.RECEIVER,
                 )
             )

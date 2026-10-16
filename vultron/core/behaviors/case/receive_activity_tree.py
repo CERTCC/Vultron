@@ -107,6 +107,9 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case_manager_commit import (
+    _CommitCaseManagerActivityBase,
+)
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
@@ -118,6 +121,7 @@ from vultron.core.behaviors.sender_guard import (
     compose_sender_guard,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.chain import CreateLogEntryNode
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -486,6 +490,45 @@ def _node_types(
     )
 
 
+class ReceivedActivityTree(py_trees.composites.Sequence):
+    """The one tree a received activity runs (CLP-10-005, ADR-0135).
+
+    A plain ``Sequence`` that also remembers which of its children are the
+    door guards (intake, the post-close guard, the addressee check and the
+    sender guard, CLP-10-010), so a handler can ask whether the delivery got
+    past them without knowing which guard the tree runs first.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        children: list[py_trees.behaviour.Behaviour],
+        door_guards: Sequence[py_trees.behaviour.Behaviour],
+    ) -> None:
+        super().__init__(name=name, memory=False, children=children)
+        self.door_guards: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
+            door_guards
+        )
+
+    @property
+    def door_guards_admitted(self) -> bool:
+        """True once every door guard ran and succeeded on the last tick."""
+        return all(
+            guard.status == py_trees.common.Status.SUCCESS
+            for guard in self.door_guards
+        )
+
+
+def _case_manager_commit_types() -> tuple[type, ...]:
+    """The node classes that commit a CASE_MANAGER-authored entry.
+
+    ``CreateLogEntryNode`` commits an entry it mints in-tree, and
+    ``_CommitCaseManagerActivityBase`` one activity it builds and commits;
+    neither belongs in a ``RECEIVER`` diversion (CLP-10-026).
+    """
+    return (CreateLogEntryNode, _CommitCaseManagerActivityBase)
+
+
 def _diversion_stage(
     name: str, diversion: Diversion, case_id: str | None
 ) -> DiversionStage:
@@ -502,7 +545,7 @@ def _diversion_stage(
             effect holds the received activity's commit, which a diverted
             delivery never makes; a ``CASE_MANAGER`` diversion names no
             case; or a ``RECEIVER`` diversion writes case state or has an
-            uncovered emit.
+            uncovered emit or commits an entry.
     """
     where = f"create_receive_activity_tree({name}): diversion {diversion.name}"
     condition = [diversion.condition]
@@ -524,6 +567,11 @@ def _diversion_stage(
             raise VultronWiringError(
                 f"{where}: a receiver's own answer writes no case state;"
                 f" found {writers} (RSH-08-003, CLP-10-026)"
+            )
+        if commits := _node_types(effects, _case_manager_commit_types()):
+            raise VultronWiringError(
+                f"{where}: a diversion that commits runs only at the"
+                f" CASE_MANAGER; found {commits} (CLP-10-026, BT-17-001)"
             )
         _check_replica_effects(name, effects, diversion.emit_exemption)
         body: py_trees.behaviour.Behaviour = py_trees.composites.Sequence(
@@ -638,7 +686,7 @@ def create_receive_activity_tree(
     post_close_exemption: PostCloseExemption | None = None,
     post_close_reply: list[py_trees.behaviour.Behaviour] | None = None,
     clock_decisions: list[py_trees.behaviour.Behaviour] | None = None,
-) -> py_trees.composites.Sequence:
+) -> ReceivedActivityTree:
     """Compose a receive-side BT with the CLP-10-010 stages in order.
 
     Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
@@ -873,6 +921,7 @@ def create_receive_activity_tree(
     guard = _sender_guard_stage(name, case_id, sender_rule, sender_context)
     if guard is not None:
         children.append(guard)
+    door_guards = list(children)
     decisions = _case_and_tree_decisions(
         case_id or manager_case_id,
         clock_decisions or [],
@@ -931,8 +980,6 @@ def create_receive_activity_tree(
                 manager_case_may_be_absent,
             )
         )
-    return py_trees.composites.Sequence(
-        name=name,
-        memory=False,
-        children=children,
+    return ReceivedActivityTree(
+        name=name, children=children, door_guards=door_guards
     )

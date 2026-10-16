@@ -71,6 +71,9 @@ from vultron.core.behaviors.case.nodes.post_close import (
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
+)
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
 )
@@ -178,6 +181,30 @@ def node_succeeded(
 ) -> bool:
     """True when any node of *node_type* ran and returned ``SUCCESS``."""
     return _any_with_status(tree, node_type, Status.SUCCESS)
+
+
+def door_guards_admitted(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> bool:
+    """True when the run got past every door guard of its tree (CLP-10-010).
+
+    The intake, the post-close guard, the addressee check and the sender
+    guard all ran and succeeded, so the delivery reached its clock decisions
+    and precondition guards, whatever those then decided.  Asked of the
+    factory's record of its door guards, so the answer does not depend on
+    which guard the tree runs first.
+
+    Raises:
+        VultronWiringError: *tree* was not built by
+            :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
+    """
+    root = _root(tree)
+    if not isinstance(root, ReceivedActivityTree):
+        raise VultronWiringError(
+            f"door_guards_admitted: '{root.name}' is not a received-activity"
+            " tree, so it has no door guards to ask about (CLP-10-010)"
+        )
+    return root.door_guards_admitted
 
 
 def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
@@ -596,6 +623,7 @@ __all__ = [
     "addressee_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
+    "door_guards_admitted",
     "failure_reason",
     "find_named",
     "find_node",
