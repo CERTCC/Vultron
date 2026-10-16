@@ -73,6 +73,8 @@ from vultron.core.states.embargo_register import (
     FINAL_REGISTER_STATUSES,
     EmbargoRegisterStatus,
     RegisterTrigger,
+    register_status_after,
+    register_trigger_is_legal,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -248,6 +250,32 @@ class ConsentRowChange(ValidatedAssignmentMixin, BaseModel):
         """The participant actor whose row this is."""
         assert self.row.attributed_to is not None  # checked at construction
         return self.row.attributed_to
+
+    @classmethod
+    def answer(
+        cls, *, embargo_id: str, actor_id: str, accept: bool
+    ) -> "ConsentRowChange":
+        """The row change a participant's answer states (ADR-0122).
+
+        ``Accept(Invite(EmbargoEvent))`` states the sender's row for the
+        embargo is ``AGREED``, ``Reject`` that it is ``DECLINED``; a row that
+        leaves ``INVITED`` carries no deadline (CM-28-013).  The answer's own
+        entry carries this change, and no second entry records it
+        (CLP-07-013), so the CASE_MANAGER and every replica read the same
+        change from the same activity.
+        """
+        return cls(
+            verb=ConsentRowVerb.UPDATE,
+            row=EmbargoConsent(
+                embargo_id=embargo_id,
+                state=(
+                    EmbargoConsentState.AGREED
+                    if accept
+                    else EmbargoConsentState.DECLINED
+                ),
+                attributed_to=actor_id,
+            ),
+        )
 
 
 #: A change one embargo entry carries.
@@ -466,6 +494,88 @@ def change_is_in_place(
     return participant.held_row(change.row.embargo_id) == change.row
 
 
+def _register_successors(
+    status: EmbargoRegisterStatus,
+) -> frozenset[EmbargoRegisterStatus]:
+    """Every status a register entry at *status* can reach, *status* excluded."""
+    reached: set[EmbargoRegisterStatus] = set()
+    frontier = [status]
+    while frontier:
+        current = frontier.pop()
+        for trigger in RegisterTrigger:
+            if register_trigger_is_legal(current, trigger):
+                after = register_status_after(current, trigger)
+                if after not in reached:
+                    reached.add(after)
+                    frontier.append(after)
+    return frozenset(reached)
+
+
+def _consent_successors(
+    state: EmbargoConsentState,
+) -> frozenset[EmbargoConsentState]:
+    """Every state a consent row at *state* reaches in one move or more."""
+    reached: set[EmbargoConsentState] = set()
+    frontier = [state]
+    while frontier:
+        current = frontier.pop()
+        for trigger in PEC_Trigger:
+            if consent_trigger_is_legal(current, trigger):
+                after = consent_after(current, trigger)
+                if after not in reached:
+                    reached.add(after)
+                    frontier.append(after)
+    return frozenset(reached)
+
+
+def case_file_is_past(
+    case_file: EmbargoCaseFile, change: EmbargoChange
+) -> bool:
+    """True when *case_file* has already moved on from what *change* writes.
+
+    For a replica whose seed was taken after the entry (CM-23-016: the
+    replica is its seed plus the entries since).  A replica seeded with the
+    case still replays the ledger from genesis over that seed, so each
+    effect moves forward only (ADR-0114): an entry the seed is already past
+    is an idempotent no-op, not a refusal.  The caller asks only once
+    :func:`apply_embargo_change` has refused the entry, so a legal move is
+    always applied.
+
+    A register step is past when the entry it names holds a status the
+    step's result leads to (the register is acyclic).  A consent row is past
+    when the participant already holds a row for the embargo and either the
+    embargo's register entry is final (its rows were frozen after every
+    change committed to them, ADR-0122), the entry is a ``Create`` (a row is
+    created once), or the held state is one the carried state leads to.
+    Anything else, such as a missing participant, register entry or row, is
+    a real gap and stays refused.  Reads only *case_file*.
+    """
+    case = case_file.case
+    embargo_id = (
+        change.embargo_id
+        if isinstance(change, RegisterStep)
+        else change.row.embargo_id
+    )
+    entry = case.embargo_register_entry(embargo_id)
+    if entry is None:
+        return False
+    if isinstance(change, RegisterStep):
+        return entry.status in _register_successors(_STEP_RESULT[change.kind])
+    participant = case_file.participants.get(change.actor_id)
+    if participant is None or (
+        case.actor_participant_index.get(change.actor_id) != participant.id_
+    ):
+        return False
+    held = participant.held_row(embargo_id)
+    if held is None:
+        return False
+    return (
+        entry.status in FINAL_REGISTER_STATUSES
+        or change.verb == ConsentRowVerb.CREATE
+        or held.state in _consent_successors(change.row.state)
+    )
+
+
 def changed_objects(
     before: EmbargoCaseFile, after: EmbargoCaseFile
 ) -> list[VulnerabilityCase | CaseParticipant]:
@@ -493,6 +603,7 @@ __all__ = [
     "RegisterStep",
     "RegisterStepKind",
     "apply_embargo_change",
+    "case_file_is_past",
     "change_is_in_place",
     "changed_objects",
 ]

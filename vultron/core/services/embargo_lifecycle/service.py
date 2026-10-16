@@ -66,7 +66,7 @@ class EmbargoLifecycle(
         - :meth:`propose_embargo`
         - :meth:`accept_embargo_invite` (consent only; no mode param)
         - :meth:`reject_embargo_proposal`
-        - :meth:`abandon_embargo_proposals`
+        - :meth:`check_abandonable`
         - :meth:`terminate_active_embargo`
         - :meth:`activate_embargo`
         - :meth:`decide_activation` (decides only; writes nothing, ADR-0124)

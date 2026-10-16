@@ -31,12 +31,18 @@ The entry extends the stored chain, so the gap drain that follows every
 received announce for the case takes it again and retries it; it stays held
 until this replica's case reaches the entry's start.  An entry this replica
 had already applied, but not stored, is in place and passes as a no-op
-(:func:`~vultron.core.models.embargo_apply.change_is_in_place`).
+(:func:`~vultron.core.models.embargo_apply.change_is_in_place`), and so does
+an entry a refused apply shows the case is already past: a replica seeded
+after the entry replays the ledger from genesis over that seed, and replay
+moves forward only (CM-23-016, ADR-0114;
+:func:`~vultron.core.models.embargo_apply.case_file_is_past`).
 
 :class:`ApplyEmbargoConsentFromLedgerNode` is the first slot: the
 CASE_MANAGER's ``Create(EmbargoConsent)`` and ``Update(EmbargoConsent)``
 entries, each carrying one consent row in full.  The register-step slots of
-the embargo acts subclass the same frame (#4714 – #4717).
+the embargo acts subclass the same frame: the proposal's ``PROPOSE``
+(``relay_effect.py``) and the abandonment's ``CANCEL`` (``abandon.py``),
+with #4716 and #4717 converting the rest (teardown was #4714).
 """
 
 from __future__ import annotations
@@ -61,6 +67,7 @@ from vultron.core.models.embargo_apply import (
     EmbargoCaseFile,
     EmbargoChange,
     apply_embargo_change,
+    case_file_is_past,
     change_is_in_place,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -132,6 +139,8 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             return f
         assert self.datalayer is not None
         entry = self._get_entry()
+        if self._resolve_case_replica(entry.case_id) is None:
+            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
         try:
             change = self._change(entry)
         except (TypeError, ValueError) as exc:
@@ -141,9 +150,6 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             )
             self.logger.exception("%s", self.feedback_message)
             return Status.FAILURE
-
-        if self._resolve_case_replica(entry.case_id) is None:
-            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
 
         before = read_embargo_case_file(self.datalayer, entry.case_id)
         if change_is_in_place(before, change):
@@ -161,6 +167,18 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             for stated in self._stated_changes(entry, after):
                 after = apply_embargo_change(after, stated)
         except VultronEntryRefusedError as exc:
+            if case_file_is_past(before, change):
+                # A seed taken after this entry: replay moves forward only
+                # (CM-23-016, ADR-0114).
+                self.logger.info(
+                    "%s: case '%s' is already past '%s' entry '%s' (a seed"
+                    " taken after it) — idempotent no-op",
+                    self.name,
+                    entry.case_id,
+                    entry.event_type,
+                    entry.id_,
+                )
+                return Status.SUCCESS
             return self._refuse(entry, exc)
         save_case_file(self.datalayer, before, after)
         self.feedback_message = (

@@ -663,8 +663,8 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
     The managing owner activates a revision longer than the terms the
     bystander signed, before the bystander answers its Invite, so the
     bystander lapses (derived, ADR-0093, ADR-0122).  The activation's own
-    entry, committed while the bystander was still bound, reaches it; the
-    content gate then withholds every later
+    entry, committed before the activation is applied, is the last it is
+    sent: the content gate then withholds every later
     ``Announce(CaseLedgerEntry)`` from it (CM-10-005), while its relayed
     Invite, which is embargo meta-protocol traffic, still reaches it
     directly.  Once it accepts, the paused stream is backfilled in log order
@@ -684,13 +684,12 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
     bystander = _participant(net, MANAGER, BYSTANDER)
     assert bystander.has_lapsed(net.case(MANAGER).embargo_register)
     assert not bystander.is_signatory(revision_id)
-    # The Accept is committed before it is applied (ADR-0124), so its
-    # fan-out still reaches the bystander, a signatory when it committed, as
-    # a received activation's does; every entry after it is withheld.
-    delivered = net.deliver(MANAGER, to=BYSTANDER, type_="Announce")
-    assert [verdict.disposition for _, verdict in delivered] == [
-        HandlerDisposition.APPLIED
-    ]
+    # The activation is committed before it is applied (ADR-0124,
+    # CLP-07-013), as on the received path, so its entry reaches the
+    # bystander while it is still a signatory of the prior terms; nothing
+    # after it does.
+    ((_type, applied),) = net.deliver(MANAGER, to=BYSTANDER, type_="Announce")
+    assert applied.disposition is HandlerDisposition.APPLIED, applied.reason
     assert net.case(BYSTANDER).active_embargo_id == revision_id
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
     assert invite.to == [BYSTANDER]

@@ -750,6 +750,7 @@ class TestInviteeIsTheAddressee:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
@@ -1074,6 +1075,7 @@ class TestInviteeIsTheAddressee:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "Leave(EmbargoEvent)" in (result.reason or "")
@@ -1145,6 +1147,7 @@ class TestInviteeIsTheAddressee:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -1221,6 +1224,7 @@ class TestInviteeIsTheAddressee:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -1290,6 +1294,7 @@ class TestInviteeIsTheAddressee:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -1335,6 +1340,7 @@ class TestInviteeIsTheAddressee:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -1377,6 +1383,7 @@ class TestInviteeIsTheAddressee:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.SKIPPED
@@ -2284,7 +2291,9 @@ class TestLateAcceptHandling:
         dl.create(stale_proposal)
 
         # Mock trigger_activity to capture re-invite call
-        trigger_mock = MagicMock()
+        # Spy on the real factory: the CASE_MANAGER also builds the
+        # invitee's Update(EmbargoConsent) entry through it (ADR-0124).
+        trigger_mock = MagicMock(wraps=TriggerActivityAdapter(dl))
         new_invite_id = f"{case_id}/proposals/reinvite"
 
         def _sealed_invite(**kwargs: Any) -> tuple[str, str]:
@@ -2826,7 +2835,9 @@ class TestLateAcceptHandling:
         )
         dl.create(stale_proposal)
 
-        trigger_mock = MagicMock()
+        # Spy on the real factory: the CASE_MANAGER also builds the
+        # invitee's Update(EmbargoConsent) entry through it (ADR-0124).
+        trigger_mock = MagicMock(wraps=TriggerActivityAdapter(dl))
         trigger_mock.propose_embargo.return_value = (
             f"{case_id}/proposals/reinvite-sig",
             {},
@@ -2897,8 +2908,8 @@ class TestExpiryIsTheManagersAlone:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         expiry_entries = [

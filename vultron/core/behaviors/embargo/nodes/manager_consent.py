@@ -18,7 +18,9 @@
 The relay never invites the CASE_MANAGER (a container never mails an actor it
 hosts, ADR-0109), so a manager that is also a participant with an embargo
 stake would keep its proposal row at ``UNINVITED`` and stay unbound forever.
-At the commit it answers on its own row directly, with no Invite:
+At the commit it answers on its own row directly, with no Invite, and
+commits that row as its own ``Update(EmbargoConsent)`` entry before writing
+it (ADR-0124, CLP-07-013):
 
 - the manager is the proposer: ``AGREED``, already written by
   ``EmbargoLifecycle.propose_embargo`` (proposing is consenting, ADR-0093);
@@ -32,12 +34,17 @@ nothing.  A row that has already left ``UNINVITED`` (a redelivered proposal) is
 left alone.
 """
 
+from typing import cast
+
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
+)
+from vultron.core.behaviors.embargo.decided_entries import (
+    decide_commit_and_apply,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -46,6 +53,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sender_entitlement import is_case_owner
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -135,13 +143,18 @@ class ManagerHoldsUndecidedEmbargoStakeNode(DataLayerConditionWithPorts):
 class RecordManagerEmbargoConsentNode(
     DataLayerActionWithPorts, StateWriteCapable
 ):
-    """Write the executing CASE_MANAGER's own consent row for the embargo.
+    """Commit and write the executing CASE_MANAGER's own consent row.
 
     ``accept`` selects ``AGREE`` or ``DECLINE`` (CM-18-003): both are legal
     from ``UNINVITED``, which the guard
-    :class:`ManagerHoldsUndecidedEmbargoStakeNode` ensures.  Writes through
-    ``EmbargoLifecycle.record_participant_consent`` so the row change follows
-    the one consent rule.
+    :class:`ManagerHoldsUndecidedEmbargoStakeNode` ensures.  The decision is
+    ``EmbargoLifecycle.record_participant_consent``, so the row change
+    follows the one consent rule.  It is a decision taken from local policy,
+    so the row is committed as the CASE_MANAGER's own
+    ``Update(EmbargoConsent)`` entry before it is written, and written by
+    copying the entry (ADR-0124, CLP-07-013); every replica copies it from
+    the same entry.  *cause_id* is the proposal the manager answers, which
+    the entry's id derives from.
     """
 
     def __init__(
@@ -149,30 +162,40 @@ class RecordManagerEmbargoConsentNode(
         case_id: str,
         embargo_id: str,
         accept: bool,
+        cause_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._embargo_id = embargo_id
         self._accept = accept
+        self._cause_id = cause_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
+        actor_id = self.actor_id
         trigger = PEC_Trigger.AGREE if self._accept else PEC_Trigger.DECLINE
-        # Catches nothing: a failed write is an internal fault in the
-        # manager's own store, not a DECLINE.  Returning FAILURE would let the
-        # policy Selector fall through to the decline arm and record a refusal
-        # nobody made.
-        EmbargoLifecycle(
-            persistence=self.datalayer
-        ).record_participant_consent(
+        # Catches nothing: a failed decision, commit or write is an internal
+        # fault in the manager's own store, not a DECLINE.  Returning FAILURE
+        # would let the policy Selector fall through to the decline arm and
+        # record a refusal nobody made.
+        decide_commit_and_apply(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
             case_id=self._case_id,
-            actor_id=self.actor_id,
-            embargo_id=self._embargo_id,
-            pec_trigger=trigger,
+            decide=lambda dl: EmbargoLifecycle(
+                persistence=dl
+            ).record_participant_consent(
+                case_id=self._case_id,
+                actor_id=actor_id,
+                embargo_id=self._embargo_id,
+                pec_trigger=trigger,
+            ),
+            trigger_activity=self._require_trigger_activity_port(),
+            actor_id=actor_id,
+            cause_id=self._cause_id,
         )
         self.feedback_message = (
             f"Recorded the manager's own {trigger.name} of embargo"
@@ -187,14 +210,15 @@ def record_manager_embargo_consent_tree(
     case_id: str,
     embargo_id: str,
     proposer_id: str,
+    cause_id: str,
     call_out: EmbargoCallOutBundle = EMBARGO_DETERMINISTIC,
 ) -> py_trees.behaviour.Behaviour:
     """Build the subtree that writes the manager's own consent (EP-09-002).
 
     SUCCESS when the manager skips (no stake, the proposer, the owner, a row
-    already there) or writes its row; the policy call-out picks ``AGREE`` or
-    ``DECLINE``.  A failed write raises rather than failing the Selector into
-    the decline arm.
+    already there) or commits and writes its row; the policy call-out picks
+    ``AGREE`` or ``DECLINE``.  A failed write raises rather than failing the
+    Selector into the decline arm.  *cause_id* is the proposal answered.
     """
     return py_trees.composites.Selector(
         name="RecordManagerEmbargoConsent",
@@ -223,6 +247,7 @@ def record_manager_embargo_consent_tree(
                                 case_id=case_id,
                                 embargo_id=embargo_id,
                                 accept=True,
+                                cause_id=cause_id,
                                 name="RecordManagerAccept",
                             ),
                         ],
@@ -231,6 +256,7 @@ def record_manager_embargo_consent_tree(
                         case_id=case_id,
                         embargo_id=embargo_id,
                         accept=False,
+                        cause_id=cause_id,
                         name="RecordManagerDecline",
                     ),
                 ],

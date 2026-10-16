@@ -28,6 +28,7 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
+    entry_embargo,
     store_carried_embargo,
 )
 from vultron.core.services.embargo_ordering import read_embargo_event
@@ -248,3 +249,46 @@ def test_an_entry_naming_a_held_non_embargo_record_is_refused(
 
     with pytest.raises(VultronValidationError):
         carried_entry_embargo(dl, _CASE, report.id_)
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.spec("CM-23-016")
+def test_an_entrys_inline_embargo_is_copied_as_carried_not_as_held(
+    dl: SqliteDataLayer,
+) -> None:
+    """The register copies the CASE_MANAGER's record, not a local copy."""
+    held = _embargo()
+    dl.create(held)
+
+    embargo = entry_embargo(dl, _CASE, _snapshot(content="Terms"))
+
+    assert embargo.content == "Terms"
+    assert held.content is None
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_an_entrys_bare_reference_reads_the_held_embargo(
+    dl: SqliteDataLayer,
+) -> None:
+    held = _embargo()
+    dl.create(held)
+
+    assert entry_embargo(dl, _CASE, held.id_).id_ == held.id_
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_an_entrys_unheld_bare_reference_is_not_found(
+    dl: SqliteDataLayer,
+) -> None:
+    with pytest.raises(VultronNotFoundError):
+        entry_embargo(dl, _CASE, f"{_CASE}/embargo_events/missing")
+
+
+@pytest.mark.spec("EMB-18-004")
+def test_an_entrys_copied_embargo_of_another_case_is_refused(
+    dl: SqliteDataLayer,
+) -> None:
+    other_case = "https://example.org/cases/other"
+
+    with pytest.raises(VultronValidationError, match=other_case):
+        entry_embargo(dl, _CASE, _snapshot(context=other_case))

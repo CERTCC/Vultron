@@ -35,9 +35,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes.em_state import (
+    ValidateEmbargoRevisionStateNode,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     ProposeEmbargoLifecycleNode,
-    ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
     ASSERTED_ACTIVITY_KEY,

@@ -39,11 +39,17 @@ escapes to ``BTBridge`` and the trigger raises (BT-14-001).
 """
 
 from collections.abc import Callable
+from typing import cast
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
+)
+from vultron.core.behaviors.embargo.decided_entries import (
+    EMBARGO_DECISION_KEY,
+    EmbargoDecision,
+    commit_and_apply_decision,
 )
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
@@ -51,7 +57,11 @@ from vultron.core.behaviors.embargo.proposal_index import (
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronBTInternalError
 
 #: Build the decision activity addressed to *to* (``None``: nobody) and
 #: return ``(activity_id, sealed_blob)`` — the shape every embargo factory
@@ -69,12 +79,24 @@ EMBARGO_TEARDOWN_EVENT_TYPE = (
 COMMITTED_ACTIVITY_KEY = "committed_activity_id"
 
 
-class CommitEmbargoDecisionNode(_CommitCaseManagerActivityBase):
+class CommitEmbargoDecisionNode(
+    _CommitCaseManagerActivityBase, StateWriteCapable
+):
     """Commit the decision a trigger use case builds (EP-09-008, #4085).
 
     *builder* is the use case's factory closure, so the use case captures the
     activity it reports in its result.  With *result_out* the built
     activity's id is also written to ``result_out[COMMITTED_ACTIVITY_KEY]``.
+
+    With *decision_from*, the act is recorded under the copy model
+    (ADR-0124, CLP-07-013): the deciding lifecycle node before this one left
+    an :class:`~vultron.core.behaviors.embargo.decided_entries.EmbargoDecision`
+    in ``decision_from[EMBARGO_DECISION_KEY]``, and this node commits the act's
+    entry first, carrying the decision's register step, then one CASE_MANAGER
+    entry per consent row the decision changes, and only then applies them by
+    copying (``commit_and_apply_decision``).  A commit that fails leaves no
+    write behind but those of the entries committed before it.  A missing
+    decision is a fault in the tree and raises.
     """
 
     def __init__(
@@ -85,6 +107,8 @@ class CommitEmbargoDecisionNode(_CommitCaseManagerActivityBase):
         notify_participants: bool = False,
         result_out: dict[str, object] | None = None,
         name: str | None = None,
+        *,
+        decision_from: dict[str, object] | None = None,
     ) -> None:
         super().__init__(
             case_id=case_id,
@@ -94,12 +118,114 @@ class CommitEmbargoDecisionNode(_CommitCaseManagerActivityBase):
         )
         self._builder = builder
         self._result_out = result_out
+        self._decision_from = decision_from
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         activity_id, blob = self._builder(to)
         if self._result_out is not None:
             self._result_out[COMMITTED_ACTIVITY_KEY] = activity_id
         return activity_id, blob
+
+    def _record(
+        self, activity_id: str, send_and_commit: Callable[[], None]
+    ) -> None:
+        if self._decision_from is None:
+            send_and_commit()
+            return
+        decision = self._decision_from.pop(EMBARGO_DECISION_KEY, None)
+        if not isinstance(decision, EmbargoDecision):
+            raise VultronBTInternalError(
+                f"{self.name}: no embargo decision to record for"
+                f" '{activity_id}' on case '{self._case_id}'; a deciding"
+                " lifecycle node must run first"
+            )
+        commit_and_apply_decision(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            decision=decision,
+            trigger_activity=self._require_trigger_activity_port(),
+            actor_id=cast(str, self.actor_id),
+            cause_id=activity_id,
+            act_commit=send_and_commit,
+        )
+
+
+class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
+    """Commit the CASE_MANAGER's own proposal, storing the embargo it names.
+
+    The factory renders the stored ``EmbargoEvent`` (EP-09-003), so the
+    record is stored as the proposal is built.  A proposal whose entry does
+    not commit, or whose trial apply refuses it, takes a record it stored
+    back out, so a failed proposal leaves no orphan behind (CLP-07-013); the
+    failure itself propagates.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        event_type: str,
+        builder: EmbargoActivityBuilder,
+        embargo: EmbargoEvent,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            case_id=case_id,
+            event_type=event_type,
+            builder=builder,
+            result_out=result_out,
+            name=name,
+            decision_from=result_out,
+        )
+        self._embargo = embargo
+        self._stored_here = False
+
+    def _build(self, to: list[str] | None) -> tuple[str, str]:
+        assert self.datalayer is not None
+        self._stored_here = self.datalayer.read(self._embargo.id_) is None
+        if self._stored_here:
+            self.datalayer.create(self._embargo)
+        built = False
+        try:
+            result = super()._build(to)
+            built = True
+        finally:
+            if not built:
+                self._discard_stored()
+        return result
+
+    def _record(
+        self, activity_id: str, send_and_commit: Callable[[], None]
+    ) -> None:
+        committed = False
+
+        def _commit_act() -> None:
+            nonlocal committed
+            send_and_commit()
+            committed = True
+
+        try:
+            super()._record(activity_id, _commit_act)
+        finally:
+            # Once the proposal's own entry is committed, the embargo it
+            # names is case data: a later row commit that fails (#4764)
+            # leaves it stored.
+            if not committed:
+                self._discard_stored()
+
+    def _discard_stored(self) -> None:
+        """Take the embargo this node stored back out of the store."""
+        if not self._stored_here:
+            return
+        assert self.datalayer is not None
+        self.datalayer.delete(str(self._embargo.type_), self._embargo.id_)
+        self._stored_here = False
+        self.logger.warning(
+            "%s: proposal of embargo '%s' on case '%s' was not recorded;"
+            " its stored record is removed",
+            self.name,
+            self._embargo.id_,
+            self._case_id,
+        )
 
 
 class IndexOwnEmbargoProposalNode(DataLayerActionWithPorts):
@@ -152,5 +278,6 @@ __all__ = [
     "EMBARGO_TEARDOWN_EVENT_TYPE",
     "EmbargoActivityBuilder",
     "CommitEmbargoDecisionNode",
+    "CommitEmbargoProposalNode",
     "IndexOwnEmbargoProposalNode",
 ]

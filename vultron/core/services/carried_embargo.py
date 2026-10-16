@@ -85,23 +85,7 @@ def store_carried_embargo(
     read_embargo_event(store, embargo_id)
 
 
-def carried_entry_embargo(
-    store: CasePersistence | DataLayer, case_id: str, embargo_data: object
-) -> EmbargoEvent | None:
-    """The ``EmbargoEvent`` a ledger entry carries that *store* still lacks.
-
-    For a replica slot that changes the register entry the entry names: the
-    record must be held in the same store (EMB-18-003).  Returns ``None``
-    when *store* already holds it, else the validated inline copy for the
-    caller to store once the entry has applied, so a refused entry stores
-    nothing.  Writes nothing.
-
-    Raises:
-        VultronNotFoundError: the entry names, by bare reference, an embargo
-            *store* does not hold.
-        VultronValidationError: the inline copy is malformed, or belongs to
-            another case.
-    """
+def _entry_embargo_id(case_id: str, embargo_data: object) -> str:
     embargo_id = (
         embargo_data.get("id") or embargo_data.get("id_")
         if isinstance(embargo_data, dict)
@@ -111,11 +95,12 @@ def carried_entry_embargo(
         raise VultronValidationError(
             f"Ledger entry on case '{case_id}' names no embargo."
         )
-    if store.read(embargo_id) is not None:
-        read_embargo_event(store, embargo_id)  # held, and an EmbargoEvent
-        return None
-    if not isinstance(embargo_data, dict):
-        raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    return embargo_id
+
+
+def _inline_entry_embargo(
+    case_id: str, embargo_id: str, embargo_data: dict[str, object]
+) -> EmbargoEvent:
     try:
         embargo = EmbargoEvent.model_validate(
             project_wire_snapshot_to_core(EmbargoEvent, embargo_data)
@@ -133,4 +118,53 @@ def carried_entry_embargo(
     return embargo
 
 
-__all__ = ["carried_entry_embargo", "store_carried_embargo"]
+def entry_embargo(
+    store: CasePersistence | DataLayer, case_id: str, embargo_data: object
+) -> EmbargoEvent:
+    """The ``EmbargoEvent`` a ledger entry carries, as the entry carries it.
+
+    For a replica slot that copies the embargo into the register: an inline
+    copy is the CASE_MANAGER's record, so it is returned as carried (never
+    the copy *store* may already hold); a bare id names a record *store*
+    must hold (EMB-18-003).  Writes nothing.
+
+    Raises:
+        VultronNotFoundError: the entry names, by bare reference, an embargo
+            *store* does not hold.
+        VultronValidationError: the entry names no embargo, the inline copy
+            is malformed or belongs to another case, or the held record is
+            not an ``EmbargoEvent``.
+    """
+    embargo_id = _entry_embargo_id(case_id, embargo_data)
+    if isinstance(embargo_data, dict):
+        return _inline_entry_embargo(case_id, embargo_id, embargo_data)
+    return read_embargo_event(store, embargo_id)
+
+
+def carried_entry_embargo(
+    store: CasePersistence | DataLayer, case_id: str, embargo_data: object
+) -> EmbargoEvent | None:
+    """The ``EmbargoEvent`` a ledger entry carries that *store* still lacks.
+
+    For a replica slot that changes the register entry the entry names: the
+    record must be held in the same store (EMB-18-003).  Returns ``None``
+    when *store* already holds it, else the validated inline copy for the
+    caller to store once the entry has applied, so a refused entry stores
+    nothing.  Writes nothing.
+
+    Raises:
+        VultronNotFoundError: the entry names, by bare reference, an embargo
+            *store* does not hold.
+        VultronValidationError: the inline copy is malformed, or belongs to
+            another case.
+    """
+    embargo_id = _entry_embargo_id(case_id, embargo_data)
+    if store.read(embargo_id) is not None:
+        read_embargo_event(store, embargo_id)  # held, and an EmbargoEvent
+        return None
+    if not isinstance(embargo_data, dict):
+        raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    return _inline_entry_embargo(case_id, embargo_id, embargo_data)
+
+
+__all__ = ["carried_entry_embargo", "entry_embargo", "store_carried_embargo"]

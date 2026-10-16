@@ -460,6 +460,7 @@ class TestRelayEmbargoInviteToEachNode:
         (entry,) = [
             cast(CaseLedgerEntry, e)
             for e in bt_scenario.dl.list_objects("CaseLedgerEntry")
+            if cast(CaseLedgerEntry, e).event_type == EMBARGO_INVITE_EVENT_TYPE
         ]
         assert invite.end_time is not None
         assert (

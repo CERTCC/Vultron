@@ -36,6 +36,7 @@ from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     CommitAndApplyEmbargoTerminationNode,
     CommitEmbargoDecisionNode,
+    CommitEmbargoProposalNode,
     LeaveAbandonmentToCaseManagerNode,
     ProposeEmbargoLifecycleNode,
     ReadOpenEmbargoProposalsNode,
@@ -117,7 +118,7 @@ def _assert_manager_arm_order(
     commit_type: type = CommitEmbargoDecisionNode,
     other_suffix: str = "AskCaseManager",
 ) -> None:
-    """Write → commit → declare, as the CASE_MANAGER only."""
+    """Decide → commit (then apply) → declare, as the CASE_MANAGER only."""
     manager = _arm(tree, "AsCaseManager")
     index = {type(n): i for i, n in reversed(list(enumerate(manager)))}
     for needed in (lifecycle_type, commit_type, EmitCaseStatusUpdateNode):
@@ -147,7 +148,11 @@ class TestProposeEmbargoTriggerBt:
             result_out=result_out,
             activity_builder=activity_builder,
         )
-        _assert_manager_arm_order(tree, ProposeEmbargoLifecycleNode)
+        _assert_manager_arm_order(
+            tree,
+            ProposeEmbargoLifecycleNode,
+            commit_type=CommitEmbargoProposalNode,
+        )
 
 
 @pytest.mark.spec("RSH-04-002")
@@ -163,7 +168,11 @@ class TestProposeEmbargoRevisionTriggerBt:
             result_out=result_out,
             activity_builder=activity_builder,
         )
-        _assert_manager_arm_order(tree, ProposeEmbargoLifecycleNode)
+        _assert_manager_arm_order(
+            tree,
+            ProposeEmbargoLifecycleNode,
+            commit_type=CommitEmbargoProposalNode,
+        )
 
 
 @pytest.mark.spec("RSH-04-002")

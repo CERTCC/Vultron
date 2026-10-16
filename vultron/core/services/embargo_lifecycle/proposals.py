@@ -12,13 +12,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """Proposal-phase register operations: ``propose_embargo`` and
-``abandon_embargo_proposals``.
+``check_abandonable``.
 
 A proposal (first or revision) adds a ``PROPOSED`` entry to the case's
 embargo register and records the proposer's own consent to the terms it
 proposed; it changes nobody else's consent (EP-05-002).  Once the case is
 public, exploited or attacked while no embargo is in force, the proposals are
-cancelled rather than answered (EMB-16-001, ADR-0122).  Each participant's
+cancelled rather than answered (EMB-16-001, ADR-0122): the CASE_MANAGER checks
+the abandonment here, then commits and copies each cancel (ADR-0124).  Each participant's
 answer to a proposal and the case owner's decision on it live in
 ``answers.py``, ``consent.py`` and ``activation.py``.
 """
@@ -88,7 +89,7 @@ def _cancel_changes(
 
 
 class _ProposalOperationsMixin(_PecActivationMixin):
-    """``propose_embargo`` and ``abandon_embargo_proposals``."""
+    """``propose_embargo`` and ``check_abandonable``."""
 
     def propose_embargo(
         self,
@@ -230,85 +231,6 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             trial.apply_embargo_register_step(
                 _cancel_changes(trial, [embargo_id]), threat_signal=True
             )
-
-    def abandon_embargo_proposals(
-        self,
-        *,
-        case_id: str,
-        embargo_ids: list[str],
-        actor_id: str | None = None,
-        transition_mode: TransitionMode = TransitionMode.STRICT,
-    ) -> EmbargoLifecycleResult:
-        """Abandon open embargo proposals once P/X/A is set (EMB-16-001).
-
-        Nobody answers an abandoned proposal: no embargo can be accepted once
-        the vulnerability is public, an exploit is public or attacks are
-        observed (EMB-02-002), so each named proposal's register entry is
-        cancelled on the threat signal while no embargo is in force
-        (ADR-0122).  EM derives ``NONE`` once none is left open, so a ledger
-        replay that applies one abandonment entry per proposal reaches
-        ``NONE`` with the last one.
-
-        The abandonment is no actor's answer, so it changes no participant's
-        consent record — exactly as the owner's own ER in ``PROPOSED``
-        changes nobody else's (MSM-07-004).
-
-        Args:
-            case_id: ID of the ``VulnerabilityCase`` to update.
-            embargo_ids: IDs of the proposals to abandon.
-            actor_id: The deciding actor, used for logging only.
-            transition_mode: ``STRICT`` (the CASE_MANAGER's own decision)
-                requires every id to be an open proposal and no embargo in
-                force.  ``OBSERVED`` (the ledger replay) skips ids that are
-                no longer open.
-
-        Returns:
-            :class:`EmbargoLifecycleResult` describing what changed;
-            ``participant_changes`` is always empty.
-
-        Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case.
-            VultronValidationError: ``STRICT`` only — an id is not an open
-                proposal of the case, or *embargo_ids* is empty.
-            VultronInvalidStateTransitionError: ``STRICT`` only — an embargo
-                is in force.
-        """
-        case = self._read_case(case_id)
-        em_before = case.em_state
-
-        if transition_mode == TransitionMode.STRICT:
-            # Every check runs before any write, so a refused abandonment
-            # leaves the case untouched (EMB-18-003).
-            _assert_abandonable(case, embargo_ids)
-
-        changes = _cancel_changes(case, embargo_ids)
-        case_mutated = bool(changes) and self._apply_register_step(
-            case,
-            changes,
-            transition_mode=transition_mode,
-            actor_id=actor_id,
-            threat_signal=True,
-        )
-        if case_mutated:
-            self._persistence.save(case)
-
-        logger.info(
-            "Actor '%s' abandoned embargo proposal(s) %s on case '%s'"
-            " (EM %s → %s, EMB-16-001)",
-            actor_id,
-            embargo_ids,
-            case_id,
-            em_before,
-            case.em_state,
-        )
-
-        return EmbargoLifecycleResult(
-            em_before=em_before,
-            em_after=case.em_state,
-            case_changed=case_mutated,
-            case_embargo_changed=False,
-            participant_changes=[],
-        )
 
     def _record_proposer_consent(
         self,

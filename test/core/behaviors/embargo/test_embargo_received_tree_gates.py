@@ -21,10 +21,10 @@ admission backfill is its gate.
 import py_trees
 import pytest
 
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
+from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     invite_to_embargo_on_case_tree,
 )

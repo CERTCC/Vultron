@@ -570,6 +570,31 @@ def _make_invite_expired_entry(
 _ENTRY_EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
 
 
+def _make_consent_row_entry(
+    log_index: int, prev_hash: str, row: EmbargoConsent
+) -> CaseLedgerEntry:
+    """The CASE_MANAGER's ``Update(EmbargoConsent)`` carrying *row* in full."""
+    activity_id = f"https://example.org/activities/consent-{log_index}"
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=activity_id,
+            event_type=UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+            payload_snapshot={
+                "type": "Update",
+                "id": activity_id,
+                "actor": CASE_ACTOR_ACTOR_ID,
+                "context": CASE_ID,
+                "object": row.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                ),
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
 def _seed_invited_participant(
     datalayer, case_obj, consent: EmbargoConsentState | None
 ) -> str:
@@ -606,20 +631,35 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
     def test_replica_records_invitee_deadline_from_relayed_invite_entry(
         self, bridge, datalayer, case_obj
     ):
-        """The invitee's deadline appears in the replica after replay."""
+        """The invitee's deadline appears in the replica after replay.
+
+        The relayed Invite is followed by the CASE_MANAGER's
+        ``Update(EmbargoConsent)`` carrying the invitee's row, deadline
+        included, which the replica copies (ADR-0124).
+        """
         _seed_case_manager(datalayer, case_obj)
         participant_id = _seed_invited_participant(datalayer, case_obj, None)
-        entry = _make_relayed_invite_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
-
-        result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
+        invite = _make_relayed_invite_entry(0, case_obj.genesis_hash)
+        row_entry = _make_consent_row_entry(
+            1,
+            invite.entry_hash,
+            EmbargoConsent(
+                embargo_id=_ENTRY_EMBARGO_ID,
+                state=EmbargoConsentState.INVITED,
+                rsvp_deadline=datetime(2026, 10, 7, 12, tzinfo=UTC),
+                attributed_to=PARTICIPANT_ACTOR_ID,
+            ),
         )
 
-        assert result.status == Status.SUCCESS
+        for entry in (invite, row_entry):
+            result = bridge.execute_with_setup(
+                tree=create_announce_log_entry_tree(),
+                actor_id=PARTICIPANT_ACTOR_ID,
+                activity=_make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID),
+                sync_port=MagicMock(spec=SyncActivityPort),
+            )
+            assert result.status == Status.SUCCESS, result.feedback_message
+
         updated = datalayer.read(participant_id)
         assert isinstance(updated, CaseParticipant)
         assert updated.rsvp_deadline_for(_ENTRY_EMBARGO_ID) is not None
