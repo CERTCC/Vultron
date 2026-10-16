@@ -276,10 +276,14 @@ class InlineObjectStaging:
                     )
                 )
 
-        result = self._rehydrate(activity_id, _restage)
-        if isinstance(pending, PendingInlineObjects):
-            self._dl.delete(pending.type_, held_id)
-        return result
+        # The replay has already taken the activity off the pending queue,
+        # so the held rows are released even when the rebuild raises: no
+        # later replay or queue expiry could reach them (CBT-03-003).
+        try:
+            return self._rehydrate(activity_id, _restage)
+        finally:
+            if isinstance(pending, PendingInlineObjects):
+                self._dl.delete(pending.type_, held_id)
 
     def hold_for_replay(self, activity_id: str) -> None:
         """Keep *activity_id*'s staged rows until its deferred replay."""

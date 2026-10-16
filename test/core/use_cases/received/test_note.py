@@ -412,7 +412,7 @@ class TestNoteUseCases:
     def test_add_reply_note_through_ingress_is_applied(self):
         """A reply note sent through the inbox ingress is stored and attached
         with its ``in_reply_to``: the event carries the note as received, so
-        the guard sees the same note ingress stored (#4706)."""
+        the guard sees the same note the routing rebuild staged (#4706)."""
         case_actor_id = "https://example.org/cases/case_n1f/actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_id = "https://example.org/cases/case_n1f"

@@ -804,8 +804,8 @@ def _shorter_revision_announced_by(
         context=CASE_ID,
         end_time=days_from_now_utc(end_in_days),
     )
-    # The inbox pre-store holds the inline embargo before dispatch
-    # (EMB-18-003); the apply node stores it when it is still missing.
+    # The inbox ingress stores no inline object (IO-03-004), so the apply
+    # node stores the inline embargo when it is still missing (EMB-18-003).
     return replica.receive(
         announce_embargo_activity(
             revision, context=CASE_ID, actor=sender, to=[replica.actor_id]

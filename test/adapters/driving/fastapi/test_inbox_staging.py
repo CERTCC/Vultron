@@ -43,6 +43,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 from vultron.adapters.driving.fastapi.inbox_staging import (
     InlineObjectStaging,
     _stage_inline_object,
+    _StagingStore,
 )
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
@@ -169,6 +170,69 @@ def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
 
     assert expired is True
     assert dl.read(PendingInlineObjects.build_id(routed.id_)) is None
+
+
+@pytest.mark.spec("IO-03-004")
+def test_staging_store_is_empty_after_a_rebuild(dl):
+    """A delivery's staged objects do not outlive its rebuild."""
+    _routed(dl, _add_note_body())
+
+    assert _StagingStore(dl, "urn:uuid:next").read(_NOTE_ID) is None
+
+
+@pytest.mark.spec("IO-03-004")
+def test_staging_store_is_emptied_when_the_rebuild_raises(dl):
+    """A failed rebuild leaves nothing staged for the next delivery."""
+    body = _add_note_body()
+    parsed = FastAPIIngressAdapter(dl=dl).parse(body)
+    assert parsed is not None
+    staging = InlineObjectStaging(dl)
+
+    def _stage_then_fail(store: Any) -> None:
+        store.create(as_Note(id_=_NOTE_ID, content="staged", context=_CASE_ID))
+        raise RuntimeError("rebuild failed")
+
+    with pytest.raises(RuntimeError, match="rebuild failed"):
+        staging._rehydrate(parsed.id_, _stage_then_fail)
+
+    assert _StagingStore(dl, "urn:uuid:next").read(_NOTE_ID) is None
+
+
+@pytest.mark.spec("IO-03-004")
+def test_a_later_bare_reference_does_not_see_an_earlier_staged_object(dl):
+    """One sender's staged object never routes another delivery."""
+    first = _add_note_body()
+    _routed(dl, first)
+    bare = {**first, "id": "https://example.org/activities/bare-add"}
+    bare["object"] = _NOTE_ID
+
+    routed = _routed(dl, bare)
+
+    assert routed.object_ == _NOTE_ID
+
+
+@pytest.mark.spec("IO-03-004", "CBT-03-003")
+def test_held_rows_are_released_when_the_replay_rebuild_raises(
+    dl, monkeypatch
+):
+    """The replay already left the queue, so its held rows go regardless."""
+    staging = InlineObjectStaging(dl)
+    queue = FastAPIQueuePort(
+        dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
+    )
+    routed = _routed(dl, _add_note_body(), staging=staging)
+    queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
+    held_id = PendingInlineObjects.build_id(routed.id_)
+    assert dl.read(held_id) is not None
+
+    def _fail(*_args: Any) -> None:
+        raise RuntimeError("rebuild failed")
+
+    monkeypatch.setattr(staging, "_rehydrate", _fail)
+    with pytest.raises(RuntimeError, match="rebuild failed"):
+        staging.rehydrate_deferred(routed.id_)
+
+    assert dl.read(held_id) is None
 
 
 def test_staging_store_never_shares_an_actor_store_name():
@@ -420,7 +484,7 @@ def test_stage_inline_object_projection_failure_surfaces_on_read(
     """An unreadable inline object surfaces its failure on read (#2232, #2940).
 
     Since #2940 removed write-side wire→core normalisation (``extra="forbid"``
-    is the boundary contract now), ingress stores the inline object verbatim
+    is the boundary contract now), staging holds the inline object verbatim
     rather than rejecting it at write.  The failure is not silently swallowed
     on the way back out: reading the row logs a WARNING naming #2232 rather
     than reporting a misleading "not found" with no trace.

@@ -32,8 +32,8 @@ create-case → emit-Announce path, catching regressions where case creation
 no longer sends the announcement (PCR-07-006).
 
 AC-2 tests (``test_subsequent_case_scoped_activity_routes_without_deferral``)
-seed the replica with a direct ``Announce`` (faster, sufficient for routing
-coverage) and then verify both the absence of deferral *and* the presence of
+seed the replica directly in the participant's store (faster, sufficient
+for routing coverage) and then verify both the absence of deferral *and* the presence of
 the handler's side effect (note appended to ``replica.notes``).
 """
 
@@ -88,8 +88,8 @@ _DIRECT_OWNER_ACTOR_ID = (
 def participant_setup():
     """One isolated participant app for the AC-2 routing test.
 
-    The case replica is seeded directly via a hand-crafted
-    ``Announce(as_VulnerabilityCase)`` (fast, sufficient for routing coverage).
+    The test seeds the case replica directly in the participant's store
+    (fast, sufficient for routing coverage).
     The ``_TestClientRouter`` is installed as the default emitter so that any
     outbound deliveries from the participant stay in-process (ADR-0042).
 
@@ -542,7 +542,7 @@ class TestBootstrapSequence:
     ):
         """AC-2: Case-scoped activity routes directly after replica exists.
 
-        After the case replica is seeded via a direct ``Announce``, a
+        After the case replica is seeded directly in the store, a
         subsequent ``Add(Note, context=case_id)`` delivered to the same inbox
         must be dispatched immediately — it must NOT be placed into
         ``VultronPendingCaseInbox`` (the pre-bootstrap deferral queue).
