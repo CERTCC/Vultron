@@ -229,7 +229,7 @@ The case manager instead asks whether the accepted embargo is still the case's c
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
-| The case's current embargo | Honor it; record the Participant's consent row as `AGREED`, exactly as for an on-time Accept, directly from `TIMED_OUT` or `DECLINED` (EMB-17-002) |
+| The case's current embargo | Honor it; record the Participant's consent row as `AGREED`, exactly as for an on-time Accept, directly from `TIMED_OUT` or `DECLINED`, since a Participant that accepts after declining has changed its answer (EMB-17-002) |
 | A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
 | An embargo the case no longer has | Acknowledge as a no-op: record its own `Ignore` of the late `Accept`, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008, EMB-17-010) |
 

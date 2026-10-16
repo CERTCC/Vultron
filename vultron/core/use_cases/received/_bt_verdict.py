@@ -51,9 +51,13 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.nodes.diversion_stage import DiversionStage
 from vultron.core.behaviors.case.nodes.incomplete_activity import (
     ActivityIncompleteNode,
 )
@@ -73,8 +77,14 @@ from vultron.core.behaviors.case.nodes.reference_list import (
 from vultron.core.behaviors.case.nodes.role_offer_guard import (
     RoleOfferAdmissibleNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
+)
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     EmbargoAnswerNotRecordedNode,
+)
+from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
+    EmbargoInviteNotYetRefusedNode,
 )
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     IsWithdrawableEmbargoNode,
@@ -177,6 +187,30 @@ def node_succeeded(
 ) -> bool:
     """True when any node of *node_type* ran and returned ``SUCCESS``."""
     return _any_with_status(tree, node_type, Status.SUCCESS)
+
+
+def door_guards_admitted(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> bool:
+    """True when the run got past every door guard of its tree (CLP-10-010).
+
+    The intake, the post-close guard, the addressee check and the sender
+    guard all ran and succeeded, so the delivery reached its clock decisions
+    and precondition guards, whatever those then decided.  Asked of the
+    factory's record of its door guards, so the answer does not depend on
+    which guard the tree runs first.
+
+    Raises:
+        VultronWiringError: *tree* was not built by
+            :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
+    """
+    root = _root(tree)
+    if not isinstance(root, ReceivedActivityTree):
+        raise VultronWiringError(
+            f"door_guards_admitted: '{root.name}' is not a received-activity"
+            " tree, so it has no door guards to ask about (CLP-10-010)"
+        )
+    return root.door_guards_admitted
 
 
 def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
@@ -432,6 +466,64 @@ def guard_refusal(
     )
 
 
+def addressee_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal of a copy not addressed to this receiver (HP-01-005).
+
+    ``None`` unless the tree's
+    :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`
+    door guard refused; the reason is the guard's own, naming the receiver,
+    the activity and its ``to``.
+    """
+    return guard_refusal(tree, ActivityAddressedToReceiverNode)
+
+
+def taken_diversion(
+    tree: py_trees.behaviour.Behaviour | _HasRoot, name: str
+) -> DiversionStage | None:
+    """The diversion stage *name* when it diverted the delivery, else ``None``.
+
+    See :class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
+    (CLP-10-026): a taken diversion answered the delivery itself, so the
+    tree's ``FAILURE`` is not a refusal of its own and the handler reads the
+    stage instead.
+    """
+    for node in _root(tree).iterate():
+        if (
+            isinstance(node, DiversionStage)
+            and node.name == name
+            and node.taken
+        ):
+            return node
+    return None
+
+
+def pxa_refusal_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    name: str,
+    answered: str,
+) -> HandlerResult | None:
+    """The verdict of a delivery the P/X/A refusal *name* diverted, else ``None``.
+
+    ``SKIPPED`` when the ER *answered* names was already sent, so the
+    redelivery is not refused twice (HP-01-003); otherwise ``REFUSED`` for
+    the condition's reason (EMB-01-002, EMB-02-002), whether or not the ER
+    could be sent.
+    """
+    stage = taken_diversion(tree, name)
+    if stage is None:
+        return None
+    if node_failed(stage, EmbargoInviteNotYetRefusedNode):
+        return HandlerResult.skipped(
+            f"{answered} not refused again: the ER was already sent"
+            " (HP-01-003)"
+        )
+    return HandlerResult.refused(
+        stage.condition.feedback_message or f"{name}: P/X/A set"
+    )
+
+
 def incomplete_activity_refusal(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
 ) -> HandlerResult | None:
@@ -584,8 +676,10 @@ def applied_or_raise(
 
 
 __all__ = [
+    "addressee_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
+    "door_guards_admitted",
     "failure_reason",
     "find_named",
     "find_node",
@@ -597,5 +691,7 @@ __all__ = [
     "not_case_manager",
     "not_case_manager_refusal",
     "post_close_refusal",
+    "pxa_refusal_verdict",
+    "taken_diversion",
     "verdict_from_bt",
 ]

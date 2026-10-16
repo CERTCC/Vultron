@@ -13,7 +13,7 @@
 """Admission-backfill and fail-closed paths of the embargo gate (CM-10-005/006).
 
 Covers what ``test_fanout_embargo_gate.py`` does not: the
-``embargo_admission_backfill_tree`` on its gated and port-less paths, the
+the admission backfill nodes on their gated and port-less paths, the
 fan-out send refusing when it cannot decide the gate, and the genesis pre-seed
 for a peer the gate admits.
 """
@@ -26,8 +26,11 @@ from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import CASE_ID
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
 from vultron.core.behaviors.embargo.admission_backfill_tree import (
-    embargo_admission_backfill_tree,
+    embargo_admission_backfill_nodes,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     record_embargo_pause,
@@ -65,6 +68,16 @@ from ._embargo_gate_support import (
 def datalayer():
     """The CASE_MANAGER's store, shadowing the package's participant store."""
     return manager_datalayer()
+
+
+def embargo_admission_backfill_tree(case_id: str):
+    """The backfill nodes behind the CASE_MANAGER gate, as a received tree's
+    ``manager_effects`` or the late-Accept honour arm run them (CM-10-006)."""
+    return create_case_manager_gated_tree(
+        name="EmbargoAdmissionBackfill",
+        case_id=case_id,
+        children=embargo_admission_backfill_nodes(case_id),
+    )
 
 
 def _admitted_paused_finder(datalayer) -> None:

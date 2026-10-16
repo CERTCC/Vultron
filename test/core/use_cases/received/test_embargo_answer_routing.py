@@ -32,11 +32,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.expiry_tree import (
-    create_reinvite_stale_accepter_tree,
-)
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes.late_accept import (
+    CommitLateAcceptAcknowledgementNode,
+)
 from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -57,6 +56,7 @@ from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.errors import VultronBTInternalError
 
 from .test_embargo_relay_replay import (
     BYSTANDER,
@@ -438,28 +438,6 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
 
 
 @pytest.mark.spec("EMB-17-003")
-@pytest.mark.spec("CLP-10-020")
-def test_a_reinvite_is_not_committed_by_a_store_that_is_not_the_manager():
-    """The gate is the tree's: a non-manager tree writes and sends nothing."""
-    net = _Network("https://example.org/cases/answer-reinvite-gated")
-    _propose(net, "gated", 90)
-    revision = net.case(MANAGER).active_embargo_id
-    assert revision is not None
-    dl = net.stores[OWNER]
-    tree = create_reinvite_stale_accepter_tree(
-        case_id=net.case_id, embargo_id=revision, invitee_id=BYSTANDER
-    )
-
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute_with_setup(tree=tree, actor_id=OWNER)
-
-    assert result.status == Status.SUCCESS
-    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 0
-
-
-@pytest.mark.spec("EMB-17-003")
 @pytest.mark.spec("BT-17-001")
 def test_a_late_accept_of_a_stale_embargo_reinvites_nobody_from_a_replica():
     """The use case, run on a store that is not the manager, commits nothing."""
@@ -551,23 +529,16 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     assert replayed.is_signatory(revision_id)
 
 
-@pytest.mark.spec("EMB-17-004")
-@pytest.mark.spec("EMB-17-010")
-@pytest.mark.spec("RSH-08-004")
-@pytest.mark.spec("TB-06-007")
-def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
-    """Late Accept on exited embargo: no-op entry replayed, the consent row is frozen.
+def _late_accept_on_an_exited_embargo(
+    net: _Network,
+) -> tuple[dict[str, object], str, str, str]:
+    """Queue BYSTANDER's Accept, then end the embargo at the CASE_MANAGER.
 
-    When a late Accept arrives with EM EXITED on the CASE_MANAGER's store,
-    every register entry is final, so the invitation's row accepts no
-    trigger (ADR-0122): no expiry entry is committed, and
-    ``INVITE_EXPIRED_NOOP_EVENT_TYPE`` is, with no consent transition
-    (EMB-17-004, EMB-17-010).  After delivery the replica store's ledger has
-    replayed past the no-op entry (asserting on the entry's presence so a
-    silently skipped slot fails), and the participant's row for the embargo
-    is still ``INVITED`` (RSH-08-004).
+    Returns the Accept's sealed body, its id, BYSTANDER's participant id and
+    the answered revision's id.  The Accept reaches the CASE_MANAGER after
+    its Invite expired and once no embargo can bind it, so it takes the
+    acknowledgement arm (EMB-17-004).
     """
-    net = _Network("https://example.org/cases/answer-noop-late-accept")
     revision_id = _propose(net, "noop", 90)
     bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
 
@@ -615,6 +586,31 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
             )
         )
 
+    return body, accept.id_, bystander_pid, revision_id
+
+
+@pytest.mark.spec("EMB-17-004")
+@pytest.mark.spec("EMB-17-010")
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("TB-06-007")
+def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
+    """Late Accept on exited embargo: no-op entry replayed, the consent row is frozen.
+
+    When a late Accept arrives with EM EXITED on the CASE_MANAGER's store,
+    every register entry is final, so the invitation's row accepts no
+    trigger (ADR-0122): no expiry entry is committed, and
+    ``INVITE_EXPIRED_NOOP_EVENT_TYPE`` is, with no consent transition
+    (EMB-17-004, EMB-17-010).  After delivery the replica store's ledger has
+    replayed past the no-op entry (asserting on the entry's presence so a
+    silently skipped slot fails), and the participant's row for the embargo
+    is still ``INVITED`` (RSH-08-004).
+    """
+    net = _Network("https://example.org/cases/answer-noop-late-accept")
+    body, accept_id, bystander_pid, revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    dl_mgr = net.stores[MANAGER]
+
     net.receive(MANAGER, body)
     _deliver_all(net, OWNER)
 
@@ -646,7 +642,39 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     assert snapshot["type"] == "Ignore"
     assert snapshot["actor"] == MANAGER
     assert snapshot["object"]["type"] == "Accept"
-    assert snapshot["object"]["id"] == accept.id_
+    assert snapshot["object"]["id"] == accept_id
     assert snapshot["object"]["actor"] == BYSTANDER
     assert snapshot == read_sealed_body_dict(dl_mgr, committed.log_object_id)
     assert noop_entries[0].payload_snapshot == snapshot
+
+
+@pytest.mark.spec("CLP-10-026")
+@pytest.mark.spec("EMB-17-004")
+def test_a_late_accept_answer_that_does_not_complete_raises(monkeypatch):
+    """A taken late-Accept arm that fails is an internal error, not a verdict.
+
+    The tree chose to answer the delivery instead of committing it, so an
+    answer that does not complete leaves the Accept neither recorded nor
+    answered: the handler raises (CLP-10-026), and no consent row moves.
+    """
+    net = _Network("https://example.org/cases/answer-late-accept-fails")
+    body, _accept_id, bystander_pid, revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    monkeypatch.setattr(
+        CommitLateAcceptAcknowledgementNode,
+        "update",
+        lambda self: Status.FAILURE,
+    )
+
+    with pytest.raises(VultronBTInternalError, match="AcknowledgeLateAccept"):
+        net.receive(MANAGER, body)
+
+    assert INVITE_EXPIRED_NOOP_EVENT_TYPE not in _event_types(net, MANAGER)
+    participant = cast(
+        CaseParticipant, net.stores[MANAGER].read(bystander_pid)
+    )
+    # The register entry is final, so the row stays as it was (ADR-0122).
+    assert participant.consent_for(revision_id) is (
+        EmbargoConsentState.INVITED
+    )

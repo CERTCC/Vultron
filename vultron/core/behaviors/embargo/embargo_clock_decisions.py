@@ -29,12 +29,9 @@ stage runs only at the CASE_MANAGER (BT-17-001).
 Where the end-time check runs too, the sweep runs after it, so a termination
 it commits has already frozen the rows of every embargo it ended (ADR-0122).
 Terminate-embargo takes the sweep alone: its own tree answers for the end
-time.  The P/X/A refusal of an Invite or of an Accept
-(``RefuseEmbargoInviteBT``) takes no clock decision: its handler checks the
-sender before it, but runs it as a tree of its own with no sender rule, and
-the factory gives such a tree no clock-decision stage (CLP-10-025).  The
-next admitted embargo activity sweeps instead; #4642 makes the refusal a
-guard of the Invite and Accept trees, which take the sweep.
+time.  The P/X/A refusal of an Invite or of an Accept is a diversion of the
+Invite and Accept trees (CLP-10-026), so it runs after their clock
+decisions, the sweep included.
 """
 
 from datetime import datetime

@@ -183,8 +183,12 @@ class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
     FAILURE when :class:`EvaluateInviteExpiryNode`, the Accept tree's clock
     decision, found the invitee's deadline passed: the Accept is late, so the
     normal answer path must not record it, whether or not the expiry entry
-    could be committed (CLP-10-025).  The handler then routes the late
-    Accept by its compatibility with the case's embargo (EMB-17-001).
+    could be committed (CLP-10-025).  The Accept tree's late-Accept
+    diversions route a late Accept by its compatibility with the case's
+    embargo ahead of this guard
+    (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`,
+    EMB-17-001, CLP-10-026); this guard is the backstop that keeps it from
+    being recorded as an answer.
     SUCCESS otherwise, including on a store that is not the CASE_MANAGER,
     where the decision does not run and *result_out* stays unset.
     Read-only.
