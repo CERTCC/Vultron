@@ -28,7 +28,8 @@ the Pull Request on GitHub before merging it::
 Output contract (stable; pipeline skills parse it):
 
 - **Selection mode** (default) exits 0 and prints either the targeted set,
-  one path per line (``test/architecture/`` is always one of them), or the
+  one path per line (``test/architecture/`` and ``test/metadata/`` are always
+  among them), or the
   word ``full`` on the first line followed by one ``<path>: <reason>`` line
   per path that forced the full suite. ``--pytest`` prints instead a single
   runnable command line; it carries ``-m ""`` to override the
@@ -44,8 +45,8 @@ Output contract (stable; pipeline skills parse it):
   conflict, run on the conflicted files (PAD-18-004). Each file counts as
   wholly changed, since both sides edited it, and only
   :func:`conflict_suite_trigger` paths force the full suite: CI runs the full
-  suite on the push, so the integration-bearing and test-support triggers
-  that guard a fix commit are not repeated here (PAD-18-003). ``--base`` is
+  suite on the push, so the test-support trigger that guards a fix commit
+  is not repeated here (PAD-18-003). ``--base`` is
   not read. A conflicted non-Python file under ``test/`` (a data file) maps
   to no test and is named on stderr like any other unmapped path.
 - Exit 2 is a setup error (not a repository, unknown base ref).
@@ -61,10 +62,14 @@ against the working tree, so a fix commit landing on top of an earlier
 counts. Overlap mode reads the same branch side on purpose: the gate runs
 before a push, so work not yet committed is about to be part of the PR.
 
-Escalation matches PAD-18-003's paths literally, by prefix: a docs-only edit
-under ``vultron/adapters/`` still escalates. "Full" means the pytest suite with
-every marker enabled; the docker-driven scripts under ``integration_tests/``
-are not pytest tests and stay CI's to run.
+Escalation is for shared test infrastructure only (PAD-18-003): files whose
+effect no import or mirror lookup can bound. A change to an integration-bearing
+layer (``vultron/core/behaviors/``, ``vultron/adapters/``, …) is gated by its
+importers like any other change, integration-marked ones included; the reach
+beyond them is CI's, which runs the full suite on the push faster than a slot
+does (ADR-0143). "Full" means the pytest suite with every marker enabled; the
+docker-driven scripts under ``integration_tests/`` are not pytest tests and
+stay CI's to run.
 
 **Hub and monolith demotion do not apply.** ``spec-backstop`` demotes a symbol
 imported by more than ``HUB_THRESHOLD`` test files, and a test file marking
@@ -86,8 +91,8 @@ unless it imports ``a`` too. That reach is CI's (ADR-0126). Changed symbols
 are read from both sides of the diff, so a deleted or renamed function
 selects the tests that imported its old name.
 
-PAD-18-003's third escalation clause — a CI failure in a test the targeted
-set does not include — is the caller's to apply: this command cannot see CI.
+PAD-18-003's CI clause — a CI failure in a test the targeted set does not
+include joins the gate — is the caller's to apply: this command cannot see CI.
 
 Requirements: specs/parallel-development.yaml PAD-18-002, PAD-18-003,
 PAD-18-004, PAD-18-009.
@@ -133,24 +138,19 @@ from vultron.metadata.specs.backstop import (
 #: tests are cheap and catch the change shapes an import index cannot see.
 ARCHITECTURE_TESTS = "test/architecture/"
 
+#: Always part of the targeted set (PAD-18-002): the generated-file sync
+#: checks and size ratchets, which read the tree rather than import a symbol.
+METADATA_TESTS = "test/metadata/"
+
+#: The directories every targeted set selects whole, in output order.
+ALWAYS_SELECTED = (ARCHITECTURE_TESTS, METADATA_TESTS)
+
 #: Repository-root files that configure every test run (PAD-18-003).
 SHARED_CONFIG_FILES = ("pyproject.toml", "uv.lock")
 
 #: The package root runs on every ``vultron`` import, and no import of a
 #: name from it can say which tests depend on what it does.
 PACKAGE_ROOT = "vultron/__init__.py"
-
-#: Integration-bearing paths (PAD-18-003). Carried forward from
-#: ``pr-execute``'s ``needs_integration_tests`` rule; its ``extractor.py`` is
-#: now the ``extractor/`` package.
-INTEGRATION_PREFIXES = (
-    "vultron/demo/",
-    "integration_tests/",
-    "vultron/adapters/",
-    "vultron/core/behaviors/",
-    "vultron/core/use_cases/",
-    "vultron/wire/as2/extractor/",
-)
 
 #: Files under ``test/`` that no test run reads.
 _INERT_TEST_SUFFIXES = (".md",)
@@ -212,20 +212,17 @@ def full_suite_trigger(path: str) -> FullSuiteTrigger | None:
     Test-support files — fixtures, factories, helpers, data files: anything
     under ``test/`` that is not itself a ``test_*.py`` file — escalate because
     tests reach them in ways no import records: a fixture by parameter name,
-    a data file by path. Those under ``test/architecture/`` are the
-    exception: that directory is always selected whole, and a test elsewhere
-    that imports one of its helpers is selected through the index
-    (:func:`build_index`).
+    a data file by path. Those under :data:`ALWAYS_SELECTED` are the
+    exception: those directories are always selected whole, and a test
+    elsewhere that imports one of their helpers is selected through the
+    index (:func:`build_index`).
     """
     shared = conflict_suite_trigger(path)
     if shared is not None:
         return shared
-    for prefix in INTEGRATION_PREFIXES:
-        if path.startswith(prefix):
-            return FullSuiteTrigger(path, f"integration-bearing ({prefix})")
     if (
         path.startswith(TEST_PREFIX)
-        and not path.startswith(ARCHITECTURE_TESTS)
+        and not path.startswith(ALWAYS_SELECTED)
         and not _is_test_file(path)
         and not path.endswith(_INERT_TEST_SUFFIXES)
     ):
@@ -492,8 +489,8 @@ def select_tests(
             mapped.add(change.path)
         selected.update(found)
     selection.tests = [
-        ARCHITECTURE_TESTS,
-        *sorted(t for t in selected if not t.startswith(ARCHITECTURE_TESTS)),
+        *ALWAYS_SELECTED,
+        *sorted(t for t in selected if not t.startswith(ALWAYS_SELECTED)),
     ]
     selection.unmapped = [
         p
@@ -502,7 +499,7 @@ def select_tests(
         and not (
             p.startswith(TEST_PREFIX) and p.endswith(_INERT_TEST_SUFFIXES)
         )
-        and not p.startswith(ARCHITECTURE_TESTS)
+        and not p.startswith(ALWAYS_SELECTED)
     ]
     return selection
 

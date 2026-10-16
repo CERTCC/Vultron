@@ -36,11 +36,12 @@ command is safe to chain or to use as a gate.
 
 `-n auto` runs the suite on `pytest-xdist` workers. `test/conftest.py` sizes
 `auto` to the container's cgroup CPU and memory limits
-(`test/support/xdist_workers.py`): a worktree slot is capped at 2 CPUs and 6 GiB
-(`start-dev.sh`), while `nproc` reports every host core, and twelve workers in
-that slot were OOM-killed mid-run. Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to
-override. Drop `-n auto` (or pass `-n 0`) for a targeted single-file run, where
-starting workers costs more than it saves.
+(`test/support/xdist_workers.py`): a worktree slot is capped by `SLOT_CPUS`
+and `SLOT_MEMORY` (`start-dev.sh`), while `nproc` reports every host core, and
+twelve workers in a 2-CPU, 6 GiB slot were OOM-killed mid-run. Set
+`PYTEST_XDIST_AUTO_NUM_WORKERS` to override. Drop `-n auto` (or pass `-n 0`)
+for a targeted single-file run, where starting workers costs more than it
+saves.
 
 ## Pre-PR Validation (create-pr only)
 
@@ -75,12 +76,16 @@ gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
 ```
 
+The set always includes `test/architecture/` and `test/metadata/`.
 `targeted-tests` escalates to the full suite itself (its `--pytest` output
-becomes `pytest -m ""`) when the branch diff touches shared test
-infrastructure or an integration-bearing path (PAD-18-003). It cannot see CI:
-when the fix is for a CI failure in a test outside the printed set, run the
-**All** row above instead. `pr-execute` Phase 5 Step 3 is the canonical
-caller.
+becomes `pytest -m ""`) only when the branch diff touches shared test
+infrastructure; an integration-bearing path is gated by its importers, and
+CI runs the rest (PAD-18-003, ADR-0143). It cannot see CI: when the fix is
+for a CI failure in a test outside a printed targeted set, append that test's
+file to the printed command rather than running the full suite. Never append
+to a `full` command: it runs every test, and a path would narrow it to one
+file. `pr-execute`
+Phase 5 Step 3 is the canonical caller.
 
 ## Constraints
 

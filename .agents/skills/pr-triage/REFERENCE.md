@@ -196,8 +196,9 @@ if the PR modifies any of:
 - `vultron/wire/as2/extractor/` — semantic extraction (a package)
 
 The flag is informational. `pr-execute`'s local gate comes from
-`targeted-tests`, which escalates to the full suite on these same paths
-(PAD-18-003), so execute does not read the flag to choose its test scope.
+`targeted-tests`, which gates these paths by their importers and leaves the
+rest to CI (PAD-18-003, ADR-0143), so execute does not read the flag to
+choose its test scope.
 
 ---
 

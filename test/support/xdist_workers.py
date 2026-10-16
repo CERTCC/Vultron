@@ -15,7 +15,7 @@
 
 """Size ``pytest -n auto`` to the container's limits, not the host's cores.
 
-Each worktree slot runs under ``docker run --cpus 2 --memory 6g``
+Each worktree slot runs under ``docker run --cpus`` and ``--memory`` limits
 (``start-dev.sh``), but ``os.cpu_count()`` — and so xdist's own ``auto`` —
 reports every host core.  Twelve workers in a two-CPU, 6 GiB slot ran slower
 than two and were OOM-killed mid-run, which xdist reports as test failures.

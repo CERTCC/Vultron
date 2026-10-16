@@ -17,7 +17,7 @@ uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /
 
 This is the default local maintainer command.
 `-n auto` runs the tests on parallel `pytest-xdist` workers, one per CPU the container may use.
-The worker count comes from the container's CPU and memory limits, not from `nproc`, so a two-CPU worktree slot gets two workers.
+The worker count comes from the container's CPU and memory limits, not from `nproc`, so a worktree slot gets one worker per CPU it is capped at (`SLOT_CPUS`), memory permitting.
 Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to choose a different count.
 
 ## Run a focused file while iterating
