@@ -273,6 +273,43 @@ class TestNoteUseCases:
         assert note.id_ in refreshed.notes
         assert result.disposition == HandlerDisposition.APPLIED
 
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("VAM-01-010")
+    def test_add_note_to_case_stores_the_inline_note(self, make_payload):
+        """An Add(Note) carrying a note the CASE_MANAGER has never seen
+        stores that note, then attaches it (#4706): the case never names a
+        note its own store cannot read."""
+        case_actor_id = "https://example.org/cases/case_n1b/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1b"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note = as_Note(
+            id_="https://example.org/notes/note3b",
+            content="Carried inline",
+            context=case_id,
+        )
+        assert dl.read(note.id_) is None
+
+        event = make_payload(
+            add_note_to_case_activity(
+                note, target=case, actor="https://example.org/users/finder"
+            ),
+            receiving_actor_id=case_actor_id,
+        )
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        stored = dl.read(note.id_)
+        assert stored is not None
+        assert getattr(stored, "content", None) == "Carried inline"
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note.id_ in refreshed.notes
+
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """CaseActor skips adding a note already in the case (idempotent)."""
         dl = SqliteDataLayer(
