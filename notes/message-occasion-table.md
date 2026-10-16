@@ -7,9 +7,10 @@ tracks:
 description: >-
   Design of the occasion lookup table (ADR-0128, ADR-0129): how "Sent by" and
   "Send to" are derived from the sender rule and the occasion's addressee, the
-  "When…" grammar, and typed distinguishers. Occasions, the generated
-  fragments, the pages that include them, the how-to embeds with "Seen in" and
-  the addressees (#4438) have landed.
+  "When…" grammar, and typed distinguishers (field value, state context,
+  sender standing) that every same-addressee sibling must declare. Occasions,
+  the generated fragments, the pages that include them, the how-to embeds with
+  "Seen in" and the addressees (#4438) have landed.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
@@ -126,5 +127,15 @@ lookup table is mostly links.
   (DF-09-010, MSM-08-008). Expansion rows (`GI`, `RV`, `RI`, `RC`) link by
   section heading instead, since one label would repeat on every row.
 - **A distinguisher is typed** (MSM-08-002): a field value checked against its
-  enum, or a state context naming a state machine and states (the EM state
-  separating `EP` from `EV` on `Invite(Event)`).
+  enum, a state context naming a state machine and states (the EM state
+  separating `EP` from `EV` on `Invite(Event)`), or a sender standing naming a
+  `SenderEntitlementKind` and whether the sender holds it. Use the receiver's
+  vocabulary, not `CVDRole`: the standing is what the receiver checks, and it
+  is worded from the kind's `sent_by` (MSM-08-010). The embargo register is a
+  state machine of its own, so the register status of the named embargo is a
+  state context on `EmbargoRegisterStatus`, not a new kind.
+- **Same entry, same addressee: every occasion is distinguished** (MSM-08-011).
+  Each declares a distinguisher and no two are equal, so a pair that differs
+  only in prose fails construction instead of rendering two "—" rows. When one
+  occasion is the rest of the space (a suggestion from anyone but the Case
+  Owner), negate the other's standing rather than leave its row blank.

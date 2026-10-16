@@ -1152,21 +1152,31 @@ groups:
   - id: MSM-08-002
     priority: MUST
     kind: process
-    statement: An occasion's distinguisher MUST be either a field value or a state
-      context. A field value MUST be a member of that field's enum, and a state context
-      MUST name a state machine and states that are members of that machine's state
-      enum.
+    statement: An occasion's distinguisher MUST be a field value, a state context or a
+      sender standing. A field value MUST be a member of that field's enum, a state
+      context MUST name a state machine and states that are members of that machine's
+      state enum, and a sender standing MUST name a `SenderEntitlementKind` member and
+      whether the sender holds it.
     rationale: '"Distinguished by" is what tells two occasions of one wire activity
       apart when they share an addressee (MSM-08-009), such as vendor awareness and fix
       ready on `Add(ParticipantStatus)`. A free-text distinguisher can name a value no
       implementation sends. Typing it against the enums makes a renamed or retired
-      state fail at construction.'
+      state fail at construction. Some occasions differ only in who sends them: the
+      Case Owner''s request to invite an actor and a participant''s suggestion are one
+      `Offer(Actor)`, and the CASE_MANAGER answers them differently (CM-17-007,
+      CM-16-003). The sender''s standing is typed by the entitlement kinds a receiver
+      already checks (HP-01-009), so it has one vocabulary and its wording comes from
+      the kind (MSM-08-010).'
     verification: >-
       A unit test asserts that an occasion whose field value is not a member of the
-      field's enum, or whose state context names a state outside its machine's enum,
-      fails at construction.
+      field's enum, whose state context names a state outside its machine's enum, or
+      whose sender standing names no `SenderEntitlementKind` member, fails at
+      construction.
     lint_suppress:
     - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-08-010
     adr:
     - ADR-0128
   - id: MSM-08-003
@@ -1360,3 +1370,28 @@ groups:
       spec_id: HP-01-009
     adr:
     - ADR-0129
+  - id: MSM-08-011
+    priority: MUST
+    kind: process
+    statement: Each occasion that shares a `SEMANTIC_REGISTRY` entry and an addressee
+      with another occasion MUST declare a distinguisher, and the distinguishers of such
+      occasions MUST differ. Construction of a registry that breaks this MUST
+      fail.
+    rationale: The lookup table is how a receiver finds which occasion an activity is.
+      Two occasions with one wire form and one addressee and no distinguisher render as
+      two rows a reader cannot tell apart, and only their prose separates them. Nothing
+      failed when the suggest and invite-request occasions on `Offer(Actor)` and the
+      two embargo announcements on `Announce(Event)` shipped that way (#4821).
+    verification: >-
+      A unit test asserts that a registry with two occasions on one entry and one
+      addressee fails when either has no distinguisher or both declare the same one,
+      and that `msm-occasions --check` passes on `SEMANTIC_REGISTRY`.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-08-002
+    - rel_type: depends_on
+      spec_id: MSM-08-009
+    adr:
+    - ADR-0128
