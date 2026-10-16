@@ -131,9 +131,9 @@ reset the field, losing state without an error (#2232).
 `forbid` rejects only keys matching no field. Declared spellings are read:
 
 - camelCase aliases from `alias_generator=to_camel` on `CoreObject` (ARCH-25-002);
-- `AliasChoices` on dimension fields (a flat `rm_state`/`rmState` on
-  `ParticipantStatus`; `emState`/`em` on `CaseStatus`, whose flat `em_state`
-  spelling is retired, SDO-03-003), which are interpreted, not dropped.
+- `AliasChoices` on dimension fields (`rmState`/`rm` on `ParticipantStatus`;
+  `emState`/`em` on `CaseStatus`), which are interpreted, not dropped.  The flat
+  `rm_state` and `em_state` spellings are retired (SDO-03-003) and raise.
 
 A wire-shaped row persisted anyway is projected to core on read
 (`hydration.project_wire_row_to_core`). Deliberate snapshot reconstruction in core

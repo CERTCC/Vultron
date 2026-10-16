@@ -54,7 +54,7 @@ class SyncActivityPort(Protocol):
 
         Called when a received log entry has a hash-chain mismatch.
         The reject carries *tail_hash* as context so the CaseActor
-        knows the receiver's last accepted hash (SYNC-03-001).
+        knows the receiver's last applied hash (SYNC-03-001).
 
         Args:
             entry: The domain log entry being rejected.

@@ -336,13 +336,14 @@ def _phase_invite_vendor_reject(
         invite_timeout=20.0,
     )
 
-    # Gate on the rejection being committed before checking participant state.
-    # The rejection is self-contained on the CaseActor (CLP-10-006) — no
+    # Gate on Vendor's Reject being committed before checking participant
+    # state.  The Reject is a case event, admitted and ledgered like an Accept
+    # (CLP-02-012).  It is self-contained on the CaseActor (CLP-10-006) — no
     # participant-effect Announce is sent, so the entry is only visible in the
     # CaseActor's own store, on the dedicated case-actor container and read
     # through case_actor_client.  Using demo_gate here ensures that the participant
     # state checks are skipped (rather than run against stale state) if the
-    # CaseActor has not yet committed the rejection entry.
+    # CaseActor has not yet committed the Reject's entry.
     with demo_gate(
         "reject_invite_actor_to_case committed (causal gate before participant state check)"
     ):
@@ -412,10 +413,11 @@ def _phase_sync_verification(
     before the notes exchange begins; without this gate the
     ``add-note-to-case`` trigger on the Finder container may fail because the
     Finder's DataLayer has not yet received the case replica or the
-    post-rejection ledger tail from the CaseActor fan-out (SYNC-15-001).
+    ledger tail ending in Vendor's ``Reject`` entry from the CaseActor fan-out
+    (SYNC-15-001).
 
-    The rejected Vendor never joins, so this scenario declares no participant
-    expectation and no replica state check.
+    The Vendor declined and never joins, so this scenario declares no
+    participant expectation and no replica state check.
     """
     logger.info("─" * 80)
     logger.info("Phase 2.5: Finder ledger sync verification")

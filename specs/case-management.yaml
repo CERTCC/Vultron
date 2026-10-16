@@ -333,7 +333,7 @@ groups:
     kind: protocol
     statement: RM state MUST be participant-specific
     verification: Inspection of `vultron/core/` confirms that RM state is stored on
-      `ParticipantStatus.rm_state`, a per-participant field, not on a shared case-level
+      `ParticipantStatus.rm`, a per-participant field, not on a shared case-level
       structure.
     relationships:
     - rel_type: implements
@@ -389,7 +389,7 @@ groups:
     kind: protocol
     statement: VFD (Vendor Fix Deployment) state MUST be participant-specific
     verification: Inspection of `vultron/core/` confirms that VFD state is stored on a
-      per-participant `ParticipantStatus.vfd_state` field.
+      per-participant `ParticipantStatus.vf` or `ParticipantStatus.d` field (ADR-0075).
     stories:
     - story_2022_107
     - story_2022_088
@@ -419,9 +419,10 @@ groups:
   - id: CM-04-001
     priority: MUST
     kind: protocol
-    statement: Handlers processing RM state transitions MUST update `ParticipantStatus.rm_state` for the sending actor's CaseParticipant
+    statement: Handlers processing RM state transitions MUST update
+      `ParticipantStatus.rm` for the sending actor's CaseParticipant
     verification: Integration tests in `test/demo/` confirm that processing an RM status message
-      updates the sender's `CaseParticipant` with a new `ParticipantStatus.rm_state` entry.
+      updates the sender's `CaseParticipant` with a new `ParticipantStatus.rm` entry.
     relationships:
     - rel_type: implements
       spec_id: VP-02-002
@@ -436,10 +437,11 @@ groups:
   - id: CM-04-002
     priority: MUST
     kind: protocol
-    statement: Handlers processing VFD state transitions MUST update `ParticipantStatus.vfd_state` for the sending actor's
+    statement: Handlers processing VFD state transitions MUST update
+      `ParticipantStatus.vf` or `ParticipantStatus.d` for the sending actor's
       CaseParticipant
     verification: Integration tests in `test/demo/` confirm that processing a VFD status message
-      updates the sender's `ParticipantStatus.vfd_state`.
+      updates the sender's `ParticipantStatus.vf` or `ParticipantStatus.d`.
     stories:
     - story_2022_107
     - story_2022_062
@@ -3752,7 +3754,7 @@ groups:
   description: >-
     Requirements for the canonical RM case closure path: Leave(VulnerabilityCase)
     is the sole mechanism for advancing a participant's RM state to CLOSED.
-    Add(ParticipantStatus, rm_state=RM.CLOSED) is not a valid closure trigger.
+    Add(ParticipantStatus, rmState=CLOSED) is not a valid closure trigger.
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
 
@@ -3769,7 +3771,7 @@ groups:
     statement: >-
       RM case closure MUST be triggered by Leave(VulnerabilityCase), and the
       CASE_MANAGER's ledger commits are the authority for it.  A participant-sent
-      Add(ParticipantStatus, rm_state=RM.CLOSED) MUST NOT be used as a closure
+      Add(ParticipantStatus, rmState=CLOSED) MUST NOT be used as a closure
       trigger.  The CASE_MANAGER MUST commit a close_case entry recording the
       received Leave, and then, in the order it writes them, one
       add_participant_status_to_participant entry for each RM transition it
@@ -3795,7 +3797,7 @@ groups:
       no entry backs (#4091).  See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that RM closure flows through
       `Leave(VulnerabilityCase)` -> CASE_MANAGER ledger commit -> broadcast, and that
-      `Add(ParticipantStatus, rm_state=RM.CLOSED)` is not used as a closure trigger.
+      `Add(ParticipantStatus, rmState=CLOSED)` is not used as a closure trigger.
       Unit tests confirm that a Leave from RM.VALID commits the close_case entry and
       then a VALID -> DEFERRED and a DEFERRED -> CLOSED status entry, in that order;
       that a replica which accepts each of those entries ends with the same per-actor
@@ -3895,7 +3897,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT send a participant whose closure an earlier ledger
-      entry already records (its status entry with rm_state=RM.CLOSED) any case
+      entry already records (its status entry with rmState=CLOSED) any case
       content: no CaseLedgerEntry announcements, no Announce(VulnerabilityCase), no
       status broadcasts and no embargo announcements.  The entries that record a
       participant's own closure, the close_case entry and the status entries that
@@ -3929,7 +3931,7 @@ groups:
       closure the ledger records is left out of every case-content send except the
       entries recording its own closure.  Integration tests in `test/demo/` confirm
       that `Announce(CaseLedgerEntry)` fan-out skips a participant once a ledger
-      entry has recorded its `rm_state=RM.CLOSED`, that the leaving participant's
+      entry has recorded its `rmState=CLOSED`, that the leaving participant's
       replica still receives the `close_case` entry and every status entry up to and
       including the one that reaches `RM.CLOSED`, but not the later
       `case_fully_closed` entry, and that the CASE_MANAGER's store holds every
@@ -4385,7 +4387,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST refuse every activity for a case from a sender whose
-      closure that case's ledger records (its status entry with rm_state=RM.CLOSED),
+      closure that case's ledger records (its status entry with rmState=CLOSED),
       with no ledger entry committed and nothing sent: the refusal is the sender
       guard's, so it gets no refusal notice (CLP-05-001, HP-01-006). There are two
       exceptions. First, it MUST answer that sender's
@@ -5211,34 +5213,44 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The CASE_MANAGER MUST expire every `INVITED` consent row whose RSVP deadline has passed and
-      whose embargo register entry is an open proposal or the embargo in force, each through the
-      CM-28-009 expiry entry and its `TIME_OUT` effect, before it commits the case owner's
-      decision on an embargo proposal (MSM-07-008, MSM-07-009) and whenever it processes any other
-      received embargo activity for the case. A row of a replaced, rejected, cancelled or ended
-      embargo is frozen and MUST NOT be swept. The sweep MUST run only after every refusal check
-      of the activity admits it: its sender gate (HP-01-006) and its own refusals, such as an
-      embargo that is not an open proposal or a public, exploited or attacked CS (MSM-07-008), so
-      a refused activity writes nothing. It applies equally when the owner's own trigger runs on
-      the actor that holds `CVDRole.CASE_MANAGER` (EP-09-008).
+      The CASE_MANAGER MUST expire every `INVITED` consent row whose RSVP deadline has
+      passed and whose embargo register entry is an open proposal or the embargo in
+      force, each through the CM-28-009 expiry entry and its `TIME_OUT` effect, before
+      it commits the case owner's decision on an embargo proposal (MSM-07-008,
+      MSM-07-009) and whenever it processes any other received embargo activity for the
+      case. A row of a replaced, rejected, cancelled or ended embargo is frozen and MUST
+      NOT be swept. The sweep is a clock decision (CLP-10-025, ADR-0135): it MUST run
+      only after the door guards admit the activity, its sender gate (HP-01-006)
+      included, so a sender with no standing makes the CASE_MANAGER write nothing, and
+      it runs before the activity's own refusals, such as an embargo that is not an open
+      proposal or a public, exploited or attacked CS (MSM-07-008), so its expiries are
+      recorded even when the activity is then refused. It applies equally when the
+      owner's own trigger runs on the actor that holds `CVDRole.CASE_MANAGER`
+      (EP-09-008), and to every other embargo trigger that actor runs.
     rationale: >-
-      Expiry evaluated only on a late `Accept` and at owner close (CM-23-014) never records an
-      invitee that does not answer: its row stays `INVITED` until the case closes, so the case
-      owner, who learns of a timeout from the expiry entry's fan-out (MSM-07-007), decides on
-      the embargo without knowing about it (EP-09-006). The owner's decision is the moment the
-      timeout matters, and embargo activities are the acts that read the consent rows (CM-28-007),
-      so sweeping there keeps expiry lazy and needs no scheduler (CM-28-008).
+      Expiry checked only on a late `Accept` and at owner close (CM-23-014) never
+      records an invitee that does not answer, so the case owner decides without knowing
+      of the timeout (EP-09-006, MSM-07-007). Embargo activities read the consent rows
+      (CM-28-007), so sweeping there keeps expiry lazy (CM-28-008). An overdue row is a
+      fact from the CASE_MANAGER's clock, not evidence from the activity, so it is
+      recorded whatever the activity's fate (ADR-0135, ISSUE-4640).
     verification: >-
-      Tests let an invitation pass its deadline unanswered, then deliver to the CASE_MANAGER, in
+      `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` lets an
+      invitation pass its deadline unanswered, then delivers to the CASE_MANAGER, in
       turn, the owner's `Accept(EmbargoEvent, target=Case)`, the owner's
-      `Reject(EmbargoEvent, target=Case)` and one other received embargo activity, and assert
-      for each that the `invite_to_embargo_on_case_expired` entry is committed before the
-      activity's own entry and the invitee's row reads `TIMED_OUT`; a test runs the owner's
-      embargo-decision trigger on the actor holding `CVDRole.CASE_MANAGER` and asserts the same.
-      Tests deliver the owner's decision from a non-owner, and from the owner naming an embargo
-      that is not an open proposal, and assert each is `REFUSED` with no expiry entry committed.
-      Tests assert a row whose deadline has not passed stays `INVITED`, an overdue `INVITED` row
-      of a replaced embargo is left unchanged, and a repeat sweep commits no second expiry entry.
+      `Reject(EmbargoEvent, target=Case)` and another participant's
+      `Reject(Invite(EmbargoEvent))`, and asserts for each that the
+      `invite_to_embargo_on_case_expired` entry and its `TIMED_OUT` row's entry are
+      committed before the activity's own entry and the invitee's row reads `TIMED_OUT`;
+      it asserts every received embargo tree naming a case takes the sweep in its
+      clock-decision stage, and runs the owner's embargo-decision trigger on the actor
+      holding `CVDRole.CASE_MANAGER` and asserts the same order. It delivers the owner's
+      decision from a non-owner and asserts it is `REFUSED` with no expiry entry
+      committed, and from the owner naming an embargo that is not an open proposal and
+      asserts it is `REFUSED` with the expiry entries committed. It asserts a row whose
+      deadline has not passed stays `INVITED`, an overdue `INVITED` row of a replaced
+      embargo is left unchanged, a store that is not the CASE_MANAGER sweeps nothing,
+      and a repeat sweep commits no second expiry entry.
     relationships:
     - rel_type: refines
       spec_id: CM-28-007
@@ -5246,8 +5258,11 @@ groups:
       spec_id: CM-28-009
     - rel_type: depends_on
       spec_id: CM-28-014
+    - rel_type: depends_on
+      spec_id: CLP-10-025
     adr:
     - ADR-0118
+    - ADR-0135
     stories:
     - story_2022_014
     - story_2022_027

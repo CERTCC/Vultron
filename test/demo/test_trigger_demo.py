@@ -78,7 +78,7 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
             if isinstance(participant, CaseParticipant):
                 status = participant.participant_status
                 assert status is not None
-                vendor_rm = status.rm_state
+                vendor_rm = status.rm.state
         return link, vendor_rm
 
 

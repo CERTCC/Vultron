@@ -21,6 +21,7 @@ boilerplate and ensures a single place to tune timeout/interval defaults.
 import logging
 import time
 from collections.abc import Callable, Sequence
+from typing import Literal, get_args
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
 from vultron.core.models.dimensions import dimension_state
@@ -1629,18 +1630,21 @@ def wait_for_reporter_introduction(
 # Participant-state polling helpers
 # ---------------------------------------------------------------------------
 
+ParticipantDimension = Literal["rm", "vf", "d"]
+"""The ``ParticipantStatus`` dimension fields a participant poll can read."""
+
 
 def _wait_for_participant_status_field(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-    field_name: str,
+    dimension: ParticipantDimension,
     expected_states: "set",
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s latest participant status field is in *expected_states*.
+    """Poll until *actor_id*'s latest participant status dimension is in *expected_states*.
 
     Private shared implementation for :func:`wait_for_participant_vf_state`,
     :func:`wait_for_participant_d_state`, and :func:`wait_for_participant_rm_state`.
@@ -1649,8 +1653,9 @@ def _wait_for_participant_status_field(
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
-        field_name: Attribute name on the participant status object to check
-            (e.g. ``"vf_state"``, ``"d_state"``, or ``"rm_state"``).
+        dimension: Dimension field on the participant status object whose
+            state to check (``"vf"``, ``"d"``, or ``"rm"``).  An absent
+            dimension (``vf`` on a non-VENDOR) reads as ``None``.
         expected_states: Set of state values that satisfy the condition.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
@@ -1658,8 +1663,15 @@ def _wait_for_participant_status_field(
             not the client's own actor — see :func:`_fetch_participant`.
 
     Raises:
+        ValueError: If *dimension* is not a ``ParticipantStatus`` dimension
+            field, so a misspelled name fails at once instead of timing out.
         AssertionError: If the state is not reached within *timeout_seconds*.
     """
+    if dimension not in get_args(ParticipantDimension):
+        raise ValueError(
+            f"Unknown participant status dimension {dimension!r}; "
+            f"expected one of {get_args(ParticipantDimension)}"
+        )
     deadline = time.monotonic() + timeout_seconds
     poll_count = 0
     while time.monotonic() < deadline:
@@ -1671,18 +1683,20 @@ def _wait_for_participant_status_field(
             latest = participant.participant_status
             n_statuses = len(participant.participant_statuses or [])
             current_val = (
-                getattr(latest, field_name) if latest is not None else None
+                dimension_state(latest, dimension)
+                if latest is not None
+                else None
             )
             logger.debug(
                 "_wait_for_participant_status_field poll #%d: "
                 "actor=%r case=%r participant=%r "
-                "n_statuses=%d field=%r current=%r expected=%r",
+                "n_statuses=%d dimension=%r current=%r expected=%r",
                 poll_count,
                 actor_id,
                 case_id,
                 participant.id_,
                 n_statuses,
-                field_name,
+                dimension,
                 current_val,
                 expected_states,
             )
@@ -1705,22 +1719,22 @@ def _wait_for_participant_status_field(
         participant.participant_status if participant is not None else None
     )
     current_val = (
-        getattr(latest, field_name) if latest is not None else "unknown"
+        dimension_state(latest, dimension) if latest is not None else "unknown"
     )
     store = dl_actor_id or client.actor_id
     logger.debug(
         "_wait_for_participant_status_field timed out after %.1f s: "
-        "actor=%r case=%r field=%r current=%r expected=%r store=%r",
+        "actor=%r case=%r dimension=%r current=%r expected=%r store=%r",
         timeout_seconds,
         actor_id,
         case_id,
-        field_name,
+        dimension,
         current_val,
         expected_states,
         store,
     )
     raise AssertionError(
-        f"Timed out waiting for actor '{actor_id}' {field_name} to be in "
+        f"Timed out waiting for actor '{actor_id}' {dimension} state to be in "
         f"{expected_states!r}; current={current_val!r}"
         f" (polled {client.base_url}, store of {store!r})"
     )
@@ -1735,7 +1749,7 @@ def wait_for_participant_vf_state(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s latest participant ``vf_state`` is in
+    """Poll until *actor_id*'s latest participant VF state (``vf.state``) is in
     *expected_states*.
 
     Args:
@@ -1756,7 +1770,7 @@ def wait_for_participant_vf_state(
         client,
         case_id,
         actor_id,
-        "vf_state",
+        "vf",
         expected_states,
         timeout_seconds,
         poll_interval,
@@ -1773,7 +1787,7 @@ def wait_for_participant_d_state(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s latest participant ``d_state`` is in
+    """Poll until *actor_id*'s latest participant D state (``d.state``) is in
     *expected_states*.
 
     Args:
@@ -1794,7 +1808,7 @@ def wait_for_participant_d_state(
         client,
         case_id,
         actor_id,
-        "d_state",
+        "d",
         expected_states,
         timeout_seconds,
         poll_interval,
@@ -2138,7 +2152,7 @@ def wait_for_participant_rm_state(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s latest participant ``rm_state`` is in
+    """Poll until *actor_id*'s latest participant RM state (``rm.state``) is in
     *expected_states*.
 
     Args:
@@ -2159,7 +2173,7 @@ def wait_for_participant_rm_state(
         client,
         case_id,
         actor_id,
-        "rm_state",
+        "rm",
         expected_states,
         timeout_seconds,
         poll_interval,

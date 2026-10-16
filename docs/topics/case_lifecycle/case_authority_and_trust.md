@@ -106,7 +106,7 @@ A participant that holds both a Vendor role and the Case Owner role may do every
 Once a case exists, a participant addresses every case-scoped message to the CASE_MANAGER and to nobody else ([PCR-08-001](../../reference/specs/protocol.md#pcr-08-001)).
 That covers notes, status updates, embargo proposals, and every other message about the case.
 The CASE_MANAGER judges it, records the outcome in the ledger, and sends the new ledger entry to every active participant.
-That fan-out is the only way a participant learns of an accepted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§5.4.2 Routing Topology](../../reference/vultron-spec/layers.md#542-routing-topology)).
+That fan-out is the only way a participant learns of an admitted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§5.4.2 Routing Topology](../../reference/vultron-spec/layers.md#542-routing-topology)).
 
 ```mermaid
 ---
@@ -174,7 +174,7 @@ It does not treat the message as a harmless duplicate.
 The second check is about the sender: *may this sender make this assertion?*
 The first check tells nothing about the second ([HP-01-006](../../reference/specs/protocol.md#hp-01-006), [ADR-0115](../../adr/0115-received-handlers-check-sender-entitlement.md)).
 Each kind of message has its own sender rule.
-The CASE_MANAGER accepts a reply to an invitation only from the actor that the invitation named ([CM-11-017](../../reference/specs/protocol.md#cm-11-017)).
+The CASE_MANAGER admits a reply to an invitation only from the actor that the invitation named ([CM-11-017](../../reference/specs/protocol.md#cm-11-017)).
 It accepts a reply to an ownership offer only from the named transferee.
 It accepts a request to remove a participant only from the Case Owner.
 

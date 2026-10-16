@@ -56,7 +56,7 @@ into :class:`EmbargoLifecycle` in ``service.py``:
   ``record_embargo_rejection``, ``record_embargo_withdrawal`` (MSM-07-010),
   ``assert_embargo_eligible``
 - ``expiry.py``     — ``assess_invite_expiry``, ``pending_invitations``,
-  ``detect_and_apply_expiry`` (EMB-17)
+  ``overdue_invitations`` (CM-28-015), ``detect_and_apply_expiry`` (EMB-17)
 
 Tracked in: https://github.com/CERTCC/Vultron/issues/538
 Scaffold (#746); full operations (#747)

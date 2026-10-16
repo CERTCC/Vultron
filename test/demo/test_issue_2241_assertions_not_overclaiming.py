@@ -253,7 +253,7 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
             client=client,
             case_id=_CASE_ID,
             actor_id=_RECEIVER_ID,
-            field_name="rm_state",
+            dimension="rm",
             expected_states={RM.ACCEPTED},
             timeout_seconds=0.05,
             poll_interval=0.01,

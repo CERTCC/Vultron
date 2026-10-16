@@ -182,7 +182,7 @@ class TestFetchParticipantHonoursTheStoreScope:
 
         assert participant is not None
         assert participant.participant_status is not None
-        assert participant.participant_status.rm_state == RM.START
+        assert participant.participant_status.rm.state == RM.START
         assert all("/actors/coordinator/" in p for p in client.paths)
 
     def test_scoped_read_returns_the_case_actors_view(self):
@@ -198,7 +198,7 @@ class TestFetchParticipantHonoursTheStoreScope:
 
         assert participant is not None
         assert participant.participant_status is not None
-        assert participant.participant_status.rm_state == RM.VALID
+        assert participant.participant_status.rm.state == RM.VALID
         assert all("/actors/case-actor-scope/" in p for p in client.paths)
         assert len(client.paths) == 2, "case read and participant read"
 

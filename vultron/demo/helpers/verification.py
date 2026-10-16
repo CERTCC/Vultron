@@ -24,6 +24,10 @@ import httpx2 as httpx
 
 from vultron.adapters.utils import parse_id
 from vultron.core.models.dimensions import dimension_state
+from vultron.core.models.participant_status import (
+    participant_status_d_state,
+    participant_status_vf_state,
+)
 from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import (
     CS_d,
@@ -173,7 +177,7 @@ def _assert_vendor_participant_state(
     latest = participant.participant_status
     if latest is None:
         raise AssertionError("Vendor participant has no participant statuses")
-    if latest.rm_state != RM.ACCEPTED:
+    if latest.rm.state != RM.ACCEPTED:
         raise AssertionError(
             "Vendor participant RM state did not transition to ACCEPTED"
         )
@@ -233,7 +237,7 @@ def _check_participant_rm_state_in(
     label: str,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Assert actor's latest participant rm_state is in *expected_states*.
+    """Assert actor's latest participant RM state is in *expected_states*.
 
     Used to enforce cross-state protocol invariants such as
     "CS.F entails RM in {ACCEPTED, DEFERRED, CLOSED}" — i.e. a participant
@@ -264,10 +268,10 @@ def _check_participant_rm_state_in(
             f"{label}: participant for actor '{actor_id}' has no participant"
             " statuses"
         )
-    latest_rm = latest.rm_state
+    latest_rm = latest.rm.state
     if latest_rm not in expected_states:
         raise AssertionError(
-            f"{label}: expected rm_state in {expected_states!r}, "
+            f"{label}: expected RM state in {expected_states!r}, "
             f"found {latest_rm!r}"
         )
 
@@ -279,7 +283,7 @@ def _check_participant_vf_state_in(
     expected_states: "set[CS_vf]",
     label: str,
 ) -> None:
-    """Assert actor's latest participant vf_state is in *expected_states*.
+    """Assert actor's latest participant VF state is in *expected_states*.
 
     Args:
         client: DataLayerClient for the target container.
@@ -299,10 +303,10 @@ def _check_participant_vf_state_in(
             f"{label}: participant for actor '{actor_id}' has no participant"
             " statuses"
         )
-    latest_vf = latest.vf_state
+    latest_vf = participant_status_vf_state(latest)
     if latest_vf not in expected_states:
         raise AssertionError(
-            f"{label}: expected vf_state in {expected_states!r}, "
+            f"{label}: expected VF state in {expected_states!r}, "
             f"found {latest_vf!r}"
         )
 
@@ -314,7 +318,7 @@ def _check_participant_d_state_in(
     expected_states: "set[CS_d]",
     label: str,
 ) -> None:
-    """Assert actor's latest participant d_state is in *expected_states*.
+    """Assert actor's latest participant D state is in *expected_states*.
 
     Args:
         client: DataLayerClient for the target container.
@@ -334,10 +338,10 @@ def _check_participant_d_state_in(
             f"{label}: participant for actor '{actor_id}' has no participant"
             " statuses"
         )
-    latest_d = latest.d_state
+    latest_d = participant_status_d_state(latest)
     if latest_d not in expected_states:
         raise AssertionError(
-            f"{label}: expected d_state in {expected_states!r}, "
+            f"{label}: expected D state in {expected_states!r}, "
             f"found {latest_d!r}"
         )
 
@@ -350,7 +354,7 @@ def _assert_participant_pxa_only(
     """Assert *participant* has a public-aware pxa_state (no VFD check).
 
     Used for non-vendor/non-deployer receivers (e.g. coordinators) whose
-    vf_state/d_state never advances (non-vendor/deployer) — only pxa is meaningful for them
+    vf/d state never advances (non-vendor/deployer) — only pxa is meaningful for them
     after a public-disclosure event (CSB-15-003).
 
     Raises:
@@ -377,7 +381,7 @@ def _assert_participant_vf_pxa(
 ) -> None:
     """Assert *participant* has fix-ready (VF=VF) and a public-aware pxa_state.
 
-    Both fix-ready-only and fix-deployed actors have vf_state=CS_vf.VF.
+    Both fix-ready-only and fix-deployed actors have vf.state == CS_vf.VF.
 
     Args:
         participant: The ``as_CaseParticipant`` to check.
@@ -385,7 +389,7 @@ def _assert_participant_vf_pxa(
         vendor_actor_id: Full URI of the vendor actor (used in error messages).
 
     Raises:
-        AssertionError: If the participant's vf_state is not CS_vf.VF or
+        AssertionError: If the participant's vf.state is not CS_vf.VF or
             its pxa_state is not public-aware.
     """
     public_aware = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
@@ -394,9 +398,10 @@ def _assert_participant_vf_pxa(
         raise AssertionError(
             f"M6 {label}: participant {vendor_actor_id!r} has no statuses"
         )
-    if latest.vf_state != CS_vf.VF:
+    latest_vf = participant_status_vf_state(latest)
+    if latest_vf != CS_vf.VF:
         raise AssertionError(
-            f"M6 {label}: vf_state is not VF (fix ready), found {latest.vf_state!r}"
+            f"M6 {label}: vfState is not VF (fix ready), found {latest_vf!r}"
         )
     cs = getattr(latest, "case_status", None)
     pxa = dimension_state(cs, "pxa")
