@@ -14,9 +14,7 @@ revision-negotiation shorthands onto their initial-negotiation counterparts:
 context rather than by a payload field (MSM-02).
 
 An embargo proposal carries its `EmbargoEvent` inline on the `Invite` that proposes it.
-This implementation does not support a separate `Create(Event)` ahead of the `Invite`.
-An inbox refuses one as an unrecognized activity and changes nothing.
-Whether the protocol should support that separate `Create` is an [open question](../../topics/future_work/open_questions.md).
+The protocol names `Invite(Event)` as the one form; a received `Create(Event)` is not a protocol message, and an inbox refuses it and changes nothing ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
 
 ## Occasions
 

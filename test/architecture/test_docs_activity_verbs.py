@@ -193,7 +193,7 @@ _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
         # establish_embargo.md, manage_participants.md, status_updates.md:
         # named as forms this implementation does not support, to warn an
         # implementer off sending a separate Create ahead of the Invite or Add
-        # that carries the object inline (#4598; open question #4635).
+        # that carries the object inline (#4598; deferred-forms open question #4550).
         "Create(Event)": "not supported by this implementation (#4598)",
         "Create(CaseStatus)": "not supported by this implementation (#4598)",
         "Create(ParticipantStatus)": (
