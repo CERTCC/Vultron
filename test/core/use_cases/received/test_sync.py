@@ -34,6 +34,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
+from vultron.core.models.pending_assertion import PendingAssertionStore
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.sync_helpers import reconstruct_tail_hash
@@ -184,7 +185,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
+        )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         # The inbox adapter always sets receiving_actor_id in production; set
         # it here so the reject is enqueued against the receiving actor's
@@ -399,7 +402,9 @@ class TestOutOfOrderAnnounceBuffering:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
+        )
         return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
     def _chain(
@@ -666,7 +671,9 @@ class TestPreGenesisAnnounceBuffering:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
+        )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
@@ -714,7 +721,9 @@ class TestAnnounceLedgerEntryDisposition:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=actor)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=actor, to=[RECEIVER_URI]
+        )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
@@ -894,3 +903,56 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.reason is not None
         assert self._IMPOSTER_URI in result.reason
         assert "is not the CASE_MANAGER" in result.reason
+
+
+class TestUnaddressedAnnounceActsOnNothing:
+    """A copy the addressee door guard refuses hands nothing back and leaves
+    the receiver's pending assertion pending (HP-01-005, #4832)."""
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-01-012")
+    def test_refused_copy_hands_nothing_back_and_clears_no_assertion(
+        self, dl, case_with_genesis
+    ):
+        genesis = _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
+        successor = _make_entry(CASE_URI, 1, genesis.entry_hash)
+        # The genesis entry waits in the buffer, appliable now; the copy
+        # announces its successor.
+        gap_buffer = LedgerGapBuffer()
+        gap_buffer.buffer(genesis)
+        pending = PendingAssertionStore()
+        pending.add(CASE_URI, successor.event_type, successor.log_object_id)
+        hand_back = RecordingInboxHandBack()
+        wire_entry = WireCaseLedgerEntry.model_validate(
+            successor.model_dump(mode="json")
+        )
+        copy = cast(
+            AnnounceLogEntryReceivedEvent,
+            extract_event(
+                announce_log_entry_activity(
+                    wire_entry,
+                    actor=ACTOR_URI,
+                    to=["https://example.org/actors/someone-else"],
+                )
+            ),
+        )
+
+        result = AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            copy,
+            sync_port=MagicMock(spec=SyncActivityPort),
+            pending_assertions=pending,
+            gap_buffer=gap_buffer,
+            inbox_hand_back=hand_back,
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert hand_back.handed_back == []
+        assert "unaddressed copy is refused (HP-01-005)" in (
+            result.reason or ""
+        )
+        assert gap_buffer.depth(CASE_URI) == 1
+        assert pending.is_suppressed(
+            CASE_URI, successor.event_type, successor.log_object_id
+        )
+        assert dl.list_objects("CaseLedgerEntry") == []

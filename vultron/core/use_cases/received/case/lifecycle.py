@@ -26,8 +26,8 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     closed_sender_verdict,
+    door_refusal,
     find_named,
-    post_close_refusal,
     reference_edit_verdict,
     verdict_from_bt,
 )
@@ -214,9 +214,10 @@ class CloseCaseReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        if (refusal := post_close_refusal(tree)) is not None:
-            # The case is fully closed: nothing was recorded, and the sender
-            # got a Reject only under PostCloseReply.REJECT (CM-23-013).
+        if (refusal := door_refusal(tree)) is not None:
+            # The case is fully closed, or the copy was not addressed to this
+            # receiver: nothing was recorded, and the sender got a Reject only
+            # under PostCloseReply.REJECT (CM-23-013, HP-01-005).
             return refusal
         closed = closed_sender_verdict(
             tree, result, closes=True, label="Leave(VulnerabilityCase)"

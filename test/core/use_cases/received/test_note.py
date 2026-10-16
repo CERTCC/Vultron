@@ -74,6 +74,7 @@ class TestNoteUseCases:
         activity = as_Create(
             actor="https://example.org/users/finder",
             object_=note,
+            to=[dl.actor_id],
         )
 
         event = make_payload(activity)
@@ -110,6 +111,7 @@ class TestNoteUseCases:
         activity = as_Create(
             actor="https://example.org/users/finder",
             object_=note,
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -157,6 +159,7 @@ class TestNoteUseCases:
         activity = as_Create(
             actor="https://example.org/users/finder",
             object_=note,
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -207,6 +210,7 @@ class TestNoteUseCases:
         activity = as_Create(
             actor="https://example.org/users/finder",
             object_=note,
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -279,7 +283,10 @@ class TestNoteUseCases:
         dl.create(note)
 
         activity = add_note_to_case_activity(
-            note, target=case, actor="https://example.org/users/finder"
+            note,
+            target=case,
+            actor="https://example.org/users/finder",
+            to=[dl.actor_id],
         )
         event = make_payload(
             activity,
@@ -318,7 +325,10 @@ class TestNoteUseCases:
 
         event = make_payload(
             add_note_to_case_activity(
-                note, target=case, actor="https://example.org/users/finder"
+                note,
+                target=case,
+                actor="https://example.org/users/finder",
+                to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
         )
@@ -356,6 +366,7 @@ class TestNoteUseCases:
                 as_Note(id_=note_id, content="Rewritten", context=case_id),
                 target=case,
                 actor="https://example.org/users/finder",
+                to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
         )
@@ -388,6 +399,7 @@ class TestNoteUseCases:
             as_Note(id_=note_id, content="Rewritten", context=case_id),
             target=case,
             actor="https://example.org/users/finder",
+            to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
         parsed = ingress.parse(
@@ -430,6 +442,7 @@ class TestNoteUseCases:
             ),
             target=case,
             actor="https://example.org/users/finder",
+            to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
         parsed = ingress.parse(
@@ -467,6 +480,7 @@ class TestNoteUseCases:
                 as_Note(id_="https://example.org/notes/note3e", content="x"),
                 target=case,
                 actor="https://example.org/users/finder",
+                to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
         ).model_copy(update={"object_": None})
@@ -500,7 +514,10 @@ class TestNoteUseCases:
         dl.save(case)
 
         activity = add_note_to_case_activity(
-            note, target=case, actor="https://example.org/users/finder"
+            note,
+            target=case,
+            actor="https://example.org/users/finder",
+            to=[dl.actor_id],
         )
         event = make_payload(
             activity,
@@ -551,7 +568,10 @@ class TestNoteUseCases:
         dl.create(note)
 
         activity = add_note_to_case_activity(
-            note, target=case, actor="https://example.org/users/finder"
+            note,
+            target=case,
+            actor="https://example.org/users/finder",
+            to=[dl.actor_id],
         )
         event = make_payload(
             activity,
@@ -592,7 +612,9 @@ class TestNoteUseCases:
 
     def _remove(self, dl, make_payload, sender, note, case):
         event = make_payload(
-            as_Remove(actor=sender, object_=note, target=case.id_)
+            as_Remove(
+                actor=sender, object_=note, target=case.id_, to=[dl.actor_id]
+            )
         )
         return RemoveNoteFromCaseReceivedUseCase(
             dl,
@@ -742,6 +764,7 @@ class TestNoteUseCases:
             actor="https://example.org/users/finder",
             object_=note,
             target="https://example.org/cases/no-such-case",
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -789,6 +812,7 @@ class TestNoteUseCases:
                 object_=as_Note(
                     id_="https://example.org/notes/note-none", content="x"
                 ),
+                to=[dl.actor_id],
             )
         ).model_copy(update={"object_": None, "object_id": None})
         assert event.note is None
@@ -826,7 +850,9 @@ class TestNoteUseCases:
             context="https://example.org/cases/no-such-case",
         )
         activity = as_Create(
-            actor="https://example.org/users/finder", object_=note
+            actor="https://example.org/users/finder",
+            object_=note,
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -854,7 +880,10 @@ class TestNoteUseCases:
         )
         note = as_Note(id_="https://example.org/notes/note9", content="x")
         activity = add_note_to_case_activity(
-            note, target=case, actor="https://example.org/users/finder"
+            note,
+            target=case,
+            actor="https://example.org/users/finder",
+            to=[dl.actor_id],
         )
         event = make_payload(
             activity,
@@ -936,7 +965,7 @@ class TestNoteUseCases:
         dl.create(note)
 
         activity = add_note_to_case_activity(
-            note, target=case, actor=author_id
+            note, target=case, actor=author_id, to=[dl.actor_id]
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
@@ -1026,7 +1055,7 @@ class TestNoteUseCases:
         dl.create(note)
 
         activity = add_note_to_case_activity(
-            note, target=case, actor=author_id
+            note, target=case, actor=author_id, to=[dl.actor_id]
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 

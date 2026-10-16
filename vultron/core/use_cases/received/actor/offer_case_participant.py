@@ -25,7 +25,7 @@ Covers the three new semantics defined in ISSUE-1332:
 Who may act is decided in the tree (BT-17-001) and reported by the handler
 (HP-01-005): the Accept and Reject effects are the CASE_MANAGER's, and an
 ``Offer(CaseParticipant)`` is for the addressee it names.  Any other receiver
-of a copy refuses (#3752).
+of a copy refuses at the tree's addressee door guard (#3752).
 """
 
 import logging
@@ -52,7 +52,6 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
-    is_recipient,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
@@ -87,9 +86,9 @@ class OfferCaseParticipantReceivedUseCase:
 
     The Case Owner is the addressee: the Offer is now pending its decision,
     which it makes as a separate outbound Accept or Reject, so its receipt is
-    ``APPLIED`` with nothing more to do here.  A receiver that is neither the
-    CASE_MANAGER nor an addressee holds a misaddressed copy and refuses
-    (HP-01-005, #3752).
+    ``APPLIED`` with nothing more to do here.  A receiver the Offer is not
+    addressed to holds a misaddressed copy, which the tree's addressee door
+    guard refuses (HP-01-005, #3752).
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
@@ -158,19 +157,12 @@ class OfferCaseParticipantReceivedUseCase:
             # CASE_MANAGER's; a missing case also fails that gate (rule 3).
             if self._dl.read(case_id) is None:
                 return HandlerResult.refused(f"unknown case '{case_id}'")
-            if is_recipient(local_actor_id, request.activity):
-                # The addressee (the Case Owner): the Offer is now theirs
-                # to decide, by a separate outbound Accept or Reject.
-                return HandlerResult.applied()
-            verdict = HandlerResult.refused(
-                f"'{local_actor_id}' is neither the CASE_MANAGER nor an"
-                f" addressee of Offer(CaseParticipant) for case '{case_id}'"
-            )
-            logger.warning(
-                "ReceiveOfferCaseParticipantBT refused '%s': %s",
-                activity_id,
-                verdict.reason,
-            )
+            # Past the tree's door and sender guards, the store is the
+            # Offer's addressee, the Case Owner: only the CASE_MANAGER sends
+            # an Offer(CaseParticipant), so a non-CASE_MANAGER store never
+            # holds its own copy (HP-01-005).  The Offer is now theirs to
+            # decide, by a separate outbound Accept or Reject.
+            return HandlerResult.applied()
         return verdict
 
 

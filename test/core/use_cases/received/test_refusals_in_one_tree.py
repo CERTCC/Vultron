@@ -73,14 +73,24 @@ def _participant() -> as_CaseParticipant:
 
 
 def _move_event(make_payload, verb: str):
+    """The move, addressed to the store's actor so it passes the addressee
+    door (HP-01-005) and reaches the refusal under test."""
     if verb == "add":
         return make_payload(
             add_participant_to_case_activity(
-                _participant(), target=_CASE_ID, actor=_OWNER
+                _participant(),
+                target=_CASE_ID,
+                actor=_OWNER,
+                to=[_STORE_ACTOR],
             )
         )
     return make_payload(
-        as_Remove(actor=_OWNER, object_=_participant(), target=_CASE_ID)
+        as_Remove(
+            actor=_OWNER,
+            object_=_participant(),
+            target=_CASE_ID,
+            to=[_STORE_ACTOR],
+        )
     )
 
 
@@ -149,7 +159,11 @@ def test_create_note_without_a_note_is_refused_in_one_tree(
         context=_CASE_ID,
     )
     event = make_payload(
-        as_Create(actor="https://example.org/users/finder", object_=note)
+        as_Create(
+            actor="https://example.org/users/finder",
+            object_=note,
+            to=[_STORE_ACTOR],
+        )
     ).model_copy(update={"object_": None})
 
     result = CreateNoteReceivedUseCase(

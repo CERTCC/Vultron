@@ -216,7 +216,7 @@ class _Manager:
         assert isinstance(record, CaseParticipant)
         removal = self.route(
             remove_participant_from_case_activity(
-                record, target=CASE_ID, actor=OWNER
+                record, target=CASE_ID, actor=OWNER, to=[MANAGER]
             )
         )
         assert removal.disposition is HandlerDisposition.APPLIED
@@ -868,9 +868,17 @@ def test_paused_replica_ignores_an_announced_longer_revision() -> None:
 
 
 def _entry_event(
-    activity: Any, *, event_type: str, log_index: int, prev_log_hash: str
+    activity: Any,
+    *,
+    event_type: str,
+    log_index: int,
+    prev_log_hash: str,
+    to: str,
 ) -> tuple[AnnounceLogEntryReceivedEvent, CaseLedgerEntry]:
-    """The CASE_MANAGER's announcement of the ledger entry for *activity*.
+    """The CASE_MANAGER's announcement to *to* of the entry for *activity*.
+
+    The fan-out names its recipient in ``to`` (SYNC-09-002), so the replica's
+    addressee door admits it (HP-01-005).
 
     Returns the event and the entry, so the next entry can chain to it, as
     the backfill delivers them once the gap closed.
@@ -890,10 +898,16 @@ def _entry_event(
     wire_entry = as_CaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
-    announce = announce_log_entry_activity(entry=wire_entry, actor=MANAGER)
+    announce = announce_log_entry_activity(
+        entry=wire_entry, actor=MANAGER, to=[to]
+    )
     event = cast(AnnounceLogEntryReceivedEvent, extract_event(announce))
     event.activity = VultronActivity(
-        id_=event.activity_id, type_="Announce", actor=MANAGER, object_=entry
+        id_=event.activity_id,
+        type_="Announce",
+        actor=MANAGER,
+        to=[to],
+        object_=entry,
     )
     return event, entry
 
@@ -933,6 +947,7 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
         event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
         log_index=0,
         prev_log_hash=replica.case().genesis_hash,
+        to=replica.actor_id,
     )
     _replay(replica, reinstatement)
     assert not replica.record().removed
@@ -944,6 +959,7 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
         event_type="remove_embargo_event_from_case",
         log_index=1,
         prev_log_hash=reinstatement_entry.entry_hash,
+        to=replica.actor_id,
     )
     _replay(replica, termination)
 

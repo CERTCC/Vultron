@@ -116,6 +116,7 @@ def _deliver_participant_status(
         target=vendor,
         actor=sender_id,
         context=as_VulnerabilityCase(id_=CASE_ID, name="ReplicaSenderRule"),
+        to=[REPLICA_ID],
     )
     event = make_payload(activity, receiving_actor_id=REPLICA_ID)
     return AddParticipantStatusToParticipantReceivedUseCase(

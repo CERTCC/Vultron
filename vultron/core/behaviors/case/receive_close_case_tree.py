@@ -66,6 +66,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import DEFAULT_POST_CLOSE_REPLY, PostCloseReply
+from vultron.core.behaviors.case.nodes.addressee import (
+    ENCLOSING_TREE_ADDRESSEE_CHECK,
+)
 from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
     AdvanceCaseActorToRMClosedNode,
@@ -470,6 +473,7 @@ def create_close_case_received_tree(
         manager_case_id=case_id,
         manager_gate_name="CloseCaseEffectsIfCaseManager",
         post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
+        addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
     )
 
     # Decline arm: emit an as:Reject; commit nothing (CM-23-011). The Leave is

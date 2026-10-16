@@ -73,6 +73,7 @@ def test_offer_record_node_is_idempotent():
         ([], Status.FAILURE),
         (["https://example.org/actors/other"], Status.FAILURE),
     ],
+    ids=["to", "cc-only", "someone-else"],
 )
 def test_addressing_guard(to, status):
     node = CheckOfferAddressedToReceiverNode(to=to, report_id=REPORT)

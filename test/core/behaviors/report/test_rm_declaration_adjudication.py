@@ -137,22 +137,30 @@ _HANDLERS: dict[RM, _Handler] = {
     RM.VALID: _Handler(
         RM.VALID,
         ValidateReportReceivedUseCase,
-        lambda actor: rm_validate_report_activity(_offer(), actor=actor),
+        lambda actor: rm_validate_report_activity(
+            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
     RM.INVALID: _Handler(
         RM.INVALID,
         InvalidateReportReceivedUseCase,
-        lambda actor: rm_invalidate_report_activity(_offer(), actor=actor),
+        lambda actor: rm_invalidate_report_activity(
+            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
     RM.ACCEPTED: _Handler(
         RM.ACCEPTED,
         EngageCaseReceivedUseCase,
-        lambda actor: rm_engage_case_activity(_case_ref(), actor=actor),
+        lambda actor: rm_engage_case_activity(
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
     RM.DEFERRED: _Handler(
         RM.DEFERRED,
         DeferCaseReceivedUseCase,
-        lambda actor: rm_defer_case_activity(_case_ref(), actor=actor),
+        lambda actor: rm_defer_case_activity(
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
 }
 
@@ -328,6 +336,7 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
             id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
         ),
         actor=ACTOR_ID,
+        to=[CASE_MANAGER_ID],
         context=_case_ref(),
     )
     event = make_payload(activity)
@@ -431,11 +440,13 @@ class TestAnomalyFlagDoesNotLeakAcrossRuns:
         assert len(queued_notes(dl)) == 1, "the confirmation posts no note"
 
 
-def _status_declaration(rm: RM, sender_id: str = ACTOR_ID) -> Any:
+def _status_declaration(
+    rm: RM, sender_id: str = ACTOR_ID, to: str = CASE_MANAGER_ID
+) -> Any:
     """``Add(ParticipantStatus)`` declaring *rm* for the participant.
 
-    *sender_id* sends it: the participant itself by default, or the
-    CASE_MANAGER relaying it to a replica (PCR-03-001).
+    *sender_id* sends it to *to*: the participant itself to the CASE_MANAGER
+    by default, or the CASE_MANAGER relaying it to a replica (PCR-03-001).
     """
     status = as_ParticipantStatus(
         id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
@@ -449,6 +460,7 @@ def _status_declaration(rm: RM, sender_id: str = ACTOR_ID) -> Any:
             id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
         ),
         actor=sender_id,
+        to=[to],
         context=_case_ref(),
     )
 
@@ -565,7 +577,7 @@ class TestRefusedRegressionIsNoted:
         dl = store_for(ACTOR_ID)
         _seed(dl, RM.ACCEPTED)
         status, activity = _status_declaration(
-            RM.VALID, sender_id=CASE_MANAGER_ID
+            RM.VALID, sender_id=CASE_MANAGER_ID, to=ACTOR_ID
         )
         dl.create(status)
         event = make_payload(activity)

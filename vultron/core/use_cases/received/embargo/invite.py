@@ -44,7 +44,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    addressee_refusal,
+    door_refusal,
     node_failed,
     pxa_refusal_verdict,
     verdict_from_bt,
@@ -251,8 +251,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         if isinstance(subjects, EmbargoInviteFault):
             if verdict.disposition is HandlerDisposition.APPLIED:
                 verdict = HandlerResult.refused(subjects.reason)
-            elif (refusal := addressee_refusal(tree)) is not None:
-                verdict = refusal
         elif verdict.disposition is HandlerDisposition.REFUSED:
             verdict = self._refusal(tree, verdict, case_id, subjects)
         if verdict.disposition is not HandlerDisposition.APPLIED:
@@ -271,7 +269,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
     ) -> HandlerResult:
         """The verdict for a run the tree did not admit."""
         invite_id = self._request.activity_id
-        if (refusal := addressee_refusal(tree)) is not None:
+        if (refusal := door_refusal(tree)) is not None:
             return refusal
         if (
             refusal := pxa_refusal_verdict(

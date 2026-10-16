@@ -177,6 +177,7 @@ def test_case_copy_replaces_an_existing_replica() -> None:
     activity = announce_vulnerability_case_activity(
         as_VulnerabilityCase(id_=_CASE_ID, name="current copy"),
         actor=_CASE_ACTOR_ID,
+        to=[_REPLICA_ID],
         context=_CASE_ID,
     )
 

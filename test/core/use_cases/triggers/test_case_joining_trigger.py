@@ -582,7 +582,10 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     result = route_received(
         dl,
         as_Accept(
-            actor=invitee.id_, object_=original, in_reply_to=original_id
+            actor=invitee.id_,
+            object_=original,
+            in_reply_to=original_id,
+            to=[owner.id_],
         ),
         receiving_actor_id=owner.id_,
     )
@@ -599,7 +602,12 @@ def _accept_stub_invite(
     assert isinstance(invite, as_Invite)
     result = route_received(
         dl,
-        as_Accept(actor=invitee_id, object_=invite, in_reply_to=invite_id),
+        as_Accept(
+            actor=invitee_id,
+            object_=invite,
+            in_reply_to=invite_id,
+            to=[manager_id],
+        ),
         receiving_actor_id=manager_id,
     )
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -699,7 +707,10 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     result = route_received(
         dl,
         as_Reject(
-            actor=invitee.id_, object_=original, in_reply_to=original_id
+            actor=invitee.id_,
+            object_=original,
+            in_reply_to=original_id,
+            to=[owner.id_],
         ),
         receiving_actor_id=owner.id_,
     )

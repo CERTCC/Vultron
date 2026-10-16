@@ -87,6 +87,7 @@ class TestAckReportNoStandaloneStatus:
             id_="https://example.org/activities/accept-ack-1",
             type_="Accept",
             actor="https://example.org/actors/vendor",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = AckReportReceivedEvent(
             semantic_type=MessageSemantics.ACK_REPORT,
@@ -247,7 +248,9 @@ class TestFullReportFlow:
                 self.VENDOR_ID: vendor_participant.id_,
             },
         )
-        activity = create_case_activity(case, actor=self.CASE_ACTOR_ID)
+        activity = create_case_activity(
+            case, actor=self.CASE_ACTOR_ID, to=[self.VENDOR_ID]
+        )
         CreateCaseReceivedUseCase(
             dl, make_payload(activity), wire_render_port=As2WireRenderAdapter()
         ).execute()
@@ -516,6 +519,7 @@ class TestValidateReportReceivedGuardedCommit:
             id_=self.OFFER_ID,
             type_="Accept",
             actor=self.VENDOR_ID,
+            to=[self.CASE_ACTOR_ID],
         )
         offer = CoreObject(id_=offer_id, type_="Offer")
         report = VulnerabilityReport(id_=report_id)

@@ -279,10 +279,10 @@ catch-up fetch or deferral, refuse instead.
 **A participant answers a revision on a P/X/A case with ER, never ET**
 (EMB-03-003, ADR-0118). Termination belongs to the owner, or to the
 CASE_MANAGER when delegated (EP-09-008); a participant's ET would write shared
-EM state it does not own. The duty binds only the addressee: every received
-embargo tree passes `addressee_check` to `create_receive_activity_tree`, whose
-`ActivityAddressedToReceiverNode` door guard refuses an unaddressed copy before
-anything answers it (HP-01-005, CLP-10-010).
+EM state it does not own. The duty binds only the addressee: the
+`ActivityAddressedToReceiverNode` door guard that `create_receive_activity_tree`
+places in every received tree refuses an unaddressed copy before anything
+answers it (HP-01-005, CLP-10-010).
 
 ## P/X/A Teardown
 

@@ -40,8 +40,10 @@ from collections.abc import Iterable, Mapping
 from vultron.primitives import normalise_actor_id, same_actor_id
 
 __all__ = [
+    "PARTICIPANTS_COLLECTION_SEGMENT",
     "distinct_recipients",
     "is_addressed_to",
+    "participants_collection_case_id",
     "normalise_actor_id",
     "participant_id_for_actor",
     "same_actor_id",
@@ -76,6 +78,27 @@ def is_addressed_to(actor_id: str, recipients: Iterable[str]) -> bool:
     """
     target = normalise_actor_id(actor_id)
     return any(normalise_actor_id(r) == target for r in recipients)
+
+
+#: The last path segment of a case's participants collection,
+#: ``{case_id}/participants``: the one collection address Vultron senders use
+#: to reach every participant of a case at once (IE-11-002).
+PARTICIPANTS_COLLECTION_SEGMENT = "participants"
+
+
+def participants_collection_case_id(address: str) -> str | None:
+    """The case whose participants collection *address* names, or ``None``.
+
+    ``{case_id}/participants`` (with or without a trailing slash) names the
+    participants of ``case_id``; a participant's own id,
+    ``{case_id}/participants/{slug}``, and every other address name no
+    collection.  Whether the address names a case the receiver holds, and
+    whether the receiver belongs to it, is the caller's question.
+    """
+    base, sep, last = normalise_actor_id(address).rpartition("/")
+    if not sep or not base or last != PARTICIPANTS_COLLECTION_SEGMENT:
+        return None
+    return base
 
 
 def distinct_recipients(recipients: Iterable[str | None]) -> list[str]:

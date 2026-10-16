@@ -159,6 +159,7 @@ class TestCaseParticipantUseCases:
                 actor="https://example.org/users/owner",
                 object_=participant,
                 target=case_id,
+                to=[_MANAGER],
             )
         )
 
@@ -253,7 +254,7 @@ def _owner_removes(participant: CaseParticipant, case_id: str):
     )
 
     return remove_participant_from_case_activity(
-        participant, target=case_id, actor=_OWNER
+        participant, target=case_id, actor=_OWNER, to=[_MANAGER]
     )
 
 
@@ -261,7 +262,7 @@ def _owner_adds(participant: CaseParticipant, case_id: str):
     from vultron.wire.as2.factories import add_participant_to_case_activity
 
     return add_participant_to_case_activity(
-        participant, target=case_id, actor=_OWNER
+        participant, target=case_id, actor=_OWNER, to=[_MANAGER]
     )
 
 

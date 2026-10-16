@@ -1441,8 +1441,8 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
         if any(isinstance(n, guard_type) for n in c.iterate())
     )
     commit_index = names.index("GuardedCommitCaseLedgerEntryBT")
-    assert guard_index == 2, (
-        "the sender guard must come right after intake and the post-close"
-        " guard (CM-23-013)"
+    assert guard_index == 3, (
+        "the sender guard must come right after intake, the post-close"
+        " guard (CM-23-013) and the addressee door (HP-01-005)"
     )
     assert guard_index < commit_index

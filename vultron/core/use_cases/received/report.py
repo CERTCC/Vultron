@@ -42,11 +42,11 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    door_refusal,
     failure_reason,
     find_node,
     node_failed,
     node_succeeded,
-    post_close_refusal,
     rm_declaration_verdict,
     verdict_from_bt,
 )
@@ -81,10 +81,11 @@ def _submit_report_verdict(
     names a report, proposes the case.  A report-less Offer, a disabled
     ``auto_create_case`` gate and an already-sent proposal are no-ops, and
     any other failure is this actor's own (a missing port, a CaseActor that
-    cannot be hosted), so it raises rather than refuses — except the
-    post-close guard every received tree carries (CM-23-013).
+    cannot be hosted), so it raises rather than refuses — except the door
+    guards a received tree carries (CM-23-013); this tree's addressee check
+    is its own late one (CM-15-002).
     """
-    if (refusal := post_close_refusal(tree)) is not None:
+    if (refusal := door_refusal(tree)) is not None:
         return refusal
     guard = find_node(tree, CheckOfferAddressedToReceiverNode)
     if guard is not None and guard.misaddressed:
