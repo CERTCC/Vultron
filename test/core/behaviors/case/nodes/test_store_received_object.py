@@ -8,7 +8,7 @@ in every case.
 import pytest
 from py_trees.common import Status
 
-from test.core.behaviors.case.note_delivery import create_note_delivery
+from test.core.behaviors.case.note_delivery import add_note_delivery
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
@@ -48,7 +48,7 @@ def _node(event, obj=None, id_key=None):
 
 @pytest.mark.spec("HP-01-003")
 def test_stores_the_object_and_archives_the_activity(datalayer, actor_id):
-    note, activity, event = create_note_delivery()
+    note, activity, event = add_note_delivery()
 
     tree, result = _run(datalayer, actor_id, event, _node(event))
 
@@ -65,7 +65,7 @@ def test_stores_the_object_and_archives_the_activity(datalayer, actor_id):
 
 @pytest.mark.spec("HP-01-003")
 def test_an_object_already_held_is_skipped(datalayer, actor_id):
-    note, _, event = create_note_delivery()
+    note, _, event = add_note_delivery()
     datalayer.create(note)
 
     tree, result = _run(datalayer, actor_id, event, _node(event))
@@ -79,7 +79,7 @@ def test_an_object_already_held_is_skipped(datalayer, actor_id):
 
 @pytest.mark.spec("HP-01-003")
 def test_a_missing_object_is_skipped_not_failed(datalayer, actor_id):
-    _, activity, event = create_note_delivery()
+    _, activity, event = add_note_delivery()
     node = StoreReceivedObjectNode("Note", "urn:x:absent", None, "Note")
 
     _, result = _run(datalayer, actor_id, event, node)

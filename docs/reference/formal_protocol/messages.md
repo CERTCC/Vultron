@@ -275,7 +275,7 @@ See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) fo
     $RE$, $EE$, $CE$, and $GE$ are not realized as distinct AS2 activity types.
     Fault reporting is instead partitioned by **failure mode**: `Create(ProcessingFault)`
     for a message that was not understood, `as:Reject` for one that was understood but
-    declined, and `Create(Note)` for a condition requiring narrative explanation.
+    declined, and `Add(Note)` for a condition requiring narrative explanation.
     See [How to Report a Protocol Fault](../../howto/activitypub/activities/error.md) and
     `specs/message-semantics-mapping.yaml` MSM-05.
 

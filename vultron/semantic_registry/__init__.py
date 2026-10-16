@@ -202,7 +202,7 @@ def _validate_registry_order(registry: list[SemanticEntry]) -> None:
 #   4. Embargo        — REMOVE_EMBARGO_EVENT_FROM_CASE, INVITE_TO_EMBARGO, …
 #   5. Sync           — CLOSE_CASE, case-ledger sync entries
 #   6. Case members   — INVITE_ACTOR_TO_CASE, ACCEPT_INVITE_ACTOR_TO_CASE, …
-#   7. Notes          — CREATE_NOTE, ADD_NOTE_TO_CASE, REMOVE_NOTE_FROM_CASE
+#   7. Notes          — ADD_NOTE_TO_CASE, REMOVE_NOTE_FROM_CASE
 #   8. Status         — participant status entries
 #   9. Fallback       — UNKNOWN_UNRESOLVABLE_OBJECT, UNKNOWN (must be last)
 #

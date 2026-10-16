@@ -83,22 +83,6 @@ class TriggerActivityPort(Protocol):
         """Create and persist a Note object; return ``(note_id, note_json)``."""
         ...
 
-    def create_note_activity(
-        self,
-        actor: str,
-        note_id: str,
-        to: list[str] | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist a ``Create(Note)`` activity.
-
-        The note's ``context`` names its case; the ``Create`` has no
-        ``target``.  The id is derived from *actor* and the note, so a re-run
-        names the same activity (ID-04-004).
-
-        Returns ``(activity_id, activity_body)``, the body as sealed JSON.
-        """
-        ...
-
     def add_note_to_case(
         self,
         note_id: str,

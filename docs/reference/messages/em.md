@@ -152,7 +152,7 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
 - **Protocol role:** Indicates a Participant received an unexpected EM message.
 - **Triggering transition:** any unexpected EM message.
 - **Wire activity:** none dedicated. Faults are conveyed by
-  `Create(ProcessingFault)`, `as:Reject`, or `Create(Note)`, partitioned by
+  `Create(ProcessingFault)`, `as:Reject`, or `Add(Note)`, partitioned by
   failure mode
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types).

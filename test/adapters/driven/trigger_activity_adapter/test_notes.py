@@ -17,9 +17,6 @@ import json
 
 import pytest
 
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.note import VultronNote
 from vultron.errors import VultronNotFoundError
@@ -81,66 +78,6 @@ class TestCreateNote:
         # a fresh UUID, so we test the ValueError branch via the DL directly.
         with pytest.raises(ValueError):
             dl.create(note)
-
-
-class TestCreateNoteActivity:
-    def _note(self, adapter: TriggerActivityAdapter) -> str:
-        note_id, _ = adapter.create_note(
-            name="Report",
-            content="content",
-            context_id=_CASE_ID,
-            attributed_to=_ACTOR,
-        )
-        return note_id
-
-    def test_returns_id_and_body(self, adapter, dl):
-        note_id = self._note(adapter)
-
-        activity_id, body = adapter.create_note_activity(
-            actor=_ACTOR, note_id=note_id
-        )
-
-        assert activity_id
-        assert activity_id != note_id
-        assert json.loads(body)["id"] == activity_id
-
-    def test_persists_activity(self, adapter, dl):
-        note_id = self._note(adapter)
-
-        activity_id, _ = adapter.create_note_activity(
-            actor=_ACTOR,
-            note_id=note_id,
-            to=[_CASE_ID],
-        )
-
-        assert dl.read(activity_id) is not None
-
-    def test_case_is_the_notes_context_not_a_target(self, adapter, dl):
-        """The note names its case; the Create carries no target (#4549)."""
-        note_id = self._note(adapter)
-
-        _, body = adapter.create_note_activity(actor=_ACTOR, note_id=note_id)
-
-        activity = json.loads(body)
-        assert activity["type"] == "Create"
-        assert "target" not in activity
-        assert activity["object"]["context"] == _CASE_ID
-
-    @pytest.mark.spec("ID-04-004")
-    def test_rerun_names_the_same_activity(self, adapter, dl):
-        """One note is created once: a re-run hands back the first body
-        under the same derived id (ID-04-004, OX-06-002)."""
-        note_id = self._note(adapter)
-
-        first = adapter.create_note_activity(
-            actor=_ACTOR, note_id=note_id, to=[_CASE_ID]
-        )
-        second = adapter.create_note_activity(
-            actor=_ACTOR, note_id=note_id, to=[_CASE_ID]
-        )
-
-        assert first == second
-        assert first[0] == derived_activity_id("note-created", _ACTOR, note_id)
 
 
 class TestAddNoteToCase:
@@ -229,7 +166,7 @@ class TestAddNoteToCase:
 class TestStoredNoteCarriedAsWireNote:
     """A stored note reads back as ``VultronNote`` (DL-05-004, ISSUE-3647).
 
-    The Add/Create activities carry an ``as_Note``, so the adapter must render
+    The ``Add(Note)`` activity carries an ``as_Note``, so the adapter must render
     the core note to its wire form rather than cast it.
     """
 
@@ -252,31 +189,9 @@ class TestStoredNoteCarriedAsWireNote:
         assert carried["type"] == "Note"
         assert carried["content"] == "the content"
 
-    @pytest.mark.spec("DL-05-004", "ARCH-20-001")
-    def test_create_activity_carries_stored_core_note(self, adapter, dl):
-        note_id, _ = adapter.create_note(
-            name="Note",
-            content="content",
-            context_id=_CASE_ID,
-            attributed_to=_ACTOR,
-        )
-
-        activity_id, _ = adapter.create_note_activity(
-            actor=_ACTOR, note_id=note_id
-        )
-
-        stored = dl.read(activity_id)
-        assert stored is not None
-        assert stored.object_.id_ == note_id
-        assert stored.object_.content == "content"
-
-    @pytest.mark.parametrize("method", ["add", "create"])
-    def test_missing_note_raises_not_found(self, adapter, method):
+    def test_missing_note_raises_not_found(self, adapter):
         missing = "https://example.org/notes/missing"
         with pytest.raises(VultronNotFoundError):
-            if method == "add":
-                adapter.add_note_to_case(
-                    note_id=missing, case_id=_CASE_ID, actor=_ACTOR
-                )
-            else:
-                adapter.create_note_activity(actor=_ACTOR, note_id=missing)
+            adapter.add_note_to_case(
+                note_id=missing, case_id=_CASE_ID, actor=_ACTOR
+            )

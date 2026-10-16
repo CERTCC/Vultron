@@ -7,13 +7,11 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.note.add_note_received_tree import (
     create_add_note_to_case_received_tree,
 )
-from vultron.core.behaviors.note.create_note_tree import create_note_tree
 from vultron.core.behaviors.note.remove_note_received_tree import (
     create_remove_note_from_case_received_tree,
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
-    CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.models.use_case_result import (
@@ -21,7 +19,6 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
@@ -44,59 +41,6 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-class CreateNoteReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for note operations"
-    )
-
-    def __init__(
-        self,
-        dl: CasePersistence,
-        request: CreateNoteReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._trigger_activity = trigger_activity
-        self._wire_render_port = wire_render_port
-        self._sync_port = sync_port
-        self._request: CreateNoteReceivedEvent = request
-
-    def execute(self) -> HandlerResult:
-        request = self._request
-
-        # A Create(Note) with no note is refused by the tree itself
-        # (CLP-10-005, CLP-10-018).
-        note = request.note
-        case_id: str | None = note.context if note is not None else None
-        # The *receiving* actor, not the sender (BT-17-005): a received Note is
-        # stored in the receiver's own replica.
-        actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
-        bridge = BTBridge(
-            datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        )
-        tree = create_note_tree(note_obj=note, case_id=case_id)
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=request
-        )
-
-        verdict = verdict_from_bt(tree, result, label="CreateNoteBT")
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "CreateNoteBT refused activity '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-        return verdict
 
 
 class AddNoteToCaseReceivedUseCase:

@@ -393,10 +393,6 @@ RejectLogEntryPattern = ActivityPattern(
 # Note patterns
 # ---------------------------------------------------------------------------
 
-CreateNotePattern = ActivityPattern(
-    activity_=TAtype.CREATE,
-    object_=AOtype.NOTE,
-)
 AddNoteToCaseActivityPattern = ActivityPattern(
     activity_=TAtype.ADD,
     object_=AOtype.NOTE,
