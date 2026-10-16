@@ -103,17 +103,16 @@ sections carry the full definitions.
   from receipt to closure. Participant-specific. Seven states: Start, Received,
   Invalid, Valid, Deferred, Accepted, Closed
   ([§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n)).
-- **Embargo Management (EM)** — the negotiated disclosure timing agreed for the
-  case. Shared case state, computed from the case's embargo register of every
-  embargo proposed on it. Five states: None, Proposed, Active, Revised, Exited
+- **Embargo Management (EM)** — the negotiated disclosure timing agreed for the case.
+  Shared case state, computed from the case's embargo register of every embargo proposed on it.
+  Five states: None, Proposed, Active, Revised, Exited
   ([§7 Embargo Management (EM) State Machine](tracking-models.md#7-embargo-management-em-state-machine-n)).
 - **Case State (CS)** — what is known about the vulnerability. CS is the pair
   `(VFD, PXA)` ([§8 Case State (CS) Dimensions](tracking-models.md#8-case-state-cs-dimensions-n)).
-- **Participant Embargo Consent (PEC)** — each participant's answer to each
-  embargo in the register, one row per embargo. Per-participant, written by the
-  CASE_MANAGER. Five states: Uninvited, Invited, Agreed, Declined, Timed out.
-  Whether a participant is bound, a *signatory*, is read from its row for the
-  embargo in force
+- **Participant Embargo Consent (PEC)** — each participant's answer to each embargo in the register, one row per embargo.
+  Per-participant, written by the CASE_MANAGER.
+  Five states: Uninvited, Invited, Agreed, Declined, Timed out.
+  Whether a participant is bound, a *signatory*, is read from its row for the embargo in force
   ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 {% include-markdown "./includes/_dimensions-vs-machines.md" %}
@@ -148,12 +147,11 @@ participant may report a PXA observation; whether that report becomes canonical
 case state is decided separately
 ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
 
-**EM and PEC answer different questions.** EM says whether the case has an
-embargo. PEC says whether a given participant is bound by it. The two can
-disagree: a case at EM Active may hold a participant whose row for the
-embargo in force is not Agreed, if that participant has been invited but has
-not yet joined, or declined the terms. Cascade
-rules keep them consistent
+**EM and PEC answer different questions.**
+EM says whether the case has an embargo.
+PEC says whether a given participant is bound by it.
+The two can disagree: a case at EM Active may hold a participant whose row for the embargo in force is not Agreed, if that participant has been invited but has not yet joined, or declined the terms.
+Cascade rules keep them consistent
 ([§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades)).
 
 ### 3.5 Participants and Roles

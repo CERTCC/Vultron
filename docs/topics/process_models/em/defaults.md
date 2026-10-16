@@ -226,7 +226,7 @@ stateDiagram-v2
 !!! note ""
 
     If the Sender proposes an embargo *longer* than the Receiver's default embargo, the Receiver's default SHALL be taken as accepted and the Sender's proposal taken as a proposed revision.
-    The longer proposal stays open when the shorter is accepted, so it becomes the revision without being proposed again, and the case moves straight to *Revise*.
+    The longer proposal stays open when the shorter is accepted, so it becomes the revision, and the case moves straight to *Revise*.
 
     ???+ note "Formalism"
 
@@ -265,7 +265,7 @@ stateDiagram-v2
 
     ???+ note "Formalism"
 
-        $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} R$$
+        $$q^{em} \in N \xrightarrow{p_{sender}} P \xrightarrow{p_{receiver}} P \xrightarrow{a_{receiver}} R$$
 
 !!! note ""
 

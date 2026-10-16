@@ -41,14 +41,9 @@ sequenceDiagram
 On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these four steps in
 this order (CM-17-004):
 
-1. Commit a ledger entry recording the acceptance, and send that entry to every
-   active participant.
-2. Record the acceptance's effect on the participant: its RM state stays
-   `Received`, and its consent row for the active embargo, if any, becomes
-   `AGREED`, unless the participant had declined that embargo.
-3. When the participant is now active, send `Announce(VulnerabilityCase)`
-   carrying the full case snapshot, then replay the ledger entries committed
-   before this participant joined, oldest first.
+1. Commit a ledger entry recording the acceptance, and send that entry to every active participant.
+2. Record the acceptance's effect on the participant: its RM state stays `Received`, and its consent row for the active embargo, if any, becomes `AGREED`, unless the participant had declined that embargo.
+3. When the participant is now active, send `Announce(VulnerabilityCase)` carrying the full case snapshot, then replay the ledger entries committed before this participant joined, oldest first.
 4. Send the full-case Invite, which asks the participant to judge the case.
 
 !!! note "Recall: report management states"
@@ -90,7 +85,9 @@ Each cascade below starts from a step on the case's embargo register ([§7.1.1 T
   No consent row is written (CM-18-016, MSM-07-006).
   With no `ACTIVE` entry, no participant is a signatory and none has lapsed, and every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing (EMB-17-004).
 - **After a teardown.**
-  The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, is how every participant learns that the embargo ended; no further message is sent (EP-09-009, MSM-07-006).
+  The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, records the end (EP-09-009).
+  The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active participant (EMB-19-001), and a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach (CM-31-009).
+  No message is sent for consent, because none is written (MSM-07-006).
 
 !!! note "Recall: participant embargo consent states"
     {% include-markdown "./includes/_pec-states-table.md" %}

@@ -27,7 +27,10 @@ A participant can therefore be bound by the embargo in force and have already ag
 Every row is written.
 Proposing an embargo writes an `UNINVITED` row for it on every current participant, and creating a participant record writes an `UNINVITED` row for every entry already in the register (CM-18-001).
 No state is read from a missing row: a missing row is a defect, and reading one raises.
-A participant that joins late stays `UNINVITED` on embargoes that are no longer in force; it is invited only to the embargo in force and to open revisions (EP-09-011).
+A participant that joins late stays `UNINVITED` on embargoes that are no longer in force; it is invited only to the embargo in force and to open revisions (CM-11-006, EP-09-011).
+
+`UNINVITED` and `DECLINED` both leave the participant unbound by the embargo the row answers, but they are distinct states, because whether the participant gave an answer matters.
+The lapsed read stops at a `DECLINED` row and passes over an `UNINVITED` one ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)), and an open proposal is relayed to a joiner only while its row for that proposal is `UNINVITED` (CM-18-001, EP-09-011).
 
 `INVITED` carries the invitation's respond-by deadline, the **RSVP deadline**, on the row itself (CM-28-013).
 The deadline belongs to one invitation, so a participant can hold several `INVITED` rows with different deadlines, and one passing times out only its own row.
@@ -126,8 +129,10 @@ Nor is it recorded as a refusal: `DECLINED` is reached only by an explicit refus
 
 The deadline may be explicit or defaulted:
 
-- An embargo invitation MAY carry its own `endTime`, giving an explicit respond-by instant. Where present, it takes precedence over the policy window (CM-28-001, CM-28-002).
-- Where absent, a configurable policy window applies. The default window is 7 days.
+- An embargo invitation MAY carry its own `endTime`, giving an explicit respond-by instant.
+  Where present, it takes precedence over the policy window (CM-28-001, CM-28-002).
+- Where absent, a configurable policy window applies.
+  The default window is 7 days.
 
 Either way the result is bounded below and above by the two rules further down this section: the explicit `endTime` takes precedence over the policy window, but neither escapes the minimum window or the embargo-end ceiling.
 The pocket veto is the implicit form of this one mechanism, not a second mechanism alongside it.
@@ -148,7 +153,7 @@ A participant does not derive or store a deadline on receipt of an Invite.
 **Enforcing the deadline.**
 The CASE_MANAGER enforces it, and only the CASE_MANAGER (CM-28-003, CM-28-014).
 It does so lazily: when it next handles the case, it compares each deadline against its own clock, so no scheduler or timer service is required (CM-28-007, CM-28-008).
-Before it commits the case owner's decision on a proposal, and whenever it processes any other received embargo activity for the case, it expires every `INVITED` row whose deadline has passed and whose embargo is an open proposal or the embargo in force (CM-28-015).
+Before it commits the case owner's decision on a proposal, whenever it processes any other received embargo activity for the case, and whenever it runs an embargo trigger of its own, it expires every `INVITED` row whose deadline has passed and whose embargo is an open proposal or the embargo in force (CM-28-015).
 A row of a replaced, rejected, canceled or ended embargo is frozen and is not swept.
 The sweep runs after the activity's sender has been admitted and before the activity's own refusals, so an expiry is recorded even when the activity is then refused.
 
@@ -196,9 +201,9 @@ Whether a participant is currently bound by the embargo is a single yes-or-no qu
 This is a derived fact, not an independent one.
 An implementation MUST NOT record adherence as a value that can be set separately from the rows it reports, because the two would then be able to disagree, and a case that reports a participant as bound while its rows say otherwise has no correct reading.
 
-A change of consent MUST be made either by applying a consent trigger through the transitions of [§9.2 Transitions and Guards](tracking-models.md#92-transitions-and-guards), or, on a replica, by copying the row a ledger entry carries after checking its starting state, so that every change is a valid one and is recorded as such (CM-18-005).
+A change of consent MUST be made either by applying a consent trigger through the transitions of [§9.2 Transitions and Guards](tracking-models.md#92-transitions-and-guards), or by copying the row a ledger entry carries after checking its starting state, through the one apply function the CASE_MANAGER and every replica share, so that every change is a valid one and is recorded as such (CM-18-005).
 The CASE_MANAGER commits every consent row it changes as its own `Update(EmbargoConsent)` ledger entry, or `Create(EmbargoConsent)` for a row it brings into existence, after the entry of the act that caused it (CLP-07-013, EP-09-007).
-Where the act's own activity is the participant's answer, such as an `Accept(Invite(EmbargoEvent))`, that entry is the row's entry.
+Where the act's own activity states the row, such as a participant's `Accept(Invite(EmbargoEvent))` or, for the case owner's own row, its `Accept(EmbargoEvent, target=Case)` activating an embargo, that entry is the row's entry.
 
 !!! note "Informative: how the reference implementation does this"
     The reference implementation exposes adherence as a computed lookup over the stored consent rows and the register, so there is no separate field to fall out of step.

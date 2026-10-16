@@ -95,7 +95,7 @@ The transitions themselves are small and fixed:
 | Embargo Revision (EV), `Invite(EmbargoEvent)` | a new `PROPOSED` entry | `ACTIVE` to `REVISE`; the active embargo stays in force (EMB-03-001) |
 | Embargo Acceptance (EA) or Revision Acceptance (EC), the case owner's `Accept(EmbargoEvent, target=Case)` | the named entry becomes `ACTIVE`, superseding any entry in force | to `ACTIVE` once no other proposal is open, otherwise to or staying at `REVISE` (EMB-02-001) |
 | Embargo Rejection (ER) or Revision Rejection (EJ), the case owner's `Reject(EmbargoEvent, target=Case)` | the named entry becomes `REJECTED` | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE`, once no other proposal is open; otherwise unchanged (EMB-06-001) |
-| Embargo Termination (ET), `Remove(EmbargoEvent, target=Case)` | the `ACTIVE` entry becomes `TERMINATED`, and every open proposal `CANCELLED` | `ACTIVE` or `REVISE` to `EXITED`, immediately |
+| Embargo Termination (ET), `Remove(EmbargoEvent, origin=Case)` | the `ACTIVE` entry becomes `TERMINATED`, and every open proposal `CANCELLED` | `ACTIVE` or `REVISE` to `EXITED`, immediately |
 
 The formal protocol has each receiver acknowledge these with EK; in this implementation the case manager's commit and announcement of the received activity is that acknowledgment, and no EK message exists (EP-09-009, MSM-02-009).
 
@@ -112,14 +112,14 @@ Every Participant Embargo Consent change is a side effect of an EM activity or a
 
 | Activity | Effect on the case's EM state | Effect on consent |
 |---|---|---|
-| Embargo Proposal (EP) or Revision (EV), `Invite(Event)` on the case | `NONE` to `PROPOSED`, or `ACTIVE` to `REVISE`; a further proposal leaves it where it is | every Participant gets an `UNINVITED` row for the proposed embargo, the proposer's row becomes `AGREED`, because proposing terms is consenting to them, and no row for the embargo in force changes (CM-18-001, MSM-07-005, EP-05-002) |
+| Embargo Proposal (EP) or Revision (EV), `Invite(Event)` on the case | `NONE` to `PROPOSED`, or `ACTIVE` to `REVISE`; a further proposal leaves it where it is | every other Participant gets an `UNINVITED` row for the proposed embargo, the proposer's row is `AGREED`, because proposing terms is consenting to them, and no row for the embargo in force changes (CM-18-001, MSM-07-005, EP-05-002) |
 | A relayed `Invite(Event)` to one Participant | none | the invitee's row for that embargo moves from `UNINVITED`, `DECLINED` or `TIMED_OUT` to `INVITED`, carrying the invitation's RSVP deadline; a signatory asked about a revision keeps its `AGREED` row for the embargo in force (MSM-07-002, EP-09-004, CM-28-013) |
 | `Accept(Invite(Event))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `AGREED`; that makes it a signatory only once they are the embargo in force (MSM-07-003) |
-| `Reject(Invite(Event))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `DECLINED`; refused from an `AGREED` row for the embargo in force, because that is withdrawal (MSM-07-004) |
+| `Reject(Invite(Event))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `DECLINED`; refused from an `AGREED` row for the embargo in force, because withdrawal is `Leave(Event)` (MSM-07-004, MSM-07-010) |
 | The case owner's `Accept(Event, target=Case)` (EA, or EC for a revision) | to `ACTIVE`, or to `REVISE` while another proposal stays open | the owner's row for the activated embargo becomes `AGREED` unless it already is; a revision that ends no later than the embargo it replaces carries over every Participant whose row for the replaced embargo is `AGREED`, and one that ends later writes nothing, so a signatory that has not agreed to it has lapsed (MSM-07-005, MSM-07-008) |
 | The case owner's `Reject(Event, target=Case)` (ER, or EJ for a revision) | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE` with the prior terms standing, once no other proposal is open; once public disclosure, a public exploit or an attack is known, the rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none, the owner's included (MSM-07-009) |
 | Withdrawal, `Leave(Event)` of the embargo in force | none | the withdrawing Participant's `AGREED` row for the embargo in force becomes `DECLINED`, as does every row it had marked `AGREED` for an open revision; the embargo stays in force for everyone else (MSM-07-010) |
-| Embargo Termination (ET), `Remove(Event, target=Case)` | `ACTIVE` or `REVISE` to `EXITED` | none is written: with no `ACTIVE` entry nobody is a signatory, and no further message is sent (MSM-07-006) |
+| Embargo Termination (ET), `Remove(Event, origin=Case)` | `ACTIVE` or `REVISE` to `EXITED` | none is written: with no `ACTIVE` entry nobody is a signatory, and no message is sent for consent (MSM-07-006) |
 | Invitation deadline passes | none | that invitation's `INVITED` row moves to `TIMED_OUT`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: the case owner's `Accept(Event, target=Case)` activates the embargo *and* makes the owner a signatory.
