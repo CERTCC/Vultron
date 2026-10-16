@@ -230,12 +230,12 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
 
 ## Create Case Participant { #create-case-participant }
 
-`Create(CaseParticipant)` is not an occasion: this implementation does not support it as a message an actor sends.
+`Create(CaseParticipant)` is not an occasion: a received `Create(CaseParticipant)` is not a protocol message, because a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
 
 - **Protocol role:** it is the snapshot shape of the CASE_MANAGER's `create_case_participant` ledger entry.
   The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
   Replicas copy the record from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
   An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
-- **On receipt:** an inbox refuses a direct `Create(CaseParticipant)` as an unrecognized activity and changes nothing.
+- **On receipt:** an inbox refuses a direct `Create(CaseParticipant)` as an unrecognized activity and changes nothing (VAM-01-010).
 - **Triggering transition:** none — object construction.
 - **Example artifact:** [create_participant.json](../examples/create_participant.json), the snapshot shape as the case actor authors it.

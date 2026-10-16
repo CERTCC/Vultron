@@ -84,7 +84,7 @@ Each value is a single role, and a participant may hold several at once.
 
 Some roles describe a participant's part in the coordination: `REPORTER`, `VENDOR`, `DEPLOYER`, `COORDINATOR`, `OBSERVER`, and `CVE_NUMBERING_AUTHORITY`.
 Two describe authority over the case itself: `CASE_OWNER` decides for the case, and `CASE_MANAGER` writes its history.
-`FINDER` is deprecated (ADR-0078).
+There is no Finder role (ADR-0078): an actor that discovers and reports a vulnerability holds `REPORTER`, and who found it is recorded on the report or in a case note.
 The full list, with what each role obliges, is in [Case Model Fields](../../reference/case_model_fields.md#cvdrole).
 
 ## How the objects relate
