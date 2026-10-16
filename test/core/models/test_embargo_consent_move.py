@@ -39,6 +39,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
+from vultron.errors import VultronNotFoundError
 
 CASE_ID = "https://example.org/cases/move"
 OWNER = "https://example.org/actors/owner"
@@ -139,6 +140,26 @@ class TestConsentRowMove:
             )
             is None
         )
+
+    @pytest.mark.spec("CM-18-005")
+    def test_a_missing_row_for_a_register_entry_raises(self):
+        """Every entry has a row on every participant (ADR-0122)."""
+        case_file = _case_file()
+        joiner = case_file.participants[JOINER]
+        stripped = joiner.model_copy(
+            update={
+                "embargo_consents": [
+                    r for r in joiner.embargo_consents if r.embargo_id != E2
+                ]
+            }
+        )
+        case_file = EmbargoCaseFile(
+            case=case_file.case,
+            participants={**case_file.participants, JOINER: stripped},
+        )
+
+        with pytest.raises(VultronNotFoundError):
+            consent_row_move(case_file, JOINER, E2, PEC_Trigger.AGREE)
 
     @pytest.mark.spec("CM-28-013")
     def test_a_move_out_of_invited_drops_the_deadline(self):

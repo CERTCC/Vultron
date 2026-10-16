@@ -110,6 +110,34 @@ def carry_over_changes(
     return changes
 
 
+def activation_consent_changes(
+    activated: EmbargoCaseFile,
+    *,
+    embargo_id: str,
+    previous_embargo_id: str | None,
+    ends_no_later: bool | None,
+) -> tuple[ConsentRowChange | None, list[ConsentRowChange]]:
+    """The consent rows an activation of *embargo_id* writes, in apply order.
+
+    *activated* is the case file as the ``ACTIVATE`` step leaves it.  First
+    the owner's ``AGREED`` row its Accept states, then, when the revision
+    ends no later than *previous_embargo_id* (*ends_no_later*), one
+    ``CARRY_OVER`` row per signatory of the replaced embargo, decided after
+    the owner's row (EP-05-001, MSM-07-005).  Writes nothing.
+    """
+    agreement = owner_agreement(activated, embargo_id)
+    if agreement is not None:
+        activated = apply_embargo_change(activated, agreement)
+    carry_overs: list[ConsentRowChange] = []
+    if ends_no_later and previous_embargo_id is not None:
+        carry_overs = carry_over_changes(
+            activated,
+            previous_embargo_id=previous_embargo_id,
+            revised_embargo_id=embargo_id,
+        )
+    return agreement, carry_overs
+
+
 class _ActivationDecisionMixin(_ActivationArmMixin):
     """The CASE_MANAGER's decision of an owner's activation, writing nothing."""
 
@@ -143,16 +171,12 @@ class _ActivationDecisionMixin(_ActivationArmMixin):
         )
         step = RegisterStep(kind=RegisterStepKind.ACTIVATE, embargo=embargo_id)
         activated = apply_embargo_change(case_file, step)
-        agreement = owner_agreement(activated, embargo_id)
-        if agreement is not None:
-            activated = apply_embargo_change(activated, agreement)
-        carry_overs: list[ConsentRowChange] = []
-        if ends_no_later and previous_embargo_id is not None:
-            carry_overs = carry_over_changes(
-                activated,
-                previous_embargo_id=previous_embargo_id,
-                revised_embargo_id=embargo_id,
-            )
+        agreement, carry_overs = activation_consent_changes(
+            activated,
+            embargo_id=embargo_id,
+            previous_embargo_id=previous_embargo_id,
+            ends_no_later=ends_no_later,
+        )
         return ActivationDecision(
             step=step,
             owner_agreement=agreement,
@@ -162,4 +186,8 @@ class _ActivationDecisionMixin(_ActivationArmMixin):
         )
 
 
-__all__ = ["ActivationDecision", "carry_over_changes"]
+__all__ = [
+    "ActivationDecision",
+    "activation_consent_changes",
+    "carry_over_changes",
+]

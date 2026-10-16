@@ -336,6 +336,95 @@ class TestCommitAndApplyEmbargoActivationNode:
         )
 
 
+def _bridge(dl: SqliteDataLayer) -> BTBridge:
+    return BTBridge(datalayer=dl, trigger_activity=TriggerActivityAdapter(dl))
+
+
+class TestActivationCommitFaults:
+    """A commit frame that fails, and a miswired tree (ARCH-15-001)."""
+
+    def test_an_accept_frame_that_does_not_commit_fails_and_writes_nothing(
+        self, dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The Accept's commit frame returned FAILURE (the case vanished):
+        the activation fails and nothing is written."""
+        from vultron.core.behaviors import case_manager_commit
+
+        case, active_id, revision_id, _owner_pid = _case_with_owner(
+            dl, "act-frame-fails", em_state=EM.ACTIVE
+        )
+        monkeypatch.setattr(
+            case_manager_commit._CommitCaseManagerActivityBase,
+            "update",
+            lambda self: Status.FAILURE,
+        )
+        node = CommitAndApplyEmbargoActivationNode(
+            case_id=case.id_,
+            embargo_id=revision_id,
+            result_out={},
+            builder=lambda to: ("urn:accept", "{}"),
+        )
+
+        result = _bridge(dl).execute_with_setup(
+            tree=node, actor_id=dl.actor_id
+        )
+
+        assert result.status is Status.FAILURE
+        assert "did not commit" in (result.feedback_message or "")
+        untouched = _case(dl, case.id_)
+        assert untouched.active_embargo_id == active_id
+        assert untouched.proposed_embargo_ids == [revision_id]
+
+    def test_carry_overs_with_no_received_accept_raise(
+        self, dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A received activation's carry-overs name the received Accept as
+        their cause; with none on ``/activity`` the tree is miswired."""
+        from vultron.core.services.embargo_lifecycle import (
+            ActivationDecision,
+            EmbargoLifecycle,
+        )
+
+        case, _active_id, revision_id, _owner_pid = _case_with_owner(
+            dl, "act-no-cause", em_state=EM.ACTIVE
+        )
+        real = EmbargoLifecycle.decide_activation
+
+        def _with_a_carry_over(self, case_file, embargo_id):
+            decided = real(self, case_file, embargo_id)
+            assert decided.owner_agreement is not None
+            # Recast the owner's row as a carry-over, so one entry needs a
+            # cause and the trial still applies.
+            return ActivationDecision(
+                step=decided.step,
+                owner_agreement=None,
+                em_before=decided.em_before,
+                em_after=decided.em_after,
+                carry_overs=(decided.owner_agreement,),
+            )
+
+        monkeypatch.setattr(
+            EmbargoLifecycle, "decide_activation", _with_a_carry_over
+        )
+        node = CommitAndApplyEmbargoActivationNode(
+            case_id=case.id_, embargo_id=revision_id, result_out={}
+        )
+
+        result = _bridge(dl).execute_with_setup(
+            tree=node, actor_id=dl.actor_id
+        )
+
+        assert result.internal_error
+        assert "VultronWiringError" in (result.feedback_message or "")
+        # Intake committed the Accept, so its step stands; the row whose
+        # entry never committed is not written (CLP-07-013).
+        assert _case(dl, case.id_).active_embargo_id == revision_id
+        owner_p = cast(CaseParticipant, dl.read(_owner_pid))
+        assert (
+            owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
+        )
+
+
 class TestActivationAppliesNode:
     """The received activation's decide-and-trial guard (ADR-0124)."""
 

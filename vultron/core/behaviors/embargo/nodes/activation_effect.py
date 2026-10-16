@@ -36,9 +36,6 @@ from __future__ import annotations
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.carried_embargo import (
-    store_carried_embargo,
-)
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
 )
@@ -60,8 +57,11 @@ from vultron.core.models.embargo_apply import (
     RegisterStepKind,
 )
 from vultron.core.models.embargo_consent_move import owner_agreement
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.services.carried_embargo import carried_entry_embargo
 from vultron.core.services.embargo_lifecycle import TransitionMode
+from vultron.errors import VultronError
 
 #: Ledger ``event_type`` of the case owner's committed activation.
 EMBARGO_ACTIVATION_EVENT_TYPE = MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value
@@ -106,7 +106,8 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
     carry-over is computed here: each is its own entry (EP-05-001).
 
     The embargo's record is stored from the copy the entry carries when this
-    replica does not hold it (EMB-18-003); a bare id it does not hold fails.
+    replica does not hold it, once the step has applied (EMB-18-003); a bare
+    id it does not hold, or a copy that belongs to another case, fails.
     An embargo already activated is in place, so a re-delivered entry changes
     nothing.  An entry naming an embargo that is not an open proposal here
     is refused into the gap buffer (ADR-0124); one that names no embargo
@@ -116,23 +117,29 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
 
     def update(self) -> Status:
         # The register entry this activates names an embargo this store must
-        # hold (EMB-18-003): the entry carries it inline, so hold it from
-        # there before the step is copied.
+        # hold (EMB-18-003).  The entry carries it inline: check it here,
+        # store it once the step has applied, so a refused entry stores
+        # nothing.
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
         entry = self._get_entry()
-        embargo_data = entry.payload_snapshot.get("object")
-        embargo_id = _extract_id_from_field(embargo_data)
-        if embargo_id and self._resolve_case_replica(entry.case_id):
-            problem = store_carried_embargo(
-                self.datalayer, embargo_data, embargo_id
-            )
-            if problem is not None:
-                self.feedback_message = f"{self.name}: {problem}"
+        pending: EmbargoEvent | None = None
+        if self._resolve_case_replica(entry.case_id) is not None:
+            try:
+                pending = carried_entry_embargo(
+                    self.datalayer,
+                    entry.case_id,
+                    entry.payload_snapshot.get("object"),
+                )
+            except VultronError as exc:
+                self.feedback_message = f"{self.name}: {exc}"
                 self.logger.warning("%s", self.feedback_message)
                 return Status.FAILURE
-        return super().update()
+        status = super().update()
+        if status == Status.SUCCESS and pending is not None:
+            self.datalayer.save(pending)
+        return status
 
     def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
         embargo_id = _extract_id_from_field(

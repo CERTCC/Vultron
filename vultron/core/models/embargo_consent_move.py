@@ -64,28 +64,31 @@ def consent_row_move(
     """The ``Update`` *trigger* makes to *actor_id*'s row for *embargo_id*.
 
     ``None`` when the move is not made: the case file holds no participant
-    record for *actor_id*, or no row for *embargo_id*; the register holds no
-    entry for it, or a final one (ADR-0122); or *trigger* is not legal from
-    the row's state (CM-18-003).  A move out of ``INVITED`` drops the
-    invitation's deadline (CM-28-013).
+    record for *actor_id* (a partial replica, ADR-0087); the register holds
+    no entry for *embargo_id*, or a final one (ADR-0122); or *trigger* is
+    not legal from the row's state (CM-18-003).  A move out of ``INVITED``
+    drops the invitation's deadline (CM-28-013).
+
+    Raises:
+        VultronNotFoundError: the participant holds no row for an embargo
+            the register holds, a broken invariant (ADR-0122).
     """
     participant = case_file.participants.get(actor_id)
-    if participant is None:
-        return None
-    held = participant.held_row(embargo_id)
     entry = case_file.case.embargo_register_entry(embargo_id)
-    if (
-        held is None
-        or entry is None
-        or entry.status in FINAL_REGISTER_STATUSES
-        or not consent_trigger_is_legal(held.state, trigger)
+    if participant is None or entry is None:
+        return None
+    # Every register entry has a row on every participant (ADR-0122): a
+    # missing one is a defect, never "not asked", so it raises.
+    held_state = participant.consent_for(embargo_id)
+    if entry.status in FINAL_REGISTER_STATUSES or not consent_trigger_is_legal(
+        held_state, trigger
     ):
         return None
     return ConsentRowChange(
         verb=ConsentRowVerb.UPDATE,
         row=EmbargoConsent(
             embargo_id=embargo_id,
-            state=consent_after(held.state, trigger),
+            state=consent_after(held_state, trigger),
             attributed_to=actor_id,
         ),
     )
@@ -115,14 +118,20 @@ def joiner_agreement(
     embargo in force, when the row already reads ``AGREED``, or when it
     reads ``DECLINED``: only the participant's own answer to the embargo
     changes a decline (CM-18-003).
+
+    Raises:
+        VultronNotFoundError: the participant holds no row for the embargo
+            in force (ADR-0122).
     """
     case = case_file.case
     embargo_id = case.active_embargo_id
     if embargo_id is None:
         return None
     participant = case_file.participants.get(actor_id)
-    held = participant.held_row(embargo_id) if participant else None
-    if held is not None and held.state == EmbargoConsentState.DECLINED:
+    if (
+        participant is not None
+        and participant.consent_for(embargo_id) == EmbargoConsentState.DECLINED
+    ):
         return None
     return consent_row_move(case_file, actor_id, embargo_id, PEC_Trigger.AGREE)
 

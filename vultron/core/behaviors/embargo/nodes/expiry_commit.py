@@ -133,9 +133,12 @@ class _CommitActThenConsentRowNode(
                 f"case '{self._case_id}' holds no participant record for"
                 f" '{self._invitee_id}'"
             )
-        change = consent_row_move(
-            before, self._invitee_id, self._embargo_id, self._TRIGGER
-        )
+        try:
+            change = consent_row_move(
+                before, self._invitee_id, self._embargo_id, self._TRIGGER
+            )
+        except VultronNotFoundError as exc:
+            return self._fail(str(exc))  # a missing row (ADR-0122)
         if change is None:
             self.feedback_message = (
                 f"'{self._invitee_id}''s row for embargo '{self._embargo_id}'"

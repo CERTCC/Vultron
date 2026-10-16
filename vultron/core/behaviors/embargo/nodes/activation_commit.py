@@ -97,9 +97,12 @@ class CommitAndApplyEmbargoActivationNode(
     activity on ``/activity`` names the cause of the carry-over entries.
 
     FAILURE, with the error in ``result_out["error"]`` and nothing committed
-    or written, when the decision or the trial apply refuses the activation.
-    A commit that fails raises, as every CASE_MANAGER commit does
-    (BT-14-001).  On SUCCESS ``result_out`` holds ``em_before``,
+    or written, when the decision or the trial apply refuses the activation,
+    or the Accept's commit frame fails because the case vanished after the
+    decision.  A commit that fails raises, as every CASE_MANAGER commit does
+    (BT-14-001), and so does a miswired tree (no factory, or no received
+    activity to name as the carry-overs' cause).  Either way only the
+    changes whose entries committed are written.  On SUCCESS ``result_out`` holds ``em_before``,
     ``em_after`` and the ``lifecycle_result`` the trigger use case reports.
     """
 

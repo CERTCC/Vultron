@@ -45,9 +45,6 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.carried_embargo import (
-    store_carried_embargo,
-)
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
     RecordParticipantAcceptanceNode,
@@ -67,10 +64,12 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import carried_entry_embargo
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
+from vultron.errors import VultronError
 
 
 def _answered_invite(snapshot: dict[str, Any]) -> Any:
@@ -143,16 +142,22 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
 
         The canonical entry carries the object inline, so the replica stores
         it from there rather than fetching it from the proposer (EMB-18-003,
-        CLP-10-017).  A bare id is enough when the record is already here.
+        CLP-10-017).  A bare id is enough when the record is already here; an
+        inline copy whose ``context`` is another case is refused, as the
+        case-seeding path refuses one (``carried_entry_embargo``).
         """
         assert self.datalayer is not None
-        problem = store_carried_embargo(
-            self.datalayer, embargo_data, embargo_id
-        )
-        if problem is not None:
-            self.feedback_message = problem
+        try:
+            embargo = carried_entry_embargo(
+                self.datalayer, self._get_entry().case_id, embargo_data
+            )
+        except VultronError as exc:
+            self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return False
+        if embargo is None:
+            return True
+        self.datalayer.create(embargo)
         self.logger.debug(
             "%s: stored embargo '%s' from the canonical entry",
             self.name,

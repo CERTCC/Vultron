@@ -308,8 +308,6 @@ def test_joiner_signs_the_embargo_in_force(
 
     expected = Status.SUCCESS if signs else Status.FAILURE
     assert result.status == expected
-    stored = py_trees.blackboard.Blackboard.storage.get("/active_embargo_id")
-    assert stored == (_EMBARGO_ID if signs else None)
 
 
 _CM21_CASE_ID = "https://example.org/cases/case-cm21"

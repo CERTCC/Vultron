@@ -47,6 +47,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_event_types import (
     CONSENT_ROW_VERBS,
     UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
@@ -154,7 +155,9 @@ def _rows(net: LedgerNetwork, holder: str) -> dict[str, list[dict]]:
     return rows
 
 
-def _row(net: LedgerNetwork, holder: str, actor_id: str, embargo_id: str):
+def _row(
+    net: LedgerNetwork, holder: str, actor_id: str, embargo_id: str
+) -> EmbargoConsent | None:
     case = net.case(holder)
     record = cast(
         CaseParticipant,

@@ -166,9 +166,41 @@ def _answer_arms(
 
     The manager's Accept or Reject — of an Invite (the sender's consent), or
     as the case owner of the embargo itself (ADR-0122) — is addressed to
-    nobody: every replica learns it from the committed entry (EP-09-007).  An
-    Accept that activates a shorter revision is announced to the bound
-    signatories the ledger no longer reaches (CM-31-009).
+    nobody: every replica learns it from the committed entry (EP-09-007).
+    """
+    return _decision_arms(
+        name,
+        case_id,
+        [
+            lifecycle_node,
+            CommitEmbargoDecisionNode(
+                case_id=case_id,
+                event_type=event_type,
+                builder=activity_builder,
+            ),
+        ],
+        result_out,
+        activity_builder,
+        actor_config,
+    )
+
+
+def _decision_arms(
+    name: str,
+    case_id: str,
+    decide_and_commit: list[py_trees.behaviour.Behaviour],
+    result_out: dict[str, object],
+    activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The two arms of an answer or decision, around *decide_and_commit*.
+
+    As the manager: capture the signatories bound before the change, run
+    *decide_and_commit*, declare the ``Add(CaseStatus)``, announce a shorter
+    revision to the bound signatories the ledger no longer reaches
+    (CM-31-009), and re-issue stale stub Invites (CM-11-016).  Otherwise:
+    ask the manager.  Shared by :func:`_answer_arms` and the activation arm,
+    which commits before it writes (ADR-0124).
     """
     capture, notices = embargo_ending_notice_nodes(case_id)
     return _by_role(
@@ -176,12 +208,7 @@ def _answer_arms(
         case_id,
         as_case_manager=[
             capture,
-            lifecycle_node,
-            CommitEmbargoDecisionNode(
-                case_id=case_id,
-                event_type=event_type,
-                builder=activity_builder,
-            ),
+            *decide_and_commit,
             _make_emit_node(case_id),
             notices,
             # The owner's accept of a revision changes the active embargo
@@ -442,36 +469,26 @@ def activate_embargo_trigger_bt(
     whole ``ACTIVATE`` step and its own agreement) and then one
     ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row, and only then writes
     the case file (:class:`CommitAndApplyEmbargoActivationNode`, ADR-0124);
-    any other owner asks the CASE_MANAGER.  The manager's arm otherwise
-    matches :func:`_answer_arms`: the ``Accept`` is addressed to nobody, the
-    ``Add(CaseStatus)`` follows, dropped signatories are told (CM-31-009) and
-    outstanding stub Invites are re-issued (CM-11-016).
+    any other owner asks the CASE_MANAGER.  The rest of both arms is
+    :func:`_decision_arms`, shared with :func:`_answer_arms`; the ``Accept``
+    is addressed to nobody.
     """
-    capture, notices = embargo_ending_notice_nodes(case_id)
     return py_trees.composites.Sequence(
         name="ActivateEmbargoTriggerBT",
         memory=False,
-        children=_by_role(
+        children=_decision_arms(
             "ActivateEmbargo",
             case_id,
-            as_case_manager=[
-                capture,
+            [
                 CommitAndApplyEmbargoActivationNode(
                     case_id=case_id,
                     embargo_id=embargo_id,
                     result_out=result_out,
                     builder=activity_builder,
-                ),
-                _make_emit_node(case_id),
-                notices,
-                ReissueStubInvitesNode(case_id=case_id),
-            ],
-            otherwise=[
-                sender_side_bt(
-                    case_id=case_id,
-                    activity_builder=_asserting(activity_builder, result_out),
                 )
             ],
+            result_out,
+            activity_builder,
         ),
     )
 

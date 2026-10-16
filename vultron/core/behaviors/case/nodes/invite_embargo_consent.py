@@ -60,16 +60,9 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
         "invitee_case": PortInformation(data_type=object, required=False),
     }
 
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "active_embargo_id": PortInformation(data_type=object, required=False),
-    }
-
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "invitee_case": "/invitee_case",
-            "active_embargo_id": "/active_embargo_id",
-        }
+        return {"invitee_case": "/invitee_case"}
 
     def initialise(self) -> None:
         super().initialise()
@@ -82,19 +75,10 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
         case = self._invitee_case_bb
         if case is None:
             self.logger.error("%s: invitee_case not available", self.name)
-            # Initialize key so downstream nodes can safely read it.
-            self._set_output("active_embargo_id", None)
             return Status.FAILURE
-
-        active_embargo_id = _as_id(case.active_embargo)
-        if active_embargo_id:
-            self._set_output("active_embargo_id", active_embargo_id)
-            return Status.SUCCESS
-        # Always write the key so _SignEmbargoConsentLeafNode can read it
-        # even when there is no active embargo (py_trees raises KeyError for
-        # unwritten READ-registered keys — see AGENTS.md pitfalls).
-        self._set_output("active_embargo_id", None)
-        return Status.FAILURE
+        return (
+            Status.SUCCESS if _as_id(case.active_embargo) else Status.FAILURE
+        )
 
 
 class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts, StateWriteCapable):

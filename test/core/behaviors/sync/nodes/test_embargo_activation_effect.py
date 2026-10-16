@@ -279,6 +279,20 @@ def test_an_activation_of_an_embargo_not_open_here_is_refused(
     case = _case(datalayer)
     assert case.em_state is EM.NONE
     assert case.embargo_register == []
+    # A refused entry stores nothing, the carried embargo included.
+    assert datalayer.read(EMBARGO_ID) is None
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_a_carried_embargo_of_another_case_is_refused(bridge, datalayer):
+    """An inline copy is stored only when it belongs to this case."""
+    _seed(datalayer, EM.PROPOSED)
+
+    foreign = {**_embargo_snapshot(), "context": "https://example.org/cases/x"}
+    assert _apply(bridge, foreign).status == Status.FAILURE
+
+    assert datalayer.read(EMBARGO_ID) is None
+    assert _case(datalayer).em_state is EM.PROPOSED
 
 
 @pytest.mark.spec("RSH-08-004")

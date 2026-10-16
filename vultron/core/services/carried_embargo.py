@@ -26,14 +26,20 @@ Without the stored record a replica held a case pointing at an object it
 could not read: the manager's teardown then failed to announce
 (``terminate_embargo`` reads the ``EmbargoEvent`` first and raised), and every
 participant kept an embargo already torn down, with EM stuck at ACTIVE.
+
+:func:`carried_entry_embargo` is the same rule for a ledger entry that names
+an embargo, for the replica slot that activates it.
 """
 
+from pydantic import ValidationError
+
+from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.embargo_ordering import read_embargo_event
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
 def store_carried_embargo(
@@ -79,4 +85,52 @@ def store_carried_embargo(
     read_embargo_event(store, embargo_id)
 
 
-__all__ = ["store_carried_embargo"]
+def carried_entry_embargo(
+    store: CasePersistence | DataLayer, case_id: str, embargo_data: object
+) -> EmbargoEvent | None:
+    """The ``EmbargoEvent`` a ledger entry carries that *store* still lacks.
+
+    For a replica slot that changes the register entry the entry names: the
+    record must be held in the same store (EMB-18-003).  Returns ``None``
+    when *store* already holds it, else the validated inline copy for the
+    caller to store once the entry has applied, so a refused entry stores
+    nothing.  Writes nothing.
+
+    Raises:
+        VultronNotFoundError: the entry names, by bare reference, an embargo
+            *store* does not hold.
+        VultronValidationError: the inline copy is malformed, or belongs to
+            another case.
+    """
+    embargo_id = (
+        embargo_data.get("id")
+        if isinstance(embargo_data, dict)
+        else embargo_data
+    )
+    if not isinstance(embargo_id, str) or not embargo_id:
+        raise VultronValidationError(
+            f"Ledger entry on case '{case_id}' names no embargo."
+        )
+    if store.read(embargo_id) is not None:
+        read_embargo_event(store, embargo_id)  # held, and an EmbargoEvent
+        return None
+    if not isinstance(embargo_data, dict):
+        raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    try:
+        embargo = EmbargoEvent.model_validate(
+            project_wire_snapshot_to_core(EmbargoEvent, embargo_data)
+        )
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"Embargo '{embargo_id}' in the entry is malformed: {exc}"
+        ) from exc
+    if embargo.context != case_id:
+        raise VultronValidationError(
+            f"Ledger entry on case '{case_id}' carries embargo"
+            f" '{embargo_id}' whose context is '{embargo.context}', not this"
+            " case."
+        )
+    return embargo
+
+
+__all__ = ["carried_entry_embargo", "store_carried_embargo"]

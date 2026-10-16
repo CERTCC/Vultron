@@ -34,9 +34,8 @@ from vultron.core.models.embargo_apply import (
     apply_embargo_change,
     changed_objects,
 )
-from vultron.core.models.embargo_consent_move import owner_agreement
 from vultron.core.services.embargo_lifecycle.activation_decision import (
-    carry_over_changes,
+    activation_consent_changes,
 )
 from vultron.core.services.embargo_lifecycle.pec import (
     _PecEffectsMixin,
@@ -85,28 +84,27 @@ class _PecActivationMixin(_PecEffectsMixin):
         written through the one apply function, so this path and the
         copy model move the same rows:
 
-        - The owner's row for the activated embargo is ``AGREED``
-          (:func:`~vultron.core.models.embargo_consent_move.owner_agreement`),
-          a ``DECLINED`` row included (MSM-07-008).
+        - The owner's row for the activated embargo is ``AGREED``, a
+          ``DECLINED`` row included (MSM-07-008).
         - Replacing A with a B that ends no later than A carries A's
-          signatories over
-          (:func:`~vultron.core.services.embargo_lifecycle.activation_decision.carry_over_changes`);
-          a longer B carries nobody, and the signatories who have not agreed
-          to it have lapsed by derivation.  A first activation replaces
-          nothing.
+          signatories over; a longer B carries nobody, and the signatories
+          who have not agreed to it have lapsed by derivation.  A first
+          activation replaces nothing.
+
+        Both are decided by
+        :func:`~vultron.core.services.embargo_lifecycle.activation_decision.activation_consent_changes`,
+        the CASE_MANAGER's own decision.
         """
         before = self._case_file(case)
+        agreement, carry_overs = activation_consent_changes(
+            before,
+            embargo_id=embargo_id,
+            previous_embargo_id=previous_embargo_id,
+            ends_no_later=ends_no_later,
+        )
         after = before
-        agreement = owner_agreement(after, embargo_id)
-        if agreement is not None:
-            after = apply_embargo_change(after, agreement)
-        if ends_no_later and previous_embargo_id is not None:
-            for change in carry_over_changes(
-                after,
-                previous_embargo_id=previous_embargo_id,
-                revised_embargo_id=embargo_id,
-            ):
-                after = apply_embargo_change(after, change)
+        for change in [*([agreement] if agreement else []), *carry_overs]:
+            after = apply_embargo_change(after, change)
         changes = [
             ParticipantConsentChange(
                 participant_id=record.id_,
