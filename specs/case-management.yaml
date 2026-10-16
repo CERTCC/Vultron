@@ -4557,7 +4557,8 @@ groups:
       `test/architecture/test_delegated_attribution_uses_helper.py` confirms
       that every trigger use case and every received-side tree emitting a
       delegated Activity takes `actor` and `attributed_to` from the one shared
-      helper (`delegated_authorship()` in `vultron/core/behaviors/delegated_authorship.py`)
+      helper (`delegated_authorship()` in
+      `vultron/core/behaviors/delegated_authorship.py`)
       importable from both `vultron/core/use_cases/` and `vultron/core/behaviors/`.
     relationships:
     - rel_type: refines
