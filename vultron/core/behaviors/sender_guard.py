@@ -74,7 +74,6 @@ from vultron.core.behaviors.sender_check_context import (
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderClosureNotRecordedNode,
-    SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
@@ -135,13 +134,15 @@ def closed_sender_guard(
 _RULE_GUARD = "SenderRuleGuard"
 _ANY_OF = "AnyOfSenderKinds"
 
+#: The attribute :func:`compose_sender_guard` sets on the guard it returns,
+#: so :func:`sender_guard_refused` knows that node by its origin, never by
+#: its name or type: another sender node at the root is not the guard.
+_COMPOSED_GUARD_MARK = "_vultron_composed_sender_guard"
+
 
 def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
-    """*node* is a guard :func:`compose_sender_guard` returns: one kind's
-    node, an any-of selector, or the per-side dispatch."""
-    return node.name in {_RULE_GUARD, _ANY_OF} or isinstance(
-        node, (SenderEntitlementConditionNode, SenderIsParticipantNode)
-    )
+    """*node* is the guard :func:`compose_sender_guard` returned."""
+    return getattr(node, _COMPOSED_GUARD_MARK, False) is True
 
 
 def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
@@ -364,6 +365,16 @@ def compose_sender_guard(
             ``authored_object``, or a case-scoped check without
             ``case_id``.
     """
+    guard = _compose(rule, ctx)
+    if guard is not None:
+        setattr(guard, _COMPOSED_GUARD_MARK, True)
+    return guard
+
+
+def _compose(
+    rule: SenderRule, ctx: SenderCheckContext
+) -> py_trees.behaviour.Behaviour | None:
+    """The guard :func:`compose_sender_guard` returns, before it is marked."""
     if ctx.case_id is None:
         return _any_of(
             rule.outside_case,

@@ -202,6 +202,19 @@ def _pending_links(dl: CasePersistence) -> list[VultronReportCaseLink]:
     ]
 
 
+def _links_bound_to(
+    dl: CasePersistence, case_id: str
+) -> list[VultronReportCaseLink]:
+    """Every ``ReportCaseLink`` already bound to *case_id* by a named sender."""
+    return [
+        obj
+        for obj in dl.list_objects("ReportCaseLink")
+        if isinstance(obj, VultronReportCaseLink)
+        and obj.case_id == case_id
+        and obj.case_creator_id is not None
+    ]
+
+
 def is_bootstrap_accepted(
     dl: CasePersistence, creator_id: str, case_id: str
 ) -> bool:
@@ -210,11 +223,9 @@ def is_bootstrap_accepted(
     A redelivery of a bootstrap already accepted (CBT-01-006).
     """
     return any(
-        isinstance(obj, VultronReportCaseLink)
-        and obj.case_id == case_id
-        and obj.case_creator_id is not None
-        and same_actor_id(obj.case_creator_id, creator_id)
-        for obj in dl.list_objects("ReportCaseLink")
+        link.case_creator_id is not None
+        and same_actor_id(link.case_creator_id, creator_id)
+        for link in _links_bound_to(dl, case_id)
     )
 
 
@@ -224,20 +235,19 @@ def expected_case_creators(dl: CasePersistence, case_id: str) -> list[str]:
     The trust anchors a bootstrap ``Create(VulnerabilityCase)`` is checked
     against (CBT-01-005, CBT-01-011): the expected creator of every link
     still awaiting a bootstrap, and the creator of every link already bound
-    to *case_id* (a redelivery, CBT-01-006).  A sender is trusted exactly
-    when :func:`find_pending_report_case_link` or :func:`is_bootstrap_accepted`
-    finds a link for it: all three compare actor ids with
+    to *case_id* (a redelivery, CBT-01-006).  It reads the same links
+    :func:`find_pending_report_case_link` and :func:`is_bootstrap_accepted`
+    do, and all three compare actor ids with
     :func:`~vultron.core.predicates.addressing.same_actor_id`.
     """
     creators: list[str] = []
-    for link in dl.list_objects("ReportCaseLink"):
-        if not isinstance(link, VultronReportCaseLink):
-            continue
+    for link in [*_pending_links(dl), *_links_bound_to(dl, case_id)]:
         creator = link.case_creator_id
-        if creator is None or creator in creators:
+        if creator is None or any(
+            same_actor_id(creator, known) for known in creators
+        ):
             continue
-        if link.case_id is None or link.case_id == case_id:
-            creators.append(creator)
+        creators.append(creator)
     return creators
 
 

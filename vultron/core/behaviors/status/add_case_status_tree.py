@@ -133,14 +133,14 @@ def add_case_status_tree(
     status_id = request.status_id or ""
     case_id: str | None = request.case_id or None
     status_obj = request.status
-    sender_actor_id = request.actor_id or None
+    sender_actor_id = request.actor_id
 
     root = create_receive_activity_tree(
         name="AddCaseStatusToCaseBT",
         case_id=case_id or None,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
-            sender_id=sender_actor_id or "", case_id=case_id or None
+            sender_id=sender_actor_id, case_id=case_id
         ),
         precondition_guards=[
             CheckCaseStatusIdempotencyNode(

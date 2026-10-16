@@ -112,3 +112,17 @@ def test_a_run_that_succeeded_was_not_refused() -> None:
     _ran(guard, Status.SUCCESS)
 
     assert not sender_guard_refused(_root(guard))
+
+
+@pytest.mark.spec("HP-01-006")
+def test_a_failing_sender_node_at_the_root_that_was_not_composed_is_not_the_guard() -> (
+    None
+):
+    """The guard is known by its origin, not its type: a sender node a tree
+    lists itself at the root is not the composed guard."""
+    guard = _guard(SenderRule.in_case(SenderEntitlementKind.PARTICIPANT))
+    own_check = case_owner_guard(CASE_ID, SENDER_ID)
+    _ran(guard, Status.SUCCESS)
+    _ran(own_check, Status.FAILURE)
+
+    assert not sender_guard_refused(_root(guard, own_check))

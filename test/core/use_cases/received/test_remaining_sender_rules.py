@@ -359,6 +359,22 @@ def test_leave_from_a_stranger_is_refused_and_changes_nothing() -> None:
     assert world.outbox() == []
 
 
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("PCR-03-001")
+def test_leave_at_a_replica_from_a_non_manager_is_refused() -> None:
+    """A replica takes a closure from the CASE_MANAGER alone."""
+    world = _World(store_owner="finder")
+    before = world.ledger_size()
+
+    result = world.leave_from(world.stranger.id_)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "CASE_MANAGER" in (result.reason or "")
+    assert not world.finder_closed()
+    assert world.ledger_size() == before
+    assert world.outbox() == []
+
+
 @pytest.mark.spec("CLP-10-025")
 @pytest.mark.spec("EMB-13-003")
 def test_leave_from_a_participant_ends_an_overdue_embargo() -> None:

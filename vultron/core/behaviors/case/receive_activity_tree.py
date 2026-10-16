@@ -462,9 +462,10 @@ def _sender_guard_stage(
 ) -> py_trees.behaviour.Behaviour | None:
     """The tree's sender guard, composed from the declared rule (HP-01-008).
 
-    *case_id* is the tree's case: its commit case, else the case whose
-    CASE_MANAGER gates its effects (a tree that commits nothing at its own
-    level, such as the close-case tree, still checks its sender there).
+    The caller passes ``case_id or manager_case_id`` as *case_id*: the
+    tree's commit case, else the case whose CASE_MANAGER gates its effects
+    (a tree that commits nothing at its own level, such as the close-case
+    tree, still checks its sender there).
     """
     if sender_rule is None:
         if sender_context is not None:
@@ -676,9 +677,10 @@ def create_receive_activity_tree(
             inconsistent: ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
             ``sender_context`` naming another case than ``case_id`` (else
-            ``manager_case_id``) (HP-01-008), or ``clock_decisions`` name no case, come without
-            a ``sender_rule`` or with a ``post_close_exemption``, or hold
-            the received activity's commit (CLP-10-025).
+            ``manager_case_id``) (HP-01-008), or ``clock_decisions`` name
+            no case, come without a ``sender_rule`` or with a
+            ``post_close_exemption``, or hold the received activity's
+            commit (CLP-10-025).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022, CLP-10-025, ``specs/behavior-tree-integration.yaml``

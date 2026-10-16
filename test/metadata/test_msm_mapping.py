@@ -39,6 +39,7 @@ from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
+    NO_SENDER_CHECK,
     NOT_YET_CHECKED,
     ROW_SPECS,
     MappingStatus,
@@ -432,6 +433,14 @@ def test_an_exempt_occasion_may_name_any_addressee(addressee: AddresseeSide):
     occasion = _occasion(addressee=addressee)
     entry = _entry(occasion, entitlement=exempt("#0000", "stub"))
     assert sent_by(entry, occasion) == NOT_YET_CHECKED
+
+
+@pytest.mark.spec("MSM-08-010")
+def test_a_permanent_exemption_reads_no_sender_check_not_not_yet_checked():
+    """Nothing is pending for a use case no sender check applies to."""
+    occasion = _occasion(addressee=AddresseeSide.CASE_MANAGER)
+    entry = _entry(occasion, entitlement=no_sender_check("nothing to gate"))
+    assert sent_by(entry, occasion) == NO_SENDER_CHECK
 
 
 #: The "Send to" wording of each addressee, pinned as literals.
