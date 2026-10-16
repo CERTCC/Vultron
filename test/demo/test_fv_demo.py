@@ -42,10 +42,14 @@ from test.demo._helpers import (
     stub_closure_gate,
 )
 from vultron.adapters.utils import strip_id_prefix
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
-from vultron.demo.helpers.polling import case_manager_store
+from vultron.demo.helpers.polling import (
+    case_manager_store,
+    wait_for_case_em_state,
+)
 from vultron.demo.helpers.sync import verify_replica_state
 from vultron.demo.utils import case_actor_id_on
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -1060,16 +1064,33 @@ class TestActorClosesCase:
     """Tests for actor_closes_case."""
 
     def test_returns_response(self, client: TestClient, base: str):
-        """Returns a response dict from the trigger endpoint."""
+        """Once the embargo ends, the Case Owner's leave-case returns a Leave."""
         _finder_client, vendor_client, _finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        result = (
-            ActorSession(client=vendor_client, actor=vendor)
-            .with_case(case)
-            .leave_case()
+        session = ActorSession(client=vendor_client, actor=vendor).with_case(
+            case
         )
-        assert result is not None
+        session.terminate_embargo()
+        wait_for_case_em_state(
+            vendor_client, case.id_, EM.EXITED, dl_actor_id=vendor.id_
+        )
+        result = session.leave_case()
+        assert result.activity is not None
+        assert result.activity["type"] == "Leave"
+
+    @pytest.mark.spec("TRIG-13-003")
+    def test_case_owner_under_embargo_is_refused(
+        self, client: TestClient, base: str
+    ):
+        """While the embargo is active the Case Owner's leave-case is a 409."""
+        _finder_client, vendor_client, _finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        with pytest.raises(httpx.HTTPStatusError, match="409"):
+            ActorSession(client=vendor_client, actor=vendor).with_case(
+                case
+            ).leave_case()
 
 
 class TestWaitForParticipantVfState:
