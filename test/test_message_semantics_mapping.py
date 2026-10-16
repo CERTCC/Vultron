@@ -135,6 +135,35 @@ def test_pxa_dimensions_ride_case_status():
     assert as_CaseStatus.model_fields["pxa"].serialization_alias == "pxaState"
 
 
+@pytest.mark.spec("MSM-03-004")
+@pytest.mark.spec("MSM-03-005")
+@pytest.mark.spec("MSM-03-006")
+def test_pxa_also_rides_a_participant_status_embedded_case_status():
+    """A participant reports `CP`/`CX`/`CA` in the `CaseStatus` its
+    `Add(ParticipantStatus)` embeds (RSH-04-001, #4569)."""
+    pattern = _pattern(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
+    assert pattern.activity_ is TAtype.ADD
+    assert pattern.object_ == "ParticipantStatus"
+    assert pattern.target_ == "CaseParticipant"
+    assert (
+        as_ParticipantStatus.model_fields["case_status"].serialization_alias
+        == "caseStatus"
+    )
+    entry = next(
+        e
+        for e in SEMANTIC_REGISTRY
+        if e.semantics
+        is MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    )
+    carried = {
+        o.shorthand.value
+        for o in entry.occasions
+        if o.shorthand is not None
+        and getattr(o.distinguisher, "within", None) == "case_status"
+    }
+    assert carried == {"CP", "CX", "CA"}
+
+
 # ---------------------------------------------------------------------------
 # MSM-04 — General protocol message shorthands
 # ---------------------------------------------------------------------------

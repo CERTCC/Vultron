@@ -62,7 +62,7 @@ Participant status is self-declaratory, so a participant asserting another parti
 
 Use a case status for public awareness, exploit publication, and observed attacks — the dimensions that are properties of the vulnerability rather than of any one participant.
 
-Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`.
+Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`, or in your own participant status (see [Report it in your own participant status](#report-it-in-your-own-participant-status)).
 All three set `pxaState`; which one you are sending is determined by which letter in it changes case.
 
 In every case, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
@@ -90,6 +90,19 @@ That is Attacks Observed (CA).
 {% include-markdown "../../../reference/messages/_occasions/embeds/attacks-observed.md" %}
 
 The state change hangs off the `Add`, because that is the activity that asserts the attachment.
+
+### Report it in your own participant status
+
+A participant status embeds a case status that carries your own view of `pxaState`.
+You can report public awareness, exploit publication or observed attacks there instead: send `Add(ParticipantStatus)` targeting your own participant record, and make the same change to `pxaState` in its embedded case status.
+The CASE_MANAGER records the status on your participant record and, while an embargo is active or proposed, ends or abandons it, as it does for an `Add(CaseStatus)`.
+The Finder + Vendor demo reports public awareness this way.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-public-awareness.md" %}
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-exploit-public.md" %}
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-attacks-observed.md" %}
 
 ---
 

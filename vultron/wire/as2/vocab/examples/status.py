@@ -108,12 +108,14 @@ def _add_participant_status(
     role: CVDRole,
     vf: CS_vf | None = None,
     d: CS_d | None = None,
+    pxa: CS_pxa = CS_pxa.pxa,
 ) -> as_Add:
     """``Add(ParticipantStatus)`` sent by the participant whose state changed.
 
     *slug* names both the example organization and its participant record,
     so the vendor path is sent by the example Vendor and the deployer path by
-    an example Deployer.
+    an example Deployer.  *pxa* is the public state of the case as the
+    participant sees it, carried in the status's embedded case status.
     """
     sender_id = f"https://vultron.example/organizations/{slug}"
     participant_id = f"https://vultron.example/cases/1/participants/{slug}"
@@ -125,7 +127,11 @@ def _add_participant_status(
         vf=None if vf is None else VfDimension(state=vf),
         d=None if d is None else DDimension(state=d),
         cvd_role=[role],
-        case_status=case_status(),
+        # A changed public state gets a case status of its own, numbered
+        # apart from the unchanged one every other example embeds.
+        case_status=(
+            case_status() if pxa is CS_pxa.pxa else case_status(pxa, number)
+        ),
         **_example_stamp(),
     )
     return add_status_to_participant_activity(
@@ -146,6 +152,31 @@ def add_fix_readiness_to_participant() -> as_Add:
 def add_fix_deployment_to_participant() -> as_Add:
     """Fix deployed (CD): the Deployer's ``dState`` moves to ``D``."""
     return _add_participant_status(4, "deployer", CVDRole.DEPLOYER, d=CS_d.D)
+
+
+def add_public_awareness_to_participant() -> as_Add:
+    """Public awareness (CP) in the Finder's own participant status: its
+    embedded case status carries ``pxaState`` ``Pxa``."""
+    return _add_participant_status(
+        5, "finder", CVDRole.REPORTER, pxa=CS_pxa.Pxa
+    )
+
+
+def add_exploit_public_to_participant() -> as_Add:
+    """Exploit public (CX) in the Finder's own participant status: its
+    embedded case status carries ``pxaState`` ``PXa`` (the pX → PX
+    invariant)."""
+    return _add_participant_status(
+        6, "finder", CVDRole.REPORTER, pxa=CS_pxa.PXa
+    )
+
+
+def add_attacks_observed_to_participant() -> as_Add:
+    """Attacks observed (CA) in the Finder's own participant status: its
+    embedded case status carries ``pxaState`` ``pxA``."""
+    return _add_participant_status(
+        7, "finder", CVDRole.REPORTER, pxa=CS_pxa.pxA
+    )
 
 
 def add_status_to_participant() -> as_Add:

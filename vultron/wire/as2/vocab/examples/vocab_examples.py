@@ -142,10 +142,13 @@ from vultron.wire.as2.vocab.examples.report import (
 from vultron.wire.as2.vocab.examples.status import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.status import (
     add_attacks_observed_to_case,
+    add_attacks_observed_to_participant,
     add_exploit_public_to_case,
+    add_exploit_public_to_participant,
     add_fix_deployment_to_participant,
     add_fix_readiness_to_participant,
     add_public_awareness_to_case,
+    add_public_awareness_to_participant,
     add_status_to_case,
     add_status_to_participant,
     add_vendor_awareness_to_participant,
@@ -405,6 +408,9 @@ def main(outdir=None):
         add_vendor_awareness_to_participant,
         add_fix_readiness_to_participant,
         add_fix_deployment_to_participant,
+        add_public_awareness_to_participant,
+        add_exploit_public_to_participant,
+        add_attacks_observed_to_participant,
         add_public_awareness_to_case,
         add_exploit_public_to_case,
         add_attacks_observed_to_case,

@@ -464,6 +464,19 @@ def test_distinguished_by_names_a_dimension_field_by_its_wire_spelling():
     assert distinguished_by(occasion) == "`pxaState` = `Pxa`"
 
 
+def test_distinguished_by_names_an_embedded_field_by_its_dotted_path():
+    """A field read within an embedded model renders as its wire path."""
+    occasion = _occasion(
+        distinguisher=FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="pxa",
+            value=CS_pxa.Pxa,
+        )
+    )
+    assert distinguished_by(occasion) == "`caseStatus.pxaState` = `Pxa`"
+
+
 def test_distinguished_by_renders_a_state_context():
     occasion = _occasion(
         distinguisher=StateContext(machine=EM, states=(EM.NONE, EM.PROPOSED))
