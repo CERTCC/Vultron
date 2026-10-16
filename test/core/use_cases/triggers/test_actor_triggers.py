@@ -26,6 +26,7 @@ import json
 import logging
 from datetime import UTC
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -649,7 +650,6 @@ class TestRolesThreadingIntegration:
     def _run_round_trip(self, roles, make_payload):
         """Run the owner-direct invite, then Accept(Invite); return the
         CaseParticipant the CASE_MANAGER created."""
-        from unittest.mock import MagicMock
 
         from vultron.core.use_cases.received.actor.invite import (
             AcceptInviteActorToCaseReceivedUseCase,
@@ -1857,7 +1857,6 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         cleared on the mock; a bare ``MagicMock`` would auto-create a truthy
         ``case_id`` and silently satisfy the guard.
         """
-        from unittest.mock import MagicMock
 
         from vultron.core.use_cases.triggers.actor import (
             SvcAcceptCaseOwnershipTransferUseCase,
@@ -2021,6 +2020,24 @@ class TestSvcOfferCaseParticipantRoleUseCase:
         with pytest.raises(VultronNotFoundError):
             self._execute(actor, target, dl, case)
 
+    def test_a_factory_fault_raises_and_queues_nothing(self):
+        """A fault building the Offer fails the trigger before any send."""
+        actor, target, dl, case = self._setup()
+        broken = MagicMock(wraps=TriggerActivityAdapter(dl))
+        broken.offer_case_participant_role.side_effect = RuntimeError("down")
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+            role=CVDRole.VENDOR,
+        )
+
+        with pytest.raises(VultronValidationError):
+            SvcOfferCaseParticipantRoleUseCase(
+                dl, request, trigger_activity=broken
+            ).execute()
+        assert dl.outbox_list() == []
+
     def test_raises_when_trigger_activity_missing(self):
         """RuntimeError when trigger_activity is None (SE-08-003 guard)."""
         actor, target, dl, case = self._setup()
@@ -2028,6 +2045,7 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             actor_id=actor.id_,
             case_id=case.id_,
             target_actor_id=target.id_,
+            role=CVDRole.VENDOR,
         )
         with pytest.raises(RuntimeError):
             SvcOfferCaseParticipantRoleUseCase(

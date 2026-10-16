@@ -93,8 +93,10 @@ def create_offer_case_participant_role_received_tree(
     The commit records the received Offer, so it precedes the forward
     (CLP-10-006); the forward is not ledgered on its own, so SYNC-09-002's
     send-then-commit order binds nothing here.  A redelivery of a recorded
-    Offer reuses its entry and rebuilds the same forward, so a forward that
-    failed after the commit is sent then (HP-01-003, OX-06-002).  At a
+    Offer whose forward is not stored reuses its entry and builds the
+    forward, so a forward that failed after the commit is sent then; once
+    the forward is stored, a redelivery sends nothing (HP-01-003,
+    OX-06-002).  At a
     participant replica only the target answers (CM-33-004, BT-17-008).
 
     Args:

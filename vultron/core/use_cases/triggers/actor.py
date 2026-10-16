@@ -27,7 +27,6 @@ from urllib.parse import urlparse
 import py_trees.behaviour
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.actor_discovery import (
     ACTOR_DISCOVERY_DETERMINISTIC,
     ActorDiscoveryCallOutBundle,
@@ -44,7 +43,6 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     withdraw_case_ownership_transfer_trigger_bt,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
-from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.use_case_result import RoleOfferResult
@@ -58,6 +56,7 @@ from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
+    send_case_actor_activity,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptActorRecommendationTriggerRequest,
@@ -73,7 +72,6 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
-    VultronBTInternalError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
@@ -700,15 +698,14 @@ class SvcOfferCaseParticipantRoleUseCase:
             )
             return [activity_id]
 
-        tree = sender_side_bt(case_id=case.id_, activity_builder=_build_offer)
-        result = BTBridge(
-            datalayer=self._dl, trigger_activity=factory
-        ).execute_with_setup(tree, actor_id=req.actor_id)
-        if result.status != Status.SUCCESS:
-            raise VultronBTInternalError(
-                "SvcOfferCaseParticipantRoleUseCase failed:"
-                f" {result.feedback_message or BTBridge.get_failure_reason(tree)}"
-            )
+        send_case_actor_activity(
+            dl=self._dl,
+            case_id=case.id_,
+            actor_id=req.actor_id,
+            trigger_activity=factory,
+            failure_label="SvcOfferCaseParticipantRoleUseCase",
+            activity_builder=_build_offer,
+        )
         activity_id, activity_dict = built["activity_id"], built["activity"]
         logger.info(
             "SvcOfferCaseParticipantRoleUseCase: queued Offer(CaseParticipantRole)"

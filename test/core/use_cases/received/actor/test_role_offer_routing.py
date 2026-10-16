@@ -258,17 +258,59 @@ def test_case_manager_forwards_to_the_target_only_and_answers_nothing(
 def test_redelivered_offer_is_skipped_with_no_second_entry_or_forward(
     make_payload,
 ):
+    """Each delivery is built afresh, as a peer's retry would be."""
     dl = _store(_CASE_MANAGER_ID)
-    offer = _offer()
-    _deliver_offer(dl, make_payload, offer)
+    _deliver_offer(dl, make_payload, _offer())
     entries = _event_types(dl)
     forwards = _queued_offers(dl)
 
-    result = _deliver_offer(dl, make_payload, offer)
+    result = _deliver_offer(dl, make_payload, _offer())
 
     assert result.disposition is HandlerDisposition.SKIPPED
     assert _event_types(dl) == entries
     assert _queued_offers(dl) == forwards
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
+    """Delivery drained the outbox; the forward is not sent again."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    while dl.outbox_pop() is not None:
+        pass
+    entries = _event_types(dl)
+
+    result = _deliver_offer(dl, make_payload, _offer())
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("ID-02-001")
+@pytest.mark.spec("CM-33-003")
+@pytest.mark.parametrize(
+    "changed",
+    [
+        pytest.param({"role": CVDRole.COORDINATOR}, id="another-role"),
+        pytest.param({"target": _BYSTANDER_ID}, id="another-target"),
+        pytest.param({"target": _CASE_MANAGER_ID}, id="the-case-manager"),
+    ],
+)
+def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
+    make_payload, changed
+):
+    """Only the same role and target make it a redelivery."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    entries = _event_types(dl)
+    queued = dl.outbox_list()
+
+    result = _deliver_offer(dl, make_payload, _offer(**changed))
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _event_types(dl) == entries
+    assert dl.outbox_list() == queued
 
 
 @pytest.mark.spec("HP-01-003")
@@ -312,6 +354,7 @@ def test_a_copy_not_addressed_to_the_receiver_is_refused(make_payload):
     assert dl.read(_OFFER_ID) is None
 
 
+@pytest.mark.spec("CM-33-003")
 @pytest.mark.spec("BT-17-008")
 def test_offer_naming_the_case_manager_as_target_is_refused(make_payload):
     """The CASE_MANAGER would forward the Offer to itself."""

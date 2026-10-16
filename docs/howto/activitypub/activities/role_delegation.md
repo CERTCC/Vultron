@@ -78,6 +78,7 @@ The Case Manager does not give the target the role at this point.
 
 In the reference implementation this is the `offer-case-participant-role` trigger behavior.
 The trigger addresses the offer to the case's Case Manager, and fails without sending anything when the case names no Case Manager.
+The request must name the role to offer: it has no default.
 No `vultron-demo` scenario exercises role delegation yet; drive it through the [Trigger API](../../../reference/trigger-api.md#actor-participation) endpoints listed under Further reading.
 
 !!! warning "Offer a role, not a case"

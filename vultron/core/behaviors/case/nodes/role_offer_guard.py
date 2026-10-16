@@ -27,9 +27,14 @@ from typing import ClassVar
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.participants.role_offer import is_recorded_role_offer
+from vultron.core.participants.role_offer import (
+    entry_names_role_offer,
+    recorded_role_offer,
+    role_offer_forward_id,
+)
 from vultron.core.predicates.addressing import (
     participant_id_for_actor,
     same_actor_id,
@@ -52,18 +57,20 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
       executing actor (BT-17-008), and the answer it owes goes to the
       CASE_MANAGER (CM-33-004).
 
-    A **redelivery** of an Offer the ledger already records is not a new
-    Offer and not a refusal (HP-01-003).  The guard sets :attr:`is_redelivery`
-    and admits it without the other checks, which the Offer passed when it was
-    recorded and which the target's later Accept would now fail.  The run then
-    resumes what the first delivery may not have finished: the commit reuses
-    the recorded entry rather than adding one, and the forward is rebuilt
-    under its derived id, which the outbox does not queue twice while it is
-    pending (OX-06-002).  A forward that failed after the commit is therefore
-    sent by the redelivery.  The handler reports the run as ``SKIPPED``.  Only
-    the CASE_MANAGER records role Offers, and the forward a participant
-    receives carries its own id, so a participant never reads the forward as a
-    redelivery.
+    A **redelivery** of an Offer the ledger already records, naming the same
+    role and target, is not a new Offer and not a refusal (HP-01-003); an
+    Offer that reuses a recorded id for another role or target is refused
+    (ID-02-001).  The guard sets :attr:`is_redelivery` and skips the other
+    checks, which the Offer passed when it was recorded and which the
+    target's later Accept would now fail.  When the forward is already
+    stored, the redelivery changes nothing: the guard fails, so nothing
+    downstream runs and nothing is sent again.  When it is not, the forward
+    failed after the commit, and the guard admits the redelivery to finish
+    it: the commit reuses the recorded entry rather than adding one, and the
+    forward is built under its derived id (OX-06-002).  Either way the
+    handler reports the run as ``SKIPPED``.  Only the CASE_MANAGER records
+    role Offers, and the forward a participant receives carries its own id,
+    so a participant never reads the forward as a redelivery.
 
     Read-only.  It runs on every store the Offer reaches: the target holds
     the case too, and refuses the same malformed Offer (CM-33-004).
@@ -90,7 +97,7 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
         self.target_actor_id = target_actor_id
         self.is_redelivery = False
         """``True`` when the last run found this Offer already ledgered: a
-        benign no-op, not a refusal."""
+        redelivery, which only finishes an unsent forward, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
         self.feedback_message = (
@@ -98,6 +105,37 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+    def _redelivery(self, recorded: CaseLedgerEntry) -> Status:
+        """Judge an Offer whose id the ledger already records."""
+        assert self.datalayer is not None and self.actor_id is not None
+        assert self.role is not None
+        if not entry_names_role_offer(
+            recorded, self.role, self.target_actor_id
+        ):
+            return self._refuse(
+                "reuses the id of a recorded role Offer that names another"
+                " role or target (ID-02-001)"
+            )
+        self.is_redelivery = True
+        forward_id = role_offer_forward_id(
+            self.actor_id, self.case_id, self.offer_id
+        )
+        if self.datalayer.read(forward_id) is not None:
+            self.feedback_message = (
+                f"role Offer '{self.offer_id}' is already recorded and"
+                f" forwarded for case '{self.case_id}' — redelivery, nothing"
+                " to apply (HP-01-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        self.feedback_message = (
+            f"role Offer '{self.offer_id}' is already recorded for case"
+            f" '{self.case_id}' but not forwarded — redelivery resumes the"
+            " forward (HP-01-003)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
     def update(self) -> Status:
         self.is_redelivery = False
@@ -107,20 +145,17 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
             return self._refuse(
                 f"offers {self.role.value}, which no Offer may"
             )
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: the roster check needs the case
-        if is_recorded_role_offer(self.datalayer, self.case_id, self.offer_id):
-            self.is_redelivery = True
-            self.feedback_message = (
-                f"role Offer '{self.offer_id}' is already recorded for case"
-                f" '{self.case_id}' — redelivery (HP-01-003)"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
+        recorded = recorded_role_offer(
+            self.datalayer, self.case_id, self.offer_id
+        )
+        if recorded is not None:
+            return self._redelivery(recorded)
         if not self.target_actor_id:
             return self._refuse("names no target")
         participant_id = participant_id_for_actor(
@@ -140,7 +175,7 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
         ):
             return self._refuse(
                 f"names the case's CASE_MANAGER '{self.target_actor_id}',"
-                " which would forward the Offer to itself (BT-17-008)"
+                " which would forward the Offer to itself (CM-33-003, BT-17-008)"
             )
         if participant.has_role(self.role):
             return self._refuse(

@@ -66,16 +66,17 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
 
     The forward's id derives from the recorded Offer
     (:func:`~vultron.core.participants.role_offer.role_offer_forward_id`), so
-    a redelivery of the Offer rebuilds the same forward, which the outbox
-    does not queue twice while it is pending (OX-06-002).  It is not
-    ledgered on its own: the entry it follows records the Offer.
+    the guard can tell whether a redelivered Offer was already forwarded
+    (OX-06-002).  It is not ledgered on its own: the entry it follows records
+    the Offer.
 
     A ``manager_effects`` entry, so it runs only at the CASE_MANAGER
     (BT-17-008).  It runs after the commit, so a fault building or queuing
     the forward is the CASE_MANAGER's, never a refusal of the sender: it is
     not caught, and escapes to ``BTBridge`` as an internal error
     (ARCH-15-001).  A redelivery of the Offer then sends the forward, the
-    commit reusing the recorded entry
+    commit reusing the recorded entry; a redelivery after the forward was
+    stored sends nothing
     (:class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferAdmissibleNode`).
     Only a missing factory returns FAILURE, a wiring fault the handler also
     raises on.
