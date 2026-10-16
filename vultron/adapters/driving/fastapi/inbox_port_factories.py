@@ -27,6 +27,9 @@ import logging
 from collections.abc import Callable
 from typing import Any, cast
 
+from vultron.adapters.driven.inbox_hand_back_adapter import (
+    InboxHandBackAdapter,
+)
 from vultron.adapters.driven.sync_activity_adapter import (
     SyncActivityAdapter,
 )
@@ -114,11 +117,8 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
     value wins.  Some semantics use the sync port for more than their
     commit, and still take it from here:
 
-    - ``ANNOUNCE_VULNERABILITY_CASE`` seeds the local case, which anchors the
-      per-case genesis hash, and then drains any pre-genesis
-      ``Announce(CaseLedgerEntry)`` parked in the gap buffer.  The drain re-runs
-      the announce receive path, which sends a ``Reject`` on any residual
-      mismatch (SYNC-15-005, #2186, #2180).
+    - ``ANNOUNCE_CASE_LEDGER_ENTRY`` sends a ``Reject(CaseLedgerEntry)`` on a
+      hash-chain mismatch or a pre-genesis arrival (SYNC-03-001, SYNC-15-001).
     - ``CREATE_CASE_PROPOSAL``'s accept path commits the genesis entries
       natively and fans them out (``CommitNativeLedgerEntriesNode``, ADR-0041
       AC-4); the port is that fan-out's only channel (ARCH-04-004), and its
@@ -284,6 +284,29 @@ _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
     }
 )
+
+
+# ANNOUNCE_CASE_LEDGER_ENTRY commits a replica entry and ANNOUNCE_VULNERABILITY_CASE
+# seeds the case (anchoring its genesis hash); either can make an entry parked
+# in the gap buffer appliable.  That entry is handed back to the receiving
+# actor's own inbox as a delivery of its own, through the InboxHandBackPort
+# (SYNC-14-009, SYNC-15-005, ADR-0135).  See _inbox_hand_back_port_factory.
+_LEDGER_HAND_BACK_SEMANTICS = frozenset(
+    {
+        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+    }
+)
+
+
+def _inbox_hand_back_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Inject the ``InboxHandBackPort`` that queues to *dl*'s own inbox.
+
+    *dl* is the receiving actor's store (ADR-0073), so the handed-back
+    ``Announce(CaseLedgerEntry)`` lands in the queue the same inbox loop
+    drains after the current delivery (SYNC-14-009).
+    """
+    return {"inbox_hand_back": InboxHandBackAdapter(dl)}
 
 
 def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:

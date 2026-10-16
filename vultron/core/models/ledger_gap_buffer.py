@@ -146,6 +146,17 @@ class LedgerGapBuffer:
         )
         return True
 
+    def peek_next(
+        self, case_id: str, tail_hash: str
+    ) -> CaseLedgerEntry | None:
+        """Return the buffered successor of *tail_hash* without removing it.
+
+        Lets a caller check what it would take before it commits to taking
+        it, so a failure between the look and the take leaves the entry held.
+        Returns ``None`` when no buffered entry extends the given tail.
+        """
+        return self._by_case.get(case_id, {}).get(tail_hash)
+
     def take_next(
         self, case_id: str, tail_hash: str
     ) -> CaseLedgerEntry | None:

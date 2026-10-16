@@ -30,6 +30,9 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.inbox_hand_back_adapter import (
+    InboxHandBackAdapter,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -48,6 +51,8 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 from .conftest import make_embargo_case_with_actor
 
@@ -154,13 +159,19 @@ class LedgerNetwork:
         *,
         without: frozenset[str] = frozenset(),
     ):
-        """Run the use case for an already-extracted *event* at *receiver*."""
+        """Run the use case for an already-extracted *event* at *receiver*.
+
+        Then delivers whatever the run handed back to *receiver*'s own inbox
+        (SYNC-14-009), oldest first, as the inbox loop does after a delivery;
+        the returned verdict is the first delivery's own.
+        """
         dl = self.stores[receiver]
         use_case = use_case_map()[event.semantic_type]
         offered: dict[str, Any] = {
             "sync_port": SyncActivityAdapter(dl),
             "trigger_activity": TriggerActivityAdapter(dl),
             "wire_render_port": As2WireRenderAdapter(),
+            "inbox_hand_back": InboxHandBackAdapter(dl),
         }
         accepted = inspect.signature(use_case).parameters
         ports = {
@@ -168,7 +179,13 @@ class LedgerNetwork:
             for k, v in offered.items()
             if k in accepted and k not in without
         }
-        return use_case(dl, event, **ports).execute()
+        verdict = use_case(dl, event, **ports).execute()
+        while (queued_id := dl.inbox_pop()) is not None:
+            handed_back = extract_event(
+                cast(as_Activity, rehydrate(queued_id, dl=dl))
+            ).model_copy(update={"receiving_actor_id": receiver})
+            self.receive_event(receiver, handed_back, without=without)
+        return verdict
 
     def queued(self, sender: str, *, to: str, type_: str | None = None):
         """*sender*'s outbox items addressed to *to*, oldest first."""

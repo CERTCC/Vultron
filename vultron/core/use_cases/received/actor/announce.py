@@ -1,7 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import ClassVar, cast
+from typing import ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
@@ -9,7 +9,6 @@ from vultron.core.behaviors.case.announce_case_received_tree import (
 )
 from vultron.core.behaviors.case.nodes.announce import (
     AnnounceSenderTrustedNode,
-    announced_case_id,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
@@ -26,8 +25,8 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.inbox_hand_back import InboxHandBackPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -36,7 +35,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     guard_refusal,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +45,14 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     Per MV-10-003, the invitee creates the case if it does not already exist.
     Per MV-10-004, if the case already exists locally, the announcement is
     accepted without overwriting the existing record (idempotent).
+
+    Seeding the case anchors its genesis hash, so an
+    ``Announce(CaseLedgerEntry)`` parked in the gap buffer during the
+    pre-genesis window (SYNC-15-004) may now extend the chain.  The tree
+    hands that entry back to this actor's inbox through the injected
+    :class:`~vultron.core.ports.inbox_hand_back.InboxHandBackPort` as a
+    delivery of its own (SYNC-15-005, SYNC-14-009); it never runs the entry's
+    tree here.
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
@@ -61,8 +67,10 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         gap_buffer: LedgerGapBuffer | None = None,
         wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        inbox_hand_back: InboxHandBackPort | None = None,
     ) -> None:
         self._dl = dl
+        self._inbox_hand_back = inbox_hand_back
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request = request
@@ -75,6 +83,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         tree = create_announce_vulnerability_case_received_tree(
             case_obj=case_obj, request=request
         )
+        gap_buffer = self._gap_buffer
+        if gap_buffer is None and request.receiving_actor_id:
+            gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
@@ -90,6 +101,8 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
+            gap_buffer=gap_buffer,
+            inbox_hand_back=self._inbox_hand_back,
         )
         # The guards' own reasons are the refusal (PCR-03-004, CLP-10-018).
         if (
@@ -104,26 +117,4 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 "%s (activity '%s')", verdict.reason, request.activity_id
             )
             return verdict
-        # Applied, so the Announce named a case (the tree refuses otherwise).
-        case_id = announced_case_id(request, case_obj)
-
-        # The case (and therefore its deterministic per-case genesis hash) is
-        # now seeded locally.  Any Announce(CaseLedgerEntry) that arrived during
-        # the pre-genesis window was parked in the actor-local gap buffer rather
-        # than dropped (SYNC-15-004, #2186); drain it now so the ledger converges
-        # without waiting on the reject → replay round-trip (SYNC-15-005, #2180).
-        gap_buffer = self._gap_buffer
-        if gap_buffer is None and request.receiving_actor_id:
-            gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
-        if gap_buffer is not None and gap_buffer.depth(case_id) > 0:
-            drain_gap_buffer(
-                cast(CaseOutboxPersistence, self._dl),
-                case_id,
-                resolve_receiving_actor_id(
-                    self._dl, request.receiving_actor_id
-                ),
-                gap_buffer,
-                self._sync_port,
-                self._wire_render_port,
-            )
         return HandlerResult.applied()

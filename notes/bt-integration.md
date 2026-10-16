@@ -234,6 +234,8 @@ Two shapes look like a second tree and are not:
 - **A drained gap-buffer entry** is another delivery: hand it back to the
   receiving actor's inbox, never run its tree inline or from a node — a bridge
   run nested in a node hides the inner tree's internal error (SYNC-14-009).
+  `HandBackBufferedSuccessorNode` does this through `InboxHandBackPort`, passed
+  to the bridge as the `inbox_hand_back` context key; the port only queues.
 
 ### The Received-Side Stages (ADR-0111, ADR-0135)
 

@@ -60,6 +60,11 @@ def _ref_id(value: object) -> str | None:
     return ref if isinstance(ref, str) and ref else None
 
 
+def ledger_entry_to_wire(entry: CaseLedgerEntry) -> WireCaseLedgerEntry:
+    """Convert a core log entry to the wire class an ``Announce`` carries."""
+    return WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json"))
+
+
 class SyncActivityAdapter:
     """Adapter for :class:`~vultron.core.ports.sync_activity.SyncActivityPort`.
 
@@ -88,9 +93,7 @@ class SyncActivityAdapter:
 
     def _to_wire(self, entry: CaseLedgerEntry) -> WireCaseLedgerEntry:
         """Convert a log entry to its wire-layer representation."""
-        return WireCaseLedgerEntry.model_validate(
-            entry.model_dump(mode="json")
-        )
+        return ledger_entry_to_wire(entry)
 
     def send_reject_log_entry(
         self,
