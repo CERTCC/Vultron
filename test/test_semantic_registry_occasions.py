@@ -82,7 +82,7 @@ class _StubUseCase:
 
 
 def _entry(
-    semantics: MessageSemantics = MessageSemantics.CREATE_NOTE,
+    semantics: MessageSemantics = MessageSemantics.ADD_NOTE_TO_CASE,
     **overrides: Any,
 ) -> SemanticEntry:
     fields: dict[str, Any] = {
@@ -133,7 +133,9 @@ def test_occasion_rejects_malformed_anchor(anchor: str):
 
 
 @pytest.mark.spec("MSM-08-001")
-@pytest.mark.parametrize("example", ["", "vocab_examples.create_note", "1st"])
+@pytest.mark.parametrize(
+    "example", ["", "vocab_examples.add_note_to_case", "1st"]
+)
 def test_occasion_rejects_example_that_is_not_a_function_name(example: str):
     with pytest.raises(ValueError, match="example"):
         _occasion(example=example)

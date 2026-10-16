@@ -101,13 +101,11 @@ A note goes to the case participants, not to the public.
 To post a note, send one `Add(Note)` to the CASE_MANAGER, targeting the case, with the note carried inline as its `object`.
 Set the note's `context` to the case as well.
 The CASE_MANAGER stores the note, attaches it to the case and commits an `add_note_to_case` entry to the case ledger.
-This implementation sends every note this way and does not send a separate `Create(Note)` (VAM-01-010).
+`Add(Note)` is the one message that attaches a note (VAM-01-011).
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
 
-A receiver still accepts a received `Create(Note)` whose note names the case, sent alone or ahead of an `Add(Note)` of the same note.
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/create-note.md" %}
+A received `Create` of a note is not a protocol message, and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
 The CASE_MANAGER admits it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.

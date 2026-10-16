@@ -92,7 +92,7 @@ def _occasion(index: int = 0, **overrides: Any) -> Occasion:
 
 def _entry(
     *occasions: Occasion,
-    semantics: MessageSemantics = MessageSemantics.CREATE_NOTE,
+    semantics: MessageSemantics = MessageSemantics.ADD_NOTE_TO_CASE,
     entitlement: SenderEntitlement | None = _CASE_OWNER_RULE,
     pattern: ActivityPattern | None = None,
 ) -> SemanticEntry:
@@ -172,7 +172,7 @@ def test_occasions_sharing_one_shorthand_on_one_entry_are_direct():
             MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
             MappingStatus.COLLAPSE,
         ),
-        (MessageSemantics.CREATE_NOTE, MappingStatus.EXPANSION),
+        (MessageSemantics.ADD_NOTE_TO_CASE, MappingStatus.EXPANSION),
         (MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE, MappingStatus.NONE),
         (MessageSemantics.CREATE_PROCESSING_FAULT, MappingStatus.EVOLVED),
         (MessageSemantics.REJECT_CASE_LEDGER_ENTRY, MappingStatus.EVOLVED),

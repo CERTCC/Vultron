@@ -53,10 +53,6 @@ _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 _REJECT_INVITE_ACTOR_TO_CASE_EVENT = "reject_invite_actor_to_case"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
-#: A received ``Create(Note)`` whose note names a case: its entry is the
-#: attachment's entry, as the activity states the note belongs to the case
-#: (CLP-07-013, #4441).
-_CREATE_NOTE_EVENT = MessageSemantics.CREATE_NOTE.value
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 # The revision relay's event types (EP-09-007, ADR-0113).  The proposal and
@@ -181,14 +177,13 @@ class IsParticipantStatusEventNode(_SingleEventTypeNode):
     matched_event_type = _ADD_PARTICIPANT_STATUS_EVENT
 
 
-class IsAddNoteEventNode(_EventTypeSetNode):
+class IsAddNoteEventNode(_SingleEventTypeNode):
     """Precondition: SUCCESS when this log entry attaches a note to the case.
 
-    Two entries attach a note: ``add_note_to_case`` (a received
-    ``Add(Note, target=Case)``) and ``create_note`` (a received
-    ``Create(Note)`` whose note's ``context`` names the case).  Each activity
-    states the attachment itself, so its entry is the change's entry and both
-    replay through the one ``NoteEffects`` slot (CLP-07-013, #4441).
+    One entry attaches a note: ``add_note_to_case``, a received
+    ``Add(Note, target=Case)`` carrying the note inline.  The activity states
+    the attachment itself, so its entry is the change's entry (CLP-07-013);
+    no other entry attaches a note (RSH-08-004, VAM-01-011).
 
     Used as the precondition in the ``NoteEffects`` Selector's inner
     Sequence in ``AnnounceLogEntryReceivedBT``::
@@ -207,9 +202,7 @@ class IsAddNoteEventNode(_EventTypeSetNode):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
 
-    matched_event_types: ClassVar[frozenset[str]] = frozenset(
-        {_ADD_NOTE_TO_CASE_EVENT, _CREATE_NOTE_EVENT}
-    )
+    matched_event_type = _ADD_NOTE_TO_CASE_EVENT
 
 
 class IsRemoveNoteEventNode(_SingleEventTypeNode):

@@ -849,23 +849,6 @@ groups:
     - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: reject_case_participant_offer
-  - anchor: create-note
-    heading: Create note
-    when: a Participant posts a new note to the case
-    send: Create(Note)
-    send_to: the case manager
-    sent_by: not yet checked
-    semantics: create_note
-    shorthand: GI
-    status: expansion
-    description: 'Creates a note and, when the note''s context names the case, posts it to
-      that case: the Case Manager attaches the note and records the attachment in the case
-      ledger. The Create carries no target. A receiver also accepts a Create followed by an
-      Add of the same note, and the Add then changes nothing more.'
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
-    example: create_note
   - anchor: add-note-to-case
     heading: Add note to case
     when: a Participant posts a note to the case
@@ -877,8 +860,8 @@ groups:
     status: expansion
     description: 'Posts the note to the case named by the target, with the note carried inline
       as the object: the Case Manager stores the note, attaches it to the case and records
-      the attachment in the case ledger. A receiver also accepts it after a Create of the
-      same note, and it then changes nothing more.'
+      the attachment in the case ledger. It is the one message that attaches a note: a received
+      Create of a note is not a protocol message.'
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note

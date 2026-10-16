@@ -104,7 +104,6 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
         MS.ADD_REPORT_TO_CASE.value,
         MS.CLOSE_REPORT.value,
-        MS.CREATE_NOTE.value,
         MS.DEFER_CASE.value,
         MS.ENGAGE_CASE.value,
         MS.INVALIDATE_REPORT.value,

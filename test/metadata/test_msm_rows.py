@@ -73,9 +73,9 @@ def test_collapse_row_carries_every_shorthand():
 # ---------------------------------------------------------------------------
 
 
-def test_expansion_row_create_note():
+def test_expansion_row_add_note_to_case():
     """GI expansion rows carry the GI shorthand and 'expansion' status."""
-    row = SEMANTICS_TO_ROW[MessageSemantics.CREATE_NOTE]
+    row = SEMANTICS_TO_ROW[MessageSemantics.ADD_NOTE_TO_CASE]
     assert row.status == MappingStatus.EXPANSION
     assert "GI" in row.shorthands
 

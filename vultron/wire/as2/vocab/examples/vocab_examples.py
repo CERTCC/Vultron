@@ -106,7 +106,6 @@ from vultron.wire.as2.vocab.examples.fault import create_processing_fault
 from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.note import (  # noqa: F401
     add_note_to_case,
-    create_note,
     note,
     remove_note_from_case,
 )
@@ -357,9 +356,6 @@ def main(outdir=None):
 
     _remove_embargo = remove_embargo()
     obj_to_file(_remove_embargo, f"{outdir}/remove_embargo.json")
-
-    _create_note = create_note()
-    obj_to_file(_create_note, f"{outdir}/create_note.json")
 
     # announce case (ANNOUNCE_VULNERABILITY_CASE — sent after Accept(Invite))
     _announce_case = announce_case()

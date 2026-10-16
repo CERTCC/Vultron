@@ -107,12 +107,14 @@ groups:
       inline on the single `Add(Note)` that attaches it (VAM-07-002), and MUST send a
       proposed `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An
       inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
-      `Create(Event)` or `Create(CaseParticipant)` as an unrecognized activity.
+      `Create(Event)`, `Create(CaseParticipant)` or `Create(Note)` as an unrecognized
+      activity.
     rationale: >-
       VAM-01-011 makes the single message the only protocol form and leaves how a
       receiver handles a stray `Create` to the receiver; this item is this codebase's
       answer. The removed `Create` routes stored their object with no ledger entry,
-      which CLP-07-013 rules out (#4598). The inline rule binds what this codebase
+      which CLP-07-013 rules out (#4598), and the removed `Create(Note)` route made a
+      second form for attaching a note (#4707). The inline rule binds what this codebase
       sends: a received `Invite` may still name its terms by URI (ADR-0123).
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_object_types.py`, the
@@ -135,8 +137,9 @@ groups:
       factory refuses terms given by URI. The parametrized test
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that each
-      of the four received `Create` activities resolves to `UNKNOWN` and is refused,
-      and that the case, the ledger and the outbox stay unchanged.
+      of the received `Create` activities, including `Create(Note)` with and without a
+      case `context`, resolves to `UNKNOWN` and is refused, and that the case, the
+      ledger and the outbox stay unchanged.
     relationships:
     - rel_type: refines
       spec_id: VAM-01-011
@@ -157,19 +160,20 @@ groups:
     statement: >-
       A `CaseStatus` MUST be brought into a case only by the `Add(CaseStatus)` that
       attaches it (VAM-08-002), a `ParticipantStatus` only by the
-      `Add(ParticipantStatus)` that attaches it (VAM-08-004), and a proposed
-      `EmbargoEvent` only by the `Invite` that proposes it (VAM-05-005); each carries
-      its object inline or by reference. A `CaseParticipant` MUST come into existence
-      only as the CASE_MANAGER's consequence of an act it records. A received
-      `Create` whose object is a `CaseStatus`, a `ParticipantStatus`, an
-      `EmbargoEvent` or a `CaseParticipant` is not a protocol message, and its
-      receiver MUST NOT change the case file because of it.
+      `Add(ParticipantStatus)` that attaches it (VAM-08-004), a proposed
+      `EmbargoEvent` only by the `Invite` that proposes it (VAM-05-005), and a `Note`
+      only by the `Add(Note)` that attaches it (VAM-07-002); each carries its object
+      inline or by reference. A `CaseParticipant` MUST come into existence only as the
+      CASE_MANAGER's consequence of an act it records. A received `Create` whose
+      object is a `CaseStatus`, a `ParticipantStatus`, an `EmbargoEvent`, a
+      `CaseParticipant` or a `Note` is not a protocol message, and its receiver MUST
+      NOT change the case file because of it.
     rationale: >-
       These records mean nothing apart from their case, so a separate `Create` would
       add a "created but not attached" state needing its own ledger entry and replica
-      step (CLP-07-013, RSH-08-004) for no gain (ADR-0137). A note stands alone, so
-      its `Create` may attach it through a case `context` and an `Add(Note)` may
-      attach it too; these records get one attaching message each. The `Create` a
+      step (CLP-07-013, RSH-08-004) for no gain (ADR-0137). A `Create(Note)`, with
+      or without a case `context`, is a deferred form recorded as an open question
+      (MS-18-001). These records get one attaching message each. The `Create` a
       CASE_MANAGER ledger entry carries as its payload snapshot records a change; it
       is not a received message.
     stories:
@@ -180,8 +184,9 @@ groups:
       The parametrized test
       `test_received_create_of_a_case_record_is_refused_case_unchanged` in
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` sends each of the
-      four `Create` activities to an inbox and confirms that the case, the ledger and
-      the outbox stay unchanged.
+      `Create` activities, including `Create(Note)` with and without a case
+      `context`, to an inbox and confirms that the case, the ledger and the outbox
+      stay unchanged.
     relationships:
     - rel_type: constrains
       spec_id: VAM-08-002
@@ -192,6 +197,9 @@ groups:
     - rel_type: constrains
       spec_id: VAM-05-005
       note: the Invite is the only way a proposed embargo event enters a case
+    - rel_type: constrains
+      spec_id: VAM-07-002
+      note: the Add(Note) is the only way a note enters a case
 - id: VAM-02
   title: Report Management Messages
   specs:
@@ -820,16 +828,6 @@ groups:
 - id: VAM-07
   title: Note Management Messages
   specs:
-  - id: VAM-07-001
-    priority: MUST
-    kind: protocol
-    statement: '`CREATE_NOTE` MUST be represented as `Create(Note)`'
-    verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(Note)` maps to
-      `CREATE_NOTE`, and inspection of `_instances.py` confirms `CreateNotePattern` uses `TAtype.CREATE`
-      and `AOtype.NOTE`.
-    stories:
-    - story_2022_039
-    - story_2022_074
   - id: VAM-07-002
     priority: MUST
     kind: protocol

@@ -21,7 +21,6 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
     seed_case_participant,
-    seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -36,14 +35,12 @@ from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
-    CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Create,
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -57,154 +54,6 @@ _OWNER = "https://example.org/actors/case-owner"
 
 class TestNoteUseCases:
     """Tests for note management handlers."""
-
-    def test_create_note_stores_note(self, monkeypatch, make_payload):
-        """create_note persists the Note to the DataLayer."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        note = as_Note(
-            id_="https://example.org/notes/note1",
-            content="Test note content",
-        )
-        activity = as_Create(
-            actor="https://example.org/users/finder",
-            object_=note,
-        )
-
-        event = make_payload(activity)
-
-        result = CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-        assert result.disposition == HandlerDisposition.APPLIED
-
-        stored = dl.get(note.type_.value, note.id_)
-        assert stored is not None
-
-    def test_create_note_idempotent(self, monkeypatch, make_payload):
-        """create_note skips storing a duplicate Note."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-
-        note = as_Note(
-            id_="https://example.org/notes/note2",
-            content="Duplicate note",
-        )
-        activity = as_Create(
-            actor="https://example.org/users/finder",
-            object_=note,
-        )
-        event = make_payload(activity)
-
-        dl.create(note)
-        CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-
-        stored = dl.get(note.type_.value, note.id_)
-        assert stored is not None
-
-    @pytest.mark.spec("CLP-07-013")
-    def test_create_note_attaches_to_case_when_context_set(
-        self, monkeypatch, make_payload
-    ):
-        """create_note attaches the Note to the case when note.context is set."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        # attributed_to anchors the per-case ledger genesis: the attachment
-        # is committed before it is made (CLP-07-013, CLP-08-005).
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_cn1",
-            name="Context Case",
-            attributed_to="https://example.org/users/vendor",
-        )
-        # RSH-08-003/#3814: attaching the note to the case is now
-        # CASE_MANAGER-gated, so the store's own actor must hold the role.
-        seed_store_owner_as_case_manager(dl, case)
-        dl.create(case)
-
-        note = as_Note(
-            id_="https://example.org/notes/note_ctx1",
-            content="Note with context",
-            context=case.id_,
-        )
-        activity = as_Create(
-            actor="https://example.org/users/finder",
-            object_=note,
-        )
-        event = make_payload(activity)
-
-        CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-
-        refreshed = dl.read(case.id_)
-        assert refreshed is not None
-        refreshed = cast(as_VulnerabilityCase, refreshed)
-        assert note.id_ in refreshed.notes
-        # CLP-07-013 (#4441): the attachment has its own committed entry.
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
-        ]
-        assert [e.event_type for e in entries] == ["create_note"]
-        assert entries[0].log_object_id == activity.id_
-
-    def test_create_note_attach_to_case_idempotent(
-        self, monkeypatch, make_payload
-    ):
-        """create_note is idempotent when note already attached to case."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        note_id = "https://example.org/notes/note_ctx2"
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_cn2",
-            name="Idempotent Case",
-            notes=[note_id],
-        )
-        dl.create(case)
-
-        note = as_Note(
-            id_=note_id,
-            content="Note already in case",
-            context=case.id_,
-        )
-        activity = as_Create(
-            actor="https://example.org/users/finder",
-            object_=note,
-        )
-        event = make_payload(activity)
-
-        CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-
-        refreshed = dl.read(case.id_)
-        assert refreshed is not None
-        refreshed = cast(as_VulnerabilityCase, refreshed)
-        assert refreshed.notes.count(note_id) == 1
 
     def _setup_case_with_case_manager(
         self, dl: "SqliteDataLayer", case_id: str, case_actor_id: str
@@ -752,73 +601,6 @@ class TestNoteUseCases:
         result = use_case(dl, event).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-
-    @pytest.mark.spec("HP-01-003")
-    def test_create_note_without_note_object_is_refused(self, make_payload):
-        from vultron.core.models.received_activity_record import (
-            ReceivedActivityRecord,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        event = make_payload(
-            as_Create(
-                actor="https://example.org/users/finder",
-                object_=as_Note(
-                    id_="https://example.org/notes/note-none", content="x"
-                ),
-            )
-        ).model_copy(update={"object_": None, "object_id": None})
-        assert event.note is None
-
-        result = CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        # CLP-10-018: the refused delivery is still archived.
-        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
-
-    @pytest.mark.spec("HP-01-003")
-    def test_create_note_for_unknown_case_writes_no_attachment(
-        self, make_payload
-    ):
-        """A Create(Note) whose context names a case this actor lacks attaches
-        nothing: the receiver is not that case's CASE_MANAGER (and does not
-        even hold it), so the attach is gated out (RSH-08-003, #3814).  The
-        Note object is still archived; the attachment, if any, arrives through
-        the case's ledger.  No Regime-1 anomaly is logged for the absent case
-        (manager_case_may_be_absent, ADR-0087 Regime 3)."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        note = as_Note(
-            id_="https://example.org/notes/note8",
-            content="x",
-            context="https://example.org/cases/no-such-case",
-        )
-        activity = as_Create(
-            actor="https://example.org/users/finder", object_=note
-        )
-        event = make_payload(activity)
-
-        result = CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-
-        # Nothing was attached (the case is absent and the actor is not its
-        # CASE_MANAGER); the tree still succeeds, writing no case state.
-        assert result.disposition == HandlerDisposition.APPLIED
-        assert dl.read("https://example.org/cases/no-such-case") is None
 
     @pytest.mark.spec("HP-01-003")
     def test_add_note_to_unknown_case_is_refused(self, make_payload):

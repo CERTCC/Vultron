@@ -71,7 +71,6 @@ class MessageSemantics(StrEnum):
     ADD_CASE_PARTICIPANT_TO_CASE = auto()
     REMOVE_CASE_PARTICIPANT_FROM_CASE = auto()
 
-    CREATE_NOTE = auto()
     ADD_NOTE_TO_CASE = auto()
     REMOVE_NOTE_FROM_CASE = auto()
 

@@ -34,13 +34,10 @@ from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
 )
-from vultron.core.use_cases.received.note import CreateNoteReceivedUseCase
 from vultron.wire.as2.factories import add_participant_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Create,
     as_Remove,
 )
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 _OWNER = "https://example.org/users/owner"
@@ -136,31 +133,3 @@ def test_move_for_an_unknown_case_is_refused_in_one_tree(
     assert result.reason == f"unknown case '{_CASE_ID}'"
     assert len(tree_runs) == 1
     _only_the_archive(dl, event.activity_id)
-
-
-@pytest.mark.spec("CLP-10-005")
-@pytest.mark.spec("CLP-10-018")
-def test_create_note_without_a_note_is_refused_in_one_tree(
-    dl, make_payload, tree_runs
-):
-    note = as_Note(
-        id_="https://example.org/notes/note-one-tree",
-        content="x",
-        context=_CASE_ID,
-    )
-    event = make_payload(
-        as_Create(actor="https://example.org/users/finder", object_=note)
-    ).model_copy(update={"object_": None})
-
-    result = CreateNoteReceivedUseCase(
-        dl,
-        event,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
-
-    assert result.disposition == HandlerDisposition.REFUSED
-    assert result.reason == "Create(Note) carries no note object"
-    assert len(tree_runs) == 1
-    assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
-    assert dl.read(note.id_) is None
