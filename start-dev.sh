@@ -46,6 +46,15 @@ ENV_FILE="$SCRIPT_DIR/.devcontainer/devcontainer.env"
 CONTAINER_NAME="${MAIN_NAME}_${SLOT}"
 WORKSPACE="/app"
 
+# Slot limits. A slot is idle most of the time (its agent is thinking) and
+# bursts during a test run, so the CPU cap is a ceiling, not a share: slots
+# under contention split CPU by Docker's equal default --cpu-shares. Six CPUs
+# keep the full suite inside a ten-minute tool call; 2 CPUs took 9-18 minutes
+# (ADR-0143). The memory cap fits test/conftest.py's six 1.5 GiB xdist workers
+# plus the agent. Size the Docker VM for the slots you run at once.
+SLOT_CPUS="${SLOT_CPUS:-6}"
+SLOT_MEMORY="${SLOT_MEMORY:-12g}"
+
 # First-run: collect credentials
 if [ ! -f "$ENV_FILE" ]; then
     bash "$SCRIPT_DIR/.devcontainer/setup.sh"
@@ -139,6 +148,10 @@ _cleanup() {
 # Container exists (running or stopped) — start if needed, then attach
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     docker start "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    # Apply the current limits to a slot created under older ones.
+    docker update --cpus "$SLOT_CPUS" --memory "$SLOT_MEMORY" \
+        --memory-swap "$SLOT_MEMORY" "$CONTAINER_NAME" >/dev/null ||
+        echo "warning: could not apply slot limits to '$CONTAINER_NAME'" >&2
     echo "Attaching to container '$CONTAINER_NAME'..."
     _exec_shell
     exit 0
@@ -154,9 +167,9 @@ DOCKER_ARGS=(
     --name "$CONTAINER_NAME"
     --hostname "$CONTAINER_NAME"
     --env-file "$ENV_FILE"
-    --cpus "${SLOT_CPUS:-2}"
-    --memory "${SLOT_MEMORY:-6g}"
-    --memory-swap "${SLOT_MEMORY:-6g}"
+    --cpus "$SLOT_CPUS"
+    --memory "$SLOT_MEMORY"
+    --memory-swap "$SLOT_MEMORY"
     -e LANG=C.UTF-8
     -e LC_ALL=C.UTF-8
     -e TERM=xterm-256color

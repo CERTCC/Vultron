@@ -64,8 +64,9 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 4. Extract `pr_metadata.domains` and invoke `deepen-context` with those hints
    to load the same domain context that triage used.
 5. Note `pr_metadata.needs_integration_tests`. It is informational: Phase 5's
-   gate does not read it, because `targeted-tests` escalates to the full suite
-   on the same integration-bearing paths (PAD-18-003).
+   gate does not read it: `targeted-tests` gates those paths by their
+   importers, integration-marked ones included, and CI runs the rest
+   (PAD-18-003, ADR-0143).
 6. Note `pr_metadata.base_ref` — Phase 5 syncs against this branch, not
    necessarily `main`.
 
@@ -356,7 +357,8 @@ The gate is the linters plus a **targeted test set**, never a bare full-suite
 run by default. Which set depends on what this iteration changed:
 
 - **Fix commits** (Phase 2 fixes, CI fixes): the targeted set for the branch
-  diff (PAD-18-002), escalating to the full suite on PAD-18-003's paths.
+  diff (PAD-18-002), escalating to the full suite only on PAD-18-003's
+  shared test infrastructure.
 - **A Step 2 conflict merge and nothing else**: the tests for the conflicted
   files only (PAD-18-004). Pass the paths Step 2 recorded in
   `conflicts_resolved` as `targeted-tests --paths <file>...`. Each counts as
@@ -392,10 +394,10 @@ Read the first line of `/tmp/targeted-tests.txt`:
 
 - **A test path** — the gate is the targeted set. Paths printed on stderr as
   `no test maps to` are left to CI; that is expected, not an error.
-- **`full`** — the scope touches shared test infrastructure or (branch-diff
-  scope only) an integration-bearing path (PAD-18-003); each following line
-  names the path and reason. The gate is the full suite with every marker
-  enabled.
+- **`full`** — the scope touches shared test infrastructure (PAD-18-003);
+  each following line names the path and reason. The gate is the full suite
+  with every marker enabled. An integration-bearing path alone never
+  produces `full` (ADR-0143).
 
 Run the command `targeted-tests --pytest` prints for whichever mode it chose.
 It carries `-m ""` so integration-marked tests among the selected files are
@@ -406,14 +408,15 @@ gate=$(PYTHONPATH= uv run targeted-tests <scope> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
 ```
 
-**Escalate yourself when the CI failure being fixed is outside the set.**
+**Add the CI failure being fixed when it is outside the set.**
 `targeted-tests` cannot see CI (PAD-18-003). If the iteration's input includes
 a CI test failure whose test file is not one of the paths in
-`/tmp/targeted-tests.txt` (and is not under a listed directory), the set
-missed something: run the full suite instead.
+`/tmp/targeted-tests.txt` (and is not under a listed directory), append that
+file to the gate, not the full suite: CI runs everything else on the push.
 
 ```bash
-uv run pytest -m "" -n auto --tb=short > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; echo "exit: $rc"; (exit $rc)
+gate="$gate <failing test file>"
+eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Read the `exit:` line, not just the tail — see `run-tests/SKILL.md` § Constraints.

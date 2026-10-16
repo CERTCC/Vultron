@@ -8,11 +8,12 @@ Detailed criteria consumed during execution. Referenced from SKILL.md.
 
 `pr_metadata.needs_integration_tests` is set by `pr-triage` and is
 informational for execute. The local gate's scope comes from `targeted-tests`
-(SKILL.md Phase 5 Step 3), which, for a fix commit's branch-diff gate, reports
-`full` when the branch diff touches any of these integration-bearing paths
-(PAD-18-003), as well as shared test infrastructure (`conftest.py`, fixtures,
-factories, `pyproject.toml`, `uv.lock`). The gate after a conflict merge
-(`--paths`) escalates on shared test configuration only (PAD-18-004):
+(SKILL.md Phase 5 Step 3), which gates these integration-bearing paths by
+their importers, integration-marked ones included, and never escalates on
+them (PAD-18-003, ADR-0143). A fix commit's branch-diff gate reports `full`
+only for shared test infrastructure (`conftest.py`, fixtures, factories,
+`pyproject.toml`, `uv.lock`); the gate after a conflict merge (`--paths`)
+escalates on shared test configuration only (PAD-18-004):
 
 - `vultron/demo/` — any demo script or orchestration file
 - `integration_tests/` — any integration test file
