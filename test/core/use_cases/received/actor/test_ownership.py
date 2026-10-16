@@ -193,14 +193,20 @@ class TestOwnershipTransferUseCases:
         assert dl.read("https://example.org/cases/case_ot_missing") is None
 
     @pytest.mark.spec("HP-01-003")
-    def test_accept_ownership_transfer_without_case_is_refused(self):
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/users/coordinator",
+    @pytest.mark.spec("CLP-10-018")
+    def test_accept_ownership_transfer_without_case_is_refused(
+        self, make_payload
+    ):
+        """Intake archives it; nothing else runs (CLP-10-018)."""
+        dl, _, _ = _ownership_offer_harness(
+            make_payload, "https://example.org/cases/case_ot_accept_nocase"
         )
-        event = MagicMock(case_id=None, receiving_actor_id=None)
+        event = _reply_naming_no_case(
+            dl,
+            make_payload,
+            accept_case_ownership_transfer_activity,
+            _COORDINATOR_ID,
+        )
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
             dl,
@@ -211,6 +217,9 @@ class TestOwnershipTransferUseCases:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "names no case" in result.reason
+        assert _event_types(dl) == []
+        assert _archived(dl, event.activity_id)
 
     def test_offer_cascade_forwards_to_transferee_via_case_actor_outbox(
         self, make_payload
@@ -903,6 +912,37 @@ def _event_types(dl) -> list[str]:
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
     ]
+
+
+def _archived(dl, activity_id: str) -> bool:
+    """True when intake archived *activity_id* under the receiver's key."""
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+    )
+
+    return isinstance(
+        dl.read(ReceivedActivityRecord.build_id(activity_id)),
+        ReceivedActivityRecord,
+    )
+
+
+def _reply_naming_no_case(dl, make_payload, build, sender: str) -> Any:
+    """A reply to an ownership-transfer Offer whose Offer names no case.
+
+    The factories cannot build one, so the case is dropped from the
+    extracted event: the shape a peer could send.
+    """
+    offer = offer_case_ownership_transfer_activity(
+        case=as_VulnerabilityCase(id_="https://example.org/cases/elsewhere"),
+        target=_COORDINATOR_ID,
+        actor=_VENDOR_ID,
+        to=[_CASE_ACTOR_ID],
+    )
+    reply = build(offer, actor=sender, to=[_CASE_ACTOR_ID])
+    event = make_payload(reply, receiving_actor_id=dl.actor_id)
+    event = event.model_copy(update={"inner_object": None})
+    assert event.case_id is None
+    return event
 
 
 @pytest.mark.spec("CM-21-014")
@@ -1905,16 +1945,16 @@ class TestRejectOfOwnershipTransfer:
         )
         assert _owner(dl, case_id) == _COORDINATOR_ID
 
+    @pytest.mark.spec("CLP-10-018")
     def test_reject_naming_no_case_is_refused(self, make_payload):
         dl, _, _ = _ownership_offer_harness(
             make_payload, "https://example.org/cases/case_ot_reject_nocase"
         )
-        # Only the fields the use case reads before refusing.
-        event = MagicMock(
-            case_id=None,
-            receiving_actor_id=None,
-            activity_id="https://example.org/activities/reject_nocase",
-            actor_id=_COORDINATOR_ID,
+        event = _reply_naming_no_case(
+            dl,
+            make_payload,
+            reject_case_ownership_transfer_activity,
+            _COORDINATOR_ID,
         )
 
         result = RejectCaseOwnershipTransferReceivedUseCase(
@@ -1927,6 +1967,7 @@ class TestRejectOfOwnershipTransfer:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "names no case" in result.reason
         assert _event_types(dl) == []
+        assert _archived(dl, event.activity_id)
 
 
 class TestRejectAtAReplica:
@@ -2349,16 +2390,13 @@ class TestWithdrawalOfOwnershipTransfer:
             is HandlerDisposition.APPLIED
         )
 
+    @pytest.mark.spec("CLP-10-018")
     def test_withdrawal_naming_no_case_is_refused(self, make_payload):
         dl, _, _ = _ownership_offer_harness(
             make_payload, "https://example.org/cases/case_ot_undo_nocase"
         )
-        # Only the fields the use case reads before refusing.
-        event = MagicMock(
-            case_id=None,
-            receiving_actor_id=None,
-            activity_id="https://example.org/activities/undo_nocase",
-            actor_id=_VENDOR_ID,
+        event = _reply_naming_no_case(
+            dl, make_payload, undo_case_ownership_transfer_activity, _VENDOR_ID
         )
 
         result = UndoCaseOwnershipTransferReceivedUseCase(
@@ -2371,6 +2409,7 @@ class TestWithdrawalOfOwnershipTransfer:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "names no case" in result.reason
         assert _event_types(dl) == []
+        assert _archived(dl, event.activity_id)
 
 
 class TestWithdrawalAtAReplica:

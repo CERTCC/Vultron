@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-import py_trees
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
@@ -40,6 +38,10 @@ from vultron.core.use_cases.received._bt_verdict import (
     ownership_answer_verdict,
     ownership_offer_verdict,
     verdict_from_bt,
+)
+from vultron.core.use_cases.received._offer_reply import (
+    refuse_reply_naming_no_case,
+    run_offer_reply_tree,
 )
 
 if TYPE_CHECKING:
@@ -244,91 +246,6 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         return verdict
 
 
-#: A received reply to an ownership-transfer Offer: the transferee's answer
-#: or the offerer's withdrawal.
-_OwnershipOfferReply = (
-    AcceptCaseOwnershipTransferReceivedEvent
-    | RejectCaseOwnershipTransferReceivedEvent
-    | UndoCaseOwnershipTransferReceivedEvent
-)
-
-
-def _names_no_case(
-    request: _OwnershipOfferReply,
-    verb: str,
-) -> HandlerResult:
-    """The refusal of a reply to an Offer (*verb*) that names no case.
-
-    Shared by the Accept, the Reject and the Undo, before any tree is built.
-    """
-    logger.warning(
-        "%s(ownership transfer): '%s' from '%s' names no case",
-        verb,
-        request.activity_id,
-        request.actor_id,
-    )
-    return HandlerResult.refused(f"{verb}(ownership transfer) names no case")
-
-
-def _run_ownership_answer(
-    *,
-    dl: CaseOutboxPersistence,
-    request: _OwnershipOfferReply,
-    tree: py_trees.behaviour.Behaviour,
-    label: str,
-    sync_port: SyncActivityPort | None,
-    wire_render_port: "WireRenderPort | None",
-    applied_note: str | None = None,
-    trigger_activity: "TriggerActivityPort | None" = None,
-) -> HandlerResult:
-    """Run the receive tree of a reply to an Offer and read its verdict.
-
-    Shared by the Accept, the Reject and the Undo.  The tree's clock
-    decision first ledgers the expiry of the case's open Offer if its
-    deadline passed (CM-21-017, CLP-10-025), so a reply to it is refused as
-    closed (CM-21-016).  A redelivery of the reply that already closed the
-    Offer is ``SKIPPED`` (HP-01-003); a refusal is logged at WARNING with the
-    sender and the case.  When *applied_note* is given, an applied reply is
-    logged at INFO with it.  *trigger_activity* builds the entries the
-    CASE_MANAGER records for the changes an applied reply causes.
-    """
-    receiving_actor_id = resolve_receiving_actor_id(
-        dl, request.receiving_actor_id
-    )
-    bridge = BTBridge(
-        datalayer=dl,
-        trigger_activity=trigger_activity,
-        wire_render_port=wire_render_port,
-        sync_port=sync_port,
-    )
-    result = bridge.execute_with_setup(
-        tree=tree,
-        actor_id=receiving_actor_id,
-        activity=request,
-    )
-    verdict = ownership_answer_verdict(
-        tree, verdict_from_bt(tree, result, label=label)
-    )
-    if verdict.disposition is HandlerDisposition.REFUSED:
-        logger.warning(
-            "%s refused '%s' from '%s' for case '%s': %s",
-            label,
-            request.activity_id,
-            request.actor_id,
-            request.case_id,
-            verdict.reason,
-        )
-    elif applied_note and verdict.disposition is HandlerDisposition.APPLIED:
-        logger.info(
-            "Actor '%s' %s ownership transfer offer '%s' for case '%s'",
-            request.actor_id,
-            applied_note,
-            request.object_id,
-            request.case_id,
-        )
-    return verdict
-
-
 class AcceptCaseOwnershipTransferReceivedUseCase:
     """The CASE_MANAGER applies an accepted ownership transfer (CM-21-002).
 
@@ -368,7 +285,15 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         request = self._request
         case_id = request.case_id
         if case_id is None:
-            return _names_no_case(request, "Accept")
+            return refuse_reply_naming_no_case(
+                dl=self._dl,
+                request=request,
+                label="AcceptOwnershipTransferBT",
+                verb="Accept",
+                subject="ownership transfer",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
+            )
         now = now_utc()
         tree = create_accept_ownership_transfer_tree(
             case_id=case_id,
@@ -378,10 +303,13 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             now=now,
             sender_rule=self.sender_entitlement,
         )
-        return _run_ownership_answer(
+        return run_offer_reply_tree(
             dl=self._dl,
             request=request,
             tree=tree,
+            case_id=case_id,
+            subject="ownership transfer offer",
+            refine=ownership_answer_verdict,
             label="AcceptOwnershipTransferBT",
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
@@ -428,7 +356,15 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         request = self._request
         case_id = request.case_id
         if case_id is None:
-            return _names_no_case(request, "Reject")
+            return refuse_reply_naming_no_case(
+                dl=self._dl,
+                request=request,
+                label="RejectOwnershipTransferBT",
+                verb="Reject",
+                subject="ownership transfer",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
+            )
         now = now_utc()
         tree = create_reject_ownership_transfer_tree(
             case_id=case_id,
@@ -438,10 +374,13 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             now=now,
             sender_rule=self.sender_entitlement,
         )
-        return _run_ownership_answer(
+        return run_offer_reply_tree(
             dl=self._dl,
             request=request,
             tree=tree,
+            case_id=case_id,
+            subject="ownership transfer offer",
+            refine=ownership_answer_verdict,
             label="RejectOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
@@ -491,7 +430,15 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         request = self._request
         case_id = request.case_id
         if case_id is None:
-            return _names_no_case(request, "Undo")
+            return refuse_reply_naming_no_case(
+                dl=self._dl,
+                request=request,
+                label="UndoOwnershipTransferBT",
+                verb="Undo",
+                subject="ownership transfer",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
+            )
         now = now_utc()
         tree = create_undo_ownership_transfer_tree(
             case_id=case_id,
@@ -501,10 +448,13 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             now=now,
             sender_rule=self.sender_entitlement,
         )
-        return _run_ownership_answer(
+        return run_offer_reply_tree(
             dl=self._dl,
             request=request,
             tree=tree,
+            case_id=case_id,
+            subject="ownership transfer offer",
+            refine=ownership_answer_verdict,
             label="UndoOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,

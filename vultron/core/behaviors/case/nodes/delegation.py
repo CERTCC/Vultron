@@ -42,6 +42,10 @@ from vultron.core.behaviors.sync.nodes.role_grant_effect import (
 )
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.protocol_pair import (
+    ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+    REJECT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import role_offer_forward_id
 from vultron.core.ports.case_persistence import CasePersistence
@@ -321,7 +325,7 @@ class AutoAcceptCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     See SE-08-003, ADR-0039.
     """
 
-    _EVENT_TYPE = "accept_case_participant_role"
+    _EVENT_TYPE = ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE
     _ANSWER = "Accept"
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:
@@ -407,7 +411,7 @@ class EmitRejectCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     See SE-08-003, ADR-0039.
     """
 
-    _EVENT_TYPE = "reject_case_participant_role"
+    _EVENT_TYPE = REJECT_CASE_PARTICIPANT_ROLE_EVENT_TYPE
     _ANSWER = "Reject"
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:

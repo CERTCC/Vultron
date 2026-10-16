@@ -112,6 +112,14 @@ OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
 )
 
 
+#: Ledger ``event_type`` of the target's ``Accept`` of a role
+#: ``Offer(CaseParticipantRole)``: the grant (CM-02-016, CM-33-006).
+ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE: str = "accept_case_participant_role"
+
+#: Ledger ``event_type`` of the target's ``Reject`` of a role
+#: ``Offer(CaseParticipantRole)`` (CM-33-006).
+REJECT_CASE_PARTICIPANT_ROLE_EVENT_TYPE: str = "reject_case_participant_role"
+
 #: Event types that close a role ``Offer(CaseParticipantRole)`` once the
 #: CASE_MANAGER ledgers them: the target's ``Accept`` or ``Reject``
 #: (CM-33-005, CM-33-006).  A case may hold several role Offers open at once,
@@ -119,8 +127,8 @@ OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
 #: (``vultron.core.participants.role_offer``).
 CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES: frozenset[str] = frozenset(
     {
-        "accept_case_participant_role",
-        "reject_case_participant_role",
+        ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+        REJECT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
     }
 )
 
@@ -219,6 +227,7 @@ class ProtocolPair:
 
 
 __all__ = [
+    "ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE",
     "AskExpiry",
     "CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES",
     "INVITE_ACTOR_TO_CASE_EXPIRY",
@@ -231,5 +240,6 @@ __all__ = [
     "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE",
     "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY",
     "OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES",
+    "REJECT_CASE_PARTICIPANT_ROLE_EVENT_TYPE",
     "UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE",
 ]

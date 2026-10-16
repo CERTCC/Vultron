@@ -320,10 +320,17 @@ class SqliteDataLayer:
         request_event_type: str,
         object_id: str,
         reply_event_types: frozenset[str],
+        *,
+        answering: frozenset[str] | None = None,
     ) -> ProtocolPair:
         """Return the open/closed state of a request/reply protocol pair."""
         return queries.find_protocol_pair(
-            self, case_id, request_event_type, object_id, reply_event_types
+            self,
+            case_id,
+            request_event_type,
+            object_id,
+            reply_event_types,
+            answering=answering,
         )
 
     def find_actor_by_short_id(self, short_id: str) -> PersistableModel | None:

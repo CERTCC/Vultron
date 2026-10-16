@@ -36,9 +36,11 @@ from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.protocol_pair import (
+    ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import (
-    ACCEPT_CASE_PARTICIPANT_ROLE,
     RecordedRoleOffer,
     answered_role_offer,
     entry_names_role_offer,
@@ -303,7 +305,10 @@ class RoleOfferOpenNode(DataLayerConditionWithPorts):
     ) -> bool:
         """Whether the closing Accept's grant is missing from this replica."""
         assert self.datalayer is not None and self.carried_role is not None
-        if offer.closed_by_event_type != ACCEPT_CASE_PARTICIPANT_ROLE:
+        if (
+            offer.closed_by_event_type
+            != ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+        ):
             return False
         participant_id = participant_id_for_actor(
             case.actor_participant_index, offer.target_id

@@ -111,6 +111,8 @@ class CasePersistence(Protocol):
         request_event_type: str,
         object_id: str,
         reply_event_types: frozenset[str],
+        *,
+        answering: frozenset[str] | None = None,
     ) -> ProtocolPair: ...
 
     def delete(self, table: str, id_: str) -> bool: ...

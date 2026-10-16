@@ -36,6 +36,9 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
@@ -869,7 +872,12 @@ def test_answer_naming_no_case_is_refused(make_payload, accept):
     result = use_case(dl, request, **_ports(dl)).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "names no case" in (result.reason or "")
     assert _event_types(dl) == []
+    assert isinstance(
+        dl.read(ReceivedActivityRecord.build_id(answer.id_)),
+        ReceivedActivityRecord,
+    )
 
 
 @pytest.mark.spec("CM-23-018")
@@ -950,6 +958,9 @@ def test_open_offer_guard_flags_a_vanished_offer_as_internal(make_payload):
     )
 
     assert result.internal_error
+    assert "the role Offer the sender check found is gone" in (
+        result.feedback_message + " ".join(result.errors or [])
+    )
 
 
 @pytest.mark.spec("HP-01-003")
@@ -982,6 +993,7 @@ def test_a_grant_that_fails_after_the_commit_is_applied_on_redelivery(
     entries = _event_types(dl)
     assert entries.count("accept_case_participant_role") == 1
     assert not _target_holds(dl, CVDRole.VENDOR)
+    queued = dl.outbox_list()
 
     result = _deliver_answer(
         dl,
@@ -995,6 +1007,8 @@ def test_a_grant_that_fails_after_the_commit_is_applied_on_redelivery(
     assert result.disposition is HandlerDisposition.SKIPPED
     assert _event_types(dl) == entries
     assert _target_holds(dl, CVDRole.VENDOR)
+    # The recorded entry is reused, and its Announce is not queued again.
+    assert dl.outbox_list() == queued
 
 
 @pytest.mark.spec("CM-33-005")

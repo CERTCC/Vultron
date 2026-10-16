@@ -326,12 +326,23 @@ def find_case_by_report_id(
     return None
 
 
+def _answered_object(entry: Any) -> str | None:
+    """The id of the object a reply entry's snapshot answers."""
+    snapshot = getattr(entry, "payload_snapshot", None)
+    obj = snapshot.get("object") if isinstance(snapshot, dict) else None
+    if isinstance(obj, dict):
+        obj = obj.get("id") or obj.get("id_")
+    return obj if isinstance(obj, str) else None
+
+
 def find_protocol_pair(
     dl: "Any",  # SqliteDataLayer
     case_id: str,
     request_event_type: str,
     object_id: str,
     reply_event_types: frozenset[str],
+    *,
+    answering: frozenset[str] | None = None,
 ) -> ProtocolPair:
     """Return the open/closed state of a request/reply protocol pair.
 
@@ -345,6 +356,11 @@ def find_protocol_pair(
        A reply recorded before the request answered an earlier one: a case
        that offers again after an answered Offer must not read the new
        Offer as already answered (CM-21-014).
+       With *answering*, only a reply whose snapshot names one of those ids
+       as its ``object`` counts: the request's own id and any id it travels
+       under (a CASE_MANAGER's forward).  A case may then hold several
+       requests of one type open at once, and a reply to one does not close
+       another (CM-33-005).
 
     Returns a :class:`~vultron.core.models.protocol_pair.ProtocolPair`
     with ``reply_object_id`` / ``reply_event_type`` populated when a reply
@@ -389,7 +405,9 @@ def find_protocol_pair(
             if getattr(entry, "log_index", 0) <= request_index:
                 continue
             entry_event_type = getattr(entry, "event_type", None)
-            if entry_event_type in reply_event_types:
+            if entry_event_type in reply_event_types and (
+                answering is None or _answered_object(entry) in answering
+            ):
                 reply_object_id = getattr(entry, "log_object_id", None)
                 reply_event_type_found = entry_event_type
                 break

@@ -27,14 +27,12 @@ is still open from the ledger.
 A case may hold several role Offers open at once, to different targets or
 of different roles, so an Offer is closed only by an answer *to it*: an
 ``accept_case_participant_role`` or ``reject_case_participant_role`` entry
-whose answered Offer is this one or its forward.  The answer an entry names
-is the Offer its snapshot carries as ``object``, which the CASE_MANAGER
-checked against the recorded Offer before committing it.
+whose snapshot carries this Offer or its forward as ``object``, read through
+``find_protocol_pair(answering=...)`` (CLP-11-001).
 """
 
 from dataclasses import dataclass
 
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.protocol_pair import (
@@ -53,10 +51,6 @@ from vultron.errors import VultronNotFoundError
 
 #: The ``event_type`` of the entry that records an admitted role Offer.
 OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE = "offer_case_participant_role"
-
-#: The ``event_type`` of the entry that records the target's Accept: the
-#: grant (CM-02-016).
-ACCEPT_CASE_PARTICIPANT_ROLE = "accept_case_participant_role"
 
 
 def recorded_role_offer_entries(
@@ -132,8 +126,9 @@ class RecordedRoleOffer:
         entry: The ``offer_case_participant_role`` entry that records it.
         target_id: The actor the recorded Offer names as its ``target``: the
             only actor that may answer it (CM-33-005).
-        pair: The Offer's request/reply state, read from the ledger: closed
-            by the first answer to this Offer committed after it.
+        pair: The Offer's request/reply state, read from the ledger through
+            ``find_protocol_pair()``: closed by the first answer to this
+            Offer or its forward committed after it (CLP-11-001).
     """
 
     entry: CaseLedgerEntry
@@ -154,30 +149,6 @@ class RecordedRoleOffer:
     def closed_by_event_type(self) -> str | None:
         """The ``event_type`` of the entry that closed the Offer, if any."""
         return self.pair.reply_event_type
-
-
-def _closing_answer(
-    entries: list[CaseLedgerEntry],
-    offer: CaseLedgerEntry,
-    forward_id: str,
-) -> CaseLedgerEntry | None:
-    """The first answer to *offer* committed after it, if any.
-
-    An answer entry answers *offer* when the Offer its snapshot carries is the
-    recorded Offer or its forward (*forward_id*).  An answer to another role
-    Offer of the same case does not close this one.
-    """
-    answered = {offer.log_object_id, forward_id}
-    return next(
-        (
-            entry
-            for entry in entries
-            if entry.log_index > offer.log_index
-            and entry.event_type in CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES
-            and _as_id(entry.payload_snapshot.get("object")) in answered
-        ),
-        None,
-    )
 
 
 def answered_role_offer(
@@ -227,25 +198,24 @@ def answered_role_offer(
             f"Target of recorded role Offer for case '{case_id}'",
             entry.log_object_id,
         )
-    closing = _closing_answer(
-        entries,
-        entry,
-        role_offer_forward_id(issuer_id, case_id, entry.log_object_id),
-    )
-    pair = ProtocolPair(
+    # Several role Offers may be open at once, so only an answer to this
+    # Offer or to its forward closes it (CM-33-005).
+    pair = dl.find_protocol_pair(
         case_id=case_id,
         request_event_type=OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
         object_id=entry.log_object_id,
         reply_event_types=CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES,
-        reply_object_id=closing.log_object_id if closing else None,
-        reply_event_type=closing.event_type if closing else None,
-        request_found=True,
+        answering=frozenset(
+            {
+                entry.log_object_id,
+                role_offer_forward_id(issuer_id, case_id, entry.log_object_id),
+            }
+        ),
     )
     return RecordedRoleOffer(entry=entry, target_id=target_id, pair=pair)
 
 
 __all__ = [
-    "ACCEPT_CASE_PARTICIPANT_ROLE",
     "OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE",
     "RecordedRoleOffer",
     "answered_role_offer",

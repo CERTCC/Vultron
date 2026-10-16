@@ -164,10 +164,16 @@ class StagedCasePersistence:
         request_event_type: str,
         object_id: str,
         reply_event_types: frozenset[str],
+        *,
+        answering: frozenset[str] | None = None,
     ) -> ProtocolPair:
         self._require_nothing_staged("find a protocol pair")
         return self._inner.find_protocol_pair(
-            case_id, request_event_type, object_id, reply_event_types
+            case_id,
+            request_event_type,
+            object_id,
+            reply_event_types,
+            answering=answering,
         )
 
     def delete(self, table: str, id_: str) -> bool:
