@@ -396,8 +396,11 @@ expiry path (`create_commit_and_record_expiry_tree`) per row; do not write a
 second one. The sender's own overdue row is swept too: a late `Reject` of an
 Invite records the timeout, then declines the `TIMED_OUT` row, and that expiry
 entry carries the `Reject`'s claimed time so the sender's stream does not run
-backwards (CLP-15-003). The P/X/A refusal tree has no sender guard, so it takes
-no clock decision; the next admitted embargo activity sweeps.
+backwards (CLP-15-003). The P/X/A refusal of an Invite or an `Accept` does not
+sweep: its handler checks the sender first, but `RefuseEmbargoInviteBT` is a tree
+of its own with no sender rule, and the factory gives such a tree no
+clock-decision stage. The next admitted embargo activity sweeps; #4642 makes the
+refusal a guard of the Invite and Accept trees, which take the sweep.
 
 ### The ledger fan-out is the owner's notification (MSM-07-007)
 

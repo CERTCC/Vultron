@@ -166,7 +166,7 @@ class TestIterCaseParticipants:
         assert list(iter_case_participants(case, dl)) == []
 
 
-@pytest.mark.parametrize("count", [2, 8])
+@pytest.mark.parametrize("count", [8, 16])
 def test_indexed_participants_come_in_roster_order(
     dl: SqliteDataLayer, count: int
 ) -> None:

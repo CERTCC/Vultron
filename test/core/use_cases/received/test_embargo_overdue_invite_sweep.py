@@ -621,14 +621,21 @@ def test_every_received_embargo_tree_with_a_case_takes_the_sweep():
     )
 
     staged: dict[str, set[str]] = {}
+    unstaged: set[str] = set()
     for (path, _factory), tree in built_received_trees().items():
         if not path.startswith("vultron/core/behaviors/embargo/"):
             continue
-        for stage in tree.iterate():
-            if isinstance(stage, ClockDecisionStage):
-                staged.setdefault(tree.name, set()).update(
-                    d.name for d in stage.decisions
-                )
+        stages = [
+            stage
+            for stage in tree.iterate()
+            if isinstance(stage, ClockDecisionStage)
+        ]
+        if not stages:
+            unstaged.add(tree.name)
+        for stage in stages:
+            staged.setdefault(tree.name, set()).update(
+                d.name for d in stage.decisions
+            )
 
     missing = sorted(
         name
@@ -636,10 +643,25 @@ def test_every_received_embargo_tree_with_a_case_takes_the_sweep():
         if OVERDUE_INVITES_SWEEP_NAME not in decisions
     )
     assert missing == [], f"embargo trees without the sweep: {missing}"
-    # The owner's decisions and an answer to an Invite are among them.
+    # Every tree that takes the sweep today; one that loses its stage
+    # entirely fails here rather than dropping out of ``staged``.
     assert {
         "AcceptInviteToEmbargoBT",
         "ActivateEmbargoOnCaseBT",
+        "InviteToEmbargoOnCaseBT",
         "RejectEmbargoProposalOnCaseBT",
         "RejectInviteToEmbargoBT",
+        "RemoveEmbargoFromCaseBT",
+        "WithdrawFromEmbargoOnCaseBT",
     } <= set(staged)
+    # A tree with no stage at all must be a known exception.
+    no_stage_reasons = {
+        # Run apart from the Invite and Accept trees, with no sender rule;
+        # #4642 makes it a guard of those trees, which sweep.
+        "RefuseEmbargoInviteBT": "#4642",
+        # Only the CASE_MANAGER sends it, so the CASE_MANAGER, the only
+        # store that sweeps, never receives it.
+        "AnnounceEmbargoEventToCaseReceivedBT": "sent by the CASE_MANAGER",
+    }
+    unexpected = sorted(unstaged - no_stage_reasons.keys())
+    assert unexpected == [], f"embargo trees with no sweep stage: {unexpected}"
