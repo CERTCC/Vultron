@@ -31,7 +31,11 @@ The entry extends the stored chain, so the gap drain that follows every
 received announce for the case takes it again and retries it; it stays held
 until this replica's case reaches the entry's start.  An entry this replica
 had already applied, but not stored, is in place and passes as a no-op
-(:func:`~vultron.core.models.embargo_apply.change_is_in_place`).
+(:func:`~vultron.core.models.embargo_apply.change_is_in_place`), and so does
+an entry a refused apply shows the case is already past: a replica seeded
+after the entry replays the ledger from genesis over that seed, and replay
+moves forward only (CM-23-016, ADR-0114;
+:func:`~vultron.core.models.embargo_apply.case_file_is_past`).
 
 :class:`ApplyEmbargoConsentFromLedgerNode` is the first slot: the
 CASE_MANAGER's ``Create(EmbargoConsent)`` and ``Update(EmbargoConsent)``
@@ -62,6 +66,7 @@ from vultron.core.models.embargo_apply import (
     ConsentRowChange,
     EmbargoChange,
     apply_embargo_change,
+    case_file_is_past,
     change_is_in_place,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -147,6 +152,18 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         try:
             after = apply_embargo_change(before, change)
         except VultronEntryRefusedError as exc:
+            if case_file_is_past(before, change):
+                # A seed taken after this entry: replay moves forward only
+                # (CM-23-016, ADR-0114).
+                self.logger.info(
+                    "%s: case '%s' is already past '%s' entry '%s' (a seed"
+                    " taken after it) — idempotent no-op",
+                    self.name,
+                    entry.case_id,
+                    entry.event_type,
+                    entry.id_,
+                )
+                return Status.SUCCESS
             return self._refuse(entry, exc)
         save_case_file(self.datalayer, before, after)
         self.feedback_message = (

@@ -273,7 +273,10 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   reported deferred, never patched over. An entry whose result the replica
   already holds (saved, but not yet stored, before a stop) is an idempotent
   no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
-  entry that would change nothing.
+  entry that would change nothing. So is a refused entry the case file is
+  already past (`case_file_is_past()`): a joiner's seed is taken after entries
+  it then replays from genesis, so replay moves forward only (CM-23-016,
+  ADR-0114). A missing register entry, participant or row stays a refusal.
 - **Decide on a stage, record by diff** (#4715). An arm whose decision is an
   existing `EmbargoLifecycle` operation runs it on a `StagedCasePersistence`
   and lets `decided_entries.py` turn what it would have written into the

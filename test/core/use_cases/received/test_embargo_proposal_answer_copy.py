@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import committed_event_types, fail_commits
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -345,8 +346,9 @@ def test_the_act_entry_comes_first(arm):
 def test_a_row_commit_that_fails_saves_only_what_committed():
     """The act committed and its first row did not: only the act applies.
 
-    The managing owner's proposal commits (its ``PROPOSE`` step is saved);
-    the first ``Create(EmbargoConsent)`` fails, so no row is written.  The
+    The managing owner's proposal commits (its ``PROPOSE`` step is saved,
+    and the embargo it names stays stored); the first
+    ``Create(EmbargoConsent)`` fails, so no row is written.  The
     recovery of the rows is #4764.
     """
     net = _net("fail-row", owner=MANAGER, em_state=EM.NONE)
@@ -367,6 +369,8 @@ def test_a_row_commit_that_fails_saves_only_what_committed():
         "invite_to_embargo_on_case"
     )
     assert _row(net, MANAGER, MANAGER, embargo_id) is None
+    # The committed proposal's embargo stays stored: it is case data now.
+    assert embargo_id in _embargo_records(net)
 
 
 @pytest.mark.spec("CLP-07-013")
@@ -523,6 +527,47 @@ def test_the_managers_own_answer_is_copied_by_the_replica(arm):
     net, _ = setup(f"replica-{arm}")
 
     act(net)
+
+    _assert_replica_copies(net, BYSTANDER)
+
+
+def _reseed(net: LedgerNetwork, replica: str) -> None:
+    """Give *replica* a fresh store seeded with the CASE_MANAGER's case now."""
+    case = net.case(MANAGER)
+    store = SqliteDataLayer("sqlite:///:memory:", actor_id=replica)
+    for obj_id in (
+        case.id_,
+        *(str(p) for p in case.actor_participant_index.values()),
+        *(entry.embargo_id for entry in case.embargo_register),
+    ):
+        obj = net.stores[MANAGER].read(obj_id)
+        assert obj is not None, obj_id
+        store.save(obj)
+    net.stores[replica] = store
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.parametrize(
+    "history", ["proposal", "answered-revision", "two-revisions"]
+)
+def test_a_replica_seeded_after_the_entries_replays_them_as_no_ops(history):
+    """A joiner's seed is ahead of the ledger it replays from genesis.
+
+    Each copied entry the seed is already past is a no-op, so the replay
+    reaches the tail and the replica equals the CASE_MANAGER (ADR-0114).
+    """
+    net = _net(f"seeded-{history}", owner=MANAGER)
+    if history == "answered-revision":
+        _participant_proposes(net, "seeded", 30)
+        _participant_answers(net, BYSTANDER, accept=True)
+    else:
+        _propose(net)
+    _accept(net)
+    if history == "two-revisions":
+        _propose(net, 40)
+        _accept(net)
+
+    _reseed(net, BYSTANDER)
 
     _assert_replica_copies(net, BYSTANDER)
 
