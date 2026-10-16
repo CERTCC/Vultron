@@ -46,6 +46,7 @@ from vultron.adapters.driven.datalayer_sqlite.engine import (
     actor_slug,
 )
 from vultron.config import get_config
+from vultron.core.predicates.addressing import normalise_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +65,17 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     chicken-and-egg problem under per-actor stores: choosing which store to open
     required the canonical URI that the scan was being used to discover.
 
-    Any id that already carries a scheme is returned unchanged — including one
-    under a *foreign* authority, which is therefore **not** rewritten into this
-    node's namespace. That is deliberate: a peer's id is the URL outbound
-    delivery posts to, so rewriting it would turn a reachable peer into a local
-    phantom (ADR-0073#peer-records-in-knowers-store). The rejection of foreign-authority ids in
-    ``POST /actors/`` is enforced at the route level (ADR-0081), not here,
-    because this function is also called on the read side where the peer address
-    must survive intact.
+    Any id that already carries a scheme has its trailing slash stripped and is
+    returned — including one under a *foreign* authority.
+    The *authority* (netloc) is never rewritten into this node's namespace: a
+    peer's id is the URL outbound delivery posts to, so changing the host would
+    turn a reachable peer into a local phantom
+    (ADR-0073#peer-records-in-knowers-store).
+    Only the trailing slash is removed, which gives every id one canonical
+    spelling (OID-01-005) while leaving the authority intact.
+    The rejection of foreign-authority ids in ``POST /actors/`` is enforced at
+    the route level (ADR-0081), not here, because this function is also called
+    on the read side where the peer address must survive intact.
 
     Args:
         segment: Final path segment from the request URL (e.g. ``"vendor"``), or
@@ -88,9 +92,14 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     if not segment:
         raise ValueError("actor URL segment must not be empty")
 
-    # Already canonical (or at least absolute) — do not double-prefix it.
+    # Already absolute — normalise the trailing slash and return (OID-01-005).
+    # The authority is preserved unchanged: a peer's id names its own host,
+    # so rewriting the netloc would turn a reachable peer into a local phantom
+    # (ADR-0073#peer-records-in-knowers-store).  Stripping only the trailing
+    # slash is safe because it names the same resource and gives every id one
+    # canonical spelling.
     if urlsplit(segment).scheme:
-        return segment
+        return normalise_actor_id(segment)
 
     # A segment of ``"/"`` is not empty but names nothing.  Left unchecked it
     # produced ``{base}/actors/``, whose final path segment is ``actors`` — so

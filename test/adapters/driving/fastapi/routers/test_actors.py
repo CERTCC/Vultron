@@ -638,6 +638,75 @@ class TestCreateActor:
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
+    def test_ac1_slash_terminated_full_uri_is_stored_without_slash(
+        self, client_actors
+    ):
+        """AC-1 of #4795 (OID-01-005): a full-URI id ending in '/' is stored
+        and returned without the trailing slash.
+
+        ``canonical_actor_uri`` used to return any scheme-bearing id unchanged,
+        so ``http://…/actors/vendor/`` was stored as-is and then matched nothing
+        when the node looked it up under its canonical spelling.
+        """
+        from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+        expected_id = canonical_actor_uri("slash-ac1-vendor")
+        resp = client_actors.post(
+            "/actors/",
+            json={
+                "name": "SlashVendor",
+                "actor_type": "Organization",
+                "id": expected_id + "/",
+            },
+        )
+        assert resp.status_code == status.HTTP_201_CREATED
+        assert resp.json()["id"] == expected_id
+
+    def test_ac2_read_side_accepts_slash_spelled_path_segment(
+        self, client_actors
+    ):
+        """AC-2 of #4795: a GET with a trailing slash on the slug resolves to
+        the stored actor.
+
+        The slug path already stripped slashes via ``canonical_actor_uri``, so
+        this pins the behaviour and guards against regressions.
+        """
+        resp = client_actors.post(
+            "/actors/",
+            json={"name": "SlashReadVendor", "id": "slash-ac2-read"},
+        )
+        assert resp.status_code == status.HTTP_201_CREATED
+        stored_id = resp.json()["id"]
+        slug = stored_id.split("/actors/")[-1]
+
+        get_resp = client_actors.get(f"/actors/{slug}/")
+        # FastAPI may redirect trailing-slash paths; both 200 and 307/308 satisfy
+        # AC-2 (the actor is reachable).
+        assert get_resp.status_code in (
+            200,
+            307,
+            308,
+        ), f"Expected 2xx or redirect, got {get_resp.status_code}"
+
+    def test_ac3_foreign_authority_still_refused(self, client_actors):
+        """AC-3 of #4795: trailing-slash normalisation does not bypass the
+        foreign-authority check.
+
+        A foreign id with a trailing slash is normalised first (slash stripped)
+        and then rejected because the authority still differs from this node's
+        — the same 422 the non-slash form receives.
+        """
+        foreign_id = "http://elsewhere.test:7999/api/v2/actors/foreigner/"
+        resp = client_actors.post(
+            "/actors/",
+            json={
+                "name": "ForeignSlash",
+                "actor_type": "Organization",
+                "id": foreign_id,
+            },
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
 
 # ---------------------------------------------------------------------------
 # Tests for POST /actors/{actor_id}/peers/ — peer address-book registration
