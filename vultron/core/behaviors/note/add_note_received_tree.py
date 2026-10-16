@@ -36,6 +36,8 @@ from vultron.core.behaviors.note.nodes.storage import (
     NoteIdNotTakenNode,
     StoreNoteIfAbsentNode,
 )
+from vultron.core.behaviors.sender_check_context import SenderCheckContext
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,9 @@ logger = logging.getLogger(__name__)
 def create_add_note_to_case_received_tree(
     note_obj: VultronNote,
     case_id: str,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Single-BT received-side tree for AddNoteToCase (ADR-0022, ADR-0111).
 
@@ -59,6 +64,9 @@ def create_add_note_to_case_received_tree(
 
         GuardedAttachAndCommitBT (Sequence)
         ├── IntakeReceivedActivityNode                 # intake
+        ├── CaseOpenToExternalWrites                   # post-close boundary
+        ├── SenderRuleGuard (Sequence)                 # sender guard
+        ├── CaseManagerGate[ClockDecisionStage]        # embargo end-time check
         ├── PreconditionGuards
         │   └── NoteIdNotTakenNode(note_obj)           # guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)  # commit
@@ -91,9 +99,16 @@ def create_add_note_to_case_received_tree(
     distinguish "not the case manager" from "am the case manager and the
     attach failed" (BTND-07-005; cf. the fake-SUCCESS rule in ``AGENTS.md``).
 
+    The factory composes the sender guard from *sender_rule* (HP-01-008):
+    at the CASE_MANAGER the sender must be an active participant whose
+    closure the case does not record (CM-23-018), and a replica takes the
+    attachment from the CASE_MANAGER alone (PCR-03-001).
+
     Args:
         note_obj: The note the ``Add`` carries inline.
         case_id: ID of the VulnerabilityCase receiving the note.
+        sender_id: The ``Add(Note)``'s sender.
+        sender_rule: The use case's declared sender rule (HP-01-008).
 
     Returns:
         Root ``GuardedAttachAndCommitBT`` Sequence node.
@@ -101,6 +116,10 @@ def create_add_note_to_case_received_tree(
     return create_receive_activity_tree(
         name="GuardedAttachAndCommitBT",
         case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
+        ),
         precondition_guards=[NoteIdNotTakenNode(note_obj=note_obj)],
         manager_effects=[
             StoreNoteIfAbsentNode(note_obj=note_obj),

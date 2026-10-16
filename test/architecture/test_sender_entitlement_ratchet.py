@@ -560,18 +560,10 @@ def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
 
 #: Sender checks defined outside the sender-entitlement module, each naming
 #: the open issue that retires it (HP-01-007: the module has no twin).
-#: #4472 deleted the last pre-existing one; an entry needs that issue.
-#: The announce guard is not new: it is the trust-anchor check that ran in
-#: ``AnnounceVulnerabilityCaseReceivedUseCase.execute()`` ahead of its tree,
-#: moved into the tree by #4643 (CLP-10-005).  It reads the ReportCaseLink
-#: anchor the declared CASE_MANAGER rule does not, so it stays its own node
-#: until #4785 declares the announce rule.
-SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {
-    (
-        "vultron/core/behaviors/case/nodes/announce.py",
-        "AnnounceSenderTrustedNode",
-    ): "#4785: the announce use case declares its sender rule",
-}
+#: Empty: #4785 retired the last one, the Announce(VulnerabilityCase)
+#: trust-anchor guard, when that use case declared its sender rule.  An entry
+#: needs an open issue that retires it.
+SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {}
 
 
 @pytest.mark.spec("HP-01-007")
@@ -870,7 +862,6 @@ def test_the_rule_scan_admits_a_declaration() -> None:
 #: an issue no exemption names any more.  That each is still open is checked
 #: when an entry is added or reviewed, since the suite runs offline.
 OPEN_EXEMPTION_ISSUES: dict[str, str] = {
-    "#4785": "note and Announce(VulnerabilityCase) sender rules",
     "#4703": "Accept and Reject of a role offer (NAMED_ACTOR)",
     "#4799": "Create(ProcessingFault), once a case-diverged fault re-seeds",
 }

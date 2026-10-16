@@ -887,11 +887,13 @@ def test_case_status_writes_nothing_at_a_replica():
 
 
 @pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("PCR-03-001")
 @pytest.mark.spec("TB-06-007")
 def test_create_note_writes_no_attachment_at_a_replica():
-    """Create(Note) delivered straight to a replica keeps the Note object but
-    attaches nothing and commits nothing; the attachment comes from the
-    CASE_MANAGER's entry (RSH-08-003, CLP-07-013)."""
+    """Create(Note) delivered straight to a replica by a participant is
+    refused: a replica takes case content from the CASE_MANAGER alone
+    (PCR-03-001), so it stores, attaches and commits nothing; the attachment
+    comes from the CASE_MANAGER's entry (RSH-08-003, CLP-07-013)."""
     net = LedgerNetwork(
         "https://example.org/cases/direct-create-note", em_state=EM.NONE
     )
@@ -901,6 +903,6 @@ def test_create_note_writes_no_attachment_at_a_replica():
 
     _deliver_direct(net, OWNER, _create_note(net, note_id))
 
-    assert net.stores[OWNER].read(note_id) is not None
+    assert net.stores[OWNER].read(note_id) is None
     assert net.case(OWNER).notes == notes_before
     assert _ledger(net, OWNER) == ledger_before

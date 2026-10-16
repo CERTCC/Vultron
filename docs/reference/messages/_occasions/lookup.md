@@ -41,7 +41,7 @@
 | a Participant asked by a Full-Case Invite judges the case valid | `Accept(Invite(Actor)[target=VulnerabilityCase])` | the case manager | the invitee | — | [Accept Full-Case Invite](../case_management.md#accept-full-case-invite) |
 | a Participant asked by a Full-Case Invite judges the case invalid | `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` | the case manager | the invitee | — | [Tentatively reject Full-Case Invite](../case_management.md#tentatively-reject-full-case-invite) |
 | a Participant asked by a Full-Case Invite closes the case | `Reject(Invite(Actor)[target=VulnerabilityCase])` | the case manager | the invitee | — | [Reject Full-Case Invite](../case_management.md#reject-full-case-invite) |
-| the Case Manager has admitted a new Participant to the case | `Announce(VulnerabilityCase)` | a participant | not yet checked | — | [Announce vulnerability case](../case_management.md#announce-vulnerability-case) |
+| the Case Manager has admitted a new Participant to the case | `Announce(VulnerabilityCase)` | a participant | the case manager | — | [Announce vulnerability case](../case_management.md#announce-vulnerability-case) |
 | a Participant ends its participation in the case | `Leave(VulnerabilityCase)` | the case manager | the case owner or a participant | — | [Close case](../case_management.md#close-case) |
 | the Case Owner reinstates a removed Participant | `Add(CaseParticipant)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
 | the Case Owner removes a Participant from active participation | `Remove(CaseParticipant)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Remove case participant from case](../case_management.md#remove-case-participant-from-case) |
@@ -85,8 +85,8 @@
 | the Case Manager presents a suggested actor to the Case Owner | `Offer(CaseParticipant)[target=VulnerabilityCase]` | a participant | the case manager | — | [Offer case participant](../general.md#offer-case-participant) |
 | the Case Owner approves a suggested actor | `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case manager | the case owner | — | [Accept case participant offer](../general.md#accept-case-participant-offer) |
 | the Case Owner declines a suggested actor | `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case manager | the case owner | — | [Reject case participant offer](../general.md#reject-case-participant-offer) |
-| a Participant posts a new note to the case | `Create(Note)` | the case manager | not yet checked | — | [Create note](../general.md#create-note) |
-| a Participant posts a note to the case | `Add(Note)[target=VulnerabilityCase]` | the case manager | not yet checked | — | [Add note to case](../general.md#add-note-to-case) |
+| a Participant posts a new note to the case | `Create(Note)` | the case manager | an active participant | — | [Create note](../general.md#create-note) |
+| a Participant posts a note to the case | `Add(Note)[target=VulnerabilityCase]` | the case manager | an active participant | — | [Add note to case](../general.md#add-note-to-case) |
 | a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[target=VulnerabilityCase]` | the case manager | the case owner or the note's author | — | [Remove note from case](../general.md#remove-note-from-case) |
 
 ## Faults and acknowledgments
