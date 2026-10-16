@@ -54,7 +54,7 @@ Case Owner calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
       self._actor_id = offering_actor_id   ← the owner sends its own Offer
   → EmitOfferCaseOwnershipTransferNode
-      constructs: Offer(VulnerabilityCase, target=transferee_id)
+      constructs: Offer(VulnerabilityCase, target=Actor(id=transferee_id))
       actor:      offering_actor_id        ← no attributedTo
       addressed:  to=[case_actor_id]       ← MUST (CM-21-005)
       queued in:  the owner's own outbox   ← CM-24-004, ADR-0109
@@ -148,7 +148,7 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
   an executing actor this container does not host (BT-05-005).
 - A case always has a CASE_MANAGER (CM-24-006): when none resolves, fail; never send
   to the transferee directly.
-- `to=[case_actor_id]`; the Offer's `target` carries `transferee_id`. The CASE_MANAGER
+- `to=[case_actor_id]`; the Offer's `target` names the transferee. The CASE_MANAGER
   is never sent an Offer by itself: the delegated emit is its forward.
 - **The transferee travels and is stored inline**, as an `Actor` object, never a
   bare id (DL-08-003). The CASE_MANAGER need not hold the transferee's profile, and
