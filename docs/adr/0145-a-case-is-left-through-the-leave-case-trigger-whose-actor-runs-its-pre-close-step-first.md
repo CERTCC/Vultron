@@ -6,8 +6,9 @@ updated: 2026-10-16
 revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; ADR-0050, ADR-0110; specs/case-management.yaml CM-23-001,
-  CM-23-011, CM-23-016; specs/triggerable-behaviors.yaml TRIG-02, TRIG-08
+  Claude Opus 5.5; ADR-0050, ADR-0110, ADR-0144; specs/case-management.yaml
+  CM-23-001, CM-23-011, CM-23-016, CM-23-019; specs/triggerable-behaviors.yaml
+  TRIG-02, TRIG-08
 informed: []
 stakeholder_type: [project-contributor]
 ---
@@ -16,16 +17,16 @@ stakeholder_type: [project-contributor]
 
 ## Context and Problem Statement
 
-Once a case holds a report, the CASE_MANAGER refuses a `Close(Report)` for it from every sender, and an actor's own trigger that would send one fails before it sends anything (#4746).
+Once a case holds a report, the CASE_MANAGER refuses a `Close(Report)` for it from every sender, and an actor's own trigger that would send one fails before it sends anything (CM-23-019, ADR-0144).
 The `close-report` trigger needs a case: it resolves the report's linked case and fails when there is none.
 So it has no success path left.
 A report that no case holds is closed with `reject-report`.
 
-The `PreCloseAction` Actuator call-out, the capability model's "perform any pre-closure integration actions", was wired only into the `close-report` trigger's tree, so it no longer runs.
+The `PreCloseAction` Actuator call-out, the capability model's "perform any pre-closure integration actions", is wired into no core tree but the `close-report` trigger's, so it no longer runs.
 Its sibling, the `OtherCloseCriteriaMet` Evaluator, sits in a tree builder that nothing calls.
 
 The trigger that sends `Leave(VulnerabilityCase)`, `close-case`, is demo-only, so it is not mounted in production mode (TRIG-02-006, TRIG-09-002).
-Retiring `close-report` alone would leave a production deployment with no trigger that closes a case.
+So a production deployment already has no trigger that closes its part in a case, and retiring `close-report` alone would not give it one.
 
 The question this record settles: how does an actor close its part in a case through the trigger API, and where does its pre-close step run?
 
@@ -70,7 +71,7 @@ Option A2 was rejected: it puts a deployment's own action into replica applicati
 
 ### Consequences
 
-- Good, because the trigger API has one closing act once a case exists, and production deployments can call it.
+- Good, because a participant that has joined a case has one trigger that closes its part in it, and production deployments can call it.
 - Good, because the pre-close step runs for every participant that leaves, not only the owner.
 - Good, because the Case Owner's systems do not act on a close the CASE_MANAGER would decline for an active embargo.
 - Bad, because removing `close-report` and the demo `close-case` route is a client-visible API change, so the committed OpenAPI trigger snapshot moves.
@@ -87,7 +88,7 @@ Option A2 was rejected: it puts a deployment's own action into replica applicati
 
 - ADR-0050 — RM closure by `Leave(VulnerabilityCase)`.
 - ADR-0110 — the verb-keyed trigger registry.
-- #4746 — the CASE_MANAGER refuses `Close(Report)` on a case.
+- ADR-0144 — once a report belongs to a case, only its owner closes it, by `Leave` (#4746).
 - #4815 — the concern this record answers.
 
 Generated spec requirements: `triggerable-behaviors.yaml` TRIG-02-001, TRIG-02-004, TRIG-02-006, TRIG-13-001, TRIG-13-002, TRIG-13-003.

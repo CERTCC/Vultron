@@ -393,7 +393,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       Demo trigger endpoints for participant status transitions MUST use the "notify" naming
-      convention (e.g., notify-fix-ready, notify-fix-deployed, notify-published, close-case)
+      convention (e.g., notify-fix-ready, notify-fix-deployed, notify-published)
       to avoid semantic collision with the ActivityStreams Announce verb
   - id: DEMOMA-07-003
     priority: MUST

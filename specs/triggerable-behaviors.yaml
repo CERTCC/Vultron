@@ -55,8 +55,9 @@ groups:
       API: validate-report, invalidate-report, reject-report, submit-report,
       ack-report
     rationale: >-
-      Once a case holds a report, an actor closes by leaving the case (TRIG-13-001),
-      so no report trigger closes a report a case holds. A report no case holds is
+      Once a case holds a report, a case refuses `Close(Report)` from every sender
+      (CM-23-019, ADR-0144) and an actor closes by leaving the case (TRIG-13-001), so
+      no report trigger closes a report a case holds. A report no case holds is
       closed with reject-report (ADR-0145).
     adr:
     - ADR-0145
@@ -656,10 +657,9 @@ groups:
       The system MUST expose a general-purpose `leave-case` trigger at
       `POST /actors/{actor_id}/trigger/leave-case` that accepts a `case_id` and
       sends `Leave(VulnerabilityCase)` from the requesting actor, addressed to the
-      case's CASE_MANAGER. Any participant of the case MAY call it; what the Leave
-      means for the case is decided by the CASE_MANAGER on receipt (CM-23-002,
-      CM-23-003). It is the only trigger that closes an actor's part in a case once
-      the case exists.
+      case's CASE_MANAGER. It accepts a call from any participant of the case; what
+      the Leave means for the case is decided by the CASE_MANAGER on receipt
+      (CM-23-002, CM-23-003).
     verification: >-
       A trigger test POSTs `leave-case` for a participant that is not the owner and
       for the Case Owner, and asserts a `Leave(VulnerabilityCase)` addressed to the
@@ -667,14 +667,16 @@ groups:
       row is general-purpose and that no `close-report` or demo `close-case` row
       exists.
     rationale: >-
-      An actor closes by leaving the case once one exists (CM-23-001), and a
-      production deployment needs a trigger for it: the demo verb was not mounted in
-      production mode (TRIG-09-002). The verb is named for the message, because for
-      a participant that is not the owner the case stays open (ADR-0145).
+      A participant that has joined a case closes its part in it by leaving the case
+      (CM-23-001), never by `Close(Report)`, which a case refuses from every sender
+      (CM-23-019, ADR-0144). A production deployment needs a trigger for it: the
+      demo verb was not mounted in production mode (TRIG-09-002). The verb is named
+      for the message, because for a participant that is not the owner the case
+      stays open (ADR-0145).
     relationships:
     - rel_type: refines
       spec_id: TRIG-02-004
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: CM-23-001
     adr:
     - ADR-0145
@@ -686,9 +688,10 @@ groups:
       (`PreCloseAction`) for every caller before it sends the Leave. When the
       call-out fails, the trigger MUST fail with nothing sent.
     verification: >-
-      A trigger test with a recording `PreCloseAction` backend asserts it ran before
-      the Leave was queued; one with a failing backend asserts the trigger fails with
-      nothing queued.
+      Trigger tests with a recording `PreCloseAction` backend assert it ran before
+      the Leave was queued, for a participant that is not the owner and for the Case
+      Owner; one with a failing backend asserts the trigger fails with nothing
+      queued.
     rationale: >-
       The pre-close step is the leaving actor's own integration work, such as
       closing its ticket, so it runs where that actor decides to leave. Running it
@@ -718,7 +721,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-13-002
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: CM-23-011
     adr:
     - ADR-0145
