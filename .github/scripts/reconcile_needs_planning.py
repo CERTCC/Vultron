@@ -85,9 +85,16 @@ def open_epics(repo: str) -> list[dict[str, object]]:
 
 
 def _is_blocked(issue: dict[str, object]) -> bool:
-    """True while the issue has an open blocker (``blocked_by`` counts open ones)."""
+    """True while the issue has an open blocker (``blocked_by`` counts open ones).
+
+    A missing summary, or a ``blocked_by`` that is not an integer, counts as
+    unblocked, so one odd record cannot stop the reconcile for every Epic.
+    """
     summary = issue.get("issue_dependencies_summary")
-    return isinstance(summary, dict) and int(summary.get("blocked_by", 0)) > 0
+    if not isinstance(summary, dict):
+        return False
+    blocked_by = summary.get("blocked_by")
+    return isinstance(blocked_by, int) and blocked_by > 0
 
 
 def children_of(repo: str, number: int) -> list[tuple[str, str, bool]]:

@@ -34,7 +34,9 @@ def _load_script() -> ModuleType:
     return module
 
 
-_change = _load_script().wanted_label_change
+_script = _load_script()
+_change = _script.wanted_label_change
+_is_blocked = _script._is_blocked
 
 
 @pytest.mark.parametrize(
@@ -76,6 +78,32 @@ def test_wanted_label_change(
     expected: str | None,
 ) -> None:
     assert _change(has_label, children) == expected
+
+
+@pytest.mark.parametrize(
+    ("issue", "expected"),
+    [
+        ({"issue_dependencies_summary": {"blocked_by": 1}}, True),
+        ({"issue_dependencies_summary": {"blocked_by": 0}}, False),
+        # Closed blockers count only toward total_blocked_by.
+        (
+            {
+                "issue_dependencies_summary": {
+                    "blocked_by": 0,
+                    "total_blocked_by": 2,
+                }
+            },
+            False,
+        ),
+        ({}, False),
+        ({"issue_dependencies_summary": None}, False),
+        ({"issue_dependencies_summary": {}}, False),
+        ({"issue_dependencies_summary": {"blocked_by": None}}, False),
+        ({"issue_dependencies_summary": {"blocked_by": "1"}}, False),
+    ],
+)
+def test_is_blocked(issue: dict[str, object], expected: bool) -> None:
+    assert _is_blocked(issue) is expected
 
 
 def test_workflow_triggers_and_permissions() -> None:
