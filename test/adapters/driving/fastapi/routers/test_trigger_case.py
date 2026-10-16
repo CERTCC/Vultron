@@ -519,6 +519,39 @@ def test_trigger_leave_case_unknown_case_returns_404(client_triggers, actor):
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
+@pytest.mark.spec("TRIG-13-002")
+def test_trigger_leave_case_failing_pre_close_action_returns_422(
+    client_triggers, dl, actor, case_with_participant
+):
+    """A failing PreCloseAction backend answers 422 with nothing queued."""
+    from vultron.core.behaviors.call_out.bundles.close_report import (
+        CloseReportCallOutBundle,
+    )
+    from vultron.core.behaviors.call_out.nodes import AlwaysFail
+    from vultron.core.use_cases.triggers.case import leave as leave_module
+
+    build_tree = leave_module.create_leave_case_trigger_tree
+    failing = CloseReportCallOutBundle(
+        pre_close_action_factory=AlwaysFail  # type: ignore[arg-type]
+    )
+
+    def _with_failing_call_out(**kwargs):
+        return build_tree(**{**kwargs, "call_out": failing})
+
+    outbox_before = set(dl.outbox_list())
+    with patch.object(
+        leave_module,
+        "create_leave_case_trigger_tree",
+        side_effect=_with_failing_call_out,
+    ):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/leave-case",
+            json={"case_id": case_with_participant.id_},
+        )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert set(dl.outbox_list()) == outbox_before
+
+
 @pytest.mark.spec("TRIG-13-003")
 def test_trigger_leave_case_owner_under_embargo_returns_409(
     client_triggers, dl, actor, owner_case_under_embargo

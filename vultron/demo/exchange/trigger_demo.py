@@ -46,6 +46,10 @@ from collections.abc import Callable, Sequence
 
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange.embargo_lifecycle import demo_terminate_embargo
+from vultron.demo.helpers.closure import (
+    CaseLeaver,
+    wait_for_owner_replica_embargo_state,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     find_case_for_offer,
@@ -205,6 +209,14 @@ def demo_invalidate_and_close(
     # The owner's leave-case call is refused while the case's embargo is
     # active (TRIG-13-003, CM-23-011), so the vendor ends the embargo first.
     demo_terminate_embargo(vendor_session, case)
+    # The refusal reads the vendor's own replica, which applies the
+    # termination after the CASE_MANAGER commits it (EDF-06-002).
+    with demo_check("Vendor's replica records the embargo ended"):
+        wait_for_owner_replica_embargo_state(
+            authority_client=client,
+            owner=CaseLeaver(client=client, actor=vendor),
+            case_id=case.id_,
+        )
     with demo_step("Step 3: Vendor closes the case with leave-case (Leave)"):
         response = vendor_session.with_case(case).leave_case()
         logger.info(

@@ -42,7 +42,6 @@ from vultron.core.behaviors.embargo.nodes.cascade import (
 )
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
-    HasCaseStatusesNode,
     IsActiveEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
@@ -171,7 +170,6 @@ __all__ = [
     "IsCloseBlockedByActiveEmbargoNode",
     "IsProposedEmbargoNode",
     "HasActiveEmbargoNode",
-    "HasCaseStatusesNode",
     "LookupParticipantNode",
     # EM state read
     "ReadEmStateNode",

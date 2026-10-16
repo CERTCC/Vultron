@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from unittest.mock import patch
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -34,6 +36,7 @@ from vultron.core.use_cases.triggers.case import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
+    VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
@@ -438,3 +441,29 @@ class TestLeaveCaseTrigger:
         self._leave(case)
 
         assert len(set(self.dl.outbox_list()) - before) == 1
+
+    @pytest.mark.spec("TRIG-13-003")
+    def test_an_owner_check_that_cannot_answer_fails_toward_refusal(self):
+        """A store error in the owner check fails the trigger, sending nothing.
+
+        The embargo check sits in a refusal arm, where a guard that cannot
+        answer must not admit (notes/bt-pitfalls.md § "A Refusal Arm in a
+        Selector Fails Toward 'Admit'"): the error propagates out of the
+        tree instead, so the call-out does not run and nothing is queued.
+        """
+        case = self._case(_OWNER, em_state=EM.ACTIVE)
+        before = set(self.dl.outbox_list())
+        recorder = _PreCloseRecorder(self.dl)
+
+        with (
+            patch(
+                "vultron.core.behaviors.sender_entitlement"
+                "._holds_case_owner_role",
+                side_effect=RuntimeError("store unavailable"),
+            ),
+            pytest.raises(VultronError),
+        ):
+            self._leave(case, call_out=recorder.bundle())
+
+        assert recorder.outbox_at_run == []
+        assert set(self.dl.outbox_list()) == before

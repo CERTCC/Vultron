@@ -27,6 +27,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import vultron.demo.utils as demo_utils
+from test.support.embargo_register import activate, terminate
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.demo.helpers import closure, milestones
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
@@ -37,6 +39,9 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
 from vultron.demo.utils import DataLayerClient
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _CASE = "urn:uuid:case"
 _MANAGER = "http://owner:7999/api/v2/actors/case-actor"
@@ -77,12 +82,19 @@ class TestCloseCaseOwnerLast:
         wait_side_effect=None,
         ledger_side_effect=None,
         own_side_effect=None,
+        em_side_effect=None,
     ):
         sent: list[str] = []
         session_cls = MagicMock(
             side_effect=lambda client, actor: (
                 sent.append(actor.id_) or MagicMock()
             )
+        )
+        # The owner's replica-EM gate records its call into ``sent``, so a
+        # test can see it sits between the departures and the owner's Leave.
+        self.em_gate = MagicMock(
+            side_effect=em_side_effect
+            or (lambda manager, owner, case_id: sent.append("em-gate"))
         )
         authority = MagicMock()
         self.manager = MagicMock()
@@ -108,6 +120,7 @@ class TestCloseCaseOwnerLast:
             patch.object(
                 closure, "_verify_own_closure", side_effect=own_side_effect
             ) as own_closure,
+            patch.object(closure, "_wait_for_owner_replica_em", self.em_gate),
         ):
             departed = close_case_owner_last(
                 case=_case(),
@@ -126,7 +139,7 @@ class TestCloseCaseOwnerLast:
         sent, departed, _, _, _ = self._run(
             [_leaver(_FINDER), _leaver(_VENDOR)], _leaver(_OWNER)
         )
-        assert sent == [_FINDER, _VENDOR, _OWNER]
+        assert sent == [_FINDER, _VENDOR, "em-gate", _OWNER]
         assert departed == [_FINDER, _VENDOR, _OWNER]
         assert not demo_utils._demo_failures
 
@@ -217,12 +230,33 @@ class TestCloseCaseOwnerLast:
             _leaver(_OWNER),
             ledger_side_effect=AssertionError("finder left after closure"),
         )
-        assert sent == [_FINDER, _OWNER]
+        assert sent == [_FINDER, "em-gate", _OWNER]
         (failure,) = demo_utils._demo_failures
         assert not failure.startswith("GATE FAILED")
         assert (
             "M7: every departure recorded before case_fully_closed" in failure
         )
+
+    @pytest.mark.spec("TRIG-13-003")
+    def test_owner_leave_gated_on_its_replica_reading_the_canonical_em(self):
+        """The owner's replica must catch up before leave-case reads it."""
+        owner = _leaver(_OWNER)
+        sent, _, _, _, _ = self._run([_leaver(_FINDER)], owner)
+        self.em_gate.assert_called_once_with(self.manager, owner, _CASE)
+        assert sent == [_FINDER, "em-gate", _OWNER]
+
+    @pytest.mark.spec("TRIG-13-003")
+    def test_lagging_owner_replica_fails_the_gate_and_owner_stays(self):
+        """An owner replica still embargoed would get leave-case's 409."""
+        sent, departed, _, _, _ = self._run(
+            [_leaver(_FINDER)],
+            _leaver(_OWNER),
+            em_side_effect=AssertionError("owner replica still ACTIVE"),
+        )
+        assert sent == [_FINDER]
+        assert departed == [_FINDER]
+        (failure,) = demo_utils._demo_failures
+        assert failure.startswith("GATE FAILED")
 
     def test_owner_listed_among_others_is_refused(self):
         with pytest.raises(ValueError, match="Case Owner"):
@@ -583,3 +617,41 @@ class TestVerifyCaseClosed:
         assert _FINDER in str(exc.value)
         assert _MANAGER in str(exc.value)
         assert _OWNER not in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# wait_for_owner_replica_embargo_state
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForOwnerReplicaEmbargoState:
+    @pytest.mark.spec("TRIG-13-003")
+    @pytest.mark.parametrize("canonical", [EM.EXITED, EM.NONE])
+    def test_waits_on_the_owner_store_for_the_canonical_em(self, canonical):
+        """The owner's own store is polled for the CASE_MANAGER's EM state."""
+        case = as_VulnerabilityCase(id_=_CASE, name="Case")
+        if canonical == EM.EXITED:
+            activate(case, f"{_CASE}/embargo_events/e1")
+            terminate(case)
+        manager = MagicMock()
+        manager.get.return_value = case.model_dump(mode="json", by_alias=True)
+        owner = _leaver(_OWNER)
+        authority = MagicMock()
+        with (
+            patch.object(
+                closure, "_case_manager_reader", return_value=manager
+            ) as resolve,
+            patch.object(closure, "wait_for_case_em_state") as wait,
+        ):
+            closure.wait_for_owner_replica_embargo_state(
+                authority_client=authority, owner=owner, case_id=_CASE
+            )
+        resolve.assert_called_once_with(authority, _CASE)
+        manager.get.assert_called_once_with(manager.dl_path(_CASE))
+        wait.assert_called_once_with(
+            owner.client,
+            _CASE,
+            canonical,
+            closure.LEDGER_COVERAGE_TIMEOUT,
+            dl_actor_id=_OWNER,
+        )

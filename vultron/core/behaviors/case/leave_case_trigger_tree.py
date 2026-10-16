@@ -74,9 +74,12 @@ def create_leave_case_trigger_tree(
     The embargo check is the one the CASE_MANAGER makes on receipt
     (:func:`~vultron.core.behaviors.case.owner_close_embargo_guards
     .owner_close_blocked_by_embargo_guards`), so a participant that is not
-    the owner is never blocked by it.  A check that cannot answer admits the
-    Leave rather than refusing it: the CASE_MANAGER still makes the same
-    check on receipt and declines an embargoed owner close (CM-23-011).
+    the owner is never blocked by it.  The check sits in a refusal arm, so a
+    guard that cannot answer must not admit: a store error raises out of the
+    guard and fails the whole trigger, with the call-out not run and nothing
+    queued.  The guards' only quiet FAILURE paths are a missing DataLayer or
+    a missing case, which ``BTBridge`` and the use case's ``_prepare``
+    already exclude.
 
     Args:
         actor_id: The actor leaving the case.
