@@ -192,7 +192,9 @@ A Participant at `INVITED` that does not answer within the window moves to `EXPI
 The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
 When it does not, the policy default applies — seven days, measured from the invitation's `published` timestamp (EP-07-001).
-The case manager stamps `Invite.end_time` on every invitation it relays, so every replica reads the same deadline off the same object, and a Participant that receives an invitation derives no deadline of its own (CM-28-012, CM-28-013).
+The case manager stamps `Invite.end_time` on every invitation it relays.
+It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's, and every replica copies that row from the entry (CM-28-012, CM-28-013).
+A Participant that receives an invitation derives no deadline of its own.
 
 There is a floor. An inviting actor must not send a window shorter than the configured minimum, defaulting to 72 hours (EP-07-002).
 The case manager, as the actor that stamps the relayed invitation, clamps a too-short window up to the minimum and logs the clamp; it does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).

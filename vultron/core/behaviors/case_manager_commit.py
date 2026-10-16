@@ -35,6 +35,7 @@ call or a failed commit is not a protocol refusal, so the exception escapes to
 ``BTBridge`` and the handler raises (BT-14-001, ARCH-15-001).
 """
 
+from collections.abc import Callable
 from typing import cast
 
 from py_trees.common import Status
@@ -132,27 +133,34 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         )
         # One decision is one activity.
         activity_id, blob = self._build(to or None)
-        # Sent before it is recorded: the entry records a completed act
-        # (ADR-0119).  A pending id is an earlier attempt's send, recorded now.
-        if to:
-            self._emit_through_seam(activity_id, blob)
-        try:
-            # A nested commit inherits the outer execution's ``/sync_port``,
-            # so the entry is announced to every participant replica
-            # (SYNC-02-002).
-            commit_emitted_activity(
-                datalayer=dl,
-                actor_id=actor_id,
-                case_id=self._case_id,
-                activity_id=self._ledger_object_id(activity_id),
-                activity_blob=blob,
-                event_type=self._event_type,
-                check_freshness=self._CHECK_LEDGER_FRESHNESS,
-            )
-        except Exception:
+
+        def _send_and_commit() -> None:
+            # Sent before it is recorded: the entry records a completed act
+            # (ADR-0119).  A pending id is an earlier attempt's send,
+            # recorded now.
             if to:
-                self._withdraw_unrecorded(dl, activity_id)
-            raise
+                self._emit_through_seam(activity_id, blob)
+            committed = False
+            try:
+                # A nested commit inherits the outer execution's
+                # ``/sync_port``, so the entry is announced to every
+                # participant replica (SYNC-02-002).
+                commit_emitted_activity(
+                    datalayer=dl,
+                    actor_id=actor_id,
+                    case_id=self._case_id,
+                    activity_id=self._ledger_object_id(activity_id),
+                    activity_blob=blob,
+                    event_type=self._event_type,
+                    check_freshness=self._CHECK_LEDGER_FRESHNESS,
+                )
+                committed = True
+            finally:
+                # The failure itself propagates (BT-14-001).
+                if to and not committed:
+                    self._withdraw_unrecorded(dl, activity_id)
+
+        self._record(activity_id, _send_and_commit)
         self.committed_activity_ids = [activity_id]
         self.feedback_message = (
             f"CASE_MANAGER committed '{self._event_type}' entry for"
@@ -161,6 +169,17 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+    def _record(
+        self, activity_id: str, send_and_commit: Callable[[], None]
+    ) -> None:
+        """Send and commit the built activity *activity_id*.
+
+        A subclass that commits more entries after the act's own, and applies
+        them, overrides this; *send_and_commit* is the act's own commit, and
+        raises when it fails.
+        """
+        send_and_commit()
 
     def _withdraw_unrecorded(
         self, dl: CaseOutboxPersistence, activity_id: str

@@ -85,21 +85,26 @@ if TYPE_CHECKING:
 class PlannedEmbargoEntry:
     """One entry the CASE_MANAGER has decided to commit, and what it changes.
 
-    *change* is what applying the entry writes.  *commit* commits the entry,
+    *change* is what applying the entry writes; ``None`` for an act whose own
+    activity changes no embargo object, such as an ``Accept`` of an embargo
+    Invite, whose consent row follows as its own entry.  *commit* commits the entry,
     raising when it does not commit (``RuntimeError`` from
     :func:`~vultron.core.behaviors.sync.commit_tree.commit_emitted_activity`,
     or a ``VultronError`` when it cannot be built); ``None`` when the entry is
     already committed, as a received act's own entry is.
     """
 
-    change: EmbargoChange
+    change: EmbargoChange | None
     commit: Callable[[], Any] | None = None
 
 
 def trial_apply(
-    case_file: EmbargoCaseFile, changes: Sequence[EmbargoChange]
+    case_file: EmbargoCaseFile, changes: Sequence[EmbargoChange | None]
 ) -> list[EmbargoCaseFile]:
     """The case file after each of *changes*, applied in order to a copy.
+
+    A ``None`` change (an entry that changes no embargo object) leaves the
+    case file as the change before it left it.
 
     Raises:
         VultronEntryRefusedError: a change does not apply; nothing is
@@ -108,7 +113,8 @@ def trial_apply(
     states: list[EmbargoCaseFile] = []
     current = case_file
     for change in changes:
-        current = apply_embargo_change(current, change)
+        if change is not None:
+            current = apply_embargo_change(current, change)
         states.append(current)
     return states
 

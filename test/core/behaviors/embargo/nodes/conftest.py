@@ -25,6 +25,10 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -163,8 +167,16 @@ def make_case_with_manager(
 def setup_blackboard(
     dl: SqliteDataLayer,
     actor_id: str = "https://example.org/users/vendor",
+    *,
+    commits: bool = False,
+    activity: object | None = None,
 ) -> None:
-    """Populate the py_trees blackboard with the DataLayer and actor_id."""
+    """Populate the py_trees blackboard with the DataLayer and actor_id.
+
+    *commits* also writes the trigger-activity and sync ports, for a node
+    that commits the CASE_MANAGER's own entries (ADR-0124).  *activity*,
+    when given, is the received activity at ``/activity``.
+    """
     py_trees.blackboard.Blackboard.enable_activity_stream()
     blackboard = py_trees.blackboard.Client(name="test-setup")
     blackboard.register_key(
@@ -175,6 +187,18 @@ def setup_blackboard(
     )
     blackboard.datalayer = dl
     blackboard.actor_id = actor_id
+    if commits:
+        for key in ("trigger_activity_factory", "sync_port"):
+            blackboard.register_key(
+                key=key, access=py_trees.common.Access.WRITE
+            )
+        blackboard.trigger_activity_factory = TriggerActivityAdapter(dl)
+        blackboard.sync_port = SyncActivityAdapter(dl)
+    if activity is not None:
+        blackboard.register_key(
+            key="activity", access=py_trees.common.Access.WRITE
+        )
+        blackboard.activity = activity
 
 
 @pytest.fixture

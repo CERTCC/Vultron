@@ -126,6 +126,7 @@ class _GateScenario:
             self.dl,
             self._make_payload(accept, receiving_actor_id=MANAGER_ID),
             sync_port=SyncActivityAdapter(self.dl),
+            trigger_activity=TriggerActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 

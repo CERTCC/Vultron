@@ -97,9 +97,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-_EMIT_NOW_MODULE = (
-    "vultron.core.behaviors.case.nodes.invite_actor_emit.now_utc"
-)
+_EMIT_NOW_MODULE = "vultron.core.behaviors.case.nodes.stub_reissue.now_utc"
 
 
 def _deadline(invite: dict[str, Any]) -> datetime:
@@ -456,7 +454,7 @@ def test_an_expired_unanswered_stub_is_not_reissued_on_an_embargo_change(
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
     monkeypatch.setattr(
-        "vultron.core.behaviors.case.nodes.invite_actor_emit.now_utc",
+        "vultron.core.behaviors.case.nodes.stub_reissue.now_utc",
         lambda: _deadline(original) + timedelta(seconds=1),
     )
 
@@ -545,7 +543,7 @@ def test_a_replacement_whose_commit_failed_is_recorded_once_by_the_next_run(
     """
     from test.support.ledger import fail_commits
     from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    from vultron.core.behaviors.case.nodes.stub_reissue import (
         ReissueStubInvitesNode,
     )
     from vultron.core.behaviors.sync import commit_tree

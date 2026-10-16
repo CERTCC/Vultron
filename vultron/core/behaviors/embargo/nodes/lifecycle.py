@@ -15,139 +15,74 @@
 
 """Embargo state machine and lifecycle transition nodes."""
 
+from enum import Enum, auto
+from typing import Self, cast
+
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.decided_entries import (
+    EMBARGO_DECISION_KEY,
+    commit_and_apply_decision,
+    decide_on_stage,
+)
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.terminate import (  # noqa: F401
     SendTerminateEmbargoActivityNode,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.embargo_apply import (
+    ConsentRowChange,
+    RegisterStep,
+    RegisterStepKind,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.core.states.em import (
-    is_em_embargo_active,
-    is_em_exited,
+from vultron.core.services.embargo_lifecycle.staged_persistence import (
+    StagedCasePersistence,
 )
 from vultron.errors import (
     BtNodePreconditionError,
+    VultronBTInternalError,
+    VultronEntryRefusedError,
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
 
 
-class ValidateEmbargoRevisionStateNode(DataLayerActionWithPorts):
-    """Guard that the case EM state permits a revision proposal.
+class _CopyMode(Enum):
+    """How a lifecycle node writes under the copy model (ADR-0124)."""
 
-    Returns SUCCESS when EM state is ACTIVE or REVISE.  Returns FAILURE
-    (with error in ``result_out``) for any other state — revision proposals
-    require an active embargo; use propose-embargo for initial proposals.
-
-    Uses ``ReadEmStateNode`` to read the EM state (AC-1 of issue #1474) rather
-    than reading ``case.em_state`` inline.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        result_out: dict[str, object],
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._result_out = result_out
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        # AC-1: read em_state via ReadEmStateNode, not inline.
-        try:
-            em_state = read_case_em_state(
-                self.datalayer, self._case_id, self._result_out
-            )
-        except BtNodePreconditionError as exc:
-            self.feedback_message = str(exc)
-            return Status.FAILURE
-
-        if not is_em_embargo_active(em_state):
-            bad_state = VultronInvalidStateTransitionError(
-                f"Cannot propose embargo revision: case '{self._case_id}'"
-                f" EM state '{em_state}' does not allow a revision proposal."
-                f" Use propose-embargo for initial proposals."
-            )
-            self._result_out["error"] = bad_state
-            self.feedback_message = str(bad_state)
-            return Status.FAILURE
-
-        return Status.SUCCESS
-
-
-class ValidateEmbargoProposalStateNode(DataLayerActionWithPorts):
-    """Guard that the case EM state admits an embargo proposal.
-
-    A read-only precondition for the propose trigger, ahead of the role arms:
-    ``EXITED`` admits no proposal, because once an embargo register entry is
-    ``TERMINATED`` the register accepts no further change (EP-09-001,
-    ADR-0122).  A participant that is not the CASE_MANAGER writes no EM
-    state and so runs no ``STRICT`` check (EP-09-008); without this guard its
-    proposal would be queued, refused by the CASE_MANAGER's admission guard
-    without a ``Reject``, and leave a pending assertion behind.  Returns
-    FAILURE with the error in ``result_out``, as
-    :class:`ValidateEmbargoRevisionStateNode` does.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        result_out: dict[str, object],
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._result_out = result_out
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        try:
-            em_state = read_case_em_state(
-                self.datalayer, self._case_id, self._result_out
-            )
-        except BtNodePreconditionError as exc:
-            self.feedback_message = str(exc)
-            return Status.FAILURE
-
-        if is_em_exited(em_state):
-            bad_state = VultronInvalidStateTransitionError(
-                f"Cannot propose embargo: case '{self._case_id}' EM state"
-                f" '{em_state}' admits no embargo proposal (EP-09-001)."
-            )
-            self._result_out["error"] = bad_state
-            self.feedback_message = str(bad_state)
-            return Status.FAILURE
-
-        return Status.SUCCESS
+    #: Decide only; :class:`CommitEmbargoDecisionNode` commits and applies.
+    DECIDE = auto()
+    #: The act's entry is already committed (intake, ADR-0111): decide, then
+    #: commit the consent-row entries and apply.
+    APPLY = auto()
 
 
 class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
     """Base node for EmbargoLifecycle strict-mode transitions.
 
     1. ``ReadEmStateNode`` reads ``em_state`` → ``result_out["em_before"]``.
-    2. The subclass ``_transition()`` calls the service; the service writes
-       the EM state update directly (EMB-18-001).
+    2. The subclass ``_transition()`` calls the service.
+
+    By default the service writes directly (EMB-18-001).  Under the copy
+    model (ADR-0124, CLP-07-013) it runs on a staged store, so it only
+    decides; ``decide_on_stage`` turns the decision into the act's register
+    step (:meth:`_register_step`) and one entry per changed consent row.
+    :meth:`deciding` hands it to ``CommitEmbargoDecisionNode`` in
+    ``result_out[EMBARGO_DECISION_KEY]``; :meth:`applying_after` commits the
+    rows and applies here, for an act intake already committed.
     """
 
     def __init__(
@@ -155,6 +90,19 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._result_out = result_out
+        self._copy_mode: _CopyMode | None = None
+        self._cause_id: str | None = None
+
+    def deciding(self) -> Self:
+        """Decide only, for a commit node that commits the act first."""
+        self._copy_mode = _CopyMode.DECIDE
+        return self
+
+    def applying_after(self, cause_id: str) -> Self:
+        """Decide, commit the rows, apply; *cause_id* is the committed act."""
+        self._copy_mode = _CopyMode.APPLY
+        self._cause_id = cause_id
+        return self
 
     def _case_id(self) -> str:
         raise NotImplementedError
@@ -166,11 +114,28 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
     ) -> EmbargoLifecycleResult:
         raise NotImplementedError
 
+    def _answer(self, _actor_id: str) -> ConsentRowChange | None:
+        """The row the act's own activity states, for a participant's answer.
+
+        ``None``, the default, for an act that is not an answer.
+        """
+        return None
+
+    def _register_step(self) -> RegisterStep | None:
+        """The register step the act's own activity carries.
+
+        ``None``, the default, for an act that moves no register entry (a
+        participant's consent).  Raises a ``VultronError`` when the step
+        cannot be named, which refuses the act.
+        """
+        return None
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
+        self._result_out.pop(EMBARGO_DECISION_KEY, None)
 
         # AC-1: read em_state via ReadEmStateNode, not inline service code.
         try:
@@ -180,6 +145,9 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
         except BtNodePreconditionError as exc:
             self.feedback_message = str(exc)
             return Status.FAILURE
+
+        if self._copy_mode is not None:
+            return self._decide()
 
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
@@ -192,6 +160,54 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
         self._result_out["lifecycle_result"] = result
         self._result_out["em_after"] = result.em_after
 
+        return Status.SUCCESS
+
+    def _decide(self) -> Status:
+        """Decide on a staged store; hand the decision on, or commit and apply."""
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        staged = StagedCasePersistence(self.datalayer)
+        try:
+            result = self._transition(
+                EmbargoLifecycle(persistence=staged), self.actor_id
+            )
+            decision = decide_on_stage(
+                self.datalayer,
+                staged,
+                self._case_id(),
+                self._register_step(),
+                self._answer(self.actor_id),
+            )
+        except VultronBTInternalError:
+            raise
+        except VultronError as exc:
+            self._result_out["error"] = exc
+            self.feedback_message = str(exc)
+            return Status.FAILURE
+        self._result_out["lifecycle_result"] = result
+        self._result_out["em_after"] = result.em_after
+        if self._copy_mode is _CopyMode.DECIDE:
+            self._result_out[EMBARGO_DECISION_KEY] = decision
+            self.feedback_message = (
+                f"Decided {len(decision.rows)} consent row(s) beyond the act"
+                f" on case '{self._case_id()}'"
+            )
+            return Status.SUCCESS
+        assert self._cause_id is not None
+        try:
+            commit_and_apply_decision(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer),
+                decision=decision,
+                trigger_activity=self._require_trigger_activity_port(),
+                actor_id=self.actor_id,
+                cause_id=self._cause_id,
+            )
+        except VultronEntryRefusedError as exc:
+            self._result_out["error"] = exc
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        self.feedback_message = f"Applied {len(decision.rows)} row entr(ies)"
         return Status.SUCCESS
 
 
@@ -214,11 +230,28 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         name: str | None = None,
         *,
         proposer_id: str | None = None,
+        embargo: EmbargoEvent | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
         self._case_id_value = case_id
         self._embargo_id = embargo_id
         self._proposer_id = proposer_id
+        self._embargo = embargo
+
+    def _register_step(self) -> RegisterStep:
+        """``PROPOSE`` with the embargo inline: *embargo*, or the stored one.
+
+        Raises:
+            VultronNotFoundError: no embargo to carry; the proposal is refused.
+        """
+        embargo = self._embargo
+        if embargo is None:
+            assert self.datalayer is not None
+            stored = self.datalayer.read(self._embargo_id)
+            if not isinstance(stored, EmbargoEvent):
+                raise VultronNotFoundError("EmbargoEvent", self._embargo_id)
+            embargo = stored
+        return RegisterStep(kind=RegisterStepKind.PROPOSE, embargo=embargo)
 
     def _case_id(self) -> str:
         return self._case_id_value
@@ -273,6 +306,11 @@ class AcceptEmbargoLifecycleNode(_EmbargoLifecycleNode):
             actor_id=actor_id,
         )
 
+    def _answer(self, actor_id: str) -> ConsentRowChange:
+        return ConsentRowChange.answer(
+            embargo_id=self._embargo_id, actor_id=actor_id, accept=True
+        )
+
 
 class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
     """Record the executing actor's ``Reject(Invite(EmbargoEvent))``.
@@ -310,45 +348,10 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
             embargo_id=self._embargo_id,
         )
 
-
-class ReadEmbargoIdNode(DataLayerActionWithPorts):
-    """Read the active embargo ID from the case and write it to the blackboard.
-
-    Returns FAILURE when the case is not found, has no active embargo, or
-    the DataLayer is unavailable.  Returns SUCCESS and writes ``embargo_id``
-    to the blackboard on success.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "embargo_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self._case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        embargo_id = _as_id(case.active_embargo)
-        if embargo_id is None:
-            self.feedback_message = (
-                f"No active embargo on case '{self._case_id}'"
-            )
-            return Status.FAILURE
-
-        self._set_output("embargo_id", embargo_id)
-        return Status.SUCCESS
+    def _answer(self, actor_id: str) -> ConsentRowChange:
+        return ConsentRowChange.answer(
+            embargo_id=self._embargo_id, actor_id=actor_id, accept=False
+        )
 
 
 class SetEmbargoActiveNode(DataLayerActionWithPorts, StateWriteCapable):

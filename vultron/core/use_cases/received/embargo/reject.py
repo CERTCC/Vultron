@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
@@ -38,7 +39,6 @@ from vultron.core.use_cases.received._sender_preflight import rule_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -59,14 +59,14 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RejectInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
-        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -150,11 +150,14 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         )
         bridge = BTBridge(
             datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             # The commit fans the entry out to every participant replica
             # (EP-09-007, RSH-08-004); without the port nothing replays it.
             sync_port=self._sync_port,
+            # The Reject's own entry carries the rejecter's row (ADR-0122);
+            # any other row the rejection changes is the CASE_MANAGER's own
+            # Update(EmbargoConsent) entry, built through it (ADR-0124).
+            trigger_activity=self._trigger_activity,
         )
         result = bridge.execute_with_setup(
             tree=tree,

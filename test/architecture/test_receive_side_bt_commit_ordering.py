@@ -292,14 +292,14 @@ def _commit_node_types() -> tuple[type, ...]:
     ``EmitCaseStatusUpdateNode`` (the ``Add(CaseStatus)`` that follows an EM
     change) and ``ReissueStubInvitesNode`` (each re-issued stub ``Invite``).
     """
-    from vultron.core.behaviors.case.nodes.invite_actor_emit import (
-        ReissueStubInvitesNode,
-    )
     from vultron.core.behaviors.case.nodes.lifecycle import (
         CommitCaseLedgerEntryNode,
     )
     from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
         ExpireOverdueOwnershipOfferNode,
+    )
+    from vultron.core.behaviors.case.nodes.stub_reissue import (
+        ReissueStubInvitesNode,
     )
     from vultron.core.behaviors.case_manager_commit import (
         _CommitCaseManagerActivityBase,
