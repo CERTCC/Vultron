@@ -595,14 +595,17 @@ groups:
       The `AddNoteToCaseReceivedUseCase` handler MUST append the note's id to
       `VulnerabilityCase.notes` (a list of note ids) and commit the attachment as a
       ledger entry; when the `Add(Note)` carries the note inline, the handler MUST
-      persist the Note object before it appends the id.
+      persist the Note object before it appends the id, and MUST refuse, before the
+      commit, an `Add(Note)` whose note id already names a different stored note.
     rationale: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
     verification: >-
       `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_to_case_appends_note`
       runs the handler at the CASE_MANAGER and asserts the note id is in the re-read case's
       `notes`; `::test_add_note_to_case_idempotent` asserts a redelivery appends it once;
       `::test_add_note_to_case_stores_the_inline_note` asserts an `Add(Note)` carrying
-      a note the CASE_MANAGER has never seen persists that note.
+      a note the CASE_MANAGER has never seen persists that note;
+      `::test_add_note_to_case_refuses_to_overwrite_a_different_note` asserts a
+      different note under a stored id is refused with no entry and no overwrite.
 - id: HP-09
   title: Offer Recipient Addressing
   specs:
