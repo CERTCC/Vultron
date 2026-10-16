@@ -326,7 +326,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `ack-report` — acknowledge a received report to its sender
 - `validate-report` — mark a received report as valid
 - `invalidate-report` — mark a received report as invalid
-- `reject-report` — hard-close a report before validation completes
+- `reject-report` — hard-close a report before validation completes; it also sends `Close(Report)`, so it fails once a case holds the report, which by default happens on receipt
 - `close-report` — sends `Close(Report)`, so it fails once a case holds the report: the Case Owner closes a case with `Leave(VulnerabilityCase)`, and a report no case holds is closed with `reject-report`
 
 ### Case management

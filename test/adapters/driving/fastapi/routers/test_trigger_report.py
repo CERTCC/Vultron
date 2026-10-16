@@ -219,7 +219,7 @@ def accepted_report(dl, report, actor):
 
 @pytest.fixture
 def closed_report(dl, report, actor):
-    """Put the report into RM.CLOSED state (triggers 409 on close-report); actor is CASE_OWNER."""
+    """Put the report into RM.CLOSED state on a case; actor is CASE_OWNER."""
     _seed_owner_case(dl, actor.id_, report.id_)
     dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED))
     return report
@@ -717,10 +717,15 @@ def test_trigger_close_report_on_a_case_queues_nothing(
     assert set(dl.outbox_list()) == outbox_before
 
 
-def test_trigger_close_report_already_closed_returns_409(
+@pytest.mark.spec("CM-23-019")
+def test_trigger_close_report_already_closed_on_a_case_names_leave(
     client_triggers, actor, offer, closed_report
 ):
-    """close-report returns HTTP 409 when the report is already CLOSED."""
+    """An already-CLOSED report on a case gets the on-case 409.
+
+    The case check runs first, so the reason names
+    ``Leave(VulnerabilityCase)``, not the duplicate close.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": offer.id_},
@@ -728,6 +733,7 @@ def test_trigger_close_report_already_closed_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
+    assert "Leave(VulnerabilityCase)" in str(data["detail"])
 
 
 def test_trigger_close_report_non_report_offer_returns_404(

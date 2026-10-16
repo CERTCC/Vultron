@@ -4469,13 +4469,14 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_close_report_on_case.py` drives a
       `Close(Report)` on an open case from the Case Owner and from a participant that
-      is not the owner, and asserts `REFUSED`, no RM change, no ledger entry and no
-      outbound activity. Tests in
-      `test/core/use_cases/triggers/test_close_case_trigger.py`,
+      is not the owner, at the CASE_MANAGER and at a participant holding a replica,
+      and asserts `REFUSED`, no RM change, no ledger entry and no outbound activity.
+      Tests in `test/core/use_cases/triggers/test_close_case_trigger.py`,
       `test/core/use_cases/triggers/test_report_triggers.py` and
       `test/core/behaviors/report/test_trigger_report_trees.py` assert that the
       close-report and reject-report triggers fail on a case with nothing written or
-      queued, and still run for a report that belongs to no case.
+      queued, and that the reject-report trigger still closes a report that belongs
+      to no case.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001

@@ -265,6 +265,11 @@ def create_close_case_trigger_tree(
     duplicate-close, emits ``RmCloseReportActivity``, and records the
     actor's RM state as CLOSED.
 
+    The close-report trigger resolves the report's case before it builds
+    this tree and fails without one, so from that trigger only
+    ``CheckReportHasNoCase`` decides; the later nodes have no live path
+    there (#4815).
+
     On a duplicate-close attempt ``CheckReportNotClosed`` writes a
     :class:`~vultron.errors.VultronInvalidStateTransitionError` into
     ``result_out["error"]`` so the calling use case can re-raise the domain

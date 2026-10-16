@@ -227,9 +227,8 @@ def trigger_reject_report(
         "progressed through the RM lifecycle. Returns HTTP 409 when a case "
         "holds the report: its Case Owner closes the case with "
         "Leave(VulnerabilityCase) (close-case), and no actor sends "
-        "Close(Report) for it (CM-23-019). Also returns HTTP 409 if the "
-        "report is already CLOSED, or if its RM state has no close edge "
-        "(e.g. VALID; VP-02-004)."
+        "Close(Report) for it (CM-23-019). Returns HTTP 404 when no case "
+        "holds the report."
     ),
     operation_id="actors_trigger_close_report",
     response_model=ActivityResult,

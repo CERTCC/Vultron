@@ -71,13 +71,17 @@ def _rm(dl: SqliteDataLayer, actor_id: str) -> RM | None:
     return record.participant_statuses[-1].rm.state
 
 
-def _store(*, closed: str | None = None) -> SqliteDataLayer:
-    """The CASE_MANAGER's store: an open case holding the report.
+def _store(
+    *, closed: str | None = None, receiver: str = _MANAGER
+) -> SqliteDataLayer:
+    """*receiver*'s store: an open case holding the report.
 
-    The owner and a vendor are participants at RM ``ACCEPTED``; when *closed*
-    names one of them, the case records that participant's closure.
+    By default the CASE_MANAGER's store; any other *receiver* holds a
+    replica.  The owner and a vendor are participants at RM ``ACCEPTED``;
+    when *closed* names one of them, the case records that participant's
+    closure.
     """
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
     dl.save(as_VulnerabilityReport(id_=_REPORT, name="On-case report"))
     case = as_VulnerabilityCase(
         id_=_CASE, name="Close(Report) on a case", attributed_to=_MANAGER
@@ -103,18 +107,20 @@ def _store(*, closed: str | None = None) -> SqliteDataLayer:
     return dl
 
 
-def _close_report(sender: str) -> CloseReportReceivedEvent:
+def _close_report(
+    sender: str, receiver: str = _MANAGER
+) -> CloseReportReceivedEvent:
     offer = rm_submit_report_activity(
         as_VulnerabilityReport(id_=_REPORT, name="r"),
         to=_OWNER,
         actor=_STRANGER,
     )
     event = extract_event(
-        rm_close_report_activity(offer, actor=sender, to=[_MANAGER])
+        rm_close_report_activity(offer, actor=sender, to=[receiver])
     )
     return cast(
         CloseReportReceivedEvent,
-        event.model_copy(update={"receiving_actor_id": _MANAGER}),
+        event.model_copy(update={"receiving_actor_id": receiver}),
     )
 
 
@@ -144,6 +150,21 @@ def test_close_report_on_an_open_case_is_refused(sender: str) -> None:
     assert "No sender is entitled" in (result.reason or "")
     assert _rm(dl, sender) == RM.ACCEPTED
     assert _rm(dl, _OWNER if sender == _VENDOR else _VENDOR) == RM.ACCEPTED
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("CM-23-019")
+def test_close_report_at_a_participant_replica_is_refused() -> None:
+    """A participant holding a replica refuses the owner's ``Close(Report)``
+    too: no sender is entitled to send it to any case actor."""
+    dl = _store(receiver=_VENDOR)
+
+    result = _run(dl, _OWNER, _close_report(_OWNER, receiver=_VENDOR))
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert "No sender is entitled" in (result.reason or "")
+    assert _rm(dl, _OWNER) == RM.ACCEPTED
     assert dl.list_objects("CaseLedgerEntry") == []
     assert dl.outbox_list() == []
 

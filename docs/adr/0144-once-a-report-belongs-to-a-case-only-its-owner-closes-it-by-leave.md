@@ -49,8 +49,7 @@ A `Close(Report)` for a report that belongs to no case is unchanged.
 Other paths can still leave a Case Owner at RM `CLOSED` on an open case (a status update declaring it, a `Leave` whose later commit fails).
 So the guard composed for the `CASE_OWNER` standing also refuses an owner whose closure the case records, as CM-23-018 requires of every sender.
 
-Option B was rejected: it gives the case two closing messages, and the `Leave` round-trip, which declines a close while an embargo is active (CM-23-011), would have a bypass.
-Option C was rejected: it keeps a message admitted that no sender should send once a case exists, and closes only the owner half of the problem.
+Options B and C were rejected; see Pros and Cons of the Options.
 
 ### Consequences
 
@@ -64,6 +63,26 @@ Option C was rejected: it keeps a message admitted that no sender should send on
 - A received-use-case test drives `Close(Report)` on an open case from the Case Owner and from a participant that is not the owner, and asserts `REFUSED` with no RM change, no ledger entry and nothing sent.
 - Trigger tests assert the close-report and reject-report triggers fail on a case with nothing written or queued.
 - For every use case declaring the `CASE_OWNER` standing, a test asserts a closed Case Owner is refused.
+
+## Pros and Cons of the Options
+
+### A — Refuse `Close(Report)` on a case from every sender
+
+- Good, because the case keeps one closing message, the Case Owner's `Leave`.
+- Good, because the refusal is the sender guard's, so nothing is written or sent.
+- Bad, because the close-report trigger loses its success path once a case exists.
+
+### B — Treat the owner's `Close(Report)` as a full close
+
+- Good, because an owner that sends the old message still closes its case.
+- Bad, because the case gets two closing messages.
+- Bad, because it bypasses the `Leave` round-trip, which declines a close while an embargo is active (CM-23-011).
+
+### C — Keep admitting `Close(Report)`, and refuse a closed owner's later acts
+
+- Good, because no message that is admitted today is refused.
+- Bad, because a message no sender should send once a case exists stays admitted.
+- Bad, because it fixes only the owner half of the problem: a participant's `Close(Report)` still closes it outside the `Leave` path.
 
 ## More Information
 
