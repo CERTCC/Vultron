@@ -126,7 +126,7 @@ See [How to Post a Status Update or a Case Note](status_updates.md) for the fiel
 
 Send `Add(ParticipantStatus)`, targeting the participant record, with the new status inline as its `object`.
 The status carries the participant's `rmState` and, for a Vendor or Deployer, its `vfState` and `dState`.
-This implementation does not support a separate `Create(ParticipantStatus)` ahead of the `Add`.
+The protocol names `Add(ParticipantStatus)` as the one form; a received `Create(ParticipantStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 If the status is known when you seat the participant, carry it inline on the `CaseParticipant` object instead of sending the `Add`.
 Status is self-declaratory: send your own, and expect each participant to send its own (PRM-06-001, ADR-0121).

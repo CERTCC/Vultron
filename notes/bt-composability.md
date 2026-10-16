@@ -122,8 +122,8 @@ with structure:
 ## Reusability Anti-Patterns
 
 1. **Hard-coded actor roles or identities** — pass `actor_id`/role as
-   constructor parameters so one node serves coordinator, vendor, and finder.
-   A factory such as `create_finder_participant_node()` with the role in its
+   constructor parameters so one node serves coordinator, vendor, and reporter.
+   A factory such as `create_vendor_participant_node()` with the role in its
    name and body is the smell.
 2. **Demo-specific logic in reusable nodes** — BT nodes MUST NOT import from
    `vultron.demo` or read environment variables; log with the standard
