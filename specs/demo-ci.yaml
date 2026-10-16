@@ -2018,11 +2018,12 @@ groups:
         statement: >-
           Every branch point of the demo scenario tree MUST be defined exactly
           once, in a branch-point table in the scenario package, with the role
-          that decides there, the presenter prompt, and its choices. Each choice
-          MUST carry a presenter label and exactly one trigger, called by the
-          branch point's role. A choice MUST NOT be a non-trigger action (a wait,
-          a skip or a fall-through). The prompt and choice labels MUST NOT be
-          declared anywhere else, including on `@scenario` and in `ui/`.
+          that decides there, the presenter prompt, and at least two choices.
+          Each choice MUST carry a presenter label and exactly one trigger,
+          called by the branch point's role. A choice MUST NOT be a non-trigger
+          action (a wait, a skip or a fall-through). The prompt and choice
+          labels MUST NOT be declared anywhere else, including on `@scenario`
+          and in `ui/`.
         rationale: >-
           Live mode offers each choice as one trigger POST, and offline mode must
           offer the same choices (ADR-0104 amendment of 2026-10-15), so a choice
@@ -2032,9 +2033,15 @@ groups:
           other party does next. Labels in one table cannot drift between the
           two modes. Planning of #4726 settled both.
         verification: >-
-          A registry test asserts every branch point names a role, a non-empty
-          prompt and at least two choices, and that every choice names a trigger
-          behavior the demo trigger router exposes.
+          A registry test asserts that no two branch points share an identifier;
+          that every branch point names a role, a non-empty prompt and at least
+          two choices; that every choice names a trigger behavior exposed by the
+          trigger routers (`/actors/{id}/trigger/{behavior}`) or the demo
+          trigger router (`/actors/{id}/demo/{behavior}`); and that `@scenario`
+          accepts no prompt or label argument. When a scenario reports reaching
+          a declared step, the harness fails it if the calling actor does not
+          hold the branch point's role. The UI's copy of the labels is the
+          generated index, whose drift test (DEMOCI-11-016) fails a hand edit.
         adr:
           - ADR-0098
           - ADR-0104
@@ -2080,7 +2087,10 @@ groups:
           A scenario's name MUST keep the letter grammar of the existing names:
           the leading letters spell, in order, the roles that join the case along
           the scenario's declared path (`r` Reporter, `v` Vendor, `c`
-          Coordinator), and an optional hyphenated suffix names the outcome. A
+          Coordinator, `d` Deployer, and one new letter for each further role a
+          scenario adds), and an optional hyphenated suffix names the outcome. A
+          Vendor that reports its own vul joins as a Vendor, so its name begins
+          with `v`. A
           check MUST fail a name whose letters disagree with its path. Names
           MUST NOT be generated from the path's choices.
         rationale: >-
@@ -2117,7 +2127,11 @@ groups:
           cases; keying by actor alone would not fit them.
         verification: >-
           A drift test fails when the committed index differs from a fresh
-          export, naming the regeneration command.
+          export, naming the regeneration command. A shape test asserts the
+          index carries the branch-point table, a single root node whose
+          descendants include every registered scenario's ending, and one entry
+          per registered scenario whose recording files are keyed by actor and
+          then by case.
         adr:
           - ADR-0098
           - ADR-0104
@@ -2135,17 +2149,14 @@ groups:
           MUST show that their recorded ledgers are isomorphic up to the branch
           point where the paths part: after each recording's ids are relabeled
           in order of first appearance, the entries MUST be equal, including
-          every reference between objects, with timestamps excluded. Once a
-          family of scenarios is written as composition, its recordings MUST
-          instead be byte-identical up to the branch point.
+          every reference between objects, with timestamps excluded.
         rationale: >-
           Byte identity cannot hold for scenarios that are still copies:
           siblings seed different actor names, container slots and ports, so
           their ids differ even when the logic matches. Isomorphism checks the
           logic and the relationships without the literal addresses, much as
           position-independent code is compared, and still fails a declaration
-          that misstates where two scenarios diverge. Composition makes the
-          shared prefix one copy, so byte identity then holds by construction.
+          that misstates where two scenarios diverge.
         verification: >-
           A test runs the check over the committed recordings, and fails on a
           fixture pair with a reordered step and on a pair whose references map
@@ -2155,3 +2166,25 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: DEMOCI-11-014
+
+      - id: DEMOCI-11-018
+        priority: MUST
+        kind: project
+        statement: >-
+          Once a family of scenarios is written as composition, the recordings
+          of every two scenarios in it whose paths share a prefix MUST be
+          byte-identical up to the branch point where the paths part.
+        rationale: >-
+          Composition makes the shared prefix one copy of the code, so byte
+          identity holds by construction and is the stricter check that
+          DEMOCI-11-017's isomorphism stands in for until then.
+        verification: >-
+          The shared-prefix test compares byte for byte the scenario pairs of
+          each family marked as composed, and fails on a fixture pair of a
+          marked family that differs in one byte before the branch point. It
+          parametrizes over no family until the first is composed.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-017

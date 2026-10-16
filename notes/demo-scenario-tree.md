@@ -33,7 +33,8 @@ relevant_packages:
 
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
-both amended 2026-10-15. Requirements: DEMOCI-11-013 through DEMOCI-11-017.
+both amended 2026-10-15. Requirements: DEMOCI-11-013 through DEMOCI-11-018.
+Parent Epic: #4747.
 
 This is the interim form. Composition (#4733) writes a branching story once and
 retires each family's declarations as it lands.
@@ -50,8 +51,9 @@ retires each family's declarations as it lands.
   (branch point, choice) pairs from the root (DEMOCI-11-014). A
   parent-scenario pointer was rejected: `fv` and `fvv` are siblings, neither a
   prefix of the other.
-- **A tree node is a path prefix, not a branch point.** A decision can recur on
-  one path (#2050 invalidates, then validates), so key nodes by prefix.
+- **A tree node is identified by its path prefix.** A branch point is a table
+  entry that labels one or more nodes: a decision can recur on one path (#2050
+  invalidates, then validates), so key nodes by prefix, not by branch point.
 - **Every scenario is an ending.** No path may be a strict prefix of another, or
   one scenario would be both an interior node and a leaf.
 
@@ -102,14 +104,20 @@ Reporter: whom to tell?                    (room for "Vendor found it itself": #
 The exact prompts, choice labels and triggers are #4759's to write; the shape
 above is what the paths must produce.
 
-- **Future scenarios fit as new choices.** Vendor self-report is a third root
-  choice. Two-reporter, split and merge scenarios (#3671, #4243, #4244) add
-  actors and cases mid-path, which is why recordings are keyed by actor and case.
+- **Future scenarios fit as new choices.** Two-reporter, split and merge
+  scenarios (#3671, #4243, #4244) add actors and cases mid-path, which is why
+  recordings are keyed by actor and case.
+- **Open consideration: Vendor self-report** (#2591, #3667). The root branch
+  point is the Reporter's, so a Vendor that finds the vul itself is not one of
+  its choices. It is either a second root or the Vendor acting as the Reporter;
+  decide when that scenario is designed. Its name begins with `v` either way.
 
 ## Names
 
 Names keep the letter grammar: the leading letters spell the roles that join, in
-order, and a suffix names the outcome (DEMOCI-11-015). A check compares the
+order, and a suffix names the outcome (DEMOCI-11-015). The letter set is `r`,
+`v`, `c` and `d` (Deployer, for `fcvd`), gaining one letter per new role. A
+check compares the
 letters with the path. Path-generated names were rejected: inserting a branch
 point upstream would rename every scenario below it, and a name is the stem of
 the module, harness, narrative page, `scenario_start` marker and CI entry.
@@ -139,7 +147,8 @@ point.
 ## Shared-prefix check
 
 Prove each declared branch the way position-independent code is compared: same
-logic, different addresses (DEMOCI-11-017).
+logic, different addresses (DEMOCI-11-017; byte identity once composed is
+DEMOCI-11-018).
 
 - Relabel each recording's ids by first appearance, drop timestamps, and require
   equal entries up to the branch point, references between objects included.

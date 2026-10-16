@@ -225,8 +225,10 @@ a choose-your-own-adventure story, not an open-world simulation.
 *Avoid*: scenario graph, phylogeny
 
 **Branch point**:
-A node of the scenario tree where one role faces a decision, such as the Vendor deciding
-whether to validate a report or the Reporter deciding where to report.
+A decision one role faces, such as the Vendor deciding whether to validate a report or
+the Reporter deciding where to report. It is defined once and labels each node of the
+scenario tree where that decision is made; a decision can recur on one path, so a node is
+identified by its path from the root, not by its branch point.
 *Avoid*: decision node (the demo UI's name for a timeline node), fork
 
 **Choice**:

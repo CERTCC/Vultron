@@ -132,7 +132,7 @@ exporters to the files they write.
 | Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
 | Scenario-tree index | branch-point table and `@scenario` path declarations (#4727; design in `demo-scenario-tree.md`) | offline mode, live branch points | drift test; isomorphic shared-prefix check | planned |
 | Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |
-| Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}`) | live mode (#3643) | — | planned |
+| Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}` and `/actors/{id}/demo/{behavior}`) | live mode (#3643) | — | planned |
 
 Rules for the TypeScript side:
 
@@ -294,10 +294,11 @@ they block wait for them.
 1. **Vocabulary.** Concern #4723 (AS2 shapes for ledger-only acts) →
    #4724 (the registry labels every ledger entry) → #4725 (export the registry
    table to `ui/`).
-2. **Recordings and the tree.** #3901 (deterministic recordings) and Idea
-   #4726 (scenario-tree design) → #4736 (Finder → Reporter) → #4759 (path
-   declarations) → #4727 (tree index and shared-prefix check, after #3901); Idea #4733 (scenarios as
-   composition) after #4727, producing one Task per scenario family.
+2. **Recordings and the tree.** Idea #4726 (scenario-tree design) → #4736
+   (Finder → Reporter) → #4759 (path declarations) → #4727 (tree index and
+   shared-prefix check, also after #3901, deterministic recordings); Idea #4733
+   (scenarios as composition) after #4727, producing one Task per scenario
+   family.
 3. **UI correctness.** #4728 (tooling baseline) → #4729 (Log Replay reads the
    current ledger, golden tests over the recordings).
 4. **Offline mode.** Idea #4730 (presentation design) → #4731 (offline
