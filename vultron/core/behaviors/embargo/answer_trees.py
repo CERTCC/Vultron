@@ -51,6 +51,9 @@ from vultron.core.behaviors.embargo.nodes import (
     RejectIsNotWithdrawalNode,
     ValidateCaseExistsNode,
 )
+from vultron.core.behaviors.embargo.nodes.answer_record import (
+    case_manager_admits_answer_change_guard,
+)
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
@@ -86,10 +89,11 @@ def accept_invite_to_embargo_tree(
     """Create the BT for accepting an embargo invitation.
 
     Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity: the
-    sender's own consent, the case owner's included (ADR-0122).  Records the
-    acceptance via EmbargoLifecycle, moving no register entry, and commits a
-    canonical ledger entry.  Only the CASE_MANAGER records it (BT-17-001); any
-    other receiver's gate turns it away and the handler reports a refusal.
+    sender's own consent, the case owner's included (ADR-0122).  The Accept's
+    canonical entry is the accepter's row's entry: the ``AGREED`` row it
+    states is applied by copying (ADR-0124), and it moves no register entry.
+    Only the CASE_MANAGER records it (BT-17-001); any other receiver's gate
+    turns it away and the handler reports a refusal.
     The owner's activation of a proposal is a separate activity
     (``activate_embargo_on_case_tree``), so no revision becomes active here;
     the backfill still runs because a participant that accepts the embargo in
@@ -197,6 +201,12 @@ def accept_invite_to_embargo_tree(
                 invitee_id=accepting_actor_id,
                 case_id=case_id,
             ),
+            # The Accept's entry carries the row it states (ADR-0122), so an
+            # Accept that records nothing the case can take is refused before
+            # it is committed.
+            case_manager_admits_answer_change_guard(
+                case_id, embargo_id, accepting_actor_id, accept=True
+            ),
         ],
         manager_effects=[
             RecordParticipantAcceptanceNode(
@@ -243,9 +253,10 @@ def reject_invite_to_embargo_tree(
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
+        ├─ EmbargoAnswerApplies (CASE_MANAGER gate)  # the row can be written
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
-           └─ RecordParticipantRejectionNode  # consent (MSM-07-004)
+           └─ RecordParticipantRejectionNode  # the row the Reject states
 
     The guard refuses a Reject naming an embargo that is neither active nor
     an open proposal (a late Reject of a decided proposal, or an unknown
@@ -294,6 +305,10 @@ def reject_invite_to_embargo_tree(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 rejecting_actor_id=rejecting_actor_id,
+            ),
+            # The Reject's entry carries the row it states (ADR-0122).
+            case_manager_admits_answer_change_guard(
+                case_id, embargo_id, rejecting_actor_id, accept=False
             ),
         ],
         manager_effects=[

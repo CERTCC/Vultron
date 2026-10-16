@@ -34,7 +34,8 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    it (CLP-10-022).
 4. No built received tree commits ahead of its guarded commit except inside
    the clock-decision stage or a CASE_MANAGER diversion, and there only from
-   the stage's own commit node, never the received activity's, and no
+   a stage's own commit nodes — one per AS2 activity the decision or the
+   diversion needs — never the received activity's, and no other
    protocol-effect node runs inside the clock-decision stage (CLP-10-025,
    CLP-10-026).
 
@@ -283,9 +284,18 @@ def _commit_node_types() -> tuple[type, ...]:
     """Every node class that commits a ledger entry.
 
     ``CreateLogEntryNode`` mints in-tree; ``CommitCaseLedgerEntryNode`` is the
-    received activity's commit; ``ExpireOverdueOwnershipOfferNode`` commits
-    the Offer expiry in a nested tree only it can see, because which Offer
-    expires is known only when it runs, so it is named here to be checked.
+    received activity's commit.  The others commit a CASE_MANAGER-authored
+    activity they build themselves in a nested tree only they can see, so
+    they are named here to be checked: ``ExpireOverdueOwnershipOfferNode``
+    (the Offer expiry, which Offer is known only when it runs),
+    ``CommitAndApplyInviteExpiryNode`` (the invitation expiry and its
+    ``TIMED_OUT`` row, decided first so the row is written only once both
+    commit, ADR-0124), ``CommitAndApplyHonourLateAcceptNode`` (the late-Accept
+    honour and its ``AGREED`` row, a CASE_MANAGER diversion's commit,
+    CLP-10-026), ``_CommitCaseManagerActivityBase`` (the termination
+    ``Remove``, ``CommitAndApplyEmbargoTerminationNode``),
+    ``EmitCaseStatusUpdateNode`` (the ``Add(CaseStatus)`` that follows an EM
+    change) and ``ReissueStubInvitesNode`` (each re-issued stub ``Invite``).
     """
     from vultron.core.behaviors.case.nodes.lifecycle import (
         CommitCaseLedgerEntryNode,
@@ -293,21 +303,55 @@ def _commit_node_types() -> tuple[type, ...]:
     from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
         ExpireOverdueOwnershipOfferNode,
     )
+    from vultron.core.behaviors.case.nodes.stub_reissue import (
+        ReissueStubInvitesNode,
+    )
+    from vultron.core.behaviors.case_manager_commit import (
+        _CommitCaseManagerActivityBase,
+    )
+    from vultron.core.behaviors.case_status_snapshot import (
+        EmitCaseStatusUpdateNode,
+    )
+    from vultron.core.behaviors.embargo.nodes.expiry_commit import (
+        CommitAndApplyHonourLateAcceptNode,
+        CommitAndApplyInviteExpiryNode,
+    )
     from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 
     return (
+        CommitAndApplyHonourLateAcceptNode,
+        CommitAndApplyInviteExpiryNode,
         CommitCaseLedgerEntryNode,
         CreateLogEntryNode,
         ExpireOverdueOwnershipOfferNode,
+        _CommitCaseManagerActivityBase,
+        EmitCaseStatusUpdateNode,
+        ReissueStubInvitesNode,
+    )
+
+
+def _decision_commit_types() -> tuple[type, ...]:
+    """The commit nodes a clock decision may hold: every one but the
+    received activity's (CLP-10-025)."""
+    from vultron.core.behaviors.case.nodes.lifecycle import (
+        CommitCaseLedgerEntryNode,
+    )
+
+    return tuple(
+        t for t in _commit_node_types() if t is not CommitCaseLedgerEntryNode
     )
 
 
 def _commits_own_entry(node: py_trees.behaviour.Behaviour) -> bool:
     """True for a stage that may commit its own entry ahead of the guards.
 
-    The clock-decision stage (CLP-10-025), and a diversion whose effects sit
-    in a CASE_MANAGER gate (CLP-10-026): it answers its delivery in place of
-    the received activity's commit, which then never runs.
+    The clock-decision stage (CLP-10-025), whose commits are the decision's
+    own CASE_MANAGER-authored entries, one per AS2 activity it needs
+    (:func:`_decision_commit_types`); and a diversion whose effects sit in a
+    CASE_MANAGER gate (CLP-10-026): it answers its delivery in place of the
+    received activity's commit, which then never runs.  The received
+    activity's commit (``CommitCaseLedgerEntryNode``) inside either would
+    commit the activity's own assertion before the guards judge it.
     """
     from vultron.core.behaviors.case.nodes.clock_decision_stage import (
         ClockDecisionStage,
@@ -329,7 +373,8 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
 
     A commit ahead of the guarded commit is allowed only inside a
     :class:`ClockDecisionStage` or a CASE_MANAGER diversion, and there only
-    the stage's own entry (``CreateLogEntryNode``); the received activity's
+    the stage's own entries (:func:`_decision_commit_types`); the received
+    activity's
     commit (``CommitCaseLedgerEntryNode``) inside the stage would commit the
     activity's own assertion before the guards judge it.  A tree with no
     guarded commit has no "ahead of the commit" and reports nothing.
@@ -364,7 +409,7 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
 @pytest.mark.spec("CLP-10-010")
 def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
     """Every received tree commits ahead of its guards only from a clock
-    decision's own commit node."""
+    decision's own commit nodes, one per AS2 activity the decision needs."""
     from test.architecture._received_tree_builds import built_received_trees
     from vultron.core.behaviors.case.nodes.clock_decision_stage import (
         ClockDecisionStage,
@@ -391,9 +436,16 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
-    # Both expiries are seen committing inside the stage, so the walk covers
-    # the nested committer as well as the in-tree one.
-    assert {"CreateLogEntryNode", "ExpireOverdueOwnershipOfferNode"} <= staged
+    # Both expiries and every entry of the end-time termination are seen
+    # committing inside the stage, so the walk covers the nested committers
+    # that decide first.
+    assert {
+        "CommitAndApplyInviteExpiryNode",
+        "ExpireOverdueOwnershipOfferNode",
+        "CommitAndApplyEmbargoTerminationNode",
+        "EmitCaseStatusUpdateNode",
+        "ReissueStubInvitesNode",
+    } <= staged
     diverted = {
         type(n).__name__
         for t in trees.values()
@@ -402,15 +454,17 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
-    # The late-Accept honour diversion is seen committing its own entry.
-    assert "CreateLogEntryNode" in diverted
+    # The late-Accept honour diversion is seen committing its own entries.
+    assert "CommitAndApplyHonourLateAcceptNode" in diverted
 
 
 @pytest.mark.spec("CLP-10-025")
 def test_no_protocol_effect_runs_in_the_clock_decision_stage() -> None:
-    """A clock decision commits only its own entry and the change it records,
-    so no node a factory uses as a protocol effect runs inside the stage,
-    where it would precede the guards."""
+    """A clock decision commits only its own CASE_MANAGER-authored entries
+    and the changes they record, so no node a factory uses as a protocol
+    effect runs inside the stage, where it would precede the guards, unless
+    it commits an AS2 activity of the decision's own (a re-issued stub
+    ``Invite`` of an end-time termination, CLP-10-025)."""
     from test.architecture._received_tree_builds import built_received_trees
     from vultron.core.behaviors.case.nodes.clock_decision_stage import (
         ClockDecisionStage,
@@ -429,6 +483,7 @@ def test_no_protocol_effect_runs_in_the_clock_decision_stage() -> None:
                 # py_trees composites are structure, not effects.
                 if type(n).__name__ in effects
                 and not type(n).__module__.startswith("py_trees")
+                and not isinstance(n, _decision_commit_types())
             }
         )
     }
@@ -479,6 +534,44 @@ class TestEarlyCommitDetector:
         )
 
         assert _early_commits(self._tree(stage)) == []
+
+    @staticmethod
+    def _end_time_decision() -> py_trees.behaviour.Behaviour:
+        from datetime import UTC, datetime
+
+        from vultron.core.behaviors.embargo.end_time_tree import (
+            end_time_clock_decision,
+        )
+
+        return end_time_clock_decision(
+            case_id="https://example.org/cases/c",
+            now=datetime(2030, 1, 1, tzinfo=UTC),
+        )
+
+    def test_a_termination_decision_inside_the_stage_is_allowed(
+        self,
+    ) -> None:
+        """Its several entries, one per AS2 activity, are all its own."""
+        from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+            ClockDecisionStage,
+        )
+
+        stage = ClockDecisionStage(
+            name="ClockDecisions", decisions=[self._end_time_decision()]
+        )
+
+        assert _early_commits(self._tree(stage)) == []
+
+    def test_a_termination_decision_among_the_guards_is_flagged(
+        self,
+    ) -> None:
+        found = _early_commits(self._tree(self._end_time_decision()))
+
+        assert sorted(found) == [
+            "CommitAndApplyEmbargoTerminationNode (outside)",
+            "EmitCaseStatusUpdateNode (outside)",
+            "ReissueStubInvitesNode (outside)",
+        ]
 
     def test_the_activitys_commit_inside_the_stage_is_flagged(self) -> None:
         from vultron.core.behaviors.case.nodes.clock_decision_stage import (

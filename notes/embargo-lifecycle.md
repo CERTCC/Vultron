@@ -126,15 +126,20 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 - **End-time termination is one idempotent path (EMB-13-003).**
   `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers an
   already-`EXITED` case as done and otherwise runs `terminate_embargo_bt` with
-  `END_TIME_REACHED`. The CASE_MANAGER's lazy check is a `CaseUpkeep` hook
-  (`end_time_case_upkeep`) that the composition roots install on the inbox and trigger
-  dispatchers, so it runs before each activity or trigger for a case; the dispatchers
-  know only the hook's shape. A Sentinel reaches the path through the terminate trigger
-  with `reason=END_TIME_REACHED`. That trigger's registry row sets
-  `runs_case_upkeep=False`: it takes the end-time path itself once the end time has
-  passed, an `EARLY` request included, so the lazy check never pre-empts the answer it
-  owes. `termination_timing_violations()` refuses an `END_TIME_REACHED` claimed before
-  the end time — in the trigger's `_prepare`, the lifecycle, the received tree's guard
+  `END_TIME_REACHED`. The CASE_MANAGER's lazy check (`end_time_clock_decision`) is a
+  clock decision in the one tree, never a dispatcher hook or a tree run before it: the
+  received-tree factory adds it to every case tree with both door guards, so a sender
+  with no standing never provokes the termination (CLP-10-025), and `SvcBTTriggerBase`
+  runs it as the first, CASE_MANAGER-gated step of every case-scoped trigger's tree
+  (BT-15-003). It commits one entry per AS2 activity — the `Remove`, whose register
+  step cancels every open proposal, then the `Add(CaseStatus)` and re-issued stubs —
+  so no prefix of them shows `TERMINATED` beside `PROPOSED` (EP-08-004). A Sentinel reaches
+  the path through the terminate trigger with `reason=END_TIME_REACHED`. That trigger
+  sets `_takes_case_clock_decisions = False`: it takes the end-time path itself once
+  the end time has passed, an `EARLY` request included, so the lazy check never
+  pre-empts the answer it owes. `termination_timing_violations()` refuses an
+  `END_TIME_REACHED` claimed before the end time — in the trigger's `_prepare`, the
+  lifecycle, the received tree's guard
   (`TerminationIsTimelyNode`, before the commit) and replica replay.
 
 ---
@@ -167,10 +172,12 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
-- **`OBSERVED`** follows the CASE_MANAGER's committed assertion (received and
-  replay nodes): it skips the P/X/A guards, records a proposal a replica never
-  saw before activating it, and logs and skips a refused step — it never forces
-  the register into a state its rules refuse.
+- **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
+  and replay nodes not yet copying, #4716): it skips the P/X/A
+  guards, records a proposal a replica never saw before activating it, and
+  logs and skips a refused step — it never forces the register into a state
+  its rules refuse. A copying replay node runs no lifecycle mode at all: it
+  writes what the entry carries through `apply_embargo_change()` (ADR-0124).
 - **P/X/A guards** (EMB-01-002, EMB-02-002, EMB-04-002): `propose_embargo()` and
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
   never blocked. `reject_embargo_proposal()` raises when it would return a
@@ -277,22 +284,33 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 
 ## Guidance for Agents
 
-1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle/`).
-   BT nodes MUST NOT apply a register step, assign `case.current_status.em`, and
+1. **Decide through `EmbargoLifecycle`, write by copying**
+   (`vultron/core/services/embargo_lifecycle/`, `embargo_apply.py`). A
+   committed step is written through `apply_embargo_change()`; BT nodes MUST
+   NOT otherwise apply a register step, assign `case.current_status.em`, and
    `dl.save(case)` themselves (EMB-18-001). A refused step raises or fails the
    node without a write (EMB-18-002). Lifecycle nodes catch `VultronError` and
    return `FAILURE`; triggers are thin orchestrators over the service.
 2. **On `VultronInvalidStateTransitionError` from a P/X/A guard**, the case is no
    longer embargo-eligible: do not retry; emit ER to the proposer.
 3. **Consent cascades are automatic.** `propose_embargo()` changes no consent
-   except recording the proposer's (ADR-0093). `activate_embargo()` records the
+   except recording the proposer's (ADR-0093). An activation records the
    owner's agreement; a *shorter* replacement carries every signatory over
    (`CARRY_OVER`), and under *longer* terms non-agreeing signatories lapse by
-   derivation (MSM-07-005). Termination (`decide_termination()`, then the
-   `TERMINATE` step through the one apply function) cancels every open proposal
-   and writes no consent (MSM-07-006). Callers do none of this by hand.
-4. **Received side passes `transition_mode=TransitionMode.OBSERVED`**; the
-   consent cascades still run, so replica rows stay in step with the manager's.
+   derivation (MSM-07-005). The CASE_MANAGER decides these
+   (`decide_activation()`) and commits each carried-over row as its own
+   `Update(EmbargoConsent)` entry after the `Accept`; replicas copy them and
+   run no carry-over (ADR-0124, #4716). Termination (`decide_termination()`,
+   then the `TERMINATE` step through the one apply function) cancels every
+   open proposal and writes no consent (MSM-07-006). Callers do none of this
+   by hand.
+4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
+   teardown, withdrawal, activation and expiry slots copy the entry's step or
+   row (a `Leave` carries none), and every other row arrives as its own
+   CASE_MANAGER entry (ADR-0124). Two paths still pass
+   `transition_mode=TransitionMode.OBSERVED`: the owner's-rejection replica
+   slot (`activation_effect.py`, #4784), and a paused replica applying a
+   CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside
@@ -367,9 +385,11 @@ every other participant learns the result from the ledger.
    waiting (EP-09-005) and SHOULD gauge some answers (EP-09-006); any quorum is
    actor policy, a call-out point. The Invites are not a vote: they gather the
    consent rows that decide who stays bound when terms lengthen (EP-05-001).
-6. Only the CASE_MANAGER evaluates expiry (CM-28-014). Replay nodes reconstruct
-   proposal, relayed Invites, answers and decision via
-   `EmbargoLifecycle(OBSERVED)` (EP-09-007, RSH-08-004); the slot table is in
+6. Only the CASE_MANAGER evaluates expiry (CM-28-014). Replay nodes copy the
+   proposal's `PROPOSE` step and every consent row the CASE_MANAGER commits as
+   its own entry; the decision slot still reconstructs via
+   `EmbargoLifecycle(OBSERVED)` until #4716 (EP-09-007, RSH-08-004, ADR-0124);
+   the slot table is in
    `notes/case-communication-model.md` § "What the participant and its replica
    do".
 
@@ -416,10 +436,11 @@ status.
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under
-`reject_invite_to_embargo_on_case_abandoned`, addressed to nobody, and cancels
-each proposal (`abandon_embargo_proposals`, STRICT) only after its entry commits,
-so a failed commit leaves that proposal open (CLP-07-013, #4442). Replicas drop
-them through the `EmbargoAbandonment` slot without repeating the owner check.
+`reject_invite_to_embargo_on_case_abandoned`, addressed to nobody, after
+`check_abandonable` passes, and cancels each proposal by copying the `CANCEL`
+step that entry is, only after it commits, so a failed commit leaves that
+proposal open (CLP-07-013, #4442, ADR-0124). Replicas copy the same step
+through the `EmbargoAbandonment` slot without repeating the owner check.
 
 **A non-manager sends no ER for the abandonment (EMB-16-002).** Its ER would read
 at the manager as declining the proposal (MSM-07-004), an abandonment it has no

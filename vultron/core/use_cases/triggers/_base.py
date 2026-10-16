@@ -40,11 +40,17 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
-import py_trees.behaviour
+import py_trees
 from py_trees.common import Status
 from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.case_clock_decisions import (
+    case_clock_decisions,
+)
+from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+    create_clock_decision_gate,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
@@ -57,7 +63,13 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
-from vultron.errors import VultronBTInternalError, VultronValidationError
+from vultron.core.use_cases.triggers._helpers import resolve_case
+from vultron.core.use_cases.triggers.request_bodies import CaseTriggerRequest
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +86,9 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     3. Validate that a ``TriggerActivityPort`` was supplied and store it as
        ``self._factory``.
     4. Construct a :class:`~vultron.core.behaviors.bridge.BTBridge`.
-    5. Call :meth:`_build_tree` (abstract) — subclass returns the BT.
+    5. Call :meth:`_build_tree` (abstract) — subclass returns the BT; a
+       case-scoped trigger's tree is preceded by the case-wide clock
+       decisions (:meth:`_with_case_clock_decisions`).
     6. Execute the BT via ``bridge.execute_with_setup``.
     7. Raise on failure.
     8. Call :meth:`_handle_result` (abstract) — subclass logs/extracts output.
@@ -83,6 +97,13 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     """
 
     _requires_trigger_activity: bool = True
+
+    #: Whether a case-scoped request's tree takes the case-wide clock
+    #: decisions first (the embargo end-time check, EMB-13-003).  ``False``
+    #: only for a trigger whose own tree takes that decision's path and must
+    #: answer for it: terminate-embargo ends the embargo with
+    #: ``END_TIME_REACHED`` itself once the end time has passed (ADR-0122).
+    _takes_case_clock_decisions: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -128,7 +149,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        tree = self._build_tree()
+        tree = self._with_case_clock_decisions(self._build_tree())
         result = bridge.execute_with_setup(
             tree,
             actor_id=self._actor_id,
@@ -199,6 +220,48 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         succeeded.  The returned subtype declares exactly the keys the verb's
         response body carries (UCORG-05-005).
         """
+
+    def _with_case_clock_decisions(
+        self, tree: py_trees.behaviour.Behaviour
+    ) -> py_trees.behaviour.Behaviour:
+        """*tree*, preceded by the case-wide clock decisions for its case.
+
+        An overdue embargo is a fact about the case, whatever the entry
+        point: without the end-time check, a trigger such as accepting a
+        pending revision would extend an embargo whose end time has passed
+        (EMB-13-003, ADR-0135).  So a request that names a case runs the
+        same CASE_MANAGER-gated clock-decision stage the received trees run
+        after their door guards, as the first step of its one tree
+        (BT-15-001, CLP-10-005).  A decision whose commit is refused is
+        logged and the trigger's own tree still runs, and judges the case
+        as it stands (CLP-10-025).  What :meth:`_prepare` read before the
+        decision may be stale by then, so a trigger's tree re-reads the case
+        state it acts on in its nodes: the register and the lifecycle refuse
+        a change the decision forbade, such as activating a revision the
+        termination cancelled.  Unchanged when the trigger opts out
+        (:attr:`_takes_case_clock_decisions`), names no case, or names one
+        this store does not hold, which the trigger reports itself.
+        """
+        request = self._request
+        if not (
+            self._takes_case_clock_decisions
+            and isinstance(request, CaseTriggerRequest)
+        ):
+            return tree
+        try:
+            case_id = resolve_case(request.case_id, self._dl).id_
+        except VultronNotFoundError:
+            return tree
+        return py_trees.composites.Sequence(
+            name=f"CaseClockDecisionsThen{tree.name}",
+            memory=True,
+            children=[
+                create_clock_decision_gate(
+                    case_id, case_clock_decisions(case_id)
+                ),
+                tree,
+            ],
+        )
 
     def _activity_fields(self) -> dict[str, Any]:
         """The two keys every :class:`ActivityResult` body carries.

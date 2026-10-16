@@ -54,6 +54,7 @@ These are the two flows the response decision handles, and they resolve at diffe
 
 **An end time passing.** An embargo in force does not end by itself when its end time passes.
 The case manager ends it with the reason `END_TIME_REACHED` the next time it handles the case, whether for an incoming message or one of its own triggers, so no scheduler is needed.
+The check runs as part of handling the message or trigger, after the case manager confirms that the sender may send it, so a sender with no standing in the case cannot end the embargo.
 A request to end the embargo early made after its end time is recorded as `END_TIME_REACHED` too — see [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
 
 ---
@@ -61,7 +62,9 @@ A request to end the embargo early made after its end time is recorded as `END_T
 ## The mechanical path
 
 Every EM transition runs through the embargo lifecycle service, or through the single function that applies a committed ledger entry, which the case manager and every replica share (ADR-0124).
-Termination takes the second path: the case manager commits the `Remove` first, then applies it.
+Termination and activation take the second path: the case manager commits the `Remove`, or the owner's `Accept`, first, then applies it.
+The `Accept` records the whole activation, including the replaced embargo's supersession and the owner's own agreement, and each signatory carried over to shorter terms gets its own ledger entry after it.
+An invitation that expires unanswered is recorded the same way: the case manager commits the expiry, then the participant's changed consent, and only then writes it.
 A behavior tree node never assigns `case.current_status.em` and saves the case as a shortcut (EMB-18-001).
 The reason is that a transition is not a field write.
 It has to be validated against the state machine, and a failed validation must stop the node rather than log a warning and write anyway (EMB-18-002).
@@ -191,7 +194,9 @@ A Participant at `INVITED` that does not answer within the window moves to `EXPI
 The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
 When it does not, the policy default applies — seven days, measured from the invitation's `published` timestamp (EP-07-001).
-The case manager stamps `Invite.end_time` on every invitation it relays, so every replica reads the same deadline off the same object, and a Participant that receives an invitation derives no deadline of its own (CM-28-012, CM-28-013).
+The case manager stamps `Invite.end_time` on every invitation it relays.
+It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's, and every replica copies that row from the entry (CM-28-012, CM-28-013).
+A Participant that receives an invitation derives no deadline of its own.
 
 There is a floor. An inviting actor must not send a window shorter than the configured minimum, defaulting to 72 hours (EP-07-002).
 The case manager, as the actor that stamps the relayed invitation, clamps a too-short window up to the minimum and logs the clamp; it does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).

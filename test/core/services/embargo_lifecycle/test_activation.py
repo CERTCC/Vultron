@@ -450,8 +450,8 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
 ) -> None:
     """Activating B is the owner's decision, so the owner never lapses by it.
 
-    A replica syncing an announced activation (``SetEmbargoActiveNode``,
-    OBSERVED) sees the owner AGREED on A and UNINVITED on B; the owner gains
+    A paused replica applying an announced revision (OBSERVED, CM-31-010)
+    sees the owner AGREED on A and UNINVITED on B; the owner gains
     AGREED(B) and stays a signatory while a silent signatory lapses by
     derivation.  The owner's row is the only one written.
     """

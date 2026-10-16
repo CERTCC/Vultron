@@ -23,6 +23,7 @@ or no-op answer, FAILURE plus an already-``DECLINED`` record for a repeat
 """
 
 import logging
+from types import SimpleNamespace
 from typing import cast
 
 import py_trees
@@ -52,6 +53,8 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 REJECTER = "https://example.org/actors/rejecter"
 OWNER = "https://example.org/actors/owner"
+#: The received answer the node records; its id is the row entry's cause.
+_ANSWER = SimpleNamespace(activity_id="https://example.org/activities/answer")
 
 
 def _tick(node: py_trees.behaviour.Behaviour) -> py_trees.common.Status:
@@ -90,7 +93,7 @@ class TestRecordParticipantRejectionNode:
         case, embargo_id, participant_id = _case_with_rejecter(
             dl, consent=EmbargoConsentState.INVITED
         )
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantRejectionNode(
             case_id=case.id_,
             embargo_id=embargo_id,
@@ -111,7 +114,7 @@ class TestRecordParticipantRejectionNode:
         case, embargo_id, participant_id = _case_with_rejecter(
             dl, consent=EmbargoConsentState.AGREED
         )
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantRejectionNode(
             case_id=case.id_,
             embargo_id=embargo_id,
@@ -123,21 +126,21 @@ class TestRecordParticipantRejectionNode:
         participant = cast(CaseParticipant, dl.read(participant_id))
         assert participant.is_signatory(embargo_id)
 
-    def test_partial_replica_without_the_participant_succeeds(
-        self, dl: SqliteDataLayer
-    ):
-        """No record for the rejecter here: nothing to write, tree continues."""
+    def test_a_rejecter_without_a_record_is_refused(self, dl: SqliteDataLayer):
+        """No record for the rejecter: the row its Reject states cannot be
+        written, so the answer is refused, not recorded (ADR-0122)."""
         case, embargo = make_case_and_embargo("rpr2", em_state=EM.ACTIVE)
         dl.create(case)
         dl.create(embargo)
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantRejectionNode(
             case_id=case.id_,
             embargo_id=embargo.id_,
             rejecting_actor_id=REJECTER,
         )
 
-        assert _tick(node) == py_trees.common.Status.SUCCESS
+        assert _tick(node) == py_trees.common.Status.FAILURE
+        assert "records no consent" in node.feedback_message
 
     @pytest.mark.spec("HP-01-003")
     def test_repeat_from_declined_fails_naming_the_repeat(
@@ -147,7 +150,7 @@ class TestRecordParticipantRejectionNode:
         case, embargo_id, _participant_id = _case_with_rejecter(
             dl, consent=EmbargoConsentState.DECLINED
         )
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantRejectionNode(
             case_id=case.id_,
             embargo_id=embargo_id,
@@ -161,7 +164,7 @@ class TestRecordParticipantRejectionNode:
         case, embargo_id, participant_id = _case_with_rejecter(
             dl, consent=EmbargoConsentState.INVITED
         )
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantRejectionNode(
             case_id=case.id_,
             embargo_id=f"{case.id_}/embargo_events/stranger",
@@ -176,7 +179,7 @@ class TestRecordParticipantRejectionNode:
         )
 
     def test_missing_case_fails(self, dl: SqliteDataLayer):
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantRejectionNode(
             case_id="https://example.org/cases/missing",
             embargo_id="https://example.org/cases/missing/embargo_events/e",
@@ -238,9 +241,11 @@ class TestRecordParticipantAcceptanceNode:
         case, active_id, revision_id, owner_p_id = self._revise_case(
             dl, active_replicated=False
         )
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantAcceptanceNode(
-            case_id=case.id_, embargo_id=revision_id, accepting_actor_id=OWNER
+            case_id=case.id_,
+            embargo_id=revision_id,
+            accepting_actor_id=OWNER,
         )
 
         with caplog.at_level(logging.WARNING):
@@ -258,17 +263,23 @@ class TestRecordParticipantAcceptanceNode:
     def test_accept_of_an_embargo_the_register_does_not_hold_writes_no_row(
         self, dl: SqliteDataLayer
     ):
-        """An embargo with no register entry gets no row (ADR-0122)."""
+        """An embargo with no register entry gets no row (ADR-0122).
+
+        The Accept states a row the case cannot take, so it is refused; the
+        received tree refuses it before the commit (EmbargoAnswerAppliesNode).
+        """
         case, active_id, revision_id, owner_p_id = self._revise_case(
             dl, active_replicated=True
         )
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         stranger = f"{case.id_}/embargo_events/stranger"
         node = RecordParticipantAcceptanceNode(
-            case_id=case.id_, embargo_id=stranger, accepting_actor_id=OWNER
+            case_id=case.id_,
+            embargo_id=stranger,
+            accepting_actor_id=OWNER,
         )
 
-        assert _tick(node) == py_trees.common.Status.SUCCESS
+        assert _tick(node) == py_trees.common.Status.FAILURE
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert {r.embargo_id: r.state for r in owner_p.embargo_consents} == {
             active_id: EmbargoConsentState.AGREED,
@@ -276,7 +287,7 @@ class TestRecordParticipantAcceptanceNode:
         }
 
     def test_missing_case_fails(self, dl: SqliteDataLayer):
-        setup_blackboard(dl)
+        setup_blackboard(dl, dl.actor_id, commits=True, activity=_ANSWER)
         node = RecordParticipantAcceptanceNode(
             case_id="https://example.org/cases/missing",
             embargo_id="https://example.org/cases/missing/embargo_events/e",

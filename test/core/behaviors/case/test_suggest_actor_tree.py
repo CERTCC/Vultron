@@ -31,6 +31,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.clock_decisions import clock_decision_node_ids
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -1258,12 +1259,20 @@ def _gate(tree: py_trees.behaviour.Behaviour, name: str):
 
 
 def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
-    """Leaves that write or emit: everything after the receipt commit."""
+    """Leaves that write or emit: everything after the receipt commit.
+
+    The CASE_MANAGER's clock decisions sit in their own gated stage before
+    the guards and are not effects of the received activity (CLP-10-025).
+    """
+    decisions = clock_decision_node_ids(tree)
     return [
         n
         for n in tree.iterate()
-        if type(n).__name__.startswith("Emit")
-        or type(n).__name__.startswith("Record")
+        if (
+            type(n).__name__.startswith("Emit")
+            or type(n).__name__.startswith("Record")
+        )
+        and id(n) not in decisions
     ]
 
 

@@ -25,6 +25,10 @@ from vultron.core.behaviors.embargo.nodes.abandon import (
     LeaveAbandonmentToCaseManagerNode,
     ReadOpenEmbargoProposalsNode,
 )
+from vultron.core.behaviors.embargo.nodes.activation_commit import (
+    ActivationAppliesNode,
+    CommitAndApplyEmbargoActivationNode,
+)
 from vultron.core.behaviors.embargo.nodes.activation_effect import (
     EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
@@ -47,7 +51,10 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     ValidateCaseExistsNode,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import (
+    ReadEmbargoIdNode,
     ReadEmStateNode,
+    ValidateEmbargoProposalStateNode,
+    ValidateEmbargoRevisionStateNode,
     read_case_em_state,
 )
 from vultron.core.behaviors.embargo.nodes.ending_notice import (
@@ -64,10 +71,12 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
     ApplyInviteExpiryFromLedgerNode,
     ApplyInviteExpiryNoopFromLedgerNode,
     EvaluateInviteExpiryNode,
-    HonourLateAcceptNode,
     InviteExpiryChangedConsentNode,
     InviteExpiryNeedsApplyNode,
-    RecordInviteExpiryNode,
+)
+from vultron.core.behaviors.embargo.nodes.expiry_commit import (
+    CommitAndApplyHonourLateAcceptNode,
+    CommitAndApplyInviteExpiryNode,
 )
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     CanAnswerEmbargoInviteNode,
@@ -77,17 +86,14 @@ from vultron.core.behaviors.embargo.nodes.invite_answer import (
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
     ProposeEmbargoLifecycleNode,
-    ReadEmbargoIdNode,
     RejectEmbargoLifecycleNode,
     SendTerminateEmbargoActivityNode,
-    SetEmbargoActiveNode,
-    ValidateEmbargoProposalStateNode,
-    ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     COMMITTED_ACTIVITY_KEY,
     EMBARGO_TEARDOWN_EVENT_TYPE,
     CommitEmbargoDecisionNode,
+    CommitEmbargoProposalNode,
     EmbargoActivityBuilder,
     IndexOwnEmbargoProposalNode,
 )
@@ -97,7 +103,6 @@ from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
 )
 from vultron.core.behaviors.embargo.nodes.owner_decision import (
-    ActivateEmbargoLifecycleNode,
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
     RejectEmbargoProposalLifecycleNode,
@@ -178,7 +183,8 @@ __all__ = [
     "ApplyEmbargoTeardownNode",
     "SendAnnounceEmbargoEventNode",
     # The case owner's decision on a proposal (ADR-0122) and its replay
-    "ActivateEmbargoLifecycleNode",
+    "ActivationAppliesNode",
+    "CommitAndApplyEmbargoActivationNode",
     "IsOpenEmbargoProposalNode",
     "OwnerMayActivateEmbargoNode",
     "RejectEmbargoProposalLifecycleNode",
@@ -206,6 +212,7 @@ __all__ = [
     # CASE_MANAGER decision commit (EP-09-008, #4085)
     "EMBARGO_TEARDOWN_EVENT_TYPE",
     "CommitEmbargoDecisionNode",
+    "CommitEmbargoProposalNode",
     "CommitAndApplyEmbargoTerminationNode",
     "COMMITTED_ACTIVITY_KEY",
     "IndexOwnEmbargoProposalNode",
@@ -233,10 +240,10 @@ __all__ = [
     "ApplyInviteExpiryFromLedgerNode",
     "ApplyInviteExpiryNoopFromLedgerNode",
     "EvaluateInviteExpiryNode",
-    "HonourLateAcceptNode",
+    "CommitAndApplyHonourLateAcceptNode",
+    "CommitAndApplyInviteExpiryNode",
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",
-    "RecordInviteExpiryNode",
     # Proposal
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
@@ -251,7 +258,6 @@ __all__ = [
     "ReadEmbargoIdNode",
     "DecideRejectedEmbargoProposalNode",
     "SendTerminateEmbargoActivityNode",
-    "SetEmbargoActiveNode",
     "TeardownAskPendingNode",
     "ask_case_manager_to_terminate_once",
     # Withdrawal from the embargo in force (MSM-07-010)

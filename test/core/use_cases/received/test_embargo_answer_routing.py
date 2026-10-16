@@ -32,7 +32,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
-from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
+from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -462,11 +462,11 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     """Late Accept honours into an AGREED row when the embargo is still active.
 
     When the invitee's RSVP deadline has passed and the embargo is still
-    active and matching, the CASE_MANAGER commits an expiry entry
-    (``INVITED → TIMED_OUT``, CM-28-009) and then a honour entry
-    (``TIMED_OUT → AGREED``, EMB-17-001, EMB-17-009).
-    The replica replays both entries from the ledger broadcast without
-    re-evaluating the deadline (RSH-08-004, ADR-0118).
+    active and matching, the CASE_MANAGER commits an expiry entry and its
+    ``TIMED_OUT`` row (CM-28-009), then a honour entry and its ``AGREED``
+    row (EMB-17-001, EMB-17-009), each row its own
+    ``Update(EmbargoConsent)``.  The replica copies the rows from the ledger
+    broadcast without re-evaluating the deadline (RSH-08-004, ADR-0124).
 
     OWNER activates the revision first so that ``active_embargo_id == embargo_id`` when
     BYSTANDER's late Accept arrives — that is the condition that routes to the

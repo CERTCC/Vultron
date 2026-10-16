@@ -37,6 +37,7 @@ from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import same_actor_id
 
 
 def find_proposer_case(
@@ -44,8 +45,10 @@ def find_proposer_case(
 ) -> VulnerabilityCase | None:
     """Return the case for *report_id* that *owner_id* owns, or ``None``.
 
-    The owner is the case's ``attributed_to``.  The store may hold several
-    cases for one report (one per proposer, CP-05-008), so the single-row
+    The owner is the case's ``attributed_to``, compared with
+    :func:`same_actor_id`, the sender guard's definition of one actor
+    (#4772).  The store may hold several cases for one report (one per
+    proposer, CP-05-008), so the single-row
     ``find_case_by_report_id`` lookup is only the fast path; when it returns
     another owner's case the cases are scanned for *owner_id*'s.  Store errors
     propagate.
@@ -53,12 +56,12 @@ def find_proposer_case(
     first = datalayer.find_case_by_report_id(report_id)
     if first is None:
         return None
-    if str(first.attributed_to) == owner_id:
+    if same_actor_id(str(first.attributed_to), owner_id):
         return first
     for case in datalayer.list_objects("VulnerabilityCase"):
         if (
             isinstance(case, VulnerabilityCase)
-            and str(case.attributed_to) == owner_id
+            and same_actor_id(str(case.attributed_to), owner_id)
             and report_id in _report_ids(case)
         ):
             return case
@@ -207,11 +210,14 @@ def proposal_case_ids(
 def _admitted_for(
     datalayer: CasePersistence, proposal_id: str, proposer_uri: str
 ) -> bool:
-    """Whether *proposal_id*'s admission record names *proposer_uri*."""
+    """Whether *proposal_id*'s admission record names *proposer_uri*.
+
+    Compared with :func:`same_actor_id`, as ``SenderIsProposalAuthorNode``
+    compares it, so the guard and this lookup agree on the proposer (#4772).
+    """
     record = datalayer.read(CaseProposalAdmissionRecord.build_id(proposal_id))
-    return (
-        isinstance(record, CaseProposalAdmissionRecord)
-        and str(record.proposer_uri) == proposer_uri
+    return isinstance(record, CaseProposalAdmissionRecord) and same_actor_id(
+        str(record.proposer_uri), proposer_uri
     )
 
 

@@ -32,7 +32,7 @@ This module MUST NOT import from ``vultron.core.behaviors``,
 ``vultron.core.use_cases``, or ``vultron.core.services``.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 
 def normalise_actor_id(actor_id: str) -> str:
@@ -50,6 +50,25 @@ def same_actor_id(a: str, b: str) -> bool:
     The two differ at most by a trailing slash.
     """
     return normalise_actor_id(a) == normalise_actor_id(b)
+
+
+def participant_id_for_actor(
+    actor_participant_index: Mapping[str, str], actor_id: str
+) -> str | None:
+    """Return the participant id *actor_participant_index* holds for *actor_id*.
+
+    The keys are compared with :func:`same_actor_id`, so a key written with a
+    trailing slash still names *actor_id*.  ``None`` means the actor has no
+    participant in the index, as ``dict.get`` would say.
+    """
+    return next(
+        (
+            participant_id
+            for key, participant_id in actor_participant_index.items()
+            if same_actor_id(key, actor_id)
+        ),
+        None,
+    )
 
 
 def is_addressed_to(actor_id: str, recipients: Iterable[str]) -> bool:

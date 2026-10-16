@@ -25,6 +25,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -51,8 +52,10 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         request: AnnounceEmbargoEventToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
@@ -79,6 +82,7 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(

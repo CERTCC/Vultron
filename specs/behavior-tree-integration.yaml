@@ -599,6 +599,42 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-06-006
+  - id: BT-15-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A BT-backed trigger whose request names a case MUST run the case-wide
+      clock decisions (the embargo end-time check, EMB-13-003) as the leading,
+      CASE_MANAGER-gated step of its own one tree, the same clock-decision
+      stage a received tree runs (CLP-10-025), and never as a separate tree
+      run before it. The terminate-embargo trigger is the one exception: its
+      own tree takes the end-time path once the end time has passed and
+      answers for it. A trigger that runs no tree changes no case state and
+      takes no clock decision.
+    rationale: >-
+      An overdue embargo is a fact about the case, whatever the entry point.
+      Without the check, a trigger such as accepting a pending revision would
+      extend an embargo whose end time has passed. A dispatcher pre-dispatch
+      hook ran the check as a second tree; composing it into the trigger's
+      tree keeps one tree per request (ISSUE-4641, ADR-0135).
+    verification: >-
+      `test/core/use_cases/triggers/test_base.py` asserts a case-scoped
+      trigger's tree leads with the gated clock-decision stage, that a trigger
+      naming no case or an unknown one runs its own tree alone, and that
+      every case-scoped trigger in the registry takes the stage except
+      terminate-embargo and the one trigger that runs no tree;
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      asserts a trigger after the end time finds the embargo ended at its end
+      time, that accepting, revising or withdrawing from the embargo then
+      commits nothing for it, and that a trigger still runs when the ledger
+      refuses the termination.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-15-001
+    - rel_type: refines
+      spec_id: CLP-10-025
+    adr:
+    - ADR-0135
 - id: BT-17
   title: Role-Gated BT Subtrees and Blackboard Hygiene
   specs:

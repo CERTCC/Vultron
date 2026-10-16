@@ -23,6 +23,7 @@ Every store is its own (TB-06-007), using the harness of
 """
 
 import json
+from collections import Counter
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -39,6 +40,11 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.rsvp_deadline import HONOUR_LATE_ACCEPT_EVENT_TYPE
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -274,7 +280,12 @@ def test_a_reject_of_the_agreed_embargo_in_force_is_refused_leave_withdraws():
     assert withdrawn.disposition is HandlerDisposition.APPLIED, (
         withdrawn.reason
     )
-    assert _entries(net)[entries:] == [WITHDRAW_EVENT]
+    # The Leave, then its declined row as the CASE_MANAGER's own entry
+    # (ADR-0124, CLP-07-013).
+    assert _entries(net)[entries:] == [
+        WITHDRAW_EVENT,
+        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    ]
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
 
 
@@ -325,8 +336,8 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
 
     The participant has just said it accepts, so its row moves straight from
     ``DECLINED`` to ``AGREED`` (CM-18-003): there is no re-invite step, real
-    or bookkeeping.  One ledger entry records the change and no Invite is
-    sent.  On the embargo in force the Accept follows a withdrawal
+    or bookkeeping, and no Invite is sent.  On the embargo in force the
+    Accept follows a withdrawal
     (``Leave(EmbargoEvent)``, MSM-07-010), so the Accept is a late answer the CASE_MANAGER honours (EMB-17-002).
     """
     net = LedgerNetwork(
@@ -351,7 +362,15 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
 
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.AGREED
-    assert len(_entries(net)) == len(entries) + 1
+    # Proposed: the Accept's own entry records the change.  Active: the
+    # CASE_MANAGER's honour decision, then the AGREED row it commits as its
+    # own Update(EmbargoConsent) entry (CLP-07-013, ADR-0124).
+    added = Counter(_entries(net)) - Counter(entries)
+    assert added == Counter(
+        [HONOUR_LATE_ACCEPT_EVENT_TYPE, UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+        if activated
+        else [MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value]
+    )
     assert net.queued(MANAGER, to=BYSTANDER, type_="Invite") == invites
 
 

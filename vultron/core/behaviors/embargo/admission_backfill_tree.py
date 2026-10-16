@@ -26,7 +26,7 @@ Accept tree in its late-Accept honour diversion (CLP-10-026).
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (

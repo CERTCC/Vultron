@@ -135,14 +135,27 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "vultron/adapters/driving/fastapi/pending_retry.py",
             "_relay_pending_revision",
         ),
-        # The CASE_MANAGER's lazy end-time check (ADR-0122): its own act,
-        # run by the dispatcher before the received tree.
-        (f"{_E}/end_time_tree.py", "end_embargo_if_end_time_passed_tree"),
+        # The clock-decision stage (CLP-10-025, ADR-0135): the received-tree
+        # factory and a case-scoped trigger place it, gated, in their one
+        # tree; it holds the CASE_MANAGER's own decisions, never an effect
+        # of the received activity.
+        (
+            f"{_C}/nodes/clock_decision_stage.py",
+            "create_clock_decision_gate",
+        ),
         (f"{_E}/nodes/relay_guards.py", "case_manager_admits_proposal_guard"),
         # The repeat guard for an answer to an embargo Invite (CM-13-005).
         (
             f"{_E}/nodes/answer_repeat.py",
             "case_manager_admits_embargo_answer_guard",
+        ),
+        # The decision check of a received consent act (ADR-0122,
+        # ADR-0124): the same decision the effect makes, run among a received
+        # answer's or withdrawal's guards so an act recording nothing is
+        # refused before its commit.
+        (
+            f"{_E}/nodes/answer_record.py",
+            "case_manager_decision_guard",
         ),
         (
             f"{_C}/nodes/case_participant_received.py",

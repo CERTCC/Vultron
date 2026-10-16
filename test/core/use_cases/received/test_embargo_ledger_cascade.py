@@ -22,6 +22,9 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -261,6 +264,8 @@ class TestEmbargoLogEntryCascade:
         assert case is not None
         propose(case, embargo.id_)
         dl.save(case)
+        # Every participant holds a row for the proposal (ADR-0122).
+        write_consent_rows(dl, case)
 
         proposal = em_propose_embargo_activity(
             embargo,
@@ -290,6 +295,7 @@ class TestEmbargoLogEntryCascade:
             dl,
             event,
             sync_port=sync_port,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -299,10 +305,11 @@ class TestEmbargoLogEntryCascade:
             if isinstance(obj, CaseLedgerEntry)
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
-        assert len(entries) == 1
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
+        # The answer's entry is its row's entry: no second one follows
+        # (ADR-0122, CLP-07-013).
+        assert [cast(CaseLedgerEntry, e).event_type for e in entries] == [
             "accept_invite_to_embargo_on_case"
-        )
+        ]
 
     def test_reject_invite_to_embargo_commits_log_entry(self, make_payload):
         """RejectInviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
@@ -328,6 +335,7 @@ class TestEmbargoLogEntryCascade:
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
         propose(case_obj, embargo.id_)
         dl.save(case_obj)
+        write_consent_rows(dl, case_obj)
 
         # The vendor rejects; the CASE_MANAGER receives and commits.  See the
         # accept test above for why the asserter must not be the committer.
@@ -345,6 +353,7 @@ class TestEmbargoLogEntryCascade:
             dl,
             event,
             sync_port=sync_port,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -354,7 +363,8 @@ class TestEmbargoLogEntryCascade:
             if isinstance(obj, CaseLedgerEntry)
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
-        assert len(entries) == 1
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
+        # The answer's entry is its row's entry: no second one follows
+        # (ADR-0122, CLP-07-013).
+        assert [cast(CaseLedgerEntry, e).event_type for e in entries] == [
             "reject_invite_to_embargo_on_case"
-        )
+        ]

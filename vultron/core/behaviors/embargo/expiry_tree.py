@@ -27,12 +27,12 @@ guard → commit → effect pattern (CLP-10-006, BT-06-006)::
     ├─ EvaluateInviteExpiryNode        # READ-ONLY: assess deadline, no writes
     └─ CommitAndApplyExpiryIfDue (Selector)
        ├─ Inverter(InviteExpiryNeedsApplyNode)   # nothing to commit
-       └─ CommitAndApplyExpiry (Sequence)
-          ├─ CommitLogEntryBT          # commit INVITE_EXPIRED_EVENT_TYPE entry
-          └─ RecordInviteExpiryNode    # EFFECT: apply INVITED → TIMED_OUT
+       └─ CommitAndApplyInviteExpiryNode
+          # commit INVITE_EXPIRED_EVENT_TYPE, then Update(EmbargoConsent)
+          # carrying the TIMED_OUT row; only then write INVITED → TIMED_OUT
 
-A failed commit leaves the invitee unchanged; ``RecordInviteExpiryNode`` only
-runs after a successful commit.
+A failed commit leaves the invitee unchanged: the row is written only once
+both entries have committed (CLP-07-013, ADR-0124).
 
 A store that is not the CASE_MANAGER runs nothing and leaves ``result_out``
 unset; the Accept tree's late-Accept arms and its expiry guard read
@@ -47,7 +47,7 @@ following commit → effect::
 
     HonourLateAccept (DiversionStage)
     ├─ LateAcceptHonour: Inverter(InviteNotExpired), LateAcceptRouteIs(HONOUR)
-    └─ CommitLogEntryBT → HonourLateAcceptNode → backfill → stub re-issue
+    └─ CommitAndApplyHonourLateAcceptNode → backfill → stub re-issue
     ReinviteLateAccepter (DiversionStage)
     ├─ LateAcceptReinvite: …, LateAcceptRouteIs(REINVITE)
     └─ ReinviteLateAccepterNode  # stamp → build → outbox → commit → PEC INVITE
@@ -74,10 +74,12 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
     IS_EXPIRED_KEY,
     NEEDS_APPLY_KEY,
     EvaluateInviteExpiryNode,
-    HonourLateAcceptNode,
     InviteExpiryNeedsApplyNode,
     InviteNotExpiredNode,
-    RecordInviteExpiryNode,
+)
+from vultron.core.behaviors.embargo.nodes.expiry_commit import (
+    CommitAndApplyHonourLateAcceptNode,
+    CommitAndApplyInviteExpiryNode,
 )
 from vultron.core.behaviors.embargo.nodes.late_accept import (
     CommitLateAcceptAcknowledgementNode,
@@ -87,13 +89,8 @@ from vultron.core.behaviors.embargo.nodes.late_accept import (
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     ReinviteLateAccepterNode,
 )
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
-)
 from vultron.core.models.rsvp_deadline import (
-    HONOUR_LATE_ACCEPT_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-    INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 
@@ -171,15 +168,17 @@ def create_commit_and_record_expiry_tree(
     embargo_id: str,
     published: str,
 ) -> py_trees.behaviour.Behaviour:
-    """Commit one expired-invitation entry, then apply ``INVITED → TIMED_OUT``.
+    """Commit one expired invitation and its ``TIMED_OUT`` row, then apply it.
 
     The commit → effect half of the CM-28-009 expiry, shared by the lazy
     late-Accept evaluation (:func:`invite_expiry_decision`) and the
-    owner-close settle step (CM-23-014).  The caller decides *that* the
-    invitation has expired; this subtree only records and applies it, so a
-    failed commit leaves the invitee unchanged (CLP-10-006).  It is not
-    gated: the caller places it behind the CASE_MANAGER role gate
-    (CM-28-014, BT-17-001).
+    owner-close settle step (CM-23-014), and the one expiry path a sweep of
+    overdue invitations reuses.  The caller decides *that* the invitation
+    has expired; this node commits the expired-invitation entry, then the
+    CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the row, and only
+    then writes it, so a failed commit leaves the invitee unchanged
+    (CLP-07-013, ADR-0124).  It is not gated: the caller places it behind
+    the CASE_MANAGER role gate (CM-28-014, BT-17-001).
 
     Args:
         case_id: The case the Invite was for.
@@ -191,28 +190,60 @@ def create_commit_and_record_expiry_tree(
         published: The snapshot's claimed time (see
             :func:`expiry_payload_snapshot`).
     """
-    return py_trees.composites.Sequence(
+    return CommitAndApplyInviteExpiryNode(
+        case_id=case_id,
+        invitee_id=invitee_id,
+        embargo_id=embargo_id,
+        act_object_id=invite_id or case_id,
+        act_snapshot=expiry_payload_snapshot(
+            case_id=case_id,
+            invitee_id=invitee_id,
+            invite_id=invite_id,
+            embargo_id=embargo_id,
+            published=published,
+        ),
         name="CommitAndApplyExpiry",
-        memory=False,
-        children=[
-            create_commit_log_entry_tree(
-                case_id=case_id,
-                object_id=invite_id or case_id,
-                event_type=INVITE_EXPIRED_EVENT_TYPE,
-                payload_snapshot=expiry_payload_snapshot(
-                    case_id=case_id,
-                    invitee_id=invitee_id,
-                    invite_id=invite_id,
-                    embargo_id=embargo_id,
-                    published=published,
-                ),
-            ),
-            RecordInviteExpiryNode(
-                case_id=case_id,
-                invitee_id=invitee_id,
-                embargo_id=embargo_id,
-            ),
-        ],
+    )
+
+
+def create_commit_and_honour_late_accept_tree(
+    *,
+    case_id: str,
+    accepting_actor_id: str,
+    invite_id: str,
+    embargo_id: str,
+    published: str,
+) -> py_trees.behaviour.Behaviour:
+    """Commit an honoured late Accept and its ``AGREED`` row, then apply it.
+
+    The commit → effect half of the EMB-17-001 honour: the node commits the
+    :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_EVENT_TYPE`
+    entry, then the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the
+    accepter's row, and only then writes ``TIMED_OUT → AGREED`` or
+    ``DECLINED → AGREED`` (CLP-10-006, ADR-0124).  It is not gated: the honour
+    diversion of :func:`late_accept_diversions` places it behind the
+    CASE_MANAGER gate (BT-17-001, CLP-10-026).
+
+    Args:
+        case_id: The case the Invite was for.
+        accepting_actor_id: The participant whose late Accept is honoured.
+        invite_id: The answered Invite; the entry's object id.
+        embargo_id: The active embargo being accepted.
+        published: The answer's claimed time.
+    """
+    return CommitAndApplyHonourLateAcceptNode(
+        case_id=case_id,
+        invitee_id=accepting_actor_id,
+        embargo_id=embargo_id,
+        act_object_id=invite_id or case_id,
+        act_snapshot=honour_late_accept_payload_snapshot(
+            case_id=case_id,
+            accepting_actor_id=accepting_actor_id,
+            invite_id=invite_id,
+            embargo_id=embargo_id,
+            published=published,
+        ),
+        name="CommitAndApplyHonourLateAccept",
     )
 
 
@@ -238,11 +269,11 @@ def invite_expiry_decision(
 
     The decision follows the guard → commit → effect pattern (CLP-10-006):
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.EvaluateInviteExpiryNode`
-    reads the deadline **without writing**, the commit node persists the
-    ledger entry, and only then
-    :class:`~vultron.core.behaviors.embargo.nodes.expiry.RecordInviteExpiryNode`
-    applies ``INVITED → TIMED_OUT`` to the invitation's row.  A failed commit
-    therefore leaves the invitee unchanged, and the stage logs it and goes on.
+    reads the deadline **without writing**, and
+    :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyInviteExpiryNode`
+    commits the expiry and the invitee's ``TIMED_OUT`` row before it writes
+    the row.  A failed commit therefore leaves the invitee unchanged, and the
+    stage logs it and goes on.
 
     The deadline is compared against *now*, the CASE_MANAGER's clock; the
     Accept only names the invitee and the embargo, so its claimed time is
@@ -357,10 +388,12 @@ def late_accept_diversions(
     reads from the case; the three conditions are exclusive, so one answer
     runs at most, and the late Accept itself is never committed.
 
-    - **Honour** (EMB-17-002, EMB-17-009): commit the honour entry, then move
-      the accepter's row to ``AGREED`` (CLP-10-006), then send what the
-      embargo gate withheld from it and re-issue stale stub Invites
-      (CM-10-006, CM-11-016).  Replicas replay the entry through
+    - **Honour** (EMB-17-002, EMB-17-009): commit the honour entry and the
+      CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the accepter's
+      ``AGREED`` row, and only then write the row (CLP-10-006, ADR-0124);
+      then send what the embargo gate withheld from it and re-issue stale
+      stub Invites (CM-10-006, CM-11-016).  Replicas copy the row from its
+      own entry and recognise the honour entry through
       :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`
       (RSH-08-004, ADR-0118).
     - **Re-invite** (EMB-17-003, EMB-17-011): invite the accepter to the
@@ -395,22 +428,12 @@ def late_accept_diversions(
         name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.HONOUR],
         condition=condition(LateAcceptRoute.HONOUR),
         effects=(
-            create_commit_log_entry_tree(
+            create_commit_and_honour_late_accept_tree(
                 case_id=case_id,
-                object_id=invite_id or case_id,
-                event_type=HONOUR_LATE_ACCEPT_EVENT_TYPE,
-                payload_snapshot=honour_late_accept_payload_snapshot(
-                    case_id=case_id,
-                    accepting_actor_id=accepting_actor_id,
-                    invite_id=invite_id,
-                    embargo_id=embargo_id,
-                    published=published,
-                ),
-            ),
-            HonourLateAcceptNode(
-                case_id=case_id,
-                actor_id=accepting_actor_id,
+                accepting_actor_id=accepting_actor_id,
+                invite_id=invite_id,
                 embargo_id=embargo_id,
+                published=published,
             ),
             *embargo_admission_backfill_nodes(case_id, actor_config),
         ),
@@ -444,6 +467,7 @@ __all__ = [
     "IS_EXPIRED_KEY",
     "LATE_ACCEPT_DIVERSIONS",
     "NEEDS_APPLY_KEY",
+    "create_commit_and_honour_late_accept_tree",
     "create_commit_and_record_expiry_tree",
     "expiry_payload_snapshot",
     "honour_late_accept_payload_snapshot",
