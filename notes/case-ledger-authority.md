@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Rules for the canonical case ledger: participant assertions versus
   CASE_MANAGER-admitted entries, the three authority/address/store questions,
-  what belongs in the ledger, one entry per change, the two timestamps, native
+  what belongs in the ledger, one entry per change and how an act whose later
+  entries failed is finished, the two timestamps, native
   case-initialization entries, the genesis hash, and why an unrecorded transition
   is invisible to every replica.
 related_specs:
@@ -161,6 +162,13 @@ replica decides nothing:
 **Pitfall: "one act, one entry".** That reading leaves the second change an act
 causes with nowhere to be recorded, and replicas rebuild it with their own ids
 and times (#4425).
+
+**Pitfall: "a failed commit is retried by the next act".** It is not: a repeated
+trigger starts a new act and a redelivered one stops at its idempotency guard. An
+embargo act stores its decided entries as case bookkeeping before its first
+commit, and the next CASE_MANAGER embargo tree for the case finishes them before
+its guards read a row; never re-decide them in a per-act repair pass (CLP-07-015,
+ADR-0146).
 
 ### Two Meanings of "Reject"
 
