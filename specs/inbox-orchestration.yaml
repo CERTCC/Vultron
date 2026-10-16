@@ -206,6 +206,39 @@ groups:
     adr:
     - ADR-0009
     - ADR-0068
+  - id: IO-03-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The ingress payload adapter MUST NOT write an object inlined in a received
+      activity to the receiving actor's DataLayer as a record readable by that object's
+      id, on receipt or for a deferred replay. To rebuild the routed activity it MAY
+      stage the inline objects in a holding area outside that DataLayer that answers a
+      read only when the DataLayer holds nothing under the id and keeps nothing past the
+      delivery. For an activity the inbox defers, it MAY keep the staged rows in one
+      opaque record keyed by the activity, deleted by the replay or by the queue's
+      expiry.
+    rationale: >-
+      A stored inline object is the receiver's own record of it: a stored case is the
+      receiver's replica, so storing one at receipt let a sender's snapshot name the
+      sender as CASE_MANAGER and pass the trust check that should refuse it (PCR-03-004,
+      CBT-01-011). Routing still needs the inline object, because the stored activity
+      names it by id and a bare id matches the wrong pattern.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed
+      activity carries its inline object while the receiver's store holds none, that the
+      receiver's own copy wins over the staged one, and that a deferred activity's rows
+      are held for its replay and deleted by the replay or by expiry.
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` drives an untrusted
+      `Announce(VulnerabilityCase)` and retired `Create`s through the real inbox and
+      asserts nothing from the inline object is stored.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-017
+    tags:
+    - tooling
+    adr:
+    - ADR-0111
 - id: IO-04
   title: Caller Interface
   specs:

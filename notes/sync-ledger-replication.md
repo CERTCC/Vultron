@@ -195,7 +195,8 @@ Messages Reach Non-Signatories".
 as proof its effects were applied and skips `ProcessAndStore`. That is sound only
 if the core write path that applies effects is the sole writer. So:
 
-1. `_store_nested_inbox_object` refuses to persist a `CaseLedgerEntry`
+1. Ingress stores no inline object (CLP-10-017), and `_stage_inline_object`
+   does not stage a `CaseLedgerEntry` even in the throwaway routing store
    (SYNC-13-002). An adapter pre-store makes the gate skip effects on first
    delivery.
 2. `FastAPIIngressAdapter.rehydrate` hydrates the in-memory `Announce(CaseLedgerEntry)`

@@ -30,6 +30,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import BaseModel
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -407,8 +408,7 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     ``Create(CaseParticipant)``), but no pattern routes one that
     arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and
     the inbox refuses it, leaving the case, the ledger and the outbox as they
-    were.  (Ingress still pre-stores the inline object before routing, for
-    every activity type; #3763 owns that.)
+    were, and storing nothing from the inline object (#3763).
     """
     from vultron.semantic_registry import (
         find_matching_semantics,
@@ -436,3 +436,143 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     assert dl.read(_RETIRED_CASE_ID) == case_before
     assert dl.outbox_list() == []
     assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.read(activity.object_.id_) is None
+
+
+# ---------------------------------------------------------------------------
+# Ingress stores nothing from an inline object before its handler runs (#3763)
+# ---------------------------------------------------------------------------
+
+_IMPOSTER_CASE_ID = "https://example.org/cases/c-chain-imposter"
+
+
+def _self_managed_case() -> Any:
+    """A case whose snapshot names the sender as its own CASE_MANAGER (#4674)."""
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    participant = CaseParticipant(
+        id_=f"{_IMPOSTER_CASE_ID}/participants/imposter",
+        attributed_to=_SENDER_ID,
+        context=_IMPOSTER_CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case = as_VulnerabilityCase(
+        id_=_IMPOSTER_CASE_ID, name="imposter", case_participants=[participant]
+    )
+    case.actor_participant_index[_SENDER_ID] = participant.id_
+    return case
+
+
+def _real_dispatcher() -> DirectActivityDispatcher:
+    from vultron.semantic_registry import use_case_map
+
+    return DirectActivityDispatcher(use_case_map=use_case_map())
+
+
+def _wire_body(activity: BaseModel) -> dict[str, Any]:
+    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-01-011", "CLP-10-017")
+def test_untrusted_announce_case_is_refused_and_unstored(dl):
+    """#4674 AC-1: the sender's own snapshot is not a trust anchor.
+
+    Ingress stored the inline case before the handler ran, so the trust check
+    read a CASE_MANAGER from the very payload it was judging, and accepted it.
+    """
+    from vultron.wire.as2.factories import (
+        announce_vulnerability_case_activity,
+    )
+
+    announce = announce_vulnerability_case_activity(
+        _self_managed_case(), actor=_SENDER_ID, to=[_RECEIVER_ID]
+    )
+
+    outcome = _process(dl, _wire_body(announce), _real_dispatcher())
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert outcome.failure_reason is not None
+    assert "untrusted sender" in outcome.failure_reason
+    assert dl.read(_IMPOSTER_CASE_ID) is None
+    assert dl.read(f"{_IMPOSTER_CASE_ID}/participants/imposter") is None
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-01-011", "CLP-10-017")
+def test_untrusted_create_then_announce_both_refused_unstored(dl):
+    """#4674 AC-2: a refused ``Create`` leaves no row for the ``Announce``."""
+    from vultron.wire.as2.factories import (
+        announce_vulnerability_case_activity,
+        create_case_activity,
+    )
+
+    create = create_case_activity(
+        _self_managed_case(),
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+        context=_IMPOSTER_CASE_ID,
+    )
+    announce = announce_vulnerability_case_activity(
+        _self_managed_case(), actor=_SENDER_ID, to=[_RECEIVER_ID]
+    )
+
+    first = _process(dl, _wire_body(create), _real_dispatcher())
+    assert dl.read(_IMPOSTER_CASE_ID) is None
+    second = _process(dl, _wire_body(announce), _real_dispatcher())
+
+    assert first.status is InboxOutcomeStatus.REJECTED
+    assert second.status is InboxOutcomeStatus.REJECTED
+    assert dl.read(_IMPOSTER_CASE_ID) is None
+
+
+@pytest.mark.spec("CLP-10-017", "CLP-10-019")
+def test_add_note_at_case_manager_stores_the_note_from_the_event(dl):
+    """The CASE_MANAGER's own effect node writes the Note, not ingress."""
+    from test.core.use_cases.received.conftest import (
+        seed_case_participant,
+        seed_store_owner_as_case_manager,
+    )
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/c-chain-note",
+        name="note case",
+        attributed_to=_RECEIVER_ID,
+    )
+    seed_store_owner_as_case_manager(dl, case)
+    seed_case_participant(dl, case, _SENDER_ID)
+    dl.create(case)
+    note = as_Note(
+        id_="https://example.org/notes/n-chain-1",
+        content="a note",
+        context=case.id_,
+        attributed_to=_SENDER_ID,
+    )
+    add = add_note_to_case_activity(
+        note, target=case, actor=_SENDER_ID, to=[_RECEIVER_ID]
+    )
+
+    from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
+
+    # The CASE_MANAGER's commit fans out, so it needs the production ports.
+    outcome = process_payload(
+        _wire_body(add),
+        FastAPIIngressAdapter(dl=dl),
+        FastAPIDispatchAdapter(
+            dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
+        ),
+    )
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED, (
+        outcome.failure_reason
+    )
+    stored = dl.read(note.id_)
+    assert stored is not None
+    assert getattr(stored, "content", None) == "a note"

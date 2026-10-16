@@ -206,7 +206,7 @@ class TestBootstrapParticipantStorage:
         self, dl, create_event, case_with_two_participants
     ):
         """Participants are stored even when the case replica was already seeded
-        (e.g. by ``_store_nested_inbox_object`` before dispatch) — #561, #562.
+        (e.g. by an earlier delivery of the same bootstrap) — #561, #562.
         """
         link = _build_link()
         dl.save(link)

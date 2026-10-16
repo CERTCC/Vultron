@@ -28,10 +28,14 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.note.nodes.storage import AttachNoteToCaseNode
+from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,8 @@ logger = logging.getLogger(__name__)
 def create_add_note_to_case_received_tree(
     note_id: str,
     case_id: str,
+    note: VultronNote | None = None,
+    activity_id: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Single-BT received-side tree for AddNoteToCase (ADR-0022, ADR-0111).
 
@@ -59,7 +65,9 @@ def create_add_note_to_case_received_tree(
         │   └── CommitCaseLedgerEntryNode(case_id)
         └── GuardedAttachNoteBT (Selector)             # effect
             ├── SkipIfNotCaseManager
-            └── AttachNoteToCaseNode(note_id, case_id)
+            └── Sequence
+                ├── StoreReceivedNote(note)
+                └── AttachNoteToCaseNode(note_id, case_id)
 
     Composed through :func:`create_receive_activity_tree`, which supplies the
     intake node and the guarded commit, so the tree cannot opt out of either
@@ -70,9 +78,17 @@ def create_add_note_to_case_received_tree(
     distinguish "not the case manager" from "am the case manager and the
     attach failed" (BTND-07-005; cf. the fake-SUCCESS rule in ``AGENTS.md``).
 
+    The CASE_MANAGER stores the Note from the copy the event carries before
+    attaching it, unless it already holds one under that id.  Ingress stores
+    nothing from an inline object (CLP-10-017), so this effect is the only
+    write of the Note at the CASE_MANAGER (#3763).  A Note named by bare
+    reference has nothing to store and is attached by id alone.
+
     Args:
         note_id: ID of the Note being attached to the case.
         case_id: ID of the VulnerabilityCase receiving the note.
+        note: The Note the event carries, when the sender inlined it.
+        activity_id: The received activity's id, for the store's log line.
 
     Returns:
         Root ``GuardedAttachAndCommitBT`` Sequence node.
@@ -82,7 +98,15 @@ def create_add_note_to_case_received_tree(
         case_id=case_id,
         precondition_guards=[],
         manager_effects=[
-            AttachNoteToCaseNode(note_id=note_id, case_id=case_id)
+            StoreReceivedObjectNode(
+                note.type_ if note is not None else None,
+                note_id,
+                note,
+                "Note",
+                activity_id,
+                name="StoreReceivedNote",
+            ),
+            AttachNoteToCaseNode(note_id=note_id, case_id=case_id),
         ],
         manager_case_id=case_id,
         manager_gate_name="GuardedAttachNoteBT",

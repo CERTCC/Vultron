@@ -782,19 +782,21 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
 
     ISSUE-3565 regression, driven through the inbox route: ``CoreActor`` is
     registered only in ``CORE_TYPE_MAP``, and the inbox re-parse used to
-    reconstruct it as that core class before persisting it.
+    reconstruct it as that core class before persisting it.  Ingress now only
+    stages the inline object for routing (#3763), so the staging is what is
+    watched.
     """
-    from vultron.adapters.driving.fastapi import inbox_storage
+    from vultron.adapters.driving.fastapi import inbox_staging
     from vultron.core.models.base import CoreObject
 
     persisted: list[object] = []
-    real_object_to_record = inbox_storage.object_to_record
+    real_object_to_record = inbox_staging.object_to_record
 
     def _spy(obj):
         persisted.append(obj)
         return real_object_to_record(obj)
 
-    monkeypatch.setattr(inbox_storage, "object_to_record", _spy)
+    monkeypatch.setattr(inbox_staging, "object_to_record", _spy)
 
     actor = created_actors[0]
     payload = {
@@ -811,5 +813,5 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
     stored = [o for o in persisted if getattr(o, "type_", None) == "CoreActor"]
-    assert len(stored) == 1, "the inline object was never pre-stored"
+    assert len(stored) == 1, "the inline object was never staged"
     assert not isinstance(stored[0], CoreObject)
