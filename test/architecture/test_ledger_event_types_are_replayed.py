@@ -40,7 +40,7 @@ fails here until it moves the row to :data:`REPLAYED`.  The classification and
 the committed set are held to equality (TB-10-002): a new committed type, or a
 row for a type no longer committed, fails the ratchet.
 
-:data:`AWAITING_COMMIT` lists types replayed ahead of the commit that will
+:data:`AWAITING_COMMIT` lists types classified ahead of the commit that will
 produce them; it must stay disjoint from the committed set.
 
 Every declared row carries a one-line reason.  The derivation is cached per process and
@@ -215,8 +215,13 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     ),
 }
 
-#: Replayed ahead of the commit that will produce them (event type → issue).
-AWAITING_COMMIT: dict[str, str] = {}
+#: Classified ahead of the commit that will produce them (event type → issue).
+#: The target's answer to a role Offer goes to the CASE_MANAGER, which does
+#: not yet commit it on receipt (CM-33-006); #4703 builds that commit.
+AWAITING_COMMIT: dict[str, str] = {
+    "accept_case_participant_role": "#4703",
+    "reject_case_participant_role": "#4703",
+}
 
 
 def test_the_derivation_finds_both_commit_paths():
@@ -245,7 +250,7 @@ def test_every_committed_event_type_is_classified_exactly_once():
     """The classification equals the committed set (TB-10-002)."""
     tables = {
         "REPLAYED": set(REPLAYED) - set(AWAITING_COMMIT),
-        "NO_REPLICA_EFFECT": set(NO_REPLICA_EFFECT),
+        "NO_REPLICA_EFFECT": set(NO_REPLICA_EFFECT) - set(AWAITING_COMMIT),
     }
     names = list(tables)
     for i, first in enumerate(names):
@@ -264,7 +269,7 @@ def test_every_committed_event_type_is_classified_exactly_once():
 @pytest.mark.spec("RSH-08-004")
 def test_types_replayed_ahead_of_their_commit_are_not_committed_yet():
     """When the commit lands, the row moves out of ``AWAITING_COMMIT``."""
-    assert set(AWAITING_COMMIT) <= set(REPLAYED)
+    assert set(AWAITING_COMMIT) <= set(REPLAYED) | set(NO_REPLICA_EFFECT)
     assert not set(AWAITING_COMMIT) & committed_event_types()
 
 

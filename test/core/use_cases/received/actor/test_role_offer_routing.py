@@ -14,12 +14,13 @@
 
 The Case Owner sends ``Offer(CaseParticipantRole)`` to the CASE_MANAGER, which
 records it and forwards it to the target; the target answers the CASE_MANAGER,
-which commits the answer and, on an Accept, grants the role.  None of this is
-built yet, so each test is a strict ``xfail`` that fails for the reason its
-requirement names.
+which commits the answer and, on an Accept, grants the role.  The CASE_MANAGER's
+handling of the answer is not built yet, so each CM-33-005 and CM-33-006 test
+is a strict ``xfail`` that fails for the reason its requirement names.
 """
 
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -46,6 +47,7 @@ from vultron.core.use_cases.received.actor.case_participant_role import (
     OfferCaseParticipantRoleReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_participant_role_activity,
     offer_case_participant_role_activity,
@@ -67,7 +69,6 @@ _BYSTANDER_ID = "https://example.org/users/coordinator"
 _OFFER_ID = "https://example.org/activities/role-offer"
 _FORWARD_ID = "https://example.org/activities/role-offer/forward"
 
-_OFFER_PATH = "Tracked by #4702."
 _ANSWER_PATH = "Tracked by #4703."
 
 
@@ -217,11 +218,6 @@ def _target_holds(dl: SqliteDataLayer, role: CVDRole) -> bool:
     return participant.has_role(role)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CM-33-001: the CASE_MANAGER accepts the Offer itself, on the"
-    f" target's behalf, and grants the role on receipt. {_OFFER_PATH}",
-)
 @pytest.mark.spec("CM-33-001")
 def test_case_manager_records_and_forwards_the_offer(make_payload):
     """The Offer is ledgered and forwarded; nothing is granted until Accept."""
@@ -239,10 +235,195 @@ def test_case_manager_records_and_forwards_the_offer(make_payload):
     assert not _target_holds(dl, CVDRole.VENDOR)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CM-33-002: no sender check on a role Offer. {_OFFER_PATH}",
+@pytest.mark.spec("CM-33-001")
+def test_case_manager_forwards_to_the_target_only_and_answers_nothing(
+    make_payload,
+):
+    """The forward names the recorded Offer; the CM does not answer for it."""
+    dl = _store(_CASE_MANAGER_ID)
+
+    result = _deliver_offer(dl, make_payload, _offer())
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    (forward,) = _queued_offers(dl)
+    assert forward.to == [_TARGET_ID]
+    assert _as_id(forward.in_reply_to) == _OFFER_ID
+    assert not [
+        item for item in _queued(dl) if _type_of(item) in ("Accept", "Reject")
+    ]
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("OX-06-002")
+def test_redelivered_offer_is_skipped_with_no_second_entry_or_forward(
+    make_payload,
+):
+    """Each delivery is built afresh, as a peer's retry would be."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    entries = _event_types(dl)
+    forwards = _queued_offers(dl)
+
+    result = _deliver_offer(dl, make_payload, _offer())
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries
+    assert _queued_offers(dl) == forwards
+
+
+@pytest.mark.spec("HP-01-003")
+def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
+    """Delivery drained the outbox; the forward is not sent again."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    while dl.outbox_pop() is not None:
+        pass
+    entries = _event_types(dl)
+
+    result = _deliver_offer(dl, make_payload, _offer())
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("ID-02-001")
+@pytest.mark.spec("CM-33-003")
+@pytest.mark.parametrize(
+    "changed",
+    [
+        pytest.param({"role": CVDRole.COORDINATOR}, id="another-role"),
+        pytest.param({"target": _BYSTANDER_ID}, id="another-target"),
+        pytest.param({"target": _CASE_MANAGER_ID}, id="the-case-manager"),
+    ],
 )
+def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
+    make_payload, changed
+):
+    """Only the same role and target make it a redelivery."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    entries = _event_types(dl)
+    queued = dl.outbox_list()
+
+    result = _deliver_offer(dl, make_payload, _offer(**changed))
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _event_types(dl) == entries
+    assert dl.outbox_list() == queued
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CLP-10-006")
+def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
+    make_payload,
+):
+    """The fault is ours, not a refusal; the redelivery finishes the forward."""
+    dl = _store(_CASE_MANAGER_ID)
+    offer = _offer()
+    broken = MagicMock(wraps=TriggerActivityAdapter(dl))
+    broken.offer_case_participant_role.side_effect = RuntimeError("down")
+
+    with pytest.raises(VultronBTInternalError):
+        OfferCaseParticipantRoleReceivedUseCase(
+            dl,
+            make_payload(offer, receiving_actor_id=dl.actor_id),
+            trigger_activity=broken,
+            **_ports(dl),
+        ).execute()
+    assert _event_types(dl) == ["offer_case_participant_role"]
+    assert _forwards(dl) == []
+
+    result = _deliver_offer(dl, make_payload, offer)
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == ["offer_case_participant_role"]
+    assert len(_forwards(dl)) == 1
+
+
+@pytest.mark.spec("HP-01-005")
+def test_a_copy_not_addressed_to_the_receiver_is_refused(make_payload):
+    """The CASE_MANAGER holds a copy of an Offer sent to someone else."""
+    dl = _store(_CASE_MANAGER_ID)
+
+    result = _deliver_offer(dl, make_payload, _offer(to=_TARGET_ID))
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _event_types(dl) == []
+    assert _queued(dl) == []
+    assert dl.read(_OFFER_ID) is None
+
+
+@pytest.mark.spec("CM-33-003")
+@pytest.mark.spec("BT-17-008")
+def test_offer_naming_the_case_manager_as_target_is_refused(make_payload):
+    """The CASE_MANAGER would forward the Offer to itself."""
+    dl = _store(_CASE_MANAGER_ID)
+
+    result = _deliver_offer(
+        dl, make_payload, _offer(role=CVDRole.VENDOR, target=_CASE_MANAGER_ID)
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _event_types(dl) == []
+    assert _queued(dl) == []
+
+
+@pytest.mark.spec("CM-33-004")
+def test_an_addressee_that_is_not_the_target_does_not_answer(make_payload):
+    """A CASE_MANAGER-sent Offer naming another target is not answered."""
+    dl = _store(_BYSTANDER_ID)
+    offer = offer_case_participant_role_activity(
+        role=CVDRole.VENDOR,
+        target_actor=as_Actor(id_=_TARGET_ID),
+        case=_CASE_ID,
+        actor=_CASE_MANAGER_ID,
+        attributed_to=_OWNER_ID,
+        to=[_BYSTANDER_ID],
+        in_reply_to=_OFFER_ID,
+        id_=_FORWARD_ID,
+    )
+
+    result = _deliver_offer(dl, make_payload, offer)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _queued(dl) == []
+
+
+@pytest.mark.spec("CM-33-003")
+@pytest.mark.parametrize(
+    "dropped",
+    [
+        pytest.param("context", id="no-case"),
+        pytest.param("target", id="no-target"),
+    ],
+)
+def test_offer_naming_no_case_or_no_target_is_refused(make_payload, dropped):
+    """Only intake's archive keeps it: no entry, no forward (CLP-10-018)."""
+    dl = _store(_CASE_MANAGER_ID)
+    request = make_payload(_offer(), receiving_actor_id=dl.actor_id)
+    request = request.model_copy(
+        update={
+            "activity": request.activity.model_copy(update={dropped: None})
+        }
+    )
+
+    result = OfferCaseParticipantRoleReceivedUseCase(
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        **_ports(dl),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _event_types(dl) == []
+    assert _queued(dl) == []
+
+
+def _queued_offers(dl: SqliteDataLayer) -> list[Any]:
+    return [item for item in _queued(dl) if _type_of(item) == "Offer"]
+
+
 @pytest.mark.spec("CM-33-002")
 def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
     make_payload,
@@ -257,11 +438,6 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
     assert _queued(dl) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CM-33-003: a role Offer's role and target are not checked."
-    f" {_OFFER_PATH}",
-)
 @pytest.mark.spec("CM-33-003")
 @pytest.mark.parametrize(
     ("role", "target"),
@@ -297,11 +473,6 @@ def test_offer_the_case_manager_must_refuse(make_payload, role, target):
     assert _queued(dl) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CM-33-004: the target answers a role Offer from any sender."
-    f" {_OFFER_PATH}",
-)
 @pytest.mark.spec("CM-33-004")
 def test_target_refuses_an_offer_not_sent_by_the_case_manager(make_payload):
     """The Case Owner's Offer reaches the target only as the CM's forward."""
@@ -320,7 +491,7 @@ def test_target_answers_the_forward_to_the_case_manager_only(make_payload):
 
     result = _deliver_offer(dl, make_payload, _forward())
 
-    assert result.disposition is not HandlerDisposition.REFUSED
+    assert result.disposition is HandlerDisposition.APPLIED
     answers = [
         item for item in _queued(dl) if _type_of(item) in ("Accept", "Reject")
     ]
@@ -356,8 +527,8 @@ def test_accept_from_a_participant_that_is_not_the_target_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CM-33-005: an answer to an answered Offer is not refused; the"
-    f" CASE_MANAGER has already accepted for the target. {_ANSWER_PATH}",
+    reason=f"CM-33-005: the target's Accept is only stored, so it neither"
+    f" grants the role nor closes the Offer. {_ANSWER_PATH}",
 )
 @pytest.mark.spec("CM-33-005")
 def test_answer_to_an_offer_that_is_not_open_is_refused(make_payload):
@@ -421,8 +592,8 @@ def test_redelivered_closing_answer_is_skipped(make_payload):
 
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CM-33-005: the CASE_MANAGER sends no forward, so no answer can"
-    f" name one (#4702). {_ANSWER_PATH}",
+    reason=f"CM-33-005: an answer naming the forward is only stored, never"
+    f" resolved to the recorded Offer. {_ANSWER_PATH}",
 )
 @pytest.mark.spec("CM-33-005")
 def test_answer_naming_the_forward_resolves_to_the_recorded_offer(
@@ -481,8 +652,8 @@ class TestAdmittedAnswerIsLedgered:
 
     @pytest.mark.xfail(
         strict=True,
-        reason=f"CM-33-006: the target's Reject is only stored; the"
-        f" CASE_MANAGER has already accepted for it. {_ANSWER_PATH}",
+        reason=f"CM-33-006: the target's Reject is only stored, never"
+        f" committed or announced. {_ANSWER_PATH}",
     )
     @pytest.mark.spec("CM-33-006")
     @pytest.mark.spec("CLP-02-012")

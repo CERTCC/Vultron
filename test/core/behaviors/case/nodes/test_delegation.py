@@ -13,19 +13,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for AutoAcceptCaseParticipantRoleNode and EmitRejectCaseParticipantRoleNode (ADR-0039)."""
+"""Tests for the role-delegation nodes (ADR-0039, CM-33)."""
 
 from unittest.mock import MagicMock
 
 import pytest
 from py_trees.common import Status
 
-import vultron.core.behaviors.sync.commit_tree as _commit_mod
 from test.support.ledger import (
     committed_event_types,
-    fail_commits,
-    ledger_entries,
-    record_sends_and_commits,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -36,7 +32,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.delegation import (
     AutoAcceptCaseParticipantRoleNode,
     EmitRejectCaseParticipantRoleNode,
+    ForwardRoleOfferToTargetNode,
     GrantCaseParticipantRoleNode,
+    IsRoleOfferTargetNode,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -178,60 +176,73 @@ class TestAnswerNodeInputs:
         assert dl.outbox_list() == []
 
 
+def _participant_store() -> SqliteDataLayer:
+    """ACTOR_ID's store: a case MANAGER_ID manages, ACTOR_ID a participant."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
+    dl.create(
+        as_VulnerabilityCase(
+            id_=CASE_ID, name="Delegation Test Case", attributed_to=MANAGER_ID
+        )
+    )
+    _seed_participant(dl, MANAGER_ID, [CVDRole.CASE_MANAGER])
+    _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
+    return dl
+
+
 @ANSWERS
-class TestAnswerAtTheCaseManager:
-    """The CASE_MANAGER's answer is sent, then ledgered (ADR-0119)."""
+class TestAnswerGoesToTheCaseManager:
+    """The target answers the CASE_MANAGER only (CM-33-004, PCR-08-011)."""
 
-    @pytest.fixture(autouse=True)
-    def _actor_is_case_manager(self, dl):
-        _seed_participant(dl, ACTOR_ID, [CVDRole.CASE_MANAGER])
-
-    @pytest.mark.spec("SYNC-09-002")
-    @pytest.mark.spec("CLP-02-012")
-    def test_the_answer_is_queued_then_committed(
-        self, bridge_with_sync, dl, monkeypatch, node_cls, event_type
+    @pytest.mark.spec("CM-33-004")
+    @pytest.mark.spec("PCR-08-001")
+    def test_the_answer_is_addressed_to_the_case_manager_only(
+        self, node_cls, event_type
     ):
-        events = record_sends_and_commits(monkeypatch, ACTOR_ID)
-        result = bridge_with_sync.execute_with_setup(
+        dl = _participant_store()
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        )
+
+        result = bridge.execute_with_setup(
             tree=_answer_node(node_cls), actor_id=ACTOR_ID
         )
 
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.SUCCESS, result
         (answer_id,) = dl.outbox_list()
-        assert events == [("queued", answer_id), (event_type, answer_id)]
-        assert committed_event_types(dl, CASE_ID).count(event_type) == 1
+        assert getattr(dl.read(answer_id), "to", None) == [MANAGER_ID]
+
+    @pytest.mark.spec("PCR-08-011")
+    def test_failure_when_the_case_names_no_case_manager(
+        self, bridge, dl, node_cls, event_type
+    ):
+        """No CASE_MANAGER resolves: nothing is sent, so the Selector fails."""
+        _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
+
+        result = bridge.execute_with_setup(
+            tree=_answer_node(node_cls), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("OX-06-002")
-    def test_a_retry_after_a_failed_commit_sends_and_records_once(
-        self, bridge_with_sync, dl, monkeypatch, node_cls, event_type
-    ):
-        """The answer's id derives from the Offer, so a retry rebuilds it.
+    def test_a_retry_sends_the_same_answer_once(self, node_cls, event_type):
+        """The answer's id derives from the Offer, so a retry rebuilds it."""
+        dl = _participant_store()
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        )
 
-        A failed commit raises rather than returning FAILURE: the answer is
-        already queued, and a FAILURE would let the Selector send the other
-        answer after it.
-        """
-        with monkeypatch.context() as patched:
-            fail_commits(patched, _commit_mod, allowed=0)
-            first = bridge_with_sync.execute_with_setup(
-                tree=_answer_node(node_cls), actor_id=ACTOR_ID
-            )
-        assert first.internal_error, first
-        (answer_id,) = dl.outbox_list()
-        assert event_type not in committed_event_types(dl, CASE_ID)
-
-        retry = bridge_with_sync.execute_with_setup(
+        bridge.execute_with_setup(
+            tree=_answer_node(node_cls), actor_id=ACTOR_ID
+        )
+        first = dl.outbox_list()
+        bridge.execute_with_setup(
             tree=_answer_node(node_cls), actor_id=ACTOR_ID
         )
 
-        assert retry.status == Status.SUCCESS
-        assert dl.outbox_list() == [answer_id]
-        (entry,) = [
-            e
-            for e in ledger_entries(dl, CASE_ID)
-            if e.event_type == event_type
-        ]
-        assert entry.log_object_id == answer_id
+        assert len(first) == 1
+        assert dl.outbox_list() == first
 
 
 @ANSWERS
@@ -245,14 +256,7 @@ def test_an_ordinary_participant_answers_with_no_ledger_entry(
     answers in its own store.  Before the CASE_MANAGER gate the answer
     minted an entry in ACTOR_ID's replica ledger, forking the chain.
     """
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    dl.create(
-        as_VulnerabilityCase(
-            id_=CASE_ID, name="Delegation Test Case", attributed_to=MANAGER_ID
-        )
-    )
-    _seed_participant(dl, MANAGER_ID, [CVDRole.CASE_MANAGER])
-    _seed_participant(dl, ACTOR_ID, [CVDRole.VENDOR])
+    dl = _participant_store()
     bridge = BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
@@ -266,6 +270,91 @@ def test_an_ordinary_participant_answers_with_no_ledger_entry(
     assert result.status == Status.SUCCESS, result
     assert len(dl.outbox_list()) == 1
     assert committed_event_types(dl, CASE_ID) == []
+
+
+class TestIsRoleOfferTargetNode:
+    """Only the target answers a role Offer (CM-33-004, BT-17-008)."""
+
+    @pytest.mark.spec("CM-33-004")
+    def test_succeeds_for_the_target(self, bridge):
+        result = bridge.execute_with_setup(
+            tree=IsRoleOfferTargetNode(target_actor_id=ACTOR_ID),
+            actor_id=ACTOR_ID,
+        )
+
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("CM-33-004")
+    def test_fails_for_any_other_actor(self, bridge):
+        node = IsRoleOfferTargetNode(target_actor_id=VENDOR_ID)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.FAILURE
+        assert "is not the target" in node.feedback_message
+
+
+def _forward_node() -> ForwardRoleOfferToTargetNode:
+    return ForwardRoleOfferToTargetNode(
+        case_id=CASE_ID,
+        role=CVDRole.VENDOR,
+        target_actor_id=MANAGER_ID,
+        offer_id=OFFER_ID,
+        owner_id=VENDOR_ID,
+    )
+
+
+class TestForwardRoleOfferToTargetNode:
+    """The CASE_MANAGER forwards the recorded Offer to its target (CM-33-001)."""
+
+    @pytest.mark.spec("CM-33-001")
+    @pytest.mark.spec("CM-24-005")
+    def test_forward_names_the_recorded_offer_and_its_owner(self, bridge, dl):
+        result = bridge.execute_with_setup(
+            tree=_forward_node(), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.SUCCESS, result
+        (forward_id,) = dl.outbox_list()
+        forward = dl.read(forward_id)
+        assert forward.to == [MANAGER_ID]
+        assert forward.actor == ACTOR_ID
+        assert forward.attributed_to == VENDOR_ID
+        assert forward.in_reply_to == OFFER_ID
+        assert forward.object_.role is CVDRole.VENDOR
+
+    @pytest.mark.spec("OX-06-002")
+    def test_a_retry_queues_the_same_forward_once(self, bridge, dl):
+        bridge.execute_with_setup(tree=_forward_node(), actor_id=ACTOR_ID)
+        first = dl.outbox_list()
+        bridge.execute_with_setup(tree=_forward_node(), actor_id=ACTOR_ID)
+
+        assert len(first) == 1
+        assert dl.outbox_list() == first
+
+    def test_failure_when_no_factory(self, dl):
+        result = BTBridge(datalayer=dl).execute_with_setup(
+            tree=_forward_node(), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_a_factory_fault_is_an_internal_error(self, dl):
+        """It runs after the commit: a fault is ours, never a refusal."""
+        mock_factory = MagicMock()
+        mock_factory.offer_case_participant_role.side_effect = RuntimeError(
+            "factory error"
+        )
+
+        result = BTBridge(
+            datalayer=dl, trigger_activity=mock_factory
+        ).execute_with_setup(tree=_forward_node(), actor_id=ACTOR_ID)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error
+        assert dl.outbox_list() == []
 
 
 class TestGrantCaseParticipantRoleNode:
