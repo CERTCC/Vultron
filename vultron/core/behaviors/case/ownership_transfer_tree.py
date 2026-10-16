@@ -318,8 +318,8 @@ def offer_sender_context(
     At the CASE_MANAGER the sender must be the Case Owner, unless it
     redelivers an Offer recorded from it (*offer_id*, HP-01-003); at a
     replica it must be the CASE_MANAGER, and a case the replica does not
-    hold refuses (CM-21-019, PCR-03-001).  The handler's pre-flight and the
-    received tree's guard read the same context.
+    hold refuses (CM-21-019, PCR-03-001).  The received tree's sender guard
+    reads it.
     """
     return SenderCheckContext(
         sender_id=sender_id,

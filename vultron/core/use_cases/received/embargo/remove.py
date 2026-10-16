@@ -26,11 +26,9 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
-)
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    addressee_refusal,
     verdict_from_bt,
 )
 
@@ -91,16 +89,8 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
                 "Remove(EmbargoEvent) is missing its embargo id or case id"
             )
 
-        # Door check before any tree or write, after the shape checks
-        # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0118).
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id, request, label="Remove(EmbargoEvent)"
-            )
-        ) is not None:
-            return refusal
-
+        # One tree: its door guards refuse a closed case, an unaddressed
+        # copy (HP-01-005, ADR-0118) and a sender without standing first.
         # The tree embeds the guarded commit as its final step (ADR-0021,
         # CLP-10-002, CLP-10-003).  Running it with actor_id=receiving_actor_id
         # means CheckIsCaseManagerNode naturally fires only when the receiving
@@ -133,6 +123,8 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RemoveEmbargoFromCaseBT"
         )
+        if (refusal := addressee_refusal(tree)) is not None:
+            verdict = refusal
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (embargo '%s', case '%s')",

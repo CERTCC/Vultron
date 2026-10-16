@@ -112,9 +112,11 @@ def unaddressed_copy_refusal(
 ) -> HandlerResult | None:
     """REFUSED for a copy the receiver was never addressed; else ``None``.
 
-    The door check of every received embargo use case (HP-01-005, ADR-0118,
-    #4132): a receiver acts on an activity only when it sent it or is named
-    in its ``to``.  Any other store holds a misaddressed copy — it
+    The door check of a received use case whose tree has no
+    ``addressee_check`` (HP-01-005, ADR-0118, #4132): a receiver acts on an
+    activity only when it sent it or is named in its ``to``.  A received
+    tree checks this itself with the factory's ``addressee_check``, the
+    embargo trees among them.  Any other store holds a misaddressed copy — it
     runs no tree, writes nothing and answers nothing (EMB-01-002's ER duty
     binds only the addressee) — and its refusal names the receiver and the
     recipients the sender actually chose, so the misrouting can be traced.

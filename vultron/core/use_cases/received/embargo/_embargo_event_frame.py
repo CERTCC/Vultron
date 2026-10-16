@@ -30,11 +30,9 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
-)
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    addressee_refusal,
     not_case_manager_refusal,
     verdict_from_bt,
 )
@@ -104,13 +102,8 @@ class _EmbargoEventReceivedUseCase:
             return HandlerResult.refused(
                 f"{label} is missing its embargo id or case id"
             )
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id, request, label=label
-            )
-        ) is not None:
-            return refusal
-
+        # The tree's door guards refuse a closed case, an unaddressed copy
+        # (HP-01-005, ADR-0118) and a sender without standing first.
         tree = self._build_tree(case_id, embargo_id, request.actor_id)
         result = BTBridge(
             datalayer=self._dl,
@@ -125,9 +118,10 @@ class _EmbargoEventReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        verdict = self._refine_verdict(
-            tree, verdict_from_bt(tree, result, label=self._tree_label)
-        )
+        verdict = verdict_from_bt(tree, result, label=self._tree_label)
+        if (refusal := addressee_refusal(tree)) is not None:
+            verdict = refusal
+        verdict = self._refine_verdict(tree, verdict)
         if verdict.disposition is HandlerDisposition.APPLIED:
             # Only the CASE_MANAGER applies; a replica learns it from the
             # ledger broadcast (BT-17-001, HP-01-005).

@@ -30,9 +30,13 @@ from vultron.core.behaviors.case.nodes.incomplete_activity import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    door_guards_admitted,
     failure_reason,
     find_named,
     find_node,
@@ -44,7 +48,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager_refusal,
     verdict_from_bt,
 )
-from vultron.errors import VultronBTInternalError
+from vultron.errors import VultronBTInternalError, VultronWiringError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -356,6 +360,43 @@ def test_not_case_manager_refusal_names_a_case_with_no_manager():
     assert verdict is not None
     assert verdict.disposition == HandlerDisposition.REFUSED
     assert verdict.reason == f"case '{_CASE_ID}' has no CASE_MANAGER"
+
+
+def _door_tree(door: Status) -> ReceivedActivityTree:
+    """One door guard returning *door*, then a precondition guard that fails."""
+    guard = _Fixed("Door", door)
+    tree = ReceivedActivityTree(
+        name="Probe",
+        children=[guard, _Fixed("Precondition", Status.FAILURE)],
+        door_guards=[guard],
+    )
+    tree.tick_once()
+    return tree
+
+
+@pytest.mark.spec("CLP-10-010")
+def test_door_guards_admitted_once_every_door_guard_succeeded():
+    """Admitted even though a later precondition guard failed the run."""
+    assert door_guards_admitted(_door_tree(Status.SUCCESS)) is True
+
+
+@pytest.mark.spec("CLP-10-010")
+def test_door_guards_not_admitted_when_a_door_guard_refused():
+    assert door_guards_admitted(_door_tree(Status.FAILURE)) is False
+
+
+@pytest.mark.spec("CLP-10-010")
+def test_door_guards_not_admitted_before_the_tree_ran():
+    guard = _Fixed("Door", Status.SUCCESS)
+    tree = ReceivedActivityTree(
+        name="Probe", children=[guard], door_guards=[guard]
+    )
+    assert door_guards_admitted(tree) is False
+
+
+def test_door_guards_admitted_needs_a_received_activity_tree():
+    with pytest.raises(VultronWiringError, match="not a received-activity"):
+        door_guards_admitted(_Fixed("Plain", Status.SUCCESS))
 
 
 @pytest.mark.spec("CLP-10-005")

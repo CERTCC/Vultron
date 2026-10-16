@@ -31,18 +31,12 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import embargo_sender_context
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
-)
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    applied_or_raise,
+    addressee_refusal,
     find_node,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._intake_only import run_intake_only
-from vultron.core.use_cases.received._sender_preflight import rule_refusal
 
 logger = logging.getLogger(__name__)
 
@@ -68,56 +62,23 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Door check before any tree or write: an unaddressed copy is
-        # refused (HP-01-005, ADR-0118).
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id, request, label="Announce(EmbargoEvent)"
-            )
-        ) is not None:
-            return refusal
-        # The announcement is canonical case state, so only the CASE_MANAGER
-        # makes it, at every replica (EP-09-003, PCR-03-001, ADR-0115).  The
-        # guard runs ahead of the intake-only tree, so a refused sender leaves
-        # nothing behind.
-        if (
-            refusal := rule_refusal(
-                self._dl,
-                receiving_actor_id,
-                self.sender_entitlement,
-                embargo_sender_context(request.actor_id, request.case_id),
-                request,
-                label="Announce(EmbargoEvent)",
-                sync_port=self._sync_port,
-            )
-        ) is not None:
-            return refusal
-        case_id, embargo_id = request.case_id, request.embargo_id
-        if case_id is None or embargo_id is None:
-            tree, result = run_intake_only(
-                self._dl,
-                request,
-                name="AnnounceEmbargoEventToCaseReceivedBT",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
-            verdict = applied_or_raise(
-                tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
-            )
-            if verdict.disposition is HandlerDisposition.REFUSED:
-                return verdict  # the case is fully closed (CM-23-013)
-            return self._no_change()
-        # A replica whose ledger stream is paused applies a shorter revision
-        # from the CASE_MANAGER's notice (CM-31-009, CM-31-010); any other
-        # replica only archives it and takes the change from the ledger.
+        # One tree.  Its door guards refuse an unaddressed copy (HP-01-005,
+        # ADR-0118) and any sender but the CASE_MANAGER, at every replica,
+        # since the announcement is canonical case state (EP-09-003,
+        # PCR-03-001, ADR-0115).  A replica whose ledger stream is paused
+        # applies a shorter revision from the CASE_MANAGER's notice
+        # (CM-31-009, CM-31-010); any other replica only archives it and
+        # takes the change from the ledger.
         embargo = request.embargo
         tree = announce_embargo_received_tree(
-            case_id=case_id,
-            embargo_id=embargo_id,
+            case_id=request.case_id,
+            embargo_id=request.embargo_id,
             embargo=embargo if isinstance(embargo, EmbargoEvent) else None,
+            sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -132,6 +93,8 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
         )
+        if (refusal := addressee_refusal(tree)) is not None:
+            return refusal
         if verdict.disposition is not HandlerDisposition.APPLIED:
             return verdict
         apply_node = find_node(tree, ApplyAnnouncedEmbargoRevisionNode)

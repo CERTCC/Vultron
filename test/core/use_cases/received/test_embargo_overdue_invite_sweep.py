@@ -656,9 +656,9 @@ def test_every_received_embargo_tree_with_a_case_takes_the_sweep():
     } <= set(staged)
     # A tree with no stage at all must be a known exception.
     no_stage_reasons = {
-        # Run apart from the Invite and Accept trees, with no sender rule;
-        # #4642 makes it a guard of those trees, which sweep.
-        "RefuseEmbargoInviteBT": "#4642",
+        # A malformed Invite names no case the tree could sweep; it only
+        # answers with a ProcessingFault (MSM-05).
+        "EmbargoInviteFaultBT": "a malformed Invite has no case",
         # Only the CASE_MANAGER sends it, so the CASE_MANAGER, the only
         # store that sweeps, never receives it.
         "AnnounceEmbargoEventToCaseReceivedBT": "sent by the CASE_MANAGER",

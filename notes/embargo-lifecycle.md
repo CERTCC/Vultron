@@ -251,9 +251,13 @@ catch-up fetch or deferral, refuse instead.
 
 ## Refusing an Invite at P/X/A (EMB-01-002)
 
-- The P/X/A refusal of a received Invite runs `RefuseEmbargoInviteBT`
-  (`vultron/core/behaviors/embargo/refusal_tree.py`). It stores the Invite and
-  its `EmbargoEvent` first (the ER factory needs the proposal) and answers where
+- The P/X/A refusal of a received Invite or Accept is a `RECEIVER`
+  diversion of the received tree (`pxa_invite_refusal`, `pxa_accept_refusal`
+  in `vultron/core/behaviors/embargo/refusal_tree.py`, CLP-10-026), never a
+  refusal effect: refusal effects run only at the CASE_MANAGER and are skipped
+  on a redelivery, and a participant owes the ER too and re-queues an ER
+  sealed but never queued (ID-04-005). It stores the Invite and its
+  `EmbargoEvent` first (the ER factory needs the proposal) and answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
   terms by URI only is still answered (ADR-0123).
@@ -265,15 +269,17 @@ catch-up fetch or deferral, refuse instead.
   actor and the Invite, a tree node queues it (CLP-10-020), and the sealed ER is
   written before the queue append (ID-04-005), so a redelivery is `SKIPPED`.
 - An Invite naming no `to` recipient, several, or no embargo is answered with
-  `Create(ProcessingFault)`, not ER (EP-09-010, MSM-05-001).
+  `Create(ProcessingFault)`, not ER (EP-09-010, MSM-05-001), by the one tree
+  `received_embargo_invite_tree` builds for it (`invite_received_tree.py`),
+  after the post-close boundary.
 
 **A participant answers a revision on a P/X/A case with ER, never ET**
 (EMB-03-003, ADR-0118). Termination belongs to the owner, or to the
 CASE_MANAGER when delegated (EP-09-008); a participant's ET would write shared
 EM state it does not own. The duty binds only the addressee: every received
-embargo use case first runs `unaddressed_copy_refusal()`
-(`vultron/core/use_cases/_helpers.py`), so an unaddressed copy is answered by
-nobody.
+embargo tree passes `addressee_check` to `create_receive_activity_tree`, whose
+`ActivityAddressedToReceiverNode` door guard refuses an unaddressed copy before
+anything answers it (HP-01-005, CLP-10-010).
 
 ## P/X/A Teardown
 
@@ -509,10 +515,10 @@ listed (`PARTICIPANT`). The invitee rows use `SenderIsInviteeNode`.
 - **The invitee comes from the store, never from the reply**, so a reply
   embedding a doctored Invite cannot name itself the invitee; an Invite the store
   never recorded names no invitee and is refused.
-- **A handler that writes before its tree runs checks first** through
-  `rule_refusal()`, which composes the same guard from the declared rule, the
-  invitee rows included; the tree carries the guard as well, in the factory's
-  sender stage. A handler never builds a sender node of its own (HP-01-007).
+- **The sender guard is the tree's, in the factory's sender stage**, composed
+  from the declared rule, the invitee rows included; no embargo handler checks
+  the sender ahead of its tree, and none builds a sender node of its own
+  (HP-01-007, CLP-10-005).
 
 The `Remove` row at the CASE_MANAGER is not stated by a spec; it
 follows EP-09-005 (the owner decides) and the ER-never-ET rule above.
