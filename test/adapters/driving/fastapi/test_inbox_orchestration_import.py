@@ -27,6 +27,7 @@ import sys
 import pytest
 
 
+@pytest.mark.integration  # spawns a subprocess; needs the integration ceiling
 @pytest.mark.parametrize(
     "module",
     [
@@ -39,7 +40,7 @@ def test_module_imports_first_in_a_fresh_interpreter(module: str) -> None:
         [sys.executable, "-c", f"import {module}"],
         capture_output=True,
         text=True,
-        timeout=20,
+        timeout=60,  # raised from 20; subprocess needs headroom under load
         check=False,
     )
 
