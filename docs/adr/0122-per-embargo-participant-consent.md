@@ -1,18 +1,19 @@
 ---
 status: accepted-provisional
 status_override: >-
-  Revision 6 edited in place in epoch 2, not superseded, with the maintainer's explicit approval
-  on 2026-10-14 (PR #4601). It records the maintainer's 2026-10-14 rulings (Issue #4597): an
-  Accept after a Reject, and an owner's activation after its own decline, change the answer
-  directly.
+  Revision 7 edited in place in epoch 2, not superseded, with the maintainer's explicit approval
+  on 2026-10-16 (Idea #4609). It records the maintainer's 2026-10-16 rulings: four termination
+  cause kinds, the `Remove` carries the cause as `terminationCause`, and an owner's `Remove`
+  may not name a threat signal. Revision 6 was edited in place the same way on 2026-10-14
+  (PR #4601, Issue #4597).
 date: 2026-10-06
 created: 2026-10-06
-updated: 2026-10-14
-revision: 6
+updated: 2026-10-16
+revision: 7
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; Claude Opus 5.5; Issue #4178, Concern #4284, Concern #3884,
-  Issue #4153, Concern #4322, Issue #4597, Issue #4713, PR #4002, PR #4267, PR #4372, PR #4601; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
+  Issue #4153, Concern #4322, Issue #4597, Issue #4713, Idea #4609, PR #4002, PR #4267, PR #4372, PR #4601; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
   ADR-0113, ADR-0118, ADR-0124, ADR-0130; specs/case-management.yaml CM-10, CM-18;
   specs/message-semantics-mapping.yaml MSM-07; specs/embargo-policy.yaml EP-05,
   EP-08, EP-09; specs/em-behavior.yaml EMB-11, EMB-16, EMB-17
@@ -219,13 +220,28 @@ The what is `END_TIME_REACHED` or `EARLY`.
 A termination `Remove` carries it in `content` as exactly one of those two values, checked at the parse edge; anything else is refused.
 `summary` carries a human-readable account and is not read by the protocol.
 The why is a structured cause the `TERMINATED` register entry records beside the what.
-A threat-signal termination is `EARLY`, its `Remove` carries `EARLY`, and its cause is `THREAT_SIGNAL` with the signals that ended it: `P` (public awareness), `X` (exploit public) or `A` (attacks observed).
-Other early causes, such as a quorum of vendors ready with a fix, adversary awareness, a leak or a participant's judgment, are left open, so the cause is extensible rather than a closed list; an early termination with no recorded cause records the what alone.
-The `Remove` does not carry the why.
-A replica learns the why only where the register entry itself reaches it, as in a copy of the case, so one that learns a termination from the `Remove` records only the what until it copies whole register entries (ADR-0124).
-Which causes exist, what details each carries, and whether the termination message should ever carry the why are left for future exploration.
+A cause is an object discriminated on `kind`, and each kind carries its own details, so a new cause is a new kind rather than a new member of a closed list.
+Four kinds are defined, and every one of them is `EARLY`:
+
+| `kind` | Details | Who may name it |
+|---|---|---|
+| `THREAT_SIGNAL` | `signals`: the CS signals that ended it, `P` (public awareness), `X` (exploit public) or `A` (attacks observed), distinct and in that order | the CASE_MANAGER only, read from the case's own PXA state |
+| `FIX_READY` | `vendors`: the vendor participants whose readiness made the quorum (VP-09-007) | the requester, as a claim |
+| `FIX_DEPLOYED` | none | the requester, as a claim |
+| `OTHER` | none; the `Remove`'s `summary` gives the account | the requester, as a claim |
+
+Adversary awareness of the technical details, adversaries holding exploit code and a leak by a participant are candidate kinds, defined when something can name them.
+An `END_TIME_REACHED` termination has no cause.
+An `EARLY` termination with no cause is valid on the wire and records the what alone; every termination Vultron itself starts names one, `OTHER` when nothing more specific applies.
+
+The termination `Remove` carries the why beside the what, as the Vultron property `terminationCause`, holding the cause object.
+It is checked at the parse edge: an unknown `kind`, a missing or malformed detail, or a cause on an `END_TIME_REACHED` termination is refused.
+On the case owner's `Remove` to the CASE_MANAGER the cause is the owner's claim, which the CASE_MANAGER records as given; it does not check, for one, that the named vendors are fix-ready, because ending early on a quorum is the owner's judgment.
+An owner's `Remove` that names `THREAT_SIGNAL` is refused before it is committed, with a reason that points to the case status: a threat signal ends an embargo through a case status entry setting `P`, `X` or `A`, after which the CASE_MANAGER terminates it with the signals the case carries.
+Reading the `Remove` as that status change instead would commit a status change no participant sent.
+Only a `Remove` the CASE_MANAGER sends may name `THREAT_SIGNAL`.
+Either way the termination's ledger entry carries the cause it records, so the ledger holds the why, and a replica copies it onto its `TERMINATED` entry from that entry through the one apply function, never working it out from its own state (ADR-0124, CM-23-016).
 Replay refuses `END_TIME_REACHED` on an entry published before the embargo's end time.
-No new AS2 property is introduced.
 
 An embargo reaches its end time through either of two requests, which share one idempotent termination path: the CASE_MANAGER's lazy check when it next handles the case, or an outside request such as a Sentinel monitoring embargo timers.
 Both commit the CASE_MANAGER's `Remove(EmbargoEvent, target=Case)` with `content` `END_TIME_REACHED`.
@@ -246,7 +262,7 @@ The register's definition says which entries the step moves, so the activity nee
 | `Invite(EmbargoEvent)` proposing a new embargo | `PROPOSE`; the embargo is carried inline and kept on the new entry |
 | `Accept(EmbargoEvent, target=Case)` | `ACTIVATE`, with `SUPERSEDE` of the embargo in force |
 | `Reject(EmbargoEvent, target=Case)` | `REJECT` |
-| `Remove(EmbargoEvent, target=Case)` | `TERMINATE` of the embargo it names, with `CANCEL` of every `PROPOSED` entry |
+| `Remove(EmbargoEvent, target=Case)` | `TERMINATE` of the embargo it names, with `CANCEL` of every `PROPOSED` entry; the entry records the `content` reason and any `terminationCause` |
 | the CASE_MANAGER's record of a threat signal abandoning a proposal while no embargo is in force | `CANCEL` of that proposal |
 
 No separate entry records a supersede or a cancel: they are part of the step.
@@ -363,6 +379,8 @@ Four wire forms were weighed for a signatory leaving the embargo it is bound by.
 
 Decided in the maintainer's design session of 2026-10-07, recorded in Concern #4284; implementation is tracked under epic #4283.
 The ledger shapes ("How the changes are recorded in the ledger") were recorded in place on 2026-10-15 from the maintainer's decision on Issue #4713: the act's own activity carries the whole register step, and each changed consent row is its own entry.
+Revision 7 (2026-10-16) settles the termination cause left open by revision 6 (Idea #4609): four cause kinds, and the `Remove` carries the cause as `terminationCause`, so replicas copy it from the ledger.
+It reverses revision 6's "the `Remove` does not carry the why" and "no new AS2 property is introduced".
 Revision 5 (2026-10-09) withdrew revision 3's retirement of the EM transition table: EM stays computed from the register, under the table (ADR-0130).
 Revision 1 (2026-10-06) introduced the per-embargo rows with `INVITED`, `ACCEPTED`, `DECLINED` and `EXPIRED`, and left EM, the case's embargo history and the owner's activation as they were.
 
