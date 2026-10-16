@@ -234,7 +234,9 @@ Embargo messages route through the case manager like every other case-scoped mes
 A Participant does not announce its embargo stance to the other Participants itself.
 
 Teardown is the exception worth naming, because its addressing is prescribed.
-The `Announce(EmbargoEvent)` that follows a teardown must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
+The `Announce(EmbargoEvent)` that follows a teardown the Case Owner asked for must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every active Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
+A Closed Participant is left out, as it is from all case content (CM-23-004).
+A teardown the case manager starts itself, including one at the embargo's end time, sends no announcement.
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
 
 On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-006).
