@@ -67,6 +67,7 @@ from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
+    EmbargoCaseFile,
     EmbargoChange,
     apply_embargo_change,
     case_file_is_past,
@@ -124,6 +125,18 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         """
         raise NotImplementedError
 
+    def _stated_changes(
+        self, entry: CaseLedgerEntry, after: EmbargoCaseFile
+    ) -> list[EmbargoChange]:
+        """Further changes the entry's activity states, applied after it.
+
+        *after* is the case file as :meth:`_change` leaves it.  An act's own
+        activity can state more than one change (CLP-07-013): the owner's
+        ``Accept(EmbargoEvent, target=Case)`` is the ``ACTIVATE`` step and
+        the owner's agreement.  None by default.
+        """
+        return []
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -154,6 +167,8 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             return Status.SUCCESS
         try:
             after = apply_embargo_change(before, change)
+            for stated in self._stated_changes(entry, after):
+                after = apply_embargo_change(after, stated)
         except VultronEntryRefusedError as exc:
             if case_file_is_past(before, change):
                 # A seed taken after this entry: replay moves forward only

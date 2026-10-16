@@ -17,6 +17,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
+import py_trees
 import pytest
 
 from test.core.use_cases.received.conftest import (
@@ -30,6 +31,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.ledger import committed_event_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -37,12 +39,22 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.expiry_tree import (
+    create_commit_and_record_expiry_tree,
+    create_honour_late_accept_tree,
+)
+from vultron.core.behaviors.sync import commit_tree
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.models.rsvp_deadline import (
+    HONOUR_LATE_ACCEPT_EVENT_TYPE,
     INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_NOOP_EVENT_TYPE,
 )
@@ -149,6 +161,26 @@ def _rows(
 
 def _make_dl(actor_id: str = _COORD) -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+
+def _run_as_manager(dl: SqliteDataLayer, tree: Any) -> Any:
+    """Run *tree* as the CASE_MANAGER with the ports production wires."""
+    return BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(tree=tree, actor_id=_COORD)
+
+
+def _invitee_consent(
+    dl: SqliteDataLayer, case_id: str, embargo_id: str
+) -> EmbargoConsentState:
+    case = cast(CoreCase, dl.read(case_id))
+    record = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[_INVITEE])
+    )
+    return record.consent_for(embargo_id)
 
 
 def _make_active_embargo_case(
@@ -1572,10 +1604,11 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
 
 
 class TestAssessAndRecordInviteExpiry:
-    """``assess_invite_expiry`` is read-only; ``record_invite_expiry`` is the effect.
+    """``assess_invite_expiry`` is read-only; the commit node is the effect.
 
     The guard → commit → effect pattern (CLP-10-006) requires that the assess
-    step make no writes and the record step only run after a successful commit.
+    step make no writes and the row be written only once its entries commit
+    (ADR-0124).
     """
 
     @pytest.mark.spec("CLP-10-006", "BT-06-006")
@@ -1671,9 +1704,13 @@ class TestAssessAndRecordInviteExpiry:
         assert is_expired is True
         assert needs_apply is False  # already settled, nothing to apply
 
-    @pytest.mark.spec("CLP-10-006", "BT-06-006")
-    def test_record_invite_expiry_applies_after_assess(self):
-        """record_invite_expiry moves INVITED → TIMED_OUT (the effect step)."""
+    @pytest.mark.spec("CLP-10-006", "BT-06-006", "CM-28-009", "CLP-07-013")
+    def test_the_expiry_commits_then_times_the_row_out(self):
+        """The commit node moves INVITED → TIMED_OUT once both entries commit.
+
+        The expired-invitation entry, then the CASE_MANAGER's
+        ``Update(EmbargoConsent)`` carrying the row (ADR-0124).
+        """
         dl = _make_dl()
         case_id = "https://example.org/cases/record1"
         embargo_id = f"{case_id}/embargos/e1"
@@ -1684,38 +1721,35 @@ class TestAssessAndRecordInviteExpiry:
             invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
-        svc = EmbargoLifecycle(persistence=dl)
-        result = svc.record_invite_expiry(
-            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        result = _run_as_manager(
+            dl,
+            create_commit_and_record_expiry_tree(
+                case_id=case_id,
+                invitee_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published=now_utc().isoformat(),
+            ),
         )
-        assert result.is_expired is True
-        assert len(result.participant_changes) == 1
-        change = result.participant_changes[0]
-        assert change.embargo_id == embargo_id
-        assert change.consent_before == EmbargoConsentState.INVITED.value
-        assert change.consent_after == EmbargoConsentState.TIMED_OUT.value
-        # Persisted
-        case = dl.read(case_id)
-        assert isinstance(case, CoreCase)
-        p = dl.read(case.actor_participant_index[_INVITEE])
-        assert isinstance(p, CaseParticipant)
-        assert p.consent_for(embargo_id) == EmbargoConsentState.TIMED_OUT
+        assert result.status is py_trees.common.Status.SUCCESS
+        assert committed_event_types(dl, case_id)[-2:] == [
+            INVITE_EXPIRED_EVENT_TYPE,
+            UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        ]
+        assert _invitee_consent(dl, case_id, embargo_id) is (
+            EmbargoConsentState.TIMED_OUT
+        )
 
     @pytest.mark.spec("CLP-10-006", "BT-06-006")
     def test_failed_commit_leaves_invitee_invited(self, monkeypatch):
         """A failed commit in the expiry decision leaves the invitee INVITED.
 
-        The decision uses guard → commit → effect.  If the commit node fails,
-        the effect node (RecordInviteExpiryNode) must not run, so the invitee
+        The decision uses guard → commit → effect.  If the commit fails, the
+        row is never written (ADR-0124), so the invitee
         stays in INVITED state rather than TIMED_OUT (CLP-10-006, BT-06-006),
         and the decision fails, which the clock-decision stage logs and
         continues past (CLP-10-025).
         """
-        from unittest.mock import patch
-
-        import py_trees
-
-        from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.embargo import expiry_tree as _et_module
 
         dl = _make_dl()
@@ -1728,31 +1762,22 @@ class TestAssessAndRecordInviteExpiry:
             invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
-
-        class _Fail(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.FAILURE
-
-        def _failing_commit(*args, **kwargs):
-            """Return a tree whose only node always fails."""
-            return _Fail(name="FailingCommitSim")
-
-        with patch.object(
-            _et_module, "create_commit_log_entry_tree", _failing_commit
-        ):
-            result_out2: dict = {}
-            tree2 = _et_module.invite_expiry_decision(
-                case_id=case_id,
-                invitee_id=_INVITEE,
-                invite_id=f"{case_id}/invites/i1",
-                embargo_id=embargo_id,
-                published="2026-01-01T00:00:00Z",
-                now=_NOW,
-                result_out=result_out2,
-            )
-            result = BTBridge(datalayer=dl).execute_with_setup(
-                tree=tree2, actor_id=_COORD
-            )
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            when=lambda kw: kw["event_type"] == INVITE_EXPIRED_EVENT_TYPE,
+        )
+        result_out2: dict = {}
+        tree2 = _et_module.invite_expiry_decision(
+            case_id=case_id,
+            invitee_id=_INVITEE,
+            invite_id=f"{case_id}/invites/i1",
+            embargo_id=embargo_id,
+            published="2026-01-01T00:00:00Z",
+            now=_NOW,
+            result_out=result_out2,
+        )
+        result = _run_as_manager(dl, tree2)
 
         assert result.status is py_trees.common.Status.FAILURE
         assert not result.internal_error
@@ -1766,66 +1791,144 @@ class TestAssessAndRecordInviteExpiry:
             "Failed commit must leave invitee INVITED, not TIMED_OUT (CLP-10-006)"
         )
 
+    @pytest.mark.spec("CLP-10-025")
+    def test_a_crash_in_the_commit_ends_the_decision_as_an_internal_error(
+        self, monkeypatch
+    ):
+        """A nested commit's internal error is never absorbed as a refusal.
 
-class TestHonourLateAcceptService:
-    """``honour_late_accept`` applies TIMED_OUT/DECLINED → AGREED via the service."""
+        The commit runs through a nested bridge; its ``internal_error`` must
+        cross the hop so the clock-decision stage ends the tree (ADR-0095).
+        """
+        from vultron.core.behaviors.embargo import expiry_tree as _et_module
 
-    @pytest.mark.spec("EMB-17-001", "ADR-0118")
-    def test_timed_out_participant_becomes_signatory(self):
-        """TIMED_OUT → AGREED in a single step; the invitee is then a signatory."""
+        class _Crash(py_trees.behaviour.Behaviour):
+            def update(self) -> py_trees.common.Status:
+                raise ValueError("boom")
+
         dl = _make_dl()
-        case_id = "https://example.org/cases/honour-expired"
+        case_id = "https://example.org/cases/crash-commit"
         embargo_id = f"{case_id}/embargos/e1"
         _make_active_embargo_case(
             dl,
             case_id,
             embargo_id,
-            invitee_consent=EmbargoConsentState.TIMED_OUT,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
-        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
-            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        monkeypatch.setattr(
+            commit_tree,
+            "create_commit_log_entry_tree",
+            lambda *a, **kw: _Crash(name="CrashingCommit"),
         )
-        assert any(
-            c.embargo_id == embargo_id
-            and c.consent_after == EmbargoConsentState.AGREED.value
-            for c in result.participant_changes
+        result = _run_as_manager(
+            dl,
+            _et_module.invite_expiry_decision(
+                case_id=case_id,
+                invitee_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published="2026-01-01T00:00:00Z",
+                now=_NOW,
+                result_out={},
+            ),
         )
-        case = dl.read(case_id)
-        assert isinstance(case, CoreCase)
-        p = dl.read(case.actor_participant_index[_INVITEE])
-        assert isinstance(p, CaseParticipant)
-        assert p.consent_for(embargo_id) == EmbargoConsentState.AGREED
 
-    @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
-    def test_declined_participant_becomes_signatory_via_invite(self):
-        """DECLINED → INVITED → AGREED (CM-18-003: AGREE not legal from DECLINED)."""
+        assert result.status is py_trees.common.Status.FAILURE
+        assert result.internal_error
+        assert _invitee_consent(dl, case_id, embargo_id) is (
+            EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CM-18-005")
+    def test_a_missing_consent_row_raises_out_of_the_commit(self):
+        """A participant missing a register entry's row is a broken invariant.
+
+        Every register entry has a row on every participant (ADR-0122), so
+        the commit node raises rather than return a refusal the
+        clock-decision stage would log and continue past (CLP-10-025).
+        """
         dl = _make_dl()
-        case_id = "https://example.org/cases/honour-declined"
+        case_id = "https://example.org/cases/missing-row"
+        embargo_id = f"{case_id}/embargos/e1"
+        _case, _embargo, participant_id = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.INVITED,
+            invitee_deadline=_PAST,
+        )
+        record = cast(CaseParticipant, dl.read(participant_id))
+        dl.save(record.model_copy(update={"embargo_consents": []}))
+        before = committed_event_types(dl, case_id)
+
+        result = _run_as_manager(
+            dl,
+            create_commit_and_record_expiry_tree(
+                case_id=case_id,
+                invitee_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published=now_utc().isoformat(),
+            ),
+        )
+
+        assert result.status is py_trees.common.Status.FAILURE
+        # The error escaped the node rather than being returned as FAILURE.
+        assert result.feedback_message.startswith("BT execution failed")
+        assert "VultronNotFoundError" in result.feedback_message
+        assert committed_event_types(dl, case_id) == before
+
+
+class TestHonourLateAcceptCommit:
+    """The honour tree commits its entry and the AGREED row, then writes it."""
+
+    @staticmethod
+    def _honour(dl: SqliteDataLayer, case_id: str, embargo_id: str):
+        return _run_as_manager(
+            dl,
+            create_honour_late_accept_tree(
+                case_id=case_id,
+                accepting_actor_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published=now_utc().isoformat(),
+            ),
+        )
+
+    @pytest.mark.spec("EMB-17-001", "ADR-0118", "CLP-07-013")
+    @pytest.mark.parametrize(
+        "held", [EmbargoConsentState.TIMED_OUT, EmbargoConsentState.DECLINED]
+    )
+    def test_the_participant_becomes_a_signatory(self, held):
+        """TIMED_OUT or DECLINED → AGREED in one step (CM-18-003)."""
+        dl = _make_dl()
+        case_id = f"https://example.org/cases/honour-{held.value.lower()}"
         embargo_id = f"{case_id}/embargos/e1"
         _make_active_embargo_case(
             dl,
             case_id,
             embargo_id,
-            invitee_consent=EmbargoConsentState.DECLINED,
+            invitee_consent=held,
             invitee_deadline=_PAST,
         )
-        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
-            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+
+        assert self._honour(dl, case_id, embargo_id).status is (
+            py_trees.common.Status.SUCCESS
         )
-        consent_states = [
-            c.consent_before for c in result.participant_changes
-        ] + [c.consent_after for c in result.participant_changes]
-        assert EmbargoConsentState.DECLINED.value in consent_states
-        case = dl.read(case_id)
-        assert isinstance(case, CoreCase)
-        p = dl.read(case.actor_participant_index[_INVITEE])
-        assert isinstance(p, CaseParticipant)
-        assert p.consent_for(embargo_id) == EmbargoConsentState.AGREED
+
+        assert committed_event_types(dl, case_id)[-2:] == [
+            HONOUR_LATE_ACCEPT_EVENT_TYPE,
+            UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        ]
+        assert _invitee_consent(dl, case_id, embargo_id) is (
+            EmbargoConsentState.AGREED
+        )
 
     @pytest.mark.spec("EMB-17-001", "ADR-0118")
-    def test_signatory_is_unchanged_idempotent(self):
-        """A participant already AGREED is not changed by honour_late_accept."""
+    def test_a_signatory_commits_nothing(self):
+        """A participant already AGREED: no entry, no change."""
         dl = _make_dl()
         case_id = "https://example.org/cases/honour-signatory"
         embargo_id = f"{case_id}/embargos/e1"
@@ -1835,16 +1938,39 @@ class TestHonourLateAcceptService:
             embargo_id,
             invitee_consent=EmbargoConsentState.AGREED,
         )
-        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
-            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        before = committed_event_types(dl, case_id)
+
+        assert self._honour(dl, case_id, embargo_id).status is (
+            py_trees.common.Status.SUCCESS
         )
-        # No state change — already AGREED
-        assert result.participant_changes == []
-        case = dl.read(case_id)
-        assert isinstance(case, CoreCase)
-        p = dl.read(case.actor_participant_index[_INVITEE])
-        assert isinstance(p, CaseParticipant)
-        assert p.consent_for(embargo_id) == EmbargoConsentState.AGREED
+
+        assert committed_event_types(dl, case_id) == before
+        assert _invitee_consent(dl, case_id, embargo_id) is (
+            EmbargoConsentState.AGREED
+        )
+
+    @pytest.mark.spec("EMB-17-001")
+    def test_an_actor_with_no_record_fails_and_commits_nothing(self):
+        dl = _make_dl()
+        case_id = "https://example.org/cases/honour-stranger"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(dl, case_id, embargo_id)
+        before = committed_event_types(dl, case_id)
+
+        result = _run_as_manager(
+            dl,
+            create_honour_late_accept_tree(
+                case_id=case_id,
+                accepting_actor_id="https://example.org/actors/stranger",
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published=now_utc().isoformat(),
+            ),
+        )
+
+        assert result.status is py_trees.common.Status.FAILURE
+        assert not result.internal_error
+        assert committed_event_types(dl, case_id) == before
 
 
 class TestLateAcceptHandling:
@@ -1943,6 +2069,7 @@ class TestLateAcceptHandling:
             _make_accept_event(proposal, case, _INVITEE, make_payload),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         )
         return dl, case_id, embargo_id, routed, use_case
 
@@ -2048,6 +2175,7 @@ class TestLateAcceptHandling:
         again first (EMB-17-002).  Neither row keeps a deadline once it
         leaves ``INVITED``; the row state itself closes the invitation.
         """
+        from vultron.core.behaviors.embargo.nodes import expiry_commit
         from vultron.core.models.case_participant import (
             CaseParticipant as _CoreParticipant,
         )
@@ -2060,6 +2188,15 @@ class TestLateAcceptHandling:
             return original(self, embargo_id, trigger, *args, **kwargs)
 
         monkeypatch.setattr(_CoreParticipant, "apply_pec_transition", _spy)
+        # The honour decides its row by the consent table, then copies it
+        # through the one apply function (ADR-0124).
+        original_move = expiry_commit.consent_row_move
+
+        def _move_spy(case_file, actor_id, embargo_id, trigger):
+            applied.append(trigger)
+            return original_move(case_file, actor_id, embargo_id, trigger)
+
+        monkeypatch.setattr(expiry_commit, "consent_row_move", _move_spy)
 
         dl = _make_dl(actor_id=_COORD)
         case_id = f"https://example.org/cases/late-{start.value.lower()}"

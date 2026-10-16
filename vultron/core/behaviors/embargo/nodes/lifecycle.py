@@ -32,9 +32,7 @@ from vultron.core.behaviors.embargo.nodes.terminate import (  # noqa: F401
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
-from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
     RegisterStep,
@@ -55,7 +53,6 @@ from vultron.errors import (
     VultronBTInternalError,
     VultronEntryRefusedError,
     VultronError,
-    VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
 
@@ -278,7 +275,7 @@ class AcceptEmbargoLifecycleNode(_EmbargoLifecycleNode):
 
     The sender's own consent, the case owner's included (ADR-0122): it moves
     no register entry.  The owner's activation is
-    ``ActivateEmbargoLifecycleNode`` (``owner_decision.py``).
+    ``CommitAndApplyEmbargoActivationNode`` (``activation_commit.py``).
     """
 
     def __init__(
@@ -352,84 +349,3 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
         return ConsentRowChange.answer(
             embargo_id=self._embargo_id, actor_id=actor_id, accept=False
         )
-
-
-class SetEmbargoActiveNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Apply the case owner's activation of an embargo; EM → ACTIVE.
-
-    Routes the activation through ``EmbargoLifecycle.activate_embargo()``
-    (EMB-18-001), the effect of the owner's
-    ``Accept(EmbargoEvent, target=Case)`` (ADR-0122).  The ledger replay runs
-    it ``OBSERVED`` (EP-09-007).  An embargo already in force is a no-op, so
-    a re-delivered entry changes nothing.  Returns FAILURE when the register
-    refuses it (EMB-18-002): in STRICT mode the embargo must be an open
-    proposal.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        embargo_id: str,
-        name: str | None = None,
-        transition_mode: TransitionMode = TransitionMode.STRICT,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.embargo_id = embargo_id
-        self._transition_mode = transition_mode
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        # Idempotency check: avoid calling EmbargoLifecycle when the embargo
-        # is already the register's ACTIVE entry (not a valid ACTIVATE source).
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        current_embargo_id = _as_id(case.active_embargo)
-        if current_embargo_id == self.embargo_id:
-            self.feedback_message = (
-                f"Case '{self.case_id}' already has embargo"
-                f" '{self.embargo_id}' active — idempotent no-op"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        # EMB-18-001: route EM activation through EmbargoLifecycle.activate_embargo().
-        lifecycle = EmbargoLifecycle(persistence=self.datalayer)
-        try:
-            result = lifecycle.activate_embargo(
-                case_id=self.case_id,
-                embargo_id=self.embargo_id,
-                actor_id=self.actor_id,
-                transition_mode=self._transition_mode,
-            )
-        except (
-            VultronNotFoundError,
-            VultronInvalidStateTransitionError,
-            ValueError,
-        ) as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        em_before = result.em_before
-        em_after = result.em_after
-        self.feedback_message = (
-            f"Activated embargo '{self.embargo_id}' on case"
-            f" '{self.case_id}' (EM {em_before} → {em_after})"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
-        # SL-04-001/SL-04-006: embargo activation is a protocol milestone.
-        if em_after != em_before:
-            log_em_transition(
-                self.logger,
-                self.actor_id or "<unknown>",
-                self.case_id,
-                em_before,
-                em_after,
-            )
-        return Status.SUCCESS

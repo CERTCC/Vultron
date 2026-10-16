@@ -62,7 +62,9 @@ A request to end the embargo early made after its end time is recorded as `END_T
 ## The mechanical path
 
 Every EM transition runs through the embargo lifecycle service, or through the single function that applies a committed ledger entry, which the case manager and every replica share (ADR-0124).
-Termination takes the second path: the case manager commits the `Remove` first, then applies it.
+Termination and activation take the second path: the case manager commits the `Remove`, or the owner's `Accept`, first, then applies it.
+The `Accept` records the whole activation, including the replaced embargo's supersession and the owner's own agreement, and each signatory carried over to shorter terms gets its own ledger entry after it.
+An invitation that expires unanswered is recorded the same way: the case manager commits the expiry, then the participant's changed consent, and only then writes it.
 A behavior tree node never assigns `case.current_status.em` and saves the case as a shortcut (EMB-18-001).
 The reason is that a transition is not a field write.
 It has to be validated against the state machine, and a failed validation must stop the node rather than log a warning and write anyway (EMB-18-002).

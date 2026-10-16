@@ -361,17 +361,19 @@ ledger entries (`vultron/core/models/rsvp_deadline.py`, trees in
 
 | Situation | Behaviour |
 |---|---|
-| `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `TIME_OUT` on that row only (CM-28-005) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: row → `AGREED`, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
+| `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-014) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: entry `HONOUR_LATE_ACCEPT_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
 | Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | acknowledge as a no-op; rows and case participation unchanged (EMB-17-004) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
-to coordinate. Each entry follows guard → commit → effect (CLP-10-006): a failed
-commit leaves the row `INVITED`. A non-manager writes nothing and gets `REFUSED`
-from the gate. Replicas replay each entry through the same service method the
-manager used (`honour_late_accept()`, `record_invite_expiry()`), reading no
-clock: a replica learns an expiry and never computes one.
+to coordinate. Each decision follows decide → commit → apply (CLP-10-006,
+ADR-0124): the CASE_MANAGER decides the row first, commits the act's entry and
+then the row's own `Update(EmbargoConsent)` entry, and only then writes the row
+through the one apply function, so a failed commit leaves the row `INVITED`. A
+non-manager writes nothing and gets `REFUSED` from the gate. A replica copies
+the row from its `Update` entry and treats the act's entry as a record, reading
+no clock: a replica learns an expiry and never computes one (CM-23-016).
 
 ### Sweep due expiries before the owner decides (CM-28-015)
 

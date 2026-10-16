@@ -288,18 +288,23 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 2. **On `VultronInvalidStateTransitionError` from a P/X/A guard**, the case is no
    longer embargo-eligible: do not retry; emit ER to the proposer.
 3. **Consent cascades are automatic.** `propose_embargo()` changes no consent
-   except recording the proposer's (ADR-0093). `activate_embargo()` records the
+   except recording the proposer's (ADR-0093). An activation records the
    owner's agreement; a *shorter* replacement carries every signatory over
    (`CARRY_OVER`), and under *longer* terms non-agreeing signatories lapse by
-   derivation (MSM-07-005). Termination (`decide_termination()`, then the
-   `TERMINATE` step through the one apply function) cancels every open proposal
-   and writes no consent (MSM-07-006). Callers do none of this by hand.
+   derivation (MSM-07-005). The CASE_MANAGER decides these
+   (`decide_activation()`) and commits each carried-over row as its own
+   `Update(EmbargoConsent)` entry after the `Accept`; replicas copy them and
+   run no carry-over (ADR-0124, #4716). Termination (`decide_termination()`,
+   then the `TERMINATE` step through the one apply function) cancels every
+   open proposal and writes no consent (MSM-07-006). Callers do none of this
+   by hand.
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
-   teardown and withdrawal slots copy the entry's step or row (a `Leave` carries
-   none), and every other row arrives as its own CASE_MANAGER entry (ADR-0124).
-   The slots not yet converted (activation, expiry) still pass
-   `transition_mode=TransitionMode.OBSERVED`, and their consent cascades still
-   run, until #4716.
+   teardown, withdrawal, activation and expiry slots copy the entry's step or
+   row (a `Leave` carries none), and every other row arrives as its own
+   CASE_MANAGER entry (ADR-0124). Two paths still pass
+   `transition_mode=TransitionMode.OBSERVED`: the owner's-rejection replica
+   slot (`activation_effect.py`, #4784), and a paused replica applying a
+   CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside

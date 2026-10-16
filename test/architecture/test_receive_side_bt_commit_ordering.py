@@ -287,8 +287,10 @@ def _commit_node_types() -> tuple[type, ...]:
     activity they build themselves in a nested tree only they can see, so
     they are named here to be checked: ``ExpireOverdueOwnershipOfferNode``
     (the Offer expiry, which Offer is known only when it runs),
-    ``_CommitCaseManagerActivityBase`` (the termination ``Remove``,
-    ``CommitAndApplyEmbargoTerminationNode``),
+    ``CommitAndApplyInviteExpiryNode`` (the invitation expiry and its
+    ``TIMED_OUT`` row, decided first so the row is written only once both
+    commit, ADR-0124), ``_CommitCaseManagerActivityBase`` (the termination
+    ``Remove``, ``CommitAndApplyEmbargoTerminationNode``),
     ``EmitCaseStatusUpdateNode`` (the ``Add(CaseStatus)`` that follows an EM
     change) and ``ReissueStubInvitesNode`` (each re-issued stub ``Invite``).
     """
@@ -307,9 +309,13 @@ def _commit_node_types() -> tuple[type, ...]:
     from vultron.core.behaviors.case_status_snapshot import (
         EmitCaseStatusUpdateNode,
     )
+    from vultron.core.behaviors.embargo.nodes.expiry_commit import (
+        CommitAndApplyInviteExpiryNode,
+    )
     from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 
     return (
+        CommitAndApplyInviteExpiryNode,
         CommitCaseLedgerEntryNode,
         CreateLogEntryNode,
         ExpireOverdueOwnershipOfferNode,
@@ -401,9 +407,9 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
     }
     # Both expiries and every entry of the end-time termination are seen
     # committing inside the stage, so the walk covers the nested committers
-    # as well as the in-tree one.
+    # that decide first.
     assert {
-        "CreateLogEntryNode",
+        "CommitAndApplyInviteExpiryNode",
         "ExpireOverdueOwnershipOfferNode",
         "CommitAndApplyEmbargoTerminationNode",
         "EmitCaseStatusUpdateNode",

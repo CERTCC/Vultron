@@ -22,8 +22,9 @@ invitee's record, which a replica applies through the functions the
 CASE_MANAGER's trees also call
 (:mod:`vultron.core.participants.stub_reply`):
 
-- :class:`ApplyInviteAcceptFromLedgerNode` -- consent signed to the embargo in
-  force, and ``joined``;
+- :class:`ApplyInviteAcceptFromLedgerNode` -- the agreement to the embargo in
+  force the Accept states, copied through the one apply function (ADR-0124),
+  and ``joined``;
 - :class:`ApplyInviteRejectFromLedgerNode` -- consent ``DECLINED`` on the
   embargo in force.
 
@@ -56,7 +57,17 @@ from vultron.core.participants.stub_reply import (
     parse_published,
 )
 
-_Effect = Callable[[VulnerabilityCase, CaseParticipant, datetime], bool]
+#: Apply a reply to the replying actor's record; the changed record to save,
+#: or ``None`` when nothing changed.
+_Effect = Callable[
+    [VulnerabilityCase, CaseParticipant, datetime], CaseParticipant | None
+]
+
+
+def _stub_reject_effect(
+    case: VulnerabilityCase, record: CaseParticipant, published: datetime
+) -> CaseParticipant | None:
+    return record if apply_stub_reject(case, record, published) else None
 
 
 class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
@@ -107,8 +118,9 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
             self.logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if type(self).effect(case, record, published):
-            self.datalayer.save(record)
+        changed = type(self).effect(case, record, published)
+        if changed is not None:
+            self.datalayer.save(changed)
             self.logger.info(
                 "%s: applied the reply of '%s' to its participant record in"
                 " case '%s' (SYNC-02-002)",
@@ -134,4 +146,4 @@ class ApplyInviteAcceptFromLedgerNode(_ApplyStubReplyFromLedgerNode):
 class ApplyInviteRejectFromLedgerNode(_ApplyStubReplyFromLedgerNode):
     """Apply a ``reject_invite_actor_to_case`` entry: consent ``DECLINED``."""
 
-    effect = staticmethod(apply_stub_reject)
+    effect = staticmethod(_stub_reject_effect)

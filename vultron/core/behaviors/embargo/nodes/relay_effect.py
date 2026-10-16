@@ -48,7 +48,6 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
 )
-from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
@@ -60,6 +59,11 @@ from vultron.core.models.embargo_apply import (
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import (
+    carried_entry_embargo,
+    entry_embargo,
+)
+from vultron.errors import VultronError, VultronNotFoundError
 
 
 def _answered_invite(snapshot: dict[str, Any]) -> Any:
@@ -110,20 +114,27 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
 
         The canonical entry carries the object inline, so the replica stores
         it from there rather than fetching it from the proposer (EMB-18-003,
-        CLP-10-017).  A bare id is enough when the record is already here.
+        CLP-10-017).  A bare id is enough when the record is already here; an
+        inline copy whose ``context`` is another case is refused, as the
+        case-seeding path refuses one (``carried_entry_embargo``).
         """
         assert self.datalayer is not None
-        if self.datalayer.read(embargo_id) is not None:
-            return True
         try:
-            embargo = _carried_embargo(self.datalayer, embargo_data)
-        except (TypeError, ValueError) as exc:
-            self.feedback_message = (
-                f"embargo '{embargo_id}' cannot be reconstructed: {exc}"
+            embargo = carried_entry_embargo(
+                self.datalayer, self._get_entry().case_id, embargo_data
             )
+        except VultronError as exc:
+            self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return False
-        _store_carried_embargo(self.datalayer, embargo)
+        if embargo is None:
+            return True
+        self.datalayer.create(embargo)
+        self.logger.debug(
+            "%s: stored embargo '%s' from the canonical entry",
+            self.name,
+            embargo_id,
+        )
         return True
 
     def _index_for_proposer(
@@ -178,30 +189,28 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
 
 
 def _carried_embargo(
-    datalayer: CasePersistence, embargo_data: Any
+    datalayer: CasePersistence, case_id: str, embargo_data: Any
 ) -> EmbargoEvent:
     """The ``EmbargoEvent`` an entry carries, inline or by id.
 
     The entry carries it inline (EMB-18-003, CLP-10-017); a bare id is
-    enough when this store already holds the record.
+    enough when this store already holds the record.  An inline copy whose
+    ``context`` is another case is refused, as the case-seeding path refuses
+    one (:func:`~vultron.core.services.carried_embargo.entry_embargo`).
 
     Raises:
-        TypeError: the entry names no embargo, or names one by id that this
-            store does not hold.
-        ValueError: the inline embargo is malformed.
+        TypeError: the entry names an embargo by id only, and this store does
+            not hold it.
+        ValueError: the entry names no embargo, or the inline embargo is
+            malformed or belongs to another case.
     """
-    if isinstance(embargo_data, dict):
-        return EmbargoEvent.model_validate(
-            project_wire_snapshot_to_core(EmbargoEvent, embargo_data)
-        )
-    embargo_id = _extract_id_from_field(embargo_data)
-    stored = datalayer.read(embargo_id) if embargo_id else None
-    if not isinstance(stored, EmbargoEvent):
+    try:
+        return entry_embargo(datalayer, case_id, embargo_data)
+    except VultronNotFoundError as exc:
         raise TypeError(
-            f"the entry names embargo {embargo_id!r} by id only, and this"
-            " store does not hold it"
-        )
-    return stored
+            "the entry names an embargo by id only, and this store does not"
+            f" hold it: {exc}"
+        ) from exc
 
 
 def _store_carried_embargo(
@@ -241,7 +250,9 @@ class _CopiedEmbargoEntryNode(ApplyEmbargoChangeFromLedgerNode):
     def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
         assert self.datalayer is not None
         self._embargo = _carried_embargo(
-            self.datalayer, self._embargo_data(entry.payload_snapshot)
+            self.datalayer,
+            entry.case_id,
+            self._embargo_data(entry.payload_snapshot),
         )
         return self._change_for(entry, self._embargo)
 

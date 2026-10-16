@@ -286,6 +286,22 @@ class TestApplyEmbargoProposal:
         assert case.pending_embargo_proposal_index[REVISION_ID] == PROPOSAL_ID
         assert isinstance(datalayer.read(REVISION_ID), EmbargoEvent)
 
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_inline_embargo_of_another_case_is_refused(
+        self, bridge, datalayer, revising_case
+    ):
+        """A carried copy is stored only when it belongs to this case."""
+        foreign = {**_embargo_snapshot(), "context": "https://example.org/x"}
+        result = _run(
+            bridge,
+            ApplyEmbargoProposalFromLedgerNode(name="Proposal"),
+            _entry("invite_to_embargo_on_case", _proposal_snapshot(foreign)),
+        )
+
+        assert result.status == Status.FAILURE
+        assert datalayer.read(REVISION_ID) is None
+        assert _case(datalayer).proposed_embargo_ids == []
+
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("CLP-07-013")
     def test_copies_the_step_and_writes_no_consent_row(

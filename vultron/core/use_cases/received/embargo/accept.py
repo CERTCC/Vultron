@@ -224,6 +224,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
             result = BTBridge(
                 datalayer=self._dl,
+                # The AGREED row is the CASE_MANAGER's own Update entry,
+                # built through the factory (ADR-0124).
+                trigger_activity=self._trigger_activity,
                 wire_render_port=self._wire_render_port,
                 sync_port=self._sync_port,
             ).execute_with_setup(
