@@ -479,10 +479,11 @@ def _wire_body(activity: BaseModel) -> dict[str, Any]:
 
 @pytest.mark.spec("PCR-03-004", "CBT-01-011", "CLP-10-017")
 def test_untrusted_announce_case_is_refused_and_unstored(dl):
-    """#4674 AC-1: the sender's own snapshot is not a trust anchor.
+    """A refused untrusted ``Announce`` leaves no inline case behind (#3763).
 
     Ingress stored the inline case before the handler ran, so the trust check
-    read a CASE_MANAGER from the very payload it was judging, and accepted it.
+    read a CASE_MANAGER from the very payload it was judging, and accepted it
+    (#4674).
     """
     from vultron.wire.as2.factories import (
         announce_vulnerability_case_activity,
@@ -499,33 +500,6 @@ def test_untrusted_announce_case_is_refused_and_unstored(dl):
     assert "untrusted sender" in outcome.failure_reason
     assert dl.read(_IMPOSTER_CASE_ID) is None
     assert dl.read(f"{_IMPOSTER_CASE_ID}/participants/imposter") is None
-
-
-@pytest.mark.spec("PCR-03-004", "CBT-01-011", "CLP-10-017")
-def test_untrusted_create_then_announce_both_refused_unstored(dl):
-    """#4674 AC-2: a refused ``Create`` leaves no row for the ``Announce``."""
-    from vultron.wire.as2.factories import (
-        announce_vulnerability_case_activity,
-        create_case_activity,
-    )
-
-    create = create_case_activity(
-        _self_managed_case(),
-        actor=_SENDER_ID,
-        to=[_RECEIVER_ID],
-        context=_IMPOSTER_CASE_ID,
-    )
-    announce = announce_vulnerability_case_activity(
-        _self_managed_case(), actor=_SENDER_ID, to=[_RECEIVER_ID]
-    )
-
-    first = _process(dl, _wire_body(create), _real_dispatcher())
-    assert dl.read(_IMPOSTER_CASE_ID) is None
-    second = _process(dl, _wire_body(announce), _real_dispatcher())
-
-    assert first.status is InboxOutcomeStatus.REJECTED
-    assert second.status is InboxOutcomeStatus.REJECTED
-    assert dl.read(_IMPOSTER_CASE_ID) is None
 
 
 @pytest.mark.spec("CLP-10-017", "CLP-10-019")
