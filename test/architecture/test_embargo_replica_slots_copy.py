@@ -17,8 +17,9 @@ A replica writes the embargo register and consent rows by copying the
 CASE_MANAGER's entries through the one apply function (ADR-0124), never by
 re-running ``EmbargoLifecycle`` or a consent transition on its own state.
 The check is per class, over every class in each slot's MRO that this
-codebase defines, because ``abandon.py`` also holds the CASE_MANAGER's
-abandonment node, which decides through ``EmbargoLifecycle`` as it must.
+codebase defines, because ``abandon.py`` and ``withdrawal.py`` also hold the
+CASE_MANAGER's own nodes, which decide through ``EmbargoLifecycle`` as they
+must (#4717 added the withdrawal slot).
 """
 
 import ast
@@ -38,6 +39,9 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
 )
+from vultron.core.behaviors.embargo.nodes.withdrawal import (
+    ApplyEmbargoWithdrawalFromLedgerNode,
+)
 
 #: Names a copying slot must never reach for (CM-23-016, CM-18-005).
 _LIFECYCLE_NAMES = frozenset(
@@ -51,6 +55,7 @@ _SLOTS = [
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoAbandonmentFromLedgerNode,
+    ApplyEmbargoWithdrawalFromLedgerNode,
 ]
 
 

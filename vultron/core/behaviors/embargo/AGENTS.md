@@ -122,8 +122,8 @@ its other arm sends nothing at all (EMB-16-002), so it passes
 
 The propose and answer arms (`_propose_arms`, `_answer_arms`), the received
 proposal, relay and answer effects, the manager's policy consent and the stub
-re-issue (#4715) and termination (#4714) are converted; activation on the
-received path, expiry and withdrawal follow in #4716 and #4717. A
+re-issue (#4715), termination (#4714) and the received withdrawal (#4717) are
+converted; activation on the received path and expiry follow in #4716. A
 converted CASE_MANAGER arm decides first (guards, `EmbargoLifecycle` checks,
 policy), then hands the result to `commit_and_apply_embargo_entries()`
 (`copy_commit.py`) as `PlannedEmbargoEntry` values in commit order:
@@ -157,7 +157,15 @@ given `decision_from=result_out`, commits the act first) or
 other nodes call `decide_commit_and_apply()`. A received answer's entry is
 committed before its effects, so its tree runs the same decision among its
 guards (`EmbargoAnswerAppliesNode`, `nodes/answer_record.py`) and refuses an
-answer that would record nothing the case can take. The decision check raises
+answer that would record nothing the case can take. A received withdrawal
+does the same (`EmbargoWithdrawalAppliesNode`); both guards subclass
+`EmbargoDecisionAppliesNode`, gated by `case_manager_decision_guard()`, and
+both effects subclass `_RecordReceivedConsentNode` (`nodes/proposal.py`),
+which commits each further row with the received act as its cause. A new
+received consent act reuses those two frames. An act whose entry carries no
+change of its own (the `Leave`) has a replica slot that stores the embargo
+and writes nothing, as the Invite and re-invite slots do; its rows are
+copied by the consent slot. The decision check raises
 `VultronBTInternalError` when the operation wrote anything its entries do not
 carry. A consent-row `Update`'s id derives from its cause and the row, so the
 cause must be the act itself (the relayed Invite, the re-issued stub), never

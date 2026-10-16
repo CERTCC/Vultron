@@ -69,6 +69,7 @@ from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
@@ -844,3 +845,152 @@ def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "records nothing" in (verdict.reason or "")
     assert committed_event_types(net.stores[MANAGER], net.case_id) == before
+
+
+# ---------------------------------------------------------------------------
+# #4717: withdrawal commits each declined row and replays by copying
+# ---------------------------------------------------------------------------
+
+_LEAVE = "withdraw_from_embargo_on_case"
+
+
+def _bystander_agreed_to_a_revision(name: str) -> tuple[LedgerNetwork, str]:
+    """BYSTANDER is AGREED on the embargo in force and on an open revision."""
+    net = _net(name)
+    revision_id = _participant_proposes(net, "withdrawn", 30)
+    _participant_answers(net, BYSTANDER, accept=True)
+    assert _row(net, MANAGER, BYSTANDER, revision_id) is _S.AGREED
+    return net, revision_id
+
+
+def _bystander_leaves(net: LedgerNetwork) -> Any:
+    """BYSTANDER sends ``Leave(EmbargoEvent)`` to the CASE_MANAGER only."""
+    embargo = cast(
+        as_EmbargoEvent, net.stores[BYSTANDER].read(net.initial_embargo_id)
+    )
+    leave = withdraw_from_embargo_activity(
+        embargo, context=net.case_id, actor=BYSTANDER, to=[MANAGER]
+    )
+    return net.receive(MANAGER, json.loads(dump_outbound_body(leave)))
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("MSM-07-010")
+def test_a_received_withdrawal_commits_the_leave_then_each_declined_row():
+    """The Leave, then one CASE_MANAGER entry per row it declines: the
+    sender's row for the embargo in force and the revision it had agreed to
+    (ADR-0124)."""
+    net, revision_id = _bystander_agreed_to_a_revision("received-withdraw")
+    register_before = _case_file(net, MANAGER)["register"]
+
+    verdict: list[Any] = []
+    entries = _new_entries(net, lambda: verdict.append(_bystander_leaves(net)))
+
+    assert verdict[0].disposition is HandlerDisposition.APPLIED, verdict[
+        0
+    ].reason
+    assert entries == [
+        _LEAVE,
+        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    ]
+    assert _row(net, MANAGER, BYSTANDER, net.initial_embargo_id) is (
+        _S.DECLINED
+    )
+    assert _row(net, MANAGER, BYSTANDER, revision_id) is _S.DECLINED
+    # The embargo stays in force for everyone else (VP-13-017).
+    assert _row(net, MANAGER, OWNER, net.initial_embargo_id) is _S.AGREED
+    assert _case_file(net, MANAGER)["register"] == register_before
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("MSM-07-010")
+@pytest.mark.parametrize(
+    "replica", [OWNER, BYSTANDER], ids=["bystander", "withdrawers-own"]
+)
+def test_a_received_withdrawal_is_copied_by_every_replica(replica):
+    """Every replica, the withdrawer's own included, ends equal to the
+    CASE_MANAGER: the row entries are committed before the rows make the
+    withdrawer inactive, so it is sent each of them."""
+    net, revision_id = _bystander_agreed_to_a_revision(f"copy-{replica}")
+    assert _bystander_leaves(net).disposition is HandlerDisposition.APPLIED
+
+    _assert_replica_copies(net, replica)
+    assert _row(net, replica, BYSTANDER, net.initial_embargo_id) is (
+        _S.DECLINED
+    )
+    assert _row(net, replica, BYSTANDER, revision_id) is _S.DECLINED
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_a_received_withdrawal_whose_row_commit_fails_writes_no_row():
+    """The Leave is committed at intake; a row commit that fails saves no
+    row it did not commit (#4764 owns the recovery)."""
+    net, revision_id = _bystander_agreed_to_a_revision("withdraw-row-fails")
+
+    with pytest.MonkeyPatch.context() as patch:
+        fail_commits(patch, commit_tree)
+        with pytest.raises(VultronBTInternalError, match="commit failed"):
+            _bystander_leaves(net)
+
+    assert _row(net, MANAGER, BYSTANDER, net.initial_embargo_id) is (_S.AGREED)
+    assert _row(net, MANAGER, BYSTANDER, revision_id) is _S.AGREED
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("SYNC-12-001")
+def test_a_withdrawal_whose_decision_fails_is_refused_before_its_commit(
+    monkeypatch,
+):
+    """The decision runs among the guards (ADR-0122): a Leave the lifecycle
+    refuses is refused uncommitted even past the read-only guard."""
+    from vultron.core.behaviors.embargo.nodes import withdrawal
+
+    net, _ = _bystander_agreed_to_a_revision("withdraw-decision")
+    monkeypatch.setattr(
+        withdrawal, "embargo_withdrawal_refusal", lambda *_a, **_k: None
+    )
+    _set_bystander_row(net, _S.INVITED)
+    before = committed_event_types(net.stores[MANAGER], net.case_id)
+
+    verdict = _bystander_leaves(net)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert "records nothing" in (verdict.reason or "")
+    assert committed_event_types(net.stores[MANAGER], net.case_id) == before
+
+
+def _set_bystander_row(net: LedgerNetwork, state: EmbargoConsentState) -> None:
+    """Seed BYSTANDER's row for the embargo in force (test setup only)."""
+    dl = net.stores[MANAGER]
+    record = dl.read(net.case(MANAGER).actor_participant_index[BYSTANDER])
+    assert isinstance(record, CaseParticipant)
+    held = record.held_row(net.initial_embargo_id)
+    assert held is not None
+    record.embargo_consents = [
+        row.model_copy(update={"state": state})
+        if row.embargo_id == net.initial_embargo_id
+        else row
+        for row in record.embargo_consents
+    ]
+    dl.save(record)
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("CM-23-016")
+def test_the_managers_withdrawal_declines_the_revision_it_agreed_to():
+    """By trigger: the CASE_MANAGER's agreed revision row is declined as its
+    own entry too, and a replica copies both rows."""
+    net, revision_id = _manager_with_participants_revision("withdraw-agreed")
+    _accept(net)
+    assert _row(net, MANAGER, MANAGER, revision_id) is _S.AGREED
+
+    entries = _new_entries(net, lambda: _withdraw(net))
+
+    assert entries == [
+        _LEAVE,
+        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    ]
+    assert _row(net, MANAGER, MANAGER, revision_id) is _S.DECLINED
+    _assert_replica_copies(net, BYSTANDER)

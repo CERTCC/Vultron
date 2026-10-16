@@ -173,7 +173,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
 - **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
-  and replay nodes not yet copying, #4716, #4717): it skips the P/X/A
+  and replay nodes not yet copying, #4716): it skips the P/X/A
   guards, records a proposal a replica never saw before activating it, and
   logs and skips a refused step — it never forces the register into a state
   its rules refuse. A copying replay node runs no lifecycle mode at all: it
@@ -296,13 +296,15 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    `Update(EmbargoConsent)` entry after the `Accept`; replicas copy them and
    run no carry-over (ADR-0124, #4716). Termination (`decide_termination()`,
    then the `TERMINATE` step through the one apply function) cancels every
-   open proposal and writes no consent (MSM-07-006). Callers do none of this by hand.
+   open proposal and writes no consent (MSM-07-006). Callers do none of this
+   by hand.
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
-   teardown, activation and expiry slots copy the entry's step or row, and
-   every other row arrives as its own CASE_MANAGER entry (ADR-0124). The
-   withdrawal slot is not yet converted: it still passes
-   `transition_mode=TransitionMode.OBSERVED`, and its consent cascade still
-   runs, until #4717.
+   teardown, withdrawal, activation and expiry slots copy the entry's step or
+   row (a `Leave` carries none), and every other row arrives as its own
+   CASE_MANAGER entry (ADR-0124). Two paths still pass
+   `transition_mode=TransitionMode.OBSERVED`: the owner's-rejection replica
+   slot (`activation_effect.py`, #4784), and a paused replica applying a
+   CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside
