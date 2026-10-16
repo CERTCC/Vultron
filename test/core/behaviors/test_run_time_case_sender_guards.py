@@ -15,12 +15,16 @@
 
 """Who the trees whose case is resolved at run time admit (#4696, AC-4).
 
-The Engage, Close(Report), Invalidate(Report), Announce(CaseLedgerEntry) and
+The Engage, Invalidate(Report), Announce(CaseLedgerEntry) and
 Reject(CaseLedgerEntry) trees take their sender guard from the receive-tree
 factory, composed from the use case's declared rule (HP-01-008).  Each case
 below builds the real tree, finds the guard the factory placed in it, and
 runs that guard at a store holding the case, once for a sender the rule
 entitles and once for one it does not.
+
+A Close(Report) on a case entitles no sender (CM-23-019), so it has no
+entitled sender to run here; ``test_close_report_on_case.py`` drives its
+refusal.
 """
 
 from collections.abc import Callable
@@ -40,7 +44,6 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
 from vultron.core.behaviors.report.received_report_trees import (
-    create_close_report_received_tree,
     create_invalidate_report_received_tree,
 )
 from vultron.core.behaviors.sync.announce_tree import (
@@ -56,7 +59,6 @@ from vultron.core.use_cases.received.case.engage_defer import (
     EngageCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.report import (
-    CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
@@ -124,17 +126,6 @@ TREES: dict[str, TreeCase] = {
             CASE_ID,
             sender,
             sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
-        ),
-        activity=lambda sender: SimpleNamespace(actor_id=sender),
-        receiver=MANAGER,
-        entitled=VENDOR,
-        unentitled=STRANGER,
-    ),
-    "close-report": TreeCase(
-        build=lambda sender: create_close_report_received_tree(
-            _report_request(sender),  # type: ignore[arg-type]
-            CASE_ID,
-            sender_rule=CloseReportReceivedUseCase.sender_entitlement,
         ),
         activity=lambda sender: SimpleNamespace(actor_id=sender),
         receiver=MANAGER,

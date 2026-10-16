@@ -18,8 +18,8 @@ A demo that builds ``Offer(VulnerabilityReport)`` with
 ``rm_submit_report_activity`` and posts it into the receiver's inbox skips
 the reporter's ``submit-report`` trigger.  The trigger is where the reporter
 writes the pending ``ReportCaseLink`` naming the receiver, so the reporter
-then refuses the receiver's ``Create(VulnerabilityCase)`` introduction on
-the unanchored route (CBT-01-011).  A demo that builds that
+then refuses the receiver's ``Create(VulnerabilityCase)`` introduction,
+because no trust anchor names the receiver (CBT-01-011).  A demo that builds that
 ``Create(VulnerabilityCase)`` with ``create_case_activity`` spoofs the
 receiver's introduction.  Both stayed hidden because each demo still got the
 reporter a case another way (#4675).

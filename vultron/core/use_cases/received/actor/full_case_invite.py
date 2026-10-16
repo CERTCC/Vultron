@@ -37,7 +37,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    closing_act_repeat,
+    closed_sender_verdict,
     intake_verdict,
     not_case_manager_refusal,
     rm_declaration_verdict,
@@ -184,14 +184,17 @@ class _FullCaseInviteReplyReceivedUseCase:
             tree=tree, actor_id=actor_id, activity=request, case_id=case_id
         )
         # A sender the case already records as closed may act on nothing
-        # further, so the rule never runs and nothing is committed or sent:
-        # its Reject would close it again, so the tree's closing-act check
-        # stops it as SKIPPED, and the sender guard refuses any other reply
-        # (CM-23-018, RSH-06-006, ID-05-003).  A restated reply (the RM state
-        # is already recorded) changes nothing but the receipt, so it reads
-        # SKIPPED like every other RM declaration (RSH-08-002).
-        if (repeat := closing_act_repeat(tree)) is not None:
-            return repeat
+        # further: the tree's closed-sender door stops it before the rule
+        # runs, with nothing committed or sent.  Its Reject would close it
+        # again, so it is SKIPPED, and any other reply is REFUSED (CM-23-018,
+        # RSH-06-006, ID-05-003).  A restated reply (the RM state is already
+        # recorded) changes nothing but the receipt, so it reads SKIPPED like
+        # every other RM declaration (RSH-08-002).
+        closed = closed_sender_verdict(
+            tree, closes=self.rm_state is RM.CLOSED, label=self.tree_name
+        )
+        if closed is not None:
+            return closed
         verdict = rm_declaration_verdict(
             tree,
             verdict_from_bt(tree, result, label=self.tree_name),

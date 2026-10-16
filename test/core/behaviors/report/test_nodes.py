@@ -599,6 +599,32 @@ class TestCollectCreateCaseAddresseesFromRecord:
         )
         assert actor_id not in result
 
+    @pytest.mark.spec("OID-01-006")
+    def test_slash_spelled_ids_are_addressed_once_and_self_excluded(
+        self,
+    ) -> None:
+        """The report's author, written with a trailing slash, is the same
+        actor as the offer's sender: it is addressed once, canonically, and
+        the creator is left out in either spelling."""
+        actor_id = "https://example.org/actors/vendor"
+        submitter_id = "https://example.org/actors/finder"
+        offer_record = VultronOfferRecord(
+            offer_id="urn:test:offer:6",
+            report_id="urn:test:report:6",
+            offer_actor_id=submitter_id,
+            offer_to=[actor_id + "/"],
+        )
+        report = VulnerabilityReport(
+            id_="urn:test:report:6", attributed_to=submitter_id + "/"
+        )
+        result = _collect_create_case_addressees(
+            actor=actor_id,
+            report=report,
+            offer_record=offer_record,
+            actor_id=actor_id,
+        )
+        assert result == [submitter_id]
+
     def test_no_offer_record_returns_actor_only(self) -> None:
         """When offer_record is None, only actor is in addressee pool (self-excluded → empty)."""
         actor_id = "urn:test:actor:creator"

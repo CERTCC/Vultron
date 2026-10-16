@@ -255,8 +255,8 @@ guards, commit, effects.
    effect node after the guards, because a stored case row *is* the replica
    (PCR-03-004, CBT-01-005).
 2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
-   addressee check (HP-01-005) and the sender guard (HP-01-006), with a closing
-   act's check just before the guard (CM-23-018).
+   addressee check (HP-01-005), the closed-sender door (CM-23-018) and the
+   sender guard (HP-01-006).
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
    (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
@@ -273,19 +273,19 @@ guards, commit, effects.
    late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
    check and the sender guard follow.
 
-   A tree whose act would close its sender (`Close(Report)`, a `Reject` of a
-   stub or full-case Invite) passes `closing_act=True`: the factory places the
-   closing-act check in the sender-guard stage, just before the guard, so a
-   repeat from a sender
-   the case records as closed stops the tree, and the handler reports it
-   `SKIPPED` via `closing_act_repeat()` before reading any refusal (CM-23-018,
-   ID-05-003). Declare it on the tree; never write the check per handler. Any
-   other act of a closed sender is the sender guard's to refuse.
+   A tree whose sender may already be closed on the case and whose answer must
+   be told apart (a `Leave`, a stub or full-case Invite reply) passes
+   `closed_sender=ClosedSenderCheck(...)`: the factory places the door after the
+   addressee check, so a sender the case records as closed stops the tree with
+   nothing committed or sent. The handler asks `closed_sender_verdict()`
+   (`_bt_verdict.py`) before reading any other refusal: `SKIPPED` for a repeat of
+   a closing act, `REFUSED` for anything else (CM-23-018, ID-05-003). Declare it
+   on the tree; never run the check as a tree of its own or write it per handler.
 
    When the case the sender is checked against is resolved at run time, the
    guard still comes from the factory (HP-01-008). Pass the read-only
    `CaseResolving` steps that resolve it as `case_resolution`; they run before
-   the closing-act check, if any, and the guard, so an unknown case is refused
+   the guard, so an unknown case is refused
    as such (#2255). The report
    verdicts pass `RequireCaseForReport`. A ledger activity's tree passes a
    `LedgerActivityContext` instead: its nodes read the case from the entry the

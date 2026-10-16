@@ -282,15 +282,6 @@ class ActorSession:
             body["note"] = note
         return self._post("invalidate-report", body)
 
-    def close_report(
-        self, *, offer_id: str, note: str | None = None
-    ) -> WireTriggerResult:
-        """Close the report after its RM lifecycle (close-report)."""
-        body: dict[str, Any] = {"offer_id": offer_id}
-        if note is not None:
-            body["note"] = note
-        return self._post("close-report", body)
-
     # -- case lifecycle triggers -----------------------------------------
 
     def create_case(

@@ -2012,21 +2012,21 @@ groups:
       that sets `auto_create_case=False` creates the case in a later, separate
       step (for example `SvcCreateCaseUseCase` with the report's `report_id`);
       once that case is linked to the report, the implementation SHOULD close it
-      through `SvcCloseCaseUseCase` when the operator or user requests closure.
+      through `SvcLeaveCaseUseCase` (the Case Owner's Leave(VulnerabilityCase))
+      when the operator or user requests closure, as with an auto-created case.
     rationale: >-
       CONCERN-1902 observed that `SvcCloseCaseUseCase` is never reached in the
       reference process because the case is always auto-created at RM.RECEIVED.
       ADR-0085 resolves this: the auto-create behaviour is an implementation
-      choice made by the reference/demo process. `SvcCloseCaseUseCase` is the
-      tested closure path for the non-auto-create scenario. It resolves the case
-      through the report link and refuses a report with no linked case, so the
-      case must exist before closure.
+      choice made by the reference/demo process. However the case was created,
+      once it holds the report its Case Owner closes it by Leave, and
+      `SvcCloseCaseUseCase`, which sends `Close(Report)`, fails on it
+      (CM-23-019).
     verification: >-
-      Existing unit tests in
-      `test/core/use_cases/triggers/test_close_case_trigger.py` (including
-      `test_close_case_raises_when_no_linked_case`) and
-      `test/core/behaviors/report/test_trigger_report_trees.py` cover the
-      closure path; no new code is required.
+      `test/core/use_cases/triggers/test_close_case_trigger.py` asserts that
+      `SvcCloseCaseUseCase` fails on a case that holds the report, and the
+      Leave tests in `test/core/use_cases/received/test_close_case_role_semantics.py`
+      cover the closure path.
     adr:
     - ADR-0085
 - id: CM-16
@@ -4395,10 +4395,15 @@ groups:
       closure (CM-23-004); the guard for that resync request stays the active check
       of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`
       standing defined below. Second, a repeated act that would close that sender,
-      who is already closed (a Leave(VulnerabilityCase), a `Close(Report)`, or a
-      `Reject` of its stub or full-case Invite), MUST be reported `SKIPPED`, with no
-      ledger entry committed and nothing sent, whatever its activity id: its effect is
-      already in place (ID-05-003). The `ACTIVE_PARTICIPANT` sender standing
+      who is already closed (a Leave(VulnerabilityCase), or a `Reject` of its stub or
+      full-case Invite), MUST be reported `SKIPPED`, with no ledger entry committed and
+      nothing sent, whatever its activity id: its effect is already in place
+      (ID-05-003). The Case Owner's Leave(VulnerabilityCase) is not such a repeat
+      while the case is not fully closed: its effect includes the case's closure
+      (CM-23-002), which a failed first delivery may have left part-way, so it is
+      processed again to complete it. A `Close(Report)` closes no sender on a case, so
+      that sender's is refused like every other sender's (CM-23-019). The
+      `ACTIVE_PARTICIPANT` sender standing
       (HP-01-009) MUST mean an active participant (CM-10-004) whose closure is not
       recorded, and every guard that enforces it MUST ask one shared predicate
       (HP-01-007).
@@ -4414,13 +4419,18 @@ groups:
       `ACTIVE_PARTICIPANT` kind assert that a sender at RM.CLOSED, an inert sender and
       a removed sender are refused. A received-use-case test drives an `Add(Note)` and
       a status update from a closed sender and asserts `REFUSED` with no ledger entry
-      and no outbound activity. A test drives a closed sender's
+      and no outbound activity. For every use case whose rule names the `CASE_OWNER`
+      standing, a test composes its guard and asserts a Case Owner whose closure the
+      case records is refused, and received-use-case tests drive an `Add(Report)`, an
+      owner embargo decision and a `Remove(EmbargoEvent)` from a closed owner and
+      assert `REFUSED` with nothing committed or sent. A test drives a closed sender's
       `Reject(CaseLedgerEntry)` and asserts the replay stops at its own closure
       entries, and a unit test asserts the `Reject(CaseLedgerEntry)` use case does
-      not declare the `ACTIVE_PARTICIPANT` standing. Tests drive a second Leave, a
-      repeated `Close(Report)` and a repeated `Reject` of a stub and of a full-case
-      Invite, each with a new activity id, from a closed sender and assert `SKIPPED`
-      with no ledger entry and no outbound activity.
+      not declare the `ACTIVE_PARTICIPANT` standing. Tests drive a second Leave and a
+      repeated `Reject` of a stub and of a full-case Invite, each with a new activity
+      id, from a closed sender and assert `SKIPPED` with no ledger entry and no
+      outbound activity, and drive a closed sender's `Close(Report)` and assert
+      `REFUSED`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-004
@@ -4436,6 +4446,51 @@ groups:
     - ADR-0115
     stories:
     - story_2022_066
+  - id: CM-23-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Once a report belongs to a case, only that case's Case Owner holds the report,
+      and the Case Owner closes the case by Leave(VulnerabilityCase) (CM-23-001,
+      CM-23-002), never by `Close(Report)`. The CASE_MANAGER, and any participant
+      holding a replica of the case, MUST refuse a `Close(Report)` for a report that
+      belongs to the case, from every sender: from the Case Owner it is the wrong
+      closing act, and from any other sender it is a message about a report that
+      sender does not hold. The refusal is the sender guard's, since no sender is
+      entitled to send it to a case actor, so it MUST write no RM state, commit no
+      ledger entry and send nothing, a refusal notice included (CLP-02-005,
+      HP-01-006). An actor MUST NOT send `Close(Report)` for a report that
+      belongs to a case it holds: its closing trigger MUST fail before anything is
+      written or sent. A `Close(Report)` for a report that belongs to no case is
+      unaffected.
+    rationale: >-
+      A `Close(Report)` moved its sender to RM.CLOSED without the Leave round-trip,
+      so a Case Owner could close itself while its case stayed open, keep acting as
+      owner, and leave the case with no `case_fully_closed` (#4746). Turning the
+      owner's `Close(Report)` into a full close would give the case two closing
+      messages, and refusing only a closed owner's later acts would leave the wrong
+      message admitted (ADR-0144).
+    verification: >-
+      `test/core/use_cases/received/test_close_report_on_case.py` drives a
+      `Close(Report)` on an open case from the Case Owner and from a participant that
+      is not the owner, at the CASE_MANAGER and at a participant holding a replica,
+      and asserts `REFUSED`, no RM change, no ledger entry and no outbound activity.
+      Tests in `test/core/use_cases/triggers/test_close_case_trigger.py`,
+      `test/core/use_cases/triggers/test_report_triggers.py` and
+      `test/core/behaviors/report/test_trigger_report_trees.py` assert that the
+      close-report and reject-report triggers fail on a case with nothing written or
+      queued, and that the reject-report trigger still closes a report that belongs
+      to no case.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-23-018
+    adr:
+    - ADR-0144
+    stories:
+    - story_2022_066
+    - story_2022_067
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-

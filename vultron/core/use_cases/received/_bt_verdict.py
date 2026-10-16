@@ -93,6 +93,7 @@ from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
+from vultron.core.behaviors.sender_guard import closed_sender_turned_away
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -440,16 +441,25 @@ def rm_declaration_verdict(
     return verdict
 
 
-def closing_act_repeat(
+def closed_sender_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
+    *,
+    closes: bool,
+    label: str,
 ) -> HandlerResult | None:
-    """``SKIPPED`` when the run was a repeat of a closing act, else ``None``.
+    """The verdict owed a sender the tree's closed-sender door turned away.
 
-    The factory's closing-act check stops the tree when the case already
-    records the sender's closure, so the act that would close it again
-    changes nothing: nothing is committed or sent, and the benign no-op is
-    ``SKIPPED``, whatever its activity id (CM-23-018, ID-05-003).  The
-    handler asks this before any other reading of the run's failure.
+    The door (``closed_sender`` on the receive-tree factory) stops the tree
+    when the case already records the sender's closure, with nothing
+    committed or sent (CM-23-018):
+
+    - an act that would close it again (*closes*: a ``Leave``, a ``Reject``
+      of a stub or full-case Invite) changes nothing, so it is ``SKIPPED``,
+      whatever its activity id (ID-05-003);
+    - any other act is ``REFUSED``: the sender may act on nothing further.
+
+    ``None`` when the run did not end at the door.  The handler asks this
+    before any other reading of the run's failure.
 
     Raises:
         VultronWiringError: *tree* was not built by
@@ -458,12 +468,21 @@ def closing_act_repeat(
     root = _root(tree)
     if not isinstance(root, ReceivedActivityTree):
         raise VultronWiringError(
-            f"closing_act_repeat: '{root.name}' is not a"
-            " received-activity tree, so it has no closing-act check"
+            f"closed_sender_verdict: '{root.name}' is not a"
+            " received-activity tree, so it has no closed-sender door"
             " (CM-23-018)"
         )
-    reason = root.repeated_closing_act
-    return None if reason is None else HandlerResult.skipped(reason)
+    closed = closed_sender_turned_away(root)
+    if closed is None:
+        return None
+    if closes:
+        return HandlerResult.skipped(
+            f"{label}: {closed} — a repeat of a closing act,"
+            " nothing to apply (ID-05-003)"
+        )
+    return HandlerResult.refused(
+        f"{label}: {closed} — it may act on nothing further"
+    )
 
 
 def guard_refusal(
@@ -705,7 +724,7 @@ __all__ = [
     "addressee_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
-    "closing_act_repeat",
+    "closed_sender_verdict",
     "door_guards_admitted",
     "failure_reason",
     "find_named",

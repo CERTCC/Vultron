@@ -329,9 +329,10 @@ def test_shared_factory_runs_intake_first_even_when_a_guard_refuses(scenario):
 def test_refused_participant_status_leaves_the_archive_readable():
     """``Add(ParticipantStatus)`` from a stranger is REFUSED by the sender guard.
 
-    ``SenderIsParticipantNode`` refuses a sender who is not on the
-    case; intake ran first, so the activity is archived in the receiver's
-    store afterwards.
+    The receiver is not the CASE_MANAGER, so the guard takes the update from
+    the CASE_MANAGER alone (PCR-03-001); the case names none, so the sender
+    is refused.  Intake ran first, so the activity is archived in the
+    receiver's store afterwards.
     """
     receiver = "https://example.org/users/vendor-intake"
     stranger = "https://example.org/users/stranger-intake"

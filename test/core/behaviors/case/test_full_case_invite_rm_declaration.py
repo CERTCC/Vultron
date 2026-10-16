@@ -234,6 +234,12 @@ class TestClosedInviteeReply:
         )
         assert result.disposition is expected, result.reason
         assert "CM-23-018" in (result.reason or ""), result.reason
+        # The reason the retired pre-flight gave, now from the tree's door.
+        assert (result.reason or "").endswith(
+            "— a repeat of a closing act, nothing to apply (ID-05-003)"
+            if case.declared is RM.CLOSED
+            else "— it may act on nothing further"
+        ), result.reason
         assert recorded_rm(dl) == RM.CLOSED
         assert status_count(dl) == before
         assert ledger_tail_position(CASE_ID, dl) == ledger_before

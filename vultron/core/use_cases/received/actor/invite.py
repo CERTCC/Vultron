@@ -15,10 +15,8 @@ from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
@@ -34,7 +32,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    closing_act_repeat,
+    closed_sender_verdict,
     intake_verdict,
     node_failed,
     not_case_manager_refusal,
@@ -65,13 +63,20 @@ class InviteActorToCaseReceivedUseCase:
     A redelivered Invite that intake finds already archived is the benign
     no-op, ``SKIPPED`` (HP-01-003).
 
+    The sender must be the case's CASE_MANAGER, which alone issues the
+    Invite (CM-17-006, PCR-03-001); any other sender is ``REFUSED`` with
+    nothing committed or sent (HP-01-006).  An invitee holding only the stub
+    has no CASE_MANAGER to compare the sender with, so it records the sender
+    as its trust anchor under PCR-03-004.
+
     The ``sync_port`` kwarg is injected for every received use case by
     ``with_received_baseline_ports`` so ``CommitCaseLedgerEntryNode`` can fan
     out via ``sync_port`` (SYNC-02-002, #4113).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for actor invite"
+    # The CASE_MANAGER issues every Invite (CM-17-006, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+        SenderEntitlementKind.CASE_MANAGER
     )
 
     def __init__(
@@ -109,6 +114,7 @@ class InviteActorToCaseReceivedUseCase:
             case_id=case_id,
             invitee_id=invitee_id,
             inviter_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -192,11 +198,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
         )
         # The reply's sender is the invitee: the tree's sender guard refuses
         # any sender that is not the recorded Invite's invitee, so the
-        # participant is never taken from the embedded copy (CM-11-017).  It
-        # also refuses an invitee the case already records as closed (its
-        # stub Reject was applied): its Accept would join a participant whose
-        # RM is terminal, so nothing is committed or sent (CM-23-018,
-        # CM-11-015, RMB-14-006).
+        # participant is never taken from the embedded copy (CM-11-017).
         tree = create_accept_invite_actor_to_case_tree(
             case_id=case_id,
             invitee_id=invitee_id,
@@ -213,6 +215,16 @@ class AcceptInviteActorToCaseReceivedUseCase:
             actor_id=actor_id,
             activity=request,
         )
+        # An invitee the case already records as closed (its stub Reject was
+        # applied) may act on nothing further: its Accept would join a
+        # participant whose RM is terminal.  The tree's closed-sender door
+        # stops it as REFUSED, with nothing committed or sent (CM-23-018,
+        # CM-11-015, RMB-14-006).
+        closed = closed_sender_verdict(
+            tree, closes=False, label="AcceptInviteActorToCaseBT"
+        )
+        if closed is not None:
+            return closed
 
         # The idempotency guard fails both for a fully joined invitee (a
         # duplicate, CLP-13-001) and for a case this actor does not hold.
@@ -310,10 +322,13 @@ class RejectInviteActorToCaseReceivedUseCase:
             activity=request,
         )
         # A Reject from an invitee the case already records as closed would
-        # close it again: the tree's closing-act check stops it with nothing
+        # close it again: the tree's closed-sender door stops it with nothing
         # committed or sent, so it is SKIPPED (CM-23-018, ID-05-003).
-        if (repeat := closing_act_repeat(tree)) is not None:
-            return repeat
+        closed = closed_sender_verdict(
+            tree, closes=True, label="RejectInviteActorToCaseReceivedBT"
+        )
+        if closed is not None:
+            return closed
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteActorToCaseReceivedBT"
         )

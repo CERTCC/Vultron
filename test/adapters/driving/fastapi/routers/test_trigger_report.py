@@ -219,7 +219,7 @@ def accepted_report(dl, report, actor):
 
 @pytest.fixture
 def closed_report(dl, report, actor):
-    """Put the report into RM.CLOSED state (triggers 409 on close-report); actor is CASE_OWNER."""
+    """Put the report into RM.CLOSED state on a case; actor is CASE_OWNER."""
     _seed_owner_case(dl, actor.id_, report.id_)
     dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED))
     return report
@@ -625,29 +625,23 @@ def test_trigger_reject_report_non_report_offer_returns_404(
 # ===========================================================================
 
 
-def test_trigger_close_report_returns_202(
+@pytest.mark.spec("CM-23-019")
+def test_trigger_close_report_on_a_case_returns_409(
     client_triggers, actor, offer, accepted_report
 ):
-    """TB-01-002: POST /actors/{id}/trigger/close-report returns HTTP 202."""
+    """Once a case holds the report, close-report fails closed with 409.
+
+    The Case Owner closes the case by ``Leave(VulnerabilityCase)``
+    (close-case), never by ``Close(Report)``.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": offer.id_},
     )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-
-
-def test_trigger_close_report_response_contains_activity_key(
-    client_triggers, actor, offer, accepted_report
-):
-    """TB-04-001: Successful trigger response body contains 'activity' key."""
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={"offer_id": offer.id_},
-    )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
-    assert "activity" in data
-    assert data["activity"] is not None
+    assert data["detail"]["error"] == "Conflict"
+    assert "Leave(VulnerabilityCase)" in str(data["detail"])
 
 
 def test_trigger_close_report_missing_offer_id_returns_422(
@@ -664,23 +658,26 @@ def test_trigger_close_report_missing_offer_id_returns_422(
 def test_trigger_close_report_ignores_unknown_fields(
     client_triggers, actor, offer, accepted_report
 ):
-    """TB-03-002: Unknown fields in request body are silently ignored."""
+    """TB-03-002: Unknown fields in request body are silently ignored.
+
+    The body is accepted, so the answer is the on-case refusal, not a 422.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": offer.id_, "unexpected_field": "ignored"},
     )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.status_code == status.HTTP_409_CONFLICT
 
 
-def test_trigger_close_report_with_note_returns_202(
+def test_trigger_close_report_with_note_is_accepted(
     client_triggers, actor, offer, accepted_report
 ):
-    """TB-03-003: Optional note field is accepted."""
+    """TB-03-003: Optional note field is accepted (the refusal is the case's)."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": offer.id_, "note": "Resolved upstream."},
     )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.status_code == status.HTTP_409_CONFLICT
 
 
 def test_trigger_close_report_unknown_actor_returns_404(client_triggers):
@@ -705,26 +702,30 @@ def test_trigger_close_report_unknown_offer_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_close_report_adds_activity_to_outbox(
+@pytest.mark.spec("CM-23-019")
+def test_trigger_close_report_on_a_case_queues_nothing(
     client_triggers, dl, actor, offer, accepted_report
 ):
-    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    """The refused close-report sends nothing."""
     outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": offer.id_},
     )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-
-    outbox_after = set(dl.outbox_list())
-    assert len(outbox_after - outbox_before) >= 1
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    assert set(dl.outbox_list()) == outbox_before
 
 
-def test_trigger_close_report_already_closed_returns_409(
+@pytest.mark.spec("CM-23-019")
+def test_trigger_close_report_already_closed_on_a_case_names_leave(
     client_triggers, actor, offer, closed_report
 ):
-    """close-report returns HTTP 409 when the report is already CLOSED."""
+    """An already-CLOSED report on a case gets the on-case 409.
+
+    The case check runs first, so the reason names
+    ``Leave(VulnerabilityCase)``, not the duplicate close.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": offer.id_},
@@ -732,6 +733,7 @@ def test_trigger_close_report_already_closed_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
+    assert "Leave(VulnerabilityCase)" in str(data["detail"])
 
 
 def test_trigger_close_report_non_report_offer_returns_404(

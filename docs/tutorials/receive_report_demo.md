@@ -164,23 +164,23 @@ sequenceDiagram
 ### Demo 3: Invalidate and Close Report
 
 A third report is submitted.
-The vendor first invalidates it with a Report Invalid (RI) and then closes it with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which is a full rejection.
-`RM.CLOSED` is terminal, so this report is finished.
-Notice that two separate activities appear in the finder's inbox at the end, and that the finder again accepted the vendor's introduction of the case.
+The vendor first invalidates it with a Report Invalid (RI) and then closes the case it opened for the report with `Leave(VulnerabilityCase)`.
+Once a case holds a report, its Case Owner closes the case this way, never with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which the case manager refuses from every sender.
+Notice that the invalidation notice appears in the finder's inbox at the end, and that the finder again accepted the vendor's introduction of the case.
 
 ```mermaid
 ---
-title: Demo 3 — invalidate and close the report
+title: Demo 3 — invalidate the report and close its case
 ---
 sequenceDiagram
     participant F as Finder
     participant V as Vendor
 
     F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    V->>V: Close Case<br/>Leave(VulnerabilityCase)
     V->>F: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-    V->>F: Report Closed (RC)<br/>Reject(Offer(VulnerabilityReport))
-    Note over V: Report closed
-    Note over F: Two activities in finder's inbox
+    Note over F: Invalidation notice in finder's inbox
 ```
 
 ---

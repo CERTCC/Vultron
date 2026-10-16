@@ -46,7 +46,6 @@ from datetime import datetime
 from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
     _LedgerEffectNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -56,6 +55,7 @@ from vultron.core.participants.stub_reply import (
     apply_stub_reject,
     parse_published,
 )
+from vultron.core.predicates.addressing import snapshot_actor_id
 
 #: Apply a reply to the replying actor's record; the changed record to save,
 #: or ``None`` when nothing changed.
@@ -82,7 +82,8 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
 
         entry = self._get_entry()
         snapshot = entry.payload_snapshot
-        actor_id = _extract_id_from_field(snapshot.get("actor"))
+        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
+        actor_id = snapshot_actor_id(snapshot.get("actor"))
         if not actor_id or not entry.case_id:
             self.logger.debug(
                 "%s: payload_snapshot missing the replying actor or the case"

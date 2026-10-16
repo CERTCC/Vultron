@@ -18,7 +18,7 @@ Root cause: ``participant_adds_note_to_case`` in ``notes.py`` raises an
 when the ``add-note-to-case`` trigger returns no note ID (e.g. because
 ``post_to_trigger`` was suppressed by ``demo_step`` after an HTTP error).
 That bare ``raise`` escapes ``scenario_harness`` and crashes the scenario
-before Phase 4–5 run, leaving ``close_case`` and ``create_note`` absent
+before Phase 4–5 run, leaving ``close_case`` and ``add_note_to_case`` absent
 from the case-actor ledger and the Finder log empty.
 
 The fix: move the ``note_id is None`` check inside ``demo_step`` so

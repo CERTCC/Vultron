@@ -508,6 +508,7 @@ def _build_note_object(obj: object) -> dict[str, Any]:
                 url=_get_id(getattr(obj, "url", None)),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
+                in_reply_to=_get_id(getattr(obj, "in_reply_to", None)),
                 published=_get_timestamp(obj, "published"),
                 updated=_get_timestamp(obj, "updated"),
             )

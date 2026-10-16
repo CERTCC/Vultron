@@ -254,10 +254,11 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   inline profile, a proposal-keyed record the guard also reads) with
   `same_actor_id`, and look up `actor_participant_index` with
   `participant_id_for_actor`, never `==` or `in`: a trailing-slash redelivery
-  otherwise re-runs native initialization (#4772). Outside this tree the sender id
-  still arrives as the sender spelled it until the extractor normalises it
-  (OID-01-007, #4794). A store written in the slash spelling before #4772 is
-  unsupported: keep the tree's existing tolerant checks, but add none for it.
+  otherwise re-runs native initialization (#4772). The event's sender id is
+  already normalised by the extractor, and the event refuses one with a trailing
+  slash (OID-01-007), but the activity snapshot keeps the sender's spelling. A
+  store written in the slash spelling before #4772 is unsupported: keep the
+  tree's existing tolerant checks, but add none for it.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its

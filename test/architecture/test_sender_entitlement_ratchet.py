@@ -236,12 +236,12 @@ _HOME = "vultron/core/behaviors/sender_entitlement.py"
 _COMPOSER = "vultron/core/behaviors/sender_guard.py"
 
 #: The only module that may call the composer's public builders
-#: (``compose_sender_guard``, ``closed_sender_guard``): the receive-tree
-#: factory.  The pre-flights that ran the same guards ahead of a handler's
-#: tree as a tree of their own were retired once each handler composed its
-#: door guards into its one tree: ``rule_refusal`` by #4642, and
-#: ``closed_sender_preflight`` by #4773, which made the closed-sender check
-#: the factory's closing-act stage (CLP-10-005, ADR-0135).
+#: (:data:`_COMPOSE`): the receive-tree factory.  The pre-flights that ran
+#: the same guards ahead of a handler's tree as a tree of their own were
+#: retired once each handler composed its door guards into its one tree:
+#: ``rule_refusal`` by #4642, and ``closed_sender_preflight`` by #4773, whose
+#: callers pass ``closed_sender`` to the factory instead (CLP-10-005,
+#: ADR-0135).
 COMPOSE_CALLERS = frozenset(
     {
         "vultron/core/behaviors/case/receive_activity_tree.py",
@@ -307,7 +307,14 @@ def _annotation_nodes(tree: ast.AST) -> set[int]:
 
 
 #: The composer's public builders, which only :data:`COMPOSE_CALLERS` call.
-_COMPOSE = frozenset({"compose_sender_guard", "closed_sender_guard"})
+_COMPOSE = frozenset(
+    {
+        "compose_sender_guard",
+        "closed_sender_guard",
+        "closed_sender_door",
+        "case_owner_guard",
+    }
+)
 
 
 def _composer_builders() -> frozenset[str]:
@@ -561,12 +568,12 @@ def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
 #: ``AnnounceVulnerabilityCaseReceivedUseCase.execute()`` ahead of its tree,
 #: moved into the tree by #4643 (CLP-10-005).  It reads the ReportCaseLink
 #: anchor the declared CASE_MANAGER rule does not, so it stays its own node
-#: until #4522 declares the announce rule.
+#: until #4785 declares the announce rule.
 SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {
     (
         "vultron/core/behaviors/case/nodes/announce.py",
         "AnnounceSenderTrustedNode",
-    ): "#4522: the announce use case declares its sender rule",
+    ): "#4785: the announce use case declares its sender rule",
 }
 
 
@@ -646,6 +653,18 @@ _VIOLATIONS = {
         "def execute(case_id, sender_id):\n"
         "    return closed_sender_guard(case_id, sender_id)\n"
     ),
+    "handler-closed-sender-door": (
+        "from vultron.core.behaviors.sender_guard import"
+        " closed_sender_door\n"
+        "def execute(case_id, check):\n"
+        "    return closed_sender_door(case_id, check)\n"
+    ),
+    "handler-case-owner-guard": (
+        "from vultron.core.behaviors.sender_guard import"
+        " case_owner_guard\n"
+        "def execute(case_id, sender_id):\n"
+        "    return case_owner_guard(case_id, sender_id)\n"
+    ),
     "private-builder": (
         "from vultron.core.behaviors.sender_guard import _kind_node\n"
         "def build(kind, ctx):\n"
@@ -694,8 +713,8 @@ def test_the_scan_skips_annotations_and_the_sanctioned_callers() -> None:
     assert not _sender_references(annotated, "vultron/x.py")
     composed = _corpus.parse_inline(
         "def stage(rule, ctx):\n    return compose_sender_guard(rule, ctx)\n"
-        "def closing(case_id, sender_id):\n"
-        "    return closed_sender_guard(case_id, sender_id)\n"
+        "def closing(case_id, check):\n"
+        "    return closed_sender_door(case_id, check)\n"
     )
     for caller in COMPOSE_CALLERS:
         assert not _sender_references(composed, caller)
@@ -843,3 +862,64 @@ def test_the_rule_scan_admits_a_declaration() -> None:
         "        K.INVITEE\n    )\n"
     )
     assert not _rules_built_outside_a_declaration(tree, "vultron/x.py")
+
+
+# ---------------------------------------------------------------------------
+# HP-01-007: an exemption names an open issue, or says no check applies
+# ---------------------------------------------------------------------------
+
+#: The open issues that own a not-yet-checked use case's sender rule.  The
+#: list only shrinks: an exemption naming any other issue fails, and so does
+#: an issue no exemption names any more.  That each is still open is checked
+#: when an entry is added or reviewed, since the suite runs offline.
+OPEN_EXEMPTION_ISSUES: dict[str, str] = {
+    "#4785": "note and Announce(VulnerabilityCase) sender rules",
+    "#4703": "Accept and Reject of a role offer (NAMED_ACTOR)",
+    "#4799": "Create(ProcessingFault), once a case-diverged fault re-seeds",
+}
+
+#: The use cases no sender check applies to, each declared with
+#: ``no_sender_check``: nothing they do is gated on a sender's standing.
+PERMANENT_EXEMPTIONS: frozenset[str] = frozenset(
+    {
+        "UnknownUseCase",
+        "UnresolvableObjectUseCase",
+    }
+)
+
+
+def _exemptions() -> dict[str, SenderExemption]:
+    return {
+        entry.use_case_class.__name__: declared
+        for entry in SEMANTIC_REGISTRY
+        if isinstance(
+            declared := getattr(
+                entry.use_case_class, "sender_entitlement", None
+            ),
+            SenderExemption,
+        )
+    }
+
+
+@pytest.mark.spec("HP-01-007")
+def test_every_exemption_names_an_open_issue_or_no_check_applies() -> None:
+    exemptions = _exemptions()
+    permanent = {name for name, e in exemptions.items() if e.permanent}
+    assert permanent == PERMANENT_EXEMPTIONS, (
+        "A use case to which no sender check applies is listed here, so"
+        " no_sender_check does not spread: found"
+        f" {sorted(permanent ^ PERMANENT_EXEMPTIONS)}"
+    )
+    tracked = {
+        e.tracking_issue
+        for e in exemptions.values()
+        if e.tracking_issue is not None
+    }
+    assert tracked <= set(OPEN_EXEMPTION_ISSUES), (
+        "These exemptions name an issue not on the open list; point them at"
+        f" the open issue that owns the check: {sorted(tracked - set(OPEN_EXEMPTION_ISSUES))}"
+    )
+    assert set(OPEN_EXEMPTION_ISSUES) <= tracked, (
+        "No exemption names these issues any more; drop them so the list"
+        f" only shrinks: {sorted(set(OPEN_EXEMPTION_ISSUES) - tracked)}"
+    )

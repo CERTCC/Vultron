@@ -42,6 +42,7 @@ from vultron.core.use_cases.received.case_proposal import (
     CreateCaseProposalReceivedUseCase,
     RejectCaseProposalReceivedUseCase,
 )
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
@@ -50,8 +51,10 @@ from vultron.semantic_registry._occasion import (
     Occasion,
     ProtocolShorthand,
 )
+from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import (
     AcceptCaseProposalPattern,
+    ActivityPattern,
     AddReportToCaseActivityPattern,
     CreateCaseActivityPattern,
     CreateCaseProposalPattern,
@@ -151,6 +154,14 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created the case",
         wire_activity_class=_CreateCaseActivity,
         include_activity=True,
+        # The bootstrap answers the request that asked for the case: a
+        # vendor's CaseProposal, or a reporter's report Offer (CBT-01-005).
+        answers=(
+            VOtype.CASE_PROPOSAL,
+            ActivityPattern(
+                activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_REPORT
+            ),
+        ),
         occasions=(
             Occasion(
                 when=(
