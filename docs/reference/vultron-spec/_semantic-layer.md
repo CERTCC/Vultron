@@ -140,7 +140,7 @@ they concern the case as an object rather than any machine's state.
 | Actor suggestion | A participant recommends that some actor be brought into the case; the Case Owner decides whether to invite it ([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)) |
 | Role offer | The Case Owner offers a role to an actor, which accepts or declines ([§11.1 Role Assignment](interactions.md#111-role-assignment-n)) |
 | Ownership transfer | The Case Owner offers ownership of the case to another actor ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)) |
-| Ledger replication | The CASE_MANAGER sends each committed ledger entry to every participant. This is the only way a participant learns of an accepted change to shared case state |
+| Ledger replication | The CASE_MANAGER sends each committed ledger entry to every participant. This is the only way a participant learns of an admitted change to shared case state |
 | Case delivery | The CASE_MANAGER sends a participant the full case, once that participant is admitted and its embargo consent is resolved ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)) |
 | Case metadata update | The CASE_MANAGER records a change to the case's own attributes |
 

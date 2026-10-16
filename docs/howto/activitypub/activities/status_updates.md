@@ -29,7 +29,7 @@ Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemen
 Which one you are sending is determined by the field you set, not by a different activity.
 
 In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
-This implementation does not support a separate `Create(ParticipantStatus)` before it, and an inbox refuses one as an unrecognized activity.
+The protocol names `Add(ParticipantStatus)` as the one form; a received `Create(ParticipantStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that a vendor now knows
 
@@ -65,7 +65,7 @@ Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all imp
 All three set `pxaState`; which one you are sending is determined by which letter in it changes case.
 
 In every case, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
-This implementation does not support a separate `Create(CaseStatus)` before it, and an inbox refuses one as an unrecognized activity.
+The protocol names `Add(CaseStatus)` as the one form; a received `Create(CaseStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that the vulnerability is public
 
@@ -111,7 +111,7 @@ This implementation's add-note trigger sends the `Create` alone.
 {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
 
 To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
-The CASE_MANAGER accepts it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.
+The CASE_MANAGER admits it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/remove-note-from-case.md" %}
 

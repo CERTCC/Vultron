@@ -191,14 +191,13 @@ _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
         # implementer off sending the bare report instead of its Offer.
         "Read(VulnerabilityReport)": "counter-example (MSM-01-008)",
         # establish_embargo.md, manage_participants.md, status_updates.md:
-        # named as forms this implementation does not support, to warn an
+        # named as forms that are not protocol messages, to warn an
         # implementer off sending a separate Create ahead of the Invite or Add
-        # that carries the object inline (#4598; open question #4635).
-        "Create(Event)": "not supported by this implementation (#4598)",
-        "Create(CaseStatus)": "not supported by this implementation (#4598)",
-        "Create(ParticipantStatus)": (
-            "not supported by this implementation (#4598)"
-        ),
+        # that carries the object (VAM-01-011, ADR-0137; deferred-forms open
+        # question #4550).
+        "Create(Event)": "not a protocol message (VAM-01-011)",
+        "Create(CaseStatus)": "not a protocol message (VAM-01-011)",
+        "Create(ParticipantStatus)": "not a protocol message (VAM-01-011)",
     }
 )
 

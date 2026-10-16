@@ -122,7 +122,7 @@ If you are not the Case Owner but you know an actor belongs on the case, suggest
 |---|---|
 | `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
 | `Accept(Invite(Actor))` | The case roster holds you, and you have a local case replica. |
-| `Reject(Invite(Actor))` | The CASE_MANAGER's ledger records your refusal; your participant entry is closed (RM Closed) and kept as history, but you are not an active participant. |
+| `Reject(Invite(Actor))` | The CASE_MANAGER's ledger records your `Reject`; your participant entry is closed (RM Closed) and kept as history, but you are not an active participant. |
 
 ---
 
