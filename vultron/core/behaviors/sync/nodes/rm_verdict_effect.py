@@ -50,7 +50,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import read_rm_states
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
     _LedgerEffectNode,
 )
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
@@ -63,6 +62,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -133,9 +133,8 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
         if (f := self._require_datalayer()) is not None:
             return f
         entry = self._get_entry()
-        subject_id = _extract_id_from_field(
-            entry.payload_snapshot.get("actor")
-        )
+        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
+        subject_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         participant = self._subject_participant(entry.case_id, subject_id)
         if participant is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial view

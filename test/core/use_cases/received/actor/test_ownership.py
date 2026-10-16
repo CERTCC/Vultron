@@ -2588,39 +2588,71 @@ def test_a_slash_spelled_transferee_is_forwarded_to_canonically(make_payload):
 
 
 @pytest.mark.spec("OID-01-006")
-def test_a_slash_spelled_delegated_offerer_is_extracted_canonically(
-    make_payload,
+@pytest.mark.spec("CM-24-002")
+def test_a_slash_spelled_delegated_offer_is_taken_and_filed_as_received(
+    make_payload, caplog
 ):
-    """A delegated Offer's ``attributed_to`` is the offerer of record, so it
-    is extracted without the trailing slash the CaseActor wrote.
+    """The transferee takes the CASE_MANAGER's delegated forward whose
+    ``attributed_to`` carries a trailing slash, and files it as received.
 
-    The delegated shape (the CaseActor as sender) only reaches the forward
-    at a store that is not the CASE_MANAGER, where no effect reads the
-    offerer, so the extraction is pinned at the resolver itself.
+    The delegated author is recognised (no "ignoring attributed_to"
+    warning), and the stored Offer keeps the sender's spelling: only what is
+    extracted from it is normalised (OID-01-006).  The offerer the use case
+    extracts is read only by the CASE_MANAGER's forward, which a delegated
+    Offer never reaches, so this store's record is its observable outcome.
     """
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-    from vultron.wire.as2.vocab.base.objects.actors import as_Service
-
     case_id = "https://example.org/cases/case_ot_slash_delegated"
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_COORDINATOR_ID)
-    case = as_VulnerabilityCase(
-        id_=case_id, name="Delegated offer", attributed_to=_VENDOR_ID
-    )
-    seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
-    seed_case_owner_participant(dl, case, _VENDOR_ID)
-    seed_case_participant(dl, case, _COORDINATOR_ID)
-    dl.create(case)
+    dl, case = _transferee_replica(case_id)
     forward = offer_case_ownership_transfer_activity(
         case,
-        target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+        target=_COORDINATOR_ID,
         actor=_CASE_ACTOR_ID,
         to=[_COORDINATOR_ID],
         attributed_to=_VENDOR_ID + "/",
         id_=f"{case_id}/forward",
     )
-    event = make_payload(forward, receiving_actor_id=_COORDINATOR_ID)
-    use_case = OfferCaseOwnershipTransferReceivedUseCase(
-        dl, event, wire_render_port=As2WireRenderAdapter()
-    )
 
-    assert use_case._resolve_offering_actor_id(case_id) == _VENDOR_ID
+    with caplog.at_level("WARNING"):
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(forward, receiving_actor_id=_COORDINATOR_ID),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    stored = dl.read(forward.id_)
+    assert stored is not None
+    assert getattr(stored, "attributed_to", None) == _VENDOR_ID + "/"
+    assert not any(
+        "ignoring attributed_to" in r.message for r in caplog.records
+    )
+    assert _owner(dl, case_id) == _VENDOR_ID
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("CM-21-011")
+def test_accept_of_the_forward_of_a_slash_spelled_transferee_is_applied(
+    make_payload,
+):
+    """The owner names the transferee with a trailing slash; the ledgered
+    Offer keeps it, the forward names the transferee canonically, and the
+    transferee's Accept of the forward still finds the recorded Offer and
+    makes it the owner, stored without the slash."""
+    case_id = "https://example.org/cases/case_ot_slash_accept"
+    dl, deliver = _forward_harness(make_payload, case_id)
+    disposition, offer = deliver(
+        _COORDINATOR_ID + "/", "https://example.org/activities/offer_slash"
+    )
+    assert disposition is HandlerDisposition.APPLIED
+    forwarded = _forward_of(dl, offer.id_)
+
+    result = _accept(dl, make_payload, forwarded)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _owner(dl, case_id) == _COORDINATOR_ID
+    roles = _owner_roles(dl, case_id)
+    assert roles[_COORDINATOR_ID] is True
+    assert _COORDINATOR_ID + "/" not in roles
+    assert roles[_VENDOR_ID] is False

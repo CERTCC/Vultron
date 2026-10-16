@@ -585,6 +585,30 @@ class TestApplyEmbargoInvite:
             REVISION_ID: INVITE_ID
         }
 
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("EP-08-002")
+    def test_a_slash_spelled_proposer_attribution_still_indexes_the_invite(
+        self, bridge, datalayer, revising_case
+    ):
+        """The relay's ``attributedTo`` keeps the proposer's trailing slash;
+        it still names this replica's actor, so the Invite is indexed."""
+        result = _run(
+            bridge,
+            ApplyEmbargoInviteFromLedgerNode(name="Invite"),
+            _entry(
+                "invite_to_embargo_on_case",
+                _invite_snapshot(
+                    attributed_to=PARTICIPANT_ACTOR_ID + "/",
+                    to=[OWNER_ACTOR_ID],
+                ),
+            ),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).pending_embargo_proposal_index == {
+            REVISION_ID: INVITE_ID
+        }
+
     @pytest.mark.spec("EP-08-002")
     def test_the_proposers_replica_keeps_its_own_proposal_id(
         self, bridge, datalayer, revising_case
@@ -683,6 +707,27 @@ class TestApplyEmbargoAnswers:
             else EmbargoConsentState.DECLINED
         )
         assert record.is_signatory(ACTIVE_EMBARGO_ID)
+
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.parametrize("verb", ["Accept", "Reject"])
+    def test_a_slash_spelled_answer_copies_the_canonical_row(
+        self, bridge, datalayer, revising_case, verb
+    ):
+        """The answer's snapshot keeps the sender's trailing slash; the row
+        it states is copied onto the sender's canonically keyed record."""
+        _replay_proposal_with_rows(bridge, datalayer)
+
+        result = _replay_answer(bridge, verb, PARTICIPANT_ACTOR_ID + "/")
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _record(datalayer, PARTICIPANT_ACTOR_ID).consent_for(
+            REVISION_ID
+        ) is (
+            EmbargoConsentState.AGREED
+            if verb == "Accept"
+            else EmbargoConsentState.DECLINED
+        )
 
     @pytest.mark.spec("SYNC-12-003")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])

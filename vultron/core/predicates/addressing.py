@@ -33,6 +33,7 @@ This module MUST NOT import from ``vultron.core.behaviors``,
 """
 
 from collections.abc import Iterable, Mapping
+from typing import Any
 
 # Defined in ``vultron.primitives`` so the wire extractor and the received
 # event model can use them too (ARCH-22-001, OID-01-007); re-exported here,
@@ -45,6 +46,7 @@ __all__ = [
     "normalise_actor_id",
     "participant_id_for_actor",
     "same_actor_id",
+    "snapshot_actor_id",
 ]
 
 
@@ -86,3 +88,28 @@ def distinct_recipients(recipients: Iterable[str | None]) -> list[str]:
     recipient (EP-09-010): it has one exactly when this returns one id.
     """
     return list(dict.fromkeys(normalise_actor_id(r) for r in recipients if r))
+
+
+def snapshot_actor_id(value: Any) -> str | None:
+    """Return the actor id an activity snapshot field names, normalised.
+
+    A ledger entry's ``payloadSnapshot`` is the activity as the sender wrote
+    it (OID-01-006), so an actor id read from it (``actor``,
+    ``attributedTo``, a ``target`` actor, an inline participant's
+    ``attributedTo``) may carry a trailing slash.  Read it through here when
+    it is then looked up, compared with a stored id or stored, so it has the
+    spelling the receiver's records use.
+
+    *value* is a bare id, an inline object as stored (``{"id": ...}``) or an
+    object with ``id_``.  ``None`` means it names no actor: absent, blank, or
+    not an id at all — never the ``str()`` of an object.
+    """
+    if isinstance(value, str):
+        raw: object = value
+    elif isinstance(value, Mapping):
+        raw = value.get("id") or value.get("id_")
+    else:
+        raw = getattr(value, "id_", None) or getattr(value, "id", None)
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    return normalise_actor_id(raw) or None

@@ -11,6 +11,7 @@ from vultron.core.models.ledger_position import (
     LedgerPosition,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -386,7 +387,9 @@ def _find_prev_actor_published(
         prior recorded assertion on this case, when this assertion is itself
         already recorded, or when the predecessor's claim was unparseable.
     """
-    snapshot_actor = payload_snapshot.get("actor")
+    # One actor's stream whatever spelling each assertion used: the
+    # snapshots keep the sender's (OID-01-006).
+    snapshot_actor = snapshot_actor_id(payload_snapshot.get("actor"))
     if not snapshot_actor:
         return None
     pool = (
@@ -397,7 +400,9 @@ def _find_prev_actor_published(
     wanted = _semantic_payload(payload_snapshot)
     matches: list[CaseLedgerEntry] = []
     for obj in pool:
-        if obj.payload_snapshot.get("actor") != snapshot_actor:
+        if snapshot_actor_id(obj.payload_snapshot.get("actor")) != (
+            snapshot_actor
+        ):
             continue
         if _semantic_payload(obj.payload_snapshot) == wanted:
             return None  # redelivery, not a new event in this actor's stream

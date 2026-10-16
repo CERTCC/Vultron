@@ -40,7 +40,10 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.predicates.addressing import (
+    same_actor_id,
+    snapshot_actor_id,
+)
 from vultron.errors import (
     VultronBTInternalError,
     VultronCanonicalEntryError,
@@ -134,13 +137,17 @@ def _assert_actor_identity(
     :func:`same_actor_id`: a trailing slash is not a substitution.
     """
     activity_actor_id = getattr(activity, "actor_id", None)
-    snapshot_actor = (
-        payload_snapshot.get("actor") if payload_snapshot else None
-    )
+    raw_actor = payload_snapshot.get("actor") if payload_snapshot else None
+    # An actor that names no id (not a string, an inline object without
+    # one) cannot be shown to be the sender, so it is refused too.
+    snapshot_actor = snapshot_actor_id(raw_actor)
     if (
         activity_actor_id
-        and snapshot_actor
-        and not same_actor_id(str(snapshot_actor), activity_actor_id)
+        and raw_actor
+        and (
+            snapshot_actor is None
+            or not same_actor_id(snapshot_actor, activity_actor_id)
+        )
     ):
         raise VultronCanonicalEntryError(
             f"{event_type}: CLP-07-003 — payloadSnapshot.actor"

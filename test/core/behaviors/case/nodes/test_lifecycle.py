@@ -687,3 +687,55 @@ def test_slash_spelled_different_actor_still_refused(bridge):
     assert result.status == Status.FAILURE
     assert "CLP-07-003" in (result.feedback_message or "")
     mock_factory.assert_not_called()
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("OID-01-006")
+def test_inline_slash_spelled_snapshot_actor_commits(bridge):
+    """An inline actor object is read by its id, normalised, not by its
+    ``str()``: an inline sender profile spelled with a trailing slash
+    commits."""
+    payload = _note_payload(ACTOR_ID, "https://example.org/notes/n5")
+    payload["actor"] = {"id": ACTOR_ID + "/", "type": "Person"}
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(payload),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.SUCCESS
+    mock_factory.assert_called_once()
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("OID-01-006")
+def test_snapshot_actor_naming_no_id_is_refused(bridge):
+    """A snapshot actor that names no id cannot be shown to be the sender,
+    so the entry is refused rather than compared as text."""
+    payload = _note_payload(ACTOR_ID, "https://example.org/notes/n6")
+    payload["actor"] = {"type": "Person", "name": ACTOR_ID}
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(payload),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.FAILURE
+    assert "CLP-07-003" in (result.feedback_message or "")
+    mock_factory.assert_not_called()

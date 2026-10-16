@@ -57,7 +57,10 @@ from vultron.core.models.protocol_pair import (
 )
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.predicates.addressing import (
+    same_actor_id,
+    snapshot_actor_id,
+)
 from vultron.errors import VultronNotFoundError
 
 
@@ -166,18 +169,25 @@ def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
 
 
 def _entry_target(entry: CaseLedgerEntry) -> str | None:
-    """The transferee the ledgered Offer names (its ``target``)."""
-    return _as_id(entry.payload_snapshot.get("target"))
+    """The transferee the ledgered Offer names (its ``target``).
+
+    The snapshot keeps the sender's spelling, so this and the two readers
+    below normalise the id they read (OID-01-006): the transferee becomes
+    the case owner, and the forward names it canonically.
+    """
+    return snapshot_actor_id(entry.payload_snapshot.get("target"))
 
 
 def _entry_actor(entry: CaseLedgerEntry) -> str | None:
     """The ledgered Offer's sender (its ``actor``)."""
-    return _as_id(entry.payload_snapshot.get("actor"))
+    return snapshot_actor_id(entry.payload_snapshot.get("actor"))
 
 
 def _entry_attributed_to(entry: CaseLedgerEntry) -> str | None:
     """The participant the ledgered Offer claims to speak for, if any."""
-    return _as_id(entry.payload_snapshot.get(wire_key("attributed_to")))
+    return snapshot_actor_id(
+        entry.payload_snapshot.get(wire_key("attributed_to"))
+    )
 
 
 def _entry_end_time(entry: CaseLedgerEntry) -> datetime | None:
@@ -227,7 +237,7 @@ def _forwarded_entry(
         return None
     if _as_id(getattr(forward, "object_", None)) != case_id:
         return None
-    transferee_id = _as_id(getattr(forward, "target", None))
+    transferee_id = snapshot_actor_id(getattr(forward, "target", None))
     linked_id = _as_id(getattr(forward, "in_reply_to", None))
     if transferee_id is None or linked_id is None:
         return None

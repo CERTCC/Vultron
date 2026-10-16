@@ -66,6 +66,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import VultronNotFoundError
 
@@ -242,7 +243,8 @@ class _RecordedActFromLedgerNode(_LedgerEffectNode):
         case = self._resolve_case_replica(entry.case_id)
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
-        actor_id = _extract_id_from_field(entry.payload_snapshot.get("actor"))
+        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
+        actor_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         embargo_id = _snapshot_embargo_id(entry.payload_snapshot)
         if not actor_id or not embargo_id:
             self.feedback_message = (
@@ -298,7 +300,7 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
         # accepter is the Accept's own actor (EMB-17-004, CLP-07-013).
         late_accept = entry.payload_snapshot.get("object")
         invitee_id = (
-            _extract_id_from_field(late_accept.get("actor"))
+            snapshot_actor_id(late_accept.get("actor"))
             if isinstance(late_accept, dict)
             else None
         )
