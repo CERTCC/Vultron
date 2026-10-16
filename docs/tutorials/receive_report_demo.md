@@ -92,7 +92,7 @@ Verification checks are marked with `📋` (start) and `✅` (pass) or `❌` (fa
 Each workflow ends with its own completion line, for example:
 
 ```text
-✅ DEMO 1 COMPLETE: Report validated, case created, and finder notified via inbox.
+✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the finder.
 ```
 
 If any step or check failed, the demo prints a failure summary after the last workflow.
@@ -109,14 +109,17 @@ Let's look at what happened in each workflow.
 DEMO 1: Validate Report and Create Case
 ```
 
-1. **Step 1** — The *finder* actor creates a `VulnerabilityReport` object and posts a Report Submission (RS), `Offer(VulnerabilityReport)`, to the *vendor*'s inbox.
-   Notice the log lines showing that the offer and the report are both stored in the DataLayer.
+1. **Step 1** — The *finder* actor submits a `VulnerabilityReport` through its own `submit-report` trigger, which sends a Report Submission (RS), `Offer(VulnerabilityReport)`, to the *vendor*.
+   The trigger also records which actor the finder sent the report to, so the finder can later check who introduces the case.
+   Notice the log lines showing that the offer and the report are both stored in the vendor's DataLayer.
+   When the vendor receives the report, it asks its CaseActor to open a case for it.
 
 2. **Step 2** — The *vendor* posts a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, to its own inbox, which runs the validation behavior tree and moves the report to `RM.VALID`.
    Notice the log line confirming the activity was stored.
 
-3. **Step 3** — The vendor looks up the case that was opened for the report and posts a Create Case, `Create(VulnerabilityCase)`, to the *finder*'s inbox to tell the finder that a case now exists.
-   Notice the final ✅ confirming the activity appears in the finder's inbox.
+3. **Step 3** — The vendor finds the case that was opened for the report, and introduces it to the finder with its own Create Case, `Create(VulnerabilityCase)`.
+   The finder accepts the introduction because it comes from the actor the finder sent the report to.
+   Notice the final ✅ confirming that the finder's record of the report now names the vendor and points at the case.
 
 ```mermaid
 ---
@@ -127,10 +130,10 @@ sequenceDiagram
     participant V as Vendor
 
     F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    Note over V: Stores offer and report
+    Note over V: Stores offer and report<br/>case opened
+    V->>F: Create Case<br/>Create(VulnerabilityCase)
     V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
     Note over V: Validation BT runs<br/>RM.VALID
-    V->>F: Create Case<br/>Create(VulnerabilityCase)
 ```
 
 ### Demo 2: Invalidate Report
@@ -142,7 +145,7 @@ DEMO 2: Invalidate Report (Hold for Reconsideration)
 The finder submits a second, separate report.
 The vendor responds with a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, meaning the report is held open for further investigation rather than closed outright.
 The report sits at `RM.INVALID`, and the vendor sends the same activity to the finder so the finder learns the decision.
-Notice that no case is created this time: in this demo the vendor opens a case only for a report it has found valid (Demo 1, Step 3).
+The vendor still opened a case when the report arrived, so the demo ends by checking that the finder accepted the vendor's introduction of it.
 
 ```mermaid
 ---
@@ -154,7 +157,7 @@ sequenceDiagram
 
     F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-    Note over V: Report held at RM.INVALID<br/>no case created
+    Note over V: Report held at RM.INVALID<br/>case opened on receipt
     V->>F: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
 ```
 
@@ -163,7 +166,7 @@ sequenceDiagram
 A third report is submitted.
 The vendor first invalidates it with a Report Invalid (RI) and then closes it with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which is a full rejection.
 `RM.CLOSED` is terminal, so this report is finished.
-Notice that two separate activities appear in the finder's inbox at the end.
+Notice that two separate activities appear in the finder's inbox at the end, and that the finder again accepted the vendor's introduction of the case.
 
 ```mermaid
 ---
@@ -176,7 +179,7 @@ sequenceDiagram
     F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     V->>F: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
     V->>F: Report Closed (RC)<br/>Reject(Offer(VulnerabilityReport))
-    Note over V: Report closed<br/>no case created
+    Note over V: Report closed
     Note over F: Two activities in finder's inbox
 ```
 

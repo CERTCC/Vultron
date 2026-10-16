@@ -1170,17 +1170,20 @@ groups:
       revisions open, where a later default selection could pick a revision of a dead
       embargo as the earliest-expiring candidate (#3836). The register now enforces it: a
       step that leaves an entry `TERMINATED` while another is `PROPOSED` is refused
-      (ADR-0122), so `EmbargoLifecycle.terminate_active_embargo` applies
-      `TERMINATE` and the `CANCEL` of every proposal as one step. It applies on every
-      replica without extra work: the teardown replay node (`ClearActiveEmbargoNode`) runs
-      the same method in `OBSERVED` mode (#3914).
+      (ADR-0122), so the `TERMINATE` step applies `TERMINATE` and the `CANCEL` of every
+      proposal as one step. The `Remove(EmbargoEvent)` entry carries that whole step,
+      and the CASE_MANAGER and every replica apply it through the one apply function,
+      `apply_embargo_change()` (ADR-0124, #4714), so no cancel has an entry of its own.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_activation.py` assert that
       terminating an embargo while revisions of it are pending leaves no open proposal and an
       empty `pending_embargo_proposal_index`, in `STRICT` and in
       `OBSERVED` mode; `test/core/behaviors/embargo/nodes/test_teardown.py` asserts the same
-      through `ClearActiveEmbargoNode`, and
-      `test/core/use_cases/triggers/embargo/test_terminate.py` through the terminate trigger.
+      through `ClearActiveEmbargoNode` and the replica slot `ApplyEmbargoTeardownNode`,
+      `test/core/use_cases/triggers/embargo/test_terminate.py` through the terminate
+      trigger, and `test/core/use_cases/received/test_embargo_termination_copy.py` that
+      the `Remove` is the only entry and a replica's register matches the
+      CASE_MANAGER's.
     relationships:
     - rel_type: refines
       spec_id: EP-08-003
@@ -1476,9 +1479,13 @@ groups:
     kind: architecture
     statement: >-
       Every ledger event type the revision relay commits (the proposal, each Invite emission,
-      each participant's consent answer, and the owner's decision) MUST have a replica apply
-      node reachable from `create_announce_log_entry_tree` (RSH-08-004) that reconstructs the
-      state through `EmbargoLifecycle` in `OBSERVED` mode, as the teardown apply node does.
+      each participant's consent answer, each consent row the CASE_MANAGER changes, and the
+      owner's decision) MUST have a replica apply node reachable from
+      `create_announce_log_entry_tree` (RSH-08-004) that applies what the entry carries by
+      copying it through the one apply function (ADR-0124, CM-23-016): the proposal's entry
+      is its `PROPOSE` register step, an answer's entry carries the row the answer states
+      (ADR-0122), and every other consent row the proposal or a relayed Invite changes is
+      the CASE_MANAGER's own `Create` or `Update(EmbargoConsent)` entry that follows it.
       The replay node for a transition MUST land before the received-side effect that wrote
       it directly is gated (RSH-08-003).
     rationale: >-
@@ -1488,10 +1495,23 @@ groups:
       ignored, which is why a replica's EM stayed `ACTIVE` through a whole revision cycle
       (#3892). Covering every event type of the relay is what makes the participant-side
       embargo trees gateable with no further work.
+    note: >-
+      The owner's decision and expiry slots still reconstruct their register step
+      through `EmbargoLifecycle` in `OBSERVED` mode until they copy too (#4716); the
+      consent rows those acts change already arrive as their own entries wherever the
+      CASE_MANAGER's arm commits them. A withdrawal's `Leave(EmbargoEvent)` (EP-09-013)
+      carries no row: each row it declines is the CASE_MANAGER's own
+      `Update(EmbargoConsent)` entry, which the consent slot copies (#4717).
     verification: >-
       The RSH-08-004 architecture ratchet lists every committed embargo event type as having a
       replay node or a declared exemption; integration tests with per-actor stores assert a
-      replica converges to `REVISE` and back to `ACTIVE` on the fan-out alone.
+      replica converges to `REVISE` and back to `ACTIVE` on the fan-out alone, and
+      `test/core/use_cases/received/test_embargo_proposal_answer_copy.py` asserts a replica's
+      register and rows equal the CASE_MANAGER's after a proposal, each answer, the
+      CASE_MANAGER's policy consent and a withdrawal (the withdrawer's own replica
+      included), and
+      `test/architecture/test_embargo_replica_slots_copy.py` asserts the copying slots
+      run no lifecycle logic.
     relationships:
     - rel_type: refines
       spec_id: RSH-08-004
@@ -1607,7 +1627,8 @@ groups:
       sender, however often the Invite is delivered
       (`test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault`); an Invite
       naming no embargo gets the `EmbargoInviteWithoutEmbargo` fault
-      (`test_an_invite_naming_no_embargo_gets_a_processing_fault`); a single-recipient Invite
+      (`test_an_invite_naming_no_embargo_gets_a_processing_fault`; both in
+      `test_embargo_relay_replay.py`); a single-recipient Invite
       resolves that recipient (`test_invite_with_several_recipients_is_refused` and
       `test_invite_with_no_recipient_is_refused` in `test_embargo_revision_relay.py`;
       `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in

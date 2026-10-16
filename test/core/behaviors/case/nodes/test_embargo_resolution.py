@@ -257,6 +257,23 @@ def test_only_the_case_owners_policy_is_the_actor_default(
     )
 
 
+@pytest.mark.spec("EP-04-005")
+@pytest.mark.spec("CP-01-010")
+def test_the_owners_profile_spelled_with_a_trailing_slash_is_read(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """The profile id is the sender's spelling and the owner is stored
+    canonical, so a trailing slash still names the case owner (#4772)."""
+    _, before, after = _run(
+        bt_scenario,
+        owner_profile=_profile(ACTOR_DEFAULT, ACTOR_ID + "/"),
+    )
+
+    _assert_duration(
+        _active_embargo(bt_scenario), ACTOR_DEFAULT, before, after
+    )
+
+
 @pytest.mark.spec("EP-04-010")
 @pytest.mark.spec("CP-01-010")
 def test_a_policy_record_in_the_store_is_not_the_actor_default(

@@ -22,7 +22,6 @@ the Invite it supersedes in ``inReplyTo`` (CM-11-016).
 
 from typing import cast
 
-from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.config.actor import ActorConfig
@@ -30,28 +29,22 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import (
-    RecordedStubInvite,
     current_stub_embargo_end,
-    outstanding_stale_stubs,
     recorded_stub_invites,
 )
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
-from vultron.core.behaviors.embargo.rsvp_stamp import stamp_rsvp_deadline
+from vultron.core.behaviors.embargo.rsvp_stamp import (
+    stamp_rsvp_deadline,
+)
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.enums.roles import serialize_roles
 
 #: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
 INVITE_ID_KIND = "invite-actor-to-case"
-
-#: Kind label of a replacement stub Invite's id, derived from the Invite it
-#: replaces (CM-11-016).
-REISSUED_INVITE_ID_KIND = "reissue-invite-actor-to-case"
 
 #: Ledger ``event_type`` of a stub Invite's entry.
 INVITE_EVENT_TYPE = "invite_actor_to_case"
@@ -314,155 +307,9 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         )
 
 
-class ReissueStubInvitesNode(_EmitSingleActivityBase):
-    """Re-issue every outstanding stub Invite the active embargo's change staled.
-
-    Accepting a stub consents to the terms it carried, so when the active
-    embargo is activated, revised or terminated while a stub is outstanding
-    the CASE_MANAGER sends the invitee a replacement carrying the current terms
-    and a new deadline, on the same participant record, naming in
-    ``inReplyTo`` the Invite it supersedes (CM-11-016).  No ``Undo`` retracts the old one: an ``Accept`` of
-    it is refused, naming the replacement, and a ``Reject`` of it is honoured.
-
-    *Outstanding* means the invitee has not replied and its newest Invite has
-    not expired; an expired stub is not re-issued (CM-11-015).  The node is
-    level-triggered, comparing each stub's carried embargo with the one a stub
-    sent now would carry, so it is safe after any step that may have changed the
-    embargo and is a no-op after one that did not (a revision *proposal* changes
-    no active embargo).  CASE_MANAGER only: place it inside the role gate.
-
-    Each replacement is queued, then committed (ADR-0119), under an id
-    derived from the stub it replaces.  A replacement whose commit failed is
-    stored and sent but not yet in the ledger, and it is the invitee's newest
-    stub, so nothing is stale for that invitee any more: the next run of the
-    node finds it and records it, rebuilding it under the same id so the
-    outbox does not queue it twice (OX-06-002).
-
-    Succeeds with nothing emitted when no stub is stale.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        actor_config: ActorConfig | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name)
-        self.case_id = case_id
-        self._actor_config = actor_config
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None and self.actor_id is not None
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-        dl = cast(CaseOutboxPersistence, self.datalayer)
-        stale_stubs = outstanding_stale_stubs(
-            dl, case, self.actor_id, now_utc()
-        )
-        unrecorded = self._unrecorded_replacements()
-        if not stale_stubs and not unrecorded:
-            return Status.SUCCESS
-        # Only a re-issue needs the emit port: a change that leaves no stub
-        # stale must not fail a tree that was composed without one.
-        if (f := self._require_factory()) is not None:
-            self.logger.error("%s", self.feedback_message)
-            return f
-        assert self.trigger_activity_factory is not None
-        for replaced in unrecorded:
-            self._reissue(replaced)
-        for stale in stale_stubs:
-            self._reissue(stale)
-        return Status.SUCCESS
-
-    def _unrecorded_replacements(self) -> list[RecordedStubInvite]:
-        """The stubs whose replacement this node sent but did not commit.
-
-        A replacement is told apart from any other stub by its id, which only
-        this node derives from the stub replaced; one with no ledger entry was
-        queued by a run whose commit failed.
-        """
-        assert self.datalayer is not None and self.actor_id is not None
-        stubs = recorded_stub_invites(
-            self.datalayer, self.case_id, self.actor_id
-        )
-        by_id = {stub.invite_id: stub for stub in stubs}
-        recorded = {
-            entry.log_object_id
-            for entry in recorded_entries_for_case(
-                case_id=self.case_id, dl=self.datalayer
-            )
-        }
-        found: list[RecordedStubInvite] = []
-        for stub in stubs:
-            replaced = by_id.get(stub.in_reply_to or "")
-            if (
-                replaced is not None
-                and stub.invite_id not in recorded
-                and stub.invite_id == self._replacement_id(replaced)
-            ):
-                found.append(replaced)
-        return found
-
-    def _replacement_id(self, stale: RecordedStubInvite) -> str:
-        """The id of the replacement for *stale*, derived from it."""
-        assert self.actor_id is not None
-        return derived_activity_id(
-            REISSUED_INVITE_ID_KIND,
-            self.actor_id,
-            self.case_id,
-            stale.invite_id,
-        )
-
-    def _reissue(self, stale: RecordedStubInvite) -> None:
-        """Send the replacement for *stale*, naming it: queue, then commit.
-
-        The replacement's id is derived from the Invite it replaces, so a
-        retry after a queued replacement whose commit failed — *stale* is
-        still the invitee's newest recorded stub — rebuilds the same
-        replacement, and the outbox does not queue it twice (OX-06-002,
-        ADR-0119).
-        """
-        assert self.actor_id is not None
-        assert self.trigger_activity_factory is not None
-        dl = cast(CaseOutboxPersistence, self.datalayer)
-        activity_id, activity_blob = build_stub_invite(
-            datalayer=dl,
-            factory=self.trigger_activity_factory,
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-            invitee_id=stale.invitee_id,
-            roles=list(stale.roles) or None,
-            attributed_to=stale.attributed_to,
-            in_reply_to=stale.invite_id,
-            actor_config=self._actor_config,
-            activity_id=self._replacement_id(stale),
-        )
-        self._emit_through_seam(activity_id, activity_blob)
-        commit_stub_invite(
-            datalayer=dl,
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-            activity_id=activity_id,
-            activity_blob=activity_blob,
-        )
-        self.logger.info(
-            "Actor '%s' re-issued stub Invite '%s' to '%s' as '%s' after"
-            " an embargo change on case '%s' (CM-11-016)",
-            self.actor_id,
-            stale.invite_id,
-            stale.invitee_id,
-            activity_id,
-            self.case_id,
-        )
-
-
 __all__ = [
     "EmitInviteActorToCaseNode",
     "INVITE_EVENT_TYPE",
-    "ReissueStubInvitesNode",
     "build_stub_invite",
     "commit_stub_invite",
 ]

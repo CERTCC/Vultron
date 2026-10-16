@@ -104,11 +104,13 @@ caller.
   redirect itself fails (read-only `/tmp`, exhausted disk, `noclobber`), the
   command never runs and `tail` prints the *previous* run's summary — a
   passing-looking tail above a non-zero `exit:`. Trust the code.
-- `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root cause, do not suppress.
+- `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root
+  cause, do not suppress.
 - Integration tests are excluded from the default interactive run; always run
   `-m integration` explicitly in pre-PR validation, and keep the targeted
   gate's `-m ""` so integration-marked tests in the set still run.
-- Treat all failures as branch-owned by default; clean-base proof is required before classifying as pre-existing.
+- Treat all failures as branch-owned by default; clean-base proof is required before
+  classifying as pre-existing.
 - **Never re-run the test suite to get more output.** Full pytest output is
   written to `/tmp/last-test-run.log` (or `/tmp/pytest-unit.log` /
   `/tmp/pytest-integration.log` when both suites run, `/tmp/pytest-gate.log`

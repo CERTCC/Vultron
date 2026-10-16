@@ -1,9 +1,15 @@
 ---
 status: accepted-provisional
+status_override: >-
+  The maintainer chose on 2026-10-15, in the ISSUE-4641 decisions recorded on
+  the issue during the Epic #4638 run, to revise ADR-0135 in place as
+  revision 2: detail 4 counts a clock decision's entries by the AS2
+  activities it needs, and detail 5 adds the case-wide end-time decision with
+  its trigger scope note.
 date: 2026-10-14
 created: 2026-10-14
-updated: 2026-10-14
-revision: 1
+updated: 2026-10-15
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0022; ADR-0111; specs/case-ledger-processing.yaml
@@ -65,14 +71,24 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
 3. **A clock-decision stage.** The received tree gains a stage between the door guards and the precondition guards.
    The order is: intake, then door guards (post-close boundary, addressee check, sender guard), then clock decisions, then precondition guards, then the guarded commit, then effects (CLP-10-010).
    This partially supersedes ADR-0111 detail 1, whose four stages put no commit ahead of the guarded commit: the CASE_MANAGER's own clock decisions are the one exception.
-4. **The stage is narrow.** A clock decision runs only at the CASE_MANAGER and commits only its own entry and the change that entry records.
+4. **The stage is narrow.** A clock decision runs only at the CASE_MANAGER and commits only the CASE_MANAGER's own entries and the changes they record, never anything about the received activity.
+   A case ledger entry is one AS2 activity and its object, and the CASE_MANAGER does only what AS2 activities can express, ledgering each one.
+   So a clock decision commits one entry for each AS2 activity needed to express what it decided, with no fixed count: an expiry is one entry, and an embargo's end-time termination is the `Remove` plus each status update and re-issued stub Invite it needs.
+   The entries are ordered so that no prefix of them leaves the embargo register showing an entry terminated while another is still proposed (EP-08-004, ADR-0122): the `Remove` carries the whole register step, the cancellation of every open proposal included.
    It decides from the CASE_MANAGER's clock, its local policy and the case's ledger and file.
    The received activity may prompt it, but is never its evidence.
    The entry may still carry the activity's claimed `published` time as received, because that time records when the activity claims to have been sent and decides nothing.
    One with nothing to record succeeds.
    One whose commit the ledger refuses logs a warning and does not end the tree, because the guards still refuse what the unrecorded decision forbids (CLP-10-025).
    An internal error still ends the tree as an internal error (ADR-0095).
-5. **A drained entry is its own delivery.** When a commit or a case seed makes a buffered ledger entry appliable, the receiver hands the entry back to its own inbox processing, under the receiving actor, as a delivery of its own (SYNC-14-009).
+5. **A decision about the case runs whatever the entry point.** The embargo end-time check (EMB-13-003) is a fact about the case, not about any one activity, so it is a clock decision of every received tree that names a case and has both door guards, with no argument from the tree.
+   A tree with no sender guard takes it once it declares its sender rule (the handlers still exempt from a sender check are ISSUE-4522), because the decision writes and a sender with no standing must never make the CASE_MANAGER write.
+   A tree exempt from the post-close boundary never takes it.
+   The check runs in no dispatcher hook ahead of the tree.
+   Scope note: this record governs received trees, but the same reason holds for a case-scoped trigger, which composes the same CASE_MANAGER-gated stage as the first step of its own one tree (BT-15-003).
+   Without it, a trigger such as accepting a pending revision would extend an embargo whose end time has passed.
+   The terminate-embargo trigger is the exception, because its own tree takes the end-time path and answers for it.
+6. **A drained entry is its own delivery.** When a commit or a case seed makes a buffered ledger entry appliable, the receiver hands the entry back to its own inbox processing, under the receiving actor, as a delivery of its own (SYNC-14-009).
    The buffer holds the entry, not the Announce that carried it, so the hand-back wraps it in an Announce attributed to the case's CASE_MANAGER.
    It does not run the entry's tree inline, and it does not nest a bridge run inside a node.
 
@@ -89,7 +105,8 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
 
 `test/architecture/test_single_bt_execution_received_side.py` counts tree runs through helpers with no exemption set.
 `test/core/behaviors/case/test_receive_activity_tree.py` pins the clock-decision stage's position, gate and failure behaviour.
-`test_receive_side_bt_commit_ordering.py` accepts a commit ahead of the guards only inside that stage.
+`test_receive_side_bt_commit_ordering.py` accepts a commit ahead of the guards only inside that stage, and there only from the decision's own CASE_MANAGER commit nodes.
+`test/core/use_cases/triggers/embargo/test_end_time_termination.py` shows a non-participant's activity naming an overdue case commits no termination, and a case-scoped trigger ends the overdue embargo before it acts.
 
 ## Pros and Cons of the Options
 
@@ -115,6 +132,8 @@ Chosen option: **"Compose every received delivery into one tree"**, because it i
 - [ADR-0022](0022-single-bt-execution-for-received-side-case-actor-routing.md) set the one-tree contract this record extends to helpers.
 - [ADR-0111](0111-intake-is-the-first-received-side-stage.md) set the four stages; this record adds the clock-decision stage between its door guards and precondition guards.
 
-Generated spec requirements: `case-ledger-processing.yaml` CLP-10-005, CLP-10-006 and CLP-10-010 (amended), CLP-10-025; `sync-ledger-replication.yaml` SYNC-14-009.
+Generated spec requirements: `case-ledger-processing.yaml` CLP-10-005, CLP-10-006 and CLP-10-010 (amended), CLP-10-025; `sync-ledger-replication.yaml` SYNC-14-009; `behavior-tree-integration.yaml` BT-15-003.
 
 Source: ISSUE-4585.
+
+Revision 2 (2026-10-15), from the maintainer's decisions on ISSUE-4641: detail 4 counts a clock decision's entries by the AS2 activities it needs instead of limiting it to one entry, and detail 5 makes the embargo end-time check a clock decision of every case tree with both door guards, with the scope note that a case-scoped trigger composes the same stage.

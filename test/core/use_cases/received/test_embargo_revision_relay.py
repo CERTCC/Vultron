@@ -48,6 +48,10 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent_event_types import (
+    CREATE_EMBARGO_CONSENT_EVENT_TYPE,
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -710,8 +714,31 @@ def test_each_relayed_invite_is_committed_after_the_proposal(make_payload):
 
     _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
 
-    entries = _ledger_entries(dl, case_id)
-    assert [e.event_type for e in entries] == ["invite_to_embargo_on_case"] * 3
+    everything = [e.event_type for e in _ledger_entries(dl, case_id)]
+    # The proposal (the PROPOSE step), each participant's new row, then each
+    # relayed Invite followed by its invitee's row (ADR-0124, CLP-07-013).
+    invite, created, updated = (
+        "invite_to_embargo_on_case",
+        CREATE_EMBARGO_CONSENT_EVENT_TYPE,
+        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    )
+    rows = len(
+        cast(VulnerabilityCase, dl.read(case_id)).actor_participant_index
+    )
+    assert everything == [
+        invite,
+        *[created] * rows,
+        invite,
+        updated,
+        invite,
+        updated,
+    ]
+    entries = [
+        e
+        for e in _ledger_entries(dl, case_id)
+        if e.event_type == "invite_to_embargo_on_case"
+    ]
+    assert len(entries) == 3
     snapshots = [e.payload_snapshot for e in entries]
     assert snapshots[0]["actor"] == PROPOSER
     assert [s["actor"] for s in snapshots[1:]] == [MANAGER, MANAGER]
@@ -1037,9 +1064,11 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.REVISE
     assert revision.id_ not in case.pending_embargo_proposal_index
-    assert [e.event_type for e in _ledger_entries(dl, case_id)] == [
-        "invite_to_embargo_on_case"
-    ] * 2
+    assert [
+        e.event_type
+        for e in _ledger_entries(dl, case_id)
+        if e.event_type == "invite_to_embargo_on_case"
+    ] == ["invite_to_embargo_on_case"] * 2
 
     second = InviteToEmbargoOnCaseReceivedUseCase(
         dl,
@@ -1055,10 +1084,12 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
     assert _relayed_invites(dl)[0].id_ == first_round[0].id_
     assert _consent_of(dl, case_id, invited_first, revision.id_) == invited
     assert _consent_of(dl, case_id, not_yet, revision.id_) == invited
-    # One entry for the proposal (reused, not duplicated) and one per Invite.
-    assert [e.event_type for e in _ledger_entries(dl, case_id)] == [
-        "invite_to_embargo_on_case"
-    ] * 3
+    # One entry for the proposal (reused, not duplicated) and one per Invite,
+    # and one per invitee's row: the rebuilt Invite carries the deadline the
+    # row already holds, so its rerun commits no second row (ADR-0124).
+    event_types = [e.event_type for e in _ledger_entries(dl, case_id)]
+    assert event_types.count("invite_to_embargo_on_case") == 3
+    assert event_types.count(UPDATE_EMBARGO_CONSENT_EVENT_TYPE) == 2
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.pending_embargo_proposal_index[revision.id_] == proposal.id_
 

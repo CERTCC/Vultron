@@ -908,22 +908,6 @@ def seed_case_actor(client: DataLayerClient) -> as_Actor:
     return actor
 
 
-def seed_case_actor_for_report(
-    client: DataLayerClient, report_id: str
-) -> as_Actor:
-    """Provision the CaseActor that *report_id*'s CaseProposal is addressed to.
-
-    Since the CaseActor identity became stable (#1872), *report_id* does not
-    change the answer; it is kept so call sites still read as "the CaseActor for
-    this report".  See :func:`seed_case_actor`, which this delegates to and which
-    needs no report id -- the form to use when provisioning before a report
-    exists, as :func:`~vultron.demo.helpers.workflow.reporter_submits_report`
-    does.
-    """
-    del report_id  # one CaseActor per container, not per report
-    return seed_case_actor(client)
-
-
 def check_server_availability(
     client: DataLayerClient, max_retries: int = 30, retry_delay: float = 1.0
 ) -> bool:

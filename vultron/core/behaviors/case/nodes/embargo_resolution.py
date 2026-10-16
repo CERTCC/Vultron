@@ -38,6 +38,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.services.embargo_duration import (
     InitialEmbargoDuration,
     actor_default_duration,
@@ -292,8 +293,12 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        # The profile id is the sender's spelling; the owner is stored
+        # canonical, so compare with same_actor_id (#4772).
         profile = self._try_get_input("owner_profile")
-        if not isinstance(profile, CoreActor) or profile.id_ != owner_id:
+        if not isinstance(profile, CoreActor) or not same_actor_id(
+            profile.id_, owner_id
+        ):
             self.feedback_message = (
                 f"no inline actor profile for case owner {owner_id!r} to read"
                 f" the actor default from (got {profile!r}; CP-01-010)"

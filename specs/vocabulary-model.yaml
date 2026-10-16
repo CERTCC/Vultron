@@ -236,8 +236,10 @@ groups:
     kind: project
     statement: All wire-layer objects MUST have a globally unique `as_id` field set at construction time by `generate_new_id()`
       if not supplied
-    verification: Unit tests `test_as_base_id_uses_wire_default` and `test_two_objects_have_different_ids` in
-      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that each new instance receives a unique
+    verification: Unit tests `test_as_base_id_uses_wire_default` in
+      `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` and
+      `test_two_objects_have_different_ids` in `test/wire/as2/vocab/test_base_utils.py`
+      confirm that each new instance receives a unique
       `urn:uuid:`-prefixed identifier without an explicit argument.
     relationships:
     - rel_type: implements

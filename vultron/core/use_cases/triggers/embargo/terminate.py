@@ -63,6 +63,10 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
     _assertion_event_type: ClassVar[str] = (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
     )
+    # Its own tree takes the end-time path once the end time has passed,
+    # and answers for it, so the case-wide end-time check must not pre-empt
+    # the request it would answer (ADR-0122, ADR-0135).
+    _takes_case_clock_decisions: ClassVar[bool] = False
 
     def _prepare(self) -> None:
         request = cast(TerminateEmbargoTriggerRequest, self._request)
@@ -84,7 +88,7 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
 
         # Once the end time has passed, the embargo ends with
         # END_TIME_REACHED whatever was asked (EMB-13-003): this trigger runs
-        # the end-time path itself, so its row opts out of the lazy check.
+        # the end-time path itself, so it takes no case-wide end-time check.
         if self._reason == TerminationReason.EARLY and embargo_end_time_passed(
             dl, self._case, self._now
         ):

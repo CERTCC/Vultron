@@ -127,10 +127,16 @@ def _expiry_event(
 class TestApplyInviteExpiryFromLedgerNode:
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("CM-28-014")
-    def test_a_replica_applies_time_out_without_a_deadline(
+    @pytest.mark.spec("CM-23-016")
+    def test_the_expiry_entry_moves_no_row_on_a_replica(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """No deadline on the replica's record: it applies, never computes."""
+        """The replica neither computes nor applies TIME_OUT from the act.
+
+        The ``TIMED_OUT`` row is the CASE_MANAGER's own
+        ``Update(EmbargoConsent)`` entry, which the consent slot copies
+        (ADR-0124); the expiry entry itself is recorded and changes nothing.
+        """
         participant_id = _seed(
             bt_scenario, consent=EmbargoConsentState.INVITED
         )
@@ -141,7 +147,7 @@ class TestApplyInviteExpiryFromLedgerNode:
         bt_scenario.assert_success(result)
         assert (
             _consent(bt_scenario, participant_id)
-            is EmbargoConsentState.TIMED_OUT
+            is EmbargoConsentState.INVITED
         )
 
     @pytest.mark.executes_as(INVITEE)
@@ -254,48 +260,29 @@ class TestApplyHonourLateAcceptFromLedgerNode:
     """Replica replay of the CASE_MANAGER's honour decision (EMB-17-001, RSH-08-004)."""
 
     @pytest.mark.executes_as(INVITEE)
-    @pytest.mark.spec("EMB-17-001", "RSH-08-004", "ADR-0118")
-    def test_timed_out_participant_row_becomes_agreed_on_replica(
-        self, bt_scenario: BTTestScenario
+    @pytest.mark.spec("EMB-17-001", "RSH-08-004", "ADR-0118", "CM-23-016")
+    @pytest.mark.parametrize(
+        "held", [EmbargoConsentState.TIMED_OUT, EmbargoConsentState.DECLINED]
+    )
+    def test_the_honour_entry_moves_no_row_on_a_replica(
+        self, bt_scenario: BTTestScenario, held: EmbargoConsentState
     ) -> None:
-        """A replica applies TIMED_OUT → AGREED from the honour entry."""
+        """The ``AGREED`` row is its own ``Update(EmbargoConsent)`` entry.
+
+        The replica runs no AGREE from the honour decision (ADR-0124); the
+        consent slot copies the row that follows it.
+        """
         from vultron.core.behaviors.embargo.nodes.expiry import (
             ApplyHonourLateAcceptFromLedgerNode,
         )
 
-        participant_id = _seed(
-            bt_scenario, consent=EmbargoConsentState.TIMED_OUT
-        )
+        participant_id = _seed(bt_scenario, consent=held)
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
             activity=_honour_late_accept_event(INVITEE),
         )
         bt_scenario.assert_success(result)
-        assert (
-            _consent(bt_scenario, participant_id) is EmbargoConsentState.AGREED
-        )
-
-    @pytest.mark.executes_as(INVITEE)
-    @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
-    def test_declined_participant_row_becomes_agreed_on_replica(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """A replica applies DECLINED → INVITED → AGREED from the honour entry."""
-        from vultron.core.behaviors.embargo.nodes.expiry import (
-            ApplyHonourLateAcceptFromLedgerNode,
-        )
-
-        participant_id = _seed(
-            bt_scenario, consent=EmbargoConsentState.DECLINED
-        )
-        result = bt_scenario.run(
-            ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
-            activity=_honour_late_accept_event(INVITEE),
-        )
-        bt_scenario.assert_success(result)
-        assert (
-            _consent(bt_scenario, participant_id) is EmbargoConsentState.AGREED
-        )
+        assert _consent(bt_scenario, participant_id) is held
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("ADR-0118")

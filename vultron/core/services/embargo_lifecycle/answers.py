@@ -114,7 +114,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
 
         Per EMB-04-002, a rejection that would return the case to the prior
         terms when P/X/A is set never does: ``STRICT`` refuses it — callers
-        end the embargo with :meth:`terminate_active_embargo` (ET) instead —
+        end the embargo through the termination trigger (ET) instead —
         and ``OBSERVED`` changes nothing, because the termination entry the
         CASE_MANAGER committed after it cancels the revision (EP-08-004).
         Both nodes so end with the revision ``CANCELLED`` (ADR-0124).
@@ -175,7 +175,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             self._assert_pxa_embargo_eligible(
                 pxa_state,
                 case_id,
-                "reject embargo revision (use terminate_active_embargo when"
+                "reject embargo revision (terminate the embargo (ET) when"
                 " P/X/A is set)",
             )
         if not self._apply_register_step(

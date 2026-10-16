@@ -39,6 +39,10 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.predicates.addressing import (
+    participant_id_for_actor,
+    same_actor_id,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -283,9 +287,8 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         # owns that case, so it is not given CASE_OWNER again: the CASE_OWNER
         # is the case's attributed_to (CP-09-001), and there is only one
         # (CM-21-001).  The former owner stays a participant (CM-21-009).
-        if (
-            stored_case is not None
-            and str(stored_case.attributed_to) != self._owner_uri
+        if stored_case is not None and not same_actor_id(
+            str(stored_case.attributed_to), self._owner_uri
         ):
             logger.info(
                 "%s: proposer '%s' does not own case '%s' (owner '%s'), so"
@@ -299,7 +302,10 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         # Skip if the owner already has a participant in this case.
         if (
             stored_case is not None
-            and self._owner_uri in stored_case.actor_participant_index
+            and participant_id_for_actor(
+                stored_case.actor_participant_index, self._owner_uri
+            )
+            is not None
         ):
             logger.debug(
                 "%s: report receiver '%s' already in actor_participant_index"

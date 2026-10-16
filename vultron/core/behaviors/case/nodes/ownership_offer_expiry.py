@@ -25,10 +25,19 @@ Provides:
   ownership-transfer Offer and, when its ``end_time`` has passed, commits the
   expiry entry and broadcasts it.
 
-The node runs only behind the CASE_MANAGER gate
-(:func:`~vultron.core.behaviors.case.ownership_expiry_tree.create_ownership_offer_expiry_tree`,
-BT-17-001): only the CASE_MANAGER evaluates expiry, and a replica learns it
-from the entry, never by reading the clock (CM-21-017).
+The node is a clock decision (CLP-10-025): the ownership-transfer received
+trees (``ownership_transfer_tree``) pass it to
+:func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
+as ``clock_decisions``, so it runs after the door guards (the post-close
+boundary and the sender guard) and before the open-Offer guards, behind the
+factory's CASE_MANAGER gate (BT-17-001).  Only the CASE_MANAGER evaluates
+expiry, and a replica learns it from the entry, never by reading the clock
+(CM-21-017).  When the Offer has passed its ``end_time``, the expiry entry
+closes it before the received activity is judged (CM-21-014), and is
+ledgered whether that activity is then admitted (a new Offer) or refused (a
+late reply, CM-21-016).  The entry changes no replica state of its own; it
+closes the Offer because every "is it open?" reader includes its
+``event_type`` (``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``).
 """
 
 from dataclasses import dataclass
@@ -43,6 +52,7 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
 )
@@ -138,8 +148,13 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
     :class:`ExpiryPrompt` names: the sender's standing is established before
     the CASE_MANAGER writes anything (HP-01-006), as the embargo Invite
     expiry checks the invitee first.  A new Offer prompts with no *prompt*:
-    its handler has already refused a sender that is not the Case Owner
-    (CM-21-019).
+    the tree's sender guard has already refused a sender that is not the Case
+    Owner (CM-21-019).
+
+    It decides from the CASE_MANAGER's clock (*now*) and the case's ledger
+    only; the prompting activity names which Offer and which party, never
+    when the deadline passed, so its claimed ``published`` time decides
+    nothing (CLP-10-025).
 
     SUCCESS when there is nothing to expire (no open Offer, no deadline, one
     not yet passed, or a reply that does not prompt it) and when the expiry
@@ -149,7 +164,8 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
     refuses is FAILURE with its reason; an internal error is raised
     (ADR-0095).
 
-    Sits only behind the CASE_MANAGER gate (BT-17-001).
+    Sits only in a received tree's clock-decision stage, behind the
+    CASE_MANAGER gate the factory places around it (BT-17-001).
 
     Attributes:
         expired_offer_id: The Offer the last run expired, or ``None``.
@@ -158,10 +174,23 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
     def __init__(
         self,
         case_id: str,
-        now: datetime,
+        now: datetime | None = None,
         prompt: ExpiryPrompt | None = None,
         name: str | None = None,
     ) -> None:
+        """Create the decision.
+
+        Args:
+            case_id: The case whose open ownership-transfer Offer is checked.
+            now: The instant the Offer's ``end_time`` is compared against;
+                the handler passes the one its open-Offer guard uses.
+                ``None`` reads the CASE_MANAGER's clock when the node runs.
+            prompt: The Accept, Reject or Undo that prompts the check, so the
+                expiry is ledgered only for a reply to the open Offer from
+                its party (HP-01-006); ``None`` for a new Offer, whose sender
+                guard has already checked it is the Case Owner (CM-21-019).
+            name: The node's name; defaults to the class name.
+        """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._now = now
@@ -173,8 +202,9 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
+        now = self._now or now_utc()
         offer = open_ownership_offer(self.datalayer, self._case_id)
-        if offer is None or not offer.is_past_deadline(self._now):
+        if offer is None or not offer.is_past_deadline(now):
             self.feedback_message = (
                 f"no open ownership-transfer Offer past its deadline on case"
                 f" '{self._case_id}'"
@@ -189,7 +219,7 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
-        return self._commit_expiry(offer)
+        return self._commit_expiry(offer, now)
 
     def _not_prompted_by_party(
         self, offer: RecordedOwnershipOffer
@@ -225,7 +255,9 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
             )
         return None
 
-    def _commit_expiry(self, offer: RecordedOwnershipOffer) -> Status:
+    def _commit_expiry(
+        self, offer: RecordedOwnershipOffer, now: datetime
+    ) -> Status:
         assert self.actor_id is not None and offer.end_time is not None
         tree = create_commit_log_entry_tree(
             case_id=self._case_id,
@@ -236,7 +268,7 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
                 offer_id=offer.offer_id,
                 manager_id=self.actor_id,
                 end_time=offer.end_time,
-                published=self._now,
+                published=now,
             ),
         )
         result = BTBridge(

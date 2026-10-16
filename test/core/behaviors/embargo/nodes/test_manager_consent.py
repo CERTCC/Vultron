@@ -28,15 +28,20 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import propose
+from test.support.ledger import committed_event_types, fail_commits
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
 from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
 )
+from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -48,6 +53,7 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/proposed"
 MANAGER = "https://example.org/actors/mc-manager"
 PROPOSER = "https://example.org/actors/mc-proposer"
 OWNER = "https://example.org/actors/mc-owner"
+PROPOSAL_ID = f"{CASE_ID}/proposals/the-proposal"
 
 
 class _Fail(py_trees.behaviour.Behaviour):
@@ -117,6 +123,7 @@ def _run(
             case_id=CASE_ID,
             embargo_id=EMBARGO_ID,
             proposer_id=proposer_id,
+            cause_id=PROPOSAL_ID,
             **kwargs,
         )
     )
@@ -149,6 +156,34 @@ class TestManagerConsentAtCommit:
         result = _run(bt_scenario, call_out=_declining_bundle())
         assert result.status == Status.SUCCESS
         assert _managers_row(bt_scenario) == EmbargoConsentState.DECLINED
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.parametrize("agree", [True, False], ids=["agree", "decline"])
+    def test_the_policy_answer_is_committed_as_its_own_entry(
+        self, bt_scenario: BTTestScenario, agree: bool
+    ) -> None:
+        """A decision from local policy is its own CASE_MANAGER entry (#4715)."""
+        _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.VENDOR])
+        before = committed_event_types(bt_scenario.dl, CASE_ID)
+        call_out = None if agree else _declining_bundle()
+
+        assert _run(bt_scenario, call_out=call_out).status == Status.SUCCESS
+
+        after = committed_event_types(bt_scenario.dl, CASE_ID)
+        assert after[len(before) :] == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+
+    def test_a_policy_answer_whose_commit_fails_writes_no_row(
+        self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No row moves without its entry (CLP-07-013)."""
+        _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.VENDOR])
+        fail_commits(monkeypatch, commit_tree)
+
+        result = _run(bt_scenario)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error
+        assert _managers_row(bt_scenario) == EmbargoConsentState.UNINVITED
 
     def test_a_bare_container_manager_writes_nothing(
         self, bt_scenario: BTTestScenario

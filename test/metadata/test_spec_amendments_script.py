@@ -179,3 +179,14 @@ def test_id_removed_from_one_file_but_present_in_another_is_not_removed(
     _git(repo, "add", "-A")
     _commit_spec(repo, _SPEC.split("      - id: req-b", maxsplit=1)[0])
     assert _run(repo).returncode == 0
+
+
+def test_base_edits_after_the_fork_are_not_the_branchs(repo: Path) -> None:
+    """The old YAML is read at the merge base, not at the base tip."""
+    _commit_spec(repo, _SPEC + "      - id: req-c\n        statement: New.\n")
+    _git(repo, "checkout", "-q", "main")
+    _commit_spec(repo, _SPEC.replace("Another requirement.", "Base edit."))
+    _git(repo, "checkout", "-q", "work")
+    result = _run(repo)
+    assert result.returncode == 0, result.stdout
+    assert result.stdout == ""

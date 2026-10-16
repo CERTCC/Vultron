@@ -23,10 +23,11 @@ An Offer whose deadline has already passed when it is delivered stands in
 for one that expired while it waited, so no test sleeps.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
+from py_trees.common import Status
 
 from test.core.use_cases.received.actor.test_ownership import (
     _CASE_ACTOR_ID,
@@ -45,8 +46,11 @@ from test.support.ledger import commit_case_fully_closed
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.ownership_expiry_tree import (
-    create_ownership_offer_expiry_tree,
+from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
+    ExpireOverdueOwnershipOfferNode,
+)
+from vultron.core.behaviors.case.ownership_transfer_tree import (
+    create_accept_ownership_transfer_tree,
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -54,8 +58,12 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received._bt_verdict import find_node
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
+)
+from vultron.wire.as2.factories import (
+    accept_case_ownership_transfer_activity,
 )
 
 _EXPIRED = OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE
@@ -157,52 +165,35 @@ class TestLateAnswerIsRefused:
         assert _EXPIRED not in _event_types(dl)
 
     @pytest.mark.spec("CM-21-016")
+    @pytest.mark.spec("CLP-10-025")
     def test_late_accept_is_refused_even_without_an_expiry_record(
-        self, make_payload
+        self, make_payload, monkeypatch, caplog
     ):
         """The open-Offer guard reads the deadline itself, so a lost expiry
-        record cannot let a late answer through."""
-        from vultron.core.behaviors.case.ownership_transfer_tree import (
-            create_accept_ownership_transfer_tree,
-        )
+        record cannot let a late answer through: the clock decision whose
+        commit is refused logs a warning and the tree goes on to refuse."""
+        from py_trees.common import Status
 
         case_id = "https://example.org/cases/case_dl_guard"
-        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
-        _, offer = deliver(
-            _COORDINATOR_ID, f"{case_id}/offer", end_time=_future()
-        )
-        from vultron.wire.as2.factories import (
-            accept_case_ownership_transfer_activity,
-        )
-
-        accept = accept_case_ownership_transfer_activity(
-            offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
-        )
-        tree = create_accept_ownership_transfer_tree(
-            case_id=case_id,
-            offer_id=offer.id_,
-            sender_id=_COORDINATOR_ID,
-            answer_id=accept.id_,
-            # Two hours on: past the deadline, but no expiry was ledgered.
-            now=now_utc() + timedelta(hours=2),
-            sender_rule=(
-                AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement
-            ),
-        )
-        result = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=_CASE_ACTOR_ID,
-            activity=make_payload(accept, receiving_actor_id=_CASE_ACTOR_ID),
+        dl, _, _, offer = _expired_offer(make_payload, case_id)
+        monkeypatch.setattr(
+            ExpireOverdueOwnershipOfferNode,
+            "_commit_expiry",
+            lambda self, offer, now: Status.FAILURE,
         )
 
-        assert result.status.name == "FAILURE"
-        assert "CM-21-016" in (BTBridge.get_failure_reason(tree) or "")
+        with caplog.at_level("WARNING"):
+            result = _accept(dl, make_payload, offer)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "CM-21-016" in result.reason
         assert _owner(dl, case_id) == _VENDOR_ID
+        assert _expiry_entries(dl) == []
         assert "accept_case_ownership_transfer" not in _event_types(dl)
+        assert any(
+            "clock decision" in r.getMessage() and r.levelname == "WARNING"
+            for r in caplog.records
+        )
 
 
 class TestLazyExpiry:
@@ -278,19 +269,105 @@ class TestLazyExpiry:
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("BT-17-001")
     def test_only_the_case_manager_computes_an_expiry(self, make_payload):
-        """Run as any other actor, the expiry tree commits nothing."""
+        """Run at a replica, the reply's tree reaches the clock-decision
+        stage and its CASE_MANAGER gate skips the expiry."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
         case_id = "https://example.org/cases/case_dl_replica"
-        dl, _, _, _ = _expired_offer(make_payload, case_id)
-        tree = create_ownership_offer_expiry_tree(
-            case_id=case_id, now=now_utc()
+        dl, _, _, offer = _expired_offer(make_payload, case_id)
+        # The transferee's replica of the case: the case and its participant
+        # records, so the CASE_MANAGER is known there (PCR-03-001).
+        replica = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=_COORDINATOR_ID
+        )
+        for kind in ("VulnerabilityCase", "CaseParticipant"):
+            for obj in dl.list_objects(kind):
+                replica.create(obj)
+        # The CASE_MANAGER's own forward of the reply: what a replica is
+        # entitled to receive (PCR-03-001), so the door guards pass.
+        reply = accept_case_ownership_transfer_activity(
+            offer, actor=_CASE_ACTOR_ID, to=[_COORDINATOR_ID]
+        )
+        tree = create_accept_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=offer.id_,
+            sender_id=_CASE_ACTOR_ID,
+            answer_id=reply.id_,
+            now=now_utc(),
+            sender_rule=(
+                AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement
+            ),
         )
 
-        result = BTBridge(
-            datalayer=dl, sync_port=SyncActivityAdapter(dl)
-        ).execute_with_setup(tree=tree, actor_id=_COORDINATOR_ID)
+        BTBridge(
+            datalayer=replica,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(replica),
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=_COORDINATOR_ID,
+            activity=make_payload(reply, receiving_actor_id=_COORDINATOR_ID),
+        )
 
-        assert result.status.name == "SUCCESS"
+        gate = next(
+            c for c in tree.children if c.name == "ClockDecisionsIfCaseManager"
+        )
+        decision = find_node(tree, ExpireOverdueOwnershipOfferNode)
+        assert gate.status is Status.SUCCESS
+        assert decision is not None and decision.status is Status.INVALID
+        assert _expiry_entries(replica) == []
         assert _expiry_entries(dl) == []
+
+
+class TestTheActivityIsNotTheEvidence:
+    """CLP-10-025: the reply prompts the expiry, the clock decides it."""
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CM-21-017")
+    @pytest.mark.parametrize(
+        "claimed",
+        # Inside the ledger's clock-skew tolerance (CLP-14-006/007), and on
+        # either side of each deadline below.
+        [timedelta(minutes=-4), timedelta(minutes=4)],
+        ids=["claims-before-deadline", "claims-after-deadline"],
+    )
+    @pytest.mark.parametrize(
+        "deadline, expires",
+        [(timedelta(seconds=-5), True), (timedelta(minutes=2), False)],
+        ids=["deadline-passed", "deadline-ahead"],
+    )
+    def test_claimed_published_time_does_not_change_the_expiry_verdict(
+        self, make_payload, claimed, deadline, expires
+    ):
+        """Whatever the Accept claims about when it was sent, the expiry is
+        decided from the CASE_MANAGER's clock, and its entry carries that
+        clock's reading, not the claim."""
+        case_id = "https://example.org/cases/case_dl_published"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            _COORDINATOR_ID, f"{case_id}/offer", end_time=now_utc() + deadline
+        )
+        claimed_published = now_utc() + claimed
+        accept = accept_case_ownership_transfer_activity(
+            offer,
+            actor=_COORDINATOR_ID,
+            to=[_CASE_ACTOR_ID],
+            published=claimed_published,
+        )
+
+        result = _accept(dl, make_payload, offer, accept=accept)
+
+        if expires:
+            assert result.disposition is HandlerDisposition.REFUSED
+            (entry,) = _expiry_entries(dl)
+            # Stamped with the CASE_MANAGER's clock, not the Accept's claim.
+            stamped = datetime.fromisoformat(
+                entry.payload_snapshot["published"]
+            )
+            assert abs(stamped - now_utc()) < timedelta(minutes=1)
+        else:
+            assert result.disposition is HandlerDisposition.APPLIED
+            assert _expiry_entries(dl) == []
 
 
 @pytest.mark.spec("CM-21-005")
@@ -389,20 +466,39 @@ class TestOnlyThePartyPromptsTheExpiry:
 @pytest.mark.spec("CM-23-013")
 @pytest.mark.spec("CM-21-017")
 def test_expiry_changes_nothing_once_the_case_is_fully_closed(make_payload):
-    """After ``case_fully_closed`` the CASE_MANAGER commits no expiry."""
+    """After ``case_fully_closed`` the door guard ends the tree before the
+    clock decision, so the CASE_MANAGER commits no expiry."""
     case_id = "https://example.org/cases/case_dl_closed"
-    dl, _, _, _ = _expired_offer(make_payload, case_id)
+    dl, _, _, offer = _expired_offer(make_payload, case_id)
     commit_case_fully_closed(dl, case_id, _VENDOR_ID)
     entries_before = _event_types(dl)
-    tree = create_ownership_offer_expiry_tree(case_id=case_id, now=now_utc())
 
-    result = BTBridge(
-        datalayer=dl,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_ID)
+    result = _accept(dl, make_payload, offer)
 
-    assert result.status.name == "SUCCESS"
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason is not None and "CM-23-013" in result.reason
+    assert _event_types(dl) == entries_before
+    assert _expiry_entries(dl) == []
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CM-21-019")
+@pytest.mark.spec("CM-21-017")
+def test_an_offer_from_a_non_owner_ledgers_no_expiry(make_payload):
+    """The Offer's sender guard runs before the clock decision, so a sender
+    that is not the Case Owner never makes the CASE_MANAGER ledger the open
+    Offer's expiry."""
+    case_id = "https://example.org/cases/case_dl_non_owner_offer"
+    dl, deliver, _, _ = _expired_offer(make_payload, case_id)
+    entries_before = _event_types(dl)
+
+    second, _ = deliver(
+        "https://example.org/users/vendor2",
+        f"{case_id}/offer2",
+        offerer="https://example.org/users/mallory",
+    )
+
+    assert second is HandlerDisposition.REFUSED
     assert _event_types(dl) == entries_before
     assert _expiry_entries(dl) == []
 

@@ -27,10 +27,11 @@ The manage_case workflow corresponds to:
     docs/howto/activitypub/activities/manage_case.md
 
 Key activities demonstrated:
-- RmSubmitReportActivity (as:Offer) — finder submits a report to vendor
+- Report Submission (as:Offer) — finder submits a report to vendor through
+  its own ``submit-report`` trigger
 - RmValidateReportActivity (as:Accept) — vendor validates the report
 - RmInvalidateReportActivity (as:TentativeReject) — vendor invalidates the report
-- CreateCaseActivity (as:Create) — vendor creates a as_VulnerabilityCase
+- ``create-case`` trigger — vendor mints a as_VulnerabilityCase
 - RmEngageCaseActivity (as:Join) — actor actively engages the case (RM → ACCEPTED)
 - RmDeferCaseActivity (as:Ignore) — actor defers the case (RM → DEFERRED)
 - RmCloseCaseActivity (as:Leave) — actor closes the case (RM → CLOSED)
@@ -56,7 +57,11 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import create_case_via_trigger
+from vultron.demo.helpers.workflow import (
+    reporter_submits_report,
+    submit_validate_and_create_case,
+    verify_reporter_trusts_introduction,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -71,14 +76,11 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     verify_object_stored,
 )
 from vultron.wire.as2.factories import (
-    add_report_to_case_activity,
     rm_close_case_activity,
     rm_close_report_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
     rm_invalidate_report_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 
 # Vultron imports
@@ -108,33 +110,17 @@ def setup_report_and_case(
 
     Returns the created report and case objects.
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content=report_content,
-        name=report_name,
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer, actor=vendor.id_, content="Confirmed — vulnerability verified."
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = create_case_via_trigger(
-        client, vendor, name=case_name, content=case_content
-    )
-
     # The trigger-minted case already lists the vendor as participant.
-    add_report = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
+    return submit_validate_and_create_case(
+        client,
+        finder,
+        vendor,
+        report_name=report_name,
+        report_content=report_content,
+        validation_note="Confirmed — vulnerability verified.",
+        case_name=case_name,
+        case_content=case_content,
     )
-    post_to_inbox_and_wait(client, vendor.id_, add_report)
-
-    return report, case
 
 
 def demo_engage_path(
@@ -299,20 +285,19 @@ def demo_invalidate_path(
 
     report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            content="The login page shows a different error for valid vs invalid "
-            "usernames.",
-            name="Alleged Username Enumeration",
+        # Through the finder's own submit-report trigger (CBT-01-005, #4675).
+        report, offer = reporter_submits_report(
+            client,
+            finder,
+            vendor,
+            reporter_client=client,
+            report_name="Alleged Username Enumeration",
+            report_content=(
+                "The login page shows a different error for valid vs invalid "
+                "usernames."
+            ),
         )
-        logger.info("Created report: %s", logfmt(report))
-        offer = rm_submit_report_activity(
-            report, actor=finder.id_, to=vendor.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, offer)
-        with demo_check("Report and offer stored"):
-            verify_object_stored(client, report.id_)
-            verify_object_stored(client, offer.id_)
+        logger.info("Submitted report: %s", logfmt(report))
 
     stored_offer = None
     with demo_step(
@@ -341,8 +326,12 @@ def demo_invalidate_path(
         with demo_check("RmCloseReportActivity activity stored"):
             verify_object_stored(client, close_report.id_)
 
+    # The case was created on receipt (auto_create_case), so the vendor still
+    # introduces it to the finder (CBT-01-001); it is never engaged.
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
+
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report invalidated and closed (no case created)."
+        "✅ DEMO 3 COMPLETE: Report invalidated and closed (no case engaged)."
     )
 
 

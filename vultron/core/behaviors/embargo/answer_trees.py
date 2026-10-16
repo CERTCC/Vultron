@@ -32,12 +32,14 @@ CS-18-001 size cap; it re-exports both factories.
 """
 
 import logging
+from datetime import datetime
 
 import py_trees
 
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.expiry_tree import invite_expiry_decision
 from vultron.core.behaviors.embargo.nodes import (
     IsRejectableEmbargoNode,
     RecordParticipantAcceptanceNode,
@@ -45,9 +47,13 @@ from vultron.core.behaviors.embargo.nodes import (
     RejectIsNotWithdrawalNode,
     ValidateCaseExistsNode,
 )
+from vultron.core.behaviors.embargo.nodes.answer_record import (
+    case_manager_admits_answer_change_guard,
+)
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
+from vultron.core.behaviors.embargo.nodes.expiry import InviteNotExpiredNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
@@ -69,18 +75,29 @@ def accept_invite_to_embargo_tree(
     invite_id: str,
     *,
     sender_rule: SenderRule,
+    now: datetime,
+    published: str,
+    expiry_out: dict[str, object],
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting an embargo invitation.
 
     Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity: the
-    sender's own consent, the case owner's included (ADR-0122).  Records the
-    acceptance via EmbargoLifecycle, moving no register entry, and commits a
-    canonical ledger entry.  Only the CASE_MANAGER records it (BT-17-001); any
-    other receiver's gate turns it away and the handler reports a refusal.
+    sender's own consent, the case owner's included (ADR-0122).  The Accept's
+    canonical entry is the accepter's row's entry: the ``AGREED`` row it
+    states is applied by copying (ADR-0124), and it moves no register entry.
+    Only the CASE_MANAGER records it (BT-17-001); any other receiver's gate
+    turns it away and the handler reports a refusal.
     The owner's activation of a proposal is a separate activity
     (``activate_embargo_on_case_tree``), so no revision becomes active here;
     the backfill still runs because a participant that accepts the embargo in
     force becomes a signatory the fan-out of this entry withheld (CM-10-006).
+
+    The CASE_MANAGER first evaluates the Invite's RSVP deadline, a clock
+    decision the factory runs after the door guards (CLP-10-025, CM-28-014):
+    an expired invitation is ledgered ``TIMED_OUT`` (CM-28-009) and
+    :class:`~vultron.core.behaviors.embargo.nodes.expiry.InviteNotExpiredNode`
+    then refuses the Accept as an answer, so the handler routes it as a late
+    Accept (EMB-17-001), reading *expiry_out*.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -89,6 +106,13 @@ def accept_invite_to_embargo_tree(
         invite_id: ID of the InviteToEmbargoOnCase activity.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
+        now: The CASE_MANAGER's clock reading the RSVP deadline is compared
+            against.
+        published: The Accept's claimed ``published`` time, carried as
+            received on the expiry entry (CLP-15-003); it decides nothing.
+        expiry_out: Receives the expiry decision's ``IS_EXPIRED_KEY`` and
+            ``NEEDS_APPLY_KEY`` at the CASE_MANAGER; the handler reads it to
+            route a late Accept.
 
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
@@ -100,8 +124,26 @@ def accept_invite_to_embargo_tree(
         sender_context=SenderCheckContext(
             sender_id=accepting_actor_id, case_id=case_id, invite_id=invite_id
         ),
+        clock_decisions=[
+            invite_expiry_decision(
+                case_id=case_id,
+                invitee_id=accepting_actor_id,
+                invite_id=invite_id,
+                embargo_id=embargo_id,
+                published=published,
+                now=now,
+                result_out=expiry_out,
+            )
+        ],
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
+            # A late Accept is not an answer: the handler routes it by its
+            # compatibility with the case's embargo (EMB-17-001).
+            InviteNotExpiredNode(
+                result_out=expiry_out,
+                invitee_id=accepting_actor_id,
+                case_id=case_id,
+            ),
             # A repeat of an Accept already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-003).
             case_manager_admits_embargo_answer_guard(
@@ -109,6 +151,12 @@ def accept_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 answering_actor_id=accepting_actor_id,
                 answer=EmbargoConsentState.AGREED,
+            ),
+            # The Accept's entry carries the row it states (ADR-0122), so an
+            # Accept that records nothing the case can take is refused before
+            # it is committed.
+            case_manager_admits_answer_change_guard(
+                case_id, embargo_id, accepting_actor_id, accept=True
             ),
         ],
         manager_effects=[
@@ -154,9 +202,10 @@ def reject_invite_to_embargo_tree(
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
+        ├─ EmbargoAnswerApplies (CASE_MANAGER gate)  # the row can be written
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
-           └─ RecordParticipantRejectionNode  # consent (MSM-07-004)
+           └─ RecordParticipantRejectionNode  # the row the Reject states
 
     The guard refuses a Reject naming an embargo that is neither active nor
     an open proposal (a late Reject of a decided proposal, or an unknown
@@ -204,6 +253,10 @@ def reject_invite_to_embargo_tree(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 rejecting_actor_id=rejecting_actor_id,
+            ),
+            # The Reject's entry carries the row it states (ADR-0122).
+            case_manager_admits_answer_change_guard(
+                case_id, embargo_id, rejecting_actor_id, accept=False
             ),
         ],
         manager_effects=[

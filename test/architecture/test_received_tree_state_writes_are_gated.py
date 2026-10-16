@@ -269,6 +269,14 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     (f"{_B}.case.nodes.embargo_resolution", "CaseNotEmbargoEligibleNode"): (
         "asks EmbargoLifecycle whether the case is eligible; writes nothing"
     ),
+    (f"{_B}.embargo.nodes.answer_record", "EmbargoAnswerAppliesNode"): (
+        "runs the answer's EmbargoLifecycle decision on a staged store;"
+        " writes nothing"
+    ),
+    (f"{_B}.embargo.nodes.withdrawal", "EmbargoWithdrawalAppliesNode"): (
+        "runs the withdrawal's EmbargoLifecycle decision on a staged store;"
+        " writes nothing"
+    ),
     (f"{_B}.case.nodes.intake", "IntakeReceivedActivityNode"): _ARCHIVE,
     (
         f"{_B}.case.nodes.invite_ledger_backfill",
@@ -324,6 +332,9 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         "RecordCaseProposalRejectionNode",
     ): _LOCAL,
     (f"{_B}.dead_letter.nodes.store", "StoreDeadLetterRecordNode"): _ARCHIVE,
+    (f"{_B}.embargo.nodes.activation_commit", "ActivationAppliesNode"): (
+        "decides and trial-applies the activation on a copy; writes nothing"
+    ),
     (f"{_B}.embargo.nodes.cascade", "PersistEmbargoEventNode"): _ARCHIVE,
     (f"{_B}.embargo.nodes.expiry", "EvaluateInviteExpiryNode"): (
         "asks EmbargoLifecycle whether an invite expired; writes nothing"

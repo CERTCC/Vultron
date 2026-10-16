@@ -32,6 +32,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases.received._bt_verdict import applied_or_raise
 from vultron.core.use_cases.received._intake_only import run_intake_only
@@ -55,8 +56,12 @@ class CreateProcessingFaultReceivedUseCase:
         request: CreateProcessingFaultReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        # The received baseline supplies the trigger port to every use case;
+        # this one runs no tree that builds an activity, so it is unused.
+        del trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request = request

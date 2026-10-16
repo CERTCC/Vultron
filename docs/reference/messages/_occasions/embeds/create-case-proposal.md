@@ -7,7 +7,7 @@
     - **When…** a report receiver asks a Case Actor Service to open a case for a report
     - **Send:** `Create(CaseProposal)`
     - **Send to:** an actor outside any case
-    - **Sent by:** not yet checked (usually: vendor, coordinator)
+    - **Sent by:** the case proposal's author (usually: vendor, coordinator)
     - **Reference:** [Create case proposal](../../case_proposal.md#create-case-proposal)
 
     ??? example "Example activity"

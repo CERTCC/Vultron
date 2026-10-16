@@ -136,7 +136,7 @@ groups:
     when: a report receiver asks a Case Actor Service to open a case for a report
     send: Create(CaseProposal)
     send_to: an actor outside any case
-    sent_by: 'not yet checked (usually: vendor, coordinator)'
+    sent_by: 'the case proposal''s author (usually: vendor, coordinator)'
     semantics: create_case_proposal
     status: none
     description: Submits a case proposal for the attached report to the service's inbox. No

@@ -284,17 +284,25 @@ def make_embargo_case_with_actor(
         case.case_participants.append(pn_id)
 
     dl.create(case)
-    case_manager_participant = as_CaseParticipant(
-        id_=f"{case_id}/participants/case-actor-p",
-        attributed_to=case_manager_actor_id or case_actor_id,
-        context=case_id,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    dl.create(case_manager_participant)
-    case.case_participants.append(case_manager_participant.id_)
-    case.actor_participant_index[case_manager_actor_id or case_actor_id] = (
-        case_manager_participant.id_
-    )
+    manager_actor_id = case_manager_actor_id or case_actor_id
+    if manager_actor_id == author_id:
+        # One actor holds one participant record: the author's takes the
+        # CASE_MANAGER role rather than a second record for the same actor
+        # that the roster could not index (CM-19-001).
+        p1.add_role(CVDRole.CASE_MANAGER)
+        dl.save(p1)
+    else:
+        case_manager_participant = as_CaseParticipant(
+            id_=f"{case_id}/participants/case-actor-p",
+            attributed_to=manager_actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[manager_actor_id] = (
+            case_manager_participant.id_
+        )
     dl.save(case)
 
     embargo = as_EmbargoEvent(

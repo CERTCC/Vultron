@@ -35,6 +35,7 @@ from vultron.core.models.embargo_apply import (
     RegisterStep,
     RegisterStepKind,
     apply_embargo_change,
+    case_file_is_past,
     change_is_in_place,
     changed_objects,
 )
@@ -497,6 +498,62 @@ def test_a_dropped_entry_refuses_the_next_and_is_never_patched_over():
     rows_dropped = _apply_all(_case_file(), [_step(_K.PROPOSE, E1)])
     with pytest.raises(VultronEntryRefusedError, match="holds no row"):
         apply_embargo_change(rows_dropped, _update(ALICE, E1, _S.AGREED))
+    # A gap is never mistaken for a seed that is past the entry.
+    assert not case_file_is_past(
+        replica, _step(_K.TERMINATE, E1)
+    ) and not case_file_is_past(rows_dropped, _update(ALICE, E1, _S.AGREED))
+
+
+@pytest.mark.spec("CM-23-016")
+class TestASeedAheadOfTheEntry:
+    """A replica seeded after an entry replays it over that seed (ADR-0114).
+
+    Each entry the apply function refuses there is one the seed is already
+    past; :func:`case_file_is_past` says so, and a gap stays a gap.
+    """
+
+    _HISTORY: list[EmbargoChange] = [
+        *_proposed(E1),
+        _update(ALICE, E1, _S.AGREED),
+        _step(_K.ACTIVATE, E1),
+        *_proposed(E2),
+        _update(BOB, E2, _S.INVITED),
+        _update(BOB, E2, _S.AGREED),
+        _step(_K.ACTIVATE, E2),
+    ]
+
+    def test_every_entry_the_seed_refuses_is_one_it_is_past(self):
+        seed = _apply_all(_case_file(), self._HISTORY)
+        for change in self._HISTORY:
+            if change_is_in_place(seed, change):
+                continue
+            with pytest.raises(VultronEntryRefusedError):
+                apply_embargo_change(seed, change)
+            assert case_file_is_past(seed, change), change
+
+    def test_a_step_the_entry_has_not_reached_is_not_past(self):
+        proposed = _apply_all(_case_file(), [_step(_K.PROPOSE, E1)])
+        assert not case_file_is_past(proposed, _step(_K.ACTIVATE, E1))
+        assert not case_file_is_past(_case_file(), _step(_K.PROPOSE, E1))
+
+    def test_a_final_step_is_past_only_when_in_place(self):
+        """Final statuses lead nowhere, so another final step is a conflict."""
+        rejected = _apply_all(
+            _case_file(), [_step(_K.PROPOSE, E1), _step(_K.REJECT, E1)]
+        )
+        assert not case_file_is_past(rejected, _step(_K.CANCEL, E1))
+
+    def test_a_row_that_was_never_created_is_not_past(self):
+        proposed = _apply_all(_case_file(), [_step(_K.PROPOSE, E1)])
+        assert not case_file_is_past(proposed, _create(ALICE, E1))
+        assert not case_file_is_past(proposed, _update(ALICE, E1, _S.AGREED))
+
+    def test_a_row_no_later_state_explains_is_not_past(self):
+        """``UNINVITED`` follows no consent move, so it is behind, not past."""
+        proposed = _apply_all(_case_file(), _proposed(E1))
+        assert not case_file_is_past(
+            proposed, _update(ALICE, E1, _S.TIMED_OUT)
+        )
 
 
 class _NoClock(datetime):
