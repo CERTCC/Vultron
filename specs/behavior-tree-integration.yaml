@@ -609,8 +609,10 @@ groups:
       stage a received tree runs (CLP-10-025), and never as a separate tree
       run before it. The terminate-embargo trigger is the one exception: its
       own tree takes the end-time path once the end time has passed and
-      answers for it. A trigger that runs no tree changes no case state and
-      takes no clock decision.
+      answers for it. An embargo trigger also takes the overdue-invitation
+      sweep (CM-28-015) in that stage, after the case-wide decisions;
+      terminate-embargo takes the sweep alone. A trigger that runs no tree
+      changes no case state and takes no clock decision.
     rationale: >-
       An overdue embargo is a fact about the case, whatever the entry point.
       Without the check, a trigger such as accepting a pending revision would
@@ -620,9 +622,11 @@ groups:
     verification: >-
       `test/core/use_cases/triggers/test_base.py` asserts a case-scoped
       trigger's tree leads with the gated clock-decision stage, that a trigger
-      naming no case or an unknown one runs its own tree alone, and that
-      every case-scoped trigger in the registry takes the stage except
-      terminate-embargo and the one trigger that runs no tree;
+      naming no case or an unknown one runs its own tree alone, that every
+      case-scoped trigger in the registry takes the case-wide decisions
+      except terminate-embargo and the one trigger that runs no tree, and
+      that an embargo trigger's stage adds the sweep, terminate-embargo's
+      holding the sweep alone;
       `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
       asserts a trigger after the end time finds the embargo ended at its end
       time, that accepting, revising or withdrawing from the embargo then

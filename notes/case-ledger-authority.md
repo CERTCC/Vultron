@@ -287,9 +287,13 @@ Rules:
    participant's URI puts a foreign clock in its stream. A snapshot the
    CASE_MANAGER genuinely authors (its own URI, such as the `Leave` closure
    status entries) uses its own clock. One exception: the expired-invitation
-   entry from the owner-close settle step (CM-23-014) names the invitee in
-   `actor` but carries the CASE_MANAGER's clock, because the invitee sent
-   nothing. Do not copy it to an entry a participant's own entries can follow.
+   entry from the owner-close settle step (CM-23-014) or the overdue-invitation
+   sweep (CM-28-015) names the invitee in `actor` but carries the
+   CASE_MANAGER's clock, because the invitee sent nothing. When the sweep's
+   invitee is the sender of the activity that prompted it, its own entry would
+   precede that activity's entry, so it carries the activity's claimed time
+   instead, as the late-`Accept` expiry does. Do not copy the CASE_MANAGER's
+   clock to any other entry a participant's own entries can follow.
 4. **A missing or blank top-level inbound `published` is refused at parse**
    (CLP-15-006, MV-03-002): the wire default would otherwise pose the
    receiver's clock as the sender's claim. A present, non-blank but unreadable
