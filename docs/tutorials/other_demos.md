@@ -407,9 +407,10 @@ Three paths are shown:
 
 1. **Engage path** — submit, validate, create the case, engage, close.
 2. **Defer and re-engage path** — submit, validate, create the case, defer, re-engage, close.
-3. **Invalidate path** — submit, invalidate, close the report.
+3. **Invalidate path** — submit, invalidate, close the case opened for the report.
 
-Notice the RM state transitions logged at each step, and notice that the two closures differ: a case is closed with `Leave(VulnerabilityCase)`, while a report that never became a case is closed with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`.
+Notice the RM state transitions logged at each step, and notice that every path closes with `Leave(VulnerabilityCase)`: the vendor opened a case for each report on receipt, and once a case holds a report its owner closes the case, never the report.
+Only a report that no case holds is closed with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`.
 
 ```mermaid
 ---
@@ -438,8 +439,8 @@ sequenceDiagram
         Note over V: RM state = CLOSED
     else Path 3 — Invalidate
         V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-        V->>V: Report Closed (RC)<br/>Reject(Offer(VulnerabilityReport))
-        Note over V: No case created<br/>RM state = CLOSED
+        V->>V: Close Case<br/>Leave(VulnerabilityCase)
+        Note over V: Case never engaged<br/>RM state = CLOSED
     end
 ```
 
