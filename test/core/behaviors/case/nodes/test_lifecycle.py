@@ -691,10 +691,14 @@ def test_slash_spelled_different_actor_still_refused(bridge):
 
 @pytest.mark.spec("CLP-07-003")
 @pytest.mark.spec("OID-01-006")
-def test_inline_slash_spelled_snapshot_actor_commits(bridge):
+def test_inline_slash_spelled_snapshot_actor_passes_the_identity_check(
+    bridge,
+):
     """An inline actor object is read by its id, normalised, not by its
-    ``str()``: an inline sender profile spelled with a trailing slash
-    commits."""
+    ``str()``: an inline sender profile spelled with a trailing slash passes
+    the CLP-07-003 identity check and reaches the commit.  The commit tree is
+    mocked; the canonical-entry validation refuses a non-string snapshot
+    actor further on, which this test does not cover."""
     payload = _note_payload(ACTOR_ID, "https://example.org/notes/n5")
     payload["actor"] = {"id": ACTOR_ID + "/", "type": "Person"}
     activity = _FakeActivity(

@@ -33,7 +33,6 @@ This module MUST NOT import from ``vultron.core.behaviors``,
 """
 
 from collections.abc import Iterable, Mapping
-from typing import Any
 
 # Defined in ``vultron.primitives`` so the wire extractor and the received
 # event model can use them too (ARCH-22-001, OID-01-007); re-exported here,
@@ -90,7 +89,7 @@ def distinct_recipients(recipients: Iterable[str | None]) -> list[str]:
     return list(dict.fromkeys(normalise_actor_id(r) for r in recipients if r))
 
 
-def snapshot_actor_id(value: Any) -> str | None:
+def snapshot_actor_id(value: object) -> str | None:
     """Return the actor id an activity snapshot field names, normalised.
 
     A ledger entry's ``payloadSnapshot`` is the activity as the sender wrote
