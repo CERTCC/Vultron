@@ -146,7 +146,7 @@ def named_node_status(
     """The last status of the node called *name* in *tree*.
 
     For nodes that share a class and differ only by their place in the tree,
-    such as the two CASE_MANAGER sender checks of the announce tree.
+    such as the role checks of the announce tree's two arms.
 
     Raises:
         VultronWiringError: *tree* has no node called *name*, so the caller's

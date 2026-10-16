@@ -92,6 +92,9 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
@@ -897,7 +900,9 @@ def _entry_event(
 
 def _replay(replica: _Replica, event: AnnounceLogEntryReceivedEvent) -> None:
     result = BTBridge(datalayer=replica.dl).execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
         actor_id=replica.actor_id,
         activity=event,
         sync_port=SyncActivityAdapter(replica.dl),
