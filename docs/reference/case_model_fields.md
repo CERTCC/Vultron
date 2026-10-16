@@ -99,7 +99,6 @@ Participants hold zero or more roles as `list[CVDRole]`.
 
 | Role | Meaning |
 |---|---|
-| `FINDER` | Discovered the vulnerability (deprecated — see ADR-0078) |
 | `REPORTER` | Submitted the vulnerability report to others |
 | `VENDOR` | Supplies the affected product; has Vendor Fix Path obligations |
 | `DEPLOYER` | Deploys the vendor's fix; has deployment obligations |
@@ -150,7 +149,6 @@ classDiagram
 
     class CVDRole {
         <<enumeration>>
-        FINDER
         REPORTER
         VENDOR
         DEPLOYER
