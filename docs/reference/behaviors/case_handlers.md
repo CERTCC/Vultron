@@ -139,8 +139,11 @@ if str(_repo) not in sys.path:
 
 import py_trees
 from vultron.core.behaviors.sync.announce_tree import create_announce_log_entry_tree
+from vultron.core.use_cases.received.sync import AnnounceLedgerEntryReceivedUseCase
 
-tree = create_announce_log_entry_tree()
+tree = create_announce_log_entry_tree(
+    sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement,
+)
 print("```")
 print(py_trees.display.unicode_tree(tree))
 print("```")

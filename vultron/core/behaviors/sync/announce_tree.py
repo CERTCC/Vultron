@@ -26,7 +26,8 @@ from vultron.core.behaviors.embargo.nodes import (
     IsActivateEmbargoEventNode,
     IsRejectEmbargoProposalEventNode,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsCaseManagerNode
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import LedgerActivityContext
 from vultron.core.behaviors.sync.nodes import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyCaseParticipantUpdateFromLedgerNode,
@@ -190,24 +191,33 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     ]
 
 
-#: The CASE_MANAGER's sender check on its own announcement echoed back to it.
-SENDER_IS_OWN_CASE_MANAGER = "SenderIsOwnCaseManager"
-
-#: A participant's sender check on an announcement from the CASE_MANAGER.
-SENDER_IS_CASE_MANAGER = "SenderIsCaseManager"
+#: The role check of the CASE_MANAGER arm: past the sender guard, an
+#: announcement it admits is the CASE_MANAGER's own, echoed back.
+AT_CASE_MANAGER = "CheckIsCaseManager"
 
 
-def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
-    # At the CASE_MANAGER an announcement is its own, echoed back: the sender
-    # must be the CASE_MANAGER itself.  That is CASE_MANAGER standing, read
-    # from the same resolve_case_manager_id identity CheckIsCaseManager just
-    # matched against this actor (HP-01-009, #4437).
+def create_announce_log_entry_tree(
+    *, sender_rule: SenderRule
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for an inbound ``Announce(CaseLedgerEntry)``.
+
+    The sender must be the CASE_MANAGER of the case the announced entry
+    names (SYNC-13-006, HP-01-006).  The factory composes that guard from the
+    use case's declared rule, ahead of both role arms; its node reads the case
+    from the entry when the tree runs
+    (:class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`).
+    At the CASE_MANAGER an admitted announcement is therefore its own, echoed
+    back, and only confirms delivery; at a participant it is processed
+    against the local chain.
+
+    Args:
+        sender_rule: The use case's declared sender rule (HP-01-008).
+    """
     case_actor_subtree = py_trees.composites.Sequence(
         name="CaseActorSubtree",
         memory=False,
         children=[
-            CheckIsCaseManagerNode(name="CheckIsCaseManager"),
-            SenderIsCaseManagerNode(name=SENDER_IS_OWN_CASE_MANAGER),
+            CheckIsCaseManagerNode(name=AT_CASE_MANAGER),
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
         ],
     )
@@ -423,7 +433,6 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 name="CheckIsNotCaseManager",
                 child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
             ),
-            SenderIsCaseManagerNode(name=SENDER_IS_CASE_MANAGER),
             entry_processing,
         ],
     )
@@ -434,6 +443,8 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="AnnounceLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
+        sender_rule=sender_rule,
+        sender_context=LedgerActivityContext(),
         replica_effects=[
             py_trees.composites.Selector(
                 name="AnnounceLogEntryRoles",

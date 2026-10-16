@@ -1,9 +1,7 @@
 | State | Meaning |
 |---|---|
-| Unbound | This participant is not bound by any embargo terms; the initial state |
-| Invited | The participant has an embargo invitation outstanding; its response is pending |
-| Signatory | The participant has accepted the current embargo terms |
-| Lapsed | The participant was a signatory to the previous embargo terms; the case owner replaced them with longer terms it has not yet accepted |
-| Declined | The participant explicitly refused the terms |
-| Expired | The participant was invited and did not answer before the deadline |
-| Unbound (exited) | Terminal: the embargo was terminated; no trigger leaves this state |
+| `UNINVITED` | Not asked about this embargo; the start state of every row |
+| `INVITED` | Asked, with no answer yet; carries that invitation's RSVP deadline |
+| `AGREED` | Agreed to this embargo: explicitly, as its proposer, by seeding, or by carry-over |
+| `DECLINED` | Explicitly refused this embargo, or withdrew from it |
+| `TIMED_OUT` | Invited, and the RSVP deadline passed with no answer; not a refusal |

@@ -60,8 +60,6 @@ Four more acronyms occur across the entries below:
 
 {% include-markdown "../../reference/vultron-spec/_oq-embargo-termination-authority.md" %}
 
-{% include-markdown "../../reference/vultron-spec/_oq-pec-unbound-declined-collapse.md" %}
-
 ---
 
 ## History and delivery
