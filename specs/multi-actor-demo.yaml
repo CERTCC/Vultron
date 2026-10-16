@@ -377,11 +377,11 @@ groups:
       Actor inbox, not through dedicated low-level state-machine endpoints.
       RM case closure is explicitly excluded from this requirement: RM.CLOSED MUST be
       reached via the Leave(VulnerabilityCase) round-trip (CM-23-001), not via
-      Add(ParticipantStatus, rm_state=RM.CLOSED).
+      Add(ParticipantStatus, rmState=CLOSED).
     rationale: >-
       PR #1909 (issue #1858) changed RM case closure to flow through
       Leave(VulnerabilityCase) → Case Actor ledger commit → broadcast, rather than
-      Add(ParticipantStatus, rm_state=RM.CLOSED).  This makes the Case Actor the
+      Add(ParticipantStatus, rmState=CLOSED).  This makes the Case Actor the
       authority for closure and prevents ghost-departures from lost messages.
       See ADR-0050.
     relationships:

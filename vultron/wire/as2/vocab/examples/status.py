@@ -134,17 +134,17 @@ def _add_participant_status(
 
 
 def add_vendor_awareness_to_participant() -> as_Add:
-    """Vendor awareness (CV): the Vendor's ``vf_state`` moves to ``Vf``."""
+    """Vendor awareness (CV): the Vendor's ``vfState`` moves to ``Vf``."""
     return _add_participant_status(2, "vendor", CVDRole.VENDOR, vf=CS_vf.Vf)
 
 
 def add_fix_readiness_to_participant() -> as_Add:
-    """Fix readiness (CF): the Vendor's ``vf_state`` moves to ``VF``."""
+    """Fix readiness (CF): the Vendor's ``vfState`` moves to ``VF``."""
     return _add_participant_status(3, "vendor", CVDRole.VENDOR, vf=CS_vf.VF)
 
 
 def add_fix_deployment_to_participant() -> as_Add:
-    """Fix deployed (CD): the Deployer's ``d_state`` moves to ``D``."""
+    """Fix deployed (CD): the Deployer's ``dState`` moves to ``D``."""
     return _add_participant_status(4, "deployer", CVDRole.DEPLOYER, d=CS_d.D)
 
 

@@ -497,6 +497,6 @@ The owner's decision and each participant's consent are different messages
   change of answer is normal, not a repeat, and is recorded with one ledger
   entry: withdrawal (a Reject until #4388 adds `Leave`), or an Accept after a
   Reject, which moves the row straight to `AGREED`.
-- **Full case delivery needs both** `rm_state == ACCEPTED` and signatory status
+- **Full case delivery needs both** `rm.state == ACCEPTED` and signatory status
   (or no active embargo), checked in the `AcceptInviteActorToCase` BT subtree,
   not in post-BT code (MV-10-005).

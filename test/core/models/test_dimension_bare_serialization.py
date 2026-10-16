@@ -108,18 +108,18 @@ class TestBareSerialization:
 #: (label, core kwargs, wire kwargs) — the same state expressed either way.
 _EQUIVALENT_STATES = [
     ("default", {}, {}),
-    ("rm_only", {"rm_state": RM.RECEIVED}, {"rm_state": RM.RECEIVED}),
+    ("rm_only", {"rm": RM.RECEIVED}, {"rm": RM.RECEIVED}),
     (
         "vendor",
         {
-            "rm_state": RM.VALID,
-            "vf_state": CS_vf.Vf,
+            "rm": RM.VALID,
+            "vf": CS_vf.Vf,
             "cvd_role": [CVDRole.VENDOR],
             "tracking_id": "VU#123",
         },
         {
-            "rm_state": RM.VALID,
-            "vf_state": CS_vf.Vf,
+            "rm": RM.VALID,
+            "vf": CS_vf.Vf,
             "cvd_role": [CVDRole.VENDOR],
             "tracking_id": "VU#123",
         },
@@ -127,30 +127,30 @@ _EQUIVALENT_STATES = [
     (
         "deployer",
         {
-            "rm_state": RM.ACCEPTED,
-            "d_state": CS_d.D,
+            "rm": RM.ACCEPTED,
+            "d": CS_d.D,
             "cvd_role": [CVDRole.DEPLOYER],
         },
         {
-            "rm_state": RM.ACCEPTED,
-            "d_state": CS_d.D,
+            "rm": RM.ACCEPTED,
+            "d": CS_d.D,
             "cvd_role": [CVDRole.DEPLOYER],
         },
     ),
     (
         "all_set",
         {
-            "rm_state": RM.ACCEPTED,
-            "vf_state": CS_vf.VF,
-            "d_state": CS_d.D,
+            "rm": RM.ACCEPTED,
+            "vf": CS_vf.VF,
+            "d": CS_d.D,
             "cvd_role": [CVDRole.VENDOR, CVDRole.DEPLOYER],
             "tracking_id": "VU#9",
             "case_engagement": False,
         },
         {
-            "rm_state": RM.ACCEPTED,
-            "vf_state": CS_vf.VF,
-            "d_state": CS_d.D,
+            "rm": RM.ACCEPTED,
+            "vf": CS_vf.VF,
+            "d": CS_d.D,
             "cvd_role": [CVDRole.VENDOR, CVDRole.DEPLOYER],
             "tracking_id": "VU#9",
             "case_engagement": False,
@@ -166,14 +166,14 @@ _EQUIVALENT_STATES = [
     (
         "nested_case_status",
         {
-            "rm_state": RM.VALID,
+            "rm": RM.VALID,
             "case_status": {
                 "id": "urn:uuid:cs-nested",
                 "context": "urn:case:1",
             },
         },
         {
-            "rm_state": RM.VALID,
+            "rm": RM.VALID,
             "case_status": as_CaseStatus(
                 id_="urn:uuid:cs-nested", context="urn:case:1"
             ),
@@ -294,11 +294,10 @@ class TestStatePersistsThroughTheNormalisationRoundTrip:
         assert CaseStatus.model_validate(data).em.state is EM.EXITED
 
     def test_rm_state_survives_the_normalisation_round_trip(self):
-        # Built through ``model_validate`` rather than keyword arguments: the
-        # legacy flat ``rm_state`` spelling is accepted via ``AliasChoices``,
-        # which is a validation-time alias and not a declared parameter name.
+        # Built through ``model_validate`` from the wire spelling: ``rmState``
+        # is a validation-time alias, not a declared parameter name.
         status = ParticipantStatus.model_validate(
-            {"context": "urn:case:1", "rm_state": RM.ACCEPTED}
+            {"context": "urn:case:1", "rmState": RM.ACCEPTED}
         )
 
         data = self._normalised(status)

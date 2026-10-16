@@ -197,7 +197,11 @@ groups:
       defines no `em_state` or `pxa_state` property or field and refuses either key on input through `extra="forbid"`;
       `test_flat_case_status_spelling_is_a_near_miss_of_its_wire_spelling` and `test_retired_name_on_inline_object_is_refused`
       in `test/wire/as2/test_unknown_key_disposition.py` pin the parse-edge refusal of the flat CaseStatus spellings and
-      of `vfd_state`. The `ParticipantStatus.rm_state` shim is retired by #4377.'
+      of `vfd_state`. `TestParticipantStatusCarriesNoFlatShim` in
+      `test/core/models/test_participant_status_shape.py`
+      and `test_flat_participant_status_spelling_is_a_near_miss_of_its_wire_spelling`
+      pin the same for the
+      `ParticipantStatus` spellings `rm_state`, `vf_state` and `d_state` (#4377).'
     rationale: Keeping both representations creates an extended half-migrated state and perpetuates the flat-enum problem.
       See ADR-0036.
     adr:
@@ -221,20 +225,34 @@ groups:
   - id: SDO-03-005
     priority: MUST
     kind: project
-    statement: Because unknown keys are ignored by default in Pydantic v2, removing a flat-field migration shim from `CaseStatus`
-      or `ParticipantStatus` MUST NOT leave a retired flat key (`rm_state`/`rmState`, `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`,
-      `em_state`/`emState`, `pxa_state`/`pxaState`) silently discardable. The guarantee MUST be the `extra="forbid"` model
-      configuration that ARCH-12-003 requires of every core-branch type, not a per-class `model_validator(mode="before")`
-      reject-guard; such a guard MUST NOT be added or retained for this purpose.
+    statement: Because unknown keys are ignored by default in Pydantic v2, removing a
+      flat-field migration shim from `CaseStatus` or `ParticipantStatus` MUST NOT leave
+      a retired flat key (`rm_state`, `vf_state`, `d_state`, `vfd_state`/`vfdState`,
+      `em_consent_state`/`emConsentState`, `em_state`, `pxa_state`) silently
+      discardable. The camelCase `rmState`, `vfState`, `dState`, `emState` and
+      `pxaState` are the wire aliases of the dimension fields (SDO-01), not retired
+      keys. The guarantee MUST be the `extra="forbid"` model configuration that
+      ARCH-12-003 requires of every core-branch type, not a per-class
+      `model_validator(mode="before")` reject-guard; such a guard MUST NOT be added or
+      retained for this purpose.
     rationale: 'With `extra="ignore"`, a flat `rm_state` key would be silently discarded and `rm.state` would default to `RM.START`
       — a whole RM ladder lost with no error, which is the defect class of issue #2232 and a violation of ARCH-15-001/ARCH-15-002.
       `extra="forbid"` is strictly stronger than a reject-guard enumerating the known flat keys: it also catches typos and
       stale keys from an older schema, needs no per-class maintenance, and covers every registered core type rather than the
       two named here. Because Pydantic itself raises, the failure surfaces as a pydantic `ValidationError` rather than
       `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 retired the ADR-0062 backstop, and ADR-0099 keeps `extra="forbid"` as the guard).'
-    verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise pydantic
-      `ValidationError`; neither yields a model whose `rm.state` is `RM.START`. No `CaseStatus` or `ParticipantStatus` class
-      declares a `model_validator(mode="before")` reject-guard for those keys.'
+    verification: '`TestParticipantStatusCarriesNoFlatShim` in
+      `test/core/models/test_participant_status_shape.py` asserts that
+      `ParticipantStatus.model_validate` with `rm_state`, `vf_state` or `d_state` raises
+      a
+      pydantic `ValidationError` (`extra_forbidden`) rather than yielding a default
+      state,
+      that the wire spellings `rmState`, `vfState` and `dState` are read into the
+      dimension,
+      and that the class declares no reject-guard before-validator.
+      `TestCaseStatusCarriesNoFlatShim` in `test/core/models/test_dimensions.py` pins
+      the
+      same for `em_state` and `pxa_state`.'
     relationships:
     - rel_type: depends_on
       spec_id: SDO-03-003

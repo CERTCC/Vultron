@@ -48,7 +48,7 @@ Case Actor inbox receives Offer:
 The owner asks for the transfer by sending its own offer to the CASE_MANAGER — in the prototype, the Case Actor.
 The owner's offer leaves from the owner's own outbox, under the owner's own identity: no container sends a message as an actor it does not host ([CM-24-004](../../reference/specs/architecture.md#cm-24-004), [ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
 The CASE_MANAGER records the offer in the ledger, so every participant learns that a transfer is being offered, and then forwards the offer to the proposed new owner.
-It accepts an offer only from the current Case Owner, and refuses one from anyone else before it writes or sends anything ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)).
+It admits an offer only from the current Case Owner, and refuses one from anyone else before it writes or sends anything ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)).
 The proposed new owner, in turn, takes the offer only as the CASE_MANAGER's forward.
 The forwarded `Offer` is a new activity with its own `id`: the proposed new owner never sees the original offer, whose `id` exists only in the owner's and the CASE_MANAGER's stores.
 The forwarded offer points back to the recorded offer: its `inReplyTo` is the recorded offer's `id` ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
@@ -81,7 +81,7 @@ The CASE_MANAGER acts on an acceptance only when its sender is the proposed owne
 That offer must also still be open, with no other answer to it recorded.
 The proposed owner answers the forwarded offer, so the CASE_MANAGER matches the answer to its recorded offer through the forwarded offer's `inReplyTo` link, never by when the offers were sent ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
 An answer to a forwarded offer that carries no link, or whose link names no recorded offer for that case and proposed owner, is refused, and nothing is recorded or sent.
-It refuses an acceptance from anyone else, or a second acceptance of the same offer, and ownership stays where it was.
+It refuses an `Accept` from anyone else, or a second `Accept` of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
 On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
@@ -115,19 +115,19 @@ Case Actor inbox receives Reject:
   2. Announce(CaseLedgerEntry) → all participants.
 ```
 
-The proposed owner refuses an offer with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/protocol.md#trig-11-005)), and the refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
-The protocol treats a refusal like an acceptance: the CASE_MANAGER records it in the ledger and sends the entry to every participant, which is how the participant who made the offer learns of it ([CM-21-012](../../reference/specs/protocol.md#cm-21-012)).
-Only the proposed owner named in an open offer may refuse it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
-The CASE_MANAGER does not act on a refusal from anyone else: it records nothing, and the offer stays open.
+The proposed owner declines an offer by sending a `Reject` with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/protocol.md#trig-11-005)), and the `Reject` is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
+The protocol treats a `Reject` like an `Accept`: the CASE_MANAGER records it in the ledger and sends the entry to every participant, which is how the participant who made the offer learns of it ([CM-21-012](../../reference/specs/protocol.md#cm-21-012)).
+Only the proposed owner named in an open offer may decline it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
+The CASE_MANAGER does not act on a `Reject` from anyone else: it records nothing, and the offer stays open.
 Ownership stays where it was: the ledger entry closes the offer, and no participant's copy of the case changes in any other way.
 
 ## Offering again, withdrawing, and the deadline
 
 A case has at most one open offer at a time ([CM-21-014](../../reference/specs/protocol.md#cm-21-014)).
-An offer stays open until the ledger records that it was accepted, refused, withdrawn, or expired.
+An offer stays open until the ledger records that it was accepted, declined, withdrawn, or expired.
 While it is open, the CASE_MANAGER refuses a new offer for the case, and neither records nor forwards it.
-Once it is closed, the owner may offer the case again to anyone, including a participant that refused, with nothing to clear first.
-A closed offer cannot be answered again: an acceptance after a refusal, or a refusal after an acceptance, is refused.
+Once it is closed, the owner may offer the case again to anyone, including a participant that declined, with nothing to clear first.
+A closed offer cannot be answered again: an `Accept` after a `Reject`, or a `Reject` after an `Accept`, is refused.
 
 ```text
 Offering owner sends trigger: withdraw-case-ownership-transfer
@@ -144,7 +144,7 @@ Case Actor inbox receives Undo:
 The owner that made an offer may withdraw it while it is open, with the `withdraw-case-ownership-transfer` trigger, which sends an `Undo` of the offer to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015), [TRIG-11-006](../../reference/specs/protocol.md#trig-11-006)).
 The CASE_MANAGER acts on a withdrawal only when its sender is the Case Owner that made an offer it recorded for the case, and that offer is still open.
 It records the withdrawal in the ledger and sends the entry to every participant, so the proposed owner learns that it can no longer accept, and the offer is closed.
-It refuses a withdrawal from anyone else, or of an offer already accepted, refused, withdrawn, or expired, and records and sends nothing.
+It refuses a withdrawal from anyone else, or of an offer already accepted, declined, withdrawn, or expired, and records and sends nothing.
 Ownership stays where it was, and the owner may offer the case again at once.
 
 ```text
@@ -166,15 +166,15 @@ The owner sets it with the `end_time` field of the `offer-case-ownership-transfe
 The forwarded offer carries the same deadline, so the proposed owner knows when it can no longer answer.
 The CASE_MANAGER reads the deadline in Coordinated Universal Time (UTC), whatever offset the offer was sent with.
 
-The deadline is binding: the CASE_MANAGER refuses an acceptance or refusal it processes after the deadline, so every participant knows who decides for the case once it passes.
+The deadline is binding: the CASE_MANAGER refuses an `Accept` or `Reject` it processes after the deadline, so every participant knows who decides for the case once it passes.
 A refused late answer moves no role and is not recorded in the ledger.
 This is stricter than the deadline on an embargo invitation, which is a strong suggestion.
 
-The CASE_MANAGER checks the deadline only when it handles an acceptance, refusal or withdrawal of the offer, or a new offer for the case; nothing runs on a timer ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
+The CASE_MANAGER checks the deadline only when it handles an `Accept`, `Reject` or withdrawal of the offer, or a new offer for the case; nothing runs on a timer ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
 When it finds the open offer past its deadline, it first records the expiry in the ledger and sends the entry to every participant, and then handles the activity.
-Only the proposed owner's acceptance or refusal, or the offering owner's withdrawal, prompts this check, so an actor with no part in the offer cannot make the CASE_MANAGER record anything ([HP-01-006](../../reference/specs/protocol.md#hp-01-006)).
-The expiry entry is distinct from a refusal: nobody declined, the deadline passed.
-It closes the offer like an acceptance, a refusal or a withdrawal, so a late answer is refused, a withdrawal of the expired offer is refused, and a new offer for the case is admitted.
+Only the proposed owner's `Accept` or `Reject`, or the offering owner's withdrawal, prompts this check, so an actor with no part in the offer cannot make the CASE_MANAGER record anything ([HP-01-006](../../reference/specs/protocol.md#hp-01-006)).
+The expiry entry is distinct from a `Reject`: nobody declined, the deadline passed.
+It closes the offer like an `Accept`, a `Reject` or a withdrawal, so a late answer is refused, a withdrawal of the expired offer is refused, and a new offer for the case is admitted.
 Only the CASE_MANAGER decides that an offer expired; every other participant learns it from the entry.
 
 Without withdrawal and the deadline, a proposed owner that never answered would block every later transfer of the case.
