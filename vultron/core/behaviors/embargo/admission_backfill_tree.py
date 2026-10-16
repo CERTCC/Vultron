@@ -31,11 +31,11 @@ build (``test/architecture/test_received_tree_case_manager_gate.py``).
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
-    ReissueStubInvitesNode,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.case.nodes.stub_reissue import (
+    ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,

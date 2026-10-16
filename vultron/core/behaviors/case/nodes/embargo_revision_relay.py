@@ -48,11 +48,11 @@ from vultron.core.behaviors.case.nodes.proposal_ledger import (
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
-    invite_rsvp_deadline,
 )
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
+from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -353,7 +353,9 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
                 marker.embargo_id,
             )
         for recipient_id in self._recipients:
-            self._invite_where_legal(dl, recipient_id, deadline)
+            self._invite_where_legal(
+                dl, recipient_id, deadline, cause_id=marker.proposal_id
+            )
         self._index_relayed(marker)
 
     def _resolve_parties(

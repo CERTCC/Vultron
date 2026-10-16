@@ -168,6 +168,7 @@ class TestEmbargoProposalLifecycle:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -243,6 +244,7 @@ class TestEmbargoProposalLifecycle:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
 
         assert not any(
@@ -318,6 +320,7 @@ class TestEmbargoProposalLifecycle:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -903,6 +906,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -1119,6 +1123,7 @@ class _AnsweredInvite:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(self.dl),
+            trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
     def case_and_sender(self) -> tuple[Any, Any]:
@@ -1321,6 +1326,7 @@ def test_an_open_invitees_embargo_answer_is_not_refused(
         event,
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason

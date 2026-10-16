@@ -31,7 +31,7 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (

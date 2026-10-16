@@ -39,6 +39,7 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
@@ -153,6 +154,12 @@ class ActivateEmbargoLifecycleNode(_EmbargoLifecycleNode):
             transition_mode=TransitionMode.STRICT,
         )
 
+    def _register_step(self) -> RegisterStep:
+        """``ACTIVATE``, with the ``SUPERSEDE`` of any embargo in force."""
+        return RegisterStep(
+            kind=RegisterStepKind.ACTIVATE, embargo=self._embargo_id
+        )
+
 
 class RejectEmbargoProposalLifecycleNode(_EmbargoLifecycleNode):
     """Apply the owner's ``STRICT`` rejection of a proposal (ADR-0122).
@@ -186,6 +193,12 @@ class RejectEmbargoProposalLifecycleNode(_EmbargoLifecycleNode):
             embargo_id=self._embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
+        )
+
+    def _register_step(self) -> RegisterStep:
+        """``REJECT`` of the proposal."""
+        return RegisterStep(
+            kind=RegisterStepKind.REJECT, embargo=self._embargo_id
         )
 
 
