@@ -812,10 +812,12 @@ def test_case_proposal_reject_after_case_established_leaves_link_unchanged(
 
 
 @pytest.mark.spec("CP-06-005")
+@pytest.mark.spec("OID-01-006")
 def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
     make_payload,
 ):
-    """The addressee is recognised whichever way the id is written."""
+    """The addressee is recognised whichever way the id is written, and the
+    CASE_MANAGER is recorded in the canonical spelling (OID-01-006)."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
     proposal = _make_proposal()
     _seed_vendor_link(dl, proposal)
@@ -836,7 +838,7 @@ def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
     assert result.disposition is HandlerDisposition.APPLIED
     reloaded = dl.read(link_id)
     assert isinstance(reloaded, VultronReportCaseLink)
-    assert reloaded.case_manager_id == sender
+    assert reloaded.case_manager_id == link.case_creator_id
 
 
 @pytest.mark.spec("CM-30-001")
