@@ -510,80 +510,38 @@ def test_a_replica_follows_a_participants_engagement_decision(
         assert _rm(net, store_of, OWNER) == owner_before[store_of], store_of
 
 
-def _create_note(
-    net: LedgerNetwork, note_id: str, *, also_to: tuple[str, ...] = ()
-) -> as_Create:
-    """A bystander's ``Create(Note)`` whose note names the network's case.
-
-    Addressed to the CASE_MANAGER, plus any actors in *also_to*.
-    """
+def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
+    """A bystander's ``Create(Note)`` to the CASE_MANAGER, naming its case."""
     return as_Create(
         actor=BYSTANDER,
         object_=as_Note(
             id_=note_id, content="A general inquiry", context=net.case_id
         ),
-        to=[MANAGER, *also_to],
+        to=[MANAGER],
     )
 
 
-@pytest.mark.spec("CLP-07-013")
-@pytest.mark.spec("RSH-08-004")
-@pytest.mark.spec("TB-06-007")
-def test_a_replica_follows_a_note_attached_from_a_create():
-    """Create(Note) naming the case: the CASE_MANAGER commits the attachment
-    and the owner's replica attaches the note from that entry alone (#4441)."""
+@pytest.mark.spec("VAM-01-010", "VAM-01-011", "RSH-08-004")
+def test_a_create_note_changes_no_copy_of_the_case():
+    """A received Create(Note) naming the case is not a protocol message
+    (VAM-01-011): the CASE_MANAGER refuses it as unrecognized, attaches
+    nothing and commits nothing, so no replica has an entry to replay (#4707).
+    """
     net = LedgerNetwork(
         "https://example.org/cases/replay-create-note", em_state=EM.NONE
     )
     note_id = "https://example.org/notes/replay-create-note"
-    _send(net, _create_note(net, note_id))
+    manager_notes = list(net.case(MANAGER).notes)
+    ledger_before = _ledger(net, MANAGER)
 
-    assert "create_note" in _ledger(net, MANAGER)
-    assert "create_note" in _replay(net, OWNER)
-    manager, replica = net.case(MANAGER), net.case(OWNER)
-    assert note_id in [_as_id(n) for n in manager.notes]
-    assert [_as_id(n) for n in replica.notes] == [
-        _as_id(n) for n in manager.notes
-    ]
-    # The replica holds the note itself, not a dangling reference.
-    assert net.stores[OWNER].read(note_id) is not None
-
-
-@pytest.mark.spec("CLP-07-013")
-@pytest.mark.spec("CM-13-007")
-@pytest.mark.spec("RSH-08-004")
-def test_a_replica_follows_a_note_sent_as_create_then_add():
-    """A sender that posts one note as Create(Note) then Add(Note), a valid
-    protocol form this implementation's trigger does not use (#4549): the
-    CASE_MANAGER commits both entries, and both case copies hold the note
-    once, because the second attach changes nothing (CM-13-007, #4441)."""
-    net = LedgerNetwork(
-        "https://example.org/cases/replay-create-add-note", em_state=EM.NONE
-    )
-    note_id = "https://example.org/notes/replay-create-add-note"
-    create = _create_note(net, note_id)
-    _send(net, create)
-    _send(
-        net,
-        add_note_to_case_activity(
-            cast(as_Note, create.object_),
-            target=net.case_id,
-            actor=BYSTANDER,
-            to=[MANAGER],
-        ),
+    verdict = net.receive(
+        MANAGER, json.loads(dump_outbound_body(_create_note(net, note_id)))
     )
 
-    assert [e for e in _ledger(net, MANAGER) if "note" in e] == [
-        "create_note",
-        "add_note_to_case",
-    ]
-    replayed = _replay(net, OWNER)
-    assert "create_note" in replayed and "add_note_to_case" in replayed
-    manager, replica = net.case(MANAGER), net.case(OWNER)
-    assert [_as_id(n) for n in manager.notes].count(note_id) == 1
-    assert [_as_id(n) for n in replica.notes] == [
-        _as_id(n) for n in manager.notes
-    ]
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert _ledger(net, MANAGER) == ledger_before
+    assert net.case(MANAGER).notes == manager_notes
+    assert note_id not in [_as_id(n) for n in net.case(OWNER).notes]
 
 
 def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
@@ -889,27 +847,3 @@ def test_case_status_writes_nothing_at_a_replica():
 # ``test_report_routing_guard.py`` and ``test_receive_tree_ledger_commit.py``;
 # #4304 made those verdicts committed and replayed, so gating them is safe
 # (RSH-08-003).
-
-
-@pytest.mark.spec("RSH-08-003")
-@pytest.mark.spec("PCR-03-001")
-@pytest.mark.spec("TB-06-007")
-def test_create_note_writes_no_attachment_at_a_replica():
-    """Create(Note) delivered straight to a replica by a participant is
-    refused: a replica takes case content from the CASE_MANAGER alone
-    (PCR-03-001), so it stores, attaches and commits nothing; the attachment
-    comes from the CASE_MANAGER's entry (RSH-08-003, CLP-07-013)."""
-    net = LedgerNetwork(
-        "https://example.org/cases/direct-create-note", em_state=EM.NONE
-    )
-    note_id = "https://example.org/notes/direct-create-note"
-    notes_before = list(net.case(OWNER).notes)
-    ledger_before = _ledger(net, OWNER)
-
-    # Addressed to the replica too, so the run passes the addressee door
-    # (HP-01-005) and reaches the CASE_MANAGER gate under test.
-    _deliver_direct(net, OWNER, _create_note(net, note_id, also_to=(OWNER,)))
-
-    assert net.stores[OWNER].read(note_id) is None
-    assert net.case(OWNER).notes == notes_before
-    assert _ledger(net, OWNER) == ledger_before

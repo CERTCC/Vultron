@@ -327,16 +327,19 @@ _RETIRED_CASE_ID = "https://example.org/cases/c-chain-create"
 
 
 def _retired_create_activities() -> list[Any]:
-    """The four received ``Create(X)`` routes #4598 removed, one each.
+    """The received ``Create(X)`` routes #4598 and #4707 removed, one each.
 
     Each addressed to the receiver and naming the case the way the removed
     pattern required.  ``Create(CaseParticipant)`` is built with the factory
-    the CASE_MANAGER's ledger entry still uses.
+    the CASE_MANAGER's ledger entry still uses.  ``Create(Note)`` is sent
+    twice: once with the note's ``context`` naming the case (the form the
+    removed route attached) and once with no case context at all.
     """
     from vultron.wire.as2.factories import create_participant_activity
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
     )
@@ -389,6 +392,29 @@ def _retired_create_activities() -> list[Any]:
             ),
             id="case-participant",
         ),
+        pytest.param(
+            as_Create(
+                object_=as_Note(
+                    id_=f"{_RETIRED_CASE_ID}/notes/n-ctx",
+                    content="a note naming the case",
+                    context=_RETIRED_CASE_ID,
+                ),
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+            id="note-with-case-context",
+        ),
+        pytest.param(
+            as_Create(
+                object_=as_Note(
+                    id_="https://example.org/notes/n-no-case",
+                    content="a note outside any case",
+                ),
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+            id="note-without-case-context",
+        ),
     ]
 
 
@@ -400,10 +426,11 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     """A received ``Create`` of a case record is not a protocol message (VAM-01-010, VAM-01-011).
 
     The protocol names one form for each act: ``Add(CaseStatus)``,
-    ``Add(ParticipantStatus)``, ``Invite(Event)``, and the CASE_MANAGER's
-    own consequence for a ``CaseParticipant`` (ADR-0137).
-    Each of these ``Create`` forms once stored its object with no ledger
-    entry, which CLP-07-013 rules out (#4598).
+    ``Add(ParticipantStatus)``, ``Invite(Event)``, ``Add(Note)``, and the
+    CASE_MANAGER's own consequence for a ``CaseParticipant`` (ADR-0137).
+    Each of the record ``Create`` forms once stored its object with no ledger
+    entry, which CLP-07-013 rules out (#4598); ``Create(Note)`` was a second
+    way to attach a note (#4707).
     The wire classes stay (a CASE_MANAGER-authored entry carries
     ``Create(CaseParticipant)``), but no pattern routes one that
     arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and
@@ -436,6 +463,8 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     assert dl.read(_RETIRED_CASE_ID) == case_before
     assert dl.outbox_list() == []
     assert dl.list_objects("CaseLedgerEntry") == []
+    stored_case = dl.read(_RETIRED_CASE_ID)
+    assert stored_case is not None and stored_case.notes == []
     assert dl.read(activity.object_.id_) is None
 
 

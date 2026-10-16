@@ -74,7 +74,6 @@ from vultron.core.models.events.fault import (
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
-    CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.models.events.report import (
@@ -155,8 +154,7 @@ AnyReceivedEvent = (
     | RejectInviteToEmbargoOnCaseReceivedEvent
     |
     # note
-    CreateNoteReceivedEvent
-    | AddNoteToCaseReceivedEvent
+    AddNoteToCaseReceivedEvent
     | RemoveNoteFromCaseReceivedEvent
     |
     # status
@@ -233,7 +231,6 @@ __all__ = [
     "AcceptInviteToEmbargoOnCaseReceivedEvent",
     "RejectInviteToEmbargoOnCaseReceivedEvent",
     # note
-    "CreateNoteReceivedEvent",
     "AddNoteToCaseReceivedEvent",
     "RemoveNoteFromCaseReceivedEvent",
     # status

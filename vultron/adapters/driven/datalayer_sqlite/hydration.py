@@ -120,7 +120,7 @@ def core_class_for_row_type(type_: str) -> type[BaseModel]:
     ``CORE_VOCABULARY`` (DL-05-006) — without it a stored note read back as the
     unpaired wire ``as_Note`` (ISSUE-3647). The row does not record which
     branch wrote it, so an inbound wire ``as_Note`` persisted verbatim — and
-    the note embedded in a stored ``Create(Note)`` — reads back as
+    the note embedded in a stored ``Add(Note)`` — reads back as
     ``VultronNote`` too.
 
     The match leaves two kinds of class out, and both are deliberate:

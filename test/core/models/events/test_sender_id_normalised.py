@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.events.note import CreateNoteReceivedEvent
+from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.primitives import normalise_actor_id, same_actor_id
 
 SENDER = "https://example.org/actors/vendor"
@@ -20,12 +20,12 @@ ACTIVITY_ID = "https://example.org/activities/a1"
 @pytest.mark.spec("OID-01-007")
 @pytest.mark.spec("ARCH-10-001")
 @pytest.mark.parametrize(
-    "event_class", [VultronEvent, CreateNoteReceivedEvent]
+    "event_class", [VultronEvent, AddNoteToCaseReceivedEvent]
 )
 def test_received_event_refuses_slash_spelled_sender_id(event_class):
     with pytest.raises(ValidationError, match="trailing slash"):
         event_class(
-            semantic_type=MessageSemantics.CREATE_NOTE,
+            semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
             activity_id=ACTIVITY_ID,
             actor_id=SENDER + "/",
         )
@@ -34,7 +34,7 @@ def test_received_event_refuses_slash_spelled_sender_id(event_class):
 @pytest.mark.spec("OID-01-007")
 def test_received_event_accepts_normalised_sender_id():
     event = VultronEvent(
-        semantic_type=MessageSemantics.CREATE_NOTE,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         activity_id=ACTIVITY_ID,
         actor_id=SENDER,
     )
@@ -44,7 +44,7 @@ def test_received_event_accepts_normalised_sender_id():
 @pytest.mark.spec("OID-01-007")
 def test_received_event_refuses_slash_spelled_sender_id_on_assignment():
     event = VultronEvent(
-        semantic_type=MessageSemantics.CREATE_NOTE,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         activity_id=ACTIVITY_ID,
         actor_id=SENDER,
     )
@@ -56,7 +56,7 @@ def test_received_event_refuses_slash_spelled_sender_id_on_assignment():
 def test_received_event_still_refuses_blank_sender_id():
     with pytest.raises(ValidationError):
         VultronEvent(
-            semantic_type=MessageSemantics.CREATE_NOTE,
+            semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
             activity_id=ACTIVITY_ID,
             actor_id="   ",
         )

@@ -69,9 +69,9 @@ def test_examples_equal_across_second_boundary(
     assert builder() == builder()
 
 
-def test_create_note_carries_an_equal_note_across_second_boundary(
+def test_add_note_carries_an_equal_note_across_second_boundary(
     straddling_clock: type,
 ) -> None:
-    activity = examples.create_note()
+    activity = examples.add_note_to_case()
 
     assert activity.object_ == examples.note()

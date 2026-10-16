@@ -15,8 +15,8 @@
 
 """Ledger effect nodes for note attachment and ``remove_note_from_case``.
 
-A note is attached by an ``add_note_to_case`` or a ``create_note`` entry
-(see ``IsAddNoteEventNode``).
+A note is attached by an ``add_note_to_case`` entry only
+(see ``IsAddNoteEventNode``, RSH-08-004).
 
 Per specs/sync-ledger-replication.yaml SYNC-02-002 and ADR-0022.
 """
@@ -45,15 +45,13 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
     """Apply a note-attachment ledger entry to the local case replica.
 
     When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
-    and the entry's ``event_type`` is ``add_note_to_case`` or ``create_note``
-    (a received ``Create(Note)`` whose note names the case, #4441), this node
+    and the entry's ``event_type`` is ``add_note_to_case``, this node
     extracts the note ID from ``payload_snapshot["object"]`` and appends it
     to the local case replica's ``notes`` list (idempotent).
 
     This is the canonical mechanism by which non-CaseActor participants
     learn about note additions — they must NOT update ``notes`` directly from
-    ``Add(Note, Case)`` or ``Create(Note)`` messages; only the CASE_MANAGER
-    does that (ADR-0022,
+    ``Add(Note, Case)`` messages; only the CASE_MANAGER does that (ADR-0022,
     SYNC-02-002).
 
     The note **object** is persisted alongside the reference, from the same

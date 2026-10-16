@@ -42,8 +42,6 @@ The Case Owner's decision goes back to the CASE_MANAGER, which relays the outcom
 This handshake is a `GI` inquiry rather than a role offer.
 For the `CVDRole` delegation that uses a dedicated object type, see [Offer case participant role](case_management.md#offer-case-participant-role).
 
-{% include-markdown "./_occasions/sections/create-note.md" heading-offset=1 %}
-
 {% include-markdown "./_occasions/sections/add-note-to-case.md" heading-offset=1 %}
 
 {% include-markdown "./_occasions/sections/remove-note-from-case.md" heading-offset=1 %}
@@ -68,7 +66,7 @@ For the `CVDRole` delegation that uses a dedicated object type, see [Offer case 
 - **Protocol role:** Indicates a general error has occurred.
 - **Triggering transition:** any unexpected `GI` message.
 - **Wire activity:** none dedicated. Faults are conveyed by
-  `Create(ProcessingFault)`, `as:Reject`, or `Create(Note)`, partitioned by
+  `Create(ProcessingFault)`, `as:Reject`, or `Add(Note)`, partitioned by
   failure mode
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).

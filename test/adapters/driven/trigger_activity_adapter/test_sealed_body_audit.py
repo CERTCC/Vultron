@@ -254,9 +254,6 @@ Recipe = Callable[[_World], Any]
 
 RECIPES: dict[str, Recipe] = {
     # notes
-    "create_note_activity": lambda w: w.adapter.create_note_activity(
-        actor=_ACTOR, note_id=w.note_id, to=[_PEER]
-    ),
     "add_note_to_case": lambda w: w.adapter.add_note_to_case(
         note_id=w.note_id, case_id=w.case_id, actor=_ACTOR, to=[_PEER]
     ),

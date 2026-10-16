@@ -47,7 +47,6 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
-    CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.models.events.report import (
@@ -352,12 +351,6 @@ _CASES = [
     ),
     # ── note.py ───────────────────────────────────────────────────────────────
     (
-        CreateNoteReceivedEvent,
-        MessageSemantics.CREATE_NOTE,
-        {"object_": _note},
-        [("note_id", "object_id"), ("note", "object_")],
-    ),
-    (
         AddNoteToCaseReceivedEvent,
         MessageSemantics.ADD_NOTE_TO_CASE,
         {"object_": _note, "target": _case},
@@ -438,9 +431,9 @@ def test_named_aliases_resolve_to_correct_base_fields(
             ["report_id", "report"],
         ),
         (
-            CreateNoteReceivedEvent,
-            MessageSemantics.CREATE_NOTE,
-            ["note_id", "note"],
+            AddNoteToCaseReceivedEvent,
+            MessageSemantics.ADD_NOTE_TO_CASE,
+            ["note_id", "note", "case_id", "case"],
         ),
     ],
     ids=lambda x: x.__name__ if hasattr(x, "__name__") else str(x),
