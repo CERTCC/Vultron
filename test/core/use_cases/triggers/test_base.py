@@ -411,6 +411,58 @@ def test_a_case_scoped_trigger_leads_with_the_gated_clock_decisions():
     assert [d.name for d in stage.decisions] == ["EmbargoEndTimeDecision"]
 
 
+def _stage_decisions(tree: py_trees.behaviour.Behaviour) -> list[str]:
+    from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+        ClockDecisionStage,
+    )
+
+    (stage,) = [n for n in tree.iterate() if isinstance(n, ClockDecisionStage)]
+    return [d.name for d in stage.decisions]
+
+
+@pytest.mark.spec("CM-28-015")
+@pytest.mark.spec("BT-15-003")
+def test_an_embargo_trigger_adds_the_overdue_invite_sweep():
+    """An embargo act reads the consent rows, so its stage sweeps them after
+    the case-wide decisions (CM-28-015)."""
+    from vultron.core.behaviors.embargo.embargo_clock_decisions import (
+        OVERDUE_INVITES_SWEEP_NAME,
+    )
+    from vultron.core.use_cases.triggers.request_bodies import (
+        CaseTriggerRequest,
+    )
+
+    uc = _EmbargoTrigger(
+        dl=_store_with_case(),
+        request=CaseTriggerRequest(case_id=_CASE_ID),
+        trigger_activity=MagicMock(),
+    )
+
+    assert _stage_decisions(_built_tree(uc)) == [
+        "EmbargoEndTimeDecision",
+        OVERDUE_INVITES_SWEEP_NAME,
+    ]
+
+
+@pytest.mark.spec("CM-28-015")
+@pytest.mark.spec("BT-15-003")
+def test_terminate_embargo_takes_the_sweep_alone():
+    """Terminate-embargo answers for the end-time path itself, so it takes
+    no case-wide decision, but it still sweeps overdue invitations."""
+    from vultron.core.behaviors.embargo.embargo_clock_decisions import (
+        OVERDUE_INVITES_SWEEP_NAME,
+    )
+    from vultron.core.use_cases.triggers.embargo import (
+        SvcTerminateEmbargoUseCase,
+    )
+
+    decisions = SvcTerminateEmbargoUseCase(
+        dl=_store_with_case(), request=object()
+    )._clock_decisions(_CASE_ID)
+
+    assert [d.name for d in decisions] == [OVERDUE_INVITES_SWEEP_NAME]
+
+
 def test_a_trigger_naming_no_case_runs_its_own_tree_alone():
     uc = _MinimalTrigger(
         dl=_store_with_case(), request=object(), trigger_activity=MagicMock()

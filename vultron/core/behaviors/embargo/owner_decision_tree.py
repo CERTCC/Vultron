@@ -37,6 +37,9 @@ from vultron.core.behaviors.case.nodes.stub_reissue import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.embargo_clock_decisions import (
+    embargo_clock_decisions,
+)
 from vultron.core.behaviors.embargo.nodes import (
     ActivationAppliesNode,
     CommitAndApplyEmbargoActivationNode,
@@ -74,6 +77,7 @@ def activate_embargo_on_case_tree(
         ActivateEmbargoOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
+        ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
         ├─ ActivationAppliesNode             # decide + trial apply (ADR-0124)
@@ -125,6 +129,8 @@ def activate_embargo_on_case_tree(
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id
         ),
+        # The owner decides knowing of every timeout (CM-28-015).
+        clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
             OwnerMayActivateEmbargoNode(
@@ -226,6 +232,7 @@ def reject_embargo_proposal_on_case_tree(
         RejectEmbargoProposalOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
+        ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guard (CLP-10-009)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ RejectEmbargoProposalOnCaseBTIfCaseManager (CASE_MANAGER gate)
@@ -256,6 +263,8 @@ def reject_embargo_proposal_on_case_tree(
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id
         ),
+        # The owner decides knowing of every timeout (CM-28-015).
+        clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
         ],

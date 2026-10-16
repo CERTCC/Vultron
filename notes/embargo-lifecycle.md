@@ -8,8 +8,9 @@ description: >
   EmbargoLifecycle or, for an arm converted to the copy model, the one apply
   function (ADR-0122, ADR-0124, ADR-0130); consent versus owner decision; STRICT
   versus OBSERVED and the P/X/A guards; the invariant that a case never names
-  an embargo its store cannot read (EMB-18-003); late Accepts, expiry and the
-  owner-close settle step (EMB-17, CM-23-014); P/X/A refusal and teardown
+  an embargo its store cannot read (EMB-18-003); late Accepts, expiry, the
+  overdue-invitation sweep and the owner-close settle step (EMB-17, CM-28-015,
+  CM-23-014); P/X/A refusal and teardown
   (EMB-01-002, EMB-16); earliest-expiration resolution of open proposals
   (EP-08); the relay through the CASE_MANAGER and its trigger write gate
   (EP-09, ADR-0113); and who may send each embargo message (ADR-0115).
@@ -230,6 +231,15 @@ catch-up fetch or deferral, refuse instead.
   CASE_MANAGER's clock, because the invitee sent nothing. Each expiry commits
   before it writes the consent row, so a refused one writes nothing; it is
   logged and the close goes on.
+- **Every embargo act sweeps overdue Invites first (CM-28-015).** Each received
+  embargo tree and embargo trigger takes `ExpireOverdueInvitesNode` as a clock
+  decision, after the end-time check: it expires every `INVITED` row past its
+  deadline on an open proposal or the embargo in force. It shares
+  `ExpireInvitationsNode` with the settle step, so the expiry path is one copy,
+  and it runs before the activity's own guards, so a refused activity still
+  leaves its expiries recorded (ADR-0135). See
+  `notes/participant-embargo-consent.md` § "Sweep due expiries before the owner
+  decides".
 
 ## Refusing an Invite at P/X/A (EMB-01-002)
 
