@@ -60,10 +60,16 @@ retires each family's declarations as it lands.
 ## Choices are triggers only
 
 Every choice is one trigger POST by the branch point's role, so live mode needs
-no client-side action.
+no client-side action. A presenter can take over any role at any branch point;
+the scenario plays the other parties until the next branch point.
 
-- **"Carry on" is the next trigger that path calls.** `fv`'s choice beside
-  "invite another vendor" is "start on the fix" (`notify-fix-ready`), not
+- **Other parties act between decisions.** A choice's trigger is the deciding
+  role's next trigger on that path, and steps by other roles may run before it
+  and after it (DEMOCI-11-013). "Keep the case" is Vendor1 accepting the
+  Coordinator's suggestion of Vendor2 (`accept-actor-recommendation`), with
+  the suggestion played in between.
+- **"Carry on" is the role's next trigger on that path.** `rv`'s choice beside
+  "invite another Vendor" is "report the fix ready" (`notify-fix-ready`), not
   "invite nobody". Write the label as what happens.
 - **A silent party shows as what the other party does next** ("the Reporter
   publishes unilaterally"), not as a wait.
@@ -73,33 +79,42 @@ no client-side action.
 
 ## Today's scenarios on one tree
 
-The order follows the code: every path opens with submit, then the receiver's
-validate and engage. The default embargo starts at case creation, so embargo
-terms are a later branch point, not a root one. Names are shown after the
-Finder → Reporter rename.
+Every path opens with submit, then the receiver's validate and engage. The
+default embargo starts at case creation, so embargo terms are a later branch
+point, not a root one. Steps in brackets are shared steps, not choices. Names
+are shown after the Finder → Reporter rename.
 
 ```text
-Reporter: whom to tell?                    (room for "Vendor found it itself": #2591, #3667)
-├─ a Vendor → Vendor validates → Vendor: next?
-│   ├─ start on the fix ......................................... rv
-│   ├─ invite another Vendor .................................... rvv
+Reporter: whom to tell?                (room for "Vendor found it itself": #2591, #3667)
+├─ a Vendor → [Vendor validates; Reporter asks, Vendor answers] → Vendor: next?
+│   ├─ report the fix ready ................................ rv
+│   ├─ invite another Vendor ............................... rvv
 │   └─ invite a Coordinator → Vendor1: keep the case?
-│       ├─ keep it (Coordinator suggests Vendor2) ............... rvcv-extension
-│       └─ offer ownership to the Coordinator ................... rvcv-handoff
-└─ a Coordinator → Coordinator validates → Coordinator: invite whom?
+│       ├─ keep it: accept the Coordinator's suggestion .... rvcv-extension
+│       └─ offer ownership to the Coordinator .............. rvcv-handoff
+└─ a Coordinator → [Coordinator validates] → Coordinator: invite whom?
     ├─ a Vendor → Vendor: join?
-    │   ├─ reject the invite .................................... rcv-reject
-    │   └─ accept → Coordinator: next?
-    │       ├─ invite a second Coordinator ...................... rcvcv
-    │       └─ carry on → Reporter: embargo terms?
-    │           ├─ keep the default ............................. rcv
-    │           └─ propose new terms → next?
-    │               ├─ Coordinator terminates the embargo ....... rcv-embargo
-    │               └─ Vendor1 proposes a revision .............. rcvv-embargo
+    │   ├─ reject the invite ............................... rcv-reject
+    │   └─ accept → Reporter: next?
+    │       ├─ propose new embargo terms → Vendor1: next?
+    │       │   ├─ propose a revision ...................... rcvv-embargo
+    │       │   └─ report the fix ready .................... rcv-embargo
+    │       └─ ask the Vendor a question → [Vendor answers] → Coordinator: next?
+    │           ├─ invite a second Coordinator ............. rcvcv
+    │           └─ carry on: publish after the Vendor's fix  rcv
     └─ a second Coordinator → Coordinator1: keep the case?
-        ├─ keep it (Coordinator2 suggests a Vendor) ............. rccv-extension
-        └─ offer ownership to Coordinator2 ...................... rccv-handoff
+        ├─ keep it: accept Coordinator2's suggestion ....... rccv-extension
+        └─ offer ownership to Coordinator2 ................. rccv-handoff
 ```
+
+Today's code does not follow this order everywhere. #4759 moves these steps,
+with no pass or fail verdict changed (DEMOMA-17-002):
+
+- `fvv`, `fvcv-extension`, `fvcv-handoff`: the notes exchange moves before the
+  invites, so the Vendor's branch point follows it.
+- `fcvcv`: the second Coordinator's invite moves after the notes exchange.
+- `rcv-embargo`, `rcvv-embargo`: the notes exchange moves after the embargo
+  proposal, so the Reporter's choice is between proposing and asking.
 
 The exact prompts, choice labels and triggers are #4759's to write; the shape
 above is what the paths must produce.

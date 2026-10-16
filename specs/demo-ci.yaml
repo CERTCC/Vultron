@@ -2020,18 +2020,23 @@ groups:
           once, in a branch-point table in the scenario package, with the role
           that decides there, the presenter prompt, and at least two choices.
           Each choice MUST carry a presenter label and exactly one trigger,
-          called by the branch point's role. A choice MUST NOT be a non-trigger
-          action (a wait, a skip or a fall-through). The prompt and choice
+          called by the branch point's role: that role's next trigger on the
+          path. Steps by other roles MAY run between the decision and that
+          trigger. A choice MUST NOT be a non-trigger action (a wait, a skip or
+          a fall-through). The prompt and choice
           labels MUST NOT be declared anywhere else, including on `@scenario`
           and in `ui/`.
         rationale: >-
           Live mode offers each choice as one trigger POST, and offline mode must
           offer the same choices (ADR-0104 amendment of 2026-10-15), so a choice
           that is not a trigger has no live form. A decision not to act is
-          therefore authored as the next trigger that path calls ("start on the
-          fix" instead of "invite nobody"), and a silent party shows as what the
-          other party does next. Labels in one table cannot drift between the
-          two modes. Planning of #4726 settled both.
+          therefore authored as the role's next trigger on that path ("report
+          the fix ready" instead of "invite nobody"), and a silent party shows
+          as what the other party does next. A presenter takes over a role at a
+          branch point and the scenario plays the other parties until the next
+          one, so their steps may fall between a decision and its trigger.
+          Labels in one table cannot drift between the two modes. Planning of
+          #4726 settled these.
         verification: >-
           A registry test asserts that no two branch points share an identifier;
           that every branch point names a role, a non-empty prompt and at least
