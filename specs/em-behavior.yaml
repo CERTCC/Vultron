@@ -493,8 +493,9 @@ groups:
       shows a revision proposal on a public case refused with ER and not adopted.
       `test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo`, in
       the same file, covers the race: a revision that reaches the CASE_MANAGER
-      at `ACTIVE` with P, X or A already recorded is refused, and the embargo
-      ends only when the cascade runs, with the threat signal as its cause.
+      at `ACTIVE` or `REVISE` with P, X or A already recorded is refused, and
+      the embargo ends only when the cascade runs, with the threat signal as its
+      cause.
     testable: true
     preconditions:
     - em_state:

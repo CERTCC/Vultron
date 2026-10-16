@@ -677,12 +677,13 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
 
     The CASE_MANAGER refuses a proposal on a public, exploited or attacked
     case (EP-09-001) with an ER to the proposer, and adopts nothing: the
-    revision enters no register step and no Invite is relayed.  This is the
-    refusal clause of EMB-03-003 as the CASE_MANAGER realises it.  The
-    proposal does not end the embargo either: the public, exploit or attack
-    fact does, through the CS public-event cascade
-    (``ThreatTerminationBranchNode``), whenever that fact becomes known —
-    see ``test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo``.
+    revision enters no register step and no Invite is relayed.  EP-09-001
+    is how the CASE_MANAGER topology realises EMB-03-003's refusal; the
+    clause itself binds the participants a relayed Invite reaches, pinned in
+    ``test_embargo_relay_replay.py``.  The proposal does not end the embargo
+    either: the public, exploit or attack fact does, through the CS
+    public-event cascade (``ThreatTerminationBranchNode``), whenever that
+    fact becomes known — see ``test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo``.
     """
     case_id = "https://example.org/cases/relay-public"
     dl, revision = _active_case_with_revision(
@@ -695,6 +696,8 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
+    # The refusal cites EMB-01-002: EMB-03-003 answers a revision with the
+    # ER that EMB-01-002 requires for a proposal.
     assert "EMB-01-002" in (verdict.reason or "")
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.ACTIVE
@@ -709,43 +712,78 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
 
 @pytest.mark.spec("EMB-03-003")
 @pytest.mark.spec("EP-09-001")
+@pytest.mark.parametrize("em_at_race", [EM.ACTIVE, EM.REVISE])
 @pytest.mark.parametrize(
     "pxa_state",
     [CS_pxa.Pxa, CS_pxa.pXa, CS_pxa.pxA],
     ids=["public", "exploit", "attacks"],
 )
 def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
-    make_payload, pxa_state
+    make_payload, pxa_state, em_at_race
 ):
     """A revision that races the cascade is refused; the cascade ends the embargo.
 
     The CASE_MANAGER has recorded P, X or A but the public-event cascade has
-    not torn the embargo down yet, so the case is still ``ACTIVE`` when the
-    revision arrives.  Receipt is at most the moment the proposer learns the
-    case is public: the proposal is refused (EP-09-001) and ends nothing.  The
-    embargo ends when the cascade runs, and its termination records the
-    threat signal as its cause, not the proposal (EMB-03-003).
+    not torn the embargo down yet, so the case is still ``ACTIVE`` (or
+    ``REVISE``, with an earlier revision open) when a revision arrives.
+    Receipt is at most the moment the CASE_MANAGER is handed the proposal on
+    a case already public: the proposal is refused (EP-09-001) and ends
+    nothing.  The embargo ends when the cascade runs, and its termination
+    records the threat signal as its cause, not the proposal (EMB-03-003).
     """
-    case_id = f"https://example.org/cases/relay-race-{pxa_state.name}"
+    case_id = (
+        f"https://example.org/cases/relay-race-{em_at_race.name}"
+        f"-{pxa_state.name}"
+    )
     dl, revision = _active_case_with_revision(
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
     )
-    case = cast(VulnerabilityCase, dl.read(case_id))
     active_id = _active_id(dl, case_id)
+    racing, racer = revision, PROPOSER
+    if em_at_race is EM.REVISE:
+        # An earlier revision, admitted before P/X/A, holds the case at
+        # REVISE; the racing proposal is OTHER_A's counter-revision.
+        _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
+        racing, racer = (
+            as_EmbargoEvent(
+                id_=f"{case_id}/embargo_events/counter",
+                content="Counter revision",
+                context=case_id,
+                end_time=days_from_now_utc(75),
+            ),
+            OTHER_A,
+        )
+        dl.create(racing)
+        other_a = _participant_of(dl, case_id, OTHER_A)
+        other_a.sign_embargo(active_id)
+        dl.save(other_a)
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    assert case.current_status.em.state == em_at_race
     case.append_case_status(pxa=pxa_state)
     dl.save(case)
+    invites_before = len(_relayed_invites(dl))
 
-    verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
+    verdict = _deliver(
+        dl,
+        _proposal(
+            racing,
+            case_id,
+            actor=racer,
+            id_=f"{case_id}/embargo_proposals/racing",
+        ),
+        make_payload,
+        MANAGER,
+    )
 
     # The proposal path refuses and ends nothing.
     assert verdict.disposition is HandlerDisposition.REFUSED
     case = cast(VulnerabilityCase, dl.read(case_id))
-    assert case.current_status.em.state == EM.ACTIVE
+    assert case.current_status.em.state == em_at_race
     assert case.active_embargo_id == active_id
-    assert case.embargo_register_entry(revision.id_) is None
-    assert [a.to for a in _outbox_of_type(dl, "Reject")] == [[PROPOSER]]
+    assert case.embargo_register_entry(racing.id_) is None
+    assert [a.to for a in _outbox_of_type(dl, "Reject")] == [[racer]]
     assert _outbox_of_type(dl, "Remove") == []
-    assert _relayed_invites(dl) == []
+    assert len(_relayed_invites(dl)) == invites_before
 
     # The cascade reacting to the recorded P/X/A status ends the embargo.
     result = BTBridge(
@@ -764,6 +802,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.EXITED
     assert case.active_embargo_id is None
+    assert case.proposed_embargo_ids == []
     ended = case.embargo_register_entry(active_id)
     assert ended is not None
     assert ended.status is EmbargoRegisterStatus.TERMINATED
@@ -772,7 +811,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     )
     # The refused revision never entered the register, even as the embargo
     # it would have revised ended.
-    assert case.embargo_register_entry(revision.id_) is None
+    assert case.embargo_register_entry(racing.id_) is None
     assert len(_outbox_of_type(dl, "Remove")) == 1
 
 
