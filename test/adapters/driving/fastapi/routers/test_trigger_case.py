@@ -26,6 +26,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.support.embargo_register import activate
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
@@ -435,6 +436,135 @@ def test_trigger_defer_case_updates_participant_rm_state(
                 found_deferred = True
                 break
     assert found_deferred, "Participant RM state was not updated to DEFERRED"
+
+
+# ===========================================================================
+# Tests for trigger/leave-case (TRIG-13-001, TRIG-13-003, ADR-0145)
+# ===========================================================================
+
+
+@pytest.fixture
+def owner_case_under_embargo(dl, actor):
+    """A case whose CASE_OWNER is *actor*, with an embargo in force."""
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-OWNER-EMBARGOED")
+    embargo = as_EmbargoEvent(
+        id_=f"{case_obj.id_}/embargo_events/e1",
+        context=case_obj.id_,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+    activate(case_obj, embargo)
+    participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
+    )
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
+    dl.create(case_obj)
+    dl.create(participant)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+@pytest.mark.spec("TRIG-13-001")
+def test_trigger_leave_case_queues_one_leave_to_the_case_manager(
+    client_triggers, dl, actor, case_with_participant
+):
+    """leave-case returns 202 with a Leave addressed to the CASE_MANAGER."""
+    outbox_before = set(dl.outbox_list())
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    activity = resp.json()["activity"]
+    assert activity["type"] == "Leave"
+    assert activity["actor"] == actor.id_
+    manager_id = resolve_case_manager_id(case_with_participant, dl)
+    assert activity["to"] == [manager_id]
+    assert len(set(dl.outbox_list()) - outbox_before) == 1
+
+
+def test_trigger_leave_case_does_not_close_the_sender_at_send_time(
+    client_triggers, dl, actor, case_with_participant
+):
+    """RM.CLOSED comes from the CASE_MANAGER's entries, not the send."""
+    client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    case = dl.read(case_with_participant.id_)
+    participant = dl.read(case.actor_participant_index[actor.id_])
+    rm_states = [ps.rm.state for ps in participant.participant_statuses]
+    assert RM.CLOSED not in rm_states
+
+
+def test_trigger_leave_case_missing_case_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case", json={}
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_leave_case_unknown_case_returns_404(client_triggers, actor):
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": "urn:uuid:no-such-case"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.spec("TRIG-13-002")
+def test_trigger_leave_case_failing_pre_close_action_returns_422(
+    client_triggers, dl, actor, case_with_participant
+):
+    """A failing PreCloseAction backend answers 422 with nothing queued."""
+    from vultron.core.behaviors.call_out.bundles.close_report import (
+        CloseReportCallOutBundle,
+    )
+    from vultron.core.behaviors.call_out.nodes import AlwaysFail
+    from vultron.core.use_cases.triggers.case import leave as leave_module
+
+    build_tree = leave_module.create_leave_case_trigger_tree
+    failing = CloseReportCallOutBundle(
+        pre_close_action_factory=AlwaysFail  # type: ignore[arg-type]
+    )
+
+    def _with_failing_call_out(**kwargs):
+        return build_tree(**{**kwargs, "call_out": failing})
+
+    outbox_before = set(dl.outbox_list())
+    with patch.object(
+        leave_module,
+        "create_leave_case_trigger_tree",
+        side_effect=_with_failing_call_out,
+    ):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/leave-case",
+            json={"case_id": case_with_participant.id_},
+        )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert set(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("TRIG-13-003")
+def test_trigger_leave_case_owner_under_embargo_returns_409(
+    client_triggers, dl, actor, owner_case_under_embargo
+):
+    """The Case Owner is told to terminate the embargo; nothing is queued."""
+    outbox_before = set(dl.outbox_list())
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": owner_case_under_embargo.id_},
+    )
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    assert "terminate the embargo" in str(resp.json()["detail"])
+    assert set(dl.outbox_list()) == outbox_before
 
 
 # ===========================================================================

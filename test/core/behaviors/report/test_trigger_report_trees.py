@@ -13,13 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for the report trigger BT factories (issue #849 AC-4, #1854 AC-1/AC-2).
+"""Tests for the report trigger BT factories (issue #849 AC-4).
 
 Covers SUCCESS and FAILURE paths for:
   - ``InvalidateReportTriggerBT`` (create_invalidate_report_trigger_tree)
   - ``RejectReportTriggerBT``     (create_reject_report_trigger_tree)
-  - ``CloseCaseTriggerBT``        (create_close_case_trigger_tree), which
-    fails closed on any case that holds the report (CM-23-019)
 """
 
 import py_trees
@@ -27,9 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.report.trigger_report_trees import (
-    create_close_case_trigger_tree,
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
 )
@@ -119,16 +115,6 @@ def invalid_status(
 
 
 @pytest.fixture
-def accepted_status(
-    scenario: BTTestScenario, report: VulnerabilityReport
-) -> VultronReportCaseLink:
-    """Pre-seed RM.ACCEPTED — valid predecessor for ACCEPTED→CLOSED."""
-    link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
-    scenario.dl.create(link)
-    return link
-
-
-@pytest.fixture
 def report_case_link(
     scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VultronReportCaseLink:
@@ -158,31 +144,6 @@ def case_with_owner(
     case.actor_participant_index[CASE_MANAGER_ID] = manager_participant.id_
     scenario.dl.create(manager_actor)
     scenario.dl.create(owner_participant)
-    scenario.dl.create(manager_participant)
-    scenario.dl.create(case)
-    return case
-
-
-@pytest.fixture
-def case_with_non_owner(
-    scenario: BTTestScenario, report: VulnerabilityReport
-) -> VulnerabilityCase:
-    """Create a VulnerabilityCase where ACTOR_ID is VENDOR (not CASE_OWNER) with a CASE_MANAGER for routing."""
-    vendor_participant = CaseParticipant(
-        attributed_to=ACTOR_ID,
-        case_roles=[CVDRole.VENDOR],
-    )
-    manager_actor = VultronService(id_=CASE_MANAGER_ID, name="Case Manager")
-    manager_participant = CaseParticipant(
-        attributed_to=CASE_MANAGER_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    case = VulnerabilityCase(name="Test Case Non-Owner")
-    case.vulnerability_reports.append(report.id_)
-    case.actor_participant_index[ACTOR_ID] = vendor_participant.id_
-    case.actor_participant_index[CASE_MANAGER_ID] = manager_participant.id_
-    scenario.dl.create(manager_actor)
-    scenario.dl.create(vendor_participant)
     scenario.dl.create(manager_participant)
     scenario.dl.create(case)
     return case
@@ -438,84 +399,3 @@ class TestRejectReportOnACase:
         _assert_failed_closed(
             scenario, result, result_out, report.id_, RM.RECEIVED, before
         )
-
-
-# ---------------------------------------------------------------------------
-# CloseCaseTriggerBT tests
-# ---------------------------------------------------------------------------
-
-
-class TestCloseCaseTriggerTree:
-    """The close-report trigger emits ``Close(Report)``, so it fails closed on
-    any case that holds the report: the Case Owner closes by ``Leave``
-    (CM-23-019).  Before this rule its success moved the owner to RM
-    ``CLOSED`` while the case stayed open (#4746)."""
-
-    @pytest.mark.spec("CM-23-019")
-    @pytest.mark.parametrize(
-        "owner", [True, False], ids=["owner", "non-owner"]
-    )
-    def test_close_report_on_a_case_fails_closed(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        accepted_status: VultronReportCaseLink,
-        request,
-        owner: bool,
-    ):
-        """Owner or not, nothing is written or sent, and the error names Leave."""
-        case = request.getfixturevalue(
-            "case_with_owner" if owner else "case_with_non_owner"
-        )
-        before = set(scenario.dl.outbox_list())
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
-        )
-        result = scenario.run(tree, case_id=case.id_)
-        _assert_failed_closed(
-            scenario, result, result_out, report.id_, RM.ACCEPTED, before
-        )
-
-    @pytest.mark.spec("CM-23-019")
-    def test_pre_close_action_does_not_run_on_a_case(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_owner: VulnerabilityCase,
-        accepted_status: VultronReportCaseLink,
-    ):
-        """The refusal comes before the ``PreCloseAction`` call-out."""
-        from vultron.core.behaviors.call_out.bundles.close_report import (
-            CloseReportCallOutBundle,
-        )
-
-        ran: list[str] = []
-
-        class _Recording(AlwaysSucceed):
-            def update(self) -> Status:
-                ran.append(self.name)
-                return super().update()
-
-        custom_bundle = CloseReportCallOutBundle(
-            pre_close_action_factory=_Recording  # type: ignore[arg-type]
-        )
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out={},
-            call_out=custom_bundle,
-        )
-        result = scenario.run(tree, case_id=case_with_owner.id_)
-        scenario.assert_failure(result)
-        assert ran == [], "PreCloseAction never runs on a case"

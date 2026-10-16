@@ -661,11 +661,15 @@ groups:
       the Leave means for the case is decided by the CASE_MANAGER on receipt
       (CM-23-002, CM-23-003).
     verification: >-
-      A trigger test POSTs `leave-case` for a participant that is not the owner and
-      for the Case Owner, and asserts a `Leave(VulnerabilityCase)` addressed to the
-      CASE_MANAGER in each actor's outbox. A registry test asserts the `leave-case`
-      row is general-purpose and that no `close-report` or demo `close-case` row
-      exists.
+      `test/core/use_cases/triggers/case/test_leave.py` runs `leave-case` for a
+      participant that is not the owner and for the Case Owner, and asserts one
+      `Leave(VulnerabilityCase)` addressed to the CASE_MANAGER in each actor's
+      outbox; `test/adapters/driving/fastapi/routers/test_trigger_case.py` POSTs
+      `trigger/leave-case` and asserts the same. `test/test_trigger_registry.py`
+      asserts the `leave-case` row is general-purpose and that no `close-report` or
+      demo `close-case` row exists, and
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` asserts the
+      `close-report` route is gone.
     rationale: >-
       A participant that has joined a case closes its part in it by leaving the case
       (CM-23-001), never by `Close(Report)`, which a case refuses from every sender
@@ -688,10 +692,10 @@ groups:
       (`PreCloseAction`) for every caller before it sends the Leave. When the
       call-out fails, the trigger MUST fail with nothing sent.
     verification: >-
-      Trigger tests with a recording `PreCloseAction` backend assert it ran before
-      the Leave was queued, for a participant that is not the owner and for the Case
-      Owner; one with a failing backend asserts the trigger fails with nothing
-      queued.
+      Trigger tests in `test/core/use_cases/triggers/case/test_leave.py` with a
+      recording `PreCloseAction` backend assert it ran before the Leave was queued,
+      for a participant that is not the owner and for the Case Owner; one with a
+      failing backend asserts the trigger fails with nothing queued.
     rationale: >-
       The pre-close step is the leaving actor's own integration work, such as
       closing its ticket, so it runs where that actor decides to leave. Running it
@@ -711,9 +715,12 @@ groups:
       pre-close call-out runs and before anything is sent, with an error that says
       to terminate the embargo first.
     verification: >-
-      A trigger test calls `leave-case` as the Case Owner with the embargo in
-      EM.ACTIVE and in EM.REVISE, and asserts the trigger fails, the pre-close
-      call-out did not run, and nothing was queued.
+      Trigger tests in `test/core/use_cases/triggers/case/test_leave.py` call
+      `leave-case` as the Case Owner with the embargo in EM.ACTIVE and in EM.REVISE,
+      and assert the trigger fails, the pre-close call-out did not run, and nothing
+      was queued; they also assert a participant that is not the owner is not
+      blocked. `test/adapters/driving/fastapi/routers/test_trigger_case.py` asserts
+      the route answers 409.
     rationale: >-
       The CASE_MANAGER declines the Case Owner's Leave while an embargo is active
       (CM-23-011). Checking first keeps the owner's own systems from acting on a

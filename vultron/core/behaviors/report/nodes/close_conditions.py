@@ -60,7 +60,7 @@ class CheckReportClosable(DataLayerConditionWithPorts):
                 edge from the report's state, a
                 ``VultronInvalidStateTransitionError`` is written to
                 ``result_out["error"]`` so the calling use case re-raises it
-                (HTTP 409), as ``CheckReportNotClosed`` does for a repeat close.
+                (HTTP 409).
             name: Optional custom node name.
         """
         super().__init__(name=name or self.__class__.__name__)
@@ -161,9 +161,9 @@ class CheckReportHasNoCase(DataLayerConditionWithPorts):
             return Status.SUCCESS
 
         error = VultronInvalidStateTransitionError(
-            f"Report '{self.report_id}' belongs to case '{case.id_}': its"
-            " Case Owner closes the case by Leave(VulnerabilityCase)"
-            " (close-case), and no actor sends Close(Report) for it"
+            f"Report '{self.report_id}' belongs to case '{case.id_}': an"
+            " actor closes its part in the case by Leave(VulnerabilityCase)"
+            " (leave-case), and no actor sends Close(Report) for it"
             " (CM-23-019)"
         )
         if self._result_out is not None:

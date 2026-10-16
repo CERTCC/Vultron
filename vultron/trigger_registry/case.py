@@ -64,6 +64,19 @@ ENTRIES: list[TriggerEntry] = [
         bt_backed=True,
         spec_ids=_COMMON + _ACTOR_SCOPED + ("TRIG-07-001",),
     ),
+    # Any participant leaves a case by sending Leave(VulnerabilityCase); its
+    # pre-close call-out runs first (TRIG-13-001..003, ADR-0145).
+    TriggerEntry(
+        verb="leave-case",
+        request_model=LeaveCaseTriggerRequest,
+        use_case_class=SvcLeaveCaseUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=_COMMON
+        + _ACTOR_SCOPED
+        + ("TRIG-07-001", "TRIG-13-001", "TRIG-13-002", "TRIG-13-003"),
+    ),
     TriggerEntry(
         verb="add-object-to-case",
         request_model=AddObjectToCaseTriggerRequest,
@@ -90,23 +103,6 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=(*_COMMON, "TRIG-10-002"),
-    ),
-    # The demo ``close-case`` verb sends ``Leave(VulnerabilityCase)`` — the
-    # canonical RM closure path (ADR-0050) — so its use case is the leave one.
-    TriggerEntry(
-        verb="close-case",
-        request_model=LeaveCaseTriggerRequest,
-        use_case_class=SvcLeaveCaseUseCase,
-        result_type=ActivityResult,
-        exposure=TriggerExposure.DEMO_ONLY,
-        bt_backed=True,
-        spec_ids=(
-            "TRIG-02-006",
-            "TRIG-06-001",
-            "TRIG-09-001",
-            "TRIG-09-004",
-            "DEMOMA-07-001",
-        ),
     ),
     # The demo ``set-stub-summary`` verb writes stub_summary on the actor's
     # local DataLayer copy of the case so a subsequent invite-actor-to-case
