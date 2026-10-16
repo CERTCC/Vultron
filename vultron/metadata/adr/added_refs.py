@@ -127,7 +127,7 @@ def symbols_in(span: str) -> list[str]:
     - a called name (``snake_case()``, ``dl.save()``, ``make(x)``), whose final
       segment is the function;
     - a member of a CamelCase class (``VulnerabilityCase.name``), or an all-caps
-      member after any dot (``CVDRole.FINDER``).
+      member after any dot (``CVDRole.REPORTER``).
 
     A bare lowercase name (``queue``), a bare one-word all-caps token
     (``MUST``) and a dotted module path (``httpx.AsyncClient``'s ``httpx``) are

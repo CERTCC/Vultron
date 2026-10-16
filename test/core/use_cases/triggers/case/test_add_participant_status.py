@@ -282,7 +282,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
             context=self.case.id_,
-            case_roles=[CVDRole.FINDER],
+            case_roles=[CVDRole.REPORTER],
         )
         self.case_manager_participant = as_CaseParticipant(
             attributed_to=self.case_actor.id_,
@@ -936,7 +936,7 @@ class TestCreateParticipantStatusNode:
         # Temporarily set actor to non-VENDOR so the role guard fires.
         participant = self.dl.read(self.actor_participant.id_)
         assert isinstance(participant, CaseParticipant)
-        participant.case_roles = [CVDRole.FINDER]
+        participant.case_roles = [CVDRole.REPORTER]
         self.dl.save(participant)
 
         bt_result, result_out = self._run_node(

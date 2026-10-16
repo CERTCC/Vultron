@@ -48,7 +48,7 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -125,7 +125,7 @@ def _build_case(
         )
     )
 
-    finder_p = FinderParticipant(
+    finder_p = ReporterParticipant(
         attributed_to=finder_id,
         context=case.id_,
     )

@@ -36,10 +36,14 @@ class CVDRole(StrEnum):
     multiple roles simultaneously; use ``list[CVDRole]`` at call sites rather
     than bitmask arithmetic.
 
-    Values are lowercase strings (e.g. ``CVDRole.FINDER == 'finder'``).
+    Values are lowercase strings (e.g. ``CVDRole.REPORTER == 'reporter'``).
+
+    There is no ``FINDER`` role (ADR-0078): an actor that discovers and
+    reports a vulnerability holds ``REPORTER``, and who found it is report or
+    note metadata.  The retired wire value ``"finder"`` is refused, see
+    ``RETIRED_ROLE_VALUES``.
 
     Roles:
-        FINDER: Entity that discovers the vulnerability.
         REPORTER: Entity that reports the vulnerability to others.
         VENDOR: Supplier of the affected product or service.
         DEPLOYER: Entity that deploys the fix.
@@ -64,7 +68,6 @@ class CVDRole(StrEnum):
             assignment decisions to the correct participant(s).
     """
 
-    FINDER = auto()
     REPORTER = auto()
     VENDOR = auto()
     DEPLOYER = auto()
@@ -73,6 +76,33 @@ class CVDRole(StrEnum):
     CASE_OWNER = auto()
     CASE_MANAGER = auto()
     CVE_NUMBERING_AUTHORITY = auto()
+
+
+#: Wire values of retired ``CVDRole`` members, mapped to why each is refused.
+#: Stored data or an inbound activity carrying one fails validation with this
+#: reason rather than being read as another role: a retired role is not an
+#: alias, and silently rewriting it would change what a record claims.
+RETIRED_ROLE_VALUES: dict[str, str] = {
+    "finder": (
+        "the 'finder' role was retired (ADR-0078); an actor that discovers and"
+        " reports a vulnerability holds 'reporter', and who found it belongs"
+        " in the report or a case note"
+    ),
+}
+
+
+def parse_role(value: str) -> CVDRole:
+    """Parse one role string (any case) into a ``CVDRole``.
+
+    Raises:
+        ValueError: *value* is a retired role (:data:`RETIRED_ROLE_VALUES`),
+            with the retirement reason, or is not a role at all.
+    """
+    key = value.lower()
+    reason = RETIRED_ROLE_VALUES.get(key)
+    if reason is not None:
+        raise ValueError(f"{value!r} is not a valid CVDRole: {reason}")
+    return CVDRole(key)
 
 
 def serialize_roles(roles: list[CVDRole]) -> list[str]:
@@ -103,7 +133,7 @@ def validate_roles(
         if isinstance(item, CVDRole):
             result.append(item)
         elif isinstance(item, str):
-            result.append(CVDRole(item.lower()))
+            result.append(parse_role(item))
         else:
             # ValueError, not TypeError: Pydantic only turns ValueError into a
             # ValidationError, and callers are field validators.

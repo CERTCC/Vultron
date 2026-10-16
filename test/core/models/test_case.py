@@ -22,7 +22,7 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
-    FinderParticipant,
+    ReporterParticipant,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -196,7 +196,7 @@ class TestVulnerabilityCaseAddParticipant:
     """add_participant updates case_participants and actor_participant_index."""
 
     def test_add_participant_appends(self, case: VulnerabilityCase):
-        p = FinderParticipant(
+        p = ReporterParticipant(
             id_="urn:uuid:part-1",
             attributed_to="https://example.org/finder",
         )
@@ -204,7 +204,7 @@ class TestVulnerabilityCaseAddParticipant:
         assert p.id_ in case.case_participants
 
     def test_add_participant_updates_index(self, case: VulnerabilityCase):
-        p = FinderParticipant(
+        p = ReporterParticipant(
             id_="urn:uuid:part-1",
             attributed_to="https://example.org/finder",
         )
@@ -217,7 +217,7 @@ class TestVulnerabilityCaseAddParticipant:
     def test_add_participant_without_attributed_to_no_index(
         self, case: VulnerabilityCase
     ):
-        p = FinderParticipant(id_="urn:uuid:part-2")
+        p = ReporterParticipant(id_="urn:uuid:part-2")
         case.add_participant(p)
         assert "urn:uuid:part-2" not in case.actor_participant_index
 
@@ -226,7 +226,7 @@ class TestVulnerabilityCaseAddParticipant:
     ):
         actor_id = "https://example.org/finder"
         case.actor_participant_index[actor_id] = "urn:uuid:part-existing"
-        participant = FinderParticipant(
+        participant = ReporterParticipant(
             id_="urn:uuid:part-new",
             attributed_to=actor_id,
         )

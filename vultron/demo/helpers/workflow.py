@@ -978,7 +978,7 @@ def setup_initialized_case(
        case it created on receipt on the trusted route
     2. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
        sends the stub Invite
-    3. Finder accepts, which seats it as FINDER (ADR-0114;
+    3. Finder accepts, which seats it as REPORTER (ADR-0114, ADR-0078;
        ``Add(CaseParticipant)`` only reinstates, CM-31-011)
     4. Logs final case state
 
@@ -1010,7 +1010,7 @@ def setup_initialized_case(
     )
 
     seat_participant_through_stub_invite(
-        client, case, owner=vendor, invitee=finder, role=CVDRole.FINDER
+        client, case, owner=vendor, invitee=finder, role=CVDRole.REPORTER
     )
 
     log_case_state(client, case.id_, "after setup")
