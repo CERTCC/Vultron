@@ -31,7 +31,7 @@ Structure:
 
     EngageCaseBT (Sequence)
     ├─ Intake
-    ├─ SenderIsParticipantNode                       # Sender guard (HP-01-006), before any write
+    ├─ SenderIsParticipantNode                       # Sender guard, before any write
     ├─ HoldCarriedEmbargoNode                        # Only when the Engage carried a case snapshot
     ├─ StoreEmbeddedParticipantsNode                 # Only when the Engage carried a case snapshot
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
