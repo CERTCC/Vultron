@@ -57,7 +57,7 @@ class OfferActorToCaseReceivedUseCase:
     forwarded to the Case Owner (HP-01-006, #3668).
     """
 
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.PARTICIPANT
     )
 

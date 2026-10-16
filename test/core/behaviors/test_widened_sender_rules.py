@@ -292,22 +292,24 @@ CASES = [
         marks=("HP-01-008", "EP-09-003", "PCR-03-001"),
         label="embargo-announce",
     ),
-    # Any participant record on the case, on both sides, as the trees
-    # checked (PARTICIPANT).
+    # A participant suggests an actor to the CASE_MANAGER; at a replica only
+    # the CASE_MANAGER relays it (PCR-03-001).
     *_cases(
         OfferActorToCaseReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(VENDOR, STRANGER),
-        at_participant=(VENDOR, STRANGER),
-        marks=("HP-01-008", "CM-16-001"),
+        at_participant=(MANAGER, VENDOR),
+        marks=("HP-01-008", "CM-16-001", "PCR-03-001"),
         label="offer-actor",
     ),
+    # A participant sends a status update to the CASE_MANAGER; at a replica
+    # only the CASE_MANAGER relays it (PCR-03-001).
     *_cases(
         AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
         _plain,
         at_manager=(VENDOR, STRANGER),
-        at_participant=(VENDOR, STRANGER),
-        marks=("HP-01-008", "CM-10-004"),
+        at_participant=(MANAGER, VENDOR),
+        marks=("HP-01-008", "PCR-03-001"),
         label="add-participant-status",
     ),
 ]
@@ -350,14 +352,14 @@ def test_an_inert_participant_holds_participant_but_not_active_participant(
 
 #: Declarations relabelled from ``ACTIVE_PARTICIPANT`` to ``PARTICIPANT``
 #: (#4437): each tree admitted any participant the case lists, and still does.
+#: ``offer-actor`` and ``add-participant-status`` are not here because they
+#: use ``to_case_manager`` rather than ``in_case`` (#4646).
 RELABELLED = {
     "validate-report": ValidateReportReceivedUseCase,
     "invalidate-report": InvalidateReportReceivedUseCase,
     "close-report": CloseReportReceivedUseCase,
     "engage-case": EngageCaseReceivedUseCase,
     "defer-case": DeferCaseReceivedUseCase,
-    "offer-actor": OfferActorToCaseReceivedUseCase,
-    "add-participant-status": AddParticipantStatusToParticipantReceivedUseCase,
 }
 
 
@@ -380,6 +382,52 @@ def test_relabelled_declaration_admits_any_listed_participant(
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
     assert rule == SenderRule.in_case(Kind.PARTICIPANT)
     assert _admits(rule, _plain, receiver, sender) is admitted
+
+
+# ---------------------------------------------------------------------------
+# PCR-03-001: replica admits only the CASE_MANAGER (fix #4646).
+# ---------------------------------------------------------------------------
+
+_PCR03_CASES = [
+    pytest.param(
+        OfferActorToCaseReceivedUseCase,
+        id="offer-actor",
+    ),
+    pytest.param(
+        AddParticipantStatusToParticipantReceivedUseCase,
+        id="add-participant-status",
+    ),
+]
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.parametrize("use_case", _PCR03_CASES)
+def test_replica_refuses_listed_non_manager_for_case_update(
+    use_case: type,
+) -> None:
+    """A listed non-manager participant is refused at a replica (#4646).
+
+    Both ``Offer(Actor)`` and ``Add(ParticipantStatus)`` declare
+    ``to_case_manager(PARTICIPANT)``, so at a participant replica any sender
+    other than the CASE_MANAGER is refused even when the case lists them.
+    """
+    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
+    assert not _admits(rule, _plain, REPLICA, VENDOR)
+
+
+@pytest.mark.spec("PCR-03-001")
+@pytest.mark.parametrize("use_case", _PCR03_CASES)
+def test_replica_admits_case_manager_for_case_update(
+    use_case: type,
+) -> None:
+    """The CASE_MANAGER is admitted at a replica for both use cases (#4646).
+
+    ``to_case_manager(PARTICIPANT)`` sets the participant side to
+    ``{CASE_MANAGER}``, so the CASE_MANAGER is the only entitled sender
+    at a replica.
+    """
+    rule = use_case.sender_entitlement  # type: ignore[attr-defined]
+    assert _admits(rule, _plain, REPLICA, MANAGER)
 
 
 def _hand_placed_trees() -> dict[str, tuple[type, Callable[[], object]]]:
