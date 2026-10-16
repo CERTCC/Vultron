@@ -49,10 +49,10 @@ class OfferCaseParticipantRoleReceivedEvent(VultronEvent):
 
 
 class AcceptCaseParticipantRoleReceivedEvent(VultronEvent):
-    """Offering actor received Accept(Offer(CaseParticipantRole, ...)).
+    """The CASE_MANAGER received Accept(Offer(CaseParticipantRole, ...)).
 
-    The ADR-0039 canonical role-delegation acceptance: the target Actor (or
-    their CaseActor representative) accepted the role offer.
+    The ADR-0039 canonical role-delegation acceptance: the target of the
+    role offer accepted it, answering the CASE_MANAGER (CM-33-004).
     See SE-08-003, ADR-0039.
     """
 
@@ -70,10 +70,10 @@ class AcceptCaseParticipantRoleReceivedEvent(VultronEvent):
 
 
 class RejectCaseParticipantRoleReceivedEvent(VultronEvent):
-    """Offering actor received Reject(Offer(CaseParticipantRole, ...)).
+    """The CASE_MANAGER received Reject(Offer(CaseParticipantRole, ...)).
 
-    The ADR-0039 canonical role-delegation rejection: the target Actor (or
-    their CaseActor representative) declined the role offer.
+    The ADR-0039 canonical role-delegation rejection: the target of the
+    role offer declined it, answering the CASE_MANAGER (CM-33-004).
     See SE-08-003, ADR-0039.
     """
 

@@ -264,7 +264,6 @@ def _redelivery_verdict(
         type[OwnershipOfferOpenNode]
         | type[NoOpenOwnershipOfferNode]
         | type[IsWithdrawableEmbargoNode]
-        | type[RoleOfferAdmissibleNode]
     ),
     verdict: HandlerResult,
     fallback: str,
@@ -362,16 +361,21 @@ def role_offer_verdict(
     """Report a redelivered role Offer as ``SKIPPED``.
 
     :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferAdmissibleNode`
-    fails with ``is_redelivery`` set when the CASE_MANAGER's ledger already
-    records the Offer, so it is neither committed nor forwarded again
-    (HP-01-003).
+    sets ``is_redelivery`` when the CASE_MANAGER's ledger already records the
+    Offer and admits it, so the run resumes the forward with the recorded
+    entry reused (HP-01-003, OX-06-002).  Only a run that succeeded reads as
+    ``SKIPPED``: a refusal or a failure keeps its own verdict.
     """
-    return _redelivery_verdict(
-        tree,
-        RoleOfferAdmissibleNode,
-        verdict,
-        "role Offer redelivered",
-    )
+    guard = find_node(tree, RoleOfferAdmissibleNode)
+    if (
+        verdict.disposition is HandlerDisposition.APPLIED
+        and guard is not None
+        and guard.is_redelivery
+    ):
+        return HandlerResult.skipped(
+            guard.feedback_message or "role Offer redelivered"
+        )
+    return verdict
 
 
 def rm_declaration_verdict(

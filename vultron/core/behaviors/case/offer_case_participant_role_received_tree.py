@@ -89,11 +89,13 @@ def create_offer_case_participant_role_received_tree(
     :class:`RoleOfferAdmissibleNode` then refuses an Offer the CASE_MANAGER
     may not record (CM-33-003), so a refused Offer leaves no entry and sends
     nothing.  At the CASE_MANAGER the guarded commit records the Offer and
-    the gated :class:`ForwardRoleOfferToTargetNode` sends it on to the target
+    the gated :class:`ForwardRoleOfferToTargetNode` sends it on to the target.
     The commit records the received Offer, so it precedes the forward
     (CLP-10-006); the forward is not ledgered on its own, so SYNC-09-002's
-    send-then-commit order binds nothing here.  At a participant replica only
-    the target answers (CM-33-004, BT-17-008).
+    send-then-commit order binds nothing here.  A redelivery of a recorded
+    Offer reuses its entry and rebuilds the same forward, so a forward that
+    failed after the commit is sent then (HP-01-003, OX-06-002).  At a
+    participant replica only the target answers (CM-33-004, BT-17-008).
 
     Args:
         offer_id: ID of the received ``Offer(CaseParticipantRole)``; the
@@ -117,70 +119,69 @@ def create_offer_case_participant_role_received_tree(
             precondition_guards=[],
         )
 
-    replica_effects: list[py_trees.behaviour.Behaviour] = []
-    manager_effects: list[py_trees.behaviour.Behaviour] = []
-    if role is not None and target_actor_id:
-        replica_effects.append(
-            create_participant_replica_gated_tree(
-                name="AnswerRoleOfferOnReplica",
-                case_id=case_id,
-                children=[
-                    IsRoleOfferTargetNode(target_actor_id=target_actor_id),
-                    py_trees.composites.Selector(
-                        name="AcceptOrReject",
-                        memory=False,
-                        children=[
-                            AutoAcceptCaseParticipantRoleNode(
-                                offer_id=offer_id,
-                                case_id=case_id,
-                                role=role,
-                                target_actor_id=target_actor_id,
-                                vendor_id=sender_id,
-                            ),
-                            EmitRejectCaseParticipantRoleNode(
-                                offer_id=offer_id,
-                                case_id=case_id,
-                                role=role,
-                                target_actor_id=target_actor_id,
-                                vendor_id=sender_id,
-                            ),
-                        ],
-                    ),
-                ],
-            )
-        )
-        manager_effects.append(
-            ForwardRoleOfferToTargetNode(
-                case_id=case_id,
-                role=role,
-                target_actor_id=target_actor_id,
-                offer_id=offer_id,
-                owner_id=sender_id,
-            )
+    sender_context = SenderCheckContext(
+        sender_id=sender_id, case_id=case_id, case_manager_required=True
+    )
+    admissible = RoleOfferAdmissibleNode(
+        case_id=case_id,
+        offer_id=offer_id,
+        role=role,
+        target_actor_id=target_actor_id,
+    )
+    if role is None or not target_actor_id:
+        # Nothing to forward or answer: the guard refuses the Offer
+        # (CM-33-003), so the tree is the door and the guards.
+        return create_receive_activity_tree(
+            name="OfferCaseParticipantRoleReceivedBT",
+            case_id=case_id,
+            sender_rule=sender_rule,
+            sender_context=sender_context,
+            precondition_guards=[admissible],
         )
 
+    answer = create_participant_replica_gated_tree(
+        name="AnswerRoleOfferOnReplica",
+        case_id=case_id,
+        children=[
+            IsRoleOfferTargetNode(target_actor_id=target_actor_id),
+            py_trees.composites.Selector(
+                name="AcceptOrReject",
+                memory=False,
+                children=[
+                    AutoAcceptCaseParticipantRoleNode(
+                        offer_id=offer_id,
+                        case_id=case_id,
+                        role=role,
+                        target_actor_id=target_actor_id,
+                        vendor_id=sender_id,
+                    ),
+                    EmitRejectCaseParticipantRoleNode(
+                        offer_id=offer_id,
+                        case_id=case_id,
+                        role=role,
+                        target_actor_id=target_actor_id,
+                        vendor_id=sender_id,
+                    ),
+                ],
+            ),
+        ],
+    )
+    forward = ForwardRoleOfferToTargetNode(
+        case_id=case_id,
+        role=role,
+        target_actor_id=target_actor_id,
+        offer_id=offer_id,
+        owner_id=sender_id,
+    )
     return create_receive_activity_tree(
         name="OfferCaseParticipantRoleReceivedBT",
         case_id=case_id,
         sender_rule=sender_rule,
-        sender_context=SenderCheckContext(
-            sender_id=sender_id,
-            case_id=case_id,
-            case_manager_required=True,
-        ),
-        precondition_guards=[
-            RoleOfferAdmissibleNode(
-                case_id=case_id,
-                offer_id=offer_id,
-                role=role,
-                target_actor_id=target_actor_id,
-            )
-        ],
-        replica_effects=replica_effects,
-        replica_emit_exemption=OFFER_ROLE if replica_effects else None,
-        manager_effects=manager_effects,
-        manager_case_id=case_id if manager_effects else None,
-        manager_gate_name=(
-            "ForwardRoleOfferToTargetCMGated" if manager_effects else None
-        ),
+        sender_context=sender_context,
+        precondition_guards=[admissible],
+        replica_effects=[answer],
+        replica_emit_exemption=OFFER_ROLE,
+        manager_effects=[forward],
+        manager_case_id=case_id,
+        manager_gate_name="ForwardRoleOfferToTargetCMGated",
     )

@@ -20,6 +20,7 @@ is a strict ``xfail`` that fails for the reason its requirement names.
 """
 
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -46,6 +47,7 @@ from vultron.core.use_cases.received.actor.case_participant_role import (
     OfferCaseParticipantRoleReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_participant_role_activity,
     offer_case_participant_role_activity,
@@ -257,15 +259,44 @@ def test_redelivered_offer_is_skipped_with_no_second_entry_or_forward(
     make_payload,
 ):
     dl = _store(_CASE_MANAGER_ID)
-    _deliver_offer(dl, make_payload, _offer())
+    offer = _offer()
+    _deliver_offer(dl, make_payload, offer)
     entries = _event_types(dl)
     forwards = _queued_offers(dl)
 
-    result = _deliver_offer(dl, make_payload, _offer())
+    result = _deliver_offer(dl, make_payload, offer)
 
     assert result.disposition is HandlerDisposition.SKIPPED
     assert _event_types(dl) == entries
     assert _queued_offers(dl) == forwards
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CLP-10-006")
+def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
+    make_payload,
+):
+    """The fault is ours, not a refusal; the redelivery finishes the forward."""
+    dl = _store(_CASE_MANAGER_ID)
+    offer = _offer()
+    broken = MagicMock(wraps=TriggerActivityAdapter(dl))
+    broken.offer_case_participant_role.side_effect = RuntimeError("down")
+
+    with pytest.raises(VultronBTInternalError):
+        OfferCaseParticipantRoleReceivedUseCase(
+            dl,
+            make_payload(offer, receiving_actor_id=dl.actor_id),
+            trigger_activity=broken,
+            **_ports(dl),
+        ).execute()
+    assert _event_types(dl) == ["offer_case_participant_role"]
+    assert _forwards(dl) == []
+
+    result = _deliver_offer(dl, make_payload, offer)
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == ["offer_case_participant_role"]
+    assert len(_forwards(dl)) == 1
 
 
 @pytest.mark.spec("HP-01-005")
@@ -317,13 +348,20 @@ def test_an_addressee_that_is_not_the_target_does_not_answer(make_payload):
 
 
 @pytest.mark.spec("CM-33-003")
-def test_offer_naming_no_case_is_refused(make_payload):
+@pytest.mark.parametrize(
+    "dropped",
+    [
+        pytest.param("context", id="no-case"),
+        pytest.param("target", id="no-target"),
+    ],
+)
+def test_offer_naming_no_case_or_no_target_is_refused(make_payload, dropped):
     """Only intake's archive keeps it: no entry, no forward (CLP-10-018)."""
     dl = _store(_CASE_MANAGER_ID)
     request = make_payload(_offer(), receiving_actor_id=dl.actor_id)
     request = request.model_copy(
         update={
-            "activity": request.activity.model_copy(update={"context": None})
+            "activity": request.activity.model_copy(update={dropped: None})
         }
     )
 
@@ -410,7 +448,7 @@ def test_target_answers_the_forward_to_the_case_manager_only(make_payload):
 
     result = _deliver_offer(dl, make_payload, _forward())
 
-    assert result.disposition is not HandlerDisposition.REFUSED
+    assert result.disposition is HandlerDisposition.APPLIED
     answers = [
         item for item in _queued(dl) if _type_of(item) in ("Accept", "Reject")
     ]

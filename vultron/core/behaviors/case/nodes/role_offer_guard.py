@@ -53,12 +53,17 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
       CASE_MANAGER (CM-33-004).
 
     A **redelivery** of an Offer the ledger already records is not a new
-    Offer and not a refusal (HP-01-003), but it must change nothing: the
-    commit would add nothing and the forward would send the Offer again.  The
-    guard sets :attr:`is_redelivery` and fails, so nothing downstream runs,
-    and the handler reports the run as ``SKIPPED``.  Only the CASE_MANAGER
-    records role Offers, and the forward a participant receives carries its
-    own id, so a participant never reads the forward as a redelivery.
+    Offer and not a refusal (HP-01-003).  The guard sets :attr:`is_redelivery`
+    and admits it without the other checks, which the Offer passed when it was
+    recorded and which the target's later Accept would now fail.  The run then
+    resumes what the first delivery may not have finished: the commit reuses
+    the recorded entry rather than adding one, and the forward is rebuilt
+    under its derived id, which the outbox does not queue twice while it is
+    pending (OX-06-002).  A forward that failed after the commit is therefore
+    sent by the redelivery.  The handler reports the run as ``SKIPPED``.  Only
+    the CASE_MANAGER records role Offers, and the forward a participant
+    receives carries its own id, so a participant never reads the forward as a
+    redelivery.
 
     Read-only.  It runs on every store the Offer reaches: the target holds
     the case too, and refuses the same malformed Offer (CM-33-004).
@@ -112,10 +117,10 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
             self.is_redelivery = True
             self.feedback_message = (
                 f"role Offer '{self.offer_id}' is already recorded for case"
-                f" '{self.case_id}' — redelivery, nothing to apply (HP-01-003)"
+                f" '{self.case_id}' — redelivery (HP-01-003)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+            return Status.SUCCESS
         if not self.target_actor_id:
             return self._refuse("names no target")
         participant_id = participant_id_for_actor(

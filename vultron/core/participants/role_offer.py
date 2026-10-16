@@ -19,8 +19,10 @@ it forwards the Offer to the target (CM-33-001), so the ledger is the record
 of which Offers it holds (CLP-11-001).
 """
 
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.sync_helpers import recorded_entries_for_case
 
 #: The ``event_type`` of the entry that records an admitted role Offer.
 OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE = "offer_case_participant_role"
@@ -30,15 +32,11 @@ def recorded_role_offer_entries(
     dl: CasePersistence, case_id: str
 ) -> list[CaseLedgerEntry]:
     """The case's ``offer_case_participant_role`` entries, oldest first."""
-    entries = [
-        obj
-        for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and obj.case_id == case_id
-        and obj.event_type == OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+    return [
+        entry
+        for entry in recorded_entries_for_case(case_id=case_id, dl=dl)
+        if entry.event_type == OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE
     ]
-    entries.sort(key=lambda entry: entry.log_index)
-    return entries
 
 
 def is_recorded_role_offer(
@@ -55,8 +53,23 @@ def is_recorded_role_offer(
     )
 
 
+def role_offer_forward_id(
+    case_manager_id: str, case_id: str, offer_id: str
+) -> str:
+    """The id of the CASE_MANAGER's forward of the role Offer *offer_id*.
+
+    Derived from the recorded Offer (ID-04-004, OX-06-002), so a redelivery
+    of the Offer rebuilds the same forward, which the outbox does not queue
+    twice while it is pending.
+    """
+    return derived_activity_id(
+        "forward_case_participant_role", case_manager_id, case_id, offer_id
+    )
+
+
 __all__ = [
     "OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE",
     "is_recorded_role_offer",
     "recorded_role_offer_entries",
+    "role_offer_forward_id",
 ]

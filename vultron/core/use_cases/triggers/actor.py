@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 import py_trees.behaviour
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.actor_discovery import (
     ACTOR_DISCOVERY_DETERMINISTIC,
     ActorDiscoveryCallOutBundle,
@@ -43,6 +44,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     withdraw_case_ownership_transfer_trigger_bt,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.use_case_result import RoleOfferResult
@@ -51,10 +53,7 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import (
-    add_activity_to_outbox,
-    read_received_activity,
-)
+from vultron.core.use_cases._helpers import read_received_activity
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -74,6 +73,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
+    VultronBTInternalError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
@@ -644,12 +644,13 @@ class SvcOfferCaseParticipantRoleUseCase:
 
     Builds ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
     from the requesting actor, addressed to the case's CASE_MANAGER only, and
-    queues it in the requesting actor's outbox.  The CASE_MANAGER checks the
-    Offer, records it and forwards it to the target (CM-33-002, CM-33-003);
-    the target never receives the Case Owner's own Offer (CM-33-001).  The
-    ``trigger_activity`` adapter's ``offer_case_participant_role`` method
-    handles wire construction and persistence; no BT orchestration is needed
-    on the sending side (ADR-0110).
+    queues it in the requesting actor's outbox through the SenderSideBT
+    (PCR-08-001).  The CASE_MANAGER checks the Offer, records it and forwards
+    it to the target (CM-33-002, CM-33-003); the target never receives the
+    Case Owner's own Offer (CM-33-001).  The ``trigger_activity`` adapter's
+    ``offer_case_participant_role`` method handles wire construction and
+    persistence.  It is not a ``SvcBTTriggerBase`` subclass, so its result
+    carries no ``emitting_actor_id`` (ADR-0110).
 
     Raises ``VultronNotFoundError`` before anything is built when the case is
     not held, or names no CASE_MANAGER (PCR-08-011): a case always has one
@@ -673,25 +674,42 @@ class SvcOfferCaseParticipantRoleUseCase:
             raise RuntimeError(
                 "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
             )
+        factory = self._trigger_activity
         req = self._request
         case = resolve_case(req.case_id, self._dl)
         # The Offer goes to the CASE_MANAGER or nowhere (CM-33-001,
         # PCR-08-011).
-        case_manager_id = resolve_case_manager_id(case, self._dl)
-        if case_manager_id is None:
+        if resolve_case_manager_id(case, self._dl) is None:
             raise VultronNotFoundError(
                 "CASE_MANAGER", f"(for case '{case.id_}')"
             )
-        activity_id, activity_dict = (
-            self._trigger_activity.offer_case_participant_role(
+        built: dict[str, str] = {}
+
+        def _build_offer(case_manager_id: str) -> list[str]:
+            activity_id, activity_dict = factory.offer_case_participant_role(
                 case_id=case.id_,
                 role=req.role,
                 target_actor_id=req.target_actor_id,
                 actor=req.actor_id,
                 to=[case_manager_id],
             )
-        )
-        add_activity_to_outbox(req.actor_id, activity_id, self._dl)
+            built.update(
+                activity_id=activity_id,
+                activity=activity_dict,
+                case_manager_id=case_manager_id,
+            )
+            return [activity_id]
+
+        tree = sender_side_bt(case_id=case.id_, activity_builder=_build_offer)
+        result = BTBridge(
+            datalayer=self._dl, trigger_activity=factory
+        ).execute_with_setup(tree, actor_id=req.actor_id)
+        if result.status != Status.SUCCESS:
+            raise VultronBTInternalError(
+                "SvcOfferCaseParticipantRoleUseCase failed:"
+                f" {result.feedback_message or BTBridge.get_failure_reason(tree)}"
+            )
+        activity_id, activity_dict = built["activity_id"], built["activity"]
         logger.info(
             "SvcOfferCaseParticipantRoleUseCase: queued Offer(CaseParticipantRole)"
             " '%s' for case '%s' role '%s' → actor '%s', sent to the"
@@ -700,7 +718,7 @@ class SvcOfferCaseParticipantRoleUseCase:
             case.id_,
             req.role,
             req.target_actor_id,
-            case_manager_id,
+            built["case_manager_id"],
         )
         return RoleOfferResult(
             activity_id=activity_id,

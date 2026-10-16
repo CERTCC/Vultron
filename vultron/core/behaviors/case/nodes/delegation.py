@@ -43,6 +43,7 @@ from vultron.core.behaviors.sync.nodes.role_grant_effect import (
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.role_offer import role_offer_forward_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.enums.roles import CVDRole
@@ -63,16 +64,22 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
     ``log_object_id``), so an answer naming the forward resolves to the Offer
     it stands for (CM-33-005).
 
-    The forward's id derives from the recorded Offer (OX-06-002), so a retry
-    rebuilds the same forward, which the outbox does not queue twice.  It is
-    not ledgered on its own: the entry it follows records the Offer.
+    The forward's id derives from the recorded Offer
+    (:func:`~vultron.core.participants.role_offer.role_offer_forward_id`), so
+    a redelivery of the Offer rebuilds the same forward, which the outbox
+    does not queue twice while it is pending (OX-06-002).  It is not
+    ledgered on its own: the entry it follows records the Offer.
 
     A ``manager_effects`` entry, so it runs only at the CASE_MANAGER
-    (BT-17-008).  Returns FAILURE, writing nothing, when the factory is absent
-    or raises.
+    (BT-17-008).  It runs after the commit, so a fault building or queuing
+    the forward is the CASE_MANAGER's, never a refusal of the sender: it is
+    not caught, and escapes to ``BTBridge`` as an internal error
+    (ARCH-15-001).  A redelivery of the Offer then sends the forward, the
+    commit reusing the recorded entry
+    (:class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferAdmissibleNode`).
+    Only a missing factory returns FAILURE, a wiring fault the handler also
+    raises on.
     """
-
-    _ID_KIND: ClassVar[str] = "forward_case_participant_role"
 
     def __init__(
         self,
@@ -104,8 +111,8 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
             to=[self.target_actor_id],
             attributed_to=authorship.attributed_to,
             in_reply_to=self.offer_id,
-            id_=derived_activity_id(
-                self._ID_KIND, self.actor_id, self.case_id, self.offer_id
+            id_=role_offer_forward_id(
+                self.actor_id, self.case_id, self.offer_id
             ),
         )
 
@@ -113,22 +120,10 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         if (f := self._require_factory()) is not None:
-            self.logger.warning(
-                "%s: no trigger_activity port — cannot forward role offer"
-                " '%s' to '%s' (CM-33-001)",
-                self.name,
-                self.offer_id,
-                self.target_actor_id,
-            )
+            self.logger.error("%s", self.feedback_message)
             return f
-        try:
-            activity_id, activity_blob = self._call_factory()
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
-            self.feedback_message = (
-                f"error forwarding role offer '{self.offer_id}': {exc}"
-            )
-            self.logger.error("%s: %s", self.name, self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
-            return Status.FAILURE
+        # Not caught: see the class docstring.
+        activity_id, activity_blob = self._call_factory()
         self._emit_through_seam(activity_id, activity_blob)
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
@@ -194,6 +189,11 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
     Only a missing input, a case this store does not hold, a case that names
     no CASE_MANAGER, or a factory error returns FAILURE, before anything is
     written.
+
+    ``vendor_id`` is the sender of the Offer being answered, which the port
+    rebuilds as the ``actor`` of the Offer the answer carries.  At the target
+    that sender is the CASE_MANAGER whose forward it answers (CM-33-004), not
+    the Case Owner that made the Offer; the name is the port's.
 
     Subclasses set ``_EVENT_TYPE`` (the kind label of the derived id) and
     ``_ANSWER`` (for logs), and implement :meth:`_factory_method`.

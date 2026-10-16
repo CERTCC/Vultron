@@ -185,7 +185,7 @@ def _participant_store() -> SqliteDataLayer:
         )
     )
     _seed_participant(dl, MANAGER_ID, [CVDRole.CASE_MANAGER])
-    _seed_participant(dl, ACTOR_ID, [CVDRole.FINDER])
+    _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
     return dl
 
 
@@ -216,7 +216,7 @@ class TestAnswerGoesToTheCaseManager:
         self, bridge, dl, node_cls, event_type
     ):
         """No CASE_MANAGER resolves: nothing is sent, so the Selector fails."""
-        _seed_participant(dl, ACTOR_ID, [CVDRole.FINDER])
+        _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
 
         result = bridge.execute_with_setup(
             tree=_answer_node(node_cls), actor_id=ACTOR_ID
@@ -340,7 +340,9 @@ class TestForwardRoleOfferToTargetNode:
         assert result.status == Status.FAILURE
         assert dl.outbox_list() == []
 
-    def test_failure_when_factory_raises(self, dl):
+    @pytest.mark.spec("ARCH-15-001")
+    def test_a_factory_fault_is_an_internal_error(self, dl):
+        """It runs after the commit: a fault is ours, never a refusal."""
         mock_factory = MagicMock()
         mock_factory.offer_case_participant_role.side_effect = RuntimeError(
             "factory error"
@@ -351,6 +353,7 @@ class TestForwardRoleOfferToTargetNode:
         ).execute_with_setup(tree=_forward_node(), actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
+        assert result.internal_error
         assert dl.outbox_list() == []
 
 
