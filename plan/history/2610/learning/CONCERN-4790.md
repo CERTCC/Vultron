@@ -25,4 +25,4 @@ Found while building #4784.
 Where: vultron/core/services/embargo_lifecycle/activation.py
 
 **Resolved**: 2026-10-16 — implementation tracked in #4846.
-Decision: remove the method and its own tests (option 1). The copy path already checks proposal cancel (EP-08-004) and the cleared relay index; fixtures move to `test/support/embargo_register.terminate()`; spec EMB-18-001 is edited with the code. No ADR, notes or spec changes in the planning PR.
+Decision: remove the method and its own tests (option 1). The copy path already checks proposal cancel (EP-08-004) and the cleared relay index (EP-08-003, in `test_teardown.py`); fixtures move to `test/support/embargo_register.terminate()`; spec EMB-18-001 is edited with the code. No ADR, notes or spec changes in the planning PR.
