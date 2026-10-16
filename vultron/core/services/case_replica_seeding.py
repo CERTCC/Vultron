@@ -45,6 +45,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.states.rm import RM, is_monotonic_rm_forward
 
 logger = logging.getLogger(__name__)
@@ -181,7 +182,8 @@ def find_pending_report_case_link(
     pending = [
         link
         for link in _pending_links(dl)
-        if link.case_creator_id == creator_id
+        if link.case_creator_id is not None
+        and same_actor_id(link.case_creator_id, creator_id)
     ]
     for link in pending:
         if link.report_id in report_ids:
@@ -200,6 +202,19 @@ def _pending_links(dl: CasePersistence) -> list[VultronReportCaseLink]:
     ]
 
 
+def _links_bound_to(
+    dl: CasePersistence, case_id: str
+) -> list[VultronReportCaseLink]:
+    """Every ``ReportCaseLink`` already bound to *case_id* by a named sender."""
+    return [
+        obj
+        for obj in dl.list_objects("ReportCaseLink")
+        if isinstance(obj, VultronReportCaseLink)
+        and obj.case_id == case_id
+        and obj.case_creator_id is not None
+    ]
+
+
 def is_bootstrap_accepted(
     dl: CasePersistence, creator_id: str, case_id: str
 ) -> bool:
@@ -208,11 +223,32 @@ def is_bootstrap_accepted(
     A redelivery of a bootstrap already accepted (CBT-01-006).
     """
     return any(
-        isinstance(obj, VultronReportCaseLink)
-        and obj.case_id == case_id
-        and obj.case_creator_id == creator_id
-        for obj in dl.list_objects("ReportCaseLink")
+        link.case_creator_id is not None
+        and same_actor_id(link.case_creator_id, creator_id)
+        for link in _links_bound_to(dl, case_id)
     )
+
+
+def expected_case_creators(dl: CasePersistence, case_id: str) -> list[str]:
+    """Every actor a ``ReportCaseLink`` this store wrote expects *case_id* from.
+
+    The trust anchors a bootstrap ``Create(VulnerabilityCase)`` is checked
+    against (CBT-01-005, CBT-01-011): the expected creator of every link
+    still awaiting a bootstrap, and the creator of every link already bound
+    to *case_id* (a redelivery, CBT-01-006).  It reads the same links
+    :func:`find_pending_report_case_link` and :func:`is_bootstrap_accepted`
+    do, and all three compare actor ids with
+    :func:`~vultron.core.predicates.addressing.same_actor_id`.
+    """
+    creators: list[str] = []
+    for link in [*_pending_links(dl), *_links_bound_to(dl, case_id)]:
+        creator = link.case_creator_id
+        if creator is None or any(
+            same_actor_id(creator, known) for known in creators
+        ):
+            continue
+        creators.append(creator)
+    return creators
 
 
 def find_case_create_sent_by(

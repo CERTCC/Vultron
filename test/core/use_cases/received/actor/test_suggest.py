@@ -636,6 +636,36 @@ class TestOwnerDirectInviteAtCaseManager:
         assert any(body.get("type") == "Invite" for body in queued)
         assert not any(body.get("type") == "Offer" for body in queued)
 
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_spelled_invitee_is_invited_and_stored_canonically(
+        self, make_payload, seed_case_manager
+    ):
+        """The recommended actor's id is extracted without its trailing
+        slash: the Invite and the invitee's participant name one spelling."""
+        dl = self._setup_dl(seed_case_manager)
+        activity = recommend_actor_activity(
+            as_Actor(id_=self._INVITEE_ID + "/"),
+            target=_case_ref(self._CASE_ID),
+            actor=self._OWNER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=["vendor"],
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        assert self._sealed_invite(dl).get("to") == [self._INVITEE_ID]
+        case = cast(VulnerabilityCase, dl.read(self._CASE_ID))
+        assert self._INVITEE_ID in case.actor_participant_index
+        assert self._INVITEE_ID + "/" not in case.actor_participant_index
+
 
 class TestSuggestionFromNonParticipant:
     """A suggestion from an actor the case does not list is refused (CM-16-001).

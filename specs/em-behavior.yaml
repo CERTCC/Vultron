@@ -599,8 +599,11 @@ groups:
       immediately rather than reverting to Active.
     rationale: >-
       Reverting to Active is not viable once public disclosure has occurred.
-      VP-11-002 requires termination in these states. Embargo termination takes
-      precedence over the revision rejection.
+      VP-11-002 requires termination in these states. "Rather than reverting"
+      describes where the act ends: EM ends EXITED, never back in Active. Inside
+      the act, the CASE_MANAGER records the rejection as decided (the revision
+      REJECTED) and then terminates the embargo, as two entries a replica copies
+      in order (MSM-07-009, CM-23-016).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
       with a public/exploit/attack CS causes ET to be emitted and EM to transition

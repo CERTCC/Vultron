@@ -2,7 +2,7 @@
 
 DEMOMA-16-001 declares five event types — ``validate_report``,
 ``add_participant_status_to_participant``, ``close_case``,
-``create_note``, and ``engage_case`` — that MUST appear in the
+``add_note_to_case``, and ``engage_case`` — that MUST appear in the
 authoritative case-actor log of *every* multi-actor demo scenario.  Each
 scenario harness implements that requirement as the leading entries of its
 ``_XXX_EXPECTED_EVENT_TYPES`` constant.
@@ -50,7 +50,7 @@ _UNIVERSAL_EVENT_TYPES = (
     "validate_report",
     "add_participant_status_to_participant",
     "close_case",
-    "create_note",
+    "add_note_to_case",
     "engage_case",
 )
 

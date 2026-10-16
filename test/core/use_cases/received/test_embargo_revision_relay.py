@@ -1299,3 +1299,40 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     caplog.set_level("WARNING")
     assert resolve_proposer_id(event, dl) == MANAGER
     assert any("holds no case" in r.message for r in caplog.records)
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-24-002")
+def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
+    make_payload,
+):
+    """``attributedTo`` is extracted without its trailing slash, so the
+    proposer is the stored participant: its row is agreed, it is left out of
+    the relay and the relays attribute it canonically."""
+    case_id = "https://example.org/cases/relay-attributed-slash"
+    dl, revision = _active_case_with_revision(
+        case_id,
+        store_actor=MANAGER,
+        participants=[PROPOSER, OTHER_A, OTHER_B],
+    )
+    invite = _proposal(
+        revision, case_id, actor=MANAGER, attributed_to=PROPOSER + "/"
+    )
+
+    assert (
+        resolve_proposer_id(
+            make_payload(invite, receiving_actor_id=MANAGER), dl
+        )
+        == PROPOSER
+    )
+    _deliver(dl, invite, make_payload, MANAGER)
+
+    relayed = _relayed_invites(dl)
+    assert sorted(r for a in relayed for r in (a.to or [])) == sorted(
+        [OTHER_A, OTHER_B]
+    )
+    assert {a.attributed_to for a in relayed} == {PROPOSER}
+    assert (
+        _consent_of(dl, case_id, PROPOSER, revision.id_)
+        == EmbargoConsentState.AGREED
+    )

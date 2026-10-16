@@ -82,7 +82,7 @@ _HANDOFF_IN_ORDER = (
     _OWNERSHIP_ACCEPTED,
     _INVITE,
     "accept_invite_actor_to_case",
-    "create_note",
+    "add_note_to_case",
     "close_case",
     "close_case",
 )
@@ -99,7 +99,7 @@ _HANDOFF_INVITE_BEFORE_OWNERSHIP = (
     _INVITE,
     _OWNERSHIP_ACCEPTED,
     "accept_invite_actor_to_case",
-    "create_note",
+    "add_note_to_case",
     "close_case",
     "close_case",
 )
@@ -271,7 +271,7 @@ _WELL_FORMED_CHAIN = [
     _edge(_ACCEPT, _OWNERSHIP_ACCEPTED, "coordinator"),
     _edge(_OWNERSHIP_ACCEPTED, _INVITE, "coordinator"),
     _edge(_INVITE, _ACCEPT, "vendor2"),
-    _edge("engage_case", "create_note", "finder"),
+    _edge("engage_case", "add_note_to_case", "finder"),
 ]
 
 
@@ -304,7 +304,7 @@ def test_invite_chain_ignores_pages_without_invitations() -> None:
                 _edge("engage_case", _INVITE, "vendor"),
                 _edge(_OWNERSHIP_ACCEPTED, _INVITE, "coordinator"),
                 _edge(_INVITE, _ACCEPT, "vendor2"),
-                _edge("engage_case", "create_note", "finder"),
+                _edge("engage_case", "add_note_to_case", "finder"),
                 _edge(_INVITE, _ACCEPT, "vendor"),
             ],
             "does not directly follow",

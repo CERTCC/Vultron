@@ -9,7 +9,7 @@ from vultron.core.behaviors.dead_letter.dead_letter_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    no_sender_check,
 )
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
@@ -36,8 +36,10 @@ class UnknownUseCase:
     semantic type.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for unknown activities"
+    # Refused for its semantics alone, whoever sent it: nothing is applied.
+    sender_entitlement: ClassVar[SenderEntitlement] = no_sender_check(
+        "an activity with no recognized semantics is refused whoever sent"
+        " it; nothing is written, committed or sent"
     )
 
     def __init__(
@@ -69,8 +71,12 @@ class UnresolvableObjectUseCase:
     See ``specs/semantic-extraction.yaml`` SE-04-002, SE-04-003.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for unresolvable object activities"
+    # The dead-letter record is the receiver's own diagnostic, not an
+    # assertion applied to any case (SE-04-002).
+    sender_entitlement: ClassVar[SenderEntitlement] = no_sender_check(
+        "the activity's object cannot be resolved, so it has no meaning to"
+        " apply: the receiver only stores a dead-letter record for its own"
+        " diagnosis, and commits, applies and sends nothing"
     )
 
     def __init__(

@@ -40,10 +40,12 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
   There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
 - **Factory-fn placement**: `vultron.core.behaviors.report.trigger_report_trees.create_close_case_trigger_tree` — Actuator between the not-already-closed guard and `TransitionRMtoClosed`.
   The DETERMINISTIC default is `AlwaysSucceed`, because a missing pre-close backend must not block closure.
+  That tree sends `Close(Report)`, so it fails before this node on any case that holds the report (CM-23-019).
 
 ## Closure model
 
-Case closure is always the Case Owner's decision, sent as `Leave(VulnerabilityCase)` through `create_close_case_trigger_tree` (CM-23-001).
+Case closure is always the Case Owner's decision, sent as `Leave(VulnerabilityCase)` through the close-case trigger (CM-23-001).
+Once a case holds the report, no actor sends `Close(Report)` for it, and the CASE_MANAGER refuses one from every sender (CM-23-019).
 No protocol state closes a case on its own: public awareness (CS `P`) already tears down the embargo, and coordination often continues after embargo exit and disclosure.
 The same `Leave(VulnerabilityCase)` from a non-owner participant removes only that participant (CM-23-003).
 `create_close_report_tree` exists only as the injection seam for a future close-readiness monitor, which would suggest closure to the Case Owner rather than close the case.

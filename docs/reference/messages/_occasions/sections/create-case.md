@@ -7,7 +7,7 @@ Mints the vulnerability case, seats its initial participants and links the repor
 - **When…** the Case Manager has opened a case for a submitted report
 - **Send:** `Create(VulnerabilityCase)`
 - **Send to:** a participant
-- **Sent by:** not yet checked
+- **Sent by:** the addressee of the case proposal or vulnerability report offer
 - **Seen in:** [How to Initialize a Case](../../../../howto/activitypub/activities/initialize_case.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 

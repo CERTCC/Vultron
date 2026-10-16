@@ -126,9 +126,26 @@ class _NotesMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(Note, Case)`` activity."""
-        note = _note_for_wire(self._dl, note_id)
+        """Create and persist an ``Add(Note, target=Case)`` activity.
+
+        The ``Add`` carries the stored note inline as its ``object``, so the
+        receiver gets the note itself and not a URI it cannot dereference
+        (VAM-01-010).  The id is derived from *actor* and the note, because
+        one note is attached once: a re-run hands back the body the first run
+        sealed rather than queuing a second ``Add`` (ID-04-004, OX-06-002).
+
+        Returns ``(activity_id, activity_body)``.
+
+        Raises:
+            VultronNotFoundError: when *note_id* is not in the DataLayer.
+        """
+        activity_id = derived_activity_id("note-added", actor, note_id)
+        sealed = _already_sealed(self._dl, activity_id)
+        if sealed is not None:
+            return sealed
         activity = add_note_to_case_activity(
-            note=note, target=case_id, actor=actor, to=to
+            note=_note_for_wire(self._dl, note_id),
+            target=case_id,
+            **_addressing(actor, to, activity_id),
         )
         return _create_and_seal(self._dl, activity, "add_note_to_case")

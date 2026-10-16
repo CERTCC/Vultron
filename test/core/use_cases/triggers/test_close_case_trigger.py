@@ -16,20 +16,19 @@
 """Dedicated execute()-path tests for SvcCloseCaseUseCase.
 
 Per notes/triggers-test-coverage.md: each test exercises the use case's
-execute() path against a real in-memory DataLayer and asserts:
-  1. the RM state mutation (RM → CLOSED via BT);
-  2. the outbox effect (activity queued, addressed correctly per PCR-08-001);
-  3. the documented failure modes the use case is documented to raise
-     (VultronNotFoundError when no linked VulnerabilityCase).
+execute() path against a real in-memory DataLayer.
 
-SvcCloseCaseUseCase enforces that only the Case Owner may close the case:
-CheckCaseOwnerNode in the BT tree returns FAILURE when the actor is not
-CASE_OWNER, causing execute() to raise VultronBTError.
+The close-report trigger emits ``Close(Report)``.  Once a case holds the
+report, its Case Owner closes the case by ``Leave(VulnerabilityCase)`` and no
+actor sends ``Close(Report)`` for it (CM-23-019), so the trigger fails closed
+on a case: it raises ``VultronInvalidStateTransitionError`` (HTTP 409) with
+nothing written or queued.  A report with no linked case still raises
+``VultronNotFoundError``.  Before this rule its success moved the owner to RM
+``CLOSED`` while the case stayed open (#4746).
 """
 
 import pytest
 
-from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -168,93 +167,48 @@ class TestSvcCloseCaseUseCase:
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
 
-    def _seed_accepted(self):
-        """Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001)."""
+    def _seed(self, rm_state: RM) -> None:
         self.dl.create(
-            VultronReportCaseLink(
-                report_id=self.report.id_, rm_state=RM.ACCEPTED
-            )
+            VultronReportCaseLink(report_id=self.report.id_, rm_state=rm_state)
         )
 
-    @pytest.mark.spec("TRIG-07-001")
-    def test_close_case_returns_activity_dict(self):
-        """execute() returns result.activity as Reject(Offer) dict (DL-06-001)."""
-        self._seed_accepted()
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        result = SvcCloseCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
-        assert result.activity is not None
-        assert activity_of(result).get("type") == "Reject"
-
-    @pytest.mark.spec("TRIG-07-001")
-    @pytest.mark.spec("TRIG-02-001")
-    def test_close_case_queues_activity_in_outbox(self):
-        """execute() enqueues at least one activity in the actor's outbox."""
-        self._seed_accepted()
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        before = set(self.dl.outbox_list())
+    def _execute(self, actor_id: str) -> None:
         SvcCloseCaseUseCase(
             self.dl,
-            request,
+            CloseReportTriggerRequest(
+                actor_id=actor_id, offer_id=self.offer.id_
+            ),
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
-        after = set(self.dl.outbox_list())
-        assert len(after - before) >= 1
+
+    def _rm_state(self) -> RM:
+        link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
+        assert isinstance(link, VultronReportCaseLink)
+        return link.rm_state
+
+    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.parametrize(
+        "rm_state", [RM.ACCEPTED, RM.CLOSED, RM.VALID], ids=lambda r: r.name
+    )
+    def test_close_report_on_a_case_fails_closed(self, rm_state: RM):
+        """The Case Owner's close-report on its case sends and writes nothing.
+
+        Whatever the report's RM state, the 409 names ``Leave``: the owner
+        closes the case with close-case instead.
+        """
+        self._seed(rm_state)
+        before = set(self.dl.outbox_list())
+        with pytest.raises(
+            VultronInvalidStateTransitionError,
+            match=r"Leave\(VulnerabilityCase\)",
+        ):
+            self._execute(self.vendor.id_)
+        assert set(self.dl.outbox_list()) == before
+        assert self._rm_state() == rm_state
 
     def test_backward_compat_alias_works(self):
         """SvcCloseReportUseCase alias delegates to SvcCloseCaseUseCase."""
         assert SvcCloseReportUseCase is SvcCloseCaseUseCase
-
-    def test_close_case_already_closed_raises_invalid_transition(self):
-        """CLOSED → CLOSED is refused (ported from the retired ``TriggerService``
-        suite, #3833); the router answers it as 409."""
-        self.dl.create(
-            VultronReportCaseLink(
-                report_id=self.report.id_, rm_state=RM.CLOSED
-            )
-        )
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_, offer_id=self.offer.id_
-        )
-        with pytest.raises(VultronInvalidStateTransitionError):
-            SvcCloseCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-            ).execute()
-
-    @pytest.mark.spec("RMB-14-004")
-    @pytest.mark.spec("VP-02-004")
-    def test_close_case_from_valid_raises_invalid_transition(self):
-        """VALID has no close edge, so the close is refused as a state fault.
-
-        ``CheckReportClosable`` refuses before the emit and writes the domain
-        error the router answers as 409, as a repeat close does; nothing is
-        queued.
-        """
-        self.dl.create(
-            VultronReportCaseLink(report_id=self.report.id_, rm_state=RM.VALID)
-        )
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_, offer_id=self.offer.id_
-        )
-        before = set(self.dl.outbox_list())
-        with pytest.raises(VultronInvalidStateTransitionError, match="VALID"):
-            SvcCloseCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-            ).execute()
-        assert set(self.dl.outbox_list()) == before
 
     def test_close_case_raises_when_no_linked_case(self):
         """VultronNotFoundError raised when report has no linked VulnerabilityCase."""
