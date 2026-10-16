@@ -98,9 +98,17 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     # so rewriting the netloc would turn a reachable peer into a local phantom
     # (ADR-0073#peer-records-in-knowers-store).  Stripping only the trailing
     # slash is safe because it names the same resource and gives every id one
-    # canonical spelling.
+    # canonical spelling.  An id whose path is empty once the slash is gone
+    # (``http://host/``) names no actor; returned, it would mint a phantom
+    # store slugged after the authority, so it is refused like ``"/"`` below.
     if urlsplit(segment).scheme:
-        return normalise_actor_id(segment)
+        normalised = normalise_actor_id(segment)
+        if not urlsplit(normalised).path.strip("/"):
+            raise ValueError(
+                f"actor id {segment!r} names no actor once its trailing "
+                "slash is stripped"
+            )
+        return normalised
 
     # A segment of ``"/"`` is not empty but names nothing.  Left unchecked it
     # produced ``{base}/actors/``, whose final path segment is ``actors`` — so

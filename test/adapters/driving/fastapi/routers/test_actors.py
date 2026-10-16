@@ -680,13 +680,45 @@ class TestCreateActor:
         slug = stored_id.split("/actors/")[-1]
 
         get_resp = client_actors.get(f"/actors/{slug}/")
-        # FastAPI may redirect trailing-slash paths; both 200 and 307/308 satisfy
-        # AC-2 (the actor is reachable).
-        assert get_resp.status_code in (
-            200,
-            307,
-            308,
-        ), f"Expected 2xx or redirect, got {get_resp.status_code}"
+        assert get_resp.status_code == status.HTTP_200_OK
+        assert get_resp.json()["id"] == stored_id
+
+    def test_ac2_read_side_accepts_slash_spelled_full_uri(self, client_actors):
+        """AC-2 of #4795: a GET naming the full id with a trailing slash
+        resolves to the stored actor, through the scheme-bearing branch of
+        ``canonical_actor_uri``.
+        """
+        from urllib.parse import quote
+
+        from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+        stored_id = canonical_actor_uri("slash-ac2-full")
+        resp = client_actors.post(
+            "/actors/",
+            json={"name": "SlashFullVendor", "id": stored_id + "/"},
+        )
+        assert resp.status_code == status.HTTP_201_CREATED
+
+        get_resp = client_actors.get(
+            f"/actors/{quote(stored_id + '/', safe='')}"
+        )
+        assert get_resp.status_code == status.HTTP_200_OK
+        assert get_resp.json()["id"] == stored_id
+
+    @pytest.mark.parametrize(
+        "bad_id", ["http://localhost:7999/", "http://localhost:7999//"]
+    )
+    def test_absolute_id_with_no_path_is_refused(self, client_actors, bad_id):
+        """An absolute id that is only an authority names no actor (#4795).
+
+        Stripping its slash must not let it mint a store slugged after the
+        authority; the route refuses it with 422.
+        """
+        resp = client_actors.post(
+            "/actors/",
+            json={"name": "NoPath", "id": bad_id},
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_ac3_foreign_authority_still_refused(self, client_actors):
         """AC-3 of #4795: trailing-slash normalisation does not bypass the

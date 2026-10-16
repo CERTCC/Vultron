@@ -105,6 +105,18 @@ class TestCanonicalActorUri:
         with pytest.raises(ValueError, match="names no actor"):
             canonical_actor_uri(bad, _BASE)
 
+    @pytest.mark.parametrize(
+        "bad", ["http://localhost:7999/", "http://localhost:7999//"]
+    )
+    def test_rejects_an_absolute_id_with_no_path(self, bad):
+        """Stripping the slash from ``http://host/`` leaves no path (#4795).
+
+        Returned, ``http://host`` would be slugged after its authority and
+        open a store for a phantom actor.
+        """
+        with pytest.raises(ValueError, match="names no actor"):
+            canonical_actor_uri(bad, _BASE)
+
     def test_falls_back_to_configured_base_url(self):
         with patch.object(actor_hosts, "get_config") as get_config:
             get_config.return_value.server.base_url = "https://cfg.test/api/v2"
