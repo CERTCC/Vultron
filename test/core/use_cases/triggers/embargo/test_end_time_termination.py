@@ -17,7 +17,13 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
-from test.support.embargo_register import activate, propose, write_consent_rows
+from test.support.clock_decisions import run_end_time_check
+from test.support.embargo_register import (
+    activate,
+    agree_to_active_embargo,
+    propose,
+    write_consent_rows,
+)
 from test.support.ledger import ledger_entries
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -26,17 +32,15 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.case.nodes.clock_decision_stage import (
-    create_clock_decision_gate,
-)
 from vultron.core.behaviors.embargo.end_time_tree import (
-    end_time_clock_decision,
+    END_TIME_LEDGER_FRESH_NODE_NAME,
 )
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
+from vultron.core.behaviors.sync.nodes import CheckLedgerFreshnessNode
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -62,21 +66,32 @@ from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     TerminationReason,
 )
+from vultron.core.states.rm import RM
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
+from vultron.core.use_cases.triggers.case.add_participant_status import (
+    SvcAddParticipantStatusUseCase,
+)
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoRevisionUseCase,
     SvcTerminateEmbargoUseCase,
+    SvcWithdrawEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     AddParticipantStatusTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
     TerminateEmbargoTriggerRequest,
+    WithdrawEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 from vultron.semantic_registry import extract_event
 from vultron.trigger_registry import entries
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -147,12 +162,8 @@ class _World:
 
     def lazy_check(self, now: datetime, actor_id: str | None = None):
         """Run the end-time check as the clock-decision stage runs it."""
-        return BTBridge(datalayer=self.dl, **self.ports()).execute_with_setup(
-            tree=create_clock_decision_gate(
-                self.case_id,
-                [end_time_clock_decision(case_id=self.case_id, now=now)],
-            ),
-            actor_id=actor_id or self.manager.id_,
+        return run_end_time_check(
+            self.dl, self.case_id, actor_id or self.manager.id_, now
         )
 
     def status_from(self, sender_id: str):
@@ -532,3 +543,120 @@ def test_a_threat_status_records_the_signals_it_carries() -> None:
     _assert_full_cascade(
         world, EmbargoTermination.threat([ThreatSignal.P, ThreatSignal.X])
     )
+
+
+# ---------------------------------------------------------------------------
+# A case trigger after the end time judges the case the decision left
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("BT-15-003")
+def test_revising_after_the_end_time_is_refused_and_extends_nothing() -> None:
+    """The revision is judged after the end-time decision ended the
+    embargo, so it cannot propose new terms for an expired one."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+
+    with pytest.raises(VultronInvalidStateTransitionError, match="EXITED"):
+        SvcProposeEmbargoRevisionUseCase(
+            world.dl,
+            ProposeEmbargoRevisionTriggerRequest(
+                actor_id=world.manager.id_,
+                case_id=world.case_id,
+                end_time=days_from_now_utc(20),
+            ),
+            **world.ports(),
+        ).execute()
+
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+    assert [
+        e.payload_snapshot["type"]
+        for e in ledger_entries(world.dl, world.case_id)
+    ] == ["Remove", "Add"]
+
+
+@pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("BT-15-003")
+def test_withdrawing_after_the_end_time_commits_no_leave() -> None:
+    """A CASE_MANAGER that is not the owner passes the withdraw trigger's
+    own checks before the decision runs; its tree then finds no embargo in
+    force and commits no ``Leave``."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+    case = world.case()
+    case.attributed_to = world.finder.id_
+    world.dl.save(case)
+    agree_to_active_embargo(world.dl, world.case(), world.manager.id_)
+
+    with pytest.raises(VultronValidationError, match="No embargo is in force"):
+        SvcWithdrawEmbargoUseCase(
+            world.dl,
+            WithdrawEmbargoTriggerRequest(
+                actor_id=world.manager.id_, case_id=world.case_id
+            ),
+            **world.ports(),
+        ).execute()
+
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+    assert [
+        e.payload_snapshot["type"]
+        for e in ledger_entries(world.dl, world.case_id)
+    ] == ["Remove", "Add"]
+
+
+def _refuse_the_end_time_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the ledger refuse the end-time termination's commit, as a
+    gapped local prefix does (SYNC-10-001), and only that commit."""
+    original = CheckLedgerFreshnessNode.update
+
+    def _update(node: CheckLedgerFreshnessNode) -> Status:
+        if node.name == END_TIME_LEDGER_FRESH_NODE_NAME:
+            node.feedback_message = "local ledger prefix has a gap"
+            return Status.FAILURE
+        return original(node)
+
+    monkeypatch.setattr(CheckLedgerFreshnessNode, "update", _update)
+
+
+@pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("BT-15-003")
+def test_a_refused_end_time_commit_lets_the_trigger_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A clock decision whose commit the ledger refuses is logged and the
+    trigger's own tree still runs, against the case as it stands."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+    _refuse_the_end_time_commit(monkeypatch)
+
+    result = SvcAddParticipantStatusUseCase(
+        world.dl,
+        AddParticipantStatusTriggerRequest(
+            actor_id=world.manager.id_,
+            case_id=world.case_id,
+            rm_state=RM.RECEIVED,
+        ),
+        **world.ports(),
+    ).execute()
+
+    assert result.activity_id is not None
+    assert world.case().em_state is EM.REVISE
+    assert world.teardown_entries() == []
+
+
+@pytest.mark.spec("CLP-10-025")
+def test_a_refused_end_time_commit_lets_the_received_tree_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The same refusal in a received tree is logged, and the activity is
+    still judged, against the case as it stands."""
+    in_force = _World(end_time=days_from_now_utc(10))
+    expected = in_force.status_from(in_force.finder.id_).disposition
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+    _refuse_the_end_time_commit(monkeypatch)
+
+    result = world.status_from(world.finder.id_)
+
+    # Judged as it would be on a case whose embargo is still in force.
+    assert result.disposition is expected
+    assert expected is not HandlerDisposition.REFUSED
+    assert world.case().em_state is EM.REVISE
+    assert world.teardown_entries() == []

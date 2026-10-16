@@ -286,7 +286,10 @@ guards, commit, effects.
    a case and both door guards (`case_clock_decisions`), and a case-scoped
    trigger runs the same gated stage first in its own tree (BT-15-003). A
    commit the ledger refuses logs a warning and does not end the tree; an
-   internal error does. Pass
+   internal error does. A decision built from CASE_MANAGER commit nodes, which
+   raise on a failed commit, must judge the ledger's refusal (a gapped prefix,
+   SYNC-10-001) as FAILURE before it commits, as `end_time_clock_decision`
+   does with `CheckLedgerFreshnessNode`. Pass
    the decision as `clock_decisions`: the factory wraps each in a
    `ClockDecision` inside a `ClockDecisionStage`
    (`case/nodes/clock_decision_stage.py`) behind a CASE_MANAGER gate, and

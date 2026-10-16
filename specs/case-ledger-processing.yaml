@@ -1704,8 +1704,12 @@ groups:
       activity's own effects fails it;
       `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
       asserts that a non-participant's activity naming an overdue case commits
-      no termination, a participant's does, and the termination's entries are
-      the `Remove` then the status update, with no proposal left `PROPOSED`;
+      no termination, a participant's does, the termination's entries are
+      the `Remove` then the status update, with no proposal left `PROPOSED`,
+      and a gapped ledger's refusal of the termination lets the received tree
+      and a trigger's tree continue;
+      `test/core/use_cases/triggers/test_stub_invite_lifetime.py` asserts the
+      re-issued stub `Invite` is committed after them;
       `test/core/use_cases/received/actor/test_ownership_deadline.py` asserts
       that an expiry verdict does not change when only the received activity's
       claimed `published` time changes.

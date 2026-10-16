@@ -620,11 +620,14 @@ groups:
     verification: >-
       `test/core/use_cases/triggers/test_base.py` asserts a case-scoped
       trigger's tree leads with the gated clock-decision stage, that a trigger
-      naming no case or an unknown one runs its own tree alone, and that only
-      terminate-embargo opts out;
+      naming no case or an unknown one runs its own tree alone, and that
+      every case-scoped trigger in the registry takes the stage except
+      terminate-embargo and the one trigger that runs no tree;
       `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
       asserts a trigger after the end time finds the embargo ended at its end
-      time and that accepting a pending revision then cannot extend it.
+      time, that accepting, revising or withdrawing from the embargo then
+      commits nothing for it, and that a trigger still runs when the ledger
+      refuses the termination.
     relationships:
     - rel_type: refines
       spec_id: BT-15-001

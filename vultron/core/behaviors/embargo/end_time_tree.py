@@ -35,7 +35,9 @@ no change once an entry is ``TERMINATED``::
 
     EmbargoEndTimeDecision (Selector; a clock decision, gated by its stage)
     ├─ EndTimeNotPassed (Inverter(EmbargoEndTimePassedNode))
-    └─ EndEmbargoAtEndTimeBT
+    └─ EndEmbargoOnAFreshLedger (Sequence)
+       ├─ EndTimeLedgerFresh (CheckLedgerFreshnessNode)
+       └─ EndEmbargoAtEndTimeBT
 
 The decision commits one CASE_MANAGER entry for each AS2 activity the
 termination needs: the ``Remove``, whose register step also cancels every
@@ -56,6 +58,7 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.sync.nodes import CheckLedgerFreshnessNode
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     has_reached_end_time,
@@ -68,6 +71,10 @@ from vultron.errors import BtNodePreconditionError, VultronError
 #: ``result_out`` key :class:`EmbargoAlreadyEndedNode` sets when the embargo
 #: had already ended, so the request is answered as already done.
 EMBARGO_ALREADY_ENDED_KEY = "embargo_already_ended"
+
+#: Name of the ledger-freshness check that leads the end-time termination
+#: in :func:`end_time_clock_decision`.
+END_TIME_LEDGER_FRESH_NODE_NAME = "EndTimeLedgerFresh"
 
 
 class EmbargoAlreadyEndedNode(DataLayerConditionWithPorts):
@@ -198,9 +205,12 @@ def end_time_clock_decision(
 
     A clock decision (CLP-10-025): runs :func:`end_embargo_at_end_time_bt`
     only when the embargo in force has reached its end time at *now*, and is
-    otherwise SUCCESS with nothing done.  It holds no gate of its own: every
-    caller composes it into its one tree behind the CASE_MANAGER gate of the
-    clock-decision stage, a received tree through
+    otherwise SUCCESS with nothing done.  A gapped local ledger, the one way
+    the ledger refuses a CASE_MANAGER commit, is FAILURE before anything is
+    committed, so the stage logs it and the tree continues (CLP-10-025); a
+    commit that then fails is an internal error and ends the tree.  It holds
+    no gate of its own: every caller composes it into its one tree behind
+    the CASE_MANAGER gate of the clock-decision stage, a received tree through
     :func:`~vultron.core.behaviors.case.case_clock_decisions.case_clock_decisions`
     and a case-scoped trigger through ``SvcBTTriggerBase``.  The
     termination's own output goes to a dict of its own, so it never mixes
@@ -215,8 +225,22 @@ def end_time_clock_decision(
                 name="EndTimeNotPassed",
                 child=EmbargoEndTimePassedNode(case_id=case_id, now=now),
             ),
-            end_embargo_at_end_time_bt(
-                case_id=case_id, result_out=result_out, now=now
+            py_trees.composites.Sequence(
+                name="EndEmbargoOnAFreshLedger",
+                memory=False,
+                children=[
+                    # The ledger's one refusal of a CASE_MANAGER commit, a
+                    # gapped local prefix (SYNC-10-001), is judged before
+                    # the termination commits anything: its commit nodes
+                    # raise on a failed commit, which would end the tree the
+                    # decision runs in as an internal error (CLP-10-025).
+                    CheckLedgerFreshnessNode(
+                        case_id=case_id, name=END_TIME_LEDGER_FRESH_NODE_NAME
+                    ),
+                    end_embargo_at_end_time_bt(
+                        case_id=case_id, result_out=result_out, now=now
+                    ),
+                ],
             ),
         ],
     )
@@ -224,6 +248,7 @@ def end_time_clock_decision(
 
 __all__ = [
     "EMBARGO_ALREADY_ENDED_KEY",
+    "END_TIME_LEDGER_FRESH_NODE_NAME",
     "EmbargoAlreadyEndedNode",
     "EmbargoEndTimePassedNode",
     "end_embargo_at_end_time_bt",
