@@ -54,7 +54,6 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
-    announce_vulnerability_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -75,9 +74,6 @@ _PARTICIPANT_BASE = "http://participant-bootstrap.test"
 
 # Fixed IDs for the single-app (AC-2) seeding path.
 _DIRECT_CASE_ID = "http://owner-bootstrap.test/api/v2/cases/pcr-07-006-ac2"
-_DIRECT_CASE_ACTOR_ID = (
-    "http://owner-bootstrap.test/api/v2/actors/case-actor-bootstrap"
-)
 _DIRECT_OWNER_ACTOR_ID = (
     "http://owner-bootstrap.test/api/v2/actors/owner-bootstrap"
 )
@@ -572,21 +568,16 @@ class TestBootstrapSequence:
             participant_tc, base, "pcr-006-ac2", "Participant"
         )
 
-        # Seed the replica via a direct Announce.
+        # Seed the replica directly in the actor's store.  An inbox Announce
+        # from a sender this actor never trusted is refused and stores
+        # nothing (PCR-03-004, #4674), so it cannot seed a replica.
         case = as_VulnerabilityCase(
             id_=_DIRECT_CASE_ID, name="PCR-07-006 Test Case"
         )
-        announce = announce_vulnerability_case_activity(
-            case,
-            actor=_DIRECT_CASE_ACTOR_ID,
-            context=_DIRECT_CASE_ID,
-            to=[actor_id],
-        )
-        _post_to_inbox(participant_tc, _actor_slug(actor_id), announce)
-        # The store of the actor just created, not the app's default-slug `dl`:
-        # the Announce was delivered to `actor_id`, so that is the replica it
-        # seeded (ADR-0073).
+        # The store of the actor just created, not the app's default-slug `dl`
+        # (ADR-0073).
         actor_dl = participant_iso.store_for(actor_id)
+        actor_dl.create(case)
         assert actor_dl.read(_DIRECT_CASE_ID) is not None, (
             "Prerequisite: case replica must exist before routing test."
         )
