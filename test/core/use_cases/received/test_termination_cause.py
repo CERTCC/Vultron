@@ -34,7 +34,7 @@ CASE = "https://example.org/cases/tc-wire"
     strict=True,
     reason=(
         "EMB-13-005: the termination Remove does not carry terminationCause"
-        " yet. Tracked by the implementation issues of Idea #4609."
+        " yet. Tracked by #4857."
     ),
 )
 @pytest.mark.spec("EMB-13-005")
