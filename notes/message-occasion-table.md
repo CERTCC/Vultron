@@ -133,9 +133,15 @@ lookup table is mostly links.
   vocabulary, not `CVDRole`: the standing is what the receiver checks, and it
   is worded from the kind's `sent_by` (MSM-08-010). The embargo register is a
   state machine of its own, so the register status of the named embargo is a
-  state context on `EmbargoRegisterStatus`, not a new kind.
+  state context on `EmbargoRegisterStatus`, not a new kind. It is the status in
+  the CASE_MANAGER's register, not the receiver's: a participant may not hold
+  the embargo before the announcement stores it, and the status is per embargo,
+  not per case (MSM-08-003).
 - **Same entry, same addressee: every occasion is distinguished** (MSM-08-011).
   Each declares a distinguisher and no two are equal, so a pair that differs
-  only in prose fails construction instead of rendering two "—" rows. When one
+  only in prose fails construction instead of rendering two "—" rows. Two of
+  one kind on one field, machine or entitlement kind must not overlap either:
+  EM `(NONE, PROPOSED)` against `(PROPOSED,)` would match one activity twice.
+  Kinds on different fields are not compared. When one
   occasion is the rest of the space (a suggestion from anyone but the Case
   Owner), negate the other's standing rather than leave its row blank.

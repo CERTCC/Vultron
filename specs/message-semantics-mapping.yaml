@@ -1189,9 +1189,9 @@ groups:
       group was planned, the vendor awareness, fix readiness and fix deployed sections
       rendered the same example, which dispatches correctly and carries the vendor
       awareness `vfState`, so the other two showed a value that is not theirs. Each
-      occasion needs an example that shows what makes it that occasion. A state
-      context is the receiver's state, not part of the payload, so no example can
-      carry it.
+      occasion needs an example that shows what makes it that occasion. No example
+      can carry a state context, such as the receiver's EM state or the CASE_MANAGER's
+      register status of the named embargo.
     verification: >-
       A parametrized test over every occasion asserts that its example matches exactly
       the occasion's own entry pattern and, for an occasion with a field-value
@@ -1375,17 +1375,21 @@ groups:
     kind: process
     statement: Each occasion that shares a `SEMANTIC_REGISTRY` entry and an addressee
       with another occasion MUST declare a distinguisher, and the distinguishers of such
-      occasions MUST differ. Construction of a registry that breaks this MUST
-      fail.
+      occasions MUST differ. Two such distinguishers of one kind on one field, state
+      machine or entitlement kind MUST NOT overlap. They MUST share no field value or
+      state, and two sender standings MUST differ in whether the sender holds the
+      kind. Construction of a registry that breaks this MUST fail.
     rationale: The lookup table is how a receiver finds which occasion an activity is.
-      Two occasions with one wire form and one addressee and no distinguisher render as
-      two rows a reader cannot tell apart, and only their prose separates them. Nothing
-      failed when the suggest and invite-request occasions on `Offer(Actor)` and the
-      two embargo announcements on `Announce(Event)` shipped that way (#4821).
+      Two same-addressee occasions with no distinguisher render as two rows only prose
+      separates, as on `Offer(Actor)` and `Announce(Event)` (#4821). Distinguishers
+      that overlap, such as EM `NONE` and `PROPOSED` against `PROPOSED`, still let one
+      activity match two rows. Different fields or machines are not compared, since
+      one activity may carry both values by design.
     verification: >-
       A unit test asserts that a registry with two occasions on one entry and one
-      addressee fails when either has no distinguisher or both declare the same one,
-      and that `msm-occasions --check` passes on `SEMANTIC_REGISTRY`.
+      addressee fails when either has no distinguisher, when both declare the same
+      one, or when both are state contexts on one machine that share a state, and
+      that `msm-occasions --check` passes on `SEMANTIC_REGISTRY`.
     lint_suppress:
     - phantom_path_ref
     relationships:
