@@ -25,6 +25,11 @@ from test.core.use_cases.received.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
+    SenderEntitlementKind,
+    SenderRule,
+)
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.dimensions import (
@@ -1159,3 +1164,22 @@ class TestParticipantStatusLogEntryCascade:
         assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "add_participant_status_to_participant"
         )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "RSH-04-005: Add(CaseStatus) is still exempt from a sender check."
+        " Tracked by #4851."
+    ),
+)
+@pytest.mark.spec("RSH-04-005")
+def test_add_case_status_admits_only_the_case_manager_at_a_participant():
+    rule = AddCaseStatusToCaseReceivedUseCase.sender_entitlement
+
+    assert isinstance(rule, SenderRule)
+    assert rule.side(AddresseeSide.PARTICIPANT) == frozenset(
+        {SenderEntitlementKind.CASE_MANAGER}
+    )
+    assert rule.side(AddresseeSide.CASE_MANAGER) == frozenset()
+    assert rule.side(AddresseeSide.OUTSIDE_CASE) == frozenset()
