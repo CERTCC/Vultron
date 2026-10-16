@@ -396,7 +396,7 @@ def test_announce_case_tree_has_no_commit_stage():
     )
 
     tree = create_announce_vulnerability_case_received_tree(
-        case_id=CASE_ID, case_obj=case, request=event
+        case_obj=case, request=event
     )
 
     _assert_no_commit_stage(tree)

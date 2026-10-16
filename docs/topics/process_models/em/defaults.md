@@ -66,16 +66,25 @@ The absence of that exchange is intentional and correct; it is not a skipped ste
 
 The party who creates the case is its Case Owner.
 The Case Owner brings the active embargo into being, so it would be incoherent to treat them as not yet bound by it.
-Each Participant's own agreement to the embargo is tracked separately from the case's embargo state, by [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent).
-The Case Owner starts there as a *Signatory*, and so does a Reporter whose submission accepted the terms, without either having been sent an invitation.
-[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the two scopes fit together, and [§9.3 What Unbound Means in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#93-what-unbound-means) specifies consent without an invitation.
+Each Participant's own agreement to the embargo is tracked separately from the case's embargo state, by [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent): one consent row per Participant for each embargo.
+The Case Owner's row for the default embargo is seeded `AGREED`, and so is the row of a Reporter whose submission accepted the terms, without either having been sent an invitation.
+Each is therefore a signatory: that is not a state of its own, but a read of its row for the embargo in force.
+[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the two scopes fit together, and [§9.2 Transitions and Guards in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards) specifies consent without an invitation.
 
 ### When a Counter-Proposal Is Present
 
 The default path applies only when the Reporter proposes nothing to the contrary.
 If the Reporter proposes different terms, the case follows the negotiated path instead; see [Sender Proposes an Embargo Longer than the Receiver Default](#sender-proposes-an-embargo-longer-than-the-receiver-default) and [Sender Proposes an Embargo Shorter than the Receiver Default](#sender-proposes-an-embargo-shorter-than-the-receiver-default) below.
 Even then, the shorter proposal is taken as accepted and the longer one as a proposed revision.
-The case therefore still reaches an *Active* embargo at once, rather than stalling in negotiation.
+The case therefore still reaches an embargo in force at once, rather than stalling in negotiation.
+
+### A Default Embargo Ends Like Any Other
+
+A default embargo is an ordinary embargo once it is in force.
+When its end time passes, the Case Manager ends it with the reason `END_TIME_REACHED`, the next time it handles the case, and cancels any revision still open in the same step (EMB-13-003).
+The termination writes no Participant's consent.
+With no embargo in force nobody is bound by one, and each Participant's consent rows stay as they stood.
+[When the End Time Passes](early_termination.md#when-the-end-time-passes) describes the termination, and [Recording Why an Embargo Ended](early_termination.md#recording-why-an-embargo-ended) describes the reason it records.
 
 ## Using Defaults
 
@@ -208,8 +217,8 @@ stateDiagram-v2
     direction LR
     [*] --> N
     N --> P : receiver<br/>proposes<br/>default<br/>(shorter)
-    P --> A : sender<br/>accepts<br/>(shorter)
-    A --> R : sender<br/>proposes<br/>(longer)
+    P --> P : sender<br/>proposes<br/>(longer)
+    P --> R : shorter<br/>accepted,<br/>longer<br/>stays open
     R --> A : receiver<br/>accepts<br/>(longer)
     R --> A : receiver rejects<br/>(shorter default persists)
 ```
@@ -217,10 +226,11 @@ stateDiagram-v2
 !!! note ""
 
     If the Sender proposes an embargo *longer* than the Receiver's default embargo, the Receiver's default SHALL be taken as accepted and the Sender's proposal taken as a proposed revision.
+    The longer proposal stays open when the shorter is accepted, so it becomes the revision, and the case moves straight to *Revise*.
 
     ???+ note "Formalism"
 
-        $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{receiver}} A \xrightarrow{p_{sender}} R$$
+        $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{receiver}} R$$
 
 !!! note ""
 
@@ -242,8 +252,8 @@ stateDiagram-v2
     direction LR
     [*] --> N
     N --> P : sender<br/>proposes<br/>(shorter)
-    P --> A : receiver<br/>accepts<br/>(shorter)
-    A --> R : receiver<br/>proposes<br/>(longer default)
+    P --> P : receiver<br/>proposes<br/>(longer default)
+    P --> R : shorter<br/>accepted,<br/>longer<br/>stays open
     R --> A : sender<br/>accepts<br/>(longer default)
     R --> A : sender rejects<br/>(shorter persists)
 ```
@@ -251,10 +261,11 @@ stateDiagram-v2
 !!! note ""
 
     If the Sender proposes an embargo *shorter* than the Receiver's default embargo, the Sender's proposal SHALL be taken as accepted and the Receiver's default taken as a proposed revision.
+    As in the longer case, the default stays open when the shorter proposal is accepted, so the case moves straight to *Revise*.
 
     ???+ note "Formalism"
 
-        $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} A \xrightarrow{p_{receiver}} R$$
+        $$q^{em} \in N \xrightarrow{p_{sender}} P \xrightarrow{p_{receiver}} P \xrightarrow{a_{receiver}} R$$
 
 !!! note ""
 

@@ -2,12 +2,12 @@
 
 !!! info "Offer case participant role"
 
-    Offers one role on the case to the actor named by the target.
+    Offers one role on the case to the participant named by the target. The Case Manager records the offer and forwards it to that participant.
 
-    - **When…** a Participant offers a CVD role on the case to another actor
+    - **When…** the Case Owner offers a CVD role on the case to another participant
     - **Send:** `Offer(CaseParticipantRole)[context=VulnerabilityCase]`
-    - **Send to:** a participant
-    - **Sent by:** not yet checked
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
     - **Reference:** [Offer case participant role](../../case_management.md#offer-case-participant-role)
 
     ??? example "Example activity"

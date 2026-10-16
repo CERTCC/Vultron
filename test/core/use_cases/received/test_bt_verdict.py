@@ -24,22 +24,31 @@ from test.core.use_cases.received.conftest import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
+from vultron.core.behaviors.case.nodes.incomplete_activity import (
+    ActivityIncompleteNode,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    ReceivedActivityTree,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    door_guards_admitted,
     failure_reason,
     find_named,
     find_node,
+    guard_refusal,
+    incomplete_activity_refusal,
     intake_verdict,
     node_failed,
     node_succeeded,
     not_case_manager_refusal,
     verdict_from_bt,
 )
-from vultron.errors import VultronBTInternalError
+from vultron.errors import VultronBTInternalError, VultronWiringError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -351,3 +360,113 @@ def test_not_case_manager_refusal_names_a_case_with_no_manager():
     assert verdict is not None
     assert verdict.disposition == HandlerDisposition.REFUSED
     assert verdict.reason == f"case '{_CASE_ID}' has no CASE_MANAGER"
+
+
+def _door_tree(door: Status) -> ReceivedActivityTree:
+    """One door guard returning *door*, then a precondition guard that fails."""
+    guard = _Fixed("Door", door)
+    tree = ReceivedActivityTree(
+        name="Probe",
+        children=[guard, _Fixed("Precondition", Status.FAILURE)],
+        door_guards=[guard],
+    )
+    tree.tick_once()
+    return tree
+
+
+@pytest.mark.spec("CLP-10-010")
+def test_door_guards_admitted_once_every_door_guard_succeeded():
+    """Admitted even though a later precondition guard failed the run."""
+    assert door_guards_admitted(_door_tree(Status.SUCCESS)) is True
+
+
+@pytest.mark.spec("CLP-10-010")
+def test_door_guards_not_admitted_when_a_door_guard_refused():
+    assert door_guards_admitted(_door_tree(Status.FAILURE)) is False
+
+
+@pytest.mark.spec("CLP-10-010")
+def test_door_guards_not_admitted_before_the_tree_ran():
+    guard = _Fixed("Door", Status.SUCCESS)
+    tree = ReceivedActivityTree(
+        name="Probe", children=[guard], door_guards=[guard]
+    )
+    assert door_guards_admitted(tree) is False
+
+
+def test_door_guards_admitted_needs_a_received_activity_tree():
+    with pytest.raises(VultronWiringError, match="not a received-activity"):
+        door_guards_admitted(_Fixed("Plain", Status.SUCCESS))
+
+
+@pytest.mark.spec("CLP-10-005")
+def test_guard_refusal_carries_the_guards_own_reason():
+    """No tree label: the guard's message is the whole refusal (#4643)."""
+    tree = _ran(_Guard("Guard", Status.FAILURE, "untrusted sender"))
+    verdict = guard_refusal(tree, _Guard)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "untrusted sender"
+
+
+@pytest.mark.parametrize(
+    "children",
+    [
+        (_Guard("Guard", Status.SUCCESS),),
+        # The guard never ran: an earlier node failed first.
+        (
+            _Fixed("First", Status.FAILURE, "closed"),
+            _Guard("Guard", Status.FAILURE),
+        ),
+        (),
+    ],
+    ids=["passed", "never-ran", "absent"],
+)
+def test_guard_refusal_is_none_unless_the_guard_failed(children):
+    assert guard_refusal(_ran(*children), _Guard) is None
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_incomplete_activity_refusal_reads_the_incomplete_guard():
+    tree = _ran(ActivityIncompleteNode("Add(X) is missing its id"))
+    verdict = incomplete_activity_refusal(tree)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "Add(X) is missing its id"
+    assert (
+        incomplete_activity_refusal(_ran(_Fixed("Ok", Status.SUCCESS))) is None
+    )
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_verdict_from_bt_keeps_the_incomplete_guards_own_reason():
+    """The incomplete-activity refusal carries no tree label (#4643)."""
+    tree = _ran(ActivityIncompleteNode("Add(X) is missing its id"))
+    verdict = verdict_from_bt(
+        tree, BTExecutionResult(status=Status.FAILURE), label="TestBT"
+    )
+    assert verdict.disposition == HandlerDisposition.REFUSED
+    assert verdict.reason == "Add(X) is missing its id"
+
+
+@pytest.mark.spec("HP-01-005")
+def test_leader_skip_of_an_incomplete_activity_is_skipped():
+    """A follower that never ran the tree does not refuse the activity."""
+    tree = py_trees.composites.Sequence(name="Root", memory=False)
+    tree.add_child(ActivityIncompleteNode("Add(X) is missing its id"))
+    verdict = verdict_from_bt(
+        tree,
+        BTExecutionResult(status=Status.FAILURE, leader_skipped=True),
+        label="TestBT",
+    )
+    assert verdict.disposition == HandlerDisposition.SKIPPED
+
+
+def test_guard_refusal_lets_a_wiring_fault_raise():
+    """A guard composed without its DataLayer is our fault (ADR-0095)."""
+    tree = _ran(_Guard("Guard", Status.FAILURE, "DataLayer not available"))
+    assert guard_refusal(tree, _Guard) is None
+    with pytest.raises(VultronBTInternalError):
+        verdict_from_bt(
+            tree, BTExecutionResult(status=Status.FAILURE), label="TestBT"
+        )

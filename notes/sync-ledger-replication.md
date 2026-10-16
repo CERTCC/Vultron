@@ -178,7 +178,7 @@ Admission is caught at two points:
   as admitted.
 - **After an admitting received effect.** A received activity commits and fans out
   *before* its effect admits anyone (CLP-10-006), so
-  `BackfillAdmittedParticipantsNode` (`embargo_admission_backfill_tree()`) runs
+  `BackfillAdmittedParticipantsNode` (`embargo_admission_backfill_nodes()`) runs
   after the effect: accepted Invite, `Remove(EmbargoEvent)` teardown, an honored
   late Accept (EMB-17-001), and the owner's `Accept(EmbargoEvent, target=Case)`
   activating a revision a paused participant already accepted.

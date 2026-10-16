@@ -54,6 +54,9 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.use_cases.received.sync import (
+    RejectLedgerEntryReceivedUseCase,
+)
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -329,7 +332,10 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     ).execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=MANAGER_ID,
         activity=event,
         sync_port=sync_port,
@@ -582,7 +588,10 @@ def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
         sync_port=sync_port,
         trigger_activity=MagicMock(spec=TriggerActivityPort),
     ).execute_with_setup(
-        tree=create_reject_log_entry_tree(CASE_ID),
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
         actor_id=MANAGER_ID,
         activity=event,
         sync_port=sync_port,

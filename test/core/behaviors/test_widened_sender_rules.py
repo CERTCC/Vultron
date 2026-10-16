@@ -382,9 +382,9 @@ def test_relabelled_declaration_admits_any_listed_participant(
     assert _admits(rule, _plain, receiver, sender) is admitted
 
 
-def _hand_placed_trees() -> dict[str, tuple[type, Callable[[], object]]]:
-    """The relabelled use cases whose tree places its own sender guard
-    instead of composing it from the declaration."""
+def _relabelled_trees() -> dict[str, tuple[type, Callable[[], object]]]:
+    """The relabelled use cases whose tree once placed its own sender guard
+    and now takes it from the factory (#4696)."""
     request = SimpleNamespace(
         actor_id=VENDOR,
         report_id="https://example.org/reports/r",
@@ -393,25 +393,37 @@ def _hand_placed_trees() -> dict[str, tuple[type, Callable[[], object]]]:
     return {
         "engage-case": (
             EngageCaseReceivedUseCase,
-            lambda: create_engage_case_tree(case_id=CASE_ID, actor_id=VENDOR),
+            lambda: create_engage_case_tree(
+                case_id=CASE_ID,
+                actor_id=VENDOR,
+                sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+            ),
         ),
         "close-report": (
             CloseReportReceivedUseCase,
-            lambda: create_close_report_received_tree(request, CASE_ID),  # type: ignore[arg-type]
+            lambda: create_close_report_received_tree(
+                request,  # type: ignore[arg-type]
+                CASE_ID,
+                sender_rule=CloseReportReceivedUseCase.sender_entitlement,
+            ),
         ),
         "invalidate-report": (
             InvalidateReportReceivedUseCase,
-            lambda: create_invalidate_report_received_tree(request, CASE_ID),  # type: ignore[arg-type]
+            lambda: create_invalidate_report_received_tree(
+                request,  # type: ignore[arg-type]
+                CASE_ID,
+                sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
+            ),
         ),
     }
 
 
 @pytest.mark.spec("HP-01-008")
-@pytest.mark.parametrize("label", list(_hand_placed_trees()))
-def test_hand_placed_guard_checks_the_declared_kind(label: str) -> None:
-    """A tree that places its own sender guard checks the kind its use case
-    declares, so the declaration and the tree cannot drift apart."""
-    use_case, build = _hand_placed_trees()[label]
+@pytest.mark.parametrize("label", list(_relabelled_trees()))
+def test_relabelled_tree_guard_checks_the_declared_kind(label: str) -> None:
+    """The guard the factory composes for the tree checks the kind its use
+    case declares, so the declaration and the tree cannot drift apart."""
+    use_case, build = _relabelled_trees()[label]
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
     tree = build()
     kinds = {

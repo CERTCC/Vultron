@@ -11,10 +11,12 @@ raw Document instead of a deserialized domain object.
 from collections.abc import Callable
 from typing import cast
 
+import py_trees
 import pytest
 
 # imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_participant import CaseParticipant
@@ -83,6 +85,25 @@ def call_passed(item: pytest.Item) -> bool:
     """
     report = item.stash.get(_CALL_REPORT, None)
     return report is not None and report.passed
+
+
+@pytest.fixture
+def tree_runs(monkeypatch) -> list[py_trees.behaviour.Behaviour]:
+    """Every tree ``BTBridge.execute_with_setup`` runs during the test.
+
+    A received delivery runs exactly one tree (CLP-10-005, ADR-0135): a
+    handler test asserts ``len(tree_runs) == 1`` to show a refusal is a guard
+    in that tree rather than a second, Python-chosen run.
+    """
+    runs: list[py_trees.behaviour.Behaviour] = []
+    original = BTBridge.execute_with_setup
+
+    def _recording(self, tree, *args, **kwargs):
+        runs.append(tree)
+        return original(self, tree, *args, **kwargs)
+
+    monkeypatch.setattr(BTBridge, "execute_with_setup", _recording)
+    return runs
 
 
 class _AnonymousStore:

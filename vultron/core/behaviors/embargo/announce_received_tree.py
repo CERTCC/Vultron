@@ -16,8 +16,8 @@
 """Received ``Announce(EmbargoEvent)``: a paused replica's shorter revision.
 
 An ``Announce(EmbargoEvent)`` is canonical case state only the CASE_MANAGER
-asserts; the use case refuses any other sender before this tree runs
-(ADR-0115, PCR-03-001).  An active replica takes every embargo change from
+asserts; the tree's sender guard refuses any other sender before anything
+runs (ADR-0115, PCR-03-001).  An active replica takes every embargo change from
 the ledger (RSH-08-003), so for it the tree only archives the activity.  A
 signatory of the embargo in force whose ledger stream is paused — removed,
 or at RM ``CLOSED`` — cannot, and the announcement is the CM-31-009 notice
@@ -28,6 +28,8 @@ announcement, and it only archives that too::
 
     AnnounceEmbargoEventToCaseReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
+    ├─ CaseOpenToExternalWrites / ActivityAddressedToReceiverNode
+    ├─ <sender guard: the CASE_MANAGER only>
     └─ ApplyIfEndingNoticeAwaited (Selector)
        ├─ SkipUnlessEndingNoticeAwaited (Inverter)
        │  └─ AwaitsEmbargoEndingNoticeNode
@@ -45,27 +47,38 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyAnnouncedEmbargoRevisionNode,
     AwaitsEmbargoEndingNoticeNode,
 )
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import embargo_sender_context
 from vultron.core.models.embargo_event import EmbargoEvent
 
 
 def announce_embargo_received_tree(
-    case_id: str,
-    embargo_id: str,
+    case_id: str | None,
+    embargo_id: str | None,
     embargo: EmbargoEvent | None = None,
+    *,
+    sender_id: str,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Build the received ``Announce(EmbargoEvent)`` tree (CM-31-010).
+
+    The door guards come first: a copy not addressed to this receiver is
+    refused (HP-01-005), and so is any sender but the case's CASE_MANAGER
+    (HP-01-006, ADR-0115) — an announcement naming no case is refused by
+    the rule's empty ``outside_case`` side.  An announcement naming no
+    embargo carries nothing to apply, so its tree only archives it.
 
     Args:
         case_id: The case the announcement is for (its ``context``).
         embargo_id: The announced ``EmbargoEvent``.
         embargo: The announced embargo when carried inline; stored by the
             apply node before activation when the replica lacks it.
+        sender_id: The announcement's ``actor``.
+        sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    return create_receive_activity_tree(
-        name="AnnounceEmbargoEventToCaseReceivedBT",
-        case_id=None,
-        precondition_guards=[],
-        replica_effects=[
+    effects: list[py_trees.behaviour.Behaviour] = []
+    if case_id is not None and embargo_id is not None:
+        effects.append(
             py_trees.composites.Selector(
                 name="ApplyIfEndingNoticeAwaited",
                 memory=False,
@@ -80,8 +93,16 @@ def announce_embargo_received_tree(
                         embargo=embargo,
                     ),
                 ],
-            ),
-        ],
+            )
+        )
+    return create_receive_activity_tree(
+        name="AnnounceEmbargoEventToCaseReceivedBT",
+        case_id=None,
+        addressee_check="Announce(EmbargoEvent)",
+        sender_rule=sender_rule,
+        sender_context=embargo_sender_context(sender_id, case_id),
+        precondition_guards=[],
+        replica_effects=effects,
     )
 
 

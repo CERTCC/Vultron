@@ -34,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 <!-- markdownlint-disable-next-line MD013 -->
-If `vultron/demo/` or `test/demo/` was touched, run the full suite: `uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
+Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
 
 ---
 
@@ -195,6 +195,12 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
   what collected items carry via a `trylast` probe. A tier assertion over
   `FakeItem`s or a synthetic `pytester` session misses the real collection (#3604).
+- **A rebuild-from-ledger error at teardown** — every `LedgerNetwork` test under
+  `test/core/use_cases/received/` and every exchange demo is rebuilt from the
+  CASE_MANAGER's ledger when it ends (#4294). A difference is a write with no
+  entry; a test that writes the CASE_MANAGER's store directly as setup calls
+  `net.bypass_ledger()`
+  ([`notes/case-ledger-authority.md`](../notes/case-ledger-authority.md)).
 - **SYNC replication test setup** —
   [`notes/sync-ledger-replication.md`](../notes/sync-ledger-replication.md)
   § "SYNC Replication Test Patterns".

@@ -8,11 +8,9 @@ Detailed criteria consumed during execution. Referenced from SKILL.md.
 
 `pr_metadata.needs_integration_tests` is set by `pr-triage` and is
 informational for execute. The local gate's scope comes from `targeted-tests`
-(SKILL.md Phase 5 Step 3), which, for a fix commit's branch-diff gate, reports
-`full` when the branch diff touches any of these integration-bearing paths
-(PAD-18-003), as well as shared test infrastructure (`conftest.py`, fixtures,
-factories, `pyproject.toml`, `uv.lock`). The gate after a conflict merge
-(`--paths`) escalates on shared test configuration only (PAD-18-004):
+(SKILL.md Phase 5 Step 3), which gates these integration-bearing paths by
+their importers, integration-marked ones included, and never escalates on
+them (PAD-18-003, ADR-0143):
 
 - `vultron/demo/` — any demo script or orchestration file
 - `integration_tests/` — any integration test file
@@ -20,6 +18,13 @@ factories, `pyproject.toml`, `uv.lock`). The gate after a conflict merge
 - `vultron/core/behaviors/` — behavior tree logic
 - `vultron/core/use_cases/` — use-case implementations
 - `vultron/wire/as2/extractor/` — semantic extraction (a package)
+
+A fix commit's branch-diff gate reports `full` only for shared test
+infrastructure: `conftest.py`, test fixtures, factories, helpers or data files
+outside `test/architecture/` and `test/metadata/`, `pyproject.toml`,
+`uv.lock`, and `vultron/__init__.py` (PAD-18-003). The gate after a conflict
+merge (`--paths`) escalates on shared test configuration only: `conftest.py`,
+`pyproject.toml`, `uv.lock`, `vultron/__init__.py` (PAD-18-004).
 
 The docker-driven scripts under `integration_tests/` are not pytest tests; CI
 runs them. A local `full` gate is `pytest -m ""`, every marker enabled.

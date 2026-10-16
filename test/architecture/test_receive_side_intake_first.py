@@ -115,11 +115,12 @@ def _receive_factories() -> dict[str, _Factory]:
     """Map each receive-side factory name to what it calls and what it returns.
 
     A factory under ``vultron/core/behaviors/`` is receive-side when a
-    received use case calls it, or when its name says so (a factory only
-    reached through another factory).
+    received use case calls it, when its name says so (a factory only
+    reached through another factory), or when a receive-side factory returns
+    its result (a factory that picks one of several trees for the delivery).
     """
     from_use_cases = _factories_called_from_received_use_cases()
-    factories: dict[str, _Factory] = {}
+    candidates: dict[str, _Factory] = {}
     for py_file, tree in _corpus.files_mentioning(
         "_tree(", under=BEHAVIORS_ROOT
     ):
@@ -129,18 +130,29 @@ def _receive_factories() -> dict[str, _Factory]:
                 continue
             if node.name == RECEIVE_ACTIVITY_TREE_CALL:
                 continue
-            if not (
-                node.name in from_use_cases
-                or _RECEIVE_FACTORY_NAME.match(node.name)
-            ):
-                continue
             called = {
                 name
                 for call in ast.walk(node)
                 if isinstance(call, ast.Call)
                 and (name := _corpus.callee_name(call.func)) is not None
             }
-            factories[node.name] = (rel_path, called, _root_call_names(node))
+            candidates[node.name] = (
+                rel_path,
+                called,
+                _root_call_names(node),
+            )
+    factories = {
+        name: factory
+        for name, factory in candidates.items()
+        if name in from_use_cases or _RECEIVE_FACTORY_NAME.match(name)
+    }
+    pending = [root for _, _, roots in factories.values() for root in roots]
+    while pending:
+        root = pending.pop()
+        if root in factories or root not in candidates:
+            continue
+        factories[root] = candidates[root]
+        pending.extend(candidates[root][2])
     return factories
 
 
@@ -193,36 +205,13 @@ def _composes_through_shared_factory(
 #: The two receive trees that composed the CASE_MANAGER gate directly
 #: (``create_add_note_to_case_received_tree`` and
 #: ``create_update_case_received_tree``) moved onto the shared factory with
-#: #3870.  The rest moved with #3871–#3874, #3935 and #4288.  What remains
-#: synthesises an entry or runs after a received activity was already
-#: handled; none processes a received activity of its own, so each entry
-#: below names the spec or ADR that keeps it here.
+#: #3870.  The rest moved with #3871–#3874, #3935 and #4288; the late-Accept
+#: trees and the admission backfill became diversions and effects of the
+#: Invite Accept tree with #4642, so the set is empty.  A new entry needs the
+#: spec or ADR that keeps it here.
 #: ``create_commit_log_entry_tree`` is not in the set: it is the subtree the
 #: commit node runs, not a tree a received handler calls (#3935).
-KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
-    {
-        # embargo — a CM-10-006 follow-on, not a receive-activity tree: it is
-        # given no activity and sends what the fan-out withheld once the gate
-        # admits a participant, so it has no received activity to archive
-        # (CM-10-006, ADR-0118).
-        "embargo_admission_backfill_tree",
-        # honour-late-accept tree — the CASE_MANAGER-gated honour decision
-        # called from AcceptInviteToEmbargoOnCaseReceivedUseCase for the
-        # EMB-17-001 branch; commits a synthesised honour entry, not a received
-        # one, then applies TIMED_OUT/DECLINED → AGREED (ADR-0118, RSH-08-004).
-        "create_honour_late_accept_tree",
-        # noop-ledger-entry tree — called from _commit_noop_ledger_entry in
-        # AcceptInviteToEmbargoOnCaseReceivedUseCase for the EMB-17-004 no-op
-        # branch; commits a synthesised entry, not a received one (ADR-0118).
-        # create_commit_log_entry_tree is no longer called directly from
-        # received use case files (ARCH-18-002).
-        "create_noop_ledger_entry_tree",
-        # re-invite tree — called from _handle_emb17_routing for the EMB-17-003
-        # stale-embargo branch; commits the manager's own emission under its
-        # CASE_MANAGER gate, not a received assertion (EMB-17-011).
-        "create_reinvite_stale_accepter_tree",
-    }
-)
+KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset()
 
 #: Receive-side factories that call the shared factory but return a
 #: hand-built composite around it, so a guard or a branch runs before intake

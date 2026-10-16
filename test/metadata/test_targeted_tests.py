@@ -14,8 +14,8 @@ import pytest
 from test.support.git_repo import git, init_git_repo
 from vultron.metadata.planning import targeted_tests
 from vultron.metadata.planning.targeted_tests import (
-    ARCHITECTURE_TESTS,
-    INTEGRATION_PREFIXES,
+    ALWAYS_SELECTED,
+    METADATA_TESTS,
     build_index,
     conflict_suite_trigger,
     full_suite_trigger,
@@ -102,7 +102,7 @@ def test_selects_importers_mirror_and_architecture():
     selection = _select(["vultron/a/mod.py"], [_change()])
     assert not selection.full
     assert selection.tests == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/a/test_mod.py",
         "test/x/test_module_object.py",
         "test/x/test_plain_alias.py",
@@ -126,7 +126,7 @@ def test_importer_of_an_unchanged_symbol_is_not_selected():
 def test_mirror_test_selected_even_when_it_imports_nothing_changed():
     tests = _index({"test/a/test_mod.py": "import ast\n"})
     selection = _select(["vultron/a/mod.py"], [_change()], tests)
-    assert selection.tests == [ARCHITECTURE_TESTS, "test/a/test_mod.py"]
+    assert selection.tests == [*ALWAYS_SELECTED, "test/a/test_mod.py"]
 
 
 @pytest.mark.spec("PAD-18-002")
@@ -153,7 +153,7 @@ def test_changed_test_file_alone_is_selected():
         path="test/x/test_unrelated.py", source="", lines=frozenset({1})
     )
     selection = _select([change.path], [change])
-    assert selection.tests == [ARCHITECTURE_TESTS, "test/x/test_unrelated.py"]
+    assert selection.tests == [*ALWAYS_SELECTED, "test/x/test_unrelated.py"]
     assert selection.unmapped == []
 
 
@@ -161,7 +161,7 @@ def test_changed_test_file_alone_is_selected():
 def test_deleted_test_file_is_not_selected():
     change = _change(path="test/x/test_gone.py", source="", lines=None)
     selection = _select([change.path], [change], exists=lambda p: False)
-    assert selection.tests == [ARCHITECTURE_TESTS]
+    assert selection.tests == list(ALWAYS_SELECTED)
     assert selection.unmapped == []
 
 
@@ -171,7 +171,7 @@ def test_non_python_only_diff_selects_just_architecture():
         ["docs/index.md", "specs/x.yaml", "test/AGENTS.md"], []
     )
     assert not selection.full
-    assert selection.tests == [ARCHITECTURE_TESTS]
+    assert selection.tests == list(ALWAYS_SELECTED)
     assert selection.unmapped == ["docs/index.md", "specs/x.yaml"]
 
 
@@ -321,7 +321,7 @@ def test_package_init_change_selects_submodule_importers():
     )
     selection = _select([change.path], [change], tests)
     assert selection.tests == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/x/test_sub_from.py",
         "test/x/test_sub_plain.py",
     ]
@@ -338,7 +338,7 @@ def test_changed_test_module_selects_the_tests_importing_it():
     change = _change(path="test/x/test_base.py", source="", lines=None)
     selection = _select([change.path], [change], tests)
     assert selection.tests == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/x/test_base.py",
         "test/x/test_derived.py",
     ]
@@ -355,7 +355,7 @@ def test_architecture_helper_selects_importers_outside_the_directory():
     selection = _select([change.path], [change], tests)
     assert not selection.full
     assert selection.tests == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/y/test_corpus_user.py",
     ]
 
@@ -405,7 +405,7 @@ def test_build_index_reads_helpers_from_disk(tmp_path):
     index = build_index(tmp_path)
     assert list(index) == ["test/test_uses_ledger.py"]
     selection = _select(["vultron/a/mod.py"], [_change()], index)
-    assert selection.tests == [ARCHITECTURE_TESTS, "test/test_uses_ledger.py"]
+    assert selection.tests == [*ALWAYS_SELECTED, "test/test_uses_ledger.py"]
 
 
 @pytest.mark.spec("PAD-18-002")
@@ -419,14 +419,14 @@ def test_hub_threshold_does_not_demote_importers():
         }
     )
     selection = _select(["vultron/a/mod.py"], [_change()], tests)
-    assert len(selection.tests) == count + 1
+    assert len(selection.tests) == count + len(ALWAYS_SELECTED)
 
 
 @pytest.mark.spec("PAD-18-002")
 def test_module_nothing_tests_is_unmapped():
     change = _change(path="vultron/z.py", lines=None)
     selection = _select([change.path], [change], tests={})
-    assert selection.tests == [ARCHITECTURE_TESTS]
+    assert selection.tests == list(ALWAYS_SELECTED)
     assert selection.unmapped == ["vultron/z.py"]
 
 
@@ -453,9 +453,12 @@ FULL_PATHS = [
     "uv.lock",
     "vultron/__init__.py",
     "test/support/clock.py",
-    "test/metadata/specs/_helpers.py",
     "test/core/behaviors/case/nodes/revision_relay_fixtures.py",
     "test/adapters/driven/golden/wire_render_core_vocab.json",
+]
+
+#: One path under each layer PAD-18-003 escalated on before ADR-0143.
+INTEGRATION_BEARING_PATHS = [
     "vultron/demo/cli.py",
     "integration_tests/demo/run.sh",
     "vultron/adapters/driving/fastapi/main.py",
@@ -467,7 +470,7 @@ FULL_PATHS = [
 
 @pytest.mark.spec("PAD-18-003")
 @pytest.mark.parametrize("path", FULL_PATHS)
-def test_shared_infrastructure_and_integration_paths_escalate(path):
+def test_shared_infrastructure_escalates(path):
     selection = _select(["vultron/a/mod.py", path], [_change()])
     assert selection.full
     assert selection.tests == []
@@ -475,10 +478,39 @@ def test_shared_infrastructure_and_integration_paths_escalate(path):
 
 
 @pytest.mark.spec("PAD-18-003")
-def test_full_paths_cover_every_integration_prefix():
-    """Each PAD-18-003 prefix is exercised by a real path above."""
-    for prefix in INTEGRATION_PREFIXES:
-        assert any(p.startswith(prefix) for p in FULL_PATHS), prefix
+@pytest.mark.parametrize("path", INTEGRATION_BEARING_PATHS)
+def test_integration_bearing_path_does_not_escalate(path):
+    """ADR-0143: the layer's importers gate it; CI runs the rest."""
+    selection = _select(["vultron/a/mod.py", path], [_change()])
+    assert not selection.full
+    assert "test/x/test_uses_changed.py" in selection.tests
+
+
+@pytest.mark.spec("PAD-18-003")
+def test_integration_bearing_change_selects_its_importers():
+    path = "vultron/core/behaviors/a/mod.py"
+    tests = _index(
+        {
+            "test/x/test_tree.py": (
+                "from vultron.core.behaviors.a.mod import f\n"
+            ),
+            "test/x/test_unrelated.py": "from vultron.b import thing\n",
+        }
+    )
+    selection = _select([path], [_change(None, path)], tests)
+    assert not selection.full
+    assert selection.tests == [*ALWAYS_SELECTED, "test/x/test_tree.py"]
+    assert pytest_argv(selection)[-3:] == selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_metadata_helper_is_covered_by_the_whole_directory():
+    """A helper under test/metadata/ runs with its directory, not alone."""
+    path = f"{METADATA_TESTS}specs/_helpers.py"
+    selection = _select([path], [])
+    assert not selection.full
+    assert selection.tests == list(ALWAYS_SELECTED)
+    assert selection.unmapped == []
 
 
 @pytest.mark.spec("PAD-18-003")
@@ -489,6 +521,8 @@ def test_full_paths_cover_every_integration_prefix():
         "vultron/wire/as2/extractor.py",
         "test/core/test_x.py",
         "test/architecture/_corpus.py",
+        "test/metadata/specs/_helpers.py",
+        *INTEGRATION_BEARING_PATHS,
         "test/AGENTS.md",
         "docs/index.md",
         "specs/parallel-development.yaml",
@@ -536,7 +570,7 @@ def test_conflict_gate_escalates_on_shared_configuration(path):
     ],
 )
 def test_conflict_gate_does_not_escalate_on_fix_commit_triggers(path):
-    """Integration-bearing and test-support paths are CI's after a merge."""
+    """Test-support paths are CI's after a merge."""
     assert full_suite_trigger(path) is not None
     assert conflict_suite_trigger(path) is None
 
@@ -558,7 +592,7 @@ def test_conflict_gate_selects_importers_of_an_integration_path():
         trigger=conflict_suite_trigger,
     )
     assert not selection.full
-    assert selection.tests == [ARCHITECTURE_TESTS, "test/x/test_adapter.py"]
+    assert selection.tests == [*ALWAYS_SELECTED, "test/x/test_adapter.py"]
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +646,7 @@ def test_cli_lists_targeted_set(git_repo, monkeypatch, capsys):
     _edit(git_repo / "vultron" / "a" / "mod.py", "return 1", "return 3")
     assert _main(monkeypatch, "--base", "main") == 0
     out = capsys.readouterr().out.splitlines()
-    assert out == [ARCHITECTURE_TESTS, "test/a/test_mod.py"]
+    assert out == [*ALWAYS_SELECTED, "test/a/test_mod.py"]
 
 
 @pytest.mark.spec("PAD-18-002")
@@ -620,7 +654,7 @@ def test_cli_non_python_diff_names_unmapped(git_repo, monkeypatch, capsys):
     (git_repo / "docs" / "index.md").write_text("# y\n")
     assert _main(monkeypatch, "--base", "main") == 0
     captured = capsys.readouterr()
-    assert captured.out.splitlines() == [ARCHITECTURE_TESTS]
+    assert captured.out.splitlines() == list(ALWAYS_SELECTED)
     assert "no test maps to: docs/index.md" in captured.err
 
 
@@ -631,7 +665,7 @@ def test_cli_deleted_module(git_repo, monkeypatch, capsys):
     assert _main(monkeypatch, "--base", "main") == 0
     out = capsys.readouterr().out.splitlines()
     assert out == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/a/test_mod.py",
         "test/a/test_other.py",
     ]
@@ -642,7 +676,7 @@ def test_cli_changed_test_file_only(git_repo, monkeypatch, capsys):
     _edit(git_repo / "test" / "a" / "test_other.py", "other_fn", "other_fn\n")
     assert _main(monkeypatch, "--base", "main") == 0
     out = capsys.readouterr().out.splitlines()
-    assert out == [ARCHITECTURE_TESTS, "test/a/test_other.py"]
+    assert out == [*ALWAYS_SELECTED, "test/a/test_other.py"]
 
 
 @pytest.mark.spec("PAD-18-002")
@@ -660,7 +694,7 @@ def test_cli_deleted_function_selects_its_importers(
     out = capsys.readouterr().out.splitlines()
     # test_mod.py is the mirror test; test_other.py imported the deleted name.
     assert out == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/a/test_mod.py",
         "test/a/test_other.py",
     ]
@@ -674,7 +708,7 @@ def test_cli_untracked_module_and_test_count(git_repo, monkeypatch, capsys):
     )
     assert _main(monkeypatch, "--base", "main") == 0
     out = capsys.readouterr().out.splitlines()
-    assert out == [ARCHITECTURE_TESTS, "test/a/test_fresh.py"]
+    assert out == [*ALWAYS_SELECTED, "test/a/test_fresh.py"]
 
 
 @pytest.mark.spec("PAD-18-002")
@@ -686,7 +720,7 @@ def test_cli_renamed_module_selects_importers_of_the_old_path(
     assert _main(monkeypatch, "--base", "main", "--json") == 0
     data = json.loads(capsys.readouterr().out)
     assert data["tests"] == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/a/test_mod.py",
         "test/a/test_other.py",
     ]
@@ -699,7 +733,7 @@ def test_cli_pytest_line_is_runnable(git_repo, monkeypatch, capsys):
     assert _main(monkeypatch, "--base", "main", "--pytest") == 0
     argv = shlex.split(capsys.readouterr().out)
     assert argv[argv.index("-m") + 1] == ""
-    assert argv[-2:] == [ARCHITECTURE_TESTS, "test/a/test_mod.py"]
+    assert argv[-3:] == [*ALWAYS_SELECTED, "test/a/test_mod.py"]
 
 
 @pytest.mark.spec("PAD-18-003")
@@ -790,7 +824,7 @@ def test_cli_paths_selects_every_importer_of_a_conflicted_file(
     assert _main(monkeypatch, "--paths", "vultron/a/mod.py") == 0
     out = capsys.readouterr().out.splitlines()
     assert out == [
-        ARCHITECTURE_TESTS,
+        *ALWAYS_SELECTED,
         "test/a/test_mod.py",
         "test/a/test_other.py",
     ]
@@ -802,7 +836,7 @@ def test_cli_paths_ignores_the_branch_diff(git_repo, monkeypatch, capsys):
     (git_repo / "test" / "conftest.py").write_text("import pytest\n")
     assert _main(monkeypatch, "--paths", "docs/index.md") == 0
     captured = capsys.readouterr()
-    assert captured.out.splitlines() == [ARCHITECTURE_TESTS]
+    assert captured.out.splitlines() == list(ALWAYS_SELECTED)
     assert "docs/index.md" in captured.err
 
 
@@ -832,8 +866,8 @@ def test_cli_paths_does_not_escalate_on_integration_paths(
     )
     data = json.loads(capsys.readouterr().out)
     assert data["mode"] == "targeted"
-    assert data["tests"] == [ARCHITECTURE_TESTS, "test/a/test_port.py"]
-    assert data["pytest"][-2:] == [ARCHITECTURE_TESTS, "test/a/test_port.py"]
+    assert data["tests"] == [*ALWAYS_SELECTED, "test/a/test_port.py"]
+    assert data["pytest"][-3:] == [*ALWAYS_SELECTED, "test/a/test_port.py"]
 
 
 @pytest.mark.spec("PAD-18-004")

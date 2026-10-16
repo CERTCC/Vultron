@@ -528,7 +528,7 @@ def test_trigger_offer_case_participant_role_returns_202(
         json={
             "case_id": case_obj.id_,
             "target_actor_id": target_actor.id_,
-            "role": "case_manager",
+            "role": "vendor",
         },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
@@ -543,6 +543,7 @@ def test_trigger_offer_case_participant_role_response_contains_activity(
         json={
             "case_id": case_obj.id_,
             "target_actor_id": target_actor.id_,
+            "role": "vendor",
         },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
@@ -558,7 +559,22 @@ def test_trigger_offer_case_participant_role_missing_required_fields_returns_422
     """Missing case_id or target_actor_id returns HTTP 422."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/offer-case-participant-role",
-        json={"role": "CASE_MANAGER"},
+        json={"role": "vendor"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+@pytest.mark.spec("CM-33-003")
+def test_trigger_offer_case_participant_role_missing_role_returns_422(
+    client_triggers, actor, case_obj, target_actor
+):
+    """``role`` is required: no role is read as a default (CM-33-003)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/offer-case-participant-role",
+        json={
+            "case_id": case_obj.id_,
+            "target_actor_id": target_actor.id_,
+        },
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -572,6 +588,7 @@ def test_trigger_offer_case_participant_role_unknown_actor_returns_404(
         json={
             "case_id": "urn:uuid:any-case",
             "target_actor_id": "urn:uuid:any-actor",
+            "role": "vendor",
         },
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND

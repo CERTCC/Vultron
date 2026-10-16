@@ -165,7 +165,10 @@ def test_static_binding_resolves_each_verbs_result_without_a_cast() -> None:
 
     role = _trigger(
         OfferCaseParticipantRoleTriggerRequest(
-            actor_id=_ACTOR, case_id=_CASE, target_actor_id=_ACTOR
+            actor_id=_ACTOR,
+            case_id=_CASE,
+            target_actor_id=_ACTOR,
+            role=CVDRole.VENDOR,
         )
     )
     assert_type(role, RoleOfferResult)
@@ -386,6 +389,15 @@ def test_offer_role_body_refuses_finder_with_its_reason(role: str) -> None:
     with pytest.raises(ValidationError, match="ADR-0078"):
         OfferCaseParticipantRoleRequest.model_validate(
             {"case_id": _CASE, "target_actor_id": _ACTOR, "role": role}
+        )
+
+
+@pytest.mark.spec("CM-33-003")
+def test_offer_role_body_requires_a_role() -> None:
+    """No role is read as a default, so the body must name one."""
+    with pytest.raises(ValidationError, match="role"):
+        OfferCaseParticipantRoleRequest.model_validate(
+            {"case_id": _CASE, "target_actor_id": _ACTOR}
         )
 
 

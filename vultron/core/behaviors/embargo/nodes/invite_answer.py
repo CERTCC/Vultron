@@ -46,12 +46,13 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
     Invite proposes, since the answer carries the Invite whole.  An invitee
     missing either is a partial replica (Regime 2, ADR-0087): it keeps the
     Invite and answers nothing, and the WARNING says so.  This is the accept
-    path: a refusal under P/X/A answers an Invite whose terms it does not hold
-    too, since the ER names the Invite by id (ADR-0123).
+    path: the P/X/A refusal, which runs before it, answers an Invite whose
+    terms it does not hold too, since the ER names the Invite by id
+    (ADR-0123).
 
-    A copy whose ``to`` does not name this actor never gets here:
-    ``unaddressed_copy_refusal()`` refuses it at the door, before any tree
-    runs (HP-01-005, ADR-0118); ``cc`` addresses nobody (ADR-0109).  The
+    A copy whose ``to`` does not name this actor never gets here: the
+    tree's addressee door guard refuses it before any effect runs
+    (HP-01-005, ADR-0118); ``cc`` addresses nobody (ADR-0109).  The
     not-the-invitee arm below is the backstop for a copy that *is* addressed
     to this actor while it names someone else as the invitee.
     """
