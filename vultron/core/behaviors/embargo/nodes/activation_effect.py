@@ -53,7 +53,10 @@ from vultron.core.models.embargo_apply import (
 from vultron.core.models.embargo_consent_move import owner_agreement
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.predicates.embargo import rejection_ends_embargo
+from vultron.core.predicates.embargo import (
+    pxa_is_embargo_eligible,
+    rejection_ends_embargo,
+)
 from vultron.core.services.carried_embargo import carried_entry_embargo
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.errors import VultronError
@@ -168,9 +171,10 @@ class ApplyEmbargoProposalRejectionFromLedgerNode(
     nothing here either: the CASE_MANAGER answered it with ET rather than
     returning to the prior terms (EMB-04-002), and the ``Remove`` entry that
     follows carries the ``TERMINATE`` step that cancels the revision
-    (EP-08-004).  A revision this replica already holds ``CANCELLED`` was
-    cancelled that way, so a seeded replica already past that ``Remove``
-    skips the entry too (ADR-0114).
+    (EP-08-004).  A seeded replica already past that ``Remove`` (the
+    revision ``CANCELLED``, the embargo ``TERMINATED``, P/X/A set) skips the
+    entry too (ADR-0114).  A revision cancelled any other way has diverged,
+    so the entry is refused.
 
     An entry naming an embargo that is not an open proposal here is refused
     into the gap buffer (ADR-0124); one that names no embargo fails, so it
@@ -191,7 +195,19 @@ class ApplyEmbargoProposalRejectionFromLedgerNode(
     ) -> bool:
         assert isinstance(change, RegisterStep)
         case = before.case
+        if rejection_ends_embargo(case, change.embargo_id):
+            return True
+        # A seed past that termination: the revision was cancelled in the
+        # TERMINATE step, after P/X/A was set.  A revision cancelled any
+        # other way has diverged from the CASE_MANAGER, which commits a
+        # Reject only for an open proposal, so it stays refused (ADR-0124).
         held = case.embargo_register_entry(change.embargo_id)
-        return rejection_ends_embargo(case, change.embargo_id) or (
-            held is not None and held.status is EmbargoRegisterStatus.CANCELLED
+        return (
+            held is not None
+            and held.status is EmbargoRegisterStatus.CANCELLED
+            and any(
+                entry.status is EmbargoRegisterStatus.TERMINATED
+                for entry in case.embargo_register
+            )
+            and not pxa_is_embargo_eligible(case.current_status.pxa.state)
         )

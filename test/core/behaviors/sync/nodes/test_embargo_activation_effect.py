@@ -46,11 +46,17 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register import termination_changes
+from vultron.core.models.embargo_register import (
+    RegisterChange,
+    termination_changes,
+)
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    RegisterTrigger,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -416,13 +422,10 @@ def test_a_rejection_after_another_open_proposal_with_pxa_set_applies(
     assert held.em_state == EM.REVISE
 
 
-@pytest.mark.spec("CM-23-016")
-@pytest.mark.spec("EP-08-004")
-def test_a_seed_past_the_termination_skips_the_rejection(bridge, datalayer):
-    """A revision the termination cancelled: the seed is past the Reject
-    entry the CASE_MANAGER answered with ET (ADR-0114), so it is a no-op,
-    not a refusal into the gap buffer."""
+def _cancelled_revision(datalayer, *, pxa: CS_pxa) -> VulnerabilityCase:
+    """A replica whose embargo in force ended, cancelling the revision."""
     case = _seed(datalayer, EM.REVISE)
+    case.append_case_status(pxa=pxa)
     case.apply_embargo_register_step(
         termination_changes(case.embargo_register, EmbargoTermination.early())
     )
@@ -430,7 +433,55 @@ def test_a_seed_past_the_termination_skips_the_rejection(bridge, datalayer):
     assert _case(datalayer).embargo_register_status(EMBARGO_ID) is (
         EmbargoRegisterStatus.CANCELLED
     )
+    return case
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("EP-08-004")
+@pytest.mark.spec("EMB-04-002")
+def test_a_seed_past_the_termination_skips_the_rejection(bridge, datalayer):
+    """The revision the ET cancelled after disclosure: the seed is past the
+    Reject entry the CASE_MANAGER answered with ET (ADR-0114), so it is a
+    no-op, not a refusal into the gap buffer."""
+    _cancelled_revision(datalayer, pxa=CS_pxa.Pxa)
     before = _case(datalayer).model_dump()
 
     assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.SUCCESS
+    assert _case(datalayer).model_dump() == before
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("SYNC-12-001")
+def test_a_revision_cancelled_without_disclosure_refuses_the_rejection(
+    bridge, datalayer
+):
+    """An early termination is not the EMB-04-002 answer: the CASE_MANAGER
+    never commits a Reject of a revision it cancelled, so this replica has
+    diverged and the entry is refused (ADR-0124)."""
+    _cancelled_revision(datalayer, pxa=CS_pxa.pxa)
+    before = _case(datalayer).model_dump()
+
+    assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.FAILURE
+    assert _case(datalayer).model_dump() == before
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("EMB-16-001")
+def test_an_abandoned_proposal_refuses_the_rejection(bridge, datalayer):
+    """A proposal a threat signal abandoned (no embargo in force) is not one
+    the CASE_MANAGER could still reject: the entry is refused."""
+    case = _seed(datalayer, EM.PROPOSED)
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.apply_embargo_register_step(
+        [
+            RegisterChange(
+                embargo_id=EMBARGO_ID, trigger=RegisterTrigger.CANCEL
+            )
+        ],
+        threat_signal=True,
+    )
+    datalayer.save(case)
+    before = _case(datalayer).model_dump()
+
+    assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.FAILURE
     assert _case(datalayer).model_dump() == before

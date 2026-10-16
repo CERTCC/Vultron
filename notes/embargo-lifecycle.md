@@ -172,8 +172,9 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
-- **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
-  and replay nodes not yet copying, #4716): it skips the P/X/A
+- **`OBSERVED`** follows the CASE_MANAGER's committed assertion. Only the
+  paused replica's CM-31-010 notice path still runs it
+  (`ending_notice_replica.py`, outside the ledger): it skips the P/X/A
   guards, records a proposal a replica never saw before activating it, and
   logs and skips a refused step — it never forces the register into a state
   its rules refuse. A copying replay node runs no lifecycle mode at all: it
@@ -381,10 +382,9 @@ every other participant learns the result from the ledger.
    actor policy, a call-out point. The Invites are not a vote: they gather the
    consent rows that decide who stays bound when terms lengthen (EP-05-001).
 6. Only the CASE_MANAGER evaluates expiry (CM-28-014). Replay nodes copy the
-   proposal's `PROPOSE` step and every consent row the CASE_MANAGER commits as
-   its own entry; the decision slot still reconstructs via
-   `EmbargoLifecycle(OBSERVED)` until #4716 (EP-09-007, RSH-08-004, ADR-0124);
-   the slot table is in
+   proposal's `PROPOSE` step, the owner's `ACTIVATE` or `REJECT`, and every
+   consent row the CASE_MANAGER commits as its own entry (EP-09-007,
+   RSH-08-004, ADR-0124); the slot table is in
    `notes/case-communication-model.md` § "What the participant and its replica
    do".
 

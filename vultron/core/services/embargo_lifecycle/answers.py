@@ -37,7 +37,10 @@ from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,19 +143,20 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             )
 
         if rejection_ends_embargo(case, embargo_id):
-            self._assert_pxa_embargo_eligible(
-                case.current_status.pxa.state,
-                case_id,
-                "reject embargo revision (terminate the embargo (ET) when"
-                " P/X/A is set)",
+            raise VultronInvalidStateTransitionError(
+                f"Cannot reject embargo revision '{embargo_id}' on case"
+                f" '{case_id}': public awareness, exploit publication, or"
+                " attack observation is set"
+                f" (pxa_state='{case.current_status.pxa.state.name}');"
+                " terminate the embargo (ET) instead (EMB-04-002)."
             )
-        if not self._apply_register_step(
+        # STRICT: a refused step raises, so the step is always applied here.
+        self._apply_register_step(
             case,
             rejection_changes(embargo_id),
             transition_mode=TransitionMode.STRICT,
             actor_id=actor_id,
-        ):
-            return self._unchanged_result(em_before)
+        )
         self._persistence.save(case)
 
         em_after = case.em_state

@@ -24,11 +24,15 @@ rejection slots).
 """
 
 import ast
+import functools
+import importlib
 import inspect
+import pkgutil
 import textwrap
 
 import pytest
 
+import vultron.core.behaviors.embargo.nodes as embargo_nodes
 from test.architecture import _corpus
 from vultron.core.behaviors.embargo.nodes.abandon import (
     ApplyEmbargoAbandonmentFromLedgerNode,
@@ -49,9 +53,9 @@ from vultron.core.behaviors.embargo.nodes.withdrawal import (
 )
 
 #: Names a copying slot must never reach for (CM-23-016, CM-18-005).
-#: ``TransitionMode`` catches a slot that delegates to a lifecycle node in
-#: ``OBSERVED`` mode rather than calling ``EmbargoLifecycle`` itself, as the
-#: owner's-rejection slot did before #4784.
+#: ``TransitionMode`` catches a slot that passes a lifecycle mode on; a
+#: slot that hands off to a lifecycle-running node is caught by
+#: :func:`_lifecycle_nodes`, as the owner's-rejection slot did before #4784.
 _LIFECYCLE_NAMES = frozenset(
     {
         "EmbargoLifecycle",
@@ -89,14 +93,52 @@ def _own_classes(slot: type) -> list[type]:
     return [c for c in slot.__mro__ if c.__module__.startswith("vultron.")]
 
 
+def _uses_lifecycle(cls: type) -> bool:
+    used = set().union(*(_names_used(c) for c in _own_classes(cls)))
+    return bool(used & _LIFECYCLE_NAMES)
+
+
+@functools.cache
+def _lifecycle_nodes() -> frozenset[str]:
+    """Every embargo node class that itself runs lifecycle logic.
+
+    Delegating to one of them is running lifecycle logic too, whatever mode
+    it is given.
+    """
+    names: set[str] = set()
+    for info in pkgutil.iter_modules(embargo_nodes.__path__):
+        module = importlib.import_module(
+            f"{embargo_nodes.__name__}.{info.name}"
+        )
+        for name, value in vars(module).items():
+            if (
+                inspect.isclass(value)
+                and value.__module__ == module.__name__
+                and _uses_lifecycle(value)
+            ):
+                names.add(name)
+    return frozenset(names)
+
+
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
 def test_a_copying_replica_slot_runs_no_lifecycle_logic(slot: type) -> None:
+    forbidden = _LIFECYCLE_NAMES | _lifecycle_nodes()
     used = set().union(*(_names_used(c) for c in _own_classes(slot)))
-    assert not used & _LIFECYCLE_NAMES, (
-        f"{slot.__name__} reaches {sorted(used & _LIFECYCLE_NAMES)}"
+    assert not used & forbidden, (
+        f"{slot.__name__} reaches {sorted(used & forbidden)}"
     )
+
+
+def test_the_check_sees_a_lifecycle_node() -> None:
+    """Handing off to a lifecycle-running node is caught, with no mode."""
+    assert {
+        "DecideRejectedEmbargoProposalNode",
+        "RejectEmbargoProposalLifecycleNode",
+        "_EmbargoLifecycleNode",
+    } <= _lifecycle_nodes()
+    assert not _lifecycle_nodes() & {c.__name__ for c in _SLOTS}
 
 
 def test_the_check_sees_a_lifecycle_call() -> None:
