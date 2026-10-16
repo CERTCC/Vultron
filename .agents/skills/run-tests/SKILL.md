@@ -81,8 +81,10 @@ The set always includes `test/architecture/` and `test/metadata/`.
 becomes `pytest -m ""`) only when the branch diff touches shared test
 infrastructure; an integration-bearing path is gated by its importers, and
 CI runs the rest (PAD-18-003, ADR-0143). It cannot see CI: when the fix is
-for a CI failure in a test outside the printed set, append that test's file
-to the printed command rather than running the full suite. `pr-execute`
+for a CI failure in a test outside a printed targeted set, append that test's
+file to the printed command rather than running the full suite. Never append
+to a `full` command: it runs every test, and a path would narrow it to one
+file. `pr-execute`
 Phase 5 Step 3 is the canonical caller.
 
 ## Constraints

@@ -52,7 +52,9 @@ WORKSPACE="/app"
 # keep the full suite inside a ten-minute tool call; 2 CPUs took 9-18 minutes
 # (ADR-0143). The memory cap fits test/conftest.py's six 1.5 GiB xdist workers
 # plus the agent. Size the Docker VM for the slots you run at once.
-SLOT_CPUS="${SLOT_CPUS:-6}"
+# The default is clamped to the Docker VM's CPUs: --cpus above them is refused.
+_vm_cpus="$(docker info --format '{{.NCPU}}' 2>/dev/null || echo 6)"
+SLOT_CPUS="${SLOT_CPUS:-$((_vm_cpus < 6 ? _vm_cpus : 6))}"
 SLOT_MEMORY="${SLOT_MEMORY:-12g}"
 
 # First-run: collect credentials
@@ -148,7 +150,9 @@ _cleanup() {
 # Container exists (running or stopped) — start if needed, then attach
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     docker start "$CONTAINER_NAME" >/dev/null 2>&1 || true
-    # Apply the current limits to a slot created under older ones.
+    # Apply the current limits to a slot created under older ones. This
+    # overwrites whatever the slot was created with, so a slot made smaller
+    # on purpose needs SLOT_CPUS / SLOT_MEMORY set on every attach.
     docker update --cpus "$SLOT_CPUS" --memory "$SLOT_MEMORY" \
         --memory-swap "$SLOT_MEMORY" "$CONTAINER_NAME" >/dev/null ||
         echo "warning: could not apply slot limits to '$CONTAINER_NAME'" >&2

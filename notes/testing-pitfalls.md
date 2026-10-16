@@ -179,9 +179,8 @@ the assertion block if setup noise accumulates.
 
 `start-dev.sh` caps each slot's CPUs and memory (`SLOT_CPUS`, `SLOT_MEMORY`),
 but `nproc`, `os.cpu_count()` and xdist's stock `-n auto` report every host
-core. Too many
-workers run slower and get OOM-killed, and xdist reports each kill as a failure
-of whatever innocent test the worker held. `test/conftest.py` implements
+core. Too many workers run slower and get OOM-killed, and xdist reports each
+kill as a failure of whatever innocent test the worker held. `test/conftest.py` implements
 `pytest_xdist_auto_num_workers` from the cgroup limits
 (`test/support/xdist_workers.py`); `PYTEST_XDIST_AUTO_NUM_WORKERS` overrides it.
 When a worker "crashed" before any assertion failed, read

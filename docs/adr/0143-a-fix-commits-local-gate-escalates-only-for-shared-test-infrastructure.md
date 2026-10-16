@@ -48,11 +48,11 @@ The question this record settles: after the first push, which changes justify a 
 
 ## Decision Outcome
 
-Chosen option: **escalate only for shared test infrastructure, and always select `test/architecture/` and `test/metadata/`**.
+Chosen option: **escalate only for shared test infrastructure, and always select `test/architecture/` and `test/metadata/`**, because it removes the full local run that repeated CI's on most fix commits while keeping, locally, the cheap directories where nearly every red local run failed.
 
 The fix-commit gate escalates to the full suite only for files whose effect no import index can bound: `conftest.py`, test fixtures, factories, helpers and data files outside the always-selected directories, `pyproject.toml`, `uv.lock`, and `vultron/__init__.py` (PAD-18-003).
 A change to any other path, an integration-bearing layer included, is gated by its importers and mirror tests with the integration marker enabled, plus `test/architecture/` and `test/metadata/` (PAD-18-002).
-A fix for a CI failure in a test outside the set adds that test to the gate instead of running the full suite.
+A fix for a CI failure in a test outside a targeted set adds that test to the gate instead of running the full suite.
 
 Separately, worktree slots may burst to more CPUs than their fair share when the host is idle, so the full run that does remain, before the first push, finishes inside the tool-call limit (`start-dev.sh`).
 
@@ -78,7 +78,7 @@ PAD-18-007's velocity report checks the decision against data: the failed CI run
 - Bad, because a faster full run is still a repeat of CI's, and the number of repeats, not their length, is what multiplies (ADR-0126).
 - Neutral, because larger slots are worth having anyway; this record adopts them alongside the chosen option.
 
-### Escalate only for shared test infrastructure
+### Escalate only for shared test infrastructure, and always select `test/architecture/` and `test/metadata/`
 
 - Good, because it removes the full local run from most fix commits while keeping the cheap directories where local failures were found.
 - Bad, because it accepts the CI round trip described under Consequences.

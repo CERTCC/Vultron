@@ -409,10 +409,13 @@ gate=$(PYTHONPATH= uv run targeted-tests <scope> --pytest); rc=$?
 ```
 
 **Add the CI failure being fixed when it is outside the set.**
-`targeted-tests` cannot see CI (PAD-18-003). If the iteration's input includes
-a CI test failure whose test file is not one of the paths in
-`/tmp/targeted-tests.txt` (and is not under a listed directory), append that
-file to the gate, not the full suite: CI runs everything else on the push.
+`targeted-tests` cannot see CI (PAD-18-003). If the gate is a targeted set
+(the first line of `/tmp/targeted-tests.txt` is a test path) and the
+iteration's input includes a CI test failure whose test file is not one of
+those paths (and is not under a listed directory), append that file to the
+gate, not the full suite: CI runs everything else on the push. A `full` gate
+already runs every test; appending a path to it would narrow it to that one
+file, so leave it as printed.
 
 ```bash
 gate="$gate <failing test file>"

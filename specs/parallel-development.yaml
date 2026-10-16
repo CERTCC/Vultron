@@ -1325,10 +1325,11 @@ groups:
           by the linters plus the targeted test set for the branch diff: every
           test file that imports a changed symbol, the mirror test file of
           every changed module, every changed test file itself,
-          `test/architecture/`, and `test/metadata/`. The run MUST select those files with the
-          integration marker enabled, so that marker-bearing tests among them
-          are not deselected. A conflict merge with no fix in it is not a fix
-          commit; PAD-18-004 sets its gate.
+          `test/architecture/`, and `test/metadata/`. The run MUST select
+          those files with the integration marker enabled, so that
+          marker-bearing tests among them are not deselected. A conflict
+          merge with no fix in it is not a fix commit; PAD-18-004 sets its
+          gate.
         rationale: >-
           A full local run after a one-line fix costs nine to eighteen minutes
           on a 2-CPU slot; CI then runs the full suite again in six to nine.
@@ -1336,10 +1337,10 @@ groups:
           fraction of the cost. `test/architecture/` and `test/metadata/` are
           named because their ratchets and generated-file checks read the
           tree rather than import a symbol, and they were where nearly every
-          red local full run failed (ADR-0143). A changed test file is named explicitly
-          because the import index cannot reach it: no `vultron` symbol
-          changed, and the mirror lookup covers only `vultron/` paths. The
-          marker clause is needed because `addopts` carries
+          red local full run failed (ADR-0143). A changed test file is named
+          explicitly because the import index cannot reach it: no `vultron`
+          symbol changed, and the mirror lookup covers only `vultron/` paths.
+          The marker clause is needed because `addopts` carries
           `-m 'not integration'`, dropping those tests from a file list.
         verification: >-
           Inspection: `pr-execute` gates post-first-push fixes with the
@@ -1385,6 +1386,7 @@ groups:
         adr:
         - ADR-0126
         - ADR-0138
+        - ADR-0143
         priority: MUST
         kind: process
         statement: >-
@@ -1397,10 +1399,10 @@ groups:
           Files changed on both sides without a conflict MUST NOT cause a
           merge. After resolving a conflict, the agent MUST gate the merge
           with the linters plus the targeted set for the conflicted files
-          alone, each treated as wholly changed, plus `test/architecture/`,
-          escalating to the full suite only when a conflicted file is a
-          `conftest.py`, `pyproject.toml`, `uv.lock`, or
-          `vultron/__init__.py`.
+          alone, each treated as wholly changed, plus `test/architecture/`
+          and `test/metadata/`, escalating to the full suite only when a
+          conflicted file is a `conftest.py`, `pyproject.toml`, `uv.lock`,
+          or `vultron/__init__.py`.
         rationale: >-
           CI already tests the merge of the PR into its base as of each push,
           and no repository rule requires branches to be up to date. A
