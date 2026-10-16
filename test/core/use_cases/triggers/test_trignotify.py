@@ -62,14 +62,12 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcTerminateEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.report import (
-    SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     AddParticipantStatusTriggerRequest,
-    CloseReportTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     InvalidateReportTriggerRequest,
@@ -604,9 +602,9 @@ def _make_case_with_case_owner_and_manager(
 
 
 class TestReportTriggerToField:
-    """SvcCloseReportUseCase, SvcInvalidateReportUseCase, and
-    SvcRejectReportUseCase populate ``to`` with either the Case Actor
-    (when a linked case exists) or the offer submitter."""
+    """SvcInvalidateReportUseCase and SvcRejectReportUseCase populate ``to``
+    with either the Case Actor (when a linked case exists) or the offer
+    submitter."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
@@ -640,28 +638,6 @@ class TestReportTriggerToField:
         self.dl.clear_all()
         self.dl.close()
         reset_datalayer(self.vendor.id_)
-
-    def test_close_report_to_field_falls_back_to_offer_actor(self):
-        """SvcCloseReportUseCase raises VultronNotFoundError when no linked case.
-
-        Per issue #1854 AC-1: close-case requires a linked VulnerabilityCase;
-        without one, _prepare raises VultronNotFoundError rather than falling
-        back to the offer actor.
-        """
-        from vultron.errors import VultronNotFoundError
-
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        with pytest.raises(VultronNotFoundError):
-            SvcCloseReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                sync_port=SyncActivityAdapter(self.dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
 
     def test_invalidate_report_to_field_falls_back_to_offer_actor(self):
         """SvcInvalidateReportUseCase uses offer actor as to when no case exists."""
@@ -753,21 +729,14 @@ class TestReportTriggerToField:
         assert self.vendor.id_ not in recipients
 
     @pytest.mark.spec("CM-23-019")
-    @pytest.mark.parametrize(
-        ("use_case", "request_cls", "owner"),
-        [
-            (SvcRejectReportUseCase, RejectReportTriggerRequest, False),
-            (SvcCloseReportUseCase, CloseReportTriggerRequest, True),
-        ],
-        ids=["reject-report", "close-report"],
-    )
-    def test_close_report_is_sent_to_no_one_when_a_case_exists(
-        self, use_case, request_cls, owner
-    ):
-        """Once a case holds the report, no Close(Report) is queued at all.
+    @pytest.mark.parametrize("owner", [False, True], ids=["vendor", "owner"])
+    def test_close_report_is_sent_to_no_one_when_a_case_exists(self, owner):
+        """Once a case holds the report, reject-report queues no Close(Report).
 
-        The Case Owner closes the case by ``Leave(VulnerabilityCase)``
-        (CM-23-019), so neither trigger addresses the Case Actor any more.
+        Owner or not, an actor closes its part in the case by
+        ``Leave(VulnerabilityCase)`` through ``leave-case`` (CM-23-019,
+        TRIG-13-001), so reject-report addresses no one, the Case Actor
+        included.
         """
         if owner:
             case = _make_case_with_case_owner_and_manager(
@@ -793,9 +762,11 @@ class TestReportTriggerToField:
         before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronInvalidStateTransitionError):
-            use_case(
+            SvcRejectReportUseCase(
                 self.dl,
-                request_cls(actor_id=self.vendor.id_, offer_id=self.offer.id_),
+                RejectReportTriggerRequest(
+                    actor_id=self.vendor.id_, offer_id=self.offer.id_
+                ),
                 trigger_activity=TriggerActivityAdapter(self.dl),
                 sync_port=SyncActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),

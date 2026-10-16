@@ -13,9 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Trigger use case for Leave(VulnerabilityCase).
+"""Trigger use case for the ``leave-case`` verb: send Leave(VulnerabilityCase).
 
-Emits ``Leave(VulnerabilityCase)`` to the Case Actor inbox.  The Case Actor
+Any participant calls it to close its part in a case (TRIG-13-001, ADR-0145).
+It runs the leaving actor's ``PreCloseAction`` call-out first (TRIG-13-002),
+refuses a Case Owner whose replica records an embargo in force before that
+(TRIG-13-003), and then emits ``Leave(VulnerabilityCase)`` to the Case Actor
+inbox.  The Case Actor
 commits a ``close_case`` :class:`~vultron.core.models.case_ledger_entry
 .CaseLedgerEntry` recording the Leave, then one
 ``add_participant_status_to_participant`` entry per RM transition it writes
@@ -23,22 +27,35 @@ for the departing actor, and broadcasts each.  Every replica advances the
 departing actor to ``RM.CLOSED`` only by applying those status entries
 (ADR-0050, CM-23-001, CM-23-002/CM-23-003).
 
-Per specs/case-management.yaml DEMOMA-07-001, CM-23-002, CM-23-003.
+Per specs/case-management.yaml CM-23-002, CM-23-003 and
+specs/triggerable-behaviors.yaml TRIG-13-001 through TRIG-13-003.
 """
 
 import json
 import logging
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import py_trees.behaviour
 
-from vultron.core.behaviors.sender.send_tree import sender_side_bt
+from vultron.core.behaviors.call_out.bundles.close_report import (
+    CLOSE_REPORT_DETERMINISTIC,
+    CloseReportCallOutBundle,
+)
+from vultron.core.behaviors.case.leave_case_trigger_tree import (
+    create_leave_case_trigger_tree,
+)
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
 )
 from vultron.core.use_cases.triggers.requests import LeaveCaseTriggerRequest
+
+if TYPE_CHECKING:
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
+    from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +74,31 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
     The sender does NOT update their own RM state here — its replica, like
     every other, applies the status entries the Case Actor commits, received
     via ``Announce(CaseLedgerEntry)`` (ADR-0050, CM-23-004).
+
+    Before the Leave is built, the tree refuses the Case Owner while its
+    replica records an embargo in force (``VultronInvalidStateTransitionError``,
+    HTTP 409, TRIG-13-003) and then runs the ``PreCloseAction`` backend from
+    *call_out*; a failing backend fails the trigger with nothing queued
+    (TRIG-13-002).
     """
+
+    def __init__(
+        self,
+        dl: "CaseOutboxPersistence",
+        request: object,
+        trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
+        call_out: CloseReportCallOutBundle = CLOSE_REPORT_DETERMINISTIC,
+    ) -> None:
+        super().__init__(
+            dl=dl,
+            request=request,
+            trigger_activity=trigger_activity,
+            wire_render_port=wire_render_port,
+            sync_port=sync_port,
+        )
+        self._close_call_out = call_out
 
     def _prepare(self) -> None:
         request = cast(LeaveCaseTriggerRequest, self._request)
@@ -75,15 +116,18 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
             self._captured["activity"] = json.loads(activity_dict)
             return [activity_id]
 
-        return sender_side_bt(
+        return create_leave_case_trigger_tree(
+            actor_id=self._actor_id,
             case_id=self._case_id,
             activity_builder=_build_activities,
+            result_out=self._result_out,
+            call_out=self._close_call_out,
         )
 
     def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' sent Leave(VulnerabilityCase) for case '%s'"
-            " (ADR-0050, DEMOMA-07-001)",
+            " (ADR-0050, TRIG-13-001)",
             self._actor_id,
             self._case_id,
         )

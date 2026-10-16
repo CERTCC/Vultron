@@ -44,7 +44,6 @@ from vultron.core.behaviors.report.nodes.close_conditions import (
 )
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
-    CheckReportNotClosed,
     CheckRMStateAccepted,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -92,7 +91,6 @@ __all__ = [
     "CheckParticipantRMState",
     "CheckRMStateValid",
     "CheckRMStateReceivedOrInvalid",
-    "CheckReportNotClosed",
     "EnsureEmbargoExists",
     "EvaluateReportCredibility",
     "EvaluateReportValidity",

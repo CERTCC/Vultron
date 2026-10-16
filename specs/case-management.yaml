@@ -2012,21 +2012,23 @@ groups:
       that sets `auto_create_case=False` creates the case in a later, separate
       step (for example `SvcCreateCaseUseCase` with the report's `report_id`);
       once that case is linked to the report, the implementation SHOULD close it
-      through `SvcLeaveCaseUseCase` (the Case Owner's Leave(VulnerabilityCase))
-      when the operator or user requests closure, as with an auto-created case.
+      through the `leave-case` trigger (the Case Owner's Leave(VulnerabilityCase),
+      TRIG-13-001) when the operator or user requests closure, as with an
+      auto-created case.
     rationale: >-
-      CONCERN-1902 observed that `SvcCloseCaseUseCase` is never reached in the
-      reference process because the case is always auto-created at RM.RECEIVED.
-      ADR-0085 resolves this: the auto-create behaviour is an implementation
-      choice made by the reference/demo process. However the case was created,
-      once it holds the report its Case Owner closes it by Leave, and
-      `SvcCloseCaseUseCase`, which sends `Close(Report)`, fails on it
-      (CM-23-019).
+      CONCERN-1902 observed that the report-closing trigger use case was never
+      reached in the reference process because the case is always auto-created at
+      RM.RECEIVED. ADR-0085 resolves this: the auto-create behaviour is an
+      implementation choice made by the reference/demo process. However the case
+      was created, once it holds the report its Case Owner closes it by Leave, and
+      no trigger sends `Close(Report)` for it (CM-23-019, ADR-0145).
     verification: >-
-      `test/core/use_cases/triggers/test_close_case_trigger.py` asserts that
-      `SvcCloseCaseUseCase` fails on a case that holds the report, and the
-      Leave tests in `test/core/use_cases/received/test_close_case_role_semantics.py`
-      cover the closure path.
+      The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
+      assert the Case Owner's Leave is sent, the reject-report tests in
+      `test/core/use_cases/triggers/test_trignotify.py` assert no `Close(Report)`
+      is sent on a case, and the Leave tests in
+      `test/core/use_cases/received/test_close_case_role_semantics.py` cover the
+      closure path.
     adr:
     - ADR-0085
 - id: CM-16
@@ -4475,12 +4477,15 @@ groups:
       `Close(Report)` on an open case from the Case Owner and from a participant that
       is not the owner, at the CASE_MANAGER and at a participant holding a replica,
       and asserts `REFUSED`, no RM change, no ledger entry and no outbound activity.
-      Tests in `test/core/use_cases/triggers/test_close_case_trigger.py`,
-      `test/core/use_cases/triggers/test_report_triggers.py` and
-      `test/core/behaviors/report/test_trigger_report_trees.py` assert that the
-      close-report and reject-report triggers fail on a case with nothing written or
-      queued, and that the reject-report trigger still closes a report that belongs
-      to no case.
+      Tests in `test/core/use_cases/triggers/test_trignotify.py`,
+      `test/core/use_cases/triggers/test_report_triggers.py`,
+      `test/core/behaviors/report/test_trigger_report_trees.py` and
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` assert that
+      the reject-report trigger fails on a case, from the Case Owner and from a
+      participant that is not the owner, with nothing written or queued, and that
+      it still closes a report that belongs to no case. The `leave-case` tests in
+      `test/core/use_cases/triggers/case/test_leave.py` cover how an actor on a
+      case closes its part in it instead.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001

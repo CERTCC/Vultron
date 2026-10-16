@@ -691,7 +691,7 @@ class TestFvcvExtensionMilestoneAssertions:
         }
 
         with (
-            patch.object(ActorSession, "close_case"),
+            patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(
@@ -746,7 +746,7 @@ class TestFvcvExtensionMilestoneAssertions:
 
         with (
             patch.object(
-                ActorSession, "close_case", autospec=True
+                ActorSession, "leave_case", autospec=True
             ) as mock_close,
             stub_closure_gate(),
             patch.object(
