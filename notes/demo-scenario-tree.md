@@ -131,9 +131,11 @@ above is what the paths must produce.
 
 Names keep the letter grammar: the leading letters spell the roles that join, in
 order, and a suffix names the outcome (DEMOCI-11-015). The letter set is `r`,
-`v`, `c` and `d` (Deployer, for `fcvd`), gaining one letter per new role. A
-check compares the
-letters with the path. Path-generated names were rejected: inserting a branch
+`v`, `c` and `d` (Deployer, for `fcvd`), gaining one letter per new role. The
+grammar is a convention kept in review, with no check: some joins happen in
+scripted steps no choice records (`rcvv-embargo`'s late Vendor2 invite), so a
+check would need the recordings, which is more upkeep than demo names are worth.
+Path-generated names were rejected: inserting a branch
 point upstream would rename every scenario below it, and a name is the stem of
 the module, harness, narrative page, `scenario_start` marker and CI entry.
 

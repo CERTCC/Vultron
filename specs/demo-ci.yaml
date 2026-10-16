@@ -2086,28 +2086,26 @@ groups:
             spec_id: DEMOCI-11-013
 
       - id: DEMOCI-11-015
-        priority: MUST
+        priority: SHOULD
         kind: project
         statement: >-
-          A scenario's name MUST keep the letter grammar of the existing names:
-          the leading letters spell, in order, the roles that join the case along
-          the scenario's declared path (`r` Reporter, `v` Vendor, `c`
-          Coordinator, `d` Deployer, and one new letter for each further role a
-          scenario adds), and an optional hyphenated suffix names the outcome. A
-          Vendor that reports its own vul joins as a Vendor, so its name begins
-          with `v`. A
-          check MUST fail a name whose letters disagree with its path. Names
-          MUST NOT be generated from the path's choices.
+          A scenario's name SHOULD keep the letter grammar of the existing names:
+          the leading letters spell, in order, the roles that join the case (`r`
+          Reporter, `v` Vendor, `c` Coordinator, `d` Deployer, and one new letter
+          for each further role a scenario adds), and an optional hyphenated
+          suffix names the outcome. A Vendor that reports its own vul joins as a
+          Vendor, so its name begins with `v`. Names SHOULD NOT be generated from
+          the path's choices.
         rationale: >-
           A name is the stem of the module, the invariant harness, the narrative
           page, the `scenario_start` marker and the CI matrix entry, so a rename
           ripples through all of them. A name generated from choices renames
-          every scenario below a newly inserted branch point. A checked letter
-          grammar keeps names stable while stopping a name from lying about its
-          path. The Finder letter `f` is retired with the role (ADR-0078).
-        verification: >-
-          A registry test derives each scenario's join order from its path and
-          compares it with the name's leading letters.
+          every scenario below a newly inserted branch point. The grammar is a
+          naming convention kept in review, not a registry check: some joins
+          happen in scripted steps no choice records, so checking a name needs
+          the recording, and planning of #4726 judged that machinery not worth
+          its upkeep for demo names. The Finder letter `f` is retired with the
+          role (ADR-0078).
         adr:
           - ADR-0098
           - ADR-0078
