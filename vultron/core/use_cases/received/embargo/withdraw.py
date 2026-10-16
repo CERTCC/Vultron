@@ -14,6 +14,7 @@ import py_trees
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.embargo.withdrawal_tree import (
@@ -64,11 +65,13 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
         request: WithdrawFromEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         super().__init__(
             dl,
             request,
             sync_port=sync_port,
+            trigger_activity=trigger_activity,
             wire_render_port=wire_render_port,
         )
 

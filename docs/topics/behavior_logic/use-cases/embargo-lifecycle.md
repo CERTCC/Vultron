@@ -54,6 +54,7 @@ These are the two flows the response decision handles, and they resolve at diffe
 
 **An end time passing.** An embargo in force does not end by itself when its end time passes.
 The case manager ends it with the reason `END_TIME_REACHED` the next time it handles the case, whether for an incoming message or one of its own triggers, so no scheduler is needed.
+The check runs as part of handling the message or trigger, after the case manager confirms that the sender may send it, so a sender with no standing in the case cannot end the embargo.
 A request to end the embargo early made after its end time is recorded as `END_TIME_REACHED` too — see [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
 
 ---

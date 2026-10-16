@@ -98,14 +98,20 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
     (CLP-10-006).  The commit snapshots the activity as an AS2 rendering, which
     needs the ``WireRenderPort`` (ARCH-20-001, CLP-07-009), and the
     CASE_MANAGER announces the entry to every active participant, which needs
-    the ``SyncActivityPort`` (SYNC-02-003).  Both are given to every use case
-    rather than to a hand-kept list of those whose trees commit: a list that
+    the ``SyncActivityPort`` (SYNC-02-003).  Every received tree with a case
+    and a sender guard also takes the case-wide clock decisions, and the
+    embargo end-time termination builds its ``Remove``, ``Add(CaseStatus)``
+    and re-issued stub ``Invite`` through the ``TriggerActivityPort``
+    (EMB-13-003, CLP-10-025).  All three are given to every use case rather
+    than to a hand-kept list of those whose trees need them: a list that
     falls behind is how the snapshot path ran portless before #3930, and how
     ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
     ``REJECT_INVITE_ACTOR_TO_CASE`` committed without fan-out until #4113.
 
-    This is the **only** source of both ports: no per-semantic factory below
-    names either one.  Some semantics use the sync port for more than their
+    This is the **only** source of the sync and wire-render ports: no
+    per-semantic factory below names either one.  A per-semantic factory may
+    still name the trigger port beside the configuration it adds; its own
+    value wins.  Some semantics use the sync port for more than their
     commit, and still take it from here:
 
     - ``ANNOUNCE_VULNERABILITY_CASE`` seeds the local case, which anchors the
@@ -124,6 +130,7 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
 
     def _factory(dl: DataLayer) -> dict[str, Any]:
         return {
+            **_trigger_activity_port_factory(dl),
             **factory(dl),
             **_sync_port_factory(dl),
             **_wire_render_port_factory(dl),
@@ -211,55 +218,6 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
         }
     )
 
-
-# Semantics whose use cases need the trigger-activity port.  None of these
-# sets names the sync or wire-render port: every received use case gets both
-# from with_received_baseline_ports, so a semantic that needs only those two is
-# in no set at all.
-_TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
-    {
-        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
-        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
-        # ADD_CASE_PARTICIPANT_TO_CASE sends the reinstated participant its
-        # direct Add(CaseParticipant) notice and, when it is not bound by
-        # the active embargo, that embargo's Invite (CM-31-011, CM-31-013).
-        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-        # CLOSE_REPORT and INVALIDATE_REPORT post the RSH-06-004
-        # clarification note on a non-adjacent RM jump (RSH-06-006).
-        MessageSemantics.CLOSE_REPORT,
-        MessageSemantics.INVALIDATE_REPORT,
-        # CREATE_CASE: the report receiver that accepts the CASE_MANAGER's
-        # bootstrap introduces the CASE_MANAGER to the reporter with its own
-        # Create(VulnerabilityCase) (CBT-01-001, ADR-0132).
-        MessageSemantics.CREATE_CASE,
-        # ENGAGE_CASE and DEFER_CASE build outbound wire activities such as the
-        # Announce(VulnerabilityCase) broadcast.
-        MessageSemantics.DEFER_CASE,
-        MessageSemantics.ENGAGE_CASE,
-        MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
-        MessageSemantics.OFFER_CASE_PARTICIPANT,
-        MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
-        # REJECT_CASE_LEDGER_ENTRY needs trigger_activity so that
-        # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
-        # to a peer that has no case yet before replaying entries (SYNC-15-002).
-        MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
-        # REJECT_INVITE_TO_EMBARGO_ON_CASE: the Reject's own entry carries
-        # the rejecter's row (ADR-0122); the CASE_MANAGER commits any other
-        # row the rejection changes as its own factory-built
-        # Update(EmbargoConsent) entry (ADR-0124, CLP-07-013).
-        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
-        # REJECT_INVITE_ACTOR_TO_CASE closes the invitee's inert record and
-        # commits each status it writes as the CASE_MANAGER's own
-        # factory-built Add(ParticipantStatus) (ADR-0114, VM-08-003).
-        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-        MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
-        # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
-        # direct Remove(CaseParticipant) notice (CM-31-006).
-        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-        MessageSemantics.VALIDATE_REPORT,
-    }
-)
 
 # SUBMIT_REPORT needs the trigger port AND the local actor's ActorConfig so
 # that SubmitReportReceivedUseCase can honour auto_create_case=False at

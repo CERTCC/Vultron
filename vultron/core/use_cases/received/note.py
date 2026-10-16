@@ -34,6 +34,7 @@ from vultron.core.use_cases.received._intake_only import refuse_after_intake
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
@@ -57,8 +58,10 @@ class CreateNoteReceivedUseCase:
         request: CreateNoteReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: CreateNoteReceivedEvent = request
@@ -90,6 +93,7 @@ class CreateNoteReceivedUseCase:
 
         bridge = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )
@@ -134,8 +138,10 @@ class AddNoteToCaseReceivedUseCase:
         request: AddNoteToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request: AddNoteToCaseReceivedEvent = request
         self._sync_port = sync_port
@@ -166,6 +172,7 @@ class AddNoteToCaseReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(
@@ -215,8 +222,10 @@ class RemoveNoteFromCaseReceivedUseCase:
         request: RemoveNoteFromCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request: RemoveNoteFromCaseReceivedEvent = request
@@ -244,6 +253,7 @@ class RemoveNoteFromCaseReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(
