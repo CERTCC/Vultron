@@ -179,6 +179,52 @@ class TestAddNoteToCase:
 
         assert dl.read(activity_id) is not None
 
+    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-07-002")
+    def test_carries_the_note_inline_with_the_case_as_target(
+        self, adapter, dl
+    ):
+        """The Add names the case as its target and carries the full stored
+        note as its object, never a bare URI (#4706)."""
+        note_id, _ = adapter.create_note(
+            name="Note",
+            content="content",
+            context_id=_CASE_ID,
+            attributed_to=_ACTOR,
+        )
+
+        _, body = adapter.add_note_to_case(
+            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        activity = json.loads(body)
+        assert activity["type"] == "Add"
+        assert activity["target"] == _CASE_ID
+        assert isinstance(activity["object"], dict)
+        assert activity["object"]["id"] == note_id
+        assert activity["object"]["content"] == "content"
+
+    @pytest.mark.spec("ID-04-004")
+    def test_rerun_names_the_same_activity(self, adapter, dl):
+        """One note is attached once: a re-run hands back the first body
+        under the same derived id (ID-04-004, OX-06-002)."""
+        note_id, _ = adapter.create_note(
+            name="Note",
+            content="content",
+            context_id=_CASE_ID,
+            attributed_to=_ACTOR,
+        )
+
+        first = adapter.add_note_to_case(
+            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR, to=[_CASE_ID]
+        )
+        second = adapter.add_note_to_case(
+            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR, to=[_CASE_ID]
+        )
+
+        assert first == second
+        assert first[0] == derived_activity_id("note-added", _ACTOR, note_id)
+
 
 class TestStoredNoteCarriedAsWireNote:
     """A stored note reads back as ``VultronNote`` (DL-05-004, ISSUE-3647).

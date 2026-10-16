@@ -18,7 +18,7 @@ Demonstrates status updates and notes workflows via the Vultron API.
 
 This demo script showcases the following workflows:
 
-1. Notes workflow: vendor creates a note on a case → adds it to the case
+1. Notes workflow: vendor adds a note, carried inline, to a case
 2. Case status workflow: vendor adds a new CaseStatus, carried inline, to
    the case
 3. Participant status workflow: vendor adds a new ParticipantStatus,
@@ -68,7 +68,6 @@ from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    create_note_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
@@ -116,11 +115,14 @@ def demo_notes_workflow(
 ) -> None:
     """
     Demonstrate the notes workflow:
-    1. Create a note
-    2. Add the note to a case
-    3. Verify the case has the note
-    4. Remove the note from the case
-    5. Verify the case no longer has the note
+    1. Add a note, carried inline, to a case
+    2. Verify the note is stored and the case has the note
+    3. Remove the note from the case
+    4. Verify the case no longer has the note
+
+    The note travels inline on the single ``Add(Note)`` that attaches it;
+    this implementation does not send a separate ``Create(Note)`` ahead of
+    the ``Add`` (VAM-01-010, #4706).
     """
     logger.info("=" * 80)
     logger.info("DEMO: Notes Workflow")
@@ -129,7 +131,7 @@ def demo_notes_workflow(
     case, _participant = _setup_initialized_case(client, finder, vendor)
 
     note = None
-    with demo_step("Step 1: Vendor creates note"):
+    with demo_step("Step 1: Vendor adds a note, carried inline, to the case"):
         note = as_Note(
             name="Initial Triage Note",
             content=(
@@ -139,16 +141,12 @@ def demo_notes_workflow(
             context=case.id_,
             attributed_to=vendor.id_,
         )
-        create_activity = create_note_activity(note, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, create_activity)
-        with demo_check("Note stored in data layer"):
-            verify_object_stored(client, note.id_)
-
-    with demo_step("Step 2: Vendor adds note to case"):
         add_note_activity = add_note_to_case_activity(
             note, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_note_activity)
+        with demo_check("Note stored in data layer"):
+            verify_object_stored(client, note.id_)
         with demo_check("Note present in case"):
             updated_case = log_case_state(
                 client, case.id_, "after AddNoteToCaseActivity"
@@ -160,7 +158,7 @@ def demo_notes_workflow(
                         f"Note '{note.id_}' not found in case after AddNoteToCaseActivity"
                     )
 
-    with demo_step("Step 3: Vendor removes note from case"):
+    with demo_step("Step 2: Vendor removes note from case"):
         # The vendor is this case's CASE_OWNER and its CASE_MANAGER
         # (setup_initialized_case), so its inbox is the manager's inbox and the
         # sender is the note's author: the Remove(Note) is entitled (CM-30-001).

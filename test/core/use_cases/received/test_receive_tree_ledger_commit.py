@@ -162,37 +162,47 @@ def _offer():
 @pytest.mark.spec("CLP-10-013")
 class TestCloseAndInvalidateReportCommit:
     @pytest.mark.parametrize(
-        ("use_case", "build", "semantic"),
-        [
-            (
-                CloseReportReceivedUseCase,
-                rm_close_report_activity,
-                MessageSemantics.CLOSE_REPORT,
-            ),
-            (
-                InvalidateReportReceivedUseCase,
-                rm_invalidate_report_activity,
-                MessageSemantics.INVALIDATE_REPORT,
-            ),
-        ],
-        ids=["close", "invalidate"],
-    )
-    @pytest.mark.parametrize(
         ("receiver", "commits"),
         [(MANAGER_ID, True), (VENDOR_ID, False)],
         ids=["case_manager", "other_receiver"],
     )
-    def test_commits_for_case_manager_only(
-        self, use_case, build, semantic, receiver, commits
-    ):
+    def test_invalidate_commits_for_case_manager_only(self, receiver, commits):
         dl = _store(receiver)
-        event = extract_event(build(_offer(), actor=FINDER_ID))
-        event = event.model_copy(update={"receiving_actor_id": receiver})
+        event = cast(
+            InvalidateReportReceivedEvent,
+            extract_event(
+                rm_invalidate_report_activity(_offer(), actor=FINDER_ID)
+            ).model_copy(update={"receiving_actor_id": receiver}),
+        )
 
-        result = use_case(dl, event, **_ports(dl)).execute()
+        result = InvalidateReportReceivedUseCase(
+            dl, event, **_ports(dl)
+        ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert _committed(dl).count(semantic.value) == (1 if commits else 0)
+        assert _committed(dl).count(
+            MessageSemantics.INVALIDATE_REPORT.value
+        ) == (1 if commits else 0)
+
+    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.parametrize(
+        "receiver", [MANAGER_ID, VENDOR_ID], ids=["case_manager", "other"]
+    )
+    def test_close_on_a_case_commits_nothing_anywhere(self, receiver):
+        """``Close(Report)`` for a report a case holds is refused (CM-23-019)."""
+        dl = _store(receiver)
+        event = cast(
+            CloseReportReceivedEvent,
+            extract_event(
+                rm_close_report_activity(_offer(), actor=FINDER_ID)
+            ).model_copy(update={"receiving_actor_id": receiver}),
+        )
+
+        result = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert _committed(dl) == []
+        assert dl.outbox_list() == []
 
     @pytest.mark.parametrize(
         ("use_case", "build", "semantic"),
@@ -280,10 +290,8 @@ class TestCloseAndInvalidateReportCommit:
     def test_redelivered_activity_commits_once(self):
         """A repeat of the same activity is skipped and adds no entry.
 
-        Invalidate, not Close: a repeated Close comes from a sender already
-        at RM CLOSED, which is skipped by effect, whatever its id, before the
-        tree runs (CM-23-018; see
-        ``test_a_repeated_close_from_the_closed_sender_is_skipped``).
+        Invalidate, not Close: no ``Close(Report)`` on a case is applied at
+        all (CM-23-019).
         """
         dl = _store(MANAGER_ID)
         event = cast(
@@ -303,51 +311,6 @@ class TestCloseAndInvalidateReportCommit:
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
         assert _committed(dl).count("invalidate_report") == 1
-
-    @pytest.mark.spec("CM-23-018", "ID-05-003")
-    @pytest.mark.parametrize(
-        "new_id", [False, True], ids=["same-id", "new-id"]
-    )
-    def test_a_repeated_close_from_the_closed_sender_is_skipped(
-        self, new_id: bool
-    ):
-        """The first Close records the closure; a repeat changes nothing.
-
-        Whatever its activity id, the repeat is SKIPPED with no ledger entry
-        and nothing sent (CM-23-018, ID-05-003).
-        """
-        dl = _store(MANAGER_ID)
-
-        def close_event(activity_id: str | None) -> CloseReportReceivedEvent:
-            kwargs = {"id_": activity_id} if activity_id else {}
-            return cast(
-                CloseReportReceivedEvent,
-                extract_event(
-                    rm_close_report_activity(
-                        _offer(), actor=FINDER_ID, **kwargs
-                    )
-                ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
-            )
-
-        first_event = close_event(None)
-        first = CloseReportReceivedUseCase(
-            dl, first_event, **_ports(dl)
-        ).execute()
-        assert first.disposition is HandlerDisposition.APPLIED
-        outbox_before = list(dl.outbox_list())
-        entries_before = _committed(dl)
-
-        repeat = (
-            close_event("https://example.org/activities/close-again")
-            if new_id
-            else first_event
-        )
-        second = CloseReportReceivedUseCase(dl, repeat, **_ports(dl)).execute()
-
-        assert second.disposition is HandlerDisposition.SKIPPED, second.reason
-        assert "CM-23-018" in (second.reason or "")
-        assert _committed(dl) == entries_before
-        assert list(dl.outbox_list()) == outbox_before
 
 
 @pytest.mark.spec("CLP-10-013")

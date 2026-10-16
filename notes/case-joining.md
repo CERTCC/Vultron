@@ -125,10 +125,15 @@ from its role (CLP-09).
   capped at its own closure entries (`closed_participant_ledger_cutoff()`). Its guard
   stays the bare active check (SYNC-03-005), so its use case declares the
   `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A repeat of an act that would
-  close it again (`Leave`, `Close(Report)`, a `Reject` of its Invite) is `SKIPPED`,
-  with no entry, whatever its activity id: `closed_sender_preflight()` asks
-  `closure_recorded()` before the tree runs. Any other invitee reply from it is
-  `REFUSED` there too, since its guard is `INVITEE`, not the shared predicate.
+  close it again (`Leave`, a `Reject` of its Invite) is `SKIPPED`, with no entry,
+  whatever its activity id: `closed_sender_preflight()` asks `closure_recorded()`
+  before the tree runs. Any other invitee reply from it is `REFUSED` there too,
+  since its guard is `INVITEE`, not the shared predicate. A `Close(Report)` on a
+  case is refused from every sender, closed or not (CM-23-019).
+- **A closed Case Owner holds no `CASE_OWNER` standing.** The factory composes the
+  closure check ahead of the role check for that kind (`_case_owner_node()`), and
+  leaves `SenderIsCaseOwnerNode` asking the role alone, since the Leave, status,
+  suggest-actor and embargo trees read it to pick an arm (CM-23-018).
 - **A repeat is decided by its effect, not its id (ID-05-003).** An act whose effect
   is already in place is a no-op, even under a new activity id: you cannot leave
   twice.

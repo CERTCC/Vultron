@@ -34,6 +34,7 @@ and ending with a 422 from ``accept-actor-recommendation``.
 import pytest
 from py_trees.common import Status
 
+from test.support.note_wire import assert_add_note_carries_note_inline
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -243,6 +244,25 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
             "Add(Note, Case) must be addressed to the CASE_OWNER participant"
             f" ({OWNER_ID}); got {recipients!r}"
         )
+
+    @pytest.mark.spec("CM-16-016")
+    @pytest.mark.spec("VAM-01-010")
+    def test_note_travels_inline_on_the_add(self, case_actor_dl):
+        """The reinforcing-suggestion note rides inline on its Add(Note),
+        naming the second recommender (CM-16-016, #4706)."""
+        _seed_case_actor_store(case_actor_dl)
+
+        assert _run(case_actor_dl, _note_node()) == Status.SUCCESS
+
+        (activity_id,) = [
+            a
+            for a in case_actor_dl.outbox_list()
+            if getattr(case_actor_dl.read(a), "type_", None) == "Add"
+        ]
+        note = assert_add_note_carries_note_inline(
+            case_actor_dl, activity_id, CASE_ID
+        )
+        assert RECOMMENDER_ID in note["content"]
 
     @pytest.mark.spec("CM-16-008")
     def test_note_fails_when_the_only_candidate_is_the_emitting_actor(

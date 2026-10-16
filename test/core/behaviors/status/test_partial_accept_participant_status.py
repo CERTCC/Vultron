@@ -1146,13 +1146,15 @@ class TestRMGapAnomalyFlag:
         self, store_for, make_payload
     ):
         """RECEIVED → ACCEPTED (non-adjacent) sets BB_RM_ANOMALY='gap' (RSH-06-001)."""
-        dl = store_for(ACTOR_ID)
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.RECEIVED, None, CS_pxa.pxa)
         asserted = _asserted_status(RM.ACCEPTED, None, None)
         _seed_case(dl, current, asserted)
 
         seen: dict = {}
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
+        result = _run_tree(
+            dl, asserted, CASE_MANAGER_ID, make_payload, anomaly=seen
+        )
 
         assert result.status == Status.SUCCESS
         anomaly = seen["anomaly"]
@@ -1167,13 +1169,13 @@ class TestRMGapAnomalyFlag:
         self, store_for, make_payload
     ):
         """RECEIVED → VALID (adjacent) sets no BB_RM_ANOMALY (happy path)."""
-        dl = store_for(ACTOR_ID)
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.RECEIVED, None, CS_pxa.pxa)
         asserted = _asserted_status(RM.VALID, None, None)
         _seed_case(dl, current, asserted)
 
         seen: dict = {}
-        _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
+        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload, anomaly=seen)
 
         anomaly = seen["anomaly"]
         assert anomaly is None, (
@@ -1185,13 +1187,13 @@ class TestRMGapAnomalyFlag:
         self, store_for, make_payload
     ):
         """ACCEPTED → RECEIVED (backward) sets BB_RM_ANOMALY='regression' (RSH-06-002)."""
-        dl = store_for(ACTOR_ID)
+        dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.ACCEPTED, None, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, None, None)
         _seed_case(dl, current, asserted)
 
         seen: dict = {}
-        _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
+        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload, anomaly=seen)
 
         anomaly = seen["anomaly"]
         assert anomaly is not None, (
@@ -1248,7 +1250,7 @@ class TestOverrideIncludesProducerType:
         self, store_for, make_payload
     ):
         """The override dict written to BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE must carry producer_type."""
-        dl = store_for(ACTOR_ID)
+        dl = store_for(CASE_MANAGER_ID)
         # rm=ACCEPTED, not VALID: a ready fix (vf=VF) entails an accepted
         # report, so pairing VF with a pre-acceptance rm would describe a state
         # no sequence of events can produce and be refused on entailment
@@ -1259,7 +1261,7 @@ class TestOverrideIncludesProducerType:
 
         captured: dict = {}
         result = _run_tree(
-            dl, asserted, ACTOR_ID, make_payload, capture=captured
+            dl, asserted, CASE_MANAGER_ID, make_payload, capture=captured
         )
         assert result.status == Status.SUCCESS
 

@@ -1428,3 +1428,131 @@ def test_embargo_announce_at_a_participant_from_a_peer_is_refused(
     assert "CASE_MANAGER" in (result.reason or "")
     assert replica.outbox_list() == []
     assert replica.list_objects("CaseLedgerEntry") == []
+
+
+# ---------------------------------------------------------------------------
+# A closed Case Owner (CM-23-018; #4746)
+# ---------------------------------------------------------------------------
+
+
+def _close_owner(store: SqliteDataLayer, case_id: str) -> None:
+    """Record the Case Owner's closure (RM ``CLOSED``) on the open case."""
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+
+    case = _reload_case(store, case_id)
+    record = store.read(case.actor_participant_index[_OWNER_ID])
+    assert isinstance(record, CaseParticipant)
+    record.participant_statuses.append(
+        ParticipantStatus(
+            context=case_id,
+            attributed_to=_OWNER_ID,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+    )
+    store.save(record)
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("CM-30-002")
+def test_report_addition_by_a_closed_owner_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """An owner that has left the case may add no report to it."""
+    seed_case_owner_participant(cm_store, owned_case, _OWNER_ID)
+    cm_store.create(owned_case)
+    _close_owner(cm_store, owned_case.id_)
+    report = gen_report()
+    event = make_payload(
+        add_report_to_case_activity(
+            report, target=owned_case.id_, actor=_OWNER_ID
+        )
+    )
+
+    result = AddReportToCaseReceivedUseCase(cm_store, event).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "already closed" in (result.reason or "")
+    case = _reload_case(cm_store, owned_case.id_)
+    assert report.id_ not in [_ref_id(r) for r in case.vulnerability_reports]
+    assert cm_store.list_objects("CaseLedgerEntry") == []
+    assert cm_store.outbox_list() == []
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("EP-09-005")
+@pytest.mark.parametrize(
+    "factory, use_case",
+    [
+        (activate_embargo_activity, ActivateEmbargoOnCaseReceivedUseCase),
+        (
+            reject_embargo_proposal_activity,
+            RejectEmbargoProposalOnCaseReceivedUseCase,
+        ),
+    ],
+    ids=["activate", "reject-proposal"],
+)
+def test_owner_embargo_decision_from_a_closed_owner_is_refused(
+    cm_store, owned_case, make_payload, factory, use_case
+):
+    """An owner that has left the case decides no embargo proposal."""
+    embargo = _embargo_case(cm_store, owned_case, em_state=EM.PROPOSED)
+    _close_owner(cm_store, owned_case.id_)
+    event = make_payload(
+        factory(
+            embargo,
+            target=as_VulnerabilityCase(id_=owned_case.id_),
+            actor=_OWNER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = use_case(cm_store, event, **_embargo_ports(cm_store)).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "already closed" in (result.reason or "")
+    _assert_embargo_untouched(
+        cm_store,
+        owned_case.id_,
+        em_state=EM.PROPOSED,
+        embargo_id=embargo.id_,
+        active=False,
+    )
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("EP-09-005")
+def test_embargo_remove_from_a_closed_owner_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """An owner that has left the case cannot terminate its embargo."""
+    embargo = _embargo_case(
+        cm_store, owned_case, em_state=EM.ACTIVE, active=True
+    )
+    _close_owner(cm_store, owned_case.id_)
+    event = make_payload(
+        remove_embargo_from_case_activity(
+            embargo,
+            origin=owned_case.id_,
+            context=owned_case.id_,
+            actor=_OWNER_ID,
+            to=[_CASE_MANAGER_ID],
+            reason=TerminationReason.EARLY,
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = RemoveEmbargoEventFromCaseReceivedUseCase(
+        cm_store, event, **_embargo_ports(cm_store)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    _assert_embargo_untouched(
+        cm_store,
+        owned_case.id_,
+        em_state=EM.ACTIVE,
+        embargo_id=embargo.id_,
+        active=True,
+    )

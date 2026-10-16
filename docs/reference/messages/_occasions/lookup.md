@@ -9,7 +9,7 @@
 | a report receiver has read a submitted report | `Read(Offer(VulnerabilityReport))` | an actor outside any case | the addressee of the vulnerability report offer (usually: vendor, coordinator) | — | [Report Acknowledgment (RK)](../rm.md#report-acknowledgment) |
 | a report receiver judges the report valid | `Accept(Offer(VulnerabilityReport))` | the case manager | a participant (usually: vendor, coordinator) | — | [Validate report](../rm.md#report-valid) |
 | a report receiver judges the report invalid | `TentativeReject(Offer(VulnerabilityReport))` | the case manager | a participant (usually: vendor, coordinator) | — | [Invalidate report](../rm.md#report-invalid) |
-| a report receiver closes the report | `Reject(Offer(VulnerabilityReport))` | the case manager | a participant (usually: vendor, coordinator) | — | [Close report](../rm.md#report-closed) |
+| a report receiver closes a report no case holds | `Reject(Offer(VulnerabilityReport))` | an actor outside any case | the addressee of the vulnerability report offer (usually: vendor, coordinator) | — | [Close report](../rm.md#report-closed) |
 | a Participant accepts the case for further action | `Join(VulnerabilityCase)` | the case manager | a participant | — | [Report/Case Accepted (RA)](../rm.md#report-accepted) |
 | a Participant defers further action on the case | `Ignore(VulnerabilityCase)` | the case manager | a participant | — | [Report/Case Deferred (RD)](../rm.md#report-deferred) |
 
@@ -86,7 +86,7 @@
 | the Case Owner approves a suggested actor | `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case manager | the case owner | — | [Accept case participant offer](../general.md#accept-case-participant-offer) |
 | the Case Owner declines a suggested actor | `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case manager | the case owner | — | [Reject case participant offer](../general.md#reject-case-participant-offer) |
 | a Participant posts a new note to the case | `Create(Note)` | the case manager | not yet checked | — | [Create note](../general.md#create-note) |
-| a Participant attaches a note that already exists to the case | `Add(Note)[target=VulnerabilityCase]` | the case manager | not yet checked | — | [Add note to case](../general.md#add-note-to-case) |
+| a Participant posts a note to the case | `Add(Note)[target=VulnerabilityCase]` | the case manager | not yet checked | — | [Add note to case](../general.md#add-note-to-case) |
 | a note's author or the Case Owner withdraws a note from the case | `Remove(Note)[target=VulnerabilityCase]` | the case manager | the case owner or the note's author | — | [Remove note from case](../general.md#remove-note-from-case) |
 
 ## Faults and acknowledgments
