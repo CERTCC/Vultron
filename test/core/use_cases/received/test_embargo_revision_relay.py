@@ -726,9 +726,8 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     The CASE_MANAGER has recorded P, X or A but the public-event cascade has
     not torn the embargo down yet, so the case is still ``ACTIVE`` (or
     ``REVISE``, with an earlier revision open) when a revision arrives.
-    Receipt is at most the moment the CASE_MANAGER is handed the proposal on
-    a case already public: the proposal is refused (EP-09-001) and ends
-    nothing.  The embargo ends when the cascade runs, and its termination
+    The proposal is at most the occasion on which the CASE_MANAGER finds the
+    case public: it is refused (EP-09-001) and ends nothing.  The embargo ends when the cascade runs, and its termination
     records the threat signal as its cause, not the proposal (EMB-03-003).
     """
     case_id = (
@@ -762,6 +761,10 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     case.append_case_status(pxa=pxa_state)
     dl.save(case)
     invites_before = len(_relayed_invites(dl))
+    proposed_before = list(case.proposed_embargo_ids)
+    assert proposed_before == (
+        [revision.id_] if em_at_race is EM.REVISE else []
+    )
 
     verdict = _deliver(
         dl,
@@ -781,6 +784,8 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     assert case.current_status.em.state == em_at_race
     assert case.active_embargo_id == active_id
     assert case.embargo_register_entry(racing.id_) is None
+    # An earlier open revision (at REVISE) is left open, not withdrawn.
+    assert case.proposed_embargo_ids == proposed_before
     assert [a.to for a in _outbox_of_type(dl, "Reject")] == [[racer]]
     assert _outbox_of_type(dl, "Remove") == []
     assert len(_relayed_invites(dl)) == invites_before
