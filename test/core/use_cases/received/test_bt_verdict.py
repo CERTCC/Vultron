@@ -32,10 +32,21 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
+    create_receive_activity_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderClosureNotRecordedNode,
+    SenderEntitlementKind,
+    SenderRule,
+)
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    closed_sender_verdict,
     door_guards_admitted,
     failure_reason,
     find_named,
@@ -469,4 +480,112 @@ def test_guard_refusal_lets_a_wiring_fault_raise():
     with pytest.raises(VultronBTInternalError):
         verdict_from_bt(
             tree, BTExecutionResult(status=Status.FAILURE), label="TestBT"
+        )
+
+
+# --- closed_sender_verdict (CM-23-018, ID-05-003) -----------------------
+
+_CLOSED_CASE = "https://example.org/cases/closed-sender-verdict"
+_CLOSED_SENDER = "https://example.org/actors/closed-sender"
+_CLOSURE = (
+    f"'{_CLOSED_SENDER}' is already closed on case '{_CLOSED_CASE}'"
+    " (CM-23-018)"
+)
+
+
+_DOOR_FAILED = BTExecutionResult(status=Status.FAILURE)
+
+
+def _closed_door_tree(*, sender_closed: bool | None) -> ReceivedActivityTree:
+    """A factory tree whose closed-sender door ran (``None``: never ran)."""
+    tree = create_receive_activity_tree(
+        name="ClosedSenderBT",
+        case_id=_CLOSED_CASE,
+        precondition_guards=[],
+        closed_sender=ClosedSenderCheck(sender_id=_CLOSED_SENDER),
+        sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        sender_context=SenderCheckContext(
+            sender_id=_CLOSED_SENDER, case_id=_CLOSED_CASE
+        ),
+    )
+    if sender_closed is not None:
+        (door,) = (
+            n
+            for n in tree.children
+            if isinstance(n, SenderClosureNotRecordedNode)
+        )
+        door.status = Status.FAILURE
+        door.sender_closed = sender_closed
+        door.feedback_message = _CLOSURE
+    return tree
+
+
+@pytest.mark.spec("CM-23-018", "ID-05-003")
+def test_closed_sender_verdict_skips_a_repeated_closing_act():
+    verdict = closed_sender_verdict(
+        _closed_door_tree(sender_closed=True),
+        _DOOR_FAILED,
+        closes=True,
+        label="Reject",
+    )
+
+    assert verdict is not None
+    assert verdict.disposition is HandlerDisposition.SKIPPED
+    assert verdict.reason == (
+        f"Reject: {_CLOSURE} — a repeat of a closing act, nothing to apply"
+        " (ID-05-003)"
+    )
+
+
+@pytest.mark.spec("CM-23-018")
+def test_closed_sender_verdict_refuses_any_other_act():
+    verdict = closed_sender_verdict(
+        _closed_door_tree(sender_closed=True),
+        _DOOR_FAILED,
+        closes=False,
+        label="Accept",
+    )
+
+    assert verdict is not None
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason == (
+        f"Accept: {_CLOSURE} — it may act on nothing further"
+    )
+
+
+@pytest.mark.parametrize("sender_closed", [False, None])
+def test_closed_sender_verdict_is_none_unless_the_door_found_a_closure(
+    sender_closed: bool | None,
+):
+    tree = _closed_door_tree(sender_closed=sender_closed)
+
+    assert (
+        closed_sender_verdict(tree, _DOOR_FAILED, closes=True, label="X")
+        is None
+    )
+
+
+def test_closed_sender_verdict_needs_a_received_activity_tree():
+    tree = py_trees.composites.Sequence(name="AdHoc", memory=False)
+
+    with pytest.raises(VultronWiringError, match="received-activity"):
+        closed_sender_verdict(tree, _DOOR_FAILED, closes=True, label="X")
+
+
+@pytest.mark.spec("CM-23-018", "ARCH-15-001")
+@pytest.mark.parametrize("closes", [True, False])
+def test_closed_sender_verdict_raises_when_the_run_crashed(closes: bool):
+    """A crash in the door (e.g. its Case Owner check) is never a verdict."""
+    crashed = BTExecutionResult(
+        status=Status.FAILURE,
+        feedback_message="owner check exploded",
+        internal_error=True,
+    )
+
+    with pytest.raises(VultronBTInternalError, match="owner check exploded"):
+        closed_sender_verdict(
+            _closed_door_tree(sender_closed=True),
+            crashed,
+            closes=closes,
+            label="Leave",
         )

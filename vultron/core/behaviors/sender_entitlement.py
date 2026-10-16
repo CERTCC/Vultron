@@ -135,8 +135,9 @@ Nodes
   ``Create(CaseProposal)`` is the proposer this store recorded for the
   proposal id, when it recorded one (``AUTHOR`` kind; CP-05-010)
 - ``SenderClosureNotRecordedNode`` — guards that the case does not record the
-  sender's closure; the closed-sender pre-flight runs it to tell a repeated
-  closing act (``SKIPPED``) from any other act (``REFUSED``) (CM-23-018)
+  sender's closure; the receive-tree factory's closed-sender door runs it, so
+  the handler tells a repeated closing act (``SKIPPED``) from any other act
+  (``REFUSED``) (CM-23-018)
 - ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
   leaves empty (HP-01-008)
 - ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
@@ -1372,7 +1373,8 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
     When ``closure_case_id`` is given, an invitee whose closure that case
     records (RM ``CLOSED``) is refused too: it has left the case and may
     answer nothing further (CM-23-018).  A repeat of a ``Reject`` that closed
-    it is ``SKIPPED`` by the handler's pre-flight before this guard runs.
+    it is ``SKIPPED`` by the tree's closed-sender door before this guard runs
+    (``closed_sender`` on the receive-tree factory).
 
     Spec: EP-09-010, CM-11-017, CM-23-018, HP-01-006.
     """
@@ -2083,10 +2085,8 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     again changes nothing and is reported ``SKIPPED``, whatever its activity
     id (ID-05-003).  This node is the closed-sender door guard the
     receive-tree factory places
-    (:func:`vultron.core.behaviors.sender_guard.closed_sender_door`), and the
-    check the closed-sender pre-flight still runs before some handlers' trees
-    (:func:`vultron.core.use_cases.received._sender_preflight.closed_sender_preflight`),
-    built by :func:`vultron.core.behaviors.sender_guard.closed_sender_guard`.
+    (:func:`vultron.core.behaviors.sender_guard.closed_sender_door`), built
+    by :func:`vultron.core.behaviors.sender_guard.closed_sender_guard`.
     The factory also composes it ahead of the ``CASE_OWNER`` kind's role
     check, which asks the role alone.
 
@@ -2096,7 +2096,8 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     FAILURE with :attr:`sender_closed` set when the case records the
     sender's closure (:func:`~vultron.core.participants.recipients.closure_recorded`).
     The handler reports an act that would close the sender again as
-    ``SKIPPED``, and any other act as ``REFUSED``.
+    ``SKIPPED``, and any other act as ``REFUSED``
+    (:func:`~vultron.core.use_cases.received._bt_verdict.closed_sender_verdict`).
 
     Keyed on the sender's recorded RM state, never on the activity id, which
     a repeat sent under a new id does not share.  Read-only.

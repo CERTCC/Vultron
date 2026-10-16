@@ -235,10 +235,13 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 _HOME = "vultron/core/behaviors/sender_entitlement.py"
 _COMPOSER = "vultron/core/behaviors/sender_guard.py"
 
-#: The only module that may call ``compose_sender_guard``: the receive-tree
-#: factory.  The pre-flight that ran the same guard ahead of a handler's
-#: first write (``rule_refusal``) was retired once every embargo handler
-#: composed its door guards into its one tree (#4642, ADR-0135).
+#: The only module that may call the composer's public builders
+#: (:data:`_COMPOSE`): the receive-tree factory.  The pre-flights that ran
+#: the same guards ahead of a handler's tree as a tree of their own were
+#: retired once each handler composed its door guards into its one tree:
+#: ``rule_refusal`` by #4642, and ``closed_sender_preflight`` by #4773, whose
+#: callers pass ``closed_sender`` to the factory instead (CLP-10-005,
+#: ADR-0135).
 COMPOSE_CALLERS = frozenset(
     {
         "vultron/core/behaviors/case/receive_activity_tree.py",
@@ -303,7 +306,15 @@ def _annotation_nodes(tree: ast.AST) -> set[int]:
     return {id(sub) for root in roots for sub in ast.walk(root)}
 
 
-_COMPOSE = "compose_sender_guard"
+#: The composer's public builders, which only :data:`COMPOSE_CALLERS` call.
+_COMPOSE = frozenset(
+    {
+        "compose_sender_guard",
+        "closed_sender_guard",
+        "closed_sender_door",
+        "case_owner_guard",
+    }
+)
 
 
 def _composer_builders() -> frozenset[str]:
@@ -324,11 +335,11 @@ def _from_composer(module: str | None) -> bool:
 
 
 def _tracked(name: str, from_composer: bool) -> bool:
-    """*name* is a sender node or ``compose_sender_guard``, or a private
+    """*name* is a sender node or a public composer builder, or a private
     builder reached through the composer module."""
     return (
         name in SENDER_NODES
-        or name == _COMPOSE
+        or name in _COMPOSE
         or (name in COMPOSER_BUILDERS and from_composer)
     )
 
@@ -341,7 +352,7 @@ def _import_aliases(tree: ast.AST) -> tuple[dict[str, str], set[str]]:
     they come from; a private builder only when imported from the composer,
     so a module's own helper of the same name is not mistaken for it.
     """
-    aliases = {name: name for name in SENDER_NODES | {_COMPOSE}}
+    aliases = {name: name for name in SENDER_NODES | _COMPOSE}
     modules: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -370,7 +381,7 @@ def _named_sender_node(
 ) -> str | None:
     """The sender node or composer function *node* names, or ``None``.
 
-    ``compose_sender_guard`` is not reported in :data:`COMPOSE_CALLERS`.
+    A public composer builder is not reported in :data:`COMPOSE_CALLERS`.
     """
     named: str | None = None
     if isinstance(node, ast.Name):
@@ -379,7 +390,7 @@ def _named_sender_node(
         node.attr, _is_composer_module(node.value, modules)
     ):
         named = node.attr
-    if named == _COMPOSE and rel in COMPOSE_CALLERS:
+    if named in _COMPOSE and rel in COMPOSE_CALLERS:
         return None
     return named
 
@@ -391,7 +402,7 @@ def _sender_references(tree: ast.AST, rel: str) -> Counter[Site]:
     class or the composer bound to another name first, or reached through
     its module (``sender_entitlement.SenderIsX``), is still seen.  An import
     alias is followed; a name inside a type annotation composes nothing and
-    is skipped.  ``compose_sender_guard`` counts outside
+    is skipped.  A public composer builder counts outside
     :data:`COMPOSE_CALLERS`, and the composer's private builders count
     everywhere.  A site is scoped by its enclosing classes and functions.
     """
@@ -420,7 +431,7 @@ def _live_sites() -> Counter[Site]:
     found: Counter[Site] = Counter()
     for path, tree in _corpus.files_mentioning(
         "sender_entitlement",
-        "compose_sender_guard",
+        *_COMPOSE,
         "sender_guard",
         *SENDER_NODES,
         under=_corpus.REPO_ROOT / "vultron",
@@ -636,6 +647,24 @@ _VIOLATIONS = {
         "    build = sender_guard.compose_sender_guard\n"
         "    return build(rule, ctx)\n"
     ),
+    "handler-closed-sender-guard": (
+        "from vultron.core.behaviors.sender_guard import"
+        " closed_sender_guard\n"
+        "def execute(case_id, sender_id):\n"
+        "    return closed_sender_guard(case_id, sender_id)\n"
+    ),
+    "handler-closed-sender-door": (
+        "from vultron.core.behaviors.sender_guard import"
+        " closed_sender_door\n"
+        "def execute(case_id, check):\n"
+        "    return closed_sender_door(case_id, check)\n"
+    ),
+    "handler-case-owner-guard": (
+        "from vultron.core.behaviors.sender_guard import"
+        " case_owner_guard\n"
+        "def execute(case_id, sender_id):\n"
+        "    return case_owner_guard(case_id, sender_id)\n"
+    ),
     "private-builder": (
         "from vultron.core.behaviors.sender_guard import _kind_node\n"
         "def build(kind, ctx):\n"
@@ -684,6 +713,8 @@ def test_the_scan_skips_annotations_and_the_sanctioned_callers() -> None:
     assert not _sender_references(annotated, "vultron/x.py")
     composed = _corpus.parse_inline(
         "def stage(rule, ctx):\n    return compose_sender_guard(rule, ctx)\n"
+        "def closing(case_id, check):\n"
+        "    return closed_sender_door(case_id, check)\n"
     )
     for caller in COMPOSE_CALLERS:
         assert not _sender_references(composed, caller)
