@@ -574,7 +574,11 @@ groups:
     verification: >-
       A rebuild-from-ledger test replays every demo and integration scenario's
       CASE_MANAGER ledger into an empty store and asserts the result equals the
-      CASE_MANAGER's case file; a test per consequence-producing act asserts one entry
+      CASE_MANAGER's case file (`test/support/ledger_rebuild.py`, run after every
+      exchange demo by `test/demo/_helpers.py` and after every per-actor-store
+      scenario by `test/core/use_cases/received/conftest.py`; it compares participant
+      records, consent rows and the embargo register, and #4295 extends it to RM and
+      participant status); a test per consequence-producing act asserts one entry
       per changed object follows the act's entry.
     relationships:
     - rel_type: refines

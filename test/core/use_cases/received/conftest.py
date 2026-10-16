@@ -41,6 +41,52 @@ def _close_sqlite_datalayers(monkeypatch):
         created.pop().close()
 
 
+_CALL_REPORT = pytest.StashKey[pytest.TestReport]()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Keep each test's call-phase report, for the rebuild check below."""
+    report = yield
+    if report.when == "call":
+        item.stash[_CALL_REPORT] = report
+    return report
+
+
+@pytest.fixture(autouse=True)
+def _every_network_rebuilds_from_its_ledger(request, _close_sqlite_datalayers):
+    """Every per-actor-store scenario rebuilds from its ledger (#4294 AC-5).
+
+    Each ``LedgerNetwork`` a passing test built is checked when the test ends:
+    the CASE_MANAGER's whole ledger, replayed into an empty store from the
+    case as it stood before the first entry, must reach the CASE_MANAGER's
+    participant records, consent rows and embargo register (CLP-07-013,
+    CM-23-016).  A network with no entries has nothing to rebuild, and one
+    whose test wrote the CASE_MANAGER's store outside the ledger on purpose
+    says so with ``bypass_ledger()``.  Runs before the stores are closed.
+    """
+    from test.support.ledger_rebuild import assert_rebuilds_from_ledger
+
+    from ._ledger_network import BYSTANDER, MANAGER, NETWORKS
+
+    NETWORKS.clear()
+    yield
+    networks = list(NETWORKS)
+    NETWORKS.clear()
+    report = request.node.stash.get(_CALL_REPORT, None)
+    if report is None or not report.passed:
+        return
+    for net in networks:
+        if net.ledger_bypassed or net.rebuild_seed is None:
+            continue
+        assert_rebuilds_from_ledger(
+            net.stores[MANAGER],
+            net.case_id,
+            as_actor=BYSTANDER,
+            seed=net.rebuild_seed,
+        )
+
+
 class _AnonymousStore:
     """A store that cannot say whose it is, wrapping a real one for inspection.
 
