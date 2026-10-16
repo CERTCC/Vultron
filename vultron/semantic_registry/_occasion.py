@@ -227,14 +227,55 @@ def _field_annotation(object_type: type, field_name: str) -> object:
     )
 
 
-def wire_spelling(object_type: type[BaseModel], field_name: str) -> str:
+def wire_spelling(
+    object_type: type[BaseModel], field_name: str, within: str | None = None
+) -> str:
     """Return how *field_name* on *object_type* is spelled on the wire.
 
     A declared field travels under its own AS2 spelling (``CaseStatus.pxa``
     as ``pxaState``, ``ParticipantStatus.vf`` as ``vfState``), the rule
-    :func:`~vultron.core.models.wire_keys.wire_key` applies.
+    :func:`~vultron.core.models.wire_keys.wire_key` applies.  A field read
+    *within* an embedded model is spelled as a dotted path from
+    *object_type*: ``ParticipantStatus.case_status.pxa`` as
+    ``caseStatus.pxaState``.
     """
-    return wire_key(field_name, object_type)
+    if within is None:
+        return wire_key(field_name, object_type)
+    embedded = _embedded_model(object_type, within)
+    return f"{wire_key(within, object_type)}.{wire_key(field_name, embedded)}"
+
+
+def _embedded_model(object_type: type, field_name: str) -> type[BaseModel]:
+    """Return the model class *field_name* on *object_type* embeds, or raise.
+
+    *field_name* is a declared Pydantic field typed by one model class,
+    optionally ``| None`` (``ParticipantStatus.case_status`` embeds
+    ``CaseStatus``).  A dimension field is a state, not an embedded model.
+    """
+    model_fields = getattr(object_type, "model_fields", {})
+    if field_name not in model_fields:
+        raise ValueError(
+            f"{object_type.__name__} has no typed field {field_name!r}"
+        )
+    annotation = model_fields[field_name].annotation
+    members = (
+        typing.get_args(annotation)
+        if typing.get_origin(annotation) in (typing.Union, types.UnionType)
+        else (annotation,)
+    )
+    models = [
+        m
+        for m in members
+        if isinstance(m, type)
+        and issubclass(m, BaseModel)
+        and not is_dimension_model(m)
+    ]
+    if len(models) != 1:
+        raise ValueError(
+            f"{object_type.__name__}.{field_name} does not embed exactly one"
+            " model, so no field can be read within it (MSM-08-002)"
+        )
+    return models[0]
 
 
 _FROZEN = ConfigDict(frozen=True, strict=True, arbitrary_types_allowed=True)
@@ -244,13 +285,19 @@ class FieldValue(BaseModel):
     """A distinguisher read from the payload: one field holding one value.
 
     Construction fails unless *value* is a member of the enum that
-    *field* is declared with on *object_type* (MSM-08-002).
+    *field* is declared with on *object_type*, or on the model that
+    *object_type* embeds in its *within* field (MSM-08-002).
 
     Attributes:
         object_type: The class of the activity's ``object`` that carries the
             field, e.g. ``ParticipantStatus``.
         field: The field name, e.g. ``"vf"``.
         value: The enum member the occasion's payload carries.
+        within: The field of *object_type* that embeds the model declaring
+            *field*, when the field is not *object_type*'s own: a
+            participant's view of the public state is
+            ``ParticipantStatus.case_status.pxa``, so ``within`` is
+            ``"case_status"`` and ``field`` is ``"pxa"``.
     """
 
     model_config = _FROZEN
@@ -258,20 +305,39 @@ class FieldValue(BaseModel):
     object_type: type
     field: NonEmptyString
     value: Enum
+    within: NonEmptyString | None = None
+
+    @property
+    def declaring_type(self) -> type:
+        """The class that declares :attr:`field`: *object_type* itself, or
+        the model it embeds in :attr:`within`."""
+        if self.within is None:
+            return self.object_type
+        return _embedded_model(self.object_type, self.within)
+
+    @property
+    def path(self) -> str:
+        """The field's dotted name from *object_type*, e.g.
+        ``"case_status.pxa"``, for error messages."""
+        if self.within is None:
+            return self.field
+        return f"{self.within}.{self.field}"
 
     @model_validator(mode="after")
     def _value_is_a_member_of_the_field_enum(self) -> "FieldValue":
-        enums = _enum_classes(_field_annotation(self.object_type, self.field))
+        enums = _enum_classes(
+            _field_annotation(self.declaring_type, self.field)
+        )
         if not enums:
             raise ValueError(
-                f"{self.object_type.__name__}.{self.field} is not typed by an"
+                f"{self.object_type.__name__}.{self.path} is not typed by an"
                 " enum, so it cannot distinguish an occasion (MSM-08-002)"
             )
         if not any(isinstance(self.value, enum) for enum in enums):
             names = ", ".join(enum.__name__ for enum in enums)
             raise ValueError(
                 f"{self.value!r} is not a member of {names}, the enum of"
-                f" {self.object_type.__name__}.{self.field} (MSM-08-002)"
+                f" {self.object_type.__name__}.{self.path} (MSM-08-002)"
             )
         return self
 
@@ -280,8 +346,13 @@ class FieldValue(BaseModel):
 
         A status dimension field is read as its ``state``, the value it
         travels as (ARCH-25-005, ADR-0099), so it compares to
-        :attr:`value`.
+        :attr:`value`.  A field *within* an embedded model is read from
+        that model; a carrier that embeds none holds no value (``None``).
         """
+        if self.within is not None:
+            carrier = getattr(carrier, self.within)
+            if carrier is None:
+                return None
         held = getattr(carrier, self.field)
         if is_dimension_model(type(held)):
             return getattr(held, DIMENSION_STATE_FIELD)

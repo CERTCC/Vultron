@@ -677,7 +677,7 @@ groups:
   mechanics: false
   occasions:
   - anchor: public-awareness
-    heading: Public Awareness (CP)
+    heading: Public awareness in a case status
     when: a Participant learns that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
@@ -692,7 +692,7 @@ groups:
       title: How to Post a Status Update or a Case Note
     example: add_public_awareness_to_case
   - anchor: exploit-public
-    heading: Exploit Public (CX)
+    heading: Exploit public in a case status
     when: a Participant learns that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
@@ -707,7 +707,7 @@ groups:
       title: How to Post a Status Update or a Case Note
     example: add_exploit_public_to_case
   - anchor: attacks-observed
-    heading: Attacks Observed (CA)
+    heading: Attacks observed in a case status
     when: a Participant observes attacks that exploit the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
@@ -769,6 +769,69 @@ groups:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: add_fix_deployment_to_participant
+  - anchor: participant-public-awareness
+    heading: Public awareness in a participant status
+    when: a Participant learns that the public knows of the vulnerability
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: a participant
+    distinguished_by: '`caseStatus.pxaState` = `Pxa`'
+    semantics: add_participant_status_to_participant
+    shorthand: CP
+    status: collapse
+    description: Announces, in the sender's own participant status, evidence that the vulnerability
+      is known to the public.
+    notes: A participant status is a snapshot of every dimension the sender holds, so it can
+      also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
+      occasion. The Case Manager records the status on the sender's participant record and,
+      while an embargo is active or proposed, ends or abandons it, as it does for the same
+      report in a case status.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_public_awareness_to_participant
+  - anchor: participant-exploit-public
+    heading: Exploit public in a participant status
+    when: a Participant learns that an exploit for the vulnerability is public
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: a participant
+    distinguished_by: '`caseStatus.pxaState` = `PXa`'
+    semantics: add_participant_status_to_participant
+    shorthand: CX
+    status: collapse
+    description: Announces, in the sender's own participant status, evidence that an exploit
+      is publicly available.
+    notes: A participant status is a snapshot of every dimension the sender holds, so it can
+      also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
+      occasion. The Case Manager records the status on the sender's participant record and,
+      while an embargo is active or proposed, ends or abandons it, as it does for the same
+      report in a case status.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_exploit_public_to_participant
+  - anchor: participant-attacks-observed
+    heading: Attacks observed in a participant status
+    when: a Participant observes attacks that exploit the vulnerability
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: a participant
+    distinguished_by: '`caseStatus.pxaState` = `pxA`'
+    semantics: add_participant_status_to_participant
+    shorthand: CA
+    status: collapse
+    description: Announces, in the sender's own participant status, evidence that attackers
+      are exploiting the vulnerability.
+    notes: A participant status is a snapshot of every dimension the sender holds, so it can
+      also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
+      occasion. The Case Manager records the status on the sender's participant record and,
+      while an embargo is active or proposed, ends or abandons it, as it does for the same
+      report in a case status.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_attacks_observed_to_participant
 - page: general
   title: General
   mechanics: false

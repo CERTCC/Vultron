@@ -49,6 +49,48 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddStatusToParticipantActivity,
 )
 
+#: What every participant P/X/A occasion says about the wire form.
+_PARTICIPANT_PXA_NOTES = (
+    "A participant status is a snapshot of every dimension the sender "
+    "holds, so it can also carry an unchanged `vfState` or `dState`; the "
+    "dimension that changed makes the occasion. The Case Manager records "
+    "the status on the sender's participant record and, while an embargo "
+    "is active or proposed, ends or abandons it, as it does for the same "
+    "report in a case status."
+)
+
+
+def _participant_pxa_occasion(
+    *,
+    when: str,
+    anchor: str,
+    heading: str,
+    description: str,
+    example: str,
+    pxa: CS_pxa,
+    shorthand: ProtocolShorthand,
+) -> Occasion:
+    """An occasion for a participant's own P/X/A report, which travels as
+    the ``pxa`` of the case status its ``ParticipantStatus`` embeds."""
+    return Occasion(
+        when=when,
+        anchor=anchor,
+        addressee=AddresseeSide.CASE_MANAGER,
+        heading=heading,
+        description=description,
+        example=example,
+        distinguisher=FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="pxa",
+            value=pxa,
+        ),
+        howto=HowToGuide.STATUS_UPDATES,
+        shorthand=shorthand,
+        notes=_PARTICIPANT_PXA_NOTES,
+    )
+
+
 ENTRIES: list[SemanticEntry] = [
     # Case status
     SemanticEntry(
@@ -67,6 +109,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 anchor="public-awareness",
                 addressee=AddresseeSide.CASE_MANAGER,
+                heading="Public awareness in a case status",
                 description=(
                     "Announces evidence that the vulnerability is known to the"
                     " public."
@@ -85,6 +128,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 anchor="exploit-public",
                 addressee=AddresseeSide.CASE_MANAGER,
+                heading="Exploit public in a case status",
                 description=(
                     "Announces evidence that an exploit is publicly available."
                 ),
@@ -102,6 +146,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 anchor="attacks-observed",
                 addressee=AddresseeSide.CASE_MANAGER,
+                heading="Attacks observed in a case status",
                 description=(
                     "Announces evidence that attackers are exploiting the "
                     "vulnerability."
@@ -179,6 +224,57 @@ ENTRIES: list[SemanticEntry] = [
                 howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CD,
                 usual_senders=(CVDRole.DEPLOYER,),
+            ),
+            # A participant's own view of the public state travels in the
+            # case status its participant status embeds (CSB-15-003).  The
+            # CASE_MANAGER adjudicates it with the other dimensions (RSH-05)
+            # and ends or abandons the embargo on any of P, X or A
+            # (RSH-03-001), so each is an occasion of this entry (#4569).
+            _participant_pxa_occasion(
+                when=(
+                    "a Participant learns that the public knows of the "
+                    "vulnerability"
+                ),
+                anchor="participant-public-awareness",
+                heading="Public awareness in a participant status",
+                description=(
+                    "Announces, in the sender's own participant status, "
+                    "evidence that the vulnerability is known to the public."
+                ),
+                example="add_public_awareness_to_participant",
+                pxa=CS_pxa.Pxa,
+                shorthand=ProtocolShorthand.CP,
+            ),
+            _participant_pxa_occasion(
+                when=(
+                    "a Participant learns that an exploit for the "
+                    "vulnerability is public"
+                ),
+                anchor="participant-exploit-public",
+                heading="Exploit public in a participant status",
+                description=(
+                    "Announces, in the sender's own participant status, "
+                    "evidence that an exploit is publicly available."
+                ),
+                example="add_exploit_public_to_participant",
+                pxa=CS_pxa.PXa,
+                shorthand=ProtocolShorthand.CX,
+            ),
+            _participant_pxa_occasion(
+                when=(
+                    "a Participant observes attacks that exploit the "
+                    "vulnerability"
+                ),
+                anchor="participant-attacks-observed",
+                heading="Attacks observed in a participant status",
+                description=(
+                    "Announces, in the sender's own participant status, "
+                    "evidence that attackers are exploiting the "
+                    "vulnerability."
+                ),
+                example="add_attacks_observed_to_participant",
+                pxa=CS_pxa.pxA,
+                shorthand=ProtocolShorthand.CA,
             ),
         ),
         page=MessagePage.CS,
