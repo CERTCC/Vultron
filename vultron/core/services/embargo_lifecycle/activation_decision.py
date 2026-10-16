@@ -164,9 +164,16 @@ class _ActivationDecisionMixin(_ActivationArmMixin):
         """
         case = case_file.case
         if embargo_id not in case.proposed_embargo_ids:
+            entry = case.embargo_register_entry(embargo_id)
+            held = (
+                f" (its register entry is {entry.status.value})"
+                if entry is not None
+                else " (the register holds no entry for it)"
+            )
             raise VultronInvalidStateTransitionError(
                 f"Cannot activate embargo '{embargo_id}' on case"
-                f" '{case.id_}': it is not an open proposal of the case."
+                f" '{case.id_}': it is not an open proposal of the case"
+                f"{held}."
             )
         self._assert_pxa_embargo_eligible(
             case.current_status.pxa.state, case.id_, "activate embargo"

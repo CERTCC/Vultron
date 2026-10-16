@@ -175,7 +175,7 @@ def test_an_embargo_that_is_not_an_open_proposal_is_refused():
         dl, revision_days=30
     )
 
-    with pytest.raises(VultronInvalidStateTransitionError):
+    with pytest.raises(VultronInvalidStateTransitionError, match="ACTIVE"):
         _decide(dl, case.id_, active)
 
 
