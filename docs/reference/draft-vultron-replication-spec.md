@@ -315,7 +315,8 @@ delivery, and repeat, cascading until no buffered entry extends the current
 tail. (SYNC-14-003, SYNC-14-008)
 
 [I] In this implementation, each drained entry is its own inbox delivery.
-When a commit makes a buffered entry appliable, the participant hands that one entry back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` attributed to the case's CASE_MANAGER, and does not apply it inside the delivery that made it appliable.
+When a commit makes a buffered entry appliable, the participant hands that one entry back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` attributed to the case's CASE_MANAGER.
+The participant does not apply the entry inside the delivery that made it appliable.
 That delivery's commit hands back the next entry, so the cascade follows from in-order delivery itself. (SYNC-14-009)
 
 Draining a buffered entry MUST apply domain effects before persisting it.
