@@ -227,7 +227,7 @@ class TestSvcAddNoteToCaseUseCase:
         assert result.note is not None
 
     def test_execute_returns_activity_key(self):
-        """execute() returns a NoteResult carrying the Create activity."""
+        """execute() returns a NoteResult carrying the Add(Note) activity."""
         result = self._execute()
         assert result.activity is not None
 

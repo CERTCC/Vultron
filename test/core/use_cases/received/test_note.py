@@ -310,6 +310,42 @@ class TestNoteUseCases:
         refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
         assert note.id_ in refreshed.notes
 
+    @pytest.mark.spec("HP-08-006")
+    def test_add_note_to_case_refuses_to_overwrite_a_different_note(
+        self, make_payload
+    ):
+        """An Add(Note) whose note id already names a different stored note
+        is refused before the commit: the stored note keeps its content, the
+        case does not gain the id, and no ledger entry is written (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1c/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1c"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3c"
+        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        event = make_payload(
+            add_note_to_case_activity(
+                as_Note(id_=note_id, content="Rewritten", context=case_id),
+                target=case,
+                actor="https://example.org/users/finder",
+            ),
+            receiving_actor_id=case_actor_id,
+        )
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert getattr(dl.read(note_id), "content", None) == "Original"
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note_id not in refreshed.notes
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """CaseActor skips adding a note already in the case (idempotent)."""
         dl = SqliteDataLayer(

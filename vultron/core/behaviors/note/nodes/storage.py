@@ -23,7 +23,11 @@ from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditNode,
     ReferenceField,
 )
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.note import VultronNote
 
 
@@ -48,6 +52,58 @@ class SaveNoteNode(DataLayerActionWithPorts):
                 "%s: Error saving note %s: %s", self.name, self.note_obj.id_, e
             )
             return Status.FAILURE
+
+
+#: The fields that make two notes the same note: what it says, who wrote it,
+#: which case it belongs to and what it answers.
+_NOTE_IDENTITY_FIELDS: tuple[str, ...] = (
+    "name",
+    "content",
+    "attributed_to",
+    "context",
+    "in_reply_to",
+)
+
+
+def _note_identity(note: object) -> tuple[object, ...]:
+    return tuple(
+        _as_id(getattr(note, field, None)) for field in _NOTE_IDENTITY_FIELDS
+    )
+
+
+class NoteIdNotTakenNode(DataLayerConditionWithPorts):
+    """Guard: no different note is stored under the received note's id.
+
+    A received ``Add(Note)`` carries its note inline, and the CASE_MANAGER
+    stores that note before attaching it (VAM-01-010, HP-08-006).  A note
+    already stored under the same id passes only when it is the same note
+    (same name, content, author, case and reply target), as on a
+    redelivery; otherwise the ``Add`` would overwrite another note and the
+    ledger entry would carry the overwrite to every replica, so the guard
+    refuses it.  Read-only, so it runs before the guarded commit
+    (CLP-10-006).
+    """
+
+    def __init__(self, note_obj: VultronNote, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.note_obj = note_obj
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        stored = self.datalayer.read(self.note_obj.id_)
+        if stored is None or _note_identity(stored) == _note_identity(
+            self.note_obj
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"a different note is already stored as '{self.note_obj.id_}';"
+            " the Add(Note) would overwrite it — REFUSED (HP-08-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
 
 class AttachNoteToCaseNode(CaseReferenceEditNode):

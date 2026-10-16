@@ -1676,7 +1676,7 @@ class TestEmitRMGapNoteNode:
     @pytest.mark.spec("RSH-06-004")
     @pytest.mark.spec("VAM-01-010")
     def test_gap_anomaly_emits_note(self, populated_dl):
-        """BB_RM_ANOMALY=gap → SUCCESS + one inline Add(Note,Case) queued (RSH-06-004)."""
+        """BB_RM_ANOMALY=gap → SUCCESS + one inline Add(Note) (RSH-06-004)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = EmitRMGapNoteNode(
             sender_actor_id=ACTOR_ID,
@@ -1697,7 +1697,7 @@ class TestEmitRMGapNoteNode:
     @pytest.mark.spec("RSH-06-004")
     @pytest.mark.spec("VAM-01-010")
     def test_regression_anomaly_emits_note(self, populated_dl):
-        """BB_RM_ANOMALY=regression → SUCCESS + one inline Add(Note,Case) (RSH-06-004)."""
+        """BB_RM_ANOMALY=regression → SUCCESS + one inline Add(Note)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = EmitRMGapNoteNode(
             sender_actor_id=ACTOR_ID,

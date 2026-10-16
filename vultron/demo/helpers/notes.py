@@ -52,8 +52,9 @@ def participant_adds_note_to_case(
 
     The posting actor uses their own container's trigger endpoint, which
     sends one ``Add(Note)`` naming the case as its ``target`` and carrying
-    the note inline, so the note flows through the poster's outbox to the case host's inbox —
-    reflecting real deployment behavior (D5-7-DEMONOTECLEAN-1).
+    the note inline, so the note flows through the poster's outbox to the
+    case host's inbox — reflecting real deployment behavior
+    (D5-7-DEMONOTECLEAN-1).
 
     Args:
         posting_client: Client connected to the posting actor's container.
