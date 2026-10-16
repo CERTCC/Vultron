@@ -36,7 +36,7 @@ from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.sync_helpers import _reconstruct_tail_hash
+from vultron.core.sync_helpers import reconstruct_tail_hash
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
 )
@@ -129,7 +129,7 @@ class TestReconstructTailHash:
     def test_empty_log_returns_genesis(self, dl):
         case = _make_case()
         dl.save(case)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == case.genesis_hash
         assert len(tail_hash) == 64
         assert tail_index == -1
@@ -146,12 +146,12 @@ class TestReconstructTailHash:
         from vultron.errors import VultronValidationError
 
         with pytest.raises(VultronValidationError, match="genesis hash"):
-            _reconstruct_tail_hash(CASE_URI, dl)
+            reconstruct_tail_hash(CASE_URI, dl)
 
     @pytest.mark.spec("SYNC-01-002")
     def test_one_entry_returns_its_hash(self, dl, first_entry):
         dl.save(first_entry)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == first_entry.entry_hash
         assert tail_index == 0
 
@@ -160,7 +160,7 @@ class TestReconstructTailHash:
         dl.save(first_entry)
         second = _make_entry(CASE_URI, 1, first_entry.entry_hash)
         dl.save(second)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == second.entry_hash
         assert tail_index == 1
 
@@ -169,7 +169,7 @@ class TestReconstructTailHash:
         dl.save(first_entry)
         other = _make_entry("https://example.org/cases/other", 0, _ZERO_HASH)
         dl.save(other)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == first_entry.entry_hash
         assert tail_index == 0
 

@@ -12,7 +12,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Unit tests for :func:`vultron.core.sync_helpers.is_ledger_fresh_for_case`
-and :func:`vultron.core.sync_helpers._reconstruct_tail_hash`.
+and :func:`vultron.core.sync_helpers.reconstruct_tail_hash`.
 
 Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-08-004, CLP-08-005.
 """
@@ -29,8 +29,8 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.sync_helpers import (
     _find_equivalent_recorded_entry,
     _find_prev_actor_published,
-    _reconstruct_tail_hash,
     is_ledger_fresh_for_case,
+    reconstruct_tail_hash,
 )
 from vultron.errors import VultronValidationError
 
@@ -88,7 +88,7 @@ class TestReconstructTailHash:
         """CLP-08-005: empty ledger returns per-case genesis hash."""
         case = _make_case()
         dl.save(case)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_ID, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_ID, dl)
         assert tail_hash == case.genesis_hash
         assert len(tail_hash) == 64
         assert tail_index == -1
@@ -96,7 +96,7 @@ class TestReconstructTailHash:
     def test_empty_log_no_case_raises(self, dl):
         """CLP-08-005 fail-closed: no case in DataLayer raises VultronValidationError."""
         with pytest.raises(VultronValidationError, match="genesis hash"):
-            _reconstruct_tail_hash(CASE_ID, dl)
+            reconstruct_tail_hash(CASE_ID, dl)
 
 
 class TestContiguousChain:

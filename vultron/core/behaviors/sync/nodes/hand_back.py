@@ -25,12 +25,12 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.sync.nodes.chain import (
-    _require_case_id_from_activity,
+    require_case_id_from_activity,
 )
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.participants.authority import case_manager_address
 from vultron.core.ports.inbox_hand_back import InboxHandBackPort
-from vultron.core.sync_helpers import _reconstruct_tail_hash
+from vultron.core.sync_helpers import reconstruct_tail_hash
 from vultron.errors import VultronValidationError, VultronWiringError
 
 #: Blackboard key the received use cases write the hand-back port under.
@@ -112,13 +112,13 @@ class HandBackBufferedSuccessorNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         if self._gap_buffer is None:
             return Status.SUCCESS
-        case_id = self._case_id or _require_case_id_from_activity(
+        case_id = self._case_id or require_case_id_from_activity(
             self.activity, self.name
         )
         if self._gap_buffer.depth(case_id) == 0:
             return Status.SUCCESS
         try:
-            tail_hash, _ = _reconstruct_tail_hash(case_id, self.datalayer)
+            tail_hash, _ = reconstruct_tail_hash(case_id, self.datalayer)
         except VultronValidationError:
             # No genesis anchor yet: nothing buffered can extend the chain.
             return Status.SUCCESS
