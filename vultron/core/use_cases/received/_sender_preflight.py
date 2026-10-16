@@ -30,7 +30,10 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
 )
-from vultron.core.behaviors.sender_guard import closed_sender_guard
+from vultron.core.behaviors.sender_guard import (
+    case_owner_guard,
+    closed_sender_guard,
+)
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
@@ -48,6 +51,7 @@ def closed_sender_preflight(
     closes: bool,
     label: str,
     sync_port: SyncActivityPort | None = None,
+    case_owner_completes: bool = False,
 ) -> HandlerResult | None:
     """The verdict owed to a sender whose closure the case records, or ``None``.
 
@@ -62,9 +66,18 @@ def closed_sender_preflight(
     - any other act is ``REFUSED``.
 
     Either way nothing is committed or sent.  Otherwise ``None``, and the
-    handler runs its tree.  A *case_id* this store does not resolve records
-    no closure.  The post-close boundary is asked first: on a fully closed
-    case the act is left to the tree, which drops it (CM-23-013).
+    handler runs its tree.
+
+    A *case_id* this store does not resolve records no closure.  The
+    post-close boundary is asked first: on a fully closed case the act is
+    left to the tree, which drops it (CM-23-013).
+
+    With *case_owner_completes*, a closing act from the case's Case Owner is
+    not a repeat: its effect is the case's closure too, which a failed first
+    delivery may have left incomplete, so its redelivery runs the tree to
+    complete it (a ``Leave``, CM-23-002).  The owner is asked in the same
+    run, only when the sender's closure is recorded.  On a fully closed case
+    the post-close boundary still decides first.
 
     Raises:
         VultronBTInternalError: The guard failed on an internal error.
@@ -72,16 +85,36 @@ def closed_sender_preflight(
     if not case_id:
         return None
     guard = closed_sender_guard(case_id, sender_actor_id)
+    # A closing act from the Case Owner is asked about in the same run: the
+    # owner check runs only when the guard finds the sender closed.
+    owner = (
+        case_owner_guard(case_id, sender_actor_id)
+        if closes and case_owner_completes
+        else None
+    )
+    check: py_trees.behaviour.Behaviour = (
+        guard
+        if owner is None
+        else py_trees.composites.Selector(
+            name="SenderOpenOrClosingCaseOwner",
+            memory=False,
+            children=[guard, owner],
+        )
+    )
     tree = py_trees.composites.Sequence(
         name="ClosedSenderPreflight",
         memory=False,
-        children=[CaseOpenToExternalWritesNode(case_id=case_id), guard],
+        children=[CaseOpenToExternalWritesNode(case_id=case_id), check],
     )
     result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
         tree=tree, actor_id=receiving_actor_id, activity=request
     )
+    # Raises on an internal error, the owner check's included: a crash is
+    # never read as "not the Case Owner" (ARCH-15-001).
     verdict_from_bt(tree, result, label="ClosedSenderPreflight")
     if not guard.sender_closed:
+        return None
+    if owner is not None and owner.status is py_trees.common.Status.SUCCESS:
         return None
     if closes:
         return HandlerResult.skipped(

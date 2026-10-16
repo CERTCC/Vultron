@@ -577,12 +577,10 @@ def may_act_on_case(
     predicate.  Its ``Reject(CaseLedgerEntry)`` is checked with
     :func:`is_case_content_recipient` (SYNC-03-005) and answered with a
     replay capped by :func:`closed_participant_ledger_cutoff`.  A repeat of
-    an act that would close it (a ``Reject`` of its Invite) is ``SKIPPED``
-    by effect before any sender guard runs (:func:`closure_recorded`,
-    ID-05-003).  A ``Close(Report)`` closes no one on a case: every
-    sender's is refused (CM-23-019).  A repeated
-    ``Leave(VulnerabilityCase)`` is owed the same verdict; its handler does
-    not ask for it yet (#4522).
+    an act that would close it (a ``Leave(VulnerabilityCase)``, a ``Reject``
+    of its Invite) is ``SKIPPED`` by effect before any sender guard runs
+    (:func:`closure_recorded`, ID-05-003).  A ``Close(Report)`` closes no one
+    on a case: every sender's is refused (CM-23-019).
 
     An actor the case does not list, or whose record does not resolve, may
     not act: the case cannot vouch for it.

@@ -126,14 +126,14 @@ def reporter_submits_report(
     trigger, never built here and posted into the receiver's inbox
     (DEMOMA-05-001).  The trigger is where the reporter writes its trust
     anchor, the pending ``ReportCaseLink`` naming *receiver* (CBT-01-005);
-    without it the reporter refuses the receiver's case introduction on the
-    unanchored route (CBT-01-011, #4675).  It also makes the reporter's logs
-    tell the full process-flow story (D5-6a).  The trigger's own outbox is the
-    sole delivery of the offer to the receiver's inbox; this function never
-    re-posts it.  The receiver's CaseActor has a stable identity (#1872), so
-    it is provisioned before the trigger, and the function then waits for the
-    report and offer to land in the receiver's own store (EDF-06-002,
-    EDF-06-003).
+    without it the reporter refuses the receiver's case introduction, because
+    no trust anchor names the receiver (CBT-01-011, #4675).  It also makes the
+    reporter's logs tell the full process-flow story (D5-6a).  The trigger's
+    own outbox is the sole delivery of the offer to the receiver's inbox; this
+    function never re-posts it.  The receiver's CaseActor has a stable
+    identity (#1872), so it is provisioned before the trigger, and the
+    function then waits for the report and offer to land in the receiver's
+    own store (EDF-06-002, EDF-06-003).
 
     In a single-container exchange demo, pass the one client as both
     *receiver_client* and *reporter_client*.

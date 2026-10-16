@@ -57,6 +57,9 @@ from vultron.core.models.events.report import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.case.create import (
+    CreateCaseReceivedUseCase,
+)
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
 )
@@ -376,6 +379,11 @@ def test_bootstrap_create_case_tree_has_no_commit_stage():
     """
     case = as_VulnerabilityCase(id_=CASE_ID, name="4476")
 
-    tree = create_create_case_received_tree(case, CASE_ID, MANAGER_ID)
+    tree = create_create_case_received_tree(
+        case,
+        CASE_ID,
+        MANAGER_ID,
+        sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
+    )
 
     _assert_no_commit_stage(tree)

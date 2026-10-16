@@ -108,6 +108,8 @@ def create_invite_actor_to_case_received_tree(
     case_id: str,
     invitee_id: str,
     inviter_id: str,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for ``Invite(Actor, CaseStub)`` — one tree for every receiver.
 
@@ -118,6 +120,9 @@ def create_invite_actor_to_case_received_tree(
 
         InviteActorToCaseReceivedBT (Sequence)
         ├── Intake                       # stores the Invite idempotently
+        ├── CaseOpenToExternalWrites     # post-close boundary (CM-23-013)
+        ├── <sender guard>               # composed from the declared rule
+        ├── ClockDecisions               # CASE_MANAGER only — skips here
         ├── GuardedCommitCaseLedgerEntryBT   # CASE_MANAGER only — skips here
         └── InviteeRecordsInvite         # not the CASE_MANAGER
             ├── LogInviteReceivedNode        # SL-04-006
@@ -127,11 +132,20 @@ def create_invite_actor_to_case_received_tree(
     CASE_MANAGER" (``case_may_be_absent``), because an invitee has no replica
     until the case is announced.
 
+    The factory composes the sender guard from the use case's declared rule
+    (HP-01-008): the sender must be the case's CASE_MANAGER, which alone
+    issues the Invite (CM-17-006, PCR-03-001).  An invitee holding only the
+    stub has no CASE_MANAGER to compare against, so the guard passes there
+    (the bootstrap window) and the trust-anchor rules of PCR-03-004 decide
+    what the Invite may record.
+
     Args:
         case_id: ID of the case the Invite's stub names (its ``target``).
         invitee_id: The invited actor (the Invite's ``object``).
         inviter_id: The Invite's sender, recorded as the case's expected
             CASE_MANAGER.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
 
     Returns:
         Root ``InviteActorToCaseReceivedBT`` Sequence node.
@@ -140,6 +154,10 @@ def create_invite_actor_to_case_received_tree(
         name="InviteActorToCaseReceivedBT",
         case_id=case_id,
         precondition_guards=[],
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=inviter_id, case_id=case_id
+        ),
         replica_effects=[
             create_participant_replica_gated_tree(
                 name="InviteeRecordsInvite",

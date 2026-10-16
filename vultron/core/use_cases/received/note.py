@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 class CreateNoteReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for note operations"
+        "#4785", "no sender check for note operations"
     )
 
     def __init__(
@@ -116,7 +116,7 @@ class AddNoteToCaseReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for note operations"
+        "#4785", "no sender check for note operations"
     )
 
     def __init__(

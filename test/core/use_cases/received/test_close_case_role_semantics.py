@@ -1105,6 +1105,28 @@ class TestPostCloseWriteBoundary:
         assert set(dl.outbox_list()) == outbox_before
 
     @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-018")
+    def test_a_repeat_owner_leave_after_full_close_is_refused(self):
+        """After case_fully_closed, a repeat owner Leave with a new id is
+        REFUSED and changes nothing (CM-23-018 owner exception ends here)."""
+        dl = _closed_dl()
+        entries_at_close = len(_case_ledger(dl))
+        owner_rm_before = _participant_rm_states(dl, OWNER_ID)
+        actor_rm_before = _participant_rm_states(dl, CASE_ACTOR_ID)
+        outbox_before = set(dl.outbox_list())
+
+        result = _close(
+            dl, OWNER_ID, "https://example.org/activities/leave-owner-again"
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-013" in (result.reason or "")
+        assert len(_case_ledger(dl)) == entries_at_close
+        assert _participant_rm_states(dl, OWNER_ID) == owner_rm_before
+        assert _participant_rm_states(dl, CASE_ACTOR_ID) == actor_rm_before
+        assert set(dl.outbox_list()) == outbox_before
+
+    @pytest.mark.spec("CM-23-013")
     def test_late_leave_drop_is_logged_with_activity_and_actor(self, caplog):
         """The drop names the activity id and the sender at INFO (SL-01)."""
         dl = _closed_dl()
@@ -2677,6 +2699,39 @@ class TestCaseActorRMClosedRecordingFailsClosed:
         assert result.disposition == HandlerDisposition.APPLIED
         assert _case_actor_rm_closed_entries(dl)
         assert _case_fully_closed_present(dl)
+
+    @pytest.mark.spec("CM-23-002")
+    @pytest.mark.spec("CM-23-018")
+    def test_a_repeat_owner_leave_with_a_new_id_completes_the_closure(
+        self, monkeypatch
+    ):
+        """A repeat owner Leave with a new activity id finishes a broken-off
+        closure, and records each closure step once (CM-23-018 exception)."""
+        dl = _make_full_dl()
+        with monkeypatch.context() as patch:
+            self._fail_case_actor_commits(patch, dl)
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        result = _close(
+            dl, OWNER_ID, "https://example.org/activities/leave-owner-again"
+        )
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert _case_actor_rm_closed_entries(dl)
+        assert _case_fully_closed_present(dl)
+        # Each closure step (CM-23-002 steps 1-3) is committed once; only
+        # step 0, the close_case entry, is per received Leave (CM-23-001).
+        steps = [s for s in _ledger_shape(dl) if s[0] != "close_case"]
+        repeated = [s for s in set(steps) if steps.count(s) > 1]
+        assert not repeated, f"closure steps recorded twice: {repeated}"
+        assert sorted(
+            e.log_object_id
+            for e in _case_ledger(dl)
+            if e.event_type == "close_case"
+        ) == [
+            "https://example.org/activities/leave-owner",
+            "https://example.org/activities/leave-owner-again",
+        ]
 
     @pytest.mark.spec("CM-23-005")
     @pytest.mark.spec("ARCH-15-001")

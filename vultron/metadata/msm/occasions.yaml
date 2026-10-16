@@ -177,7 +177,7 @@ groups:
     when: the Case Manager has opened a case for a submitted report
     send: Create(VulnerabilityCase)
     send_to: a participant
-    sent_by: not yet checked
+    sent_by: the addressee of the case proposal or vulnerability report offer
     semantics: create_case
     status: none
     description: Mints the vulnerability case, seats its initial participants and links the
@@ -292,7 +292,7 @@ groups:
     when: the Case Manager invites an actor to join the case
     send: Invite(Actor)[target=VulnerabilityCaseStub]
     send_to: a participant
-    sent_by: not yet checked
+    sent_by: the case manager
     semantics: invite_actor_to_case
     status: none
     description: Sends a Stub Invite carrying the case stub and the embargo terms the invitee
@@ -409,7 +409,7 @@ groups:
     when: a Participant ends its participation in the case
     send: Leave(VulnerabilityCase)
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: the case owner or a participant
     semantics: close_case
     status: none
     description: Leaves the case, moving the sender's RM state to Closed.
@@ -683,7 +683,7 @@ groups:
     when: a Participant learns that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: a participant
     distinguished_by: '`pxaState` = `Pxa`'
     semantics: add_case_status_to_case
     shorthand: CP
@@ -698,7 +698,7 @@ groups:
     when: a Participant learns that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: a participant
     distinguished_by: '`pxaState` = `PXa`'
     semantics: add_case_status_to_case
     shorthand: CX
@@ -713,7 +713,7 @@ groups:
     when: a Participant observes attacks that exploit the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: a participant
     distinguished_by: '`pxaState` = `pxA`'
     semantics: add_case_status_to_case
     shorthand: CA

@@ -68,6 +68,7 @@ from vultron.core.use_cases.received.actor.ownership import (
 )
 from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
+    CloseCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
@@ -165,6 +166,20 @@ CASE_OWNER_USE_CASES: dict[str, tuple[type, ContextFor, bool]] = {
 }
 
 
+#: The one ``CASE_OWNER`` use case a closed owner still passes the sender
+#: guard for: its ``Leave`` repeat finishes the case's closure (CM-23-002,
+#: CM-23-018), and the tree's closed-sender door guard decides the repeat.
+CLOSING_CASE_OWNER_USE_CASES: frozenset[type] = frozenset(
+    {CloseCaseReceivedUseCase}
+)
+
+
+def _closing_owner(sender: str) -> SenderCheckContext:
+    return SenderCheckContext(
+        sender_id=sender, case_id=CASE_ID, closing_case_owner=True
+    )
+
+
 def _closed_owner_store(receiver: str) -> BTTestScenario:
     """*receiver*'s store, with the Case Owner at RM ``CLOSED`` on the case."""
     scenario = _store(receiver)
@@ -200,7 +215,27 @@ def test_the_list_names_every_case_owner_use_case() -> None:
         )
         and SenderEntitlementKind.CASE_OWNER in rule.at_case_manager
     }
-    assert declaring == {uc for uc, _, _ in CASE_OWNER_USE_CASES.values()}
+    assert declaring == {
+        uc for uc, _, _ in CASE_OWNER_USE_CASES.values()
+    } | set(CLOSING_CASE_OWNER_USE_CASES)
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("CM-23-002")
+def test_a_closed_case_owner_still_passes_the_leave_guard() -> None:
+    """Its repeated Leave finishes the case's closure; the close-case
+    tree's closed-sender door guard, not the sender guard, decides it."""
+    guard = compose_sender_guard(
+        _rule(CloseCaseReceivedUseCase), _closing_owner(OWNER)
+    )
+    assert guard is not None
+
+    result = _closed_owner_store(MANAGER).run(
+        guard, activity=SimpleNamespace(actor_id=OWNER)
+    )
+
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.SUCCESS
 
 
 @pytest.mark.spec("CM-23-018")

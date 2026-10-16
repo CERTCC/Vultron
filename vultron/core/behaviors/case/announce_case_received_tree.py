@@ -79,7 +79,7 @@ def create_announce_vulnerability_case_received_tree(
     guard composed from a declared rule: it also trusts the CASE_MANAGER
     address a completed ``ReportCaseLink`` records, which the declared
     CASE_MANAGER rule does not read, so it stays its own node until the
-    use case declares its rule (#4522).  No refusal effect: only a
+    use case declares its rule (#4785).  No refusal effect: only a
     participant replica receives this Announce, and it owes
     the CASE_MANAGER no answer.
 
