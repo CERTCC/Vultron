@@ -38,7 +38,7 @@ The question this record settles: how does the CASE_MANAGER finish an act whose 
 - A received act's own entry is committed by intake, before the act's tree decides its consequences (ADR-0111).
 - Replicas receive entries one `Announce(CaseLedgerEntry)` at a time and apply them by copying (CM-23-016).
 - The CASE_MANAGER's working records are case bookkeeping, never ledgered or replicated (CLP-07-014).
-- The entries that follow an act have ids derived from their content, so committing one again lands on the same entry.
+- The entries that follow an act have ids derived from the act and the row they change, so committing one again lands on the same entry.
 - One recovery rule for every embargo act, not one repair pass per act.
 
 ## Considered Options
@@ -59,7 +59,8 @@ For where the finishing step runs under A:
 Chosen option: **A, with A1**.
 
 Before an embargo act's first commit, the CASE_MANAGER stores a record of the act and every entry it still owes, each row carried in full as decided.
-The record is case bookkeeping: it is not ledgered, not replicated, and never read to compute a case-file value.
+The record is case bookkeeping: it is not ledgered and not replicated.
+The finishing step reads it only to commit the entries already decided, unchanged; it never reads the record to decide a case-file value, so CLP-07-014 holds, and a replica learns each row from its committed entry alone.
 It is removed when the act's last entry commits.
 
 Each CASE_MANAGER embargo tree for the case starts by finishing every open record for that case, before its guards read any row.

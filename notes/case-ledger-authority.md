@@ -167,8 +167,9 @@ and times (#4425).
 trigger starts a new act and a redelivered one stops at its idempotency guard. An
 embargo act stores its decided entries as case bookkeeping before its first
 commit, and the next CASE_MANAGER embargo tree for the case finishes them before
-its guards read a row; never re-decide them in a per-act repair pass (CLP-07-015,
-ADR-0146).
+its guards read a row; never re-decide them in a per-act repair pass. The stub
+re-issue's `ReissueStubInvitesNode._rows_owed` is such a pass today and is replaced
+by the finishing step in #4855 (CLP-07-015, ADR-0146).
 
 ### Two Meanings of "Reject"
 

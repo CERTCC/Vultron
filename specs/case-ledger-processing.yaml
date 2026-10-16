@@ -623,15 +623,20 @@ groups:
       re-commits them, because a repeated trigger starts a new act and a redelivered
       act is stopped by its idempotency guard (#4764). Re-deciding the entries later
       could decide a different row once the clock or local policy has moved, so the
-      entries are the ones already decided (ADR-0146).
+      entries are the ones already decided (ADR-0146). The stored plan is case
+      bookkeeping read only to commit those entries unchanged, never to decide a
+      case-file value, so CLP-07-014 still holds.
     verification: >-
       A test fails an act's second commit, then runs a CASE_MANAGER embargo tree for
       the case, and asserts the owed entries are committed in their planned order and
-      the case file equals the one a run with no failure produces; a test asserts an
-      act whose own entry did not commit leaves nothing owed.
+      the case file equals the one a run with no failure produces; a test stores a
+      plan whose act's own entry did not commit, runs the finishing step, and asserts
+      it commits nothing and discards the plan.
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013
+    - rel_type: depends_on
+      spec_id: CLP-07-014
     adr:
     - ADR-0146
     stories:
