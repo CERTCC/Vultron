@@ -182,7 +182,7 @@ One thing the CASE_MANAGER does refuse outright: an activity that arrives with n
 receiver that filled in the blank with its own clock could no longer tell what
 the sender claimed from what it invented — and every check above would then be
 comparing the CASE_MANAGER's clock against itself. A message without a claimed time
-is therefore rejected at the door
+is therefore refused at the door
 ([CLP-15-006](../../reference/specs/protocol.md#clp-15-006)).
 
 A field that is present but empty carries no claimed time either. A blank
@@ -373,7 +373,7 @@ order those entries arrived in.
 
 The holding area itself is in memory only, and is lost on restart. That is
 deliberate: nothing in it is committed, so a restart cannot cost the replica
-anything it had already accepted. The dropped entries themselves come back the
+anything it had already applied. The dropped entries themselves come back the
 same way an evicted one does — the next entry that does not match the replica's
 tail produces a `Reject`, and the CASE_MANAGER replays from the position that
 reject names.

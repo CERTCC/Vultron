@@ -39,13 +39,17 @@ from test.architecture import _corpus
 
 _ROOT = _corpus.REPO_ROOT
 
-#: Words may wrap across lines, inside a ``#`` comment or a ``>`` quote, so the
-#: gap between the two words is any run of whitespace and those markers.
-_GAP = r"[\s#>]+"
+#: The gap between the two words: whitespace (a line wrap), a ``#`` comment or
+#: ``>`` quote marker, Markdown emphasis or code marks (``*``, ``_``, a
+#: backtick), the quotes and ``+`` of a Python string split across lines, or a
+#: hyphen.
+_GAP = r"[\s#>*_`\"'+-]+"
 
+#: Letter lookarounds rather than ``\b``, so a word wrapped in ``_emphasis_``
+#: still has a boundary.
 _BANNED = re.compile(
-    rf"\b(?:accepted{_GAP}assertions?|rejected{_GAP}assertions?"
-    rf"|rejection{_GAP}outcomes?)\b",
+    rf"(?<![a-z])(?:accepted{_GAP}assertions?|rejected{_GAP}assertions?"
+    rf"|rejection{_GAP}outcomes?)(?![a-z])",
     re.IGNORECASE,
 )
 
@@ -108,19 +112,37 @@ def _scanned() -> tuple[tuple[str, str], ...]:
     return tuple(files)
 
 
-#: Every banned phrase ends in "assertion" or "outcome", so a file holding
-#: neither cannot match and skips the regex (the TB-13-007 prefilter, for
-#: text).  The first letter is dropped so the test needs no case folding.
-_PREFILTER = ("ssertion", "utcome")
+#: Every banned phrase ends in "assertion" or "outcome".  Plain substring
+#: search finds those cheaply, and the case-insensitive regex then runs only on
+#: a short window ending at each hit (the TB-13-007 prefilter, for text).
+#: Dropping the first letter covers lower and title case, and the upper-case
+#: fragments cover all caps, so nothing is case-folded.
+_PREFILTER = ("ssertion", "SSERTION", "utcome", "UTCOME")
+
+#: How far before a hit the first word may start: "rejection" plus a gap as
+#: wide as a Python string split across deeply indented lines.
+_WINDOW_BEFORE = 80
+_WINDOW_AFTER = len("ssertions")
+
+
+def _matches(text: str) -> list[re.Match[str]]:
+    found: dict[int, re.Match[str]] = {}
+    for fragment in _PREFILTER:
+        hit = text.find(fragment)
+        while hit != -1:
+            start = max(0, hit - _WINDOW_BEFORE)
+            end = hit + _WINDOW_AFTER
+            for m in _BANNED.finditer(text, start, end):
+                found.setdefault(m.start(), m)
+            hit = text.find(fragment, hit + 1)
+    return [found[k] for k in sorted(found)]
 
 
 def _offenders(rel: str, text: str) -> list[str]:
-    if not any(fragment in text for fragment in _PREFILTER):
-        return []
     return [
         f"  {rel}:{text.count(chr(10), 0, m.start()) + 1}: "
         f"{' '.join(m.group().split())}"
-        for m in _BANNED.finditer(text)
+        for m in _matches(text)
     ]
 
 
@@ -172,10 +194,16 @@ def test_glossary_aliases_cell_still_declares_the_phrases():
         "the rejected\n    assertion is logged",
         "the rejection\n    # outcome of a guard",
         "an Accepted Assertion",
+        "AN ACCEPTED ASSERTION",
+        "a **rejected** assertion",
+        "an _accepted_ assertion",
+        '"the rejected "\n    "assertion is logged"',
+        "a rejected-assertion path",
     ],
 )
 def test_matcher_catches_wrapped_and_cased_forms(sample: str):
     assert _BANNED.search(sample)
+    assert _offenders("sample.md", sample), "the prefilter skipped it"
 
 
 @pytest.mark.parametrize(
@@ -186,10 +214,12 @@ def test_matcher_catches_wrapped_and_cased_forms(sample: str):
         "the participant's Reject is ledgered",
         "a rejected invitation",
         "unaccepted assertions",
+        "a rejected assertional claim",
     ],
 )
 def test_matcher_ignores_the_admitted_refused_vocabulary(sample: str):
     assert not _BANNED.search(sample)
+    assert not _offenders("sample.md", sample)
 
 
 def test_definition_cell_is_still_scanned():
