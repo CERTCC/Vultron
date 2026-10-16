@@ -29,9 +29,9 @@ the shared predicates :func:`~vultron.core.states.em.is_em_assertion_acceptable`
 and :func:`~vultron.core.states.cs.is_pxa_assertion_acceptable`: a refused
 dimension carries the replica's current value forward.  For an entry in ledger
 order both rules accept: the CASE_MANAGER already adjudicated, and the EM
-transitions an embargo act causes arrive first in that act's own entry, applied
-through ``EmbargoLifecycle`` (EMB-18-001), so the snapshot's EM is the
-replica's own.  The rules guard a replica that has diverged.
+transitions an embargo act causes arrive first in that act's own entry, copied
+through the one apply function (EMB-18-001, ADR-0124), so the snapshot's EM is
+the replica's own.  The rules guard a replica that has diverged.
 
 The status is appended the way the CASE_MANAGER's
 ``AppendCaseStatusToCaseNode`` appends it, so both stores record the same

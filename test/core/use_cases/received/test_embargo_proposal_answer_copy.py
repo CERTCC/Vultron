@@ -961,7 +961,11 @@ def test_a_withdrawal_whose_decision_fails_is_refused_before_its_commit(
 
 
 def _set_bystander_row(net: LedgerNetwork, state: EmbargoConsentState) -> None:
-    """Seed BYSTANDER's row for the embargo in force (test setup only)."""
+    """Seed BYSTANDER's row for the embargo in force (test setup only).
+
+    The row is written outside the ledger, so no rebuild can reach it.
+    """
+    net.bypass_ledger()
     dl = net.stores[MANAGER]
     record = dl.read(net.case(MANAGER).actor_participant_index[BYSTANDER])
     assert isinstance(record, CaseParticipant)

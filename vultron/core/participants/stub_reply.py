@@ -24,7 +24,8 @@ same effects when it receives the entry, through the functions in this module:
 - an Accept writes the invitee's agreement to the embargo in force, the row
   it states, through the one apply function (:func:`stub_accept_consent`,
   CM-18-005, ADR-0124), and marks the record joined;
-- a Reject moves the consent row to ``DECLINED`` when an embargo is in force.
+- a Reject writes the invitee's refusal of the embargo in force, the row it
+  states, through the same apply function (:func:`stub_reject_consent`).
 
 A vendor's VF status and the reject's closing status are not here: a status is a
 CASE_MANAGER-written object with its own id and times, so it has its own
@@ -36,17 +37,21 @@ consent row changes only by a legal move (CM-18-003) and ``joined`` is only set,
 so a stale entry replayed over a seed that is already ahead changes nothing.
 """
 
+from collections.abc import Callable
 from datetime import datetime
 
 from vultron.core.models._helpers import as_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
+    ConsentRowChange,
     EmbargoCaseFile,
     apply_embargo_change,
 )
-from vultron.core.models.embargo_consent_move import joiner_agreement
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
+from vultron.core.models.embargo_consent_move import (
+    joiner_agreement,
+    joiner_decline,
+)
 
 
 def parse_published(value: object) -> datetime:
@@ -88,24 +93,6 @@ def mark_joined(record: CaseParticipant, published: datetime) -> bool:
     return True
 
 
-def decline_embargo_in_force(
-    case: VulnerabilityCase, record: CaseParticipant
-) -> bool:
-    """Move *record*'s consent row for the embargo in force to ``DECLINED``.
-
-    Applies where the move is legal (CM-18-003, CM-18-005); a case with no
-    embargo in force changes nothing.  The caller persists the record.
-    """
-    embargo_id = case.active_embargo_id
-    if not embargo_id:
-        return False
-    return record.apply_pec_transition_if_legal(
-        embargo_id,
-        PEC_Trigger.DECLINE,
-        entry_status=case.embargo_register_status(embargo_id),
-    )
-
-
 def stub_accept_consent(
     case: VulnerabilityCase, record: CaseParticipant
 ) -> CaseParticipant:
@@ -120,11 +107,35 @@ def stub_accept_consent(
     itself when the Accept moves no row (no embargo in force, or a row that
     already agrees or declined); otherwise a changed copy.
     """
+    return _stated_consent(case, record, joiner_agreement)
+
+
+def stub_reject_consent(
+    case: VulnerabilityCase, record: CaseParticipant
+) -> CaseParticipant:
+    """*record* as the consent its ``Reject`` of the stub Invite states leaves it.
+
+    The Reject is the invitee's refusal of the embargo in force (CM-11-007),
+    and its own entry is the entry for that row (CLP-07-013): the row the
+    Reject states (:func:`~vultron.core.models.embargo_consent_move
+    .joiner_decline`) is written through the one apply function (ADR-0124),
+    on the CASE_MANAGER and on every replica alike.  Returns *record* itself
+    when the Reject moves no row; otherwise a changed copy.
+    """
+    return _stated_consent(case, record, joiner_decline)
+
+
+def _stated_consent(
+    case: VulnerabilityCase,
+    record: CaseParticipant,
+    stated: Callable[[EmbargoCaseFile, str], ConsentRowChange | None],
+) -> CaseParticipant:
+    """*record* with the row a stub reply states, written by copying it."""
     actor_id = record.attributed_to
     if actor_id is None:
         return record
     case_file = EmbargoCaseFile(case=case, participants={actor_id: record})
-    change = joiner_agreement(case_file, actor_id)
+    change = stated(case_file, actor_id)
     if change is None:
         return record
     return apply_embargo_change(case_file, change).participants[actor_id]
@@ -151,14 +162,16 @@ def apply_stub_accept(
 
 def apply_stub_reject(
     case: VulnerabilityCase, record: CaseParticipant, published: datetime
-) -> bool:
+) -> CaseParticipant | None:
     """A replica's application of a ``reject_invite_actor_to_case`` entry.
 
-    The CASE_MANAGER's consent write at a reject: ``DECLINED`` on the embargo in
-    force.  The closing RM status is its own entry.  Returns True when the row
-    moved; the caller saves *record*.
+    The CASE_MANAGER's consent write at a reject: the row the Reject states
+    (:func:`stub_reject_consent`).  The closing RM status is its own entry.
+    Returns the changed record for the caller to save, or ``None`` when the
+    row did not move.
     """
-    moved = decline_embargo_in_force(case, record)
-    if moved:
-        record.updated = _later(record.updated, published)
-    return moved
+    declined = stub_reject_consent(case, record)
+    if declined is record:
+        return None
+    declined.updated = _later(declined.updated, published)
+    return declined

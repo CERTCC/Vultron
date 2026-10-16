@@ -157,6 +157,13 @@ replica decides nothing:
   (not a case event) or the open issue that owns the missing commit. A handler
   believed to need no entry that fits no ground is an amendment to CLP-02-013
   first, never a new row.
+- **The rebuild check.** Every exchange demo and every `LedgerNetwork` scenario
+  is rebuilt from the CASE_MANAGER's ledger into an empty store when it ends,
+  and its roster, participant records, consent rows and embargo register must
+  equal the CASE_MANAGER's (`test/support/ledger_rebuild.py`, #4294). A test
+  that writes the CASE_MANAGER's store outside the ledger on purpose, as setup,
+  calls `LedgerNetwork.bypass_ledger()`; a production write with no entry is
+  the defect the check exists to find, never a reason to bypass it.
 
 **Pitfall: "one act, one entry".** That reading leaves the second change an act
 causes with nowhere to be recorded, and replicas rebuild it with their own ids

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted-provisional
 status_override: >-
   Revision 2 rewritten in place by the maintainer's #4425 planning interview while the
   ADR was unreleased, rather than superseded.

@@ -43,6 +43,50 @@ def _close_sqlite_datalayers(monkeypatch):
         created.pop().close()
 
 
+_CALL_REPORT = pytest.StashKey[pytest.TestReport]()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Keep each test's call-phase report, for the rebuild check below."""
+    report = yield
+    if report.when == "call":
+        item.stash[_CALL_REPORT] = report
+    return report
+
+
+@pytest.fixture(autouse=True)
+def _every_network_rebuilds_from_its_ledger(request, _close_sqlite_datalayers):
+    """Every per-actor-store scenario rebuilds from its ledger (#4294 AC-5).
+
+    Each ``LedgerNetwork`` a passing test built is checked when the test ends:
+    the CASE_MANAGER's whole ledger, replayed into an empty store from the
+    case as it stood before the first entry, must reach the CASE_MANAGER's
+    participant records, consent rows and embargo register (CLP-07-013,
+    CM-23-016).  A network with no entries has nothing to rebuild, and one
+    whose test wrote the CASE_MANAGER's store outside the ledger on purpose
+    says so with ``bypass_ledger()``.  Runs before the stores are closed.
+    """
+    from ._ledger_network import NETWORKS, rebuild_every_network
+
+    NETWORKS.clear()
+    yield
+    networks = list(NETWORKS)
+    NETWORKS.clear()
+    if call_passed(request.node):
+        rebuild_every_network(networks)
+
+
+def call_passed(item: pytest.Item) -> bool:
+    """Whether *item*'s call phase ran and passed.
+
+    A test that failed already says what is wrong; a rebuild difference on
+    top of it would only add noise.
+    """
+    report = item.stash.get(_CALL_REPORT, None)
+    return report is not None and report.passed
+
+
 @pytest.fixture
 def tree_runs(monkeypatch) -> list[py_trees.behaviour.Behaviour]:
     """Every tree ``BTBridge.execute_with_setup`` runs during the test.

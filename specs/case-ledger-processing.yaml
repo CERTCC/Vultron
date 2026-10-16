@@ -572,10 +572,18 @@ groups:
       Full records are ledger content the hash chain must cover, not the inline-object
       shortcut (CLP-07-006).
     verification: >-
-      A rebuild-from-ledger test replays every demo and integration scenario's
-      CASE_MANAGER ledger into an empty store and asserts the result equals the
-      CASE_MANAGER's case file; a test per consequence-producing act asserts one entry
-      per changed object follows the act's entry.
+      A rebuild-from-ledger check replays the CASE_MANAGER's ledger into an empty
+      store and asserts that the roster, every participant record (consent rows
+      included) and the embargo register equal the CASE_MANAGER's. It leaves out
+      only the termination cause a `Remove` does not carry (#4748) and the ids and
+      times of statuses an RM verdict replay builds (#4295). It runs after every
+      in-process exchange demo and every per-actor-store scenario; the
+      multi-container scenario demos are covered by those in-process equivalents.
+      `test/core/use_cases/received/test_rebuild_from_ledger.py` and
+      `test/demo/test_rebuild_from_ledger.py` pin it. A test per
+      consequence-producing act asserts that the act's own entry carries its whole
+      register step and that one entry per other changed record (each consent row
+      as its own `Create` or `Update`) follows it.
     relationships:
     - rel_type: refines
       spec_id: CLP-07-002
