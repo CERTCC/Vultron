@@ -28,8 +28,7 @@ Provides:
   :attr:`~EmbargoAnswerNotRecordedNode.is_repeat` set, when the sender's row
   for the embargo already holds the answer.
 - :func:`case_manager_admits_embargo_answer_guard` — the guard behind the
-  CASE_MANAGER gate, for a received answer tree's ``precondition_guards`` and
-  for the Accept handler's preflight.
+  CASE_MANAGER gate, for a received answer tree's ``precondition_guards``.
 """
 
 import py_trees

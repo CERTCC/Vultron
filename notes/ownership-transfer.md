@@ -117,9 +117,10 @@ before the Offer's state is read (#4437).
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".
 - **Only the Case Owner's Offer is recorded** (CM-21-019): the Offer's sender is
-  checked before the expiry pre-step, its first write (`rule_refusal`), so a
-  stranger's Offer leaves no entry, forward or expiry. A redelivery is recognised
-  by the recorded entry's `actor`, not the role, because the sender may have
+  checked by the tree's sender guard before the expiry clock decision, its first
+  write (CLP-10-025), so a stranger's Offer leaves no entry, forward or expiry. A
+  redelivery is recognised by the recorded entry's `actor`, not the role, because
+  the sender may have
   handed ownership on since (`SenderIsOfferingCaseOwnerNode`, HP-01-003).
 
 ### The Accepting Actor's Replica Updates via the CASE_MANAGER's Announce

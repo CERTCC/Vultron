@@ -1432,13 +1432,13 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
     """
     children = list(factory(**kwargs).children)
     names = [c.name for c in children]
-    # A CASE_OWNER guard is composed with the closure check ahead of the
-    # role check (CM-23-018), so the role node sits inside that sequence.
+    # The check may sit inside a child: a rule whose two sides differ composes
+    # a SenderRuleGuard holding the side checks (HP-01-008), and a CASE_OWNER
+    # guard puts the closure check ahead of the role check (CM-23-018).
     guard_index = next(
         i
         for i, c in enumerate(children)
-        if isinstance(c, guard_type)
-        or any(isinstance(n, guard_type) for n in c.iterate())
+        if any(isinstance(n, guard_type) for n in c.iterate())
     )
     commit_index = names.index("GuardedCommitCaseLedgerEntryBT")
     assert guard_index == 2, (

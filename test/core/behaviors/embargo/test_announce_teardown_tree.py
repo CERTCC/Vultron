@@ -108,6 +108,9 @@ def _make_remove_event(
             id_=activity_id,
             type_="Remove",
             actor=sender,
+            # Addressed to the receiver, so the addressee door guard admits
+            # it (HP-01-005).
+            to=[receiver],
             object_=embargo.id_,
             origin=case.id_,
             context=case.id_,

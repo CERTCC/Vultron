@@ -34,7 +34,7 @@ in a way that state-machine origin is not.
 |---|---|---|
 | Received and **not understood** | `Create(ProcessingFault)` | `RE` / `EE` / `CE` / `GE` |
 | Received, understood, **declined** | `as:Reject` | `RE` / `EE` / `CE` / `GE` |
-| Received, understood, **needs explanation** | `Create(Note)` / `Add(Note → Case)` | `RE` / `EE` / `CE` / `GE` |
+| Received, understood, **needs explanation** | `Add(Note → Case)` | `RE` / `EE` / `CE` / `GE` |
 
 {% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
 
