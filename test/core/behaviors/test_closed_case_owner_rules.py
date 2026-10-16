@@ -55,6 +55,9 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.case_participant_role import (
+    OfferCaseParticipantRoleReceivedUseCase,
+)
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
@@ -118,6 +121,11 @@ CASE_OWNER_USE_CASES: dict[str, tuple[type, ContextFor, bool]] = {
     ),
     "reject-offer-case-participant": (
         RejectOfferCaseParticipantReceivedUseCase,
+        _plain,
+        True,
+    ),
+    "offer-participant-role": (
+        OfferCaseParticipantRoleReceivedUseCase,
         _plain,
         True,
     ),
