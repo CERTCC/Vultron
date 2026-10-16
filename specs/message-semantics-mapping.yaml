@@ -3,8 +3,10 @@ title: Protocol Shorthand to MessageSemantics Mapping
 description: 'Authoritative normative bridge from protocol message shorthand labels (RS, EP, CV, etc.) used in behavioral
   conformance specs to their MessageSemantics enum values and corresponding AS2 wire-format specifications. Each entry provides
   one row in the three-hop chain: shorthand to MessageSemantics enum value to AS2 wire form. The correspondence is
-  many-to-many in both directions: several shorthands may collapse onto one wire activity (CV/CF onto vf_state, CP/CX/CA onto
-  pxa_state, EV/EJ/EC onto EP/ER/EA), and one shorthand may expand across several wire activities (GI). Shorthands with
+  many-to-many in both directions: several shorthands may collapse onto one wire
+  activity (CV/CF onto vfState, CP/CX/CA onto
+  pxaState, EV/EJ/EC onto EP/ER/EA), and one shorthand may expand across several wire
+  activities (GI). Shorthands with
   no dedicated dispatch value are the protocol-layer error and acknowledgment signals; these are not unimplemented — the
   purposes they name are served by mechanisms partitioned on a different axis, specified normatively in MSM-05.'
 scope:
@@ -330,7 +332,8 @@ groups:
     kind: protocol
     statement: Protocol shorthand `CV` (Vendor Aware) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
       its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
-      encodes vendor awareness in the `vf_state` field (`CS_vf`), advancing the vendor-path ladder from `vf` to `Vf`.
+      encodes vendor awareness in the `vfState` field (`CS_vf`), advancing the
+      vendor-path ladder from `vf` to `Vf`.
     rationale: 'The V dimension is participant-scoped, not case-scoped: it records whether a *specific* vendor is aware. Per
       ADR-0075 there is no case-level V/F/D state, and a case-level `Add(CaseStatus)` cannot express which vendor became
       aware, which is the purpose of the V dimension in MPCVD. Corrected from an earlier revision that mapped `CV` to
@@ -339,7 +342,8 @@ groups:
       Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` is paired with an
       `ActivityPattern` matching `Add(ParticipantStatus)[target=CaseParticipant]`, and
-      that `as_ParticipantStatus` declares `vf_state` while `as_CaseStatus` does not.
+      that `as_ParticipantStatus` declares `vf` (`vfState`) while `as_CaseStatus` does
+      not.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-004
@@ -352,7 +356,8 @@ groups:
     kind: protocol
     statement: Protocol shorthand `CF` (Fix Ready) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
       its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
-      encodes fix readiness in the `vf_state` field (`CS_vf`), advancing the vendor-path ladder from `Vf` to `VF`.
+      encodes fix readiness in the `vfState` field (`CS_vf`), advancing the vendor-path
+      ladder from `Vf` to `VF`.
     rationale: 'The F dimension shares the participant-scoped vendor-path sub-machine with V (`CS_vf`: `vf` → `Vf` → `VF`),
       so fix readiness is recorded against the specific vendor that produced the fix. Same scope reasoning as MSM-03-001.
       Corrected from an earlier revision that mapped `CF` to `ADD_CASE_STATUS_TO_CASE` with a nonexistent `fix_ready` payload
@@ -361,7 +366,7 @@ groups:
       Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
       `Add(ParticipantStatus)[target=CaseParticipant]`, and that fix readiness is
-      carried by `as_ParticipantStatus.vf_state` rather than by any `as_CaseStatus`
+      carried by `as_ParticipantStatus.vf` rather than by any `as_CaseStatus`
       field.
     relationships:
     - rel_type: derives_from
@@ -375,16 +380,18 @@ groups:
     kind: protocol
     statement: Protocol shorthand `CD` (Fix Deployed) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
       its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
-      encodes deployment in the `d_state` field (`CS_d`), advancing the deployer-path ladder from `d` to `D`.
+      encodes deployment in the `dState` field (`CS_d`), advancing the deployer-path
+      ladder from `d` to `D`.
     rationale: 'The D dimension is participant-scoped on the *deployer*, and ADR-0075 split it into its own sub-machine
-      (`CS_d`) precisely because its scope differs from the vendor path. `as_ParticipantStatus.d_state` is `None` for
+      (`CS_d`) precisely because its scope differs from the vendor path.
+      `as_ParticipantStatus.d` is `None` for
       non-DEPLOYER participants (structurally enforced). Corrected from an earlier revision that mapped `CD` to
       `ADD_CASE_STATUS_TO_CASE` with a nonexistent `fix_deployed` payload field; see ADR-0083.'
     verification: >-
       Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
       `Add(ParticipantStatus)[target=CaseParticipant]`, and that deployment is
-      carried by `as_ParticipantStatus.d_state` rather than by any `as_CaseStatus`
+      carried by `as_ParticipantStatus.d` rather than by any `as_CaseStatus`
       field.
     relationships:
     - rel_type: derives_from
@@ -1031,8 +1038,8 @@ groups:
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
       owner's decision for the case, so neither meaning depends on who sent the message
       (ADR-0122). Refusing a doomed activation before the commit keeps the ledger free of an
-      entry that replicas, replaying in OBSERVED mode, would apply without the CASE_MANAGER's
-      P/X/A check.
+      entry that replicas, copying its step, would apply without the CASE_MANAGER's P/X/A
+      check (CM-23-016).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
       Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
@@ -1171,7 +1178,7 @@ groups:
     rationale: Dispatch alone does not tell occasions of one entry apart. When this
       group was planned, the vendor awareness, fix readiness and fix deployed sections
       rendered the same example, which dispatches correctly and carries the vendor
-      awareness `vf_state`, so the other two showed a value that is not theirs. Each
+      awareness `vfState`, so the other two showed a value that is not theirs. Each
       occasion needs an example that shows what makes it that occasion. A state
       context is the receiver's state, not part of the payload, so no example can
       carry it.

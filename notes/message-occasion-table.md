@@ -63,7 +63,7 @@ lookup table is mostly links.
 - The column states the `sender_entitlement` the received use case declares,
   because that is what another implementation must satisfy, and it cannot drift.
   It is often broader than CVD convention (any participant may send
-  `Add(ParticipantStatus)` with `vf_state` `VF`), so an occasion may add a
+  `Add(ParticipantStatus)` with `vfState` `VF`), so an occasion may add a
   "usually" note typed as `CVDRole` values: "a participant (usually: vendor)"
   (MSM-08-005).
 - "A participant" (`PARTICIPANT`) is any actor with a participant record on the

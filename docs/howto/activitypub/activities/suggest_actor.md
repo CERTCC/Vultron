@@ -27,7 +27,7 @@ If you hold the Case Owner role and the decision is yours alone, invite the acto
 
 ## The exchange
 
-The sequence diagram below shows the full round trip, from recommendation to invitation or refusal.
+The sequence diagram below shows the full round trip, from recommendation to invitation or the Case Owner's `Reject`, which the CASE_MANAGER ledgers like an `Accept`.
 The recommender never contacts the Case Owner or the invitee directly.
 
 ```mermaid

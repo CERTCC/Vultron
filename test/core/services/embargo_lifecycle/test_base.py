@@ -304,45 +304,6 @@ def test_reject_embargo_proposal_strict_proposed_pxa_allowed(
     assert result.em_after == EM.NONE
 
 
-@pytest.mark.spec("EMB-04-002")
-@pytest.mark.spec("CM-23-016")
-@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
-def test_reject_embargo_proposal_observed_revise_pxa_changes_nothing(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
-    pxa_state: CS_pxa,
-) -> None:
-    """OBSERVED reject from REVISE+PXA leaves the register as it is.
-
-    The CASE_MANAGER answered that Reject with ET (EMB-04-002); the
-    termination entry that follows cancels the revision on replay, as it
-    did on the CASE_MANAGER, so the case never returns to the prior terms.
-    """
-    owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_)
-    case.append_case_status(pxa=pxa_state)
-    active = _make_embargo(dl, case.id_)
-    embargo = _make_embargo(dl, case.id_, days=90)
-    activate(case, active.id_)
-    propose(case, embargo.id_)
-    dl.save(case)
-    write_consent_rows(dl, case)
-
-    lifecycle = EmbargoLifecycle(persistence=dl)
-    result = lifecycle.reject_embargo_proposal(
-        case_id=case.id_,
-        embargo_id=embargo.id_,
-        actor_id=owner.id_,
-        transition_mode=TransitionMode.OBSERVED,
-    )
-
-    assert result.em_after == EM.REVISE
-    assert not result.case_changed
-    stored = dl.read_case(case.id_)
-    assert stored is not None
-    assert stored.proposed_embargo_ids == [embargo.id_]
-    assert stored.active_embargo_id == active.id_
-
-
 # ---------------------------------------------------------------------------
 # Issue #2712: the service always stores the case it changed (caller_owns_em_io
 # removed); EM is derived from the stored register (ADR-0122)
@@ -391,7 +352,6 @@ class TestServiceAlwaysWritesEmState:
             case_id=case.id_,
             embargo_id=embargo.id_,
             actor_id=owner.id_,
-            transition_mode=TransitionMode.STRICT,
         )
 
         assert result.em_after == EM.NONE

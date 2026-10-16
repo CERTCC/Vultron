@@ -14,9 +14,8 @@ revision-negotiation shorthands onto their initial-negotiation counterparts:
 context rather than by a payload field (MSM-02).
 
 An embargo proposal carries its `EmbargoEvent` inline on the `Invite` that proposes it.
-This implementation does not support a separate `Create(Event)` ahead of the `Invite`.
-An inbox refuses one as an unrecognized activity and changes nothing.
-Whether the protocol should support that separate `Create` is an [open question](../../topics/future_work/open_questions.md).
+The protocol names `Invite(Event)` as the one form; a received `Create(Event)` is not a protocol message, and its receiver must not change the case file because of it ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
+This implementation's inbox refuses one as an unrecognized activity and changes nothing (VAM-01-010).
 
 ## Occasions
 
@@ -33,11 +32,15 @@ Whether the protocol should support that separate `Create` is an [open question]
 
 {% include-markdown "./_occasions/sections/announce-embargo.md" %}
 
-`Announce(Event)` also carries notice of a change significant enough to warrant attention beyond the corresponding `CaseStatus` message, such as an embargo being removed from a case.
-
 When the CASE_MANAGER activates a revision that ends no later than the embargo it replaces, it sends `Announce(Event)` with the new terms directly to each bound signatory that no longer receives ledger entries (removed, or at Report Management (RM) `CLOSED`).
 That participant applies the new terms only when the CASE_MANAGER sent them.
 A revision that ends later sends no such notice, because those participants never agreed to it.
+
+{% include-markdown "./_occasions/sections/announce-embargo-termination.md" %}
+
+- **Recipient:** every active participant other than the CASE_MANAGER and any Closed Participant, after the CASE_MANAGER applies a Case Owner's `Remove(Event)` that arrives before the end time (EMB-19-001, CM-10-004, CM-23-004).
+  A termination the CASE_MANAGER starts itself, or one at the end time, sends no `Announce(Event)`.
+  A bound signatory that no longer receives ledger entries gets the CASE_MANAGER's own `Remove(Event)` instead (CM-31-009).
 
 {% include-markdown "./_occasions/sections/embargo-proposal-rejection.md" %}
 

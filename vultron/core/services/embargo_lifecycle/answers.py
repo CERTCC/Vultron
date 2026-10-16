@@ -29,7 +29,7 @@ the active embargo is re-evaluated only when the owner activates a revision
 import logging
 
 from vultron.core.models.embargo_register import rejection_changes
-from vultron.core.predicates.embargo import pxa_is_embargo_eligible
+from vultron.core.predicates.embargo import rejection_ends_embargo
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -37,7 +37,10 @@ from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +103,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         case_id: str,
         embargo_id: str,
         actor_id: str | None = None,
-        transition_mode: TransitionMode = TransitionMode.STRICT,
     ) -> EmbargoLifecycleResult:
         """Apply the case owner's rejection of an open proposal (ER / EJ).
 
@@ -112,22 +114,13 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         case and keeps any prior terms; refusing them as a participant is a
         ``Reject(Invite(EmbargoEvent))``.
 
-        Per EMB-04-002, a rejection that would return the case to the prior
-        terms when P/X/A is set never does: ``STRICT`` refuses it — callers
-        end the embargo through the termination trigger (ET) instead —
-        and ``OBSERVED`` changes nothing, because the termination entry the
-        CASE_MANAGER committed after it cancels the revision (EP-08-004).
-        Both nodes so end with the revision ``CANCELLED`` (ADR-0124).
+        The CASE_MANAGER's ``STRICT`` decision.  A replica copies the
+        committed ``REJECT`` step instead (CM-23-016, ADR-0124).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
             embargo_id: ID of the proposed ``EmbargoEvent`` being rejected.
             actor_id: ID of the deciding actor (logging only).
-            transition_mode: ``STRICT`` (default) or ``OBSERVED``.  In
-                ``OBSERVED`` mode an embargo that is no longer an open
-                proposal here is a no-op: the replica has already applied
-                what followed.  So is the rejection of the last revision
-                with P/X/A set (EMB-04-002).
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -135,56 +128,35 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronValidationError: If *embargo_id* is not an open proposal
-                of the case (``STRICT`` mode).
+                of the case.
             VultronInvalidStateTransitionError: If the rejection would
                 return the case to the prior terms with P/X/A set
-                (``STRICT`` mode, EMB-04-002).
+                (EMB-04-002): callers end the embargo through the
+                termination trigger (ET) instead.
         """
         case = self._read_case(case_id)
         em_before = case.em_state
         if embargo_id not in case.proposed_embargo_ids:
-            if transition_mode == TransitionMode.OBSERVED:
-                return self._unchanged_result(em_before)
             raise VultronValidationError(
                 f"Embargo '{embargo_id}' is not an open proposal of case"
                 f" '{case_id}': nothing to reject."
             )
 
-        # EP-08-001: another open proposal keeps the negotiation open.
-        pxa_state = case.current_status.pxa.state
-        if (
-            case.proposed_embargo_ids == [embargo_id]
-            and case.active_embargo_id is not None
-            and not pxa_is_embargo_eligible(pxa_state)
-        ):
-            # EMB-04-002: with P/X/A set the case must be terminated (ET),
-            # not returned to the prior terms.
-            if transition_mode == TransitionMode.OBSERVED:
-                # The CASE_MANAGER answered this Reject with ET; the
-                # termination entry that follows cancels the revision
-                # (EP-08-004), so replay reaches its register (ADR-0124).
-                logger.info(
-                    "OBSERVED mode: rejection of last revision '%s' on case"
-                    " '%s' with P/X/A set (%s) changes nothing; the"
-                    " termination that follows cancels it (EMB-04-002)",
-                    embargo_id,
-                    case_id,
-                    pxa_state,
-                )
-                return self._unchanged_result(em_before)
-            self._assert_pxa_embargo_eligible(
-                pxa_state,
-                case_id,
-                "reject embargo revision (terminate the embargo (ET) when"
-                " P/X/A is set)",
+        if rejection_ends_embargo(case, embargo_id):
+            raise VultronInvalidStateTransitionError(
+                f"Cannot reject embargo revision '{embargo_id}' on case"
+                f" '{case_id}': public awareness, exploit publication, or"
+                " attack observation is set"
+                f" (pxa_state='{case.current_status.pxa.state.name}');"
+                " terminate the embargo (ET) instead (EMB-04-002)."
             )
-        if not self._apply_register_step(
+        # STRICT: a refused step raises, so the step is always applied here.
+        self._apply_register_step(
             case,
             rejection_changes(embargo_id),
-            transition_mode=transition_mode,
+            transition_mode=TransitionMode.STRICT,
             actor_id=actor_id,
-        ):
-            return self._unchanged_result(em_before)
+        )
         self._persistence.save(case)
 
         em_after = case.em_state

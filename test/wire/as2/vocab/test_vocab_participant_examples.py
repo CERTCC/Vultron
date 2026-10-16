@@ -80,9 +80,9 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertIsNotNone(obj.attributed_to)
         self.assertIsNotNone(obj.context)
 
-        self.assertIn(obj.rm_state, RM)
-        if obj.vf_state is not None:
-            self.assertIn(obj.vf_state, CS_vf)
+        self.assertIn(obj.rm.state, RM)
+        if obj.vf is not None:
+            self.assertIn(obj.vf.state, CS_vf)
 
         if obj.case_status is not None:
             self.assertIsInstance(obj.case_status, as_CaseStatus)
@@ -184,7 +184,6 @@ class TestVocabParticipantExamples(unittest.TestCase):
     def test_recommend_actor(self):
         activity = examples.recommend_actor()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
         case = examples.case()
         finder = examples.finder()
         coordinator = examples.coordinator()
@@ -195,7 +194,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.actor, finder.id_)
         self.assertEqual(activity.object_, coordinator)
         self.assertEqual(activity.target, case.id_)
-        self.assertEqual(activity.to, vendor.id_)
+        self.assertEqual(activity.to, examples.case_actor().id_)
 
     def test_accept_actor_recommendation(self):
         activity = examples.accept_actor_recommendation()

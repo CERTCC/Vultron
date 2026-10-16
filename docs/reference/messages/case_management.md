@@ -40,7 +40,7 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
 {% include-markdown "./_occasions/sections/add-report-to-case.md" %}
 
 - **Triggering transition:** none — a report can be added at any Report Management (RM) state.
-- **Who may send:** the CASE_MANAGER accepts it only from the Case Owner, and a participant replica accepts it only from the CASE_MANAGER.
+- **Who may send:** the CASE_MANAGER admits it only from the Case Owner, and a participant replica accepts it only from the CASE_MANAGER.
   Any other sender is refused and the report is not attached.
 - **Example artifact:** [add_report_to_case.json](../examples/add_report_to_case.json).
 
@@ -89,9 +89,9 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 
 {% include-markdown "./_occasions/sections/reject-case-ownership-transfer.md" %}
 
-- **Routing:** the refusal is addressed to the CASE_MANAGER, not to the actor that made the offer ([CM-21-010](../specs/protocol.md#cm-21-010)).
+- **Routing:** the `Reject` is addressed to the CASE_MANAGER, not to the actor that made the offer ([CM-21-010](../specs/protocol.md#cm-21-010)).
   The CASE_MANAGER acts on it only when it comes from the proposed owner of an open offer it recorded ([CM-21-013](../specs/protocol.md#cm-21-013)).
-  It records the refusal in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../specs/protocol.md#cm-21-012)).
+  It records the `Reject` in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../specs/protocol.md#cm-21-012)).
 - **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/protocol.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [reject_case_ownership_transfer.json](../examples/reject_case_ownership_transfer.json).
@@ -191,7 +191,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   `Add(CaseParticipant)` does not seat a new member: an actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
 - **Triggering transition:** none — the participant's record loses its removal fact.
 - **Who may send:**
-  The CASE_MANAGER accepts it only from the Case Owner.
+  The CASE_MANAGER admits it only from the Case Owner.
   It refuses an `Add` that names a participant that is not removed, a participant that never joined the case, or no participant of the case.
   It also refuses an `Add` whose participant gives an `attributedTo` other than the actor of the record it names, because each replica finds its own copy of the record by that actor.
   A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
@@ -212,7 +212,7 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
 - **Triggering transition:** none — the participant's record gains a removal fact.
 - **Target:** the case MUST be named in `target`; a `Remove` that names the case only in `origin` is not recognized as this message.
 - **Who may send:**
-  The CASE_MANAGER accepts it only from the Case Owner.
+  The CASE_MANAGER admits it only from the Case Owner.
   It refuses a removal of the CASE_MANAGER's or the Case Owner's participant, and a removal that names no participant of the case.
   It also refuses a removal whose participant gives an `attributedTo` other than the actor of the record it names, because each replica finds its own copy of the record by that actor.
   A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
@@ -238,12 +238,12 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
 
 ## Create Case Participant { #create-case-participant }
 
-`Create(CaseParticipant)` is not an occasion: this implementation does not support it as a message an actor sends.
+`Create(CaseParticipant)` is not an occasion: a received `Create(CaseParticipant)` is not a protocol message, because a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
 
 - **Protocol role:** it is the snapshot shape of the CASE_MANAGER's `create_case_participant` ledger entry.
   The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
   Replicas copy the record from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
   An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
-- **On receipt:** an inbox refuses a direct `Create(CaseParticipant)` as an unrecognized activity and changes nothing.
+- **On receipt:** an inbox refuses a direct `Create(CaseParticipant)` as an unrecognized activity and changes nothing (VAM-01-010).
 - **Triggering transition:** none — object construction.
 - **Example artifact:** [create_participant.json](../examples/create_participant.json), the snapshot shape as the case actor authors it.

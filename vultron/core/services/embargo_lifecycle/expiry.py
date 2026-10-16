@@ -14,7 +14,8 @@
 """Lazy RSVP-deadline enforcement (EMB-17, CM-28): operations with no EM transition.
 
 An invitation's deadline is read when something asks about it, not by a
-timer: ``assess_invite_expiry`` and ``pending_invitations`` read rows,
+timer: ``assess_invite_expiry``, ``pending_invitations`` and
+``overdue_invitations`` read rows,
 and ``detect_and_apply_expiry`` moves an unanswered ``INVITED`` row to
 ``TIMED_OUT`` (the pocket veto).  The CASE_MANAGER's own expiry and honour of
 a late Accept commit the row before writing it, through the one apply function
@@ -174,6 +175,33 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
                     continue
                 pending.append((participant, row.embargo_id))
         return pending
+
+    def overdue_invitations(
+        self, case_id: str, now: datetime
+    ) -> list[tuple[CaseParticipant, str]]:
+        """Every pending invitation on *case_id* whose RSVP deadline passed.
+
+        Read-only.  The :meth:`pending_invitations` pairs — ``INVITED`` rows
+        on an open proposal or the embargo in force — whose deadline is at or
+        before *now* (CM-28-001), in the same order.  A row with no deadline
+        never lapses on its own.  The CASE_MANAGER's sweep (CM-28-015)
+        expires each pair; a row already ``TIMED_OUT`` is not ``INVITED``, so
+        a repeat sweep finds nothing to expire.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase``.
+            now: The CASE_MANAGER's clock reading the deadlines are compared
+                against.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+        """
+        overdue: list[tuple[CaseParticipant, str]] = []
+        for participant, embargo_id in self.pending_invitations(case_id):
+            deadline = participant.rsvp_deadline_for(embargo_id)
+            if deadline is not None and now >= deadline:
+                overdue.append((participant, embargo_id))
+        return overdue
 
     def detect_and_apply_expiry(
         self,

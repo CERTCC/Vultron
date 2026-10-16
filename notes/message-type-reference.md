@@ -29,6 +29,7 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/participant-embargo-consent.md
   - notes/case-communication-model.md
+  - notes/embargo-lifecycle.md
 ---
 
 # Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them
@@ -51,12 +52,13 @@ before claiming a shorthand maps to a wire form.
 
 - **RM moves have two wire expressions, and that is not an anomaly (ADR-0108).**
   The *act* is the report-scoped activity (`Accept(Offer(Report))` = `RV`); the
-  *declaration of resulting state* is `rm_state` on a participant-status
+  *declaration of resulting state* is `rmState` on a participant-status
   broadcast. A disagreement is flagged (RSH-06), not resolved by preferring one
   (RSH-08-002). Do not propose retiring either form.
 - **`EP` is `Invite(Event)[context=VulnerabilityCase]` and nothing else**
-  (MSM-02-001). `Announce(Event)` reports the terms in force and does not
-  propose, so it is not tagged `EP`. The proposal carries its terms inline;
+  (MSM-02-001). `Announce(Event)` reports the terms in force, or that a Case
+  Owner's termination has been applied, and does not propose, so it is not
+  tagged `EP`. The proposal carries its terms inline;
   a separate `Create(Event)` is not a protocol message (VAM-01-011, ADR-0137).
 - **`GI` is an open umbrella** (MSM-04-001/002). Do not write as though the
   current split-off set is complete, and do not count it in prose (MS-16-002).

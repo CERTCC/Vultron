@@ -207,6 +207,13 @@ A deadline past that end, whether sent explicitly or computed from the policy wi
 The floor gives way to the ceiling: the minimum is 72 hours or the time left in the embargo, whichever is shorter (EP-07-002).
 On day 28 of a 30-day embargo, the invitee has until day 30 to answer, not seven days.
 
+The case manager runs no timer; it notices a passed deadline the next time it handles an embargo activity for the case.
+At that point it moves each overdue `INVITED` row on an open proposal or the embargo in force to `TIMED_OUT`, and records each move in the case ledger (CM-28-015).
+It does so before it records the case owner's decision on a proposal, and before every other embargo activity it receives or sends.
+The case owner learns of each expiry from that ledger entry, so it decides on the embargo knowing who never answered.
+The case manager checks only once it knows the sender may send the activity, and before it judges the activity itself, so the expiry is recorded even when the activity is then refused.
+One exception: when the case manager refuses an Invite or an `Accept` because the vulnerability is already public, exploited or attacked (EMB-02-002), it does not check for overdue invitations; the next embargo activity it admits does.
+
 A late `Accept` is never refused merely for being late (EMB-17-001).
 The case manager instead asks whether the accepted embargo is still the case's current one, and the three answers are all different:
 
@@ -227,7 +234,9 @@ Embargo messages route through the case manager like every other case-scoped mes
 A Participant does not announce its embargo stance to the other Participants itself.
 
 Teardown is the exception worth naming, because its addressing is prescribed.
-The `Announce(EmbargoEvent)` that follows a teardown must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
+The `Announce(EmbargoEvent)` that follows a teardown the Case Owner asked for must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every active Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
+A Closed Participant is left out, as it is from all case content (CM-23-004).
+A teardown the case manager starts itself, including one at the embargo's end time, sends no announcement.
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
 
 On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-006).

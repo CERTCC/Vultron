@@ -24,6 +24,11 @@ The General shorthands cover messages not tied to a specific state change.
 
 {% include-markdown "./_occasions/sections/suggest-actor-to-case.md" heading-offset=1 %}
 
+{% include-markdown "./_occasions/sections/request-invite-actor-to-case.md" heading-offset=1 %}
+
+For an actor with no record on the case, or an invitee that has not answered (CM-11-015), the CASE_MANAGER sends the Stub Invite directly, because the Case Owner who would decide on a suggestion is the sender (CM-17-007).
+An actor already on the case or already awaiting the Case Owner's decision gets the same answer a suggestion gets (CM-16-008, CM-16-009).
+
 {% include-markdown "./_occasions/sections/offer-case-participant.md" heading-offset=1 %}
 
 The original recommendation's ID is carried in the Offer's `origin`.
@@ -43,7 +48,7 @@ For the `CVDRole` delegation that uses a dedicated object type, see [Offer case 
 
 {% include-markdown "./_occasions/sections/remove-note-from-case.md" heading-offset=1 %}
 
-- **Who may send:** the CASE_MANAGER accepts `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
+- **Who may send:** the CASE_MANAGER admits `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
   Any other sender is refused, and the note stays in the case.
   A participant replica accepts it only from the CASE_MANAGER, because replicas learn of the change from the ledger entry the CASE_MANAGER fans out.
 

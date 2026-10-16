@@ -150,7 +150,7 @@ def test_create_wire_shaped_storable_record_reads_back_as_core(dl):
     """A wire-shaped StorableRecord reads back as a core ParticipantStatus.
 
     Write-side normalisation was removed with extra="forbid" (#2940): the row
-    is stored verbatim (flat rm_state), and the wire→core projection now happens
+    is stored verbatim (wire ``rmState``), and the wire→core projection now happens
     on read.  dl.read() must therefore return a core ParticipantStatus whose
     RM ladder position is preserved — a wire-shaped input must not corrupt what
     a core reader sees.
@@ -160,7 +160,7 @@ def test_create_wire_shaped_storable_record_reads_back_as_core(dl):
     wire_data = {
         "id_": "urn:uuid:ps-wire-create-001",
         "type_": "ParticipantStatus",
-        "rm_state": "RECEIVED",
+        "rmState": "RECEIVED",
         "case_engagement": True,
         "context": "urn:uuid:test-case-01",
     }
@@ -199,7 +199,7 @@ def test_update_wire_shaped_storable_record_reads_back_as_core(dl):
     wire_data = {
         "id_": "urn:uuid:ps-wire-update-001",
         "type_": "ParticipantStatus",
-        "rm_state": "RECEIVED",
+        "rmState": "RECEIVED",
         "case_engagement": True,
         "context": "urn:uuid:test-case-02",
     }

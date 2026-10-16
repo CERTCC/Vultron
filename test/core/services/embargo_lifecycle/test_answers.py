@@ -493,33 +493,6 @@ def test_record_embargo_rejection_strict_invalid_state_raises(
     assert _consents_of(dl, owner_p.id_) == {embargo.id_: "INVITED"}
 
 
-def test_reject_embargo_proposal_observed_not_open_is_a_no_op(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
-) -> None:
-    """OBSERVED: the owner's rejection of no open proposal is a no-op.
-
-    A replica that no longer holds the proposal as open has already applied
-    what followed; there is nothing to force, so the case stays at EM NONE
-    with an empty register.
-    """
-    owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_)
-    embargo = _make_embargo(dl, case.id_)
-
-    lifecycle = EmbargoLifecycle(persistence=dl)
-    result = lifecycle.reject_embargo_proposal(
-        case_id=case.id_,
-        embargo_id=embargo.id_,
-        actor_id=owner.id_,
-        transition_mode=TransitionMode.OBSERVED,
-    )
-
-    assert result.case_changed is False
-    untouched = cast(VulnerabilityCase, dl.read(case.id_))
-    assert untouched.em_state == EM.NONE
-    assert untouched.embargo_register == []
-
-
 # ---------------------------------------------------------------------------
 # Tests: a decided proposal leaves the open-proposal records (EP-08-003)
 # ---------------------------------------------------------------------------

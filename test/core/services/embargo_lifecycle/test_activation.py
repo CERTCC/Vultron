@@ -271,12 +271,12 @@ def test_terminate_clears_every_open_revision_of_the_terminated_embargo(
 def test_terminate_in_observed_mode_clears_every_open_revision_too(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The replica path: the teardown replay node runs this in OBSERVED mode.
+    """``OBSERVED`` termination decides every open proposal, as ``STRICT`` does.
 
-    ``ClearActiveEmbargoNode`` / ``ApplyEmbargoTeardownNode`` call
-    ``terminate_active_embargo(transition_mode=OBSERVED)``, so the rule that
-    termination decides every open proposal holds on every replica with no
-    node of its own — this pins that the mode makes no difference.
+    The replica's teardown slot (``ApplyEmbargoTeardownNode``) no longer
+    calls this: it copies the ``TERMINATE`` step, which cancels every open
+    proposal (ADR-0124, #4714).  This pins only that the lifecycle method's
+    mode makes no difference to the rule.
     """
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
