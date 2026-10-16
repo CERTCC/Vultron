@@ -862,12 +862,19 @@ class TriggerActivityPort(Protocol):
         target_actor_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
+        in_reply_to: str | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
 
         Canonical role-delegation wire format (ADR-0039).  ``role`` is the
         :class:`CVDRole` being offered; ``target_actor_id`` is the Actor URI
         receiving the offer; ``case_id`` supplies the VulnerabilityCase context.
+        The Case Owner addresses its Offer to the CASE_MANAGER (CM-33-001).
+        The CASE_MANAGER's forward to the target passes ``attributed_to`` (the
+        Case Owner, CM-24-005), ``in_reply_to`` (the recorded Offer's id) and
+        a derived ``id_``, so a retry rebuilds the same forward (OX-06-002).
 
         Returns ``(activity_id, activity_dict)``.
         """
