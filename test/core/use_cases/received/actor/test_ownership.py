@@ -45,12 +45,14 @@ from vultron.core.use_cases.received.actor.ownership import (
     RejectCaseOwnershipTransferReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     undo_case_ownership_transfer_activity,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -1018,6 +1020,46 @@ def test_redelivered_answered_offer_is_skipped_while_a_newer_one_is_open(
     assert late.disposition is HandlerDisposition.SKIPPED
     assert _event_types(dl) == entries_before
     assert trigger_activity.offer_case_ownership_transfer.call_count == 2
+
+
+@pytest.mark.spec("CM-24-007")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "#4859: ForwardOfferToTransfereeNode reports a post-commit fault as"
+        " REFUSED, and NoOpenOwnershipOfferNode skips the redelivery before"
+        " the forward runs"
+    ),
+)
+def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
+    make_payload,
+):
+    """The fault is the CASE_MANAGER's, not a refusal; a redelivery sends it."""
+    case_id = "https://example.org/cases/case_ot_forward_fails"
+    dl, _, trigger_activity = _ownership_offer_harness(make_payload, case_id)
+    trigger_activity.offer_case_ownership_transfer.side_effect = [
+        RuntimeError("down"),
+        ("https://example.org/activities/forwarded", {}),
+    ]
+    offer = offer_case_ownership_transfer_activity(
+        cast(VulnerabilityCase, dl.read(case_id)),
+        target=as_Service(id_=_COORDINATOR_ID, name="Transferee"),
+        actor=_VENDOR_ID,
+        to=[_CASE_ACTOR_ID],
+        id_="https://example.org/activities/offer_fails",
+    )
+
+    with pytest.raises(VultronBTInternalError):
+        _redeliver_offer(dl, make_payload, offer, trigger_activity)
+    entries_after_first = _event_types(dl)
+
+    again = _redeliver_offer(dl, make_payload, offer, trigger_activity)
+
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries_after_first
+    calls = trigger_activity.offer_case_ownership_transfer.call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs["id_"] == calls[1].kwargs["id_"]
 
 
 @pytest.mark.spec("CM-21-016")
