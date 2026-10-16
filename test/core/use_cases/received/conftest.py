@@ -137,7 +137,7 @@ def seed_case_participant(
         id_=f"{case.id_}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=case.id_,
-        case_roles=roles or [CVDRole.FINDER],
+        case_roles=roles or [CVDRole.REPORTER],
     )
     # Attached first, so it takes a consent row for every embargo already
     # in the register (ADR-0122), as production attaches before storing.

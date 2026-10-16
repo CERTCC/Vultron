@@ -90,13 +90,13 @@ def _seed_existing(
         id_=PARTICIPANT_ID,
         attributed_to=INVITEE_ID,
         context=CASE_ID,
-        case_roles=[CVDRole.FINDER],
+        case_roles=[CVDRole.REPORTER],
         participant_statuses=[
             ParticipantStatus(
                 context=CASE_ID,
                 attributed_to=INVITEE_ID,
                 rm=RmDimension(state=rm),
-                cvd_role=[CVDRole.FINDER],
+                cvd_role=[CVDRole.REPORTER],
             )
         ],
         joined=joined,
@@ -128,7 +128,7 @@ class TestSeating:
     def test_non_vendor_invitee_has_no_vf_dimension(
         self, scenario: BTTestScenario
     ) -> None:
-        scenario.assert_success(_run(scenario, ["FINDER"]))
+        scenario.assert_success(_run(scenario, ["REPORTER"]))
 
         status = _participant(scenario).participant_statuses[0]
         assert status.vf is None
@@ -221,7 +221,7 @@ class TestIdempotency:
 
         participant = _participant(scenario)
         assert participant.joined is True
-        assert participant.case_roles == [CVDRole.FINDER]
+        assert participant.case_roles == [CVDRole.REPORTER]
         assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
 
     @pytest.mark.spec("CM-11-015")
@@ -244,7 +244,7 @@ class TestIdempotency:
 
         participant = _participant(scenario)
         assert participant.joined is False
-        assert participant.case_roles == [CVDRole.FINDER]
+        assert participant.case_roles == [CVDRole.REPORTER]
         assert len(participant.participant_statuses) == 1
         assert participant.participant_statuses[0].rm.state == RM.ACCEPTED
         case = _case(scenario)
@@ -275,6 +275,6 @@ class TestIdempotency:
         participant = _participant(scenario)
         assert participant.rm_closed
         assert participant.joined is joined
-        assert participant.case_roles == [CVDRole.FINDER]
+        assert participant.case_roles == [CVDRole.REPORTER]
         assert len(participant.participant_statuses) == 1
         assert participant.embargo_consents == []

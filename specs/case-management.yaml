@@ -1893,7 +1893,7 @@ groups:
     kind: protocol
     statement: >-
       Step 5 of the case initialization sequence MUST add the reporter as a
-      `CaseParticipant` with `RM.ACCEPTED` and `CVDRole.FINDER`/`REPORTER`, and seed
+      `CaseParticipant` with `RM.ACCEPTED` and `CVDRole.REPORTER`, and seed
       them as a signatory on any active embargo.
     rationale: The reporter is added after the Create(Case) notification is flushed
       (CM-14-011) so that the case object exists on the reporter's system before the
@@ -6003,7 +6003,7 @@ groups:
       embargo step (CM-14-010) replaced by CM-32-007 or CM-32-008 and its reporter steps
       (CM-14-011, CM-14-012) skipped, and MUST seat only the CASE_MANAGER and the Owner, the
       Owner holding `CASE_OWNER` at `RM.RECEIVED` (CM-14-009). Authoring the child's report
-      MUST NOT give the splitter a Finder or Reporter role. These two are the participants
+      MUST NOT give the splitter the Reporter role. These two are the participants
       seated by case initialization for CM-10-004, and a participant MUST NOT be invited to
       the child before its creation entry is committed (CM-14-007).
     rationale: >-
@@ -6011,7 +6011,7 @@ groups:
       joins the child by accepting its stub Invite (ADR-0114).
     verification: >-
       A test marked `CM-32-011` splits a case and asserts the child's roster holds exactly the
-      CASE_MANAGER and the Owner, with no `FINDER` or `REPORTER` role on the Owner.
+      CASE_MANAGER and the Owner, with no `REPORTER` role on the Owner.
     stories:
     - story_2022_104
     relationships:

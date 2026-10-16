@@ -47,9 +47,21 @@ from vultron.core.models._helpers import require_future_aware
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.enums.roles import CVDRole
+from vultron.enums.roles import CVDRole, parse_role, validate_roles
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_optional_roles(value: object) -> object:
+    """Route a trigger body's ``roles`` through :func:`validate_roles`.
+
+    ``None`` stays ``None`` (no roles supplied).  Anything else is parsed as
+    every other role path parses it, so a retired value such as ``"finder"``
+    is refused with its ADR-0078 reason, in any case.
+    """
+    if value is None:
+        return None
+    return validate_roles(value, field_name="roles")
 
 
 class ReportTriggerRequest(BaseModel):
@@ -315,6 +327,11 @@ class SuggestActorToCaseRequest(CaseTriggerRequest):
     suggested_actor_id: UriString
     roles: list[CVDRole] | None = None
 
+    @field_validator("roles", mode="before")
+    @classmethod
+    def _parse_roles(cls, value: object) -> object:
+        return _parse_optional_roles(value)
+
 
 class AcceptCaseInviteRequest(BaseModel):
     """Request body for the accept-case-invite trigger endpoint.
@@ -380,6 +397,11 @@ class InviteActorToCaseRequest(CaseTriggerRequest):
     invitee_id: UriString
     roles: list[CVDRole] | None = None
 
+    @field_validator("roles", mode="before")
+    @classmethod
+    def _parse_roles(cls, value: object) -> object:
+        return _parse_optional_roles(value)
+
 
 class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
     """Request body for the offer-case-participant-role trigger endpoint (ADR-0039).
@@ -392,6 +414,13 @@ class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
 
     target_actor_id: UriString
     role: CVDRole = CVDRole.CASE_MANAGER
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def _parse_role(cls, value: object) -> object:
+        if isinstance(value, str) and not isinstance(value, CVDRole):
+            return parse_role(value)
+        return value
 
 
 class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):

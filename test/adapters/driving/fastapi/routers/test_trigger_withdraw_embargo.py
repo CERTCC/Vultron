@@ -62,7 +62,7 @@ def _case_with_signatory(
     participant = as_CaseParticipant(
         attributed_to=actor_id,
         context=case.id_,
-        case_roles=[CVDRole.FINDER],
+        case_roles=[CVDRole.REPORTER],
     )
     case.add_participant(participant)
     participant.embargo_consents = [
@@ -114,7 +114,9 @@ def test_trigger_withdraw_embargo_with_no_embargo_in_force_returns_409(
     dl.create(case)
     _add_case_manager(case, dl)
     participant = as_CaseParticipant(
-        attributed_to=actor.id_, context=case.id_, case_roles=[CVDRole.FINDER]
+        attributed_to=actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.REPORTER],
     )
     case.add_participant(participant)
     dl.create(participant)
