@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Receiver-side action nodes for Leave(VulnerabilityCase) processing.
+"""Action nodes for Leave(VulnerabilityCase) processing.
 
 Implements the role-discriminating effects of a received Leave activity, split
 by semantic concern (BTND-07-004):
@@ -43,6 +43,11 @@ by semantic concern (BTND-07-004):
   an owner close blocked by a live embargo (CM-23-011), and the optional reply
   to a Leave that arrives after ``case_fully_closed`` (CM-23-013).
 
+- :mod:`.refuse` — :class:`RefuseOwnerLeaveWhileEmbargoedNode`, the sender-side
+  refusal of the Case Owner's own ``leave-case`` call while its replica records
+  an embargo in force (TRIG-13-003).  It is the only node here that runs on the
+  leaving actor, not the CASE_MANAGER.
+
 Re-exported here so existing importers keep working unchanged.
 
 Per ADR-0050, ADR-0051, and specs/case-management.yaml CM-23-002/CM-23-003.
@@ -62,6 +67,9 @@ from vultron.core.behaviors.case.nodes.leave.fully_closed import (
 from vultron.core.behaviors.case.nodes.leave.record import (
     CommitRMClosureEntriesNode,
 )
+from vultron.core.behaviors.case.nodes.leave.refuse import (
+    RefuseOwnerLeaveWhileEmbargoedNode,
+)
 from vultron.core.behaviors.case.nodes.leave.settle import (
     ExpirePendingInvitesOnCloseNode,
 )
@@ -74,4 +82,5 @@ __all__ = [
     "EmitRejectCloseCaseNode",
     "ExpirePendingInvitesOnCloseNode",
     "LATE_LEAVE_DECLINE",
+    "RefuseOwnerLeaveWhileEmbargoedNode",
 ]

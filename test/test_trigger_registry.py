@@ -219,6 +219,17 @@ def test_withdraw_case_ownership_transfer_trigger_is_registered() -> None:
     }
 
 
+@pytest.mark.spec("TRIG-13-001")
+def test_leave_case_is_general_purpose_and_its_predecessors_are_gone() -> None:
+    """leave-case replaces close-report and the demo close-case (ADR-0145)."""
+    verbs = {row.verb for row in entries()}
+    assert lookup_entry("leave-case").exposure is (
+        TriggerExposure.GENERAL_PURPOSE
+    )
+    assert "close-report" not in verbs
+    assert "close-case" not in verbs
+
+
 @pytest.mark.spec("TRIG-11-007")
 def test_offer_case_ownership_transfer_trigger_accepts_end_time() -> None:
     (row,) = [

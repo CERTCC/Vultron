@@ -63,7 +63,8 @@ Sub-modules
   ``verify_case_closure_recorded``).
 - :mod:`~vultron.demo.helpers.closure` — ``close_case_owner_last`` and
   ``CaseLeaver``: the closure phase every scenario shares, the Case Owner
-  leaving last (CM-23-015).
+  leaving last (CM-23-015); ``wait_for_owner_replica_embargo_state``, the
+  gate before an owner's ``leave-case`` (TRIG-13-003).
 """
 
 from vultron.demo.helpers.actor_roles import (
@@ -74,6 +75,7 @@ from vultron.demo.helpers.actor_roles import (
 from vultron.demo.helpers.closure import (
     CaseLeaver,
     close_case_owner_last,
+    wait_for_owner_replica_embargo_state,
 )
 from vultron.demo.helpers.embargo import (
     make_embargo_event,

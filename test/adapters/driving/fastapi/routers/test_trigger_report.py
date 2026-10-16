@@ -208,20 +208,12 @@ def _seed_owner_case(dl, actor_id, report_id):
 
 
 @pytest.fixture
-def accepted_report(dl, report, actor):
-    """Report ready for close: actor is CASE_OWNER and RM.ACCEPTED is seeded (BTND-10-001)."""
+def owner_case_report(dl, report, actor):
+    """A report a case holds; actor is its CASE_OWNER at RM.ACCEPTED."""
     _seed_owner_case(dl, actor.id_, report.id_)
     dl.create(
         VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
     )
-    return report
-
-
-@pytest.fixture
-def closed_report(dl, report, actor):
-    """Put the report into RM.CLOSED state on a case; actor is CASE_OWNER."""
-    _seed_owner_case(dl, actor.id_, report.id_)
-    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED))
     return report
 
 
@@ -620,133 +612,38 @@ def test_trigger_reject_report_non_report_offer_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-# ===========================================================================
-# Tests for trigger/close-report
-# ===========================================================================
-
-
 @pytest.mark.spec("CM-23-019")
-def test_trigger_close_report_on_a_case_returns_409(
-    client_triggers, actor, offer, accepted_report
+def test_trigger_reject_report_on_an_owner_case_returns_409_and_queues_nothing(
+    client_triggers, dl, actor, offer, owner_case_report
 ):
-    """Once a case holds the report, close-report fails closed with 409.
+    """Once a case holds the report, even its Case Owner's reject-report is 409.
 
-    The Case Owner closes the case by ``Leave(VulnerabilityCase)``
-    (close-case), never by ``Close(Report)``.
+    The owner closes the case by ``Leave(VulnerabilityCase)`` through
+    ``leave-case``, never by ``Close(Report)``, so nothing is queued.
     """
+    outbox_before = set(dl.outbox_list())
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={"offer_id": offer.id_},
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": offer.id_, "note": "Closing."},
     )
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
-    assert "Leave(VulnerabilityCase)" in str(data["detail"])
-
-
-def test_trigger_close_report_missing_offer_id_returns_422(
-    client_triggers, actor
-):
-    """TB-03-001: Request missing offer_id returns HTTP 422."""
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={},
-    )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-
-
-def test_trigger_close_report_ignores_unknown_fields(
-    client_triggers, actor, offer, accepted_report
-):
-    """TB-03-002: Unknown fields in request body are silently ignored.
-
-    The body is accepted, so the answer is the on-case refusal, not a 422.
-    """
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={"offer_id": offer.id_, "unexpected_field": "ignored"},
-    )
-    assert resp.status_code == status.HTTP_409_CONFLICT
-
-
-def test_trigger_close_report_with_note_is_accepted(
-    client_triggers, actor, offer, accepted_report
-):
-    """TB-03-003: Optional note field is accepted (the refusal is the case's)."""
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={"offer_id": offer.id_, "note": "Resolved upstream."},
-    )
-    assert resp.status_code == status.HTTP_409_CONFLICT
-
-
-def test_trigger_close_report_unknown_actor_returns_404(client_triggers):
-    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
-    resp = client_triggers.post(
-        "/actors/nonexistent/trigger/close-report",
-        json={"offer_id": "urn:uuid:any"},
-    )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
-    data = resp.json()
-    assert data["detail"]["error"] == "NotFound"
-
-
-def test_trigger_close_report_unknown_offer_returns_404(
-    client_triggers, actor
-):
-    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={"offer_id": "urn:uuid:nonexistent"},
-    )
-    assert resp.status_code == status.HTTP_404_NOT_FOUND
-
-
-@pytest.mark.spec("CM-23-019")
-def test_trigger_close_report_on_a_case_queues_nothing(
-    client_triggers, dl, actor, offer, accepted_report
-):
-    """The refused close-report sends nothing."""
-    outbox_before = set(dl.outbox_list())
-
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={"offer_id": offer.id_},
-    )
-    assert resp.status_code == status.HTTP_409_CONFLICT
+    assert "leave-case" in str(data["detail"])
     assert set(dl.outbox_list()) == outbox_before
 
 
-@pytest.mark.spec("CM-23-019")
-def test_trigger_close_report_already_closed_on_a_case_names_leave(
-    client_triggers, actor, offer, closed_report
-):
-    """An already-CLOSED report on a case gets the on-case 409.
+# ===========================================================================
+# trigger/close-report is retired (ADR-0145)
+# ===========================================================================
 
-    The case check runs first, so the reason names
-    ``Leave(VulnerabilityCase)``, not the duplicate close.
-    """
+
+@pytest.mark.spec("TRIG-13-001")
+def test_trigger_close_report_route_is_gone(client_triggers, actor, offer):
+    """No close-report route: an actor leaves a case with leave-case."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": offer.id_},
-    )
-    assert resp.status_code == status.HTTP_409_CONFLICT
-    data = resp.json()
-    assert data["detail"]["error"] == "Conflict"
-    assert "Leave(VulnerabilityCase)" in str(data["detail"])
-
-
-def test_trigger_close_report_non_report_offer_returns_404(
-    client_triggers, actor, non_report_object
-):
-    """close-report returns 404 when no VultronOfferRecord exists for the offer_id.
-
-    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
-    ID has no record → VultronNotFoundError → HTTP 404.
-    """
-    resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/close-report",
-        json={"offer_id": non_report_object.id_},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 

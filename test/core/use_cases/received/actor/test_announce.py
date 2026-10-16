@@ -305,7 +305,8 @@ class TestAnnounceFirstContactTrustGap:
         result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "untrusted" in result.reason
+        assert result.reason is not None
+        assert "No CASE_MANAGER is known" in result.reason
         # CLP-10-018: the refused Announce is still archived, and no case row
         # was seeded from it.
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))

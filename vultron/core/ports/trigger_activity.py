@@ -145,7 +145,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(Offer)`` close-report activity.
+        """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity.
 
         Returns ``(activity_id, activity_dict)``.
         """

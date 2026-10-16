@@ -127,14 +127,13 @@ from its role (CLP-09).
   `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A repeat of an act that would
   close it again (`Leave`, a `Reject` of its Invite) is `SKIPPED`, with no entry,
   whatever its activity id: the closed-sender door guard asks `closure_recorded()`
-  after the post-close boundary (the factory's `closed_sender` argument; the
-  Invite handlers still use `closed_sender_preflight()` until #4773). The Case
-  Owner's `Leave` is the exception until `case_fully_closed`: it closes the case
-  too, so its redelivery runs again to finish a closure a failed first delivery
-  left part-way (`case_owner_completes=True`, CM-23-002). Any other invitee reply
-  from it is `REFUSED` there too, since its guard is `INVITEE`, not the shared
-  predicate. A `Close(Report)` on a case is refused from every sender, closed or
-  not (CM-23-019).
+  after the post-close boundary (the factory's `closed_sender` argument), and the
+  handler reads it with `closed_sender_verdict()`. The Case Owner's `Leave` is the
+  exception until `case_fully_closed`: it closes the case too, so its redelivery
+  runs again to finish a closure a failed first delivery left part-way
+  (`case_owner_completes=True`, CM-23-002). Any other invitee reply from it is
+  `REFUSED` at the same door, before its `INVITEE` guard runs. A `Close(Report)`
+  on a case is refused from every sender, closed or not (CM-23-019).
 - **A closed Case Owner holds no `CASE_OWNER` standing.** The factory composes the
   closure check ahead of the role check for that kind (`_case_owner_node()`), and
   leaves `SenderIsCaseOwnerNode` asking the role alone, since the Leave, status,

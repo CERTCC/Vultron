@@ -30,6 +30,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.embargo import copy_commit
 from vultron.core.behaviors.embargo.copy_commit import (
     PlannedEmbargoEntry,
     commit_and_apply_embargo_entries,
@@ -211,6 +212,75 @@ class TestCaseManagerCommitsThenApplies:
         assert bystander.consent_for(net.initial_embargo_id) == _S.DECLINED
         owner = _record(net, MANAGER, OWNER)
         assert owner.consent_for(net.initial_embargo_id) == _S.AGREED
+
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AttributeError,
+        reason="CLP-07-015: no step finishes an act's owed entries yet. #4855.",
+    )
+    def test_the_next_run_commits_the_entries_a_failed_commit_left_owed(
+        self, monkeypatch
+    ):
+        net = _net("cc-finish")
+        dl = net.stores[MANAGER]
+        failing = [True]
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            allowed=1,
+            when=lambda kw: (
+                failing[0]
+                and kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            ),
+        )
+        entries = [
+            _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
+            _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+        ]
+        with pytest.raises(RuntimeError):
+            commit_and_apply_embargo_entries(dl, net.case_id, entries)
+        failing[0] = False
+
+        copy_commit.finish_owed_embargo_entries(dl, net.case_id)  # type: ignore[attr-defined]
+
+        assert (
+            committed_event_types(dl, net.case_id).count(
+                UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            )
+            == 2
+        )
+        owner = _record(net, MANAGER, OWNER)
+        assert owner.consent_for(net.initial_embargo_id) == _S.DECLINED
+
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AttributeError,
+        reason="CLP-07-015: no step finishes an act's owed entries yet. #4855.",
+    )
+    def test_the_next_run_commits_nothing_for_an_act_that_never_committed(
+        self, monkeypatch
+    ):
+        net = _net("cc-discard")
+        dl = net.stores[MANAGER]
+        held = _rows(_record(net, MANAGER, BYSTANDER))
+        failing = [True]
+        fail_commits(monkeypatch, commit_tree, when=lambda kw: failing[0])
+        with pytest.raises(RuntimeError):
+            commit_and_apply_embargo_entries(
+                dl,
+                net.case_id,
+                [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+            )
+        failing[0] = False
+
+        copy_commit.finish_owed_embargo_entries(dl, net.case_id)  # type: ignore[attr-defined]
+
+        assert UPDATE_EMBARGO_CONSENT_EVENT_TYPE not in committed_event_types(
+            dl, net.case_id
+        )
+        assert _rows(_record(net, MANAGER, BYSTANDER)) == held
 
     def test_a_first_commit_that_fails_changes_nothing(self, monkeypatch):
         net = _net("cc-fail-first")

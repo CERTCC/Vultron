@@ -374,7 +374,7 @@ class TestFccvExtensionMilestoneAssertions:
         }
 
         with (
-            patch.object(ActorSession, "close_case"),
+            patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
             patch.object(demo, "close_case_owner_last") as mock_m8,
             patch.object(

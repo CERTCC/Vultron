@@ -58,8 +58,10 @@ _OWNER = "https://example.org/actors/case-owner"
 class TestNoteUseCases:
     """Tests for note management handlers."""
 
-    def test_create_note_stores_note(self, monkeypatch, make_payload):
-        """create_note persists the Note to the DataLayer."""
+    @pytest.mark.spec("HP-01-008")
+    def test_create_note_naming_no_case_is_refused(self, make_payload):
+        """No sender has standing outside a case, so a note naming none is
+        refused and not stored (HP-01-006, HP-01-008)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -82,21 +84,28 @@ class TestNoteUseCases:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        assert result.disposition == HandlerDisposition.APPLIED
-
-        stored = dl.get(note.type_.value, note.id_)
-        assert stored is not None
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.get(note.type_.value, note.id_) is None
 
     def test_create_note_idempotent(self, monkeypatch, make_payload):
-        """create_note skips storing a duplicate Note."""
+        """A redelivered Create(Note) stores and attaches the note once."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_cn0",
+            name="Idempotent Create Case",
+            attributed_to="https://example.org/users/vendor",
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_participant(dl, case, "https://example.org/users/finder")
+        dl.create(case)
 
         note = as_Note(
             id_="https://example.org/notes/note2",
             content="Duplicate note",
+            context=case.id_,
         )
         activity = as_Create(
             actor="https://example.org/users/finder",
@@ -104,16 +113,18 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        dl.create(note)
-        CreateNoteReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        for _ in range(2):
+            result = CreateNoteReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+            assert result.disposition == HandlerDisposition.APPLIED
 
-        stored = dl.get(note.type_.value, note.id_)
-        assert stored is not None
+        assert dl.get(note.type_.value, note.id_) is not None
+        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.notes.count(note.id_) == 1
 
     @pytest.mark.spec("CLP-07-013")
     def test_create_note_attaches_to_case_when_context_set(
@@ -134,6 +145,8 @@ class TestNoteUseCases:
         # RSH-08-003/#3814: attaching the note to the case is now
         # CASE_MANAGER-gated, so the store's own actor must hold the role.
         seed_store_owner_as_case_manager(dl, case)
+        # The sender posts as an active participant (CM-23-018).
+        seed_case_participant(dl, case, "https://example.org/users/finder")
         dl.create(case)
 
         note = as_Note(
@@ -179,8 +192,11 @@ class TestNoteUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn2",
             name="Idempotent Case",
+            attributed_to="https://example.org/users/vendor",
             notes=[note_id],
         )
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_participant(dl, case, "https://example.org/users/finder")
         dl.create(case)
 
         note = as_Note(
@@ -194,13 +210,14 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(
+        result = CreateNoteReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+        assert result.disposition == HandlerDisposition.APPLIED
         refreshed = dl.read(case.id_)
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
@@ -239,6 +256,9 @@ class TestNoteUseCases:
         dl.create(case_mgr_participant)
         case.case_participants.append(case_mgr_participant.id_)
         case.actor_participant_index[case_actor_id] = case_mgr_participant.id_
+        # The tests' sender attaches notes as an active participant
+        # (CM-23-018, HP-01-006).
+        seed_case_participant(dl, case, "https://example.org/users/finder")
         dl.create(case)
         return case
 
@@ -785,15 +805,17 @@ class TestNoteUseCases:
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
-    def test_create_note_for_unknown_case_writes_no_attachment(
-        self, make_payload
-    ):
-        """A Create(Note) whose context names a case this actor lacks attaches
-        nothing: the receiver is not that case's CASE_MANAGER (and does not
-        even hold it), so the attach is gated out (RSH-08-003, #3814).  The
-        Note object is still archived; the attachment, if any, arrives through
-        the case's ledger.  No Regime-1 anomaly is logged for the absent case
-        (manager_case_may_be_absent, ADR-0087 Regime 3)."""
+    @pytest.mark.spec("PCR-03-001")
+    def test_create_note_for_unknown_case_is_refused(self, make_payload):
+        """A Create(Note) whose context names a case this actor lacks is
+        refused: the store cannot tell whether the sender is that case's
+        CASE_MANAGER, from whom alone a replica takes case content
+        (PCR-03-001).  Nothing is stored, and the Create is archived
+        (CLP-10-018)."""
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -815,10 +837,11 @@ class TestNoteUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        # Nothing was attached (the case is absent and the actor is not its
-        # CASE_MANAGER); the tree still succeeds, writing no case state.
-        assert result.disposition == HandlerDisposition.APPLIED
-        assert dl.read("https://example.org/cases/no-such-case") is None
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "holds no case" in result.reason
+        assert dl.read(note.id_) is None
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
     def test_add_note_to_unknown_case_is_refused(self, make_payload):
@@ -882,12 +905,10 @@ class TestNoteUseCases:
             name="Log Entry Cascade Case",
             attributed_to=author_id,
         )
-        case.actor_participant_index[author_id] = (
-            "https://example.org/participants/p-le1-vendor"
-        )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-le1-finder"
-        )
+        # The sender attaches the note as an active participant
+        # (CM-23-018, HP-01-006).
+        seed_case_participant(dl, case, author_id)
+        seed_case_participant(dl, case, participant_id)
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -974,12 +995,10 @@ class TestNoteUseCases:
             name="No Sync Port Case",
             attributed_to=author_id,
         )
-        case.actor_participant_index[author_id] = (
-            "https://example.org/participants/p-le2-vendor"
-        )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-le2-finder"
-        )
+        # The sender attaches the note as an active participant
+        # (CM-23-018, HP-01-006).
+        seed_case_participant(dl, case, author_id)
+        seed_case_participant(dl, case, participant_id)
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (

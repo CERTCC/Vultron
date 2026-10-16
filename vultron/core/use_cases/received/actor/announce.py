@@ -7,12 +7,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
 )
-from vultron.core.behaviors.case.nodes.announce import (
-    AnnounceSenderTrustedNode,
-)
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
+    SenderRule,
 )
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -31,10 +28,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    guard_refusal,
-    verdict_from_bt,
-)
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +40,12 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     Per MV-10-004, if the case already exists locally, the announcement is
     accepted without overwriting the existing record (idempotent).
 
+    Only the case's CASE_MANAGER sends it, and every receiver, a participant
+    replica, takes it from the CASE_MANAGER alone (PCR-03-001): the one its
+    bootstrap recorded on a completed ``ReportCaseLink`` (CBT-02-003), else
+    the one its replica names, else the trust anchor its stub Invite
+    recorded (PCR-03-004).  With none of them, the Announce is refused.
+
     Seeding the case anchors its genesis hash, so an
     ``Announce(CaseLedgerEntry)`` parked in the gap buffer during the
     pre-genesis window (SYNC-15-004) may now extend the chain.  The tree
@@ -55,8 +55,8 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     tree here.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4785", "no sender check for actor announcement"
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+        SenderEntitlementKind.CASE_MANAGER
     )
 
     def __init__(
@@ -81,7 +81,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         request = self._request
         case_obj = getattr(request.activity, "object_", None)
         tree = create_announce_vulnerability_case_received_tree(
-            case_obj=case_obj, request=request
+            case_obj=case_obj,
+            request=request,
+            sender_rule=self.sender_entitlement,
         )
         gap_buffer = resolve_ledger_gap_buffer(
             self._gap_buffer, request.receiving_actor_id
@@ -104,11 +106,6 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             gap_buffer=gap_buffer,
             inbox_hand_back=self._inbox_hand_back,
         )
-        # The guards' own reasons are the refusal (PCR-03-004, CLP-10-018).
-        if (
-            refusal := guard_refusal(tree, AnnounceSenderTrustedNode)
-        ) is not None:
-            return refusal
         verdict = verdict_from_bt(
             tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
         )

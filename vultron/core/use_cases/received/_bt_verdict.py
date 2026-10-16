@@ -93,6 +93,7 @@ from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
+from vultron.core.behaviors.sender_guard import closed_sender_turned_away
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -440,6 +441,59 @@ def rm_declaration_verdict(
     return verdict
 
 
+def closed_sender_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    result: BTExecutionResult,
+    *,
+    closes: bool,
+    label: str,
+) -> HandlerResult | None:
+    """The verdict owed a sender the tree's closed-sender door turned away.
+
+    The door (``closed_sender`` on the receive-tree factory) stops the tree
+    when the case already records the sender's closure, with nothing
+    committed or sent (CM-23-018):
+
+    - an act that would close it again (*closes*: a ``Leave``, a ``Reject``
+      of a stub or full-case Invite) changes nothing, so it is ``SKIPPED``,
+      whatever its activity id (ID-05-003);
+    - any other act is ``REFUSED``: the sender may act on nothing further.
+
+    ``None`` when the run did not end at the door.  The handler asks this
+    before any other reading of the run's failure.
+
+    A door that found the closure but whose run failed on an internal error
+    (the Case Owner check of a ``case_owner_completes`` door crashing, say)
+    raises: a crash is never read as a repeat or a refusal (ARCH-15-001).
+
+    Raises:
+        VultronWiringError: *tree* was not built by
+            :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
+        VultronBTInternalError: The door found the closure, but the run
+            failed on an internal error.
+    """
+    root = _root(tree)
+    if not isinstance(root, ReceivedActivityTree):
+        raise VultronWiringError(
+            f"closed_sender_verdict: '{root.name}' is not a"
+            " received-activity tree, so it has no closed-sender door"
+            " (CM-23-018)"
+        )
+    closed = closed_sender_turned_away(root)
+    if closed is None:
+        return None
+    if result.internal_error:
+        raise VultronBTInternalError(f"{label}: {result.feedback_message}")
+    if closes:
+        return HandlerResult.skipped(
+            f"{label}: {closed} — a repeat of a closing act,"
+            " nothing to apply (ID-05-003)"
+        )
+    return HandlerResult.refused(
+        f"{label}: {closed} — it may act on nothing further"
+    )
+
+
 def guard_refusal(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     node_type: type[py_trees.behaviour.Behaviour],
@@ -679,6 +733,7 @@ __all__ = [
     "addressee_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
+    "closed_sender_verdict",
     "door_guards_admitted",
     "failure_reason",
     "find_named",
@@ -692,6 +747,7 @@ __all__ = [
     "not_case_manager_refusal",
     "post_close_refusal",
     "pxa_refusal_verdict",
+    "rm_declaration_verdict",
     "taken_diversion",
     "verdict_from_bt",
 ]

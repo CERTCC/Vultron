@@ -276,7 +276,7 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
 
     assert outcome.status == InboxOutcomeStatus.REJECTED
     assert outcome.failure_reason is not None
-    assert "untrusted sender" in outcome.failure_reason
+    assert "No CASE_MANAGER is known" in outcome.failure_reason
 
 
 @pytest.mark.spec("CLP-07-013", "CLP-02-013")

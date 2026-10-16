@@ -409,7 +409,7 @@ class TransitionRMtoClosed(_ReportPhaseRMTransition):
     """Transition the report to RM.CLOSED in report phase.
 
     Updates ``ReportCaseLink.rm_state`` to ``RM.CLOSED``.
-    Used by both the reject-report and close-report trigger workflows.
+    Used by the reject-report trigger workflow.
     Case-**optional** for the same reason as
     :class:`TransitionRMtoInvalid`: a report can be closed without ever having
     been promoted to a case.
