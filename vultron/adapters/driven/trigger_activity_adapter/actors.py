@@ -658,22 +658,31 @@ class _ActorsMixin:
         target_actor_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
+        in_reply_to: str | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
 
         The canonical role-delegation wire format introduced by ADR-0039.
-        Replaces the deprecated :meth:`offer_case_manager_role` for new senders.
+        *attributed_to* and *in_reply_to*, when given, make it the
+        CASE_MANAGER's forward of a recorded Offer (CM-33-001); a given *id_*
+        is kept so a retry rebuilds the same activity (OX-06-002).
 
         Returns ``(activity_id, activity_dict)``.
         """
         case = _case_for_wire(self._dl, case_id)
         target = as_Actor(id_=target_actor_id)
+        extra: dict[str, Any] = _addressing(actor, to, id_)
+        if attributed_to is not None:
+            extra["attributed_to"] = attributed_to
+        if in_reply_to is not None:
+            extra["in_reply_to"] = in_reply_to
         activity = offer_case_participant_role_activity(
             role=role,
             target_actor=target,
             case=case,
-            actor=actor,
-            to=to,
+            **extra,
         )
         return _create_and_seal(
             self._dl, activity, "offer_case_participant_role"

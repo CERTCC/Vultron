@@ -2,11 +2,11 @@
 
 !!! info "Accept case participant role"
 
-    Accepts the offered role. The actor holds the role from then on.
+    Accepts the offered role. The participant holds the role once the Case Manager records the acceptance.
 
-    - **When…** an actor accepts a role offered to it on the case
+    - **When…** a participant accepts a role offered to it on the case
     - **Send:** `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
-    - **Send to:** a participant
+    - **Send to:** the case manager
     - **Sent by:** not yet checked
     - **Reference:** [Accept case participant role](../../case_management.md#accept-case-participant-role)
 

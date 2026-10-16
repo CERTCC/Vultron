@@ -33,6 +33,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.case_participant_received import (
     EmitParticipantRemovalNoticeNode,
     RemoveCaseParticipantFromCaseReceivedNode,
@@ -58,9 +61,14 @@ from vultron.core.behaviors.sync.nodes.embargo_backfill import (
 logger = logging.getLogger(__name__)
 
 
+def _missing_ids(message: str) -> str:
+    """The refusal of a move naming no participant or no case (CLP-10-018)."""
+    return f"{message} is missing its participant id or case id"
+
+
 def create_add_case_participant_received_tree(
-    participant_id: str,
-    case_id: str,
+    participant_id: str | None,
+    case_id: str | None,
     sender_id: str,
     claimed_actor_id: str | None = None,
     activity_id: str | None = None,
@@ -100,6 +108,13 @@ def create_add_case_participant_received_tree(
     and its backfill waits for its consent (CM-31-013).  At a replica every
     gated stage skips: intake is its only write (RSH-08-003).
 
+    An ``Add`` naming no participant or no case is refused by the same
+    tree's guard instead (``ActivityIncompleteNode``), so either way the
+    delivery runs one tree and is archived (CLP-10-005, CLP-10-018).  An
+    ``Add`` for a case this store does not hold passes the sender guard as
+    the bootstrap window and skips every CASE_MANAGER-gated stage; the
+    handler reads that gate as ``REFUSED``, unknown case (HP-01-005).
+
     Args:
         participant_id: URI of the ``CaseParticipant`` the ``Add`` names.
         case_id: URI of the case.
@@ -116,8 +131,13 @@ def create_add_case_participant_received_tree(
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
     """
+    name = "AddCaseParticipantReceivedBT"
+    if participant_id is None or case_id is None:
+        return create_incomplete_activity_received_tree(
+            name, _missing_ids("Add(CaseParticipant, Case)")
+        )
     root = create_receive_activity_tree(
-        name="AddCaseParticipantReceivedBT",
+        name=name,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -158,8 +178,8 @@ def create_add_case_participant_received_tree(
 
 
 def create_remove_case_participant_received_tree(
-    participant_id: str,
-    case_id: str,
+    participant_id: str | None,
+    case_id: str | None,
     sender_id: str,
     removal_activity_id: str,
     claimed_actor_id: str | None = None,
@@ -190,6 +210,9 @@ def create_remove_case_participant_received_tree(
     At a replica every gated stage skips: intake is its only write
     (RSH-08-003).
 
+    A removal naming no participant or no case is refused by the same tree's
+    guard instead, as for the ``Add`` tree.
+
     Args:
         participant_id: URI of the ``CaseParticipant`` the removal names.
         case_id: URI of the case.
@@ -205,8 +228,13 @@ def create_remove_case_participant_received_tree(
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
     """
+    name = "RemoveCaseParticipantReceivedBT"
+    if participant_id is None or case_id is None:
+        return create_incomplete_activity_received_tree(
+            name, _missing_ids("Remove(CaseParticipant, Case)")
+        )
     root = create_receive_activity_tree(
-        name="RemoveCaseParticipantReceivedBT",
+        name=name,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

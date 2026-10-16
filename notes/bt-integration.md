@@ -346,9 +346,11 @@ runs something before intake. A tree that needs a branch ahead of the receipt
 commit uses an outer factory with `case_id=None` (intake, no commit) and an
 inner factory per arm that commits; the inner intake finds the archive and
 writes nothing. Intake archives nothing when the event carries no activity, so
-a semantic-registry entry must set `include_activity=True`. A handler that
-turns a delivery away before it can build its tree uses `refuse_after_intake`
-(`use_cases/received/_intake_only.py`).
+a semantic-registry entry must set `include_activity=True`. An activity that
+lacks a value its tree needs to be built (a case id, a participant id) is
+refused inside the one tree: its factory returns
+`create_incomplete_activity_received_tree` (intake, then an
+`ActivityIncompleteNode` guard), never a separate refusal run (CLP-10-005).
 
 **The factory commits only when given a `case_id`**, and CLP-10-013 requires a
 commit exactly when the received `(type, object)` pair is a canonical payload

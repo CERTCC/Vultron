@@ -62,6 +62,9 @@ sequenceDiagram
    Your container sends your own `Offer(Actor)` to the CASE_MANAGER, with the invited actor as its `object`, the case as its `target`, and the roles you offer in `suggestedRoles` (CM-17-007).
    With no roles given, the CASE_MANAGER assigns a non-empty default role list (CM-16-003).
    A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019).
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/request-invite-actor-to-case.md" %}
+
 2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox, with a case stub as its `target` rather than the case itself (CM-11-013, CM-17-001), with itself as the ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
    The trigger's `202` response means only that your `Offer` was queued, so watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
 

@@ -102,9 +102,10 @@ def test_get_actor_dl_passes_a_canonical_uri_through(
 ) -> None:
     """AC-1a: An already-canonical segment is used as-is.
 
-    ``canonical_actor_uri`` returns any id that already carries a scheme
-    unchanged, so the store is keyed by exactly the URI the caller named — no
-    double-prefixing into ``{base}/actors/https:/...``.
+    ``canonical_actor_uri`` keeps the authority and path of any id that
+    already carries a scheme, dropping only a trailing slash, so the store is
+    keyed by the URI the caller named — no double-prefixing into
+    ``{base}/actors/https:/...``.
     """
     actor = as_Service(id_=CANONICAL_URI, name="MyActor")
     myactor_dl.save(actor)

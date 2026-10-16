@@ -3,7 +3,9 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+import py_trees
+
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case import receive_report_case_tree
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
@@ -11,7 +13,6 @@ from vultron.core.behaviors.case.nodes import (
 )
 from vultron.core.behaviors.case.nodes.submit_report import (
     CheckOfferAddressedToReceiverNode,
-    submit_report_received_effects,
 )
 from vultron.core.behaviors.report import received_report_trees
 from vultron.core.behaviors.report.nodes.conditions import (
@@ -45,6 +46,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     node_failed,
     node_succeeded,
+    post_close_refusal,
     rm_declaration_verdict,
     verdict_from_bt,
 )
@@ -69,49 +71,24 @@ from vultron.core.behaviors.sender_entitlement import (
 logger = logging.getLogger(__name__)
 
 
-def _run_submit_report_case_creation(
-    dl: CasePersistence,
+def _submit_report_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
     request: SubmitReportReceivedEvent,
     receiving_actor_id: str,
-    report_id: str,
-    trigger_activity: "TriggerActivityPort | None" = None,
-    sync_port: "SyncActivityPort | None" = None,
-    actor_config: "ActorConfig | None" = None,
-    wire_render_port: "WireRenderPort | None" = None,
 ) -> HandlerResult:
-    """Run the receive-report BT once and classify its outcome (#2255).
+    """Classify the one ``Offer(Report)`` tree's outcome (#2255).
 
     The tree keeps the report, the Offer and the offer record, refuses an
-    Offer not addressed to the receiver (HP-01-005), and proposes the case.
-    A disabled ``auto_create_case`` gate and an already-sent proposal are
-    no-ops, and any other failure is this actor's own (a missing port, a
-    CaseActor that cannot be hosted), so it raises rather than refuses.
+    Offer not addressed to the receiver (HP-01-005), and, when the Offer
+    names a report, proposes the case.  A report-less Offer, a disabled
+    ``auto_create_case`` gate and an already-sent proposal are no-ops, and
+    any other failure is this actor's own (a missing port, a CaseActor that
+    cannot be hosted), so it raises rather than refuses — except the
+    post-close guard every received tree carries (CM-23-013).
     """
-    logger.info(
-        "Actor '%s' receiving report '%s' — running case-creation BT",
-        receiving_actor_id,
-        request.report_id,
-    )
-
-    bridge = BTBridge(
-        datalayer=dl,
-        trigger_activity=trigger_activity,
-        sync_port=sync_port,
-        wire_render_port=wire_render_port,
-    )
-    tree = receive_report_case_tree.create_receive_report_case_tree(
-        report_id=report_id,
-        offer_id=request.activity_id,
-        reporter_actor_id=request.actor_id,
-        actor_config=actor_config,
-        received_effects=submit_report_received_effects(request),
-    )
-    result = bridge.execute_with_setup(
-        tree,
-        actor_id=receiving_actor_id,
-        activity=request,
-    )
-
+    if (refusal := post_close_refusal(tree)) is not None:
+        return refusal
     guard = find_node(tree, CheckOfferAddressedToReceiverNode)
     if guard is not None and guard.misaddressed:
         return HandlerResult.refused(failure_reason(tree, result))
@@ -125,21 +102,30 @@ def _run_submit_report_case_creation(
         )
         return HandlerResult.skipped("auto_create_case disabled")
     verdict = verdict_from_bt(tree, result, label="ReceiveReportCaseBT")
+    report_id = request.report_id
     if verdict.disposition is HandlerDisposition.REFUSED:
         for err in result.errors or []:
             logger.error("  - %s", err)
         raise VultronBTInternalError(
             f"case proposal for report '{report_id}' failed: {verdict.reason}"
+            if report_id
+            else f"keeping the report-less Offer failed: {verdict.reason}"
+        )
+    if verdict.disposition is not HandlerDisposition.APPLIED:
+        return verdict
+    if not report_id:
+        # The tree kept the Offer and went no further.
+        return HandlerResult.skipped(
+            "Offer carries no report id; nothing to propose a case for"
         )
     if node_succeeded(tree, CheckProposalAlreadySentForReport):
         return HandlerResult.skipped(
             f"case proposal for report '{report_id}' already sent"
         )
-    if verdict.disposition is HandlerDisposition.APPLIED:
-        logger.info(
-            "✓ Case creation at RM.RECEIVED succeeded for report: %s",
-            request.report_id,
-        )
+    logger.info(
+        "✓ Case creation at RM.RECEIVED succeeded for report: %s",
+        report_id,
+    )
     return verdict
 
 
@@ -241,40 +227,25 @@ class SubmitReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        if not request.report_id:
-            # Keep the Offer (intake and the store node) and go no further.
-            tree = (
-                receive_report_case_tree.create_keep_offer_without_report_tree(
-                    submit_report_received_effects(request)
-                )
+        if request.report_id:
+            logger.info(
+                "Actor '%s' receiving report '%s' — running case-creation BT",
+                receiving_actor_id,
+                request.report_id,
             )
-            bridge = BTBridge(
-                datalayer=self._dl,
-                trigger_activity=self._trigger_activity,
-                wire_render_port=self._wire_render_port,
-                sync_port=self._sync_port,
-            )
-            result = bridge.execute_with_setup(
-                tree, actor_id=receiving_actor_id, activity=request
-            )
-            verdict = applied_or_raise(
-                tree, result, label="SubmitReportReceivedBT"
-            )
-            if verdict.disposition is HandlerDisposition.REFUSED:
-                return verdict  # the case is fully closed (CM-23-013)
-            return HandlerResult.skipped(
-                "Offer carries no report id; nothing to propose a case for"
-            )
-
-        return _run_submit_report_case_creation(
-            self._dl,
-            request,
-            receiving_actor_id,
-            request.report_id,
+        tree = receive_report_case_tree.create_submit_report_received_tree(
+            request, actor_config=self._actor_config
+        )
+        result = BTBridge(
+            datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
-            actor_config=self._actor_config,
             wire_render_port=self._wire_render_port,
+        ).execute_with_setup(
+            tree, actor_id=receiving_actor_id, activity=request
+        )
+        return _submit_report_verdict(
+            tree, result, request, receiving_actor_id
         )
 
 

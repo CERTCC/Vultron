@@ -6242,19 +6242,21 @@ groups:
     statement: >-
       The CASE_MANAGER MUST refuse a role Offer that carries no readable `CVDRole`, that
       offers `CVDRole.CASE_OWNER` or `CVDRole.CASE_MANAGER`, whose target is not a participant
-      in the case, or whose target already holds the offered role. A refused Offer MUST leave
-      no ledger entry and MUST NOT be forwarded; a missing role MUST NOT be read as any
-      default role.
+      in the case, whose target already holds the offered role, or whose target is the
+      CASE_MANAGER itself. A refused Offer MUST leave no ledger entry and MUST NOT be
+      forwarded; a missing role MUST NOT be read as any default role.
     rationale: >-
       A grant only adds a role, so an accepted CASE_OWNER or CASE_MANAGER offer would leave
       the case with two holders of a role it has exactly one of (CM-21-001, CM-02-001).
       Ownership moves by ownership transfer (CM-21); a CASE_MANAGER handoff moves ledger
-      authority and is not designed (#3362). The received use case once read a missing role
+      authority and is not designed (#3362). The CASE_MANAGER takes on no other role by
+      Offer: the forward of CM-33-001 would be addressed to itself (BT-17-008), and the
+      answer of CM-33-004 would go to itself. The received use case once read a missing role
       as CASE_MANAGER. See #4672.
     verification: >-
       A test marked `CM-33-003` delivers a role Offer for each refused shape, including one
-      whose `CaseParticipantRole` carries no role, and asserts `REFUSED` with no entry
-      committed and nothing queued.
+      whose `CaseParticipantRole` carries no role and one whose target is the CASE_MANAGER,
+      and asserts `REFUSED` with no entry committed and nothing queued.
     stories:
     - story_2022_035
     - story_2022_088

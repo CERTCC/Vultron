@@ -1,8 +1,9 @@
 """Use cases for Accept/Reject of the canonical role-delegation format (ADR-0039).
 
 Handles ``Accept(Offer(CaseParticipantRole, ...))`` and
-``Reject(Offer(CaseParticipantRole, ...))`` received by the offering actor
-after the target actor (or their CaseActor) responds to a role offer.
+``Reject(Offer(CaseParticipantRole, ...))``, which the target of a role offer
+addresses to the case's CASE_MANAGER (CM-33-004).  Recording the answer at the
+CASE_MANAGER (CM-33-005, CM-33-006) is #4703.
 See SE-08-003, ADR-0039.
 """
 
@@ -37,8 +38,8 @@ logger = logging.getLogger(__name__)
 class AcceptCaseParticipantRoleReceivedUseCase:
     """Handle acceptance of a canonical role-delegation offer (ADR-0039).
 
-    The offering actor receives this Accept from the target actor (or their
-    CaseActor representative).  Idempotently persists the activity and logs
+    The CASE_MANAGER receives this Accept from the target of the role offer
+    (CM-33-004).  Idempotently persists the activity and logs
     at INFO level.  See SE-08-003, ADR-0039.
     """
 
@@ -86,8 +87,8 @@ class AcceptCaseParticipantRoleReceivedUseCase:
 class RejectCaseParticipantRoleReceivedUseCase:
     """Handle rejection of a canonical role-delegation offer (ADR-0039).
 
-    The offering actor receives this Reject from the target actor (or their
-    CaseActor representative).  Logs at WARNING level.
+    The CASE_MANAGER receives this Reject from the target of the role offer
+    (CM-33-004).  Logs at WARNING level.
     See SE-08-003, ADR-0039.
     """
 

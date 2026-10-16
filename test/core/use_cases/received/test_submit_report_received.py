@@ -876,6 +876,54 @@ class TestSubmitReportDisposition:
         result, _ = self._run(to=[self.VENDOR_ID], report=False)
         assert result.disposition == HandlerDisposition.SKIPPED
 
+    @pytest.mark.spec("CLP-10-005")
+    @pytest.mark.parametrize("report", [True, False], ids=["report", "none"])
+    def test_offer_runs_one_tree(self, tree_runs, report):
+        """Proposing and keeping a report-less Offer are one tree (#4643)."""
+        self._run(to=[self.VENDOR_ID], report=report)
+        assert len(tree_runs) == 1
+
+    @pytest.mark.spec("CM-23-013")
+    def test_post_close_refusal_is_refused_before_either_arm(self):
+        """The post-close guard's refusal is ``REFUSED``, never raised.
+
+        The one verdict reads it before it looks at the report id, so the
+        report-proposing arm reports it the way the report-less arm always
+        did (CM-23-013, ADR-0095).  Pinned on the verdict itself: a report
+        Offer names no case, so no fully closed case can reach either arm
+        end to end.
+        """
+        from unittest.mock import MagicMock
+
+        import py_trees
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTExecutionResult
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+        from vultron.core.use_cases.received.report import (
+            _submit_report_verdict,
+        )
+
+        guard = CaseOpenToExternalWritesNode(case_id=None)
+        guard.status = Status.FAILURE
+        guard.feedback_message = "case is fully closed (CM-23-013)"
+        tree = py_trees.composites.Sequence(
+            name="Root", memory=False, children=[guard]
+        )
+        request = MagicMock(report_id=self.REPORT_ID)
+
+        verdict = _submit_report_verdict(
+            tree,
+            BTExecutionResult(status=Status.FAILURE),
+            request,
+            self.VENDOR_ID,
+        )
+
+        assert verdict.disposition == HandlerDisposition.REFUSED
+        assert verdict.reason == "case is fully closed (CM-23-013)"
+
     @pytest.mark.spec("HP-01-003")
     def test_proposal_flow_failure_raises(self, monkeypatch):
         """A failed proposal flow is this actor's fault, not the sender's."""
