@@ -269,7 +269,7 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
         pytest.param(None, _TARGET_ID, id="missing-role"),
         pytest.param(CVDRole.CASE_MANAGER, _TARGET_ID, id="case-manager"),
         pytest.param(CVDRole.CASE_OWNER, _TARGET_ID, id="case-owner"),
-        pytest.param(CVDRole.FINDER, _TARGET_ID, id="role-already-held"),
+        pytest.param(CVDRole.REPORTER, _TARGET_ID, id="role-already-held"),
         pytest.param(
             CVDRole.VENDOR,
             "https://example.org/users/stranger",

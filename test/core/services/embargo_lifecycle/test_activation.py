@@ -450,8 +450,8 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
 ) -> None:
     """Activating B is the owner's decision, so the owner never lapses by it.
 
-    A replica syncing an announced activation (``SetEmbargoActiveNode``,
-    OBSERVED) sees the owner AGREED on A and UNINVITED on B; the owner gains
+    A paused replica applying an announced revision (OBSERVED, CM-31-010)
+    sees the owner AGREED on A and UNINVITED on B; the owner gains
     AGREED(B) and stays a signatory while a silent signatory lapses by
     derivation.  The owner's row is the only one written.
     """
@@ -690,3 +690,65 @@ def test_a_refused_observed_activation_of_an_unrecorded_embargo_writes_no_row(
 
     assert result.case_changed is False
     assert unrecorded.id_ not in _consents_of(dl, owner_p.id_)
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_decide_termination_names_the_step_and_writes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The decide half of a termination (ADR-0124): the ``TERMINATE`` step
+    of the embargo in force, the threat signals resolved, and no write."""
+    from vultron.core.models.embargo_apply import RegisterStepKind
+    from vultron.core.models.embargo_termination import (
+        ThreatSignal,
+        ThreatSignalTermination,
+    )
+    from vultron.core.services.embargo_lifecycle import decide_termination
+
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+    activate(case, embargo.id_)
+    dl.save(case)
+
+    step = decide_termination(
+        dl,
+        case,
+        ThreatSignalTermination(signals=[ThreatSignal.X]),
+        None,
+    )
+
+    assert step.kind is RegisterStepKind.TERMINATE
+    assert step.embargo_id == embargo.id_
+    assert step.termination == EmbargoTermination.threat([ThreatSignal.X])
+    assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.ACTIVE
+
+
+@pytest.mark.parametrize(
+    "termination",
+    ["no embargo", "no threat signal", "end time not reached"],
+)
+def test_decide_termination_refuses(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], termination: str
+) -> None:
+    from vultron.core.models._helpers import now_utc
+    from vultron.core.models.embargo_termination import (
+        ThreatSignalTermination,
+    )
+    from vultron.core.services.embargo_lifecycle import decide_termination
+
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+    if termination != "no embargo":
+        activate(case, embargo.id_)
+    request: EmbargoTermination | ThreatSignalTermination = (
+        ThreatSignalTermination()
+        if termination == "no threat signal"
+        else EmbargoTermination.end_time_reached()
+        if termination == "end time not reached"
+        else EmbargoTermination.early()
+    )
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        decide_termination(dl, case, request, now_utc())

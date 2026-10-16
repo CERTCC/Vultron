@@ -25,6 +25,7 @@ keeps the obligation — apart from the case-creation tree that places them.
 """
 
 from datetime import datetime
+from typing import Any, cast
 
 import pytest
 
@@ -45,12 +46,31 @@ from test.core.behaviors.case.nodes.revision_relay_fixtures import (
     relay,
     seed,
 )
+from test.support.ledger import fail_commits
 from vultron.core.behaviors.case.nodes import embargo_revision_relay
 from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
     RelayCreationTimeRevisionNode,
 )
+from vultron.core.behaviors.sync import commit_tree
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_duration import EmbargoDurationSource
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
+
+
+def winner_row(scenario: BTTestScenario) -> EmbargoConsentState:
+    """The reporter's (the winner's) row for the revision, as stored."""
+    case = cast(VulnerabilityCase, scenario.dl.read(CASE_ID))
+    record = scenario.dl.read(case.actor_participant_index[REPORTER])
+    assert isinstance(record, CaseParticipant)
+    return record.consent_for(EMBARGO_ID)
+
 
 # --- RelayCreationTimeRevisionNode -------------------------------------------
 
@@ -285,21 +305,26 @@ def test_a_case_whose_creation_entries_are_not_committed_relays_nothing_yet(
 def test_an_invite_committed_before_its_consent_write_is_completed_on_retry(
     bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A relay that committed and queued its Invite and then failed applying
-    the winner's consent INVITE: the retry applies it, without a second Invite."""
+    """A relay that committed and queued its Invite and then failed to commit
+    the winner's consent row (its ``Update(EmbargoConsent)`` entry, ADR-0124):
+    the retry commits and applies it, without a second Invite."""
     seed(bt_scenario)
     owe(bt_scenario)
     invite_where_legal = RelayCreationTimeRevisionNode._invite_where_legal
-
-    def _fail(*_args: object, **_kwargs: object) -> None:
-        raise RuntimeError("consent write failed")
-
-    monkeypatch.setattr(
-        RelayCreationTimeRevisionNode, "_invite_where_legal", _fail
-    )
-    bt_scenario.assert_failure(
-        relay(bt_scenario), reason="consent write failed", allow_internal=True
-    )
+    with pytest.MonkeyPatch.context() as patch:
+        fail_commits(
+            patch,
+            commit_tree,
+            when=lambda kw: (
+                kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            ),
+        )
+        bt_scenario.assert_failure(
+            relay(bt_scenario),
+            reason="ledger commit failed",
+            allow_internal=True,
+        )
+    assert winner_row(bt_scenario) is EmbargoConsentState.UNINVITED
     while bt_scenario.dl.outbox_pop() is not None:
         pass
     applied: list[str] = []
@@ -309,9 +334,10 @@ def test_an_invite_committed_before_its_consent_write_is_completed_on_retry(
         dl: CaseOutboxPersistence,
         recipient_id: str,
         deadline: datetime | None,
+        **kwargs: Any,
     ) -> None:
         applied.append(recipient_id)
-        invite_where_legal(self, dl, recipient_id, deadline)
+        invite_where_legal(self, dl, recipient_id, deadline, **kwargs)
 
     monkeypatch.setattr(
         RelayCreationTimeRevisionNode, "_invite_where_legal", _spy
@@ -322,6 +348,7 @@ def test_an_invite_committed_before_its_consent_write_is_completed_on_retry(
     bt_scenario.assert_success(result)
     assert invites(bt_scenario) == []
     assert applied == [REPORTER]
+    assert winner_row(bt_scenario) is EmbargoConsentState.INVITED
     assert index(bt_scenario) == {EMBARGO_ID: PROPOSAL_ID}
     assert owed(bt_scenario) is None
 
@@ -416,9 +443,10 @@ def test_an_invite_committed_but_never_queued_is_queued_on_retry(
         dl: CaseOutboxPersistence,
         recipient_id: str,
         deadline: datetime | None,
+        **kwargs: Any,
     ) -> None:
         applied.append(recipient_id)
-        invite_where_legal(self, dl, recipient_id, deadline)
+        invite_where_legal(self, dl, recipient_id, deadline, **kwargs)
 
     monkeypatch.setattr(
         RelayCreationTimeRevisionNode, "_invite_where_legal", _spy

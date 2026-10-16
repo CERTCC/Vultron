@@ -68,6 +68,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _CASE_ACTOR_URI = "https://example.org/case-actors/svc-1"
 _VENDOR_URI = "https://example.org/vendors/acme"
+_OTHER_URI = "https://example.org/vendors/other"
 
 
 def _make_proposal() -> as_CaseProposal:
@@ -78,7 +79,9 @@ def _make_proposal() -> as_CaseProposal:
     )
 
 
-def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
+def _run_create_proposal(
+    dl, proposal, make_payload, proposer_uri=_VENDOR_URI, **use_case_kwargs
+):
     """Helper: build and execute CreateCaseProposalReceivedUseCase.
 
     The event names ``_CASE_ACTOR_URI`` as the receiving actor, so *dl* must be
@@ -89,7 +92,7 @@ def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
     while nothing happened at all.
     """
     activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR_URI),
+        actor=VultronOrganization(id_=proposer_uri),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -900,6 +903,30 @@ class TestCaseProposalDisposition:
         assert case.id_ in result.reason
         again = _run_create_proposal(dl, proposal, make_payload)
         assert again.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("CP-05-010")
+    def test_another_senders_reuse_of_a_proposal_id_is_refused(
+        self, make_payload
+    ):
+        """The proposal id is the sender's choice, so a delivery of an
+        admitted proposal id from another actor is refused before any write
+        (#4719)."""
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+        _run_create_proposal(dl, proposal, make_payload)
+        while dl.outbox_pop() is not None:
+            pass
+        reused = proposal.model_copy(update={"attributed_to": _OTHER_URI})
+
+        result = _run_create_proposal(
+            dl, reused, make_payload, proposer_uri=_OTHER_URI
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "author" in result.reason
+        assert len(list(dl.list_objects("VulnerabilityCase"))) == 1
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("HP-01-003")
     def test_decline_without_emit_port_is_refused(self, make_payload):

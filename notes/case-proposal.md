@@ -17,6 +17,7 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/semantic-extraction.yaml
   - specs/case-ledger-processing.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
@@ -233,13 +234,27 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   this delivery (`RecordProposalAdmissionNode`'s `admission_record_was_prior`), not
   on the report: the report id is sender-chosen, so a redelivery may name a report
   with no case.
-- **Same proposal id, another sender**: the proposal id is sender-chosen, so
-  `LoadExistingCaseNode` reuses the stored `Accept`'s case only for the proposer the
-  admission record names (`accepted_for_proposer_only`); otherwise native
-  initialization commits ledger entries to that case as the other sender. Refusing
-  that sender is a sender-entitlement check, so it belongs in the use case's
-  declaration, not in this tree (HP-01-007, HP-01-008); until then it gets a stray
-  case (#4719).
+- **Same proposal id, another sender** (CP-05-010): the proposal id is
+  sender-chosen, so the use case declares `SenderRule.before_case(AUTHOR)` and the
+  factory composes `SenderIsProposalAuthorNode` ahead of every arm. A proposal id
+  whose admission record, decline record or stored proposal (`attributed_to`) names
+  another proposer is `REFUSED` before any proposal-keyed record is read or written
+  (HP-01-008, #4719). The stored proposal covers a store written before the
+  admission record existed. Add any new proposal-keyed record that names the
+  proposer to that node. `LoadExistingCaseNode`'s `accepted_for_proposer_only`
+  (#4650) is not a second defense: it reads the admission record, which the accept
+  arm writes for the current sender when none exists.
+- **One proposer identity** (CP-05-006, CP-05-010): the guard compares the sender with
+  `same_actor_id`, so every later proposer comparison must agree with it. The tree
+  factory normalises `proposer_uri` with `normalise_actor_id`, and `report_author_id`
+  does the same for the reporter, so the records, participant keys and ledger
+  snapshots the tree writes hold one spelling. Compare an id written elsewhere (the
+  inline profile, a proposal-keyed record the guard also reads, a case stored before
+  #4772 in the slash spelling) with `same_actor_id`, and look up
+  `actor_participant_index` with `participant_id_for_actor`, never `==` or `in`: a
+  trailing-slash redelivery otherwise re-runs native initialization (#4772). Only
+  the proposal tree normalises; other received use cases still get the sender's
+  raw spelling.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
   answered with its own `Accept` or `Reject`, never the earlier stored `Accept`.
   For a new proposal id, `LoadExistingCaseNode` reuses the case only when its

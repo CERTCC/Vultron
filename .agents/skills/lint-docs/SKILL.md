@@ -293,5 +293,6 @@ Output, in this order:
 - Never report success on an empty target set (DF-09-009).
 - Do not duplicate `format-markdown` or `build-docs` checks. Line length, list
   markers, emphasis style, and link validity belong to those tools; MD013 is
-  disabled repo-wide and no line-length rule applies here (SG-38).
+  off under `docs/` (`docs/.markdownlint-cli2.yaml`) and no line-length rule
+  applies here (SG-38).
 - Escalate with a recommendation, not an open question.

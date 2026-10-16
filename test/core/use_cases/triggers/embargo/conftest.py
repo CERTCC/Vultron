@@ -27,7 +27,7 @@ from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -62,7 +62,7 @@ def _build_active_embargo_case(
         ],
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
-    participant = FinderParticipant(
+    participant = ReporterParticipant(
         attributed_to=participant_id,
         context=case.id_,
         embargo_consents=[
@@ -121,7 +121,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
     )
     case_manager_participant.add_role(CVDRole.CASE_MANAGER)
 
-    actor_participant = FinderParticipant(
+    actor_participant = ReporterParticipant(
         attributed_to=actor_id,
         context=case.id_,
         embargo_consents=[
@@ -328,7 +328,7 @@ def _add_participant(
         if consent is not None and case.active_embargo_id is not None
         else []
     )
-    participant = FinderParticipant(
+    participant = ReporterParticipant(
         attributed_to=actor_id,
         context=case_id,
         embargo_consents=rows,
@@ -384,7 +384,7 @@ def _open_revision(
     )
     propose(case, revision.id_)
     case.pending_embargo_proposal_index[revision.id_] = proposal.id_
-    participant = cast(FinderParticipant, dl.read(participant_id))
+    participant = cast(ReporterParticipant, dl.read(participant_id))
     participant.embargo_consents = [
         *participant.embargo_consents,
         EmbargoConsent(

@@ -133,7 +133,7 @@ def _accept(s: BTTestScenario, embargo: bool = True) -> Status:
         tree,
         case_id=CASE_ID,
         new_invite_participant=record,
-        active_embargo_id=EMBARGO_ID,
+        invitee_case=s.dl.read(CASE_ID),
         activity=ACCEPT,
     ).status
 

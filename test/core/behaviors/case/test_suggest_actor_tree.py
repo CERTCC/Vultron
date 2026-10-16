@@ -25,12 +25,14 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
 """
 
+import logging
 from unittest.mock import MagicMock
 
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.clock_decisions import clock_decision_node_ids
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -207,6 +209,29 @@ class TestEvaluateDefaultRolesNode:
         assert py_trees.blackboard.Blackboard.storage.get(key2) == [
             CVDRole.VENDOR
         ]
+
+    def test_injected_retired_finder_role_is_dropped(self, caplog):
+        """An injected 'finder' is not a role (ADR-0078); only live roles stay.
+
+        The warning carries the retirement reason, not just "unrecognized".
+        """
+        caplog.set_level(logging.WARNING)
+        node = EvaluateDefaultRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
+            injected_roles=["finder", "vendor"],
+        )
+        node.setup()
+        node.initialise()
+        node.update()
+        key = f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        assert py_trees.blackboard.Blackboard.storage.get(key) == [
+            CVDRole.VENDOR
+        ]
+        assert any(
+            "ADR-0078" in record.getMessage() for record in caplog.records
+        )
 
     def test_returns_failure_when_compute_roles_returns_empty(self):
         """AC-4: returns FAILURE when _compute_roles() returns empty list (CM-16-003).
@@ -1258,12 +1283,20 @@ def _gate(tree: py_trees.behaviour.Behaviour, name: str):
 
 
 def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
-    """Leaves that write or emit: everything after the receipt commit."""
+    """Leaves that write or emit: everything after the receipt commit.
+
+    The CASE_MANAGER's clock decisions sit in their own gated stage before
+    the guards and are not effects of the received activity (CLP-10-025).
+    """
+    decisions = clock_decision_node_ids(tree)
     return [
         n
         for n in tree.iterate()
-        if type(n).__name__.startswith("Emit")
-        or type(n).__name__.startswith("Record")
+        if (
+            type(n).__name__.startswith("Emit")
+            or type(n).__name__.startswith("Record")
+        )
+        and id(n) not in decisions
     ]
 
 

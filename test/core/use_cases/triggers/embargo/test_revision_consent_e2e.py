@@ -75,7 +75,7 @@ from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderParticipant,
+    ReporterParticipant,
     VendorParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -116,7 +116,7 @@ class _Revision:
             ],
         )
         owner_p.add_role(CVDRole.CASE_MANAGER)
-        proposer_p = FinderParticipant(
+        proposer_p = ReporterParticipant(
             attributed_to=PROPOSER,
             context=self.case.id_,
             embargo_consents=[

@@ -35,7 +35,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.wire_keys import input_keys
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM, is_rm_write_permitted
-from vultron.enums.roles import CVDRole
+from vultron.enums.roles import CVDRole, parse_role
 from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
@@ -48,7 +48,7 @@ def coerce_cvd_roles(value: object) -> list[CVDRole]:
     if isinstance(value, CVDRole):
         return [value]
     if isinstance(value, str):
-        return [CVDRole(value.lower())]
+        return [parse_role(value)]
     if isinstance(value, list):
         if not value:
             return [CVDRole.OBSERVER]
@@ -58,7 +58,7 @@ def coerce_cvd_roles(value: object) -> list[CVDRole]:
                 roles.append(item)
                 continue
             if isinstance(item, str):
-                roles.append(CVDRole(item.lower()))
+                roles.append(parse_role(item))
                 continue
             raise TypeError(
                 f"Unsupported cvd_role item type: {type(item).__name__}"

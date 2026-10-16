@@ -1,0 +1,6 @@
+# docs/ prose is one sentence per line with no line-length limit (SG-38, DF-09);
+# the root config's 88-character MD013 stops at this directory (PD-10-001).
+# markdownlint-cli2 merges this file over the root config, so every other rule
+# still applies here.
+config:
+  "MD013": false

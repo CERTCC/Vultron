@@ -48,17 +48,14 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _EMBARGO_INVITE_SEMANTICS,
     _STATUS_AUTH_TRIGGER_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
-    _TRIGGER_ACTIVITY_PORT_SEMANTICS,
     _case_proposal_port_factory,
     _status_auth_trigger_port_factory,
-    _trigger_activity_port_factory,
     _trigger_activity_with_actor_config_port_factory,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config import get_config
-from vultron.core.behaviors.embargo.end_time_tree import end_time_case_upkeep
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
@@ -124,7 +121,6 @@ def make_dispatcher() -> ActivityDispatcher:
     # would cause a silent dict.update() overwrite — exactly the class of bug
     # that #628 introduced — so fail fast with an actionable message.
     _all_sets = (
-        _TRIGGER_ACTIVITY_PORT_SEMANTICS,
         _SUBMIT_REPORT_SEMANTICS,
         _CASE_PROPOSAL_SEMANTICS,
         _EMBARGO_INVITE_SEMANTICS,
@@ -143,17 +139,11 @@ def make_dispatcher() -> ActivityDispatcher:
                 )
 
     port_factories: dict = {
-        sem: _trigger_activity_port_factory
-        for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
+        sem: _trigger_activity_with_actor_config_port_factory
+        for sem in _SUBMIT_REPORT_SEMANTICS
+        | _EMBARGO_INVITE_SEMANTICS
+        | _CLOSE_CASE_SEMANTICS
     }
-    port_factories.update(
-        {
-            sem: _trigger_activity_with_actor_config_port_factory
-            for sem in _SUBMIT_REPORT_SEMANTICS
-            | _EMBARGO_INVITE_SEMANTICS
-            | _CLOSE_CASE_SEMANTICS
-        }
-    )
     port_factories.update(
         {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
     )
@@ -163,14 +153,15 @@ def make_dispatcher() -> ActivityDispatcher:
             for sem in _STATUS_AUTH_TRIGGER_SEMANTICS
         }
     )
-    # Every received use case gets a WireRenderPort and a SyncActivityPort, on
-    # top of whatever else its semantics needs: a received tree's guarded
-    # ledger commit snapshots the activity as an AS2 rendering core cannot
-    # produce itself (ARCH-20-001, CLP-07-009), and the CASE_MANAGER fans the
-    # entry out to the participants (SYNC-02-003).  See
+    # Every received use case gets a TriggerActivityPort, a WireRenderPort and
+    # a SyncActivityPort, on top of whatever else its semantics needs: a
+    # received tree's guarded ledger commit snapshots the activity as an AS2
+    # rendering core cannot produce itself (ARCH-20-001, CLP-07-009), the
+    # CASE_MANAGER fans the entry out to the participants (SYNC-02-003), and
+    # its case-wide clock decisions build their activities (EMB-13-003).  See
     # with_received_baseline_ports for why this is not a hand-kept list
-    # (#3930, #4113); a use case that runs no tree accepts both ports and has
-    # nothing to pass them to.
+    # (#3930, #4113); a use case that runs no tree accepts all three ports
+    # and has nothing to pass them to.
     use_cases = _use_case_map()
     port_factories = {
         sem: inbox_port_factories.with_received_baseline_ports(
@@ -178,19 +169,9 @@ def make_dispatcher() -> ActivityDispatcher:
         )
         for sem in use_cases
     }
-    # The CASE_MANAGER's lazy end-time check runs before each activity it
-    # handles for a case, and needs the ports a termination commits and
-    # announces with (ADR-0122, EMB-13-003).
     d = get_dispatcher(
         use_case_map=use_cases,
         port_factories=port_factories,
-        case_upkeep=(
-            end_time_case_upkeep(
-                inbox_port_factories.with_received_baseline_ports(
-                    _trigger_activity_port_factory
-                )
-            ),
-        ),
     )
     logger.debug("Created inbox dispatcher: %s", type(d).__name__)
     return d

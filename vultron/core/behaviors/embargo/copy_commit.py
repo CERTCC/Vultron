@@ -54,16 +54,20 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+# The case-file read and save live outside this package so the replica copy
+# frame (sync/nodes/embargo_copy_effect.py) can import them without loading
+# the embargo package, whose nodes import that frame; re-exported here.
+from vultron.core.behaviors.embargo_case_file import (
+    read_embargo_case_file,
+    save_case_file,
+)
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
     ConsentRowVerb,
     EmbargoCaseFile,
     EmbargoChange,
     apply_embargo_change,
-    changed_objects,
 )
 from vultron.core.models.embargo_consent_event_types import (
     CREATE_EMBARGO_CONSENT_EVENT_TYPE,
@@ -71,7 +75,6 @@ from vultron.core.models.embargo_consent_event_types import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -82,44 +85,26 @@ if TYPE_CHECKING:
 class PlannedEmbargoEntry:
     """One entry the CASE_MANAGER has decided to commit, and what it changes.
 
-    *change* is what applying the entry writes.  *commit* commits the entry,
+    *change* is what applying the entry writes; ``None`` for an act whose own
+    activity changes no embargo object, such as an ``Accept`` of an embargo
+    Invite, whose consent row follows as its own entry.  *commit* commits the entry,
     raising when it does not commit (``RuntimeError`` from
     :func:`~vultron.core.behaviors.sync.commit_tree.commit_emitted_activity`,
     or a ``VultronError`` when it cannot be built); ``None`` when the entry is
     already committed, as a received act's own entry is.
     """
 
-    change: EmbargoChange
+    change: EmbargoChange | None
     commit: Callable[[], Any] | None = None
 
 
-def read_embargo_case_file(
-    datalayer: CasePersistence, case_id: str
-) -> EmbargoCaseFile:
-    """The case *case_id* and the participant records its roster indexes.
-
-    A roster entry whose record this store does not hold is left out, as on a
-    partial replica (ADR-0087); a consent-row entry for that actor is then
-    refused by the apply function rather than written.
-
-    Raises:
-        VultronNotFoundError: *datalayer* holds no such case.
-    """
-    case = datalayer.read_case(case_id)
-    if not isinstance(case, VulnerabilityCase):
-        raise VultronNotFoundError("VulnerabilityCase", case_id)
-    participants: dict[str, CaseParticipant] = {}
-    for actor_id, participant_id in case.actor_participant_index.items():
-        record = datalayer.read(participant_id)
-        if isinstance(record, CaseParticipant):
-            participants[actor_id] = record
-    return EmbargoCaseFile(case=case, participants=participants)
-
-
 def trial_apply(
-    case_file: EmbargoCaseFile, changes: Sequence[EmbargoChange]
+    case_file: EmbargoCaseFile, changes: Sequence[EmbargoChange | None]
 ) -> list[EmbargoCaseFile]:
     """The case file after each of *changes*, applied in order to a copy.
+
+    A ``None`` change (an entry that changes no embargo object) leaves the
+    case file as the change before it left it.
 
     Raises:
         VultronEntryRefusedError: a change does not apply; nothing is
@@ -128,20 +113,10 @@ def trial_apply(
     states: list[EmbargoCaseFile] = []
     current = case_file
     for change in changes:
-        current = apply_embargo_change(current, change)
+        if change is not None:
+            current = apply_embargo_change(current, change)
         states.append(current)
     return states
-
-
-def save_case_file(
-    datalayer: CasePersistence,
-    before: EmbargoCaseFile,
-    after: EmbargoCaseFile,
-) -> None:
-    """Save every object *after* changed from *before*, in one write."""
-    objects = changed_objects(before, after)
-    if objects:
-        datalayer.save_many(list(objects))
 
 
 def commit_and_apply_embargo_entries(

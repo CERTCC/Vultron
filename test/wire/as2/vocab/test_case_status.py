@@ -199,7 +199,7 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
         self.assertEqual(self._FIXED_TIME, rebuilt.published)
 
     def test_as2_round_trip_preserves_cvd_role(self):
-        expected_roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        expected_roles = [CVDRole.REPORTER, CVDRole.VENDOR]
         core = CoreParticipantStatus(
             context=CASE_ID,
             attributed_to=ACTOR_ID,

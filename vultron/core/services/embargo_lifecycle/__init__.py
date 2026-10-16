@@ -48,22 +48,28 @@ into :class:`EmbargoLifecycle` in ``service.py``:
   ``reject_embargo_proposal`` (the case owner's decision, ADR-0122)
 - ``activation.py`` — ``terminate_active_embargo``, ``activate_embargo``
   (the case owner's decision, ADR-0122)
+- ``activation_decision.py`` — ``decide_activation``, the CASE_MANAGER's
+  decision of an activation before it commits (ADR-0124)
 - ``creation.py``   — ``initialize_creation_embargo`` (EP-04-002), which
   commits through ``staged_persistence.py``'s ``StagedCasePersistence``
 - ``consent.py``    — ``record_participant_consent``,
   ``record_embargo_rejection``, ``record_embargo_withdrawal`` (MSM-07-010),
   ``assert_embargo_eligible``
-- ``expiry.py``     — ``assess_invite_expiry``, ``record_invite_expiry``,
-  ``honour_late_accept``, ``detect_and_apply_expiry`` (EMB-17)
+- ``expiry.py``     — ``assess_invite_expiry``, ``pending_invitations``,
+  ``detect_and_apply_expiry`` (EMB-17)
 
 Tracked in: https://github.com/CERTCC/Vultron/issues/538
 Scaffold (#746); full operations (#747)
 """
 
 from vultron.core.services.embargo_lifecycle.activation import (
+    decide_termination,
     embargo_end_time_passed,
     embargo_in_force,
     termination_timing_violations,
+)
+from vultron.core.services.embargo_lifecycle.activation_decision import (
+    ActivationDecision,
 )
 from vultron.core.services.embargo_lifecycle.pec import (
     embargo_withdrawal_refusal,
@@ -79,6 +85,7 @@ from vultron.core.services.embargo_lifecycle.results import (
 from vultron.core.services.embargo_lifecycle.service import EmbargoLifecycle
 
 __all__ = [
+    "ActivationDecision",
     "EmbargoLifecycle",
     "embargo_withdrawal_refusal",
     "owner_declined_embargo",
@@ -87,6 +94,7 @@ __all__ = [
     "EmbargoLifecycleResult",
     "ParticipantConsentChange",
     "TransitionMode",
+    "decide_termination",
     "embargo_end_time_passed",
     "embargo_in_force",
     "termination_timing_violations",

@@ -58,6 +58,10 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
     CaseProposalCallOutBundle,
 )
+from vultron.core.behaviors.case import (
+    case_proposal_received_tree,
+    report_author,
+)
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     CLOSED_CASE_DECLINE_REASON,
     create_case_proposal_received_tree,
@@ -70,10 +74,13 @@ from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
     accept_scan_can_match,
     accepted_case_id,
     activity_names_proposal,
+    find_proposer_case,
+    proposal_case_ids,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     case_is_announced,
 )
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_admission import (
@@ -87,6 +94,9 @@ from vultron.core.models.pending_create_case_activity import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.use_cases.received.case_proposal import (
+    CreateCaseProposalReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
@@ -104,6 +114,9 @@ _VENDOR_URI = "https://vendor.example.org/actors/vendor"
 _REPORTER_URI = "https://finder.example.org/actors/finder"
 _REPORT_URI = "https://finder.example.org/reports/r-001"
 _PROPOSAL_URI = "https://vendor.example.org/proposals/p-001"
+
+#: The rule the use case declares; the tree factory composes its guard.
+_SENDER_RULE: SenderRule = CreateCaseProposalReceivedUseCase.sender_entitlement
 
 
 # ---------------------------------------------------------------------------
@@ -166,14 +179,16 @@ def _admitting_bundle(ticks: list[str]) -> CaseProposalCallOutBundle:
 
 
 def _proposal(
-    proposal_uri: str = _PROPOSAL_URI, proposer_uri: str = _VENDOR_URI
+    proposal_uri: str = _PROPOSAL_URI,
+    proposer_uri: str = _VENDOR_URI,
+    reporter_uri: str = _REPORTER_URI,
 ) -> as_CaseProposal:
     """A proposal carrying its report inline, as CP-01-004 requires."""
     return as_CaseProposal(
         id_=proposal_uri,
         attributed_to=proposer_uri,
         object_=as_VulnerabilityReport(
-            id_=_REPORT_URI, attributed_to=_REPORTER_URI
+            id_=_REPORT_URI, attributed_to=reporter_uri
         ),
         target=_CASE_ACTOR_URI,
     )
@@ -188,6 +203,7 @@ def _run_tree(
     with_trigger_port: bool = True,
     proposal_uri: str = _PROPOSAL_URI,
     proposer_uri: str = _VENDOR_URI,
+    reporter_uri: str = _REPORTER_URI,
 ) -> Status:
     """Build and run the received-side tree the way the use case does.
 
@@ -198,7 +214,7 @@ def _run_tree(
     ``Reject`` emit can fail: a replay path that carries no wire proposal, and a
     caller that injected no ``TriggerActivityPort``.
     """
-    proposal = _proposal(proposal_uri, proposer_uri)
+    proposal = _proposal(proposal_uri, proposer_uri, reporter_uri)
     activity = as_Create(
         actor=VultronOrganization(id_=proposer_uri),
         object_=proposal,
@@ -217,9 +233,10 @@ def _run_tree(
             else None
         ),
         inline_report=VulnerabilityReport(
-            id_=_REPORT_URI, attributed_to=_REPORTER_URI
+            id_=_REPORT_URI, attributed_to=reporter_uri
         ),
         call_out=call_out,
+        sender_rule=_SENDER_RULE,
     )
     result = BTBridge(
         datalayer=dl,
@@ -877,6 +894,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                     id_=_REPORT_URI, attributed_to=_REPORTER_URI
                 ),
                 call_out=_declining_bundle(ticks),
+                sender_rule=_SENDER_RULE,
             )
             status = (
                 BTBridge(
@@ -1478,6 +1496,78 @@ def test_accept_scan_can_match_is_a_negative_prefilter(
     assert accept_scan_can_match(store, report_id) is expected
 
 
+def _lookup_store(*cases: VulnerabilityCase) -> CasePersistence:
+    """A store holding *cases* for ``_REPORT_URI``, the first on the fast path."""
+    return cast(
+        CasePersistence,
+        SimpleNamespace(
+            find_case_by_report_id=lambda _report_id: cases[0],
+            list_objects=lambda _type_key: list(cases),
+        ),
+    )
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.parametrize("fast_path", [True, False], ids=["fast", "scan"])
+def test_find_proposer_case_matches_the_owner_however_it_is_spelled(
+    fast_path: bool,
+):
+    """The owner comparison is ``same_actor_id``, the sender guard's (#4772)."""
+    own = VulnerabilityCase(
+        id_=_CASE_ID,
+        attributed_to=_VENDOR_URI + "/",
+        vulnerability_reports=[_REPORT_URI],
+    )
+    other = VulnerabilityCase(
+        id_=_CASE_ID + "-other",
+        attributed_to=_OTHER_PROPOSER_URI,
+        vulnerability_reports=[_REPORT_URI],
+    )
+    store = _lookup_store(*((own,) if fast_path else (other, own)))
+
+    assert find_proposer_case(store, _REPORT_URI, _VENDOR_URI) is own
+
+
+@pytest.mark.spec("CP-05-010")
+@pytest.mark.parametrize(
+    ("recorded", "expected"),
+    [
+        (_VENDOR_URI + "/", [_CASE_ID]),
+        (_OTHER_PROPOSER_URI, []),
+    ],
+    ids=["same-actor-slash", "another-actor"],
+)
+def test_the_admission_record_check_uses_same_actor_id(
+    monkeypatch: pytest.MonkeyPatch, recorded: str, expected: list[str]
+):
+    """The accepted case is reused only for the recorded proposer, compared as
+    ``SenderIsProposalAuthorNode`` compares it (#4772)."""
+    record = CaseProposalAdmissionRecord(
+        id_=CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI),
+        proposal_id=_PROPOSAL_URI,
+        case_actor_id=_CASE_ACTOR_URI,
+        proposer_uri=recorded,
+    )
+    store = cast(
+        CasePersistence,
+        SimpleNamespace(read=lambda _id: record),
+    )
+    monkeypatch.setattr(
+        proposal_case_lookup, "accepted_case_id", lambda _dl, _pid: _CASE_ID
+    )
+
+    found = proposal_case_ids(
+        store,
+        _PROPOSAL_URI,
+        _VENDOR_URI,
+        None,
+        admission_record_is_prior=True,
+        accepted_for_proposer_only=True,
+    )
+
+    assert list(found) == expected
+
+
 # ---------------------------------------------------------------------------
 # A former owner's redelivery reuses the accepted case (CP-05-006, #4650)
 # ---------------------------------------------------------------------------
@@ -1643,6 +1733,7 @@ class TestARedeliveryNamingAnotherReportReusesTheAcceptedCase:
 
 
 @pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CP-05-010")
 @pytest.mark.spec("CM-21-001")
 class TestAnotherSendersReuseOfAnAcceptedProposalId:
     """Another sender's reuse of an accepted proposal id never reaches its case.
@@ -1669,14 +1760,7 @@ class TestAnotherSendersReuseOfAnAcceptedProposalId:
             "the accepted case and its participants are unchanged"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Create(CaseProposal) is not sender-checked, so a reused proposal"
-            " id from another sender still creates a stray case. Tracked by"
-            " #4719."
-        ),
-    )
+    @pytest.mark.spec("HP-01-006")
     def test_no_second_case_is_created(self, dl):
         assert _run_tree(dl) == Status.SUCCESS
         (case,) = _cases(dl)
@@ -1696,6 +1780,250 @@ class TestAnotherSendersReuseOfAnAcceptedProposalId:
 
         assert status == Status.SUCCESS
         assert _types_in_outbox(dl) == ["Accept"]
+
+    @pytest.mark.spec("HP-01-006")
+    def test_the_other_sender_is_refused_and_sent_nothing(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        _drain_outbox(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE, "the sender guard refuses it"
+        assert _types_in_outbox(dl) == [], "nothing is sent to anyone"
+        admission = dl.read(
+            CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI)
+        )
+        assert isinstance(admission, CaseProposalAdmissionRecord)
+        assert admission.proposer_uri == _VENDOR_URI, (
+            "the admission record still names the original proposer"
+        )
+        assert (
+            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
+        )
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CP-05-010")
+@pytest.mark.spec("HP-01-006")
+class TestAnotherSendersReuseOfAClosedCasesProposalId:
+    """The closed-case arm never declines on another proposer's proposal id.
+
+    The proposal id is chosen by the sender.  Before the sender guard, the
+    closed-case arm wrote a ``CaseProposalDeclineRecord`` on the original
+    proposer's proposal id for the other sender, and sent it a ``Reject``
+    (#4719, AC-3).
+    """
+
+    def test_no_decline_record_is_written(self, dl):
+        _accepted_then_closed(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE
+        assert (
+            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
+        )
+        assert _types_in_outbox(dl) == []
+
+    def test_the_original_proposer_is_still_declined(self, dl):
+        _accepted_then_closed(dl)
+        _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert _run_tree(dl) == Status.SUCCESS
+        assert _types_in_outbox(dl) == ["Reject"]
+        assert _decline_record(dl, _PROPOSAL_URI).proposer_uri == _VENDOR_URI
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.spec("CP-05-010")
+@pytest.mark.spec("HP-01-006")
+class TestAnotherSendersReuseOfADeclinedProposalId:
+    """A declined proposal id reused by another sender is refused, not
+    answered from the decline record."""
+
+    def test_the_other_sender_is_refused_and_sent_nothing(self, dl):
+        assert _run_tree(dl, call_out=_declining_bundle([])) == Status.SUCCESS
+        record_before = _decline_record(dl, _PROPOSAL_URI).model_dump_json()
+        _drain_outbox(dl)
+
+        status = _run_tree(
+            dl,
+            proposer_uri=_OTHER_PROPOSER_URI,
+            call_out=_declining_bundle([]),
+        )
+
+        assert status == Status.FAILURE
+        assert _types_in_outbox(dl) == []
+        assert (
+            _decline_record(dl, _PROPOSAL_URI).model_dump_json()
+            == record_before
+        )
+        assert _cases(dl) == []
+
+
+def _drop_admission_record(dl) -> None:
+    """Leave the store as one written before the admission record existed:
+    the stored ``Accept`` and the proposal it carries, and no record."""
+    assert dl.delete(
+        "CaseProposalAdmissionRecord",
+        CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI),
+    )
+
+
+@pytest.mark.spec("CP-05-010")
+@pytest.mark.spec("HP-01-006")
+class TestAnotherSendersReuseOnAStoreWithNoAdmissionRecord:
+    """The stored proposal names its proposer when no record does.
+
+    A store written before the admission record existed holds only the
+    stored ``Accept`` and the proposal it carries.  The guard reads that
+    proposal's ``attributed_to``, so another sender is still refused.
+    """
+
+    def test_an_open_case_is_not_reached(self, dl):
+        assert _run_tree(dl) == Status.SUCCESS
+        (case,) = _cases(dl)
+        _drain_outbox(dl)
+        _drop_admission_record(dl)
+        ledger_before = _ledger_count(dl)
+        case_rows_before = _case_rows(dl, str(case.id_))
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE, "the sender guard refuses it"
+        assert _types_in_outbox(dl) == []
+        assert [c.id_ for c in _cases(dl)] == [case.id_]
+        assert _ledger_count(dl) == ledger_before
+        assert _case_rows(dl, str(case.id_)) == case_rows_before
+        assert (
+            dl.read(CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI))
+            is None
+        ), "no admission record is written for the other sender"
+
+    def test_a_closed_case_is_not_declined_for_the_other_sender(self, dl):
+        _accepted_then_closed(dl)
+        _drop_admission_record(dl)
+
+        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
+
+        assert status == Status.FAILURE
+        assert _types_in_outbox(dl) == []
+        assert (
+            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
+        )
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.parametrize(
+    ("first_uri", "redelivery_uri"),
+    [
+        pytest.param(_VENDOR_URI, _VENDOR_URI + "/", id="redelivery-slash"),
+        pytest.param(_VENDOR_URI + "/", _VENDOR_URI, id="first-slash"),
+    ],
+)
+def test_a_redelivery_naming_the_proposer_with_a_trailing_slash_is_answered(
+    dl, first_uri: str, redelivery_uri: str
+):
+    """A redelivery from the proposer is answered the same way however its
+    actor id is written.
+
+    ``same_actor_id`` treats a trailing slash as the same actor, so the
+    guard admits the redelivery; the accept path must then treat it as that
+    proposer's redelivery too: the stored ``Accept`` alone, and no new case,
+    participant or ledger entry (#4772).
+    """
+    assert _run_tree(dl, proposer_uri=first_uri) == Status.SUCCESS
+    (case,) = _cases(dl)
+    _drain_outbox(dl)
+    state, ledger = _case_state(dl), _ledger_count(dl)
+
+    status = _run_tree(dl, proposer_uri=redelivery_uri)
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Accept"]
+    assert [c.id_ for c in _cases(dl)] == [case.id_]
+    assert _case_state(dl) == state
+    assert _ledger_count(dl) == ledger
+
+
+@pytest.mark.spec("CP-05-006")
+def test_a_proposer_id_with_a_trailing_slash_is_recorded_canonically(dl):
+    """The proposer's id is stored without its trailing slash.
+
+    Every proposer-keyed record and the CASE_OWNER participant name the
+    actor in the spelling ``normalise_actor_id`` gives, so a later lookup
+    by either spelling finds it (#4772).
+    """
+    assert _run_tree(dl, proposer_uri=_VENDOR_URI + "/") == Status.SUCCESS
+    (case,) = _cases(dl)
+
+    record = dl.read(CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI))
+    assert isinstance(record, CaseProposalAdmissionRecord)
+    assert record.proposer_uri == _VENDOR_URI
+    assert str(case.attributed_to) == _VENDOR_URI
+    assert _VENDOR_URI in case.actor_participant_index
+    assert _VENDOR_URI + "/" not in case.actor_participant_index
+    assert len(_participants_of(dl, str(case.id_), _VENDOR_URI)) == 1
+
+
+@pytest.mark.spec("CP-05-006")
+def test_a_proposer_who_reported_with_a_trailing_slash_is_one_participant(dl):
+    """A report attributed to the proposer, in another spelling, adds no
+    second participant for the same actor.
+
+    The reporter is read from the report's ``attributed_to`` and the owner
+    from the sender; both are stored in the canonical spelling, so the
+    reporter node finds the owner's participant (#4772).
+    """
+    status = _run_tree(dl, reporter_uri=_VENDOR_URI + "/")
+
+    assert status == Status.SUCCESS
+    (case,) = _cases(dl)
+    assert len(_participants_of(dl, str(case.id_), _VENDOR_URI)) == 1
+    assert _participants_of(dl, str(case.id_), _VENDOR_URI + "/") == []
+
+
+@pytest.mark.spec("CP-05-006")
+@pytest.mark.parametrize(
+    ("proposer_uri", "reporter_uri"),
+    [
+        pytest.param(_VENDOR_URI + "/", _REPORTER_URI, id="proposer-slash"),
+        pytest.param(_VENDOR_URI, _REPORTER_URI + "/", id="reporter-slash"),
+    ],
+)
+def test_a_store_written_before_normalisation_is_answered_on_redelivery(
+    dl, monkeypatch: pytest.MonkeyPatch, proposer_uri: str, reporter_uri: str
+):
+    """A case stored before #4772 keeps the sender's trailing-slash spelling.
+
+    A same-spelling redelivery is answered with the stored ``Accept`` alone:
+    the participant and ledger lookups match the stored spelling with
+    ``same_actor_id``, so no second participant or ledger entry is written.
+    """
+    with monkeypatch.context() as legacy:
+        legacy.setattr(
+            case_proposal_received_tree, "normalise_actor_id", lambda a: a
+        )
+        legacy.setattr(report_author, "normalise_actor_id", lambda a: a)
+        assert (
+            _run_tree(dl, proposer_uri=proposer_uri, reporter_uri=reporter_uri)
+            == Status.SUCCESS
+        )
+    (case,) = _cases(dl)
+    assert proposer_uri in case.actor_participant_index
+    assert reporter_uri in case.actor_participant_index
+    _drain_outbox(dl)
+    state, ledger = _case_state(dl), _ledger_count(dl)
+
+    status = _run_tree(
+        dl, proposer_uri=proposer_uri, reporter_uri=reporter_uri
+    )
+
+    assert status == Status.SUCCESS
+    assert _types_in_outbox(dl) == ["Accept"]
+    assert [c.id_ for c in _cases(dl)] == [case.id_]
+    assert _case_state(dl) == state
+    assert _ledger_count(dl) == ledger
 
 
 def _case_rows(dl, case_id: str) -> list[str]:

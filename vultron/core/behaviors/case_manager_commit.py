@@ -35,6 +35,7 @@ call or a failed commit is not a protocol refusal, so the exception escapes to
 ``BTBridge`` and the handler raises (BT-14-001, ARCH-15-001).
 """
 
+from collections.abc import Callable
 from typing import cast
 
 from py_trees.common import Status
@@ -44,6 +45,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronWiringError
@@ -88,6 +90,15 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         """Return ``(activity_id, sealed_blob)`` for an activity sent *to*."""
         raise NotImplementedError
 
+    def _audience_case(self, case: VulnerabilityCase) -> VulnerabilityCase:
+        """The case whose recipients the activity is addressed to.
+
+        The stored *case* by default.  An act committed before it is applied
+        (ADR-0124) returns the case as the act leaves it, so the audience is
+        the one the act's own effect admits.
+        """
+        return case
+
     def _ledger_object_id(self, activity_id: str) -> str:
         """The entry's ``log_object_id``: the activity itself, by default."""
         return activity_id
@@ -114,33 +125,42 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         dl = cast(CaseOutboxPersistence, self.datalayer)
 
         to = (
-            case_content_recipients(case, dl, excluding={actor_id})
+            case_content_recipients(
+                self._audience_case(case), dl, excluding={actor_id}
+            )
             if self._notify_participants
             else []
         )
         # One decision is one activity.
         activity_id, blob = self._build(to or None)
-        # Sent before it is recorded: the entry records a completed act
-        # (ADR-0119).  A pending id is an earlier attempt's send, recorded now.
-        if to:
-            self._emit_through_seam(activity_id, blob)
-        try:
-            # A nested commit inherits the outer execution's ``/sync_port``,
-            # so the entry is announced to every participant replica
-            # (SYNC-02-002).
-            commit_emitted_activity(
-                datalayer=dl,
-                actor_id=actor_id,
-                case_id=self._case_id,
-                activity_id=self._ledger_object_id(activity_id),
-                activity_blob=blob,
-                event_type=self._event_type,
-                check_freshness=self._CHECK_LEDGER_FRESHNESS,
-            )
-        except Exception:
+
+        def _send_and_commit() -> None:
+            # Sent before it is recorded: the entry records a completed act
+            # (ADR-0119).  A pending id is an earlier attempt's send,
+            # recorded now.
             if to:
-                self._withdraw_unrecorded(dl, activity_id)
-            raise
+                self._emit_through_seam(activity_id, blob)
+            committed = False
+            try:
+                # A nested commit inherits the outer execution's
+                # ``/sync_port``, so the entry is announced to every
+                # participant replica (SYNC-02-002).
+                commit_emitted_activity(
+                    datalayer=dl,
+                    actor_id=actor_id,
+                    case_id=self._case_id,
+                    activity_id=self._ledger_object_id(activity_id),
+                    activity_blob=blob,
+                    event_type=self._event_type,
+                    check_freshness=self._CHECK_LEDGER_FRESHNESS,
+                )
+                committed = True
+            finally:
+                # The failure itself propagates (BT-14-001).
+                if to and not committed:
+                    self._withdraw_unrecorded(dl, activity_id)
+
+        self._record(activity_id, _send_and_commit)
         self.committed_activity_ids = [activity_id]
         self.feedback_message = (
             f"CASE_MANAGER committed '{self._event_type}' entry for"
@@ -150,13 +170,26 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
+    def _record(
+        self, activity_id: str, send_and_commit: Callable[[], None]
+    ) -> None:
+        """Send and commit the built activity *activity_id*.
+
+        A subclass that commits more entries after the act's own, and applies
+        them, overrides this; *send_and_commit* is the act's own commit, and
+        raises when it fails.
+        """
+        send_and_commit()
+
     def _withdraw_unrecorded(
         self, dl: CaseOutboxPersistence, activity_id: str
     ) -> None:
         """Take a decision whose commit failed back out of the outbox.
 
-        No retry rebuilds a decision: it is taken once, and the embargo
-        teardown's EM write already stops a rerun.  Left queued, it would
+        An act on the copy model (ADR-0124) has not changed the case yet: it
+        writes only once its entry commits, so a retry decides again and
+        builds a new activity.  An arm not yet converted wrote first, and its
+        own write stops a rerun.  Either way, left queued, the activity would
         reach participants with no entry that records it, so it is withdrawn,
         as the create-case trigger withdraws its ``Create`` (CLP-07-013).
         One delivery already took cannot be withdrawn, and is reported.

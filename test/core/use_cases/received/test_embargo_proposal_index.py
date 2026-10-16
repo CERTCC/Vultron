@@ -30,7 +30,10 @@ from typing import cast
 
 import pytest
 
-from test.core.use_cases.received.conftest import seed_case_owner_participant
+from test.core.use_cases.received.conftest import (
+    seed_case_owner_participant,
+    seed_case_participant,
+)
 from test.support.embargo_register import (
     propose,
     write_consent_rows,
@@ -619,6 +622,7 @@ class TestReceivedRejectPrunesOpenProposals:
             received_reject_by(self._OWNER),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -635,12 +639,18 @@ class TestReceivedRejectPrunesOpenProposals:
         )
         participant = "https://example.org/actors/reject-participant"
         dl.create(as_Service(id_=participant, name="Participant"))
+        # A participant on the roster, holding its row for the proposal
+        # (ADR-0122): the row its Reject states is written there.
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        seed_case_participant(dl, stored, participant)
+        dl.save(stored)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             received_reject_by(participant),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -742,6 +752,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
             ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 

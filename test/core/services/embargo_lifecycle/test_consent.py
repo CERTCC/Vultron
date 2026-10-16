@@ -29,9 +29,18 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.embargo_case_file import (
+    read_embargo_case_file,
+    save_case_file,
+)
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_apply import (
+    ConsentRowChange,
+    apply_embargo_change,
+)
+from vultron.core.models.embargo_consent_move import consent_row_move
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
 )
@@ -188,6 +197,25 @@ def _active_with_revision(dl: SqliteDataLayer, owner: as_Service):
     _seed_consent(dl, finder_p.id_, active.id_, ECS.AGREED)
     _seed_consent(dl, finder_p.id_, revision.id_, ECS.AGREED)
     return case, finder, owner_p.id_, finder_p.id_, active.id_, revision.id_
+
+
+def _move(
+    dl: SqliteDataLayer,
+    case_id: str,
+    actor_id: str,
+    embargo_id: str,
+    trigger: PEC_Trigger,
+) -> ConsentRowChange | None:
+    """Decide the row *trigger* leaves and apply it through the apply function.
+
+    The decide-then-copy path the CASE_MANAGER's expiry and honour nodes take
+    once their entries commit (ADR-0124); ``None`` when nothing moves.
+    """
+    before = read_embargo_case_file(dl, case_id)
+    change = consent_row_move(before, actor_id, embargo_id, trigger)
+    if change is not None:
+        save_case_file(dl, before, apply_embargo_change(before, change))
+    return change
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -515,7 +543,7 @@ def _invited_to_two(
 
 
 @pytest.mark.spec("CM-28-001", "CM-28-013", "CM-18-002")
-def test_record_invite_expiry_times_out_only_the_invitations_row(
+def test_an_expiry_times_out_only_the_invitations_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
     """A deadline belongs to one invitation: TIME_OUT moves only that row."""
@@ -524,24 +552,22 @@ def test_record_invite_expiry_times_out_only_the_invitations_row(
         dl, owner, active_deadline_in_days=-1, revision_deadline_in_days=-1
     )
 
-    result = EmbargoLifecycle(persistence=dl).record_invite_expiry(
-        case_id=case.id_, actor_id=invitee.id_, embargo_id=active_id
-    )
+    change = _move(dl, case.id_, invitee.id_, active_id, PEC_Trigger.TIME_OUT)
 
-    assert result.is_expired is True
-    assert [
-        (c.embargo_id, c.consent_before, c.consent_after)
-        for c in result.participant_changes
-    ] == [(active_id, "INVITED", "TIMED_OUT")]
+    assert change is not None
+    assert (change.row.embargo_id, change.row.state) == (
+        active_id,
+        ECS.TIMED_OUT,
+    )
     assert _consents_of(dl, pid) == {
         active_id: "TIMED_OUT",
         rev_id: "INVITED",
     }
-    # Idempotent: the row is no longer INVITED.
-    again = EmbargoLifecycle(persistence=dl).record_invite_expiry(
-        case_id=case.id_, actor_id=invitee.id_, embargo_id=active_id
+    # Idempotent: the row is no longer INVITED, so nothing moves.
+    assert (
+        _move(dl, case.id_, invitee.id_, active_id, PEC_Trigger.TIME_OUT)
+        is None
     )
-    assert again.participant_changes == [] and again.is_expired is False
 
 
 @pytest.mark.spec("CM-28-001", "CM-28-012", "CM-28-013")
@@ -569,9 +595,7 @@ def test_concurrent_invitations_time_out_at_their_own_deadlines(
 
     for embargo_id, (_, needs_apply) in assessed.items():
         if needs_apply:
-            lifecycle.record_invite_expiry(
-                case_id=case.id_, actor_id=invitee.id_, embargo_id=embargo_id
-            )
+            _move(dl, case.id_, invitee.id_, embargo_id, PEC_Trigger.TIME_OUT)
 
     assert _consents_of(dl, pid) == {active_id: "TIMED_OUT", rev_id: "INVITED"}
     record = cast(CaseParticipant, dl.read(pid))
@@ -658,11 +682,9 @@ def test_an_invited_row_for_a_final_entry_never_times_out(
         embargo_id=rev_id,
         now=now_utc(),
     ) == (True, False)
-    result = lifecycle.record_invite_expiry(
-        case_id=case.id_, actor_id=invitee.id_, embargo_id=rev_id
+    assert (
+        _move(dl, case.id_, invitee.id_, rev_id, PEC_Trigger.TIME_OUT) is None
     )
-
-    assert result.participant_changes == []
     assert _consents_of(dl, pid)[rev_id] == "INVITED"
 
 
@@ -696,15 +718,13 @@ def test_pending_invitations_skips_frozen_and_answered_rows(
     reject(case, rev_id)
     dl.save(case)
     lifecycle = EmbargoLifecycle(persistence=dl)
-    lifecycle.record_invite_expiry(
-        case_id=case.id_, actor_id=invitee.id_, embargo_id=active_id
-    )
+    _move(dl, case.id_, invitee.id_, active_id, PEC_Trigger.TIME_OUT)
 
     assert lifecycle.pending_invitations(case.id_) == []
 
 
 # ---------------------------------------------------------------------------
-# honour_late_accept — EMB-17-001, ADR-0118
+# honouring a late Accept — EMB-17-001, ADR-0118
 # ---------------------------------------------------------------------------
 
 
@@ -723,7 +743,7 @@ def test_pending_invitations_skips_frozen_and_answered_rows(
         ),
     ],
 )
-def test_honour_late_accept_agrees_to_the_active_embargo(
+def test_honouring_a_late_accept_agrees_to_the_active_embargo(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     seed: ECS,
     expected: list[tuple[str, str]],
@@ -739,20 +759,13 @@ def test_honour_late_accept_agrees_to_the_active_embargo(
     _seed_consent(dl, pid, active.id_, seed)
     assert not _is_signatory(dl, case.id_, pid)
 
-    result = EmbargoLifecycle(persistence=dl).honour_late_accept(
-        case_id=case.id_, actor_id=late.id_, embargo_id=active.id_
-    )
+    change = _move(dl, case.id_, late.id_, active.id_, PEC_Trigger.AGREE)
 
-    assert [
-        (c.consent_before, c.consent_after) for c in result.participant_changes
-    ] == expected
+    assert change is not None
+    assert [(seed.value, change.row.state.value)] == expected
     assert _consent_of(dl, pid, active.id_) == "AGREED"
     assert _is_signatory(dl, case.id_, pid)
-
-    again = EmbargoLifecycle(persistence=dl).honour_late_accept(
-        case_id=case.id_, actor_id=late.id_, embargo_id=active.id_
-    )
-    assert again.participant_changes == []
+    assert _move(dl, case.id_, late.id_, active.id_, PEC_Trigger.AGREE) is None
 
 
 @pytest.mark.spec("EMB-17-003")

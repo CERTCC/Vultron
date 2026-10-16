@@ -202,7 +202,7 @@ def test_an_actor_no_longer_case_manager_relays_nothing(
     """CASE_MANAGER moved to another actor after the relay failed: the gate
     turns the former holder away, so it emits nothing, and the obligation is
     kept rather than discharged by an actor no longer entitled to it."""
-    scenario.dl.save(participant(MANAGER, CVDRole.FINDER))
+    scenario.dl.save(participant(MANAGER, CVDRole.REPORTER))
     scenario.dl.save(participant(OWNER, CVDRole.VENDOR, CVDRole.CASE_MANAGER))
 
     with caplog.at_level(logging.INFO, logger=pending_retry.__name__):

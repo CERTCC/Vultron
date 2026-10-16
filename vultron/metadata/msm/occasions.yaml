@@ -12,7 +12,7 @@ groups:
     when: a Reporter has written up a vulnerability and is about to submit the report
     send: Create(VulnerabilityReport)
     send_to: an actor outside any case
-    sent_by: 'any actor (usually: finder, reporter)'
+    sent_by: 'any actor (usually: reporter)'
     semantics: create_report
     status: none
     description: Mints the vulnerability report object. It precedes the Offer that submits
@@ -136,7 +136,7 @@ groups:
     when: a report receiver asks a Case Actor Service to open a case for a report
     send: Create(CaseProposal)
     send_to: an actor outside any case
-    sent_by: 'not yet checked (usually: vendor, coordinator)'
+    sent_by: 'the case proposal''s author (usually: vendor, coordinator)'
     semantics: create_case_proposal
     status: none
     description: Submits a case proposal for the attached report to the service's inbox. No

@@ -18,7 +18,7 @@ Covers valid and invalid EM transitions in STRICT and OBSERVED mode, owner
 versus non-owner proposers, idempotency, and the one consent effect a
 proposal has: the proposer's own row for the proposed embargo becomes AGREED,
 while nobody's row for the embargo in force moves (EP-05-002).  Also covers
-``abandon_embargo_proposals``, the P/X/A abandonment of every open proposal
+``check_abandonable``, the check of the P/X/A abandonment of every open proposal
 (EMB-16-001).  The answers to a proposal are tested in ``test_answers.py``."""
 
 from typing import cast
@@ -39,7 +39,6 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
@@ -397,7 +396,7 @@ def test_propose_embargo_non_owner_succeeds(
 
 
 # ---------------------------------------------------------------------------
-# abandon_embargo_proposals (EMB-16-001, #4131)
+# check_abandonable (EMB-16-001, #4131)
 # ---------------------------------------------------------------------------
 
 
@@ -424,75 +423,6 @@ def _case_with_open_proposals(
     return case, ids
 
 
-@pytest.mark.spec("EMB-16-001")
-def test_abandon_every_open_proposal_returns_em_to_none(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
-) -> None:
-    owner, dl = owner_and_dl
-    case, ids = _case_with_open_proposals(dl, owner.id_, 2)
-
-    result = EmbargoLifecycle(persistence=dl).abandon_embargo_proposals(
-        case_id=case.id_, embargo_ids=ids, actor_id=owner.id_
-    )
-
-    assert (result.em_before, result.em_after) == (EM.PROPOSED, EM.NONE)
-    assert result.case_changed is True
-    assert result.participant_changes == []
-    updated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert updated.em_state == EM.NONE
-    assert updated.current_status.em.state == EM.NONE
-    assert updated.proposed_embargo_ids == []
-    assert updated.pending_embargo_proposal_index == {}
-    # AC-5 of #4290: nobody decided them, so they are cancelled, not rejected.
-    assert {e.embargo_id: e.status for e in updated.embargo_register} == {
-        i: EmbargoRegisterStatus.CANCELLED for i in ids
-    }
-
-
-@pytest.mark.spec("EMB-16-001")
-def test_abandon_changes_no_consent(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
-) -> None:
-    """Nobody answered, so nobody's consent record moves (MSM-07-004)."""
-    owner, dl = owner_and_dl
-    case, ids = _case_with_open_proposals(dl, owner.id_, 1)
-    (owner_pid,) = case.actor_participant_index.values()
-    _seed_consent(dl, owner_pid, ids[0], ECS.INVITED)
-
-    EmbargoLifecycle(persistence=dl).abandon_embargo_proposals(
-        case_id=case.id_, embargo_ids=ids, actor_id=owner.id_
-    )
-
-    assert _consents_of(dl, owner_pid) == {ids[0]: "INVITED"}
-
-
-@pytest.mark.spec("EMB-16-001")
-@pytest.mark.spec("EP-09-007")
-def test_observed_abandonment_of_one_keeps_em_until_the_last(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
-) -> None:
-    """A replica replays one entry per proposal and reaches NONE with the
-    last; a repeated entry is a no-op."""
-    owner, dl = owner_and_dl
-    case, (first, second) = _case_with_open_proposals(dl, owner.id_, 2)
-    lifecycle = EmbargoLifecycle(persistence=dl)
-
-    def _observe(embargo_id: str) -> EmbargoLifecycleResult:
-        return lifecycle.abandon_embargo_proposals(
-            case_id=case.id_,
-            embargo_ids=[embargo_id],
-            transition_mode=TransitionMode.OBSERVED,
-        )
-
-    assert _observe(first).em_after == EM.PROPOSED
-    updated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert updated.proposed_embargo_ids == [second]
-
-    assert _observe(second).em_after == EM.NONE
-    repeated = _observe(second)
-    assert (repeated.em_after, repeated.case_changed) == (EM.NONE, False)
-
-
 @pytest.mark.spec("EMB-18-003")
 @pytest.mark.parametrize("embargo_ids", [[], ["urn:uuid:not-open"]])
 def test_strict_abandonment_of_no_open_proposal_is_refused(
@@ -502,8 +432,8 @@ def test_strict_abandonment_of_no_open_proposal_is_refused(
     case, ids = _case_with_open_proposals(dl, owner.id_, 1)
 
     with pytest.raises(VultronValidationError):
-        EmbargoLifecycle(persistence=dl).abandon_embargo_proposals(
-            case_id=case.id_, embargo_ids=[*embargo_ids], actor_id=owner.id_
+        EmbargoLifecycle(persistence=dl).check_abandonable(
+            case_id=case.id_, embargo_ids=[*embargo_ids]
         )
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -521,8 +451,8 @@ def test_strict_abandonment_outside_proposed_is_refused(
     case, ids = _case_with_open_proposals(dl, owner.id_, 1, with_active=True)
 
     with pytest.raises(VultronInvalidStateTransitionError):
-        EmbargoLifecycle(persistence=dl).abandon_embargo_proposals(
-            case_id=case.id_, embargo_ids=ids, actor_id=owner.id_
+        EmbargoLifecycle(persistence=dl).check_abandonable(
+            case_id=case.id_, embargo_ids=ids
         )
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))

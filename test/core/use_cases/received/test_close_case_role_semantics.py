@@ -63,6 +63,9 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
@@ -167,7 +170,7 @@ def _make_full_dl(
     owner_participant = as_CaseParticipant(
         attributed_to=owner_id,
         context=CASE_ID,
-        case_roles=[CVDRole.CASE_OWNER, CVDRole.FINDER],
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.REPORTER],
     )
     dl.create(owner_participant)
     case.case_participants.append(owner_participant.id_)
@@ -953,32 +956,39 @@ class TestOwnerCloseSettlesPendingInvites:
         embargo_id = _seed_pending_invite(manager)
         _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
         (settled,) = _expiry_entries(manager)
+        ledger = _case_ledger(manager)
+        # The expiry, then the CASE_MANAGER's Update carrying the row.
+        row_entry = ledger[ledger.index(settled) + 1]
+        assert row_entry.event_type == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
 
         replica = _make_full_dl(store_owner_id=VENDOR_ID)
         assert _seed_pending_invite(replica) == embargo_id
         case = replica.read(CASE_ID)
-        genesis_hash = getattr(case, "genesis_hash", _ZERO_HASH) or _ZERO_HASH
-        # The settled snapshot, as the first entry of the replica's chain.
-        entry = _to_persistable_entry(
-            HashChainLedgerRecord(
-                case_id=CASE_ID,
-                log_index=0,
-                object_id=settled.log_object_id,
-                event_type=settled.event_type,
-                payload_snapshot=settled.payload_snapshot,
-                prev_log_hash=genesis_hash,
+        prev_hash = getattr(case, "genesis_hash", _ZERO_HASH) or _ZERO_HASH
+        # The two entries, as the first of the replica's chain.
+        for log_index, source in enumerate((settled, row_entry)):
+            entry = _to_persistable_entry(
+                HashChainLedgerRecord(
+                    case_id=CASE_ID,
+                    log_index=log_index,
+                    object_id=source.log_object_id,
+                    event_type=source.event_type,
+                    payload_snapshot=source.payload_snapshot,
+                    prev_log_hash=prev_hash,
+                )
             )
-        )
-        BTBridge(
-            datalayer=replica, wire_render_port=As2WireRenderAdapter()
-        ).execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=VENDOR_ID,
-            activity=_make_announce_event(
-                entry=entry, sender_actor_id=CASE_ACTOR_ID
-            ),
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
+            prev_hash = entry.entry_hash
+            result = BTBridge(
+                datalayer=replica, wire_render_port=As2WireRenderAdapter()
+            ).execute_with_setup(
+                tree=create_announce_log_entry_tree(),
+                actor_id=VENDOR_ID,
+                activity=_make_announce_event(
+                    entry=entry, sender_actor_id=CASE_ACTOR_ID
+                ),
+                sync_port=MagicMock(spec=SyncActivityPort),
+            )
+            assert result.status.name == "SUCCESS", result.feedback_message
 
         assert (
             _consent(replica, VENDOR_ID, embargo_id)
@@ -1472,7 +1482,9 @@ class TestLeaveCommitsEachClosureStep:
             (_STATUS, CASE_ACTOR_ID, RM.CLOSED.value),
         ]
         assert shape[4][0] == INVITE_EXPIRED_EVENT_TYPE
-        assert shape[5:] == [("case_fully_closed", CASE_ACTOR_ID, None)]
+        # The TIMED_OUT row is the CASE_MANAGER's own entry (ADR-0124).
+        assert shape[5][0] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+        assert shape[6:] == [("case_fully_closed", CASE_ACTOR_ID, None)]
 
     @pytest.mark.spec("CM-23-004")
     @pytest.mark.parametrize(

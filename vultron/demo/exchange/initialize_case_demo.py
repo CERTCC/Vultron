@@ -49,7 +49,9 @@ from collections.abc import Callable, Sequence
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     create_case_via_trigger,
+    reporter_submits_report,
     seat_participant_through_stub_invite,
+    verify_reporter_trusts_introduction,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -67,15 +69,11 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_report_to_case_activity,
-    rm_submit_report_activity,
     rm_validate_report_activity,
 )
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +96,7 @@ def demo_initialize_case(
     6. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
        sends the stub Invite
     7. Finder accepts (RmAcceptInviteToCaseActivity), which seats it as a
-       FINDER participant (ADR-0114)
+       REPORTER participant (ADR-0114, ADR-0078)
     8. Final case state is logged
 
     This follows the workflow in docs/howto/activitypub/activities/initialize_case.md.
@@ -112,18 +110,20 @@ def demo_initialize_case(
 
     report = report_offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            content="A remote code execution vulnerability in the web framework.",
-            name="Remote Code Execution Vulnerability",
+        # Through the finder's own submit-report trigger, which writes the
+        # anchor the vendor's case introduction is checked against
+        # (CBT-01-005, #4675).
+        report, report_offer = reporter_submits_report(
+            client,
+            finder,
+            vendor,
+            reporter_client=client,
+            report_name="Remote Code Execution Vulnerability",
+            report_content=(
+                "A remote code execution vulnerability in the web framework."
+            ),
         )
-        logger.info("Created report: %s", logfmt(report))
-        report_offer = rm_submit_report_activity(
-            report, actor=finder.id_, to=vendor.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, report_offer)
-        with demo_check("Report stored in data layer"):
-            verify_object_stored(client, report.id_)
+        logger.info("Submitted report: %s", logfmt(report))
 
     with demo_step("Step 2: Vendor validates report"):
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
@@ -189,7 +189,7 @@ def demo_initialize_case(
         "Steps 6-7: Vendor invites finder; finder accepts and joins"
     ):
         participant = seat_participant_through_stub_invite(
-            client, case, owner=vendor, invitee=finder, role=CVDRole.FINDER
+            client, case, owner=vendor, invitee=finder, role=CVDRole.REPORTER
         )
         logger.info("Seated participant: %s", logfmt(participant))
         with demo_check("Finder participant in case participant list"):
@@ -203,6 +203,10 @@ def demo_initialize_case(
                     f"Participant '{participant.id_}' not found in case "
                     "after the finder accepted its stub Invite"
                 )
+
+    # The vendor created a case for the report on receipt, and introduces it
+    # to the finder with its own Create(VulnerabilityCase) (CBT-01-001).
+    verify_reporter_trusts_introduction(client, finder, vendor, report)
 
     logger.info(
         "✅ DEMO COMPLETE: Case initialized with vendor and finder participants."

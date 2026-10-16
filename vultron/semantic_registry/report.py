@@ -80,10 +80,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="create_report",
                 howto=HowToGuide.REPORT_VULNERABILITY,
-                usual_senders=(
-                    CVDRole.FINDER,
-                    CVDRole.REPORTER,
-                ),
+                usual_senders=(CVDRole.REPORTER,),
             ),
         ),
         page=MessagePage.RM,

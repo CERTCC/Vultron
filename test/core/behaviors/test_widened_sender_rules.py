@@ -46,6 +46,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
 from vultron.core.behaviors.sender_guard import (
+    AuthoredNote,
     SenderCheckContext,
     compose_sender_guard,
     embargo_sender_context,
@@ -110,7 +111,9 @@ def _plain(sender: str) -> SenderCheckContext:
 
 def _note(sender: str) -> SenderCheckContext:
     return SenderCheckContext(
-        sender_id=sender, case_id=CASE_ID, authored_object_id=NOTE_ID
+        sender_id=sender,
+        case_id=CASE_ID,
+        authored_object=AuthoredNote(note_id=NOTE_ID),
     )
 
 
