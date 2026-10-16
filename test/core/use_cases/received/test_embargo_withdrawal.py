@@ -42,6 +42,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -69,6 +72,7 @@ _ACTIVE = f"{_CASE_ID}/embargo_events/active"
 _AGREED_REVISION = f"{_CASE_ID}/embargo_events/agreed-revision"
 _INVITED_REVISION = f"{_CASE_ID}/embargo_events/invited-revision"
 _WITHDRAW = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
+_UPDATE_CONSENT = UPDATE_EMBARGO_CONSENT_EVENT_TYPE
 
 
 def _embargo(embargo_id: str, days: int) -> as_EmbargoEvent:
@@ -156,6 +160,7 @@ def _run(dl: SqliteDataLayer, event: Any) -> HandlerResult:
         dl,
         event,
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -233,7 +238,9 @@ def test_the_case_manager_applies_and_commits_a_withdrawal(make_payload):
     assert _register(dl) == register_before
     assert _case(dl).active_embargo_id == _ACTIVE
     assert _rows(dl, _OWNER)[_ACTIVE] == "AGREED"
-    assert _ledger(dl) == [_WITHDRAW]
+    # The Leave first, then each declined row as the CASE_MANAGER's own
+    # entry (ADR-0124, CLP-07-013).
+    assert _ledger(dl) == [_WITHDRAW, _UPDATE_CONSENT, _UPDATE_CONSENT]
     # The fan-out runs at the commit, before the effect makes the withdrawer
     # inactive, so its own replica is sent the entry it replays (EP-09-007).
     assert _FINDER in _announced_to(dl)
@@ -405,13 +412,14 @@ def test_a_new_leave_after_a_withdrawal_is_still_refused(make_payload):
     assert _withdraw(dl, make_payload).disposition is (
         HandlerDisposition.APPLIED
     )
+    ledger = _ledger(dl)
     second = _leave(dl).model_copy(update={"id_": f"{_CASE_ID}/leaves/again"})
 
     result = _withdraw(dl, make_payload, activity=second)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "not AGREED" in (result.reason or "")
-    assert _ledger(dl) == [_WITHDRAW]
+    assert _ledger(dl) == ledger
 
 
 @pytest.mark.spec("CM-10-004")

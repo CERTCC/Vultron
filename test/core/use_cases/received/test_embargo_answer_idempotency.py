@@ -39,6 +39,9 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent_event_types import (
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -274,7 +277,12 @@ def test_a_reject_of_the_agreed_embargo_in_force_is_refused_leave_withdraws():
     assert withdrawn.disposition is HandlerDisposition.APPLIED, (
         withdrawn.reason
     )
-    assert _entries(net)[entries:] == [WITHDRAW_EVENT]
+    # The Leave, then its declined row as the CASE_MANAGER's own entry
+    # (ADR-0124, CLP-07-013).
+    assert _entries(net)[entries:] == [
+        WITHDRAW_EVENT,
+        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    ]
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
 
 

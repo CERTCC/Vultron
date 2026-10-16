@@ -50,7 +50,9 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
     refusal.  A redelivery of a Leave already
     ledgered is a benign no-op, reported ``SKIPPED`` (HP-01-003).  Only the
     CASE_MANAGER records the withdrawal, so a receiver whose gate turns it
-    away reports a refusal (BT-17-001).
+    away reports a refusal (BT-17-001).  Each row the withdrawal declines is
+    the CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, built through
+    the trigger-activity port (ADR-0124, CLP-07-013).
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(

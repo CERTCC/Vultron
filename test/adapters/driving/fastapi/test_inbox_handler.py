@@ -312,6 +312,46 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
     )
 
 
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+    ids=lambda sem: sem.value,
+)
+def test_make_dispatcher_gives_a_received_consent_act_the_trigger_port(
+    monkeypatch, sem
+):
+    """A received consent act's effect commits each further row as the
+    CASE_MANAGER's own factory-built ``Update(EmbargoConsent)`` entry after
+    intake commits the act (ADR-0124), so the inbox must hand it the trigger
+    port: without it the act is committed and the effect then raises, leaving
+    an act with no row entries (#4717)."""
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+
+    ih.make_dispatcher()
+
+    kwargs = captured["port_factories"][sem](real_dl)
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+    assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
+
+
 @pytest.mark.spec("EMB-13-003")
 @pytest.mark.spec("CLP-10-025")
 def test_make_dispatcher_gives_every_semantic_a_trigger_port(monkeypatch):

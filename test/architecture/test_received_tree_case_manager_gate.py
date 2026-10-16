@@ -155,12 +155,13 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             f"{_E}/nodes/answer_repeat.py",
             "case_manager_admits_embargo_answer_guard",
         ),
-        # The answer's row check (ADR-0122, ADR-0124): the same decision the
-        # effect makes, run among a received answer tree's guards so an
-        # answer recording nothing is refused before its commit.
+        # The decision check of a received consent act (ADR-0122,
+        # ADR-0124): the same decision the effect makes, run among a received
+        # answer's or withdrawal's guards so an act recording nothing is
+        # refused before its commit.
         (
             f"{_E}/nodes/answer_record.py",
-            "case_manager_admits_answer_change_guard",
+            "case_manager_decision_guard",
         ),
         (
             f"{_C}/nodes/case_participant_received.py",

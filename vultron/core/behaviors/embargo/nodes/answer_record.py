@@ -81,7 +81,49 @@ def decide_answer(
     )
 
 
-class EmbargoAnswerAppliesNode(DataLayerConditionWithPorts):
+class EmbargoDecisionAppliesNode(DataLayerConditionWithPorts):
+    """Shared frame: a received act's decision records what the case can take.
+
+    A received act's entry is committed by intake before its effects run
+    (ADR-0111), so the CASE_MANAGER makes the act's decision among the
+    tree's guards too, on a staged store, and writes nothing: an act whose
+    decision the lifecycle refuses, or whose entries would not apply, is
+    refused before it is committed (ADR-0124, SYNC-12-001).  A subclass
+    names the decision (:meth:`_decide`) and the act (:meth:`_act`).  A
+    decision fault (``VultronBTInternalError``) raises.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def _decide(self, datalayer: CasePersistence) -> EmbargoDecision:
+        """The act's decision on *datalayer*, staged; raises on a refusal."""
+        raise NotImplementedError
+
+    def _act(self) -> str:
+        """The act, as the refusal's feedback names it."""
+        raise NotImplementedError
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        try:
+            self._decide(self.datalayer)
+        except VultronBTInternalError:
+            raise
+        except VultronError as exc:
+            self.feedback_message = (
+                f"{self._act()} records nothing on case '{self.case_id}':"
+                f" {exc}"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return Status.SUCCESS
+
+
+class EmbargoAnswerAppliesNode(EmbargoDecisionAppliesNode):
     """Guard: the answer records a change the case can take, or one it holds.
 
     Runs :func:`decide_answer` and writes nothing.  FAILURE, so the answer is
@@ -98,63 +140,64 @@ class EmbargoAnswerAppliesNode(DataLayerConditionWithPorts):
         accept: bool,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+        super().__init__(case_id, name=name)
         self.embargo_id = embargo_id
         self.answering_actor_id = answering_actor_id
         self.accept = accept
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        try:
-            decide_answer(
-                self.datalayer,
-                case_id=self.case_id,
-                embargo_id=self.embargo_id,
-                actor_id=self.answering_actor_id,
-                accept=self.accept,
-            )
-        except VultronBTInternalError:
-            raise
-        except VultronError as exc:
-            self.feedback_message = (
-                f"'{self.answering_actor_id}''s answer to embargo"
-                f" '{self.embargo_id}' records nothing on case"
-                f" '{self.case_id}': {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return Status.SUCCESS
+    def _decide(self, datalayer: CasePersistence) -> EmbargoDecision:
+        return decide_answer(
+            datalayer,
+            case_id=self.case_id,
+            embargo_id=self.embargo_id,
+            actor_id=self.answering_actor_id,
+            accept=self.accept,
+        )
+
+    def _act(self) -> str:
+        return (
+            f"'{self.answering_actor_id}''s answer to embargo"
+            f" '{self.embargo_id}'"
+        )
+
+
+def case_manager_decision_guard(
+    name: str, case_id: str, guard: EmbargoDecisionAppliesNode
+) -> py_trees.behaviour.Behaviour:
+    """*guard*, run only at the CASE_MANAGER (a precondition guard).
+
+    A participant replica skips it as ``SUCCESS``: only the CASE_MANAGER
+    records the act (BT-17-001), and the gate reports the replica's refusal
+    (HP-01-005).
+    """
+    return create_case_manager_gated_tree(
+        name=f"{name}IfCaseManager",
+        case_id=case_id,
+        body_name=name,
+        children=[guard],
+    )
 
 
 def case_manager_admits_answer_change_guard(
     case_id: str, embargo_id: str, answering_actor_id: str, *, accept: bool
 ) -> py_trees.behaviour.Behaviour:
-    """Precondition guard: at the CASE_MANAGER, the answer records a change.
-
-    A participant replica skips it as ``SUCCESS``: only the CASE_MANAGER
-    records an answer (BT-17-001), and the gate reports the replica's
-    refusal (HP-01-005).
-    """
-    return create_case_manager_gated_tree(
-        name="EmbargoAnswerAppliesIfCaseManager",
-        case_id=case_id,
-        body_name="EmbargoAnswerApplies",
-        children=[
-            EmbargoAnswerAppliesNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                answering_actor_id=answering_actor_id,
-                accept=accept,
-            )
-        ],
+    """Precondition guard: at the CASE_MANAGER, the answer records a change."""
+    return case_manager_decision_guard(
+        "EmbargoAnswerApplies",
+        case_id,
+        EmbargoAnswerAppliesNode(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            answering_actor_id=answering_actor_id,
+            accept=accept,
+        ),
     )
 
 
 __all__ = [
     "EmbargoAnswerAppliesNode",
+    "EmbargoDecisionAppliesNode",
     "case_manager_admits_answer_change_guard",
+    "case_manager_decision_guard",
     "decide_answer",
 ]
