@@ -34,7 +34,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.note.nodes.storage import (
     AttachNoteToCaseNode,
     NoteIdNotTakenNode,
-    SaveNoteNode,
+    StoreNoteIfAbsentNode,
 )
 from vultron.core.models.note import VultronNote
 
@@ -67,7 +67,7 @@ def create_add_note_to_case_received_tree(
         └── GuardedAttachNoteBT (Selector)             # effect
             ├── SkipIfNotCaseManager
             └── Sequence
-                ├── SaveNoteNode(note_obj)
+                ├── StoreNoteIfAbsentNode(note_obj)
                 └── AttachNoteToCaseNode(note_obj.id_, case_id)
 
     The ``Add`` carries the note inline (VAM-01-010), so the CASE_MANAGER
@@ -75,9 +75,12 @@ def create_add_note_to_case_received_tree(
     note the CASE_MANAGER cannot read.  Storing it is part of what the
     ``Add`` states, so it is part of the change the ``add_note_to_case``
     entry records (CLP-07-013); a replica stores the same note from the
-    entry's snapshot.  The guard refuses an ``Add`` whose note id already
-    names a different stored note, so an ``Add`` can never overwrite
-    another note (HP-08-006).
+    entry's snapshot.  The store step writes only an absent note, so an
+    ``Add`` never replaces a note already stored under its id (HP-08-006).
+    The guard refuses an ``Add`` whose carried note differs from the stored
+    one, when the carried note reaches core: the inbox ingress stores an
+    inline object first and keeps an existing record, so on that path the
+    rehydrated ``Add`` already holds the stored note.
 
     Composed through :func:`create_receive_activity_tree`, which supplies the
     intake node and the guarded commit, so the tree cannot opt out of either
@@ -100,7 +103,7 @@ def create_add_note_to_case_received_tree(
         case_id=case_id,
         precondition_guards=[NoteIdNotTakenNode(note_obj=note_obj)],
         manager_effects=[
-            SaveNoteNode(note_obj=note_obj),
+            StoreNoteIfAbsentNode(note_obj=note_obj),
             AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id),
         ],
         manager_case_id=case_id,

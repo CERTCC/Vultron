@@ -26,8 +26,12 @@ from test.core.use_cases.received.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIIngressAdapter,
+)
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
@@ -35,6 +39,7 @@ from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -345,6 +350,68 @@ class TestNoteUseCases:
         refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
         assert note_id not in refreshed.notes
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
+    @pytest.mark.spec("HP-08-006")
+    def test_add_note_through_ingress_keeps_the_stored_note(self):
+        """The conflicting Add of the test above, sent through the inbox
+        ingress: ingress keeps the stored note and the rehydrated Add holds
+        it, so the stored note is never replaced (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1d/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1d"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3d"
+        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
+
+        activity = add_note_to_case_activity(
+            as_Note(id_=note_id, content="Rewritten", context=case_id),
+            target=case,
+            actor="https://example.org/users/finder",
+        )
+        ingress = FastAPIIngressAdapter(dl)
+        parsed = ingress.parse(
+            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
+        )
+        assert parsed is not None
+        event = extract_event(ingress.rehydrate(parsed)).model_copy(
+            update={"receiving_actor_id": case_actor_id}
+        )
+        assert isinstance(event, AddNoteToCaseReceivedEvent)
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert getattr(dl.read(note_id), "content", None) == "Original"
+
+    @pytest.mark.spec("HP-01-005")
+    def test_add_note_without_an_inline_note_is_refused(self, make_payload):
+        """An Add(Note) event with no note object is refused before any
+        tree runs: there is no note to store or attach (#4706)."""
+        case_actor_id = "https://example.org/cases/case_n1e/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1e"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        event = make_payload(
+            add_note_to_case_activity(
+                as_Note(id_="https://example.org/notes/note3e", content="x"),
+                target=case,
+                actor="https://example.org/users/finder",
+            ),
+            receiving_actor_id=case_actor_id,
+        ).model_copy(update={"object_": None})
+
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "inline note" in result.reason
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """CaseActor skips adding a note already in the case (idempotent)."""

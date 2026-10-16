@@ -28,6 +28,7 @@ from vultron.core.behaviors.note.nodes.storage import (
     DetachNoteFromCaseNode,
     NoteIdNotTakenNode,
     SaveNoteNode,
+    StoreNoteIfAbsentNode,
 )
 
 __all__ = [
@@ -35,6 +36,7 @@ __all__ = [
     "AttachNoteToCaseNode",
     "DetachNoteFromCaseNode",
     "NoteIdNotTakenNode",
+    "StoreNoteIfAbsentNode",
     "CreateNoteNode",
     "AttachNoteFromResultNode",
 ]

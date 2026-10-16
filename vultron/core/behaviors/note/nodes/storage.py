@@ -54,6 +54,32 @@ class SaveNoteNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
+class StoreNoteIfAbsentNode(SaveNoteNode):
+    """Persist a Note only when no record is stored under its id.
+
+    The received ``Add(Note)`` tree uses this in place of the upsert
+    :class:`SaveNoteNode`: an ``Add`` brings a note the CASE_MANAGER may
+    not hold yet, but it never replaces one already stored under that id
+    (HP-08-006).  :class:`NoteIdNotTakenNode` decides whether a stored note
+    is the same note; this node keeps every field of the stored one either
+    way, including the fields the guard does not compare.
+    """
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if self.datalayer.read(self.note_obj.id_) is not None:
+            self.logger.debug(
+                "%s: note %s already stored; kept as stored",
+                self.name,
+                self.note_obj.id_,
+            )
+            return Status.SUCCESS
+        return super().update()
+
+
 #: The fields that make two notes the same note: what it says, who wrote it,
 #: which case it belongs to and what it answers.
 _NOTE_IDENTITY_FIELDS: tuple[str, ...] = (
@@ -82,6 +108,12 @@ class NoteIdNotTakenNode(DataLayerConditionWithPorts):
     ledger entry would carry the overwrite to every replica, so the guard
     refuses it.  Read-only, so it runs before the guarded commit
     (CLP-10-006).
+
+    The guard sees a difference only when the carried note reaches core.
+    The inbox ingress stores an inline object before dispatch and keeps a
+    record already stored under its id, so the rehydrated ``Add`` holds the
+    stored note and the guard passes; :class:`StoreNoteIfAbsentNode` keeps
+    the stored note on every path.
     """
 
     def __init__(self, note_obj: VultronNote, name: str | None = None):

@@ -2116,10 +2116,9 @@ groups:
       report validation, RM engagement (VALID → ACCEPTED), participant state
       tracking, case closure, and at least one note (the add-note trigger
       posts a note as one inline `Add(Note)`, committed as
-      `add_note_to_case`). A
-      scenario missing any of the five has not completed the basic CVD
-      lifecycle. `engage_case` is as
-      universal as `validate_report`: emission lives in the shared demo helper
+      `add_note_to_case`). A scenario missing any of the five has not
+      completed the basic CVD lifecycle. `engage_case` is as universal as
+      `validate_report`: emission lives in the shared demo helper
       layer, not at scenario call sites, so no scenario file names the trigger
       itself (CONCERN-2243). Paths: see `notes/demo-ci-invariants.md`.
     relationships:

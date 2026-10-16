@@ -106,8 +106,7 @@ groups:
       single `Add` that attaches it (VAM-08-002, VAM-08-004), MUST send a `Note`
       inline on the single `Add(Note)` that attaches it (VAM-07-002), and MUST send a
       proposed `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An
-      inbox
-      MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
+      inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
       `Create(Event)` or `Create(CaseParticipant)` as an unrecognized activity.
     rationale: >-
       VAM-01-011 makes the single message the only protocol form and leaves how a
