@@ -727,8 +727,9 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     not torn the embargo down yet, so the case is still ``ACTIVE`` (or
     ``REVISE``, with an earlier revision open) when a revision arrives.
     The proposal is at most the occasion on which the CASE_MANAGER finds the
-    case public: it is refused (EP-09-001) and ends nothing.  The embargo ends when the cascade runs, and its termination
-    records the threat signal as its cause, not the proposal (EMB-03-003).
+    case public: it is refused (EP-09-001) and ends nothing.  The embargo
+    ends when the cascade runs, and its termination records the threat
+    signal as its cause, not the proposal (EMB-03-003).
     """
     case_id = (
         f"https://example.org/cases/relay-race-{em_at_race.name}"
