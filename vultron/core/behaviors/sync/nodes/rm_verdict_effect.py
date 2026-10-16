@@ -30,6 +30,10 @@ act reaching it directly (PCR-03-001).
 :class:`ApplyRmVerdictFromLedgerNode` applies the one the entry names, in one
 ``RmVerdict`` slot of ``AnnounceLogEntryReceivedBT``.
 
+No CASE_MANAGER commits ``close_report`` any more: once a case holds the
+report, every ``Close(Report)`` is refused (CM-23-019).  Its target stays so a
+replica can still apply such an entry already in a ledger.
+
 The apply writes the state the ledger records and nothing else (CM-23-016): no
 intermediate rung is derived from the replica's own state.  It never moves the
 subject backwards on the RM progress scale (RSH-05-007), the same monotonic

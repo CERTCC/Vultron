@@ -60,10 +60,9 @@ def closed_sender_preflight(
     invitee's reply), or whose act may close its sender.  When the case
     already records the sender's closure (CM-23-018):
 
-    - an act that would close it again (*closes*: a
-      ``Leave(VulnerabilityCase)``, a ``Close(Report)``, a ``Reject`` of a
-      stub or full-case Invite) changes nothing, so it is ``SKIPPED``,
-      whatever its activity id (ID-05-003);
+    - an act that would close it again (*closes*: a ``Reject`` of a stub or
+      full-case Invite) changes nothing, so it is ``SKIPPED``, whatever its
+      activity id (ID-05-003);
     - any other act is ``REFUSED``.
 
     Either way nothing is committed or sent.  Otherwise ``None``, and the

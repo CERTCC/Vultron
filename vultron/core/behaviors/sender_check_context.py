@@ -171,6 +171,13 @@ class SenderCheckContext:
             ``CASE_OWNER`` sender must hold the role, unless it redelivers
             an Offer the CASE_MANAGER recorded from it (CM-21-019,
             HP-01-003).
+        closing_case_owner: The activity is the Case Owner's
+            ``Leave(VulnerabilityCase)``, whose repeat finishes the case's
+            closure (CM-23-002, CM-23-018): a ``CASE_OWNER`` sender is
+            checked for the role alone, even once its own closure is
+            recorded.  The tree's closed-sender door guard
+            (:class:`ClosedSenderCheck` with ``case_owner_completes``)
+            decides the repeat.
     """
 
     sender_id: str
@@ -182,6 +189,7 @@ class SenderCheckContext:
     request: AddresseeRequest | None = None
     authored_object: AuthoredObject | None = None
     offered_ownership_id: str | None = None
+    closing_case_owner: bool = False
 
 
 @dataclass(frozen=True)

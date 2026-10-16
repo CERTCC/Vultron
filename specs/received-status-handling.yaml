@@ -1110,15 +1110,16 @@ groups:
       forward, log the anomaly, and post the clarification note where a case context exists)
       MUST be applied by the CASE_MANAGER to every received write of a participant's RM
       state, whichever wire activity carried the declaration. This includes the report
-      activities `Accept(Offer(VulnerabilityReport))`,
-      `TentativeReject(Offer(VulnerabilityReport))` and
-      `Reject(Offer(VulnerabilityReport))`, the full-case Invite replies `Accept`,
+      activities `Accept(Offer(VulnerabilityReport))` and
+      `TentativeReject(Offer(VulnerabilityReport))`, the full-case Invite replies `Accept`,
       `TentativeReject` and `Reject(Invite(Actor, VulnerabilityCase))` (CM-11-011), and the
       case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not only
       `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation, which accepts
       only a move to an adjacent RM state, MUST NOT be the receive-side acceptance rule for
       any of these. A declaration from a sender whose closure the case's ledger records is
       not adjudicated: it is refused before the rule applies, with no note (CM-23-018).
+      A `Reject(Offer(VulnerabilityReport))` for a report that belongs to the case is
+      not adjudicated either: it is refused whatever it declares (CM-23-019).
     rationale: >
       The acceptance rule belongs to the state machine, not to the message. A
       transition accepted as a status snapshot but refused as the activity that

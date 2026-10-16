@@ -560,8 +560,12 @@ def create_close_case_received_tree(
             sender_id=sender_actor_id, case_owner_completes=True
         ),
         sender_rule=sender_rule,
+        # The owner's repeat Leave finishes the closure, so its CASE_OWNER
+        # standing is the role alone; the closed-sender door decides it.
         sender_context=SenderCheckContext(
-            sender_id=sender_actor_id, case_id=case_id
+            sender_id=sender_actor_id,
+            case_id=case_id,
+            closing_case_owner=True,
         ),
         post_close_reply=late_leave_reply,
         manager_effects=[

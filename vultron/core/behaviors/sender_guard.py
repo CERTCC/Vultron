@@ -141,7 +141,8 @@ def closed_sender_guard(
     (``vultron.core.use_cases.received._sender_preflight``) never names a
     sender node itself (HP-01-007).  It is not a kind: it tells a repeated
     closing act (``SKIPPED``) from any other act of a closed sender
-    (``REFUSED``) before a handler's received tree runs.
+    (``REFUSED``) before a handler's received tree runs.  The ``CASE_OWNER``
+    kind's guard composes it too, so a closed owner is refused (CM-23-018).
     """
     return SenderClosureNotRecordedNode(
         case_id=case_id, sender_actor_id=sender_id
@@ -321,7 +322,30 @@ def _case_owner_node(ctx: SenderCheckContext) -> py_trees.behaviour.Behaviour:
     The withdrawal of a recorded ownership-transfer Offer checks the Owner
     that made it (CM-21-015); a new Offer checks the Owner making it
     (CM-21-019); anything else checks the role alone.
+
+    On a case, an owner whose closure the case records is refused first:
+    it has left and may act on nothing further (CM-23-018).  The check is
+    composed here, beside the role check, rather than inside
+    :class:`SenderIsCaseOwnerNode`, whose standing reads in the Leave,
+    suggest-actor, status and embargo trees must keep asking the role alone.
+    The owner's own ``Leave`` is the exception (*closing_case_owner*): its
+    repeat finishes the case's closure, so the role alone is asked and the
+    tree's closed-sender door guard decides the repeat (CM-23-002).
     """
+    owner = _case_owner_role_node(ctx)
+    if ctx.case_id is None or ctx.closing_case_owner:
+        return owner
+    return py_trees.composites.Sequence(
+        name="OpenCaseOwner",
+        memory=False,
+        children=[closed_sender_guard(ctx.case_id, ctx.sender_id), owner],
+    )
+
+
+def _case_owner_role_node(
+    ctx: SenderCheckContext,
+) -> py_trees.behaviour.Behaviour:
+    """The ``CASE_OWNER`` role check for the activity in *ctx*."""
     if isinstance(ctx.request, OwnershipOfferRequest):
         return SenderIsOwnershipOffererNode(
             case_id=_case_of(ctx, "an ownership-transfer Offer"),
