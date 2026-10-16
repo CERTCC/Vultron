@@ -19,6 +19,7 @@ import pytest
 
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
+    seed_case_participant,
     seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -79,6 +80,8 @@ class TestStatusUseCases:
         # so the store's own actor must hold the role for the write to run,
         # which also runs the guarded commit (sync_port injected below).
         seed_store_owner_as_case_manager(dl, case)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, "https://example.org/users/vendor")
         dl.create(case)
         dl.create(status)
 
@@ -180,6 +183,8 @@ class TestStatusUseCases:
             em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
+        # The sender holds standing, so its content is refused, not it.
+        seed_case_participant(dl, case, sender_id)
         dl.create(case)
 
         bad_status = as_CaseStatus(

@@ -24,6 +24,7 @@ then verifies the CSB-18-002..004 invariant and posts a Note to the case if the
 invariant is still violated (e.g. authorization gate blocked teardown).
 
     AddCaseStatusToCaseBT (Sequence)
+    ├─ <intake, post-close guard, sender guard, clock decisions>  # factory
     ├─ CheckCaseStatusIdempotencyNode              # precondition guard (CLP-10-009)
     ├─ CheckCsEphemeralStateNode                   # pX ephemeral guard (CSB-17-012, ISSUE-2524)
     ├─ CheckCsHistoryPrefixNode                    # history prefix guard (CSB-17-005, ISSUE-2524)
@@ -57,6 +58,8 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.replica_emit_exemptions import CASE_STATUS
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.status.nodes import (
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
@@ -84,6 +87,8 @@ logger = logging.getLogger(__name__)
 def add_case_status_tree(
     request: AddCaseStatusToCaseReceivedEvent,
     call_out: StatusAuthorizationCallOutBundle = STATUS_AUTHORIZATION_DETERMINISTIC,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
@@ -118,6 +123,9 @@ def add_case_status_tree(
         call_out: Call-out backend bundle for the ``EmbargoTeardownAuthorizationGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all side-effects (historical behavior).
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it, ahead of every guard listed
+            above (HP-01-008).
 
     Returns:
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.
@@ -125,11 +133,15 @@ def add_case_status_tree(
     status_id = request.status_id or ""
     case_id: str | None = request.case_id or None
     status_obj = request.status
-    sender_actor_id = request.actor_id or None
+    sender_actor_id = request.actor_id
 
     root = create_receive_activity_tree(
         name="AddCaseStatusToCaseBT",
         case_id=case_id or None,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id, case_id=case_id
+        ),
         precondition_guards=[
             CheckCaseStatusIdempotencyNode(
                 case_id=case_id,

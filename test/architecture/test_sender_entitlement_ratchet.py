@@ -557,12 +557,12 @@ def test_every_unmigrated_guard_names_its_tracking_issue() -> None:
 #: ``AnnounceVulnerabilityCaseReceivedUseCase.execute()`` ahead of its tree,
 #: moved into the tree by #4643 (CLP-10-005).  It reads the ReportCaseLink
 #: anchor the declared CASE_MANAGER rule does not, so it stays its own node
-#: until #4522 declares the announce rule.
+#: until #4785 declares the announce rule.
 SENDER_CHECKS_DEFINED_ELSEWHERE: dict[tuple[str, str], str] = {
     (
         "vultron/core/behaviors/case/nodes/announce.py",
         "AnnounceSenderTrustedNode",
-    ): "#4522: the announce use case declares its sender rule",
+    ): "#4785: the announce use case declares its sender rule",
 }
 
 
@@ -831,3 +831,64 @@ def test_the_rule_scan_admits_a_declaration() -> None:
         "        K.INVITEE\n    )\n"
     )
     assert not _rules_built_outside_a_declaration(tree, "vultron/x.py")
+
+
+# ---------------------------------------------------------------------------
+# HP-01-007: an exemption names an open issue, or says no check applies
+# ---------------------------------------------------------------------------
+
+#: The open issues that own a not-yet-checked use case's sender rule.  The
+#: list only shrinks: an exemption naming any other issue fails, and so does
+#: an issue no exemption names any more.  That each is still open is checked
+#: when an entry is added or reviewed, since the suite runs offline.
+OPEN_EXEMPTION_ISSUES: dict[str, str] = {
+    "#4785": "note and Announce(VulnerabilityCase) sender rules",
+    "#4703": "Accept and Reject of a role offer (NAMED_ACTOR)",
+    "#4799": "Create(ProcessingFault), once a case-diverged fault re-seeds",
+}
+
+#: The use cases no sender check applies to, each declared with
+#: ``no_sender_check``: nothing they do is gated on a sender's standing.
+PERMANENT_EXEMPTIONS: frozenset[str] = frozenset(
+    {
+        "UnknownUseCase",
+        "UnresolvableObjectUseCase",
+    }
+)
+
+
+def _exemptions() -> dict[str, SenderExemption]:
+    return {
+        entry.use_case_class.__name__: declared
+        for entry in SEMANTIC_REGISTRY
+        if isinstance(
+            declared := getattr(
+                entry.use_case_class, "sender_entitlement", None
+            ),
+            SenderExemption,
+        )
+    }
+
+
+@pytest.mark.spec("HP-01-007")
+def test_every_exemption_names_an_open_issue_or_no_check_applies() -> None:
+    exemptions = _exemptions()
+    permanent = {name for name, e in exemptions.items() if e.permanent}
+    assert permanent == PERMANENT_EXEMPTIONS, (
+        "A use case to which no sender check applies is listed here, so"
+        " no_sender_check does not spread: found"
+        f" {sorted(permanent ^ PERMANENT_EXEMPTIONS)}"
+    )
+    tracked = {
+        e.tracking_issue
+        for e in exemptions.values()
+        if e.tracking_issue is not None
+    }
+    assert tracked <= set(OPEN_EXEMPTION_ISSUES), (
+        "These exemptions name an issue not on the open list; point them at"
+        f" the open issue that owns the check: {sorted(tracked - set(OPEN_EXEMPTION_ISSUES))}"
+    )
+    assert set(OPEN_EXEMPTION_ISSUES) <= tracked, (
+        "No exemption names these issues any more; drop them so the list"
+        f" only shrinks: {sorted(set(OPEN_EXEMPTION_ISSUES) - tracked)}"
+    )

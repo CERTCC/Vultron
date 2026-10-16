@@ -443,6 +443,7 @@ A participant whose closure is recorded also has no further say in the case.
 The CASE_MANAGER refuses every later activity from it, with two exceptions ([CM-23-018](../../reference/specs/protocol.md#cm-23-018)).
 Its request for missing ledger entries is still answered, but only with the entries that record its own closure.
 A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)`, changes nothing, so the CASE_MANAGER reports it as skipped.
+The Case Owner's second `Leave` is the exception while the case is not fully closed: its `Leave` also closes the case, so a repeat completes a closure that a failed first delivery left unfinished.
 A `Close(Report)` closes no one once a case holds the report: the CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/specs/protocol.md#cm-23-019)).
 
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/specs/protocol.md#rmb-14-007)).

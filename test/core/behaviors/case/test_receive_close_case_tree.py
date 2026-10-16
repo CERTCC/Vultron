@@ -21,6 +21,7 @@ built or the entry persisted, not after.
 from __future__ import annotations
 
 import py_trees
+import pytest
 
 from vultron.core.behaviors.case.nodes.leave import (
     CommitCaseFullyClosedNode,
@@ -29,6 +30,10 @@ from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
 from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
+from vultron.core.use_cases.received.case.lifecycle import (
+    CloseCaseReceivedUseCase,
+)
+from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/c-close-tree"
 OWNER_ID = "https://example.org/actors/owner-close-tree"
@@ -49,6 +54,7 @@ def test_case_fully_closed_commit_guards_the_sync_port_before_persisting():
         activity_id="https://example.org/activities/leave-1",
         sender_actor_id=OWNER_ID,
         receiving_actor_id="https://example.org/actors/case-actor",
+        sender_rule=CloseCaseReceivedUseCase.sender_entitlement,
     )
 
     commit = _find(tree, "CommitCaseFullyClosedBT")
@@ -58,3 +64,16 @@ def test_case_fully_closed_commit_guards_the_sync_port_before_persisting():
     assert [type(child) for child in children[1:]] == [
         CommitCaseFullyClosedNode
     ]
+
+
+@pytest.mark.spec("HP-01-008")
+def test_a_leave_with_a_sender_and_no_sender_rule_is_a_wiring_error():
+    """The factory composes the sender guard from the declared rule; a tree
+    built without one would run the closure for any sender."""
+    with pytest.raises(VultronWiringError, match="HP-01-008"):
+        create_close_case_received_tree(
+            case_id=CASE_ID,
+            activity_id="https://example.org/activities/leave-1",
+            sender_actor_id=OWNER_ID,
+            receiving_actor_id="https://example.org/actors/case-actor",
+        )
