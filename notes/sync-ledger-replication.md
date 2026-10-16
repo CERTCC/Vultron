@@ -6,7 +6,8 @@ description: >
   Rules for replicating the canonical case ledger to participants: single-writer
   log, hash-chain sync, canonical serialization, commit and replica invariants,
   the sync-port wiring rule, fan-out recipients and the embargo pause, ingress
-  never writing the ledger, the gap and pre-genesis buffers, replay rate limiting,
+  never writing the ledger, the gap and pre-genesis buffers, divergence recovery,
+  replay rate limiting,
   and SYNC test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
@@ -14,6 +15,8 @@ related_specs:
   - specs/case-proposal.yaml
   - specs/case-management.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/participant-case-replica.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-actor-cluster.md
@@ -233,6 +236,26 @@ does not re-queue an `Announce` the outbox already holds for that peer
 
 Enqueuing for another actor means opening that actor's store explicitly
 (`store_for_actor`, DL-07-005) and calling `outbox_append` on it.
+
+## A Refusal That Extends the Chain Is Divergence (SYNC-16)
+
+When the apply function refuses an entry whose predecessor the replica holds, no
+replay can help: the replica's case file has diverged, and the replay resends the
+same entry forever (ADR-0142).
+
+- **Report it, never patch it.** The replica sends `Create(ProcessingFault)`
+  `LedgerEntryRefused/CaseDiverged` and keeps holding the entry; the CASE_MANAGER
+  answers an active participant with a fresh `Announce(VulnerabilityCase)`.
+- **Never ledger it.** A fault about applying an entry is replication signalling,
+  like the gap Reject; the replica that sent it could not apply its entry
+  (SYNC-16-002).
+- **A case copy is judged by its ledger tail.** The tail is computed from the
+  ledger whenever the case is read or sent, never stored, so it cannot disagree
+  with the ledger. A copy behind the replica's chain is stale and must not replace
+  the case, because an old copy can arrive late (SYNC-16-006).
+- **Every apply node is forward-only over a newer copy.** An entry a copy already
+  reflects is stored as a no-op, as `case_file_is_past()` does for the embargo
+  register, or a backfill after a re-seed refuses it again (SYNC-16-007).
 
 ## Genesis-Unavailable Buffer-and-Reject (SYNC-15)
 
