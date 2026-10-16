@@ -17,7 +17,8 @@
 
 :class:`DecideRejectedEmbargoProposalNode` applies the owner's
 ``Reject(EmbargoEvent, target=Case)`` (ER or EJ, ADR-0122) on the received
-path and in the ledger replay;
+path, as the CASE_MANAGER (a replica copies the committed ``REJECT`` step,
+``activation_effect.py``);
 :class:`OwnerRejectsRevisionAfterDisclosureNode` tells when that Reject must
 end the embargo instead (EMB-04-002).  The P/X/A abandonment of open
 proposals (EMB-16-001) is the CASE_MANAGER's decision, not an owner's
@@ -36,12 +37,8 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
-from vultron.core.predicates.embargo import pxa_is_embargo_eligible
-from vultron.core.services.embargo_lifecycle import (
-    EmbargoLifecycle,
-    TransitionMode,
-)
-from vultron.core.states.em import EM
+from vultron.core.predicates.embargo import rejection_ends_embargo
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import VultronError
 
 
@@ -56,18 +53,15 @@ class DecideRejectedEmbargoProposalNode(
     which drives ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` — or, while
     another proposal stays open, only rejects this one (EP-08-001).  It writes
     no consent: a participant's refusal of terms, the owner's included, is a
-    ``Reject(Invite(EmbargoEvent))``.  The received path runs it ``STRICT``
-    in the CASE_MANAGER's store; the ledger replay runs it ``OBSERVED``
-    (EP-09-007).
+    ``Reject(Invite(EmbargoEvent))``.  The received path runs it in the
+    CASE_MANAGER's store; a replica copies the committed entry instead
+    (CM-23-016, ADR-0124).
 
     Returns SUCCESS and changes nothing when the embargo is no longer an
     open proposal (already decided, or ended by the EMB-04-002 termination
-    that ran first), so a repeated Reject is idempotent.  On replay it also
-    changes nothing for the last revision with P/X/A set: the termination
-    entry that follows cancels it, as on the CASE_MANAGER (ADR-0124).
-    Returns FAILURE when
-    the case cannot be read or the lifecycle refuses the transition (for
-    example ``STRICT`` EJ with P/X/A set, EMB-04-002).
+    that ran first), so a repeated Reject is idempotent.  Returns FAILURE
+    when the case cannot be read or the lifecycle refuses the transition
+    (for example EJ with P/X/A set, EMB-04-002).
     """
 
     def __init__(
@@ -75,13 +69,10 @@ class DecideRejectedEmbargoProposalNode(
         case_id: str,
         embargo_id: str,
         name: str | None = None,
-        *,
-        transition_mode: TransitionMode = TransitionMode.STRICT,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
-        self.transition_mode = transition_mode
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -106,20 +97,11 @@ class DecideRejectedEmbargoProposalNode(
                 case_id=self.case_id,
                 embargo_id=self.embargo_id,
                 actor_id=self.actor_id,
-                transition_mode=self.transition_mode,
             )
         except VultronError as exc:
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-
-        if not result.case_changed:
-            self.feedback_message = (
-                f"Owner's rejection of embargo '{self.embargo_id}' on case"
-                f" '{self.case_id}' changes nothing here; the termination"
-                " that follows ends it (EMB-04-002)"
-            )
-            return Status.SUCCESS
 
         log_em_transition(
             self.logger,
@@ -141,8 +123,9 @@ class OwnerRejectsRevisionAfterDisclosureNode(DataLayerConditionWithPorts):
     SUCCESS when ``rejecting_actor_id`` is the case owner, the case is in
     ``REVISE``, ``embargo_id`` is the last open proposal (so the Reject would
     decide the revision, EP-08-001) and CS is already public, exploited or
-    attacked.  Returning to the prior terms is then not allowed: the EJ must
-    be answered with ET.  FAILURE in every other case, so the owner's Reject
+    attacked (:func:`~vultron.core.predicates.embargo.rejection_ends_embargo`).
+    Returning to the prior terms is then not allowed: the EJ must be
+    answered with ET.  FAILURE in every other case, so the owner's Reject
     is decided by :class:`DecideRejectedEmbargoProposalNode` as usual.
     Read-only.
     """
@@ -168,11 +151,10 @@ class OwnerRejectsRevisionAfterDisclosureNode(DataLayerConditionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        if (
-            _as_id(case.attributed_to) == self.rejecting_actor_id
-            and case.em_state == EM.REVISE
-            and case.proposed_embargo_ids == [self.embargo_id]
-            and not pxa_is_embargo_eligible(case.current_status.pxa.state)
+        if _as_id(
+            case.attributed_to
+        ) == self.rejecting_actor_id and rejection_ends_embargo(
+            case, self.embargo_id
         ):
             self.feedback_message = (
                 f"Owner rejected revision '{self.embargo_id}' of case"

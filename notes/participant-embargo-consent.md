@@ -381,11 +381,26 @@ An invitee that never answers sends nothing, so a late-`Accept` check never sees
 it: its row stays `INVITED` until owner close expires it (CM-23-014). The
 CASE_MANAGER therefore expires every overdue `INVITED` row of an open proposal or
 the embargo in force before it commits the owner's decision, and on every other
-received embargo activity, after all of the activity's refusal checks, so a
-refused activity writes nothing (CM-28-015). Rows of a replaced, rejected,
-cancelled or ended embargo are frozen: skip them. Reuse the owner-close settle
-step's commit → effect pair, filtered to rows past their deadline, rather than
-writing a second expiry path (`create_commit_and_record_expiry_tree`).
+received embargo activity and embargo trigger (CM-28-015). Rows of a replaced,
+rejected, cancelled or ended embargo are frozen: skip them.
+
+The sweep is a clock decision (CLP-10-025, ADR-0135), passed by each received
+embargo tree as `clock_decisions` and added by `SvcEmbargoTriggerBase` ahead of
+each embargo trigger's tree. It runs after the door guards, so a sender with no
+standing makes the CASE_MANAGER write nothing, and before the activity's own
+refusals, so an owner decision naming an embargo that is not an open proposal is
+refused *after* the expiries are committed. That is deliberate: the overdue row
+is a fact from the CASE_MANAGER's clock, not evidence from the activity (#4640).
+The settle step and the sweep share `ExpireInvitationsNode`, which runs the one
+expiry path (`create_commit_and_record_expiry_tree`) per row; do not write a
+second one. The sender's own overdue row is swept too: a late `Reject` of an
+Invite records the timeout, then declines the `TIMED_OUT` row, and that expiry
+entry carries the `Reject`'s claimed time so the sender's stream does not run
+backwards (CLP-15-003). The P/X/A refusal of an Invite or an `Accept` does not
+sweep: its handler checks the sender first, but `RefuseEmbargoInviteBT` is a tree
+of its own with no sender rule, and the factory gives such a tree no
+clock-decision stage. The next admitted embargo activity sweeps; #4642 makes the
+refusal a guard of the Invite and Accept trees, which take the sweep.
 
 ### The ledger fan-out is the owner's notification (MSM-07-007)
 

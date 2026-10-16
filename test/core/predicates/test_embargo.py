@@ -17,7 +17,12 @@
 
 import pytest
 
-from vultron.core.predicates.embargo import pxa_is_embargo_eligible
+from test.support.embargo_register import activate, propose
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.predicates.embargo import (
+    pxa_is_embargo_eligible,
+    rejection_ends_embargo,
+)
 from vultron.core.states.cs import CS_pxa
 
 
@@ -58,3 +63,45 @@ class TestPxaIsEmbargoEligible:
     def test_only_baseline_is_eligible(self):
         eligible = [s for s in CS_pxa if pxa_is_embargo_eligible(s)]
         assert eligible == [CS_pxa.pxa]
+
+
+_CASE = "https://example.org/cases/c1"
+_ACTIVE = f"{_CASE}/embargo_events/active"
+_REVISION = f"{_CASE}/embargo_events/revision"
+_OTHER = f"{_CASE}/embargo_events/other"
+
+
+def _case(
+    *, active: bool = True, others: bool = False, pxa: CS_pxa = CS_pxa.Pxa
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
+        id_=_CASE, attributed_to="https://example.org/users/owner"
+    )
+    case.append_case_status(pxa=pxa)
+    if active:
+        activate(case, _ACTIVE)
+    propose(case, _REVISION)
+    if others:
+        propose(case, _OTHER)
+    return case
+
+
+@pytest.mark.spec("EMB-04-002")
+class TestRejectionEndsEmbargo:
+    def test_the_last_revision_after_disclosure_ends_the_embargo(self):
+        assert rejection_ends_embargo(_case(), _REVISION) is True
+
+    def test_no_public_info_returns_to_the_prior_terms(self):
+        assert (
+            rejection_ends_embargo(_case(pxa=CS_pxa.pxa), _REVISION) is False
+        )
+
+    def test_another_open_revision_keeps_the_negotiation_open(self):
+        """EP-08-001: only the last open revision decides the revision."""
+        assert rejection_ends_embargo(_case(others=True), _REVISION) is False
+
+    def test_an_initial_proposal_has_no_prior_terms(self):
+        assert rejection_ends_embargo(_case(active=False), _REVISION) is False
+
+    def test_an_embargo_that_is_not_open_is_not_a_revision(self):
+        assert rejection_ends_embargo(_case(), _ACTIVE) is False

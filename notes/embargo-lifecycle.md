@@ -8,8 +8,9 @@ description: >
   EmbargoLifecycle or, for an arm converted to the copy model, the one apply
   function (ADR-0122, ADR-0124, ADR-0130); consent versus owner decision; STRICT
   versus OBSERVED and the P/X/A guards; the invariant that a case never names
-  an embargo its store cannot read (EMB-18-003); late Accepts, expiry and the
-  owner-close settle step (EMB-17, CM-23-014); P/X/A refusal and teardown
+  an embargo its store cannot read (EMB-18-003); late Accepts, expiry, the
+  overdue-invitation sweep and the owner-close settle step (EMB-17, CM-28-015,
+  CM-23-014); P/X/A refusal and teardown
   (EMB-01-002, EMB-16); earliest-expiration resolution of open proposals
   (EP-08); the relay through the CASE_MANAGER and its trigger write gate
   (EP-09, ADR-0113); and who may send each embargo message (ADR-0115).
@@ -161,8 +162,8 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   owner changing its answer, so its row moves straight to `AGREED`, in either
   mode, with one ledger entry (MSM-07-008). The received owner-decision trees
   check P/X/A with a read-only guard ahead of the commit
-  (`OwnerMayActivateEmbargoNode`), because replay runs `OBSERVED` and does not
-  re-check.
+  (`OwnerMayActivateEmbargoNode`), because a replica copies the step and does
+  not re-check.
 - A repeat of a recorded Accept or Reject is `SKIPPED` before the commit
   (`EmbargoAnswerNotRecordedNode`, CM-13-005); a `DECLINED` actor's Reject of
   an unknown embargo stays `REFUSED` (HP-01-003). An Accept after a Reject is
@@ -172,8 +173,9 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
   trigger's CASE_MANAGER arm runs it (EP-09-008).
-- **`OBSERVED`** follows the CASE_MANAGER's committed assertion (the received
-  and replay nodes not yet copying, #4716): it skips the P/X/A
+- **`OBSERVED`** follows the CASE_MANAGER's committed assertion. Only the
+  paused replica's CM-31-010 notice path still runs it
+  (`ending_notice_replica.py`, outside the ledger): it skips the P/X/A
   guards, records a proposal a replica never saw before activating it, and
   logs and skips a refused step — it never forces the register into a state
   its rules refuse. A copying replay node runs no lifecycle mode at all: it
@@ -182,9 +184,16 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
   never blocked. `reject_embargo_proposal()` raises when it would return a
   `REVISE` case to the prior terms with P/X/A set — the correct path is to
-  terminate the embargo (ET, `terminate_embargo_bt`). That guard holds in
-  `OBSERVED` too, so manager and replicas both end with the revision
-  `CANCELLED` (#4364).
+  terminate the embargo (ET, `terminate_embargo_bt`). The CASE_MANAGER still
+  commits that `Reject`, so the replica slot skips it under the same condition
+  (`rejection_ends_embargo`, `vultron/core/predicates/embargo.py`) and the
+  `Remove` entry that follows cancels the revision: manager and replicas both
+  end with it `CANCELLED` (#4364, #4784). Deciding that skip is lifecycle
+  logic on replay, a **tracked deviation from CM-23-016 (#4789)**: it reads
+  only the case file, so replicas still converge, but it evaluates EMB-04-002
+  rather than copying. It is the only `_left_to_a_later_entry` override, and
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one
+  until #4789 decides how the ledger records that `Reject`.
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -230,6 +239,15 @@ catch-up fetch or deferral, refuse instead.
   CASE_MANAGER's clock, because the invitee sent nothing. Each expiry commits
   before it writes the consent row, so a refused one writes nothing; it is
   logged and the close goes on.
+- **Every embargo act sweeps overdue Invites first (CM-28-015).** Each received
+  embargo tree and embargo trigger takes `ExpireOverdueInvitesNode` as a clock
+  decision, after the end-time check: it expires every `INVITED` row past its
+  deadline on an open proposal or the embargo in force. It shares
+  `ExpireInvitationsNode` with the settle step, so the expiry path is one copy,
+  and it runs before the activity's own guards, so a refused activity still
+  leaves its expiries recorded (ADR-0135). See
+  `notes/participant-embargo-consent.md` § "Sweep due expiries before the owner
+  decides".
 
 ## Refusing an Invite at P/X/A (EMB-01-002)
 
@@ -299,11 +317,13 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    open proposal and writes no consent (MSM-07-006). Callers do none of this
    by hand.
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
-   teardown, withdrawal, activation and expiry slots copy the entry's step or
-   row (a `Leave` carries none), and every other row arrives as its own
-   CASE_MANAGER entry (ADR-0124). Two paths still pass
-   `transition_mode=TransitionMode.OBSERVED`: the owner's-rejection replica
-   slot (`activation_effect.py`, #4784), and a paused replica applying a
+   teardown, withdrawal, activation, owner's-rejection and expiry slots copy
+   the entry's step or row (a `Leave` carries none), and every other row
+   arrives as its own CASE_MANAGER entry (ADR-0124). The owner's-rejection
+   slot's skip of a `Reject` answered with ET is the one tracked deviation
+   from copy-only (CM-23-016, #4789; see the P/X/A guards above). One path
+   still passes
+   `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
@@ -380,10 +400,9 @@ every other participant learns the result from the ledger.
    actor policy, a call-out point. The Invites are not a vote: they gather the
    consent rows that decide who stays bound when terms lengthen (EP-05-001).
 6. Only the CASE_MANAGER evaluates expiry (CM-28-014). Replay nodes copy the
-   proposal's `PROPOSE` step and every consent row the CASE_MANAGER commits as
-   its own entry; the decision slot still reconstructs via
-   `EmbargoLifecycle(OBSERVED)` until #4716 (EP-09-007, RSH-08-004, ADR-0124);
-   the slot table is in
+   proposal's `PROPOSE` step, the owner's `ACTIVATE` or `REJECT`, and every
+   consent row the CASE_MANAGER commits as its own entry (EP-09-007,
+   RSH-08-004, ADR-0124); the slot table is in
    `notes/case-communication-model.md` § "What the participant and its replica
    do".
 

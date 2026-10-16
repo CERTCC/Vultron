@@ -1314,6 +1314,7 @@ class TestThreatTerminationBranchNode:
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("RSH-03-001")
+    @pytest.mark.spec("EMB-03-003")
     @pytest.mark.parametrize(
         "pxa_state",
         [
@@ -1329,7 +1330,9 @@ class TestThreatTerminationBranchNode:
     def test_triggers_teardown_on_threat_pxa_states(self, dl, pxa_state):
         """All CS_pxa states except pxa trigger embargo teardown.
 
-        The ``Remove`` is committed before the termination is applied
+        The public, exploit or attack fact is what ends the embargo, whenever
+        it becomes known, never a revision proposal (EMB-03-003).  The
+        ``Remove`` is committed before the termination is applied
         (ADR-0124), so EM reaches EXITED with its entry recorded.
         """
         from vultron.adapters.driven.trigger_activity_adapter import (

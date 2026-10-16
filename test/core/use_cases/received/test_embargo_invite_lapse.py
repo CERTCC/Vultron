@@ -2026,6 +2026,9 @@ class TestLateAcceptHandling:
         records each call of the EMB-17 routing.
         """
         from vultron.core.behaviors.embargo import expiry_tree as _et_module
+        from vultron.core.behaviors.embargo.nodes import (
+            invitation_expiry as _sweep_module,
+        )
 
         dl = _make_dl(actor_id=_COORD)
         case_id = f"https://example.org/cases/{case_slug}"
@@ -2045,11 +2048,14 @@ class TestLateAcceptHandling:
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)
-        monkeypatch.setattr(
-            _et_module,
-            "create_commit_and_record_expiry_tree",
-            lambda **_: commit_node,
-        )
+        # The one expiry path, as the Accept's own decision and the
+        # overdue-invitation sweep (CM-28-015) both reach it.
+        for module in (_et_module, _sweep_module):
+            monkeypatch.setattr(
+                module,
+                "create_commit_and_record_expiry_tree",
+                lambda **_: commit_node,
+            )
         routed: list[str] = []
         original = (
             AcceptInviteToEmbargoOnCaseReceivedUseCase._handle_emb17_routing

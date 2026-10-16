@@ -32,6 +32,7 @@ and guarded commit; each tears its own copy down only when the embargo is in
 force, and only the CASE_MANAGER announces (BT-17-008):
 
     RemoveEmbargoFromCaseBT (Sequence)
+    ├─ ClockDecisionsIfCaseManager        # end time, overdue invites (CM-28-015)
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
     ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
     ├─ TeardownOnReplica (Selector)       # participant replica: paused only
@@ -90,6 +91,9 @@ from vultron.core.behaviors.embargo.admission_backfill_tree import (
 from vultron.core.behaviors.embargo.answer_trees import (  # noqa: F401
     accept_invite_to_embargo_tree,
     reject_invite_to_embargo_tree,
+)
+from vultron.core.behaviors.embargo.embargo_clock_decisions import (
+    embargo_clock_decisions,
 )
 from vultron.core.behaviors.embargo.nodes import (
     AwaitsEmbargoEndingNoticeNode,
@@ -257,6 +261,8 @@ def remove_embargo_from_case_tree(
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
+        # Every overdue invitation expires first (CM-28-015).
+        clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
             TerminationIsTimelyNode(
@@ -476,6 +482,8 @@ def invite_to_embargo_on_case_tree(
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
+        # Every overdue invitation expires first (CM-28-015).
+        clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             EmbargoProposalNotYetRecordedNode(
                 case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
