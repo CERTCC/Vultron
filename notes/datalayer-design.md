@@ -74,8 +74,9 @@ The shape guard lives on the *type*, not the write path (ARCH-12-003, ADR-0082).
 `CoreObject` sets `extra="forbid"`, so handing a wire-shaped payload to a core
 type raises a pydantic `ValidationError` instead of silently dropping every
 snake_case-only key. A wire-shaped row in a core-typed slot is not cosmetic:
-core `ParticipantStatus` once nested `rm: RmDimension` where wire carried a flat
-`rm_state`, so the wrong shape made `status.rm.state` read `None`.
+core `ParticipantStatus` nests `rm: RmDimension`, and a wire row written before
+issue #4377 carried a flat `rm_state`, which now fails validation rather than
+leaving `status.rm.state` at its default.
 
 - **Writes store verbatim.** `Record.from_obj()` and `_storable_to_record()` do
   not project; a row is persisted in the shape it arrived in. Do not add a

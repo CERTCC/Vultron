@@ -30,7 +30,8 @@ groups:
       RS is the sole RM message that directly changes the receiver's own RM
       state. All other RM messages announce sender state only.
     verification: A unit test confirms that a participant in `RM.START` whose inbox processes an RS activity has
-      `rm_state == RM.RECEIVED` afterwards. The RK the receiver then sends is not queued on receipt; it goes
+      `rm.state == RM.RECEIVED` afterwards. The RK the receiver then sends is not
+      queued on receipt; it goes
       through the `ack-report` trigger, and tests marked `RMB-08-003` cover it.
     testable: true
     preconditions:

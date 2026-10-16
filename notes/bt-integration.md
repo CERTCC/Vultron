@@ -356,7 +356,7 @@ refusing nodes in `precondition_guards`, so a refused activity leaves no entry.
 
 The BTBridge requirement applies equally to trigger-side `execute()` methods.
 RM transitions, `EmbargoLifecycle` calls, and `ParticipantStatus` writes with a
-specific `rm_state` are protocol-significant (BT-15-001, BT-06-006): they live in
+specific `rm` state are protocol-significant (BT-15-001, BT-06-006): they live in
 BT leaf nodes run via `bridge.execute_with_setup()`, never inline in
 `execute()`. On a non-`SUCCESS` status the trigger raises with
 `BTBridge.get_failure_reason(tree)`.

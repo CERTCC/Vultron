@@ -21,6 +21,7 @@ boilerplate and ensures a single place to tune timeout/interval defaults.
 import logging
 import time
 from collections.abc import Callable, Sequence
+from typing import Literal, get_args
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
 from vultron.core.models.dimensions import dimension_state
@@ -1628,12 +1629,15 @@ def wait_for_reporter_introduction(
 # Participant-state polling helpers
 # ---------------------------------------------------------------------------
 
+ParticipantDimension = Literal["rm", "vf", "d"]
+"""The ``ParticipantStatus`` dimension fields a participant poll can read."""
+
 
 def _wait_for_participant_status_field(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-    dimension: str,
+    dimension: ParticipantDimension,
     expected_states: "set",
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
@@ -1658,8 +1662,15 @@ def _wait_for_participant_status_field(
             not the client's own actor — see :func:`_fetch_participant`.
 
     Raises:
+        ValueError: If *dimension* is not a ``ParticipantStatus`` dimension
+            field, so a misspelled name fails at once instead of timing out.
         AssertionError: If the state is not reached within *timeout_seconds*.
     """
+    if dimension not in get_args(ParticipantDimension):
+        raise ValueError(
+            f"Unknown participant status dimension {dimension!r}; "
+            f"expected one of {get_args(ParticipantDimension)}"
+        )
     deadline = time.monotonic() + timeout_seconds
     poll_count = 0
     while time.monotonic() < deadline:

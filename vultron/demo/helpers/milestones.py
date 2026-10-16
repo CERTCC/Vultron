@@ -340,8 +340,8 @@ def verify_publicly_disclosed(
 
     Checks:
     - Both DataLayers reflect ``EM.EXITED`` on the case.
-    - Coordinator participant's latest status has ``d_state == D`` and
-      a public-aware ``pxa_state``.
+    - Coordinator participant's latest status has ``d.state == D`` and
+      a public-aware ``pxa`` state.
 
     Spec: DEMOMA-06-002.
 
