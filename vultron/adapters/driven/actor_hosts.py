@@ -99,11 +99,20 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     # (ADR-0073#peer-records-in-knowers-store).  Stripping only the trailing
     # slash is safe because it names the same resource and gives every id one
     # canonical spelling.  An id whose path is empty once the slash is gone
-    # (``http://host/``) names no actor; returned, it would mint a phantom
-    # store slugged after the authority, so it is refused like ``"/"`` below.
+    # (``http://host/``), or that names this node's actors collection
+    # (``{base}/actors/``), names no actor; returned, it would mint a phantom
+    # store slugged after the authority or ``actors``, so it is refused like
+    # ``"/"`` below.
     if urlsplit(segment).scheme:
         normalised = normalise_actor_id(segment)
-        if not urlsplit(normalised).path.strip("/"):
+        base = (
+            base_url if base_url is not None else get_config().server.base_url
+        )
+        collection = f"{base.rstrip('/')}/{ACTORS_SEGMENT}"
+        if (
+            not urlsplit(normalised).path.strip("/")
+            or normalised == collection
+        ):
             raise ValueError(
                 f"actor id {segment!r} names no actor once its trailing "
                 "slash is stripped"

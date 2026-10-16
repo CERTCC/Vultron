@@ -720,6 +720,20 @@ class TestCreateActor:
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
+    def test_actors_collection_id_is_refused(self, client_actors):
+        """``{base}/actors/`` names the collection, not an actor (#4795).
+
+        Stripping its slash must not let it mint a store slugged ``actors``.
+        """
+        from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+        collection = canonical_actor_uri("x").rsplit("/", 1)[0]
+        resp = client_actors.post(
+            "/actors/",
+            json={"name": "Collection", "id": collection + "/"},
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
     def test_ac3_foreign_authority_still_refused(self, client_actors):
         """AC-3 of #4795: trailing-slash normalisation does not bypass the
         foreign-authority check.

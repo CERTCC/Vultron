@@ -106,16 +106,30 @@ class TestCanonicalActorUri:
             canonical_actor_uri(bad, _BASE)
 
     @pytest.mark.parametrize(
-        "bad", ["http://localhost:7999/", "http://localhost:7999//"]
+        "bad",
+        [
+            "http://localhost:7999/",
+            "http://localhost:7999//",
+            f"{_BASE}/{ACTORS_SEGMENT}",
+            f"{_BASE}/{ACTORS_SEGMENT}/",
+            f"{_BASE}/{ACTORS_SEGMENT}//",
+        ],
     )
-    def test_rejects_an_absolute_id_with_no_path(self, bad):
-        """Stripping the slash from ``http://host/`` leaves no path (#4795).
+    def test_rejects_an_absolute_id_that_names_no_actor(self, bad):
+        """An authority alone, or this node's actors collection, names no
+        actor once its trailing slash is stripped (#4795).
 
-        Returned, ``http://host`` would be slugged after its authority and
+        Returned, it would be slugged after the authority or ``actors`` and
         open a store for a phantom actor.
         """
         with pytest.raises(ValueError, match="names no actor"):
             canonical_actor_uri(bad, _BASE)
+
+    def test_keeps_an_actor_whose_slug_is_actors(self):
+        """Only the collection itself is refused, not an actor named
+        ``actors`` under it."""
+        actor = f"{_BASE}/{ACTORS_SEGMENT}/{ACTORS_SEGMENT}"
+        assert canonical_actor_uri(actor + "/", _BASE) == actor
 
     def test_falls_back_to_configured_base_url(self):
         with patch.object(actor_hosts, "get_config") as get_config:
