@@ -26,8 +26,13 @@ case-wide decisions (the end-time check), and ``SvcEmbargoTriggerBase``
 adds them to the clock-decision stage ahead of its own tree.  Either way the
 stage runs only at the CASE_MANAGER (BT-17-001).
 
-The sweep runs after the end-time check, so a termination it commits has
-already frozen the rows of every embargo it ended (ADR-0122).
+Where the end-time check runs too, the sweep runs after it, so a termination
+it commits has already frozen the rows of every embargo it ended (ADR-0122).
+Terminate-embargo takes the sweep alone: its own tree answers for the end
+time.  A tree with no sender guard takes no clock decision at all
+(CLP-10-025): the P/X/A refusal of an Invite or of an Accept
+(``RefuseEmbargoInviteBT``), which commits nothing, is one, so the next
+admitted embargo activity sweeps instead.
 """
 
 from datetime import datetime

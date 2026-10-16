@@ -164,3 +164,32 @@ class TestIterCaseParticipants:
         """A case with no participants yields nothing."""
         case = VulnerabilityCase(id_=_CASE_ID)
         assert list(iter_case_participants(case, dl)) == []
+
+
+@pytest.mark.parametrize("count", [2, 8])
+def test_indexed_participants_come_in_roster_order(
+    dl: SqliteDataLayer, count: int
+) -> None:
+    """The fast path yields in the index's insertion order, every run.
+
+    A set-ordered walk varied between interpreter runs, so a caller that
+    commits one entry per participant (the overdue-invitation sweep,
+    CM-28-015) committed them in a different order each time.
+    """
+    case = VulnerabilityCase(id_=_CASE_ID)
+    expected: list[str] = []
+    for i in reversed(range(count)):
+        actor = f"https://example.org/actors/actor-{i}"
+        participant_id = f"{_CASE_ID}/participants/actor-{i}"
+        dl.create(
+            CaseParticipant(
+                id_=participant_id,
+                attributed_to=actor,
+                context=_CASE_ID,
+                case_roles=[CVDRole.VENDOR],
+            )
+        )
+        case.actor_participant_index[actor] = participant_id
+        expected.append(participant_id)
+
+    assert [p.id_ for p in iter_case_participants(case, dl)] == expected

@@ -298,8 +298,11 @@ guards, commit, effects.
    not run before the decision writes (HP-01-006, CM-23-013). The ownership
    Offer expiry (`ExpireOverdueOwnershipOfferNode`,
    [ownership-transfer-close-paths](ownership-transfer-close-paths.md)) and
-   the embargo Invite expiry (`invite_expiry_decision`) are clock decisions;
-   never run one as a tree of its own before the received tree.
+   the embargo Invite expiry (`invite_expiry_decision`) are clock decisions,
+   as is the overdue-invitation sweep (`embargo_clock_decisions`, CM-28-015),
+   which every received embargo tree passes and `SvcEmbargoTriggerBase` adds
+   to its triggers' stage; never run one as a tree of its own before the
+   received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).

@@ -376,18 +376,17 @@ class TestSweepScope:
         """A refused commit writes no row; the sweep still succeeds, so the
         tree it runs in continues (CLP-10-025)."""
         dl, _embargo = _store(other_deadline=_PAST)
-        refused = iter([True, False])
         original = _sweep_module.create_commit_and_record_expiry_tree
 
-        def _first_refused(**kwargs: Any):
-            if next(refused):
+        def _invitee_refused(**kwargs: Any):
+            if kwargs["invitee_id"] == _INVITEE:
                 return py_trees.behaviours.Failure(name="RefusedExpiry")
             return original(**kwargs)
 
         monkeypatch.setattr(
             _sweep_module,
             "create_commit_and_record_expiry_tree",
-            _first_refused,
+            _invitee_refused,
         )
 
         with caplog.at_level("WARNING"):
@@ -455,8 +454,14 @@ class TestSweepScope:
 class TestOtherEmbargoActivity:
     """AC-2 and AC-6: another participant's answer prompts the sweep."""
 
-    def _reject_invite(self, dl: SqliteDataLayer, make_payload, sync: Any):
-        """``_OTHER`` declines its Invite to the proposal, in time."""
+    def _reject_invite(
+        self,
+        dl: SqliteDataLayer,
+        make_payload,
+        sync: Any,
+        published: datetime | None = None,
+    ):
+        """``_OTHER`` declines its Invite to the proposal."""
         invite = em_propose_embargo_activity(
             embargo=cast(as_EmbargoEvent, dl.read(_PROPOSAL_ID)),
             context=_CASE_ID,
@@ -465,8 +470,13 @@ class TestOtherEmbargoActivity:
             id_=f"{_CASE_ID}/invites/other",
         )
         dl.create(invite)
+        claimed = {"published": published} if published else {}
         answer = em_reject_embargo_activity(
-            proposal=invite, context=_CASE_ID, actor=_OTHER, to=[_MANAGER]
+            proposal=invite,
+            context=_CASE_ID,
+            actor=_OTHER,
+            to=[_MANAGER],
+            **claimed,
         )
         event = make_payload(answer, receiving_actor_id=_MANAGER)
         return RejectInviteToEmbargoOnCaseReceivedUseCase(
@@ -487,6 +497,41 @@ class TestOtherEmbargoActivity:
             "reject_invite_to_embargo_on_case"
         )
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
+        assert _consent(dl, _OTHER) == EmbargoConsentState.DECLINED
+
+    @pytest.mark.spec("CM-28-015")
+    @pytest.mark.spec("CLP-15-003")
+    def test_a_late_reject_times_out_then_declines_on_the_senders_clock(
+        self, make_payload
+    ):
+        """The sender's own overdue row is swept too, and its expiry entry
+        carries the Reject's claimed time, so the sender's claimed stream
+        never runs backwards (CLP-15-003, CLP-10-025); the Reject then
+        declines the timed-out row."""
+        dl, _embargo = _store(other_deadline=_PAST)
+        # Earlier than the CASE_MANAGER's clock, within the clock-skew
+        # tolerance of the case's creation (CLP-14-006).
+        sent_at = datetime.now(tz=UTC).replace(microsecond=0) - timedelta(
+            minutes=1
+        )
+
+        result = self._reject_invite(
+            dl, make_payload, SyncActivityAdapter(dl), published=sent_at
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        by_actor = {e.payload_snapshot["actor"]: e for e in _expiries(dl)}
+        assert set(by_actor) == {_INVITEE, _OTHER}
+        own = datetime.fromisoformat(
+            by_actor[_OTHER].payload_snapshot["published"]
+        )
+        assert own == sent_at
+        other = datetime.fromisoformat(
+            by_actor[_INVITEE].payload_snapshot["published"]
+        )
+        assert other > sent_at  # the CASE_MANAGER's clock
+        types = _event_types(dl)
+        assert types[-1] == "reject_invite_to_embargo_on_case"
         assert _consent(dl, _OTHER) == EmbargoConsentState.DECLINED
 
     @pytest.mark.spec("CM-28-015")
@@ -568,28 +613,33 @@ class TestOwnerTrigger:
 @pytest.mark.spec("CM-28-015")
 @pytest.mark.spec("CLP-10-025")
 def test_every_received_embargo_tree_with_a_case_takes_the_sweep():
-    """AC-2: each received embargo tree the CASE_MANAGER handles for a case
-    runs the sweep in its clock-decision stage."""
+    """AC-2: every received embargo tree that runs a clock-decision stage —
+    one that names a case and has both door guards — runs the sweep in it."""
     from test.architecture._received_tree_builds import built_received_trees
     from vultron.core.behaviors.case.nodes.clock_decision_stage import (
         ClockDecisionStage,
     )
 
-    swept = {
-        tree.name
-        for (path, _factory), tree in built_received_trees().items()
-        if path.startswith("vultron/core/behaviors/embargo/")
-        for stage in tree.iterate()
-        if isinstance(stage, ClockDecisionStage)
-        and OVERDUE_INVITES_SWEEP_NAME in {d.name for d in stage.decisions}
-    }
+    staged: dict[str, set[str]] = {}
+    for (path, _factory), tree in built_received_trees().items():
+        if not path.startswith("vultron/core/behaviors/embargo/"):
+            continue
+        for stage in tree.iterate():
+            if isinstance(stage, ClockDecisionStage):
+                staged.setdefault(tree.name, set()).update(
+                    d.name for d in stage.decisions
+                )
 
-    assert swept == {
+    missing = sorted(
+        name
+        for name, decisions in staged.items()
+        if OVERDUE_INVITES_SWEEP_NAME not in decisions
+    )
+    assert missing == [], f"embargo trees without the sweep: {missing}"
+    # The owner's decisions and an answer to an Invite are among them.
+    assert {
         "AcceptInviteToEmbargoBT",
         "ActivateEmbargoOnCaseBT",
-        "InviteToEmbargoOnCaseBT",
         "RejectEmbargoProposalOnCaseBT",
         "RejectInviteToEmbargoBT",
-        "RemoveEmbargoFromCaseBT",
-        "WithdrawFromEmbargoOnCaseBT",
-    }
+    } <= set(staged)

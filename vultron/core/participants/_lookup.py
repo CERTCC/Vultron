@@ -32,9 +32,12 @@ def iter_case_participants(
        participant objects may not yet be indexed.
 
     Participants are deduped by participant ID so that an inline object that
-    also appears in the index is not yielded twice.
+    also appears in the index is not yielded twice.  The fast path walks the
+    index in its insertion (roster) order, so every caller sees the same
+    order on every run.
     """
-    indexed_ids = set(case.actor_participant_index.values())
+    # dict.fromkeys dedups and keeps the index's order; a set would not.
+    indexed_ids = list(dict.fromkeys(case.actor_participant_index.values()))
     # Track IDs actually yielded by the fast path so the fallback knows which
     # indexed participants the DataLayer could not supply yet (e.g. during
     # bootstrap before ledger sync completes). Using `indexed_ids` alone for

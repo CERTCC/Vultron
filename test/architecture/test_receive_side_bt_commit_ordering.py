@@ -291,8 +291,9 @@ def _commit_node_types() -> tuple[type, ...]:
     ``TIMED_OUT`` row, decided first so the row is written only once both
     commit, ADR-0124), ``ExpireInvitationsNode`` (the overdue-invitation
     sweep and the owner-close settle step, each running that expiry per row
-    in a nested tree, CM-28-015, CM-23-014), ``_CommitCaseManagerActivityBase`` (the termination
-    ``Remove``, ``CommitAndApplyEmbargoTerminationNode``),
+    in a nested tree, CM-28-015, CM-23-014),
+    ``_CommitCaseManagerActivityBase`` (the termination ``Remove``,
+    ``CommitAndApplyEmbargoTerminationNode``),
     ``EmitCaseStatusUpdateNode`` (the ``Add(CaseStatus)`` that follows an EM
     change) and ``ReissueStubInvitesNode`` (each re-issued stub ``Invite``).
     """

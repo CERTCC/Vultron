@@ -169,10 +169,11 @@ def create_commit_and_record_expiry_tree(
     late-Accept evaluation (:func:`invite_expiry_decision`), the
     owner-close settle step (CM-23-014) and the overdue-invitation sweep
     (CM-28-015), which both reach it through
-    :class:`~vultron.core.behaviors.embargo.nodes.invitation_expiry.ExpireInvitationsNode`.  The caller decides *that* the invitation
-    has expired; this node commits the expired-invitation entry, then the
-    CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the row, and only
-    then writes it, so a failed commit leaves the invitee unchanged
+    :class:`~vultron.core.behaviors.embargo.nodes.invitation_expiry.ExpireInvitationsNode`.
+    The caller decides *that* the invitation has expired; this node commits
+    the expired-invitation entry, then the CASE_MANAGER's
+    ``Update(EmbargoConsent)`` carrying the row, and only then writes it,
+    so a failed commit leaves the invitee unchanged
     (CLP-07-013, ADR-0124).  It is not gated: the caller places it behind
     the CASE_MANAGER role gate (CM-28-014, BT-17-001).
 

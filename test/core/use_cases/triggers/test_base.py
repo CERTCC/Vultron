@@ -463,6 +463,26 @@ def test_terminate_embargo_takes_the_sweep_alone():
     assert [d.name for d in decisions] == [OVERDUE_INVITES_SWEEP_NAME]
 
 
+@pytest.mark.spec("BT-15-003")
+def test_a_trigger_taking_no_clock_decision_runs_its_own_tree_alone():
+    """A case-scoped trigger that opts out of the case-wide decisions and
+    adds none of its own gets no empty stage."""
+    from vultron.core.use_cases.triggers.request_bodies import (
+        CaseTriggerRequest,
+    )
+
+    class _OptedOut(_MinimalTrigger):
+        _takes_case_clock_decisions = False
+
+    uc = _OptedOut(
+        dl=_store_with_case(),
+        request=CaseTriggerRequest(case_id=_CASE_ID),
+        trigger_activity=MagicMock(),
+    )
+
+    assert _built_tree(uc).name == "own-tree"
+
+
 def test_a_trigger_naming_no_case_runs_its_own_tree_alone():
     uc = _MinimalTrigger(
         dl=_store_with_case(), request=object(), trigger_activity=MagicMock()

@@ -393,7 +393,11 @@ refused *after* the expiries are committed. That is deliberate: the overdue row
 is a fact from the CASE_MANAGER's clock, not evidence from the activity (#4640).
 The settle step and the sweep share `ExpireInvitationsNode`, which runs the one
 expiry path (`create_commit_and_record_expiry_tree`) per row; do not write a
-second one.
+second one. The sender's own overdue row is swept too: a late `Reject` of an
+Invite records the timeout, then declines the `TIMED_OUT` row, and that expiry
+entry carries the `Reject`'s claimed time so the sender's stream does not run
+backwards (CLP-15-003). The P/X/A refusal tree has no sender guard, so it takes
+no clock decision; the next admitted embargo activity sweeps.
 
 ### The ledger fan-out is the owner's notification (MSM-07-007)
 
