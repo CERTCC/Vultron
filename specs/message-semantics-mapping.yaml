@@ -1083,8 +1083,9 @@ groups:
       Reject(EmbargoEvent, target=Case) at the CASE_MANAGER rejects the proposal with no
       consent row changed, leaves another open proposal open, rejects the last revision after
       disclosure and then terminates the embargo with the revision REJECTED on the
-      CASE_MANAGER and on a replica that copies both entries, and that a non-owner sender
-      or a non-open proposal is refused with nothing committed.
+      CASE_MANAGER and on a replica that copies both entries, the Reject's entry committed
+      before the termination entry, that a refused termination commits neither entry, and
+      that a non-owner sender or a non-open proposal is refused with nothing committed.
     relationships:
     - rel_type: derives_from
       spec_id: EP-09-005
