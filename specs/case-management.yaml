@@ -4656,6 +4656,43 @@ groups:
     - ADR-0109
     stories:
     - story_2022_106
+  - id: CM-24-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER records an activity and then forwards it on its
+      sender's behalf (CM-21-005, CM-33-001), the forward MUST carry the same
+      id on every attempt, derived from the recorded activity. A failure to
+      build or send the forward after the record MUST NOT be reported as a
+      refusal of the sender (HP-01-003). A redelivery of the recorded activity
+      MUST reuse its recorded entry and MUST rebuild and send the forward
+      while the request it carries is still open; holding a copy of the
+      forward MUST NOT be taken as proof that it was sent. Once that request
+      is closed (answered, withdrawn or expired), a redelivery MUST send
+      nothing.
+    rationale: >-
+      The record precedes the forward (CLP-10-006), so a failed forward leaves
+      a recorded request its addressee never got and cannot answer (#4814). A
+      held copy is no proof of sending: it is written before it is queued.
+      One id makes a resend safe: the outbox holds one pending entry per id
+      (OX-06-002), and the addressee takes a repeat it holds as a no-op.
+    verification: >-
+      A test marked `CM-24-007` for each forward fails the forward after the
+      record and asserts the handler raises an internal error, not `REFUSED`;
+      a redelivery then sends one forward under the derived id with no second
+      ledger entry, including when a copy of the forward was stored but never
+      queued; a redelivery after the ownership-transfer Offer was withdrawn
+      or expired sends nothing.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-004
+    - rel_type: depends_on
+      spec_id: OX-06-002
+    - rel_type: depends_on
+      spec_id: CLP-10-006
+    stories:
+    - story_2022_050
+    - story_2022_035
 
 - id: CM-25
   title: Observer Participant Semantics
