@@ -30,8 +30,14 @@ from test.support.embargo_register import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo_case_file import read_embargo_case_file
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.embargo_apply import RegisterStepKind
+from vultron.core.models.embargo_apply import (
+    EmbargoCaseFile,
+    RegisterStepKind,
+)
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.services.embargo_lifecycle.activation_decision import (
+    carry_over_changes,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -115,6 +121,35 @@ def test_a_longer_revision_carries_nobody_over():
 
     assert decision.carry_overs == ()
     assert decision.owner_agreement is not None
+
+
+@pytest.mark.spec("CM-18-001")
+def test_a_missing_row_for_the_replaced_embargo_raises():
+    """Every register entry has a row on every participant (ADR-0122)."""
+    dl = _store()
+    case, participants, active, revision = _revising_case(dl, revision_days=30)
+    case_file = read_embargo_case_file(dl, case.id_)
+    signatory_id = participants[1].attributed_to
+    assert signatory_id is not None
+    signatory = case_file.participants[signatory_id]
+    stripped = signatory.model_copy(
+        update={
+            "embargo_consents": [
+                r for r in signatory.embargo_consents if r.embargo_id != active
+            ]
+        }
+    )
+    case_file = EmbargoCaseFile(
+        case=case_file.case,
+        participants={**case_file.participants, signatory_id: stripped},
+    )
+
+    with pytest.raises(VultronNotFoundError):
+        carry_over_changes(
+            case_file,
+            previous_embargo_id=active,
+            revised_embargo_id=revision,
+        )
 
 
 def test_the_decision_writes_nothing():

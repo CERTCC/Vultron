@@ -102,8 +102,9 @@ class CommitAndApplyEmbargoActivationNode(
     decision.  A commit that fails raises, as every CASE_MANAGER commit does
     (BT-14-001), and so does a miswired tree (no factory, or no received
     activity to name as the carry-overs' cause).  Either way only the
-    changes whose entries committed are written.  On SUCCESS ``result_out`` holds ``em_before``,
-    ``em_after`` and the ``lifecycle_result`` the trigger use case reports.
+    changes whose entries committed are written.  On SUCCESS ``result_out``
+    holds ``em_before``, ``em_after`` and the ``lifecycle_result`` the
+    trigger use case reports.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

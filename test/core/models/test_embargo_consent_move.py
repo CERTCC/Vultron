@@ -220,3 +220,23 @@ class TestJoinerAgreement:
         case_file = _case_file(active=None)
 
         assert joiner_agreement(case_file, JOINER) is None
+
+    @pytest.mark.spec("CM-18-005")
+    def test_a_missing_row_for_the_embargo_in_force_raises(self):
+        """Every entry has a row on every participant (ADR-0122)."""
+        case_file = _case_file()
+        joiner = case_file.participants[JOINER]
+        stripped = joiner.model_copy(
+            update={
+                "embargo_consents": [
+                    r for r in joiner.embargo_consents if r.embargo_id != E1
+                ]
+            }
+        )
+        case_file = EmbargoCaseFile(
+            case=case_file.case,
+            participants={**case_file.participants, JOINER: stripped},
+        )
+
+        with pytest.raises(VultronNotFoundError):
+            joiner_agreement(case_file, JOINER)

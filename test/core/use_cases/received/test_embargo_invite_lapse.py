@@ -1784,6 +1784,95 @@ class TestAssessAndRecordInviteExpiry:
             "Failed commit must leave invitee INVITED, not TIMED_OUT (CLP-10-006)"
         )
 
+    @pytest.mark.spec("CLP-10-025")
+    def test_a_crash_in_the_commit_ends_the_decision_as_an_internal_error(
+        self, monkeypatch
+    ):
+        """A nested commit's internal error is never absorbed as a refusal.
+
+        The commit runs through a nested bridge; its ``internal_error`` must
+        cross the hop so the clock-decision stage ends the tree (ADR-0095).
+        """
+        from vultron.core.behaviors.embargo import expiry_tree as _et_module
+
+        class _Crash(py_trees.behaviour.Behaviour):
+            def update(self) -> py_trees.common.Status:
+                raise ValueError("boom")
+
+        dl = _make_dl()
+        case_id = "https://example.org/cases/crash-commit"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.INVITED,
+            invitee_deadline=_PAST,
+        )
+        monkeypatch.setattr(
+            commit_tree,
+            "create_commit_log_entry_tree",
+            lambda *a, **kw: _Crash(name="CrashingCommit"),
+        )
+        result = _run_as_manager(
+            dl,
+            _et_module.invite_expiry_decision(
+                case_id=case_id,
+                invitee_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published="2026-01-01T00:00:00Z",
+                now=_NOW,
+                result_out={},
+            ),
+        )
+
+        assert result.status is py_trees.common.Status.FAILURE
+        assert result.internal_error
+        assert _invitee_consent(dl, case_id, embargo_id) is (
+            EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.spec("CLP-10-025")
+    @pytest.mark.spec("CM-18-005")
+    def test_a_missing_consent_row_raises_out_of_the_commit(self):
+        """A participant missing a register entry's row is a broken invariant.
+
+        Every register entry has a row on every participant (ADR-0122), so
+        the commit node raises rather than return a refusal the
+        clock-decision stage would log and continue past (CLP-10-025).
+        """
+        dl = _make_dl()
+        case_id = "https://example.org/cases/missing-row"
+        embargo_id = f"{case_id}/embargos/e1"
+        _case, _embargo, participant_id = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.INVITED,
+            invitee_deadline=_PAST,
+        )
+        record = cast(CaseParticipant, dl.read(participant_id))
+        dl.save(record.model_copy(update={"embargo_consents": []}))
+        before = committed_event_types(dl, case_id)
+
+        result = _run_as_manager(
+            dl,
+            create_commit_and_record_expiry_tree(
+                case_id=case_id,
+                invitee_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published=now_utc().isoformat(),
+            ),
+        )
+
+        assert result.status is py_trees.common.Status.FAILURE
+        # The error escaped the node rather than being returned as FAILURE.
+        assert result.feedback_message.startswith("BT execution failed")
+        assert "VultronNotFoundError" in result.feedback_message
+        assert committed_event_types(dl, case_id) == before
+
 
 class TestHonourLateAcceptCommit:
     """The honour tree commits its entry and the AGREED row, then writes it."""

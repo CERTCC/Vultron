@@ -103,7 +103,7 @@ def carried_entry_embargo(
             another case.
     """
     embargo_id = (
-        embargo_data.get("id")
+        embargo_data.get("id") or embargo_data.get("id_")
         if isinstance(embargo_data, dict)
         else embargo_data
     )

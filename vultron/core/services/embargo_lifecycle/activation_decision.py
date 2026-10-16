@@ -96,11 +96,18 @@ def carry_over_changes(
     over, a ``DECLINED`` revision row included (CM-10-001).  *activated* is
     the case file as the activation's own entry leaves it, so a row the owner
     already agreed is not carried again.  In the case file's order.
+
+    Raises:
+        VultronNotFoundError: a participant holds no row for
+            *previous_embargo_id* (ADR-0122).
     """
     changes: list[ConsentRowChange] = []
     for actor_id, participant in activated.participants.items():
-        held = participant.held_row(previous_embargo_id)
-        if held is None or held.state != EmbargoConsentState.AGREED:
+        # A missing row for the replaced embargo raises (ADR-0122).
+        if (
+            participant.consent_for(previous_embargo_id)
+            != EmbargoConsentState.AGREED
+        ):
             continue
         change = consent_row_move(
             activated, actor_id, revised_embargo_id, PEC_Trigger.CARRY_OVER

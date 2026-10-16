@@ -27,10 +27,11 @@ the clock or from its policy (CLP-07-013, ADR-0124):
 
 Each decides the row first, trial-applies it, commits the act's entry and
 then the row's, and only then writes the row through the one apply function.
-A commit that fails leaves the row as it was, and the node fails (it does not
-raise), as the in-tree commit it replaces did.  A replica copies the row from
-its ``Update`` entry through the consent slot; the act's entry changes
-nothing there (``ApplyInviteExpiryFromLedgerNode``,
+A commit the ledger refuses leaves the row as it was, and the node fails (it
+does not raise), as the in-tree commit it replaces did; an internal error,
+including a missing consent row, raises (CLP-10-025, ADR-0095).  A replica
+copies the row from its ``Update`` entry through the consent slot; the act's
+entry changes nothing there (``ApplyInviteExpiryFromLedgerNode``,
 ``ApplyHonourLateAcceptFromLedgerNode``).  The trees place both nodes behind
 the CASE_MANAGER role gate (CM-28-014, BT-17-001).
 """
@@ -133,12 +134,12 @@ class _CommitActThenConsentRowNode(
                 f"case '{self._case_id}' holds no participant record for"
                 f" '{self._invitee_id}'"
             )
-        try:
-            change = consent_row_move(
-                before, self._invitee_id, self._embargo_id, self._TRIGGER
-            )
-        except VultronNotFoundError as exc:
-            return self._fail(str(exc))  # a missing row (ADR-0122)
+        # A participant missing the row for a register entry is a broken
+        # invariant (ADR-0122): ``consent_row_move`` raises, and the raise
+        # ends the tree as an internal error, never a refusal (CLP-10-025).
+        change = consent_row_move(
+            before, self._invitee_id, self._embargo_id, self._TRIGGER
+        )
         if change is None:
             self.feedback_message = (
                 f"'{self._invitee_id}''s row for embargo '{self._embargo_id}'"
@@ -170,6 +171,8 @@ class _CommitActThenConsentRowNode(
             )
         except VultronEntryRefusedError as exc:
             return self._fail(str(exc))
+        except NotImplementedError:
+            raise  # a stub port is a composition fault, not a refusal
         except RuntimeError as exc:
             # The ledger refused an entry (commit_emitted_activity): the row
             # is unwritten, and the decision fails as a guard would, so a
