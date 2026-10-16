@@ -187,7 +187,12 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   commits that `Reject`, so the replica slot skips it under the same condition
   (`rejection_ends_embargo`, `vultron/core/predicates/embargo.py`) and the
   `Remove` entry that follows cancels the revision: manager and replicas both
-  end with it `CANCELLED` (#4364, #4784).
+  end with it `CANCELLED` (#4364, #4784). Deciding that skip is lifecycle
+  logic on replay, a **tracked deviation from CM-23-016 (#4789)**: it reads
+  only the case file, so replicas still converge, but it evaluates EMB-04-002
+  rather than copying. It is the only `_left_to_a_later_entry` override, and
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one
+  until #4789 decides how the ledger records that `Reject`.
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -304,7 +309,10 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
    teardown, withdrawal, activation, owner's-rejection and expiry slots copy
    the entry's step or row (a `Leave` carries none), and every other row
-   arrives as its own CASE_MANAGER entry (ADR-0124). One path still passes
+   arrives as its own CASE_MANAGER entry (ADR-0124). The owner's-rejection
+   slot's skip of a `Reject` answered with ET is the one tracked deviation
+   from copy-only (CM-23-016, #4789; see the P/X/A guards above). One path
+   still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,

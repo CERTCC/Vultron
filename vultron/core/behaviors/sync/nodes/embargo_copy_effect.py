@@ -148,6 +148,9 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         CASE_MANAGER made in its place arrives as its own entry.  The
         owner's ``Reject`` of the last revision after disclosure is the one
         such entry (EMB-04-002).  False by default.
+
+        An override decides on the replica instead of copying, a tracked
+        deviation from CM-23-016 (#4789); no other slot may override it.
         """
         return False
 

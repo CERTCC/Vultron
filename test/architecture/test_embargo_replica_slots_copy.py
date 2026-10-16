@@ -33,6 +33,7 @@ import textwrap
 import pytest
 
 import vultron.core.behaviors.embargo.nodes as embargo_nodes
+import vultron.core.behaviors.sync.nodes as sync_nodes
 from test.architecture import _corpus
 from vultron.core.behaviors.embargo.nodes.abandon import (
     ApplyEmbargoAbandonmentFromLedgerNode,
@@ -50,6 +51,9 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
 )
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     ApplyEmbargoWithdrawalFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
+    ApplyEmbargoChangeFromLedgerNode,
 )
 
 #: Names a copying slot must never reach for (CM-23-016, CM-18-005).
@@ -149,3 +153,37 @@ def test_the_check_sees_a_lifecycle_call() -> None:
             EmbargoLifecycle(persistence=None).propose_embargo()  # type: ignore[name-defined]  # noqa: F821
 
     assert "EmbargoLifecycle" in _names_used(_Replays)
+
+
+def _subclasses(cls: type) -> set[type]:
+    found: set[type] = set()
+    direct: list[type] = cls.__subclasses__()
+    for sub in direct:
+        found |= {sub} | _subclasses(sub)
+    return found
+
+
+def _slots_overriding(attr: str) -> set[str]:
+    """Every copying-frame subclass that defines *attr* itself."""
+    for package in (embargo_nodes, sync_nodes):
+        for info in pkgutil.iter_modules(package.__path__):
+            importlib.import_module(f"{package.__name__}.{info.name}")
+    return {
+        sub.__name__
+        for sub in _subclasses(ApplyEmbargoChangeFromLedgerNode)
+        if attr in vars(sub) and sub.__module__.startswith("vultron.")
+    }
+
+
+@pytest.mark.spec("CM-23-016")
+def test_only_the_owner_rejection_slot_decides_a_skip() -> None:
+    """The one tracked deviation from copy-only stays contained (#4789).
+
+    ``_left_to_a_later_entry`` lets a slot decide, on the replica, that an
+    entry changes nothing.  Only the owner's-rejection slot may, for the
+    ``Reject`` the CASE_MANAGER answered with ET (EMB-04-002); a new
+    override is a new deviation and needs its own decision.
+    """
+    assert _slots_overriding("_left_to_a_later_entry") == {
+        ApplyEmbargoProposalRejectionFromLedgerNode.__name__
+    }

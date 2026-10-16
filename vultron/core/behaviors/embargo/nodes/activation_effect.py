@@ -30,6 +30,8 @@ function the CASE_MANAGER uses.  Each ``CARRY_OVER`` row is its own
 CASE_MANAGER ``Update(EmbargoConsent)`` entry, which the consent slot copies.
 The rejection copies the same way: the ``Reject`` entry is the whole
 ``REJECT`` step, unless the CASE_MANAGER answered it with ET (EMB-04-002).
+Deciding that exception on the replica is a tracked deviation from
+CM-23-016 (#4789); see :class:`ApplyEmbargoProposalRejectionFromLedgerNode`.
 """
 
 from __future__ import annotations
@@ -176,6 +178,15 @@ class ApplyEmbargoProposalRejectionFromLedgerNode(
     entry too (ADR-0114).  A revision cancelled any other way has diverged,
     so the entry is refused.
 
+    Tracked deviation from CM-23-016 (#4789): deciding that skip is
+    lifecycle logic on replay.  It reads only the case file, so two
+    replicas at one ledger position still hold the same case, but it
+    evaluates the EMB-04-002 rule and infers a past termination from the
+    seed instead of copying what the entry states.  It stays until #4789
+    decides how the ledger records a ``Reject`` answered with ET; without it
+    the replica would hold the revision ``REJECTED`` where the CASE_MANAGER
+    holds it ``CANCELLED`` (#4364).
+
     An entry naming an embargo that is not an open proposal here is refused
     into the gap buffer (ADR-0124); one that names no embargo fails, so it
     is not persisted (SYNC-12-001).  SUCCESS with nothing written when the
@@ -193,6 +204,8 @@ class ApplyEmbargoProposalRejectionFromLedgerNode(
     def _left_to_a_later_entry(
         self, before: EmbargoCaseFile, change: EmbargoChange
     ) -> bool:
+        # Tracked deviation from CM-23-016 (#4789): this decides a lifecycle
+        # rule on replay rather than copying; see the class docstring.
         assert isinstance(change, RegisterStep)
         case = before.case
         if rejection_ends_embargo(case, change.embargo_id):

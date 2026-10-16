@@ -1500,7 +1500,9 @@ groups:
       row too (#4716, #4784), and the consent rows those acts change arrive as
       their own entries. The owner's Reject the CASE_MANAGER answers with ET
       (EMB-04-002) changes nothing on a replica: the termination entry that
-      follows cancels the revision. A withdrawal's `Leave(EmbargoEvent)` (EP-09-013)
+      follows cancels the revision. The replica decides that skip itself, a
+      tracked deviation from CM-23-016 until #4789 decides how the ledger
+      records that Reject. A withdrawal's `Leave(EmbargoEvent)` (EP-09-013)
       carries no row: each row it declines is the CASE_MANAGER's own
       `Update(EmbargoConsent)` entry, which the consent slot copies (#4717).
     verification: >-
