@@ -191,7 +191,10 @@ class _FullCaseInviteReplyReceivedUseCase:
         # recorded) changes nothing but the receipt, so it reads SKIPPED like
         # every other RM declaration (RSH-08-002).
         closed = closed_sender_verdict(
-            tree, closes=self.rm_state is RM.CLOSED, label=self.tree_name
+            tree,
+            result,
+            closes=self.rm_state is RM.CLOSED,
+            label=self.tree_name,
         )
         if closed is not None:
             return closed

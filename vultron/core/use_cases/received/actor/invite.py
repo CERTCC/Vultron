@@ -221,7 +221,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
         # stops it as REFUSED, with nothing committed or sent (CM-23-018,
         # CM-11-015, RMB-14-006).
         closed = closed_sender_verdict(
-            tree, closes=False, label="AcceptInviteActorToCaseBT"
+            tree, result, closes=False, label="AcceptInviteActorToCaseBT"
         )
         if closed is not None:
             return closed
@@ -325,7 +325,10 @@ class RejectInviteActorToCaseReceivedUseCase:
         # close it again: the tree's closed-sender door stops it with nothing
         # committed or sent, so it is SKIPPED (CM-23-018, ID-05-003).
         closed = closed_sender_verdict(
-            tree, closes=True, label="RejectInviteActorToCaseReceivedBT"
+            tree,
+            result,
+            closes=True,
+            label="RejectInviteActorToCaseReceivedBT",
         )
         if closed is not None:
             return closed

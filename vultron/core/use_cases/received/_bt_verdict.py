@@ -443,6 +443,7 @@ def rm_declaration_verdict(
 
 def closed_sender_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
+    result: BTExecutionResult,
     *,
     closes: bool,
     label: str,
@@ -461,9 +462,15 @@ def closed_sender_verdict(
     ``None`` when the run did not end at the door.  The handler asks this
     before any other reading of the run's failure.
 
+    A door that found the closure but whose run failed on an internal error
+    (the Case Owner check of a ``case_owner_completes`` door crashing, say)
+    raises: a crash is never read as a repeat or a refusal (ARCH-15-001).
+
     Raises:
         VultronWiringError: *tree* was not built by
             :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
+        VultronBTInternalError: The door found the closure, but the run
+            failed on an internal error.
     """
     root = _root(tree)
     if not isinstance(root, ReceivedActivityTree):
@@ -475,6 +482,8 @@ def closed_sender_verdict(
     closed = closed_sender_turned_away(root)
     if closed is None:
         return None
+    if result.internal_error:
+        raise VultronBTInternalError(f"{label}: {result.feedback_message}")
     if closes:
         return HandlerResult.skipped(
             f"{label}: {closed} — a repeat of a closing act,"

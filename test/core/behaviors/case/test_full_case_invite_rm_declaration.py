@@ -234,7 +234,16 @@ class TestClosedInviteeReply:
         )
         assert result.disposition is expected, result.reason
         assert "CM-23-018" in (result.reason or ""), result.reason
-        # The reason the retired pre-flight gave, now from the tree's door.
+        # The reason the retired pre-flight gave, now from the tree's door,
+        # labelled with the handler's tree name.
+        tree_names = {
+            RM.VALID: "AcceptInviteActorToFullCaseReceivedBT",
+            RM.INVALID: "TentativeRejectInviteActorToFullCaseReceivedBT",
+            RM.CLOSED: "RejectInviteActorToFullCaseReceivedBT",
+        }
+        assert (result.reason or "").startswith(
+            f"{tree_names[case.declared]}: "
+        ), result.reason
         assert (result.reason or "").endswith(
             "— a repeat of a closing act, nothing to apply (ID-05-003)"
             if case.declared is RM.CLOSED

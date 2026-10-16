@@ -267,11 +267,11 @@ guards, commit, effects.
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
    door guard as a one-node tree ahead of the received tree: that is the
    chained shape CLP-10-005 forbids (ADR-0135). A tree opts out only with a
-   `PostCloseExemption`. `post_close_reply` takes emit-only
-   nodes that answer the refusal; only the close-case tree passes one
-   (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other
-   late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
-   check and the sender guard follow.
+   `PostCloseExemption`. `post_close_reply` takes emit-only nodes that answer
+   the refusal; only the close-case tree passes one (`Reject(Leave)` under
+   `ActorConfig.post_close_reply = reject`). Every other late activity is
+   dropped with no reply (ADR-0131, CM-23-017). The addressee check, the
+   closed-sender door and the sender guard follow.
 
    A tree whose sender may already be closed on the case and whose answer must
    be told apart (a `Leave`, a stub or full-case Invite reply) passes
@@ -284,9 +284,8 @@ guards, commit, effects.
 
    When the case the sender is checked against is resolved at run time, the
    guard still comes from the factory (HP-01-008). Pass the read-only
-   `CaseResolving` steps that resolve it as `case_resolution`; they run before
-   the guard, so an unknown case is refused
-   as such (#2255). The report
+   `CaseResolving` steps that resolve it as `case_resolution`; they run just
+   before the guard, so an unknown case is refused as such (#2255). The report
    verdicts pass `RequireCaseForReport`. A ledger activity's tree passes a
    `LedgerActivityContext` instead: its nodes read the case from the entry the
    activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never

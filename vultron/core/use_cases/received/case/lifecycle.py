@@ -219,15 +219,13 @@ class CloseCaseReceivedUseCase:
             # got a Reject only under PostCloseReply.REJECT (CM-23-013).
             return refusal
         closed = closed_sender_verdict(
-            tree, closes=True, label="Leave(VulnerabilityCase)"
+            tree, result, closes=True, label="Leave(VulnerabilityCase)"
         )
         if closed is not None:
             # A sender already closed repeats a closing act: its effect is in
             # place, so it is SKIPPED whatever its activity id, with nothing
-            # committed or sent (CM-23-018, ID-05-003).
-            verdict_from_bt(
-                tree, result, label="CloseCaseBT"
-            )  # raises on error
+            # committed or sent (CM-23-018, ID-05-003).  An internal error in
+            # the door's Case Owner check raises instead (ARCH-15-001).
             logger.info("CloseCaseReceivedUseCase: %s", closed.reason)
             return closed
         if sender_guard_refused(tree):
