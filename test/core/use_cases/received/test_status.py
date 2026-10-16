@@ -1177,3 +1177,4 @@ def test_add_case_status_admits_only_the_case_manager_at_a_participant():
         {SenderEntitlementKind.CASE_MANAGER}
     )
     assert rule.side(AddresseeSide.CASE_MANAGER) == frozenset()
+    assert rule.side(AddresseeSide.OUTSIDE_CASE) == frozenset()

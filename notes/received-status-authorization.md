@@ -50,8 +50,10 @@ property of the pipeline:
 
 - **Only the CASE_MANAGER turns an announcement into case state.** It applies the
   state machine's acceptance rule to the *sender's* declaration, whichever
-  message carried it (RSH-06-006, RSH-08-001). Every other participant applies
-  the ledger (PCR-03-001, RSH-08-003).
+  message carried it (RSH-06-006, RSH-08-001). A participant declares in
+  `Add(ParticipantStatus)`; `Add(CaseStatus)` is the CASE_MANAGER's own
+  (RSH-04-005). Every other participant applies the ledger (PCR-03-001,
+  RSH-08-003).
 - **One RM acceptance rule, from one place.** The activity-typed RM handlers and
   `FilterParticipantStatusDimensionsNode` share `classify_rm_declaration`
   (`core/states/rm.py`), composed by `report/rm_declaration_tree.py`. Tests on
