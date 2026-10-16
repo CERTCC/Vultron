@@ -234,18 +234,19 @@ def announce_embargo() -> as_Announce:
 def announce_embargo_termination() -> as_Announce:
     """The CASE_MANAGER announces that the embargo has ended (BT-17-008).
 
-    After it tears the embargo down on a ``Remove(Event)``, the CASE_MANAGER
-    sends ``Announce(Event)`` naming the terminated embargo to every other
-    active participant.  The wire form is the announcement of the embargo in
-    force; the embargo it names, which the case's register records as
-    terminated, makes it a termination announcement.
+    After it tears the embargo down on the Case Owner's ``Remove(Event)``,
+    the CASE_MANAGER sends ``Announce(Event)`` naming the terminated embargo
+    to every other active participant, the Case Owner (the vendor) included.
+    The wire form is the announcement of the embargo in force; the embargo it
+    names, which the case's register records as terminated, makes it a
+    termination announcement.
     """
     _case = case()
     return announce_embargo_activity(
         embargo_event(90),
         actor=case_actor().id_,
         context=_case.id_,
-        to=[coordinator().id_, finder().id_],
+        to=[vendor().id_, coordinator().id_, finder().id_],
     )
 
 

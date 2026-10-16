@@ -141,7 +141,11 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         self.assertEqual(activity.actor, examples.case_actor().id_)
         self.assertEqual(
             activity.to,
-            [examples.coordinator().id_, examples.finder().id_],
+            [
+                examples.vendor().id_,
+                examples.coordinator().id_,
+                examples.finder().id_,
+            ],
         )
         self.assertEqual(activity.context, examples.case().id_)
         self.assertEqual(activity.object_, examples.embargo_event(90))

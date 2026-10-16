@@ -493,7 +493,7 @@ groups:
     example: announce_embargo
   - anchor: announce-embargo-termination
     heading: Announce embargo termination
-    when: the Case Manager has applied an Embargo Termination to the active embargo
+    when: the Case Manager has applied the Embargo Termination a Case Owner sent
     send: Announce(Event)[context=VulnerabilityCase]
     send_to: a participant
     sent_by: the case manager
@@ -503,6 +503,7 @@ groups:
       it names is terminated. It proposes nothing.
     notes: The wire form is the announcement of the embargo in force; the embargo it names,
       which the case's embargo register records as terminated, makes it a termination announcement.
+      A termination the Case Manager starts itself, or one at the end time, sends no announcement.
     seen_in:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
@@ -790,8 +791,9 @@ groups:
     semantics: offer_actor_to_case
     status: expansion
     description: Asks the Case Manager to invite the actor named by the object to the case
-      named by the target, with the roles in `suggestedRoles`. The Case Manager answers with
-      the Stub Invite to that actor, not with an offer to the Case Owner.
+      named by the target, with the roles in `suggestedRoles`. For an actor not yet on the
+      case or invited, the Case Manager answers with the Stub Invite to that actor, not with
+      an offer to the Case Owner.
     notes: The wire form is the suggestion a participant sends; the Case Manager tells the
       two apart by whether the sender holds the Case Owner role on the case.
     seen_in:

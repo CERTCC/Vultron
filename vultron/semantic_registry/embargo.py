@@ -135,8 +135,8 @@ ENTRIES: list[SemanticEntry] = [
             ),
             Occasion(
                 when=(
-                    "the Case Manager has applied an Embargo Termination to "
-                    "the active embargo"
+                    "the Case Manager has applied the Embargo Termination a "
+                    "Case Owner sent"
                 ),
                 anchor="announce-embargo-termination",
                 addressee=AddresseeSide.PARTICIPANT,
@@ -152,7 +152,8 @@ ENTRIES: list[SemanticEntry] = [
                     "The wire form is the announcement of the embargo in "
                     "force; the embargo it names, which the case's embargo "
                     "register records as terminated, makes it a termination "
-                    "announcement."
+                    "announcement. A termination the Case Manager starts "
+                    "itself, or one at the end time, sends no announcement."
                 ),
             ),
         ),

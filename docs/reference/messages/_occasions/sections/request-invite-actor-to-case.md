@@ -2,7 +2,7 @@
 
 ## Ask the Case Manager to invite an actor { #request-invite-actor-to-case }
 
-Asks the Case Manager to invite the actor named by the object to the case named by the target, with the roles in `suggestedRoles`. The Case Manager answers with the Stub Invite to that actor, not with an offer to the Case Owner.
+Asks the Case Manager to invite the actor named by the object to the case named by the target, with the roles in `suggestedRoles`. For an actor not yet on the case or invited, the Case Manager answers with the Stub Invite to that actor, not with an offer to the Case Owner.
 
 - **When…** the Case Owner decides to invite an actor to the case
 - **Send:** `Offer(Actor)[target=VulnerabilityCase]`

@@ -149,9 +149,9 @@ ENTRIES: list[SemanticEntry] = [
                 description=(
                     "Asks the Case Manager to invite the actor named by the "
                     "object to the case named by the target, with the roles "
-                    "in `suggestedRoles`. The Case Manager answers with the "
-                    "Stub Invite to that actor, not with an offer to the Case "
-                    "Owner."
+                    "in `suggestedRoles`. For an actor not yet on the case or "
+                    "invited, the Case Manager answers with the Stub Invite to"
+                    " that actor, not with an offer to the Case Owner."
                 ),
                 example="request_invite_actor_to_case",
                 howto=HowToGuide.INVITE_ACTOR,
